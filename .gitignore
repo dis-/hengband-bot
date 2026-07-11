@@ -7,3 +7,7 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Runtime bot state / logs (can grow to hundreds of MB).
+jsonlog/
+*.jsonl

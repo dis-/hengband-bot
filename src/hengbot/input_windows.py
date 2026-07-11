@@ -68,8 +68,8 @@ def find_window(
     class_name: str | None = None,
     process_id: int | None = None,
 ) -> int | None:
-    windows = list_windows()
-    for window in windows:
+    matches: list[WindowInfo] = []
+    for window in list_windows():
         if title is not None:
             title_lower = title.lower()
             window_title_lower = window.title.lower()
@@ -85,9 +85,18 @@ def find_window(
         if process_id is not None and window.process_id != process_id:
             continue
 
-        return window.hwnd
+        matches.append(window)
 
-    return None
+    if not matches:
+        return None
+
+    # Hengband owns several ANGBAND-class top-level windows; only the main term
+    # (whose title is not "Term-N") processes input, so prefer it over whichever
+    # sub term happens to come first in Z-order.
+    def score(window: WindowInfo) -> int:
+        return 0 if window.title.startswith("Term") else 1
+
+    return max(matches, key=score).hwnd
 
 
 def list_windows() -> list[WindowInfo]:
