@@ -5,8 +5,28 @@ from heapq import heappop, heappush
 from itertools import count
 
 from hengbot.model import (
+    DUNGEON_ANGBAND,
+    DUNGEON_YEEK_CAVE,
+    PLAYER_CLASS_WARRIOR,
+    STORE_ALCHEMIST,
+    STORE_ARMOURY,
+    STORE_BLACK,
     STORE_GENERAL,
+    STORE_HOME,
+    STORE_TEMPLE,
     SV_LITE_LANTERN,
+    SV_ROD_IDENTIFY,
+    SV_SCROLL_IDENTIFY,
+    SV_SCROLL_STAR_IDENTIFY,
+    SV_STAFF_IDENTIFY,
+    TVAL_FLASK,
+    TVAL_FOOD,
+    TVAL_LITE,
+    TVAL_POTION,
+    TVAL_ROD,
+    TVAL_SCROLL,
+    TVAL_STAFF,
+    TVAL_WAND,
     GridState,
     InventoryItem,
     MonsterState,
@@ -61,9 +81,10 @@ PROBE_LIMIT = 2
 # 'o' attempts to open (and pick the lock of) a closed door. After this many
 # tries it is treated as impassable (jammed / too hard) and routed around.
 DOOR_OPEN_LIMIT = 12
-# 'T'+direction tunnels. Rubble (tunnel power 10) clears in a few digs; give up
-# after this many so we don't grind forever on something unexpectedly hard.
-TUNNEL_KEY = "T"
+# A leading '\\' bypasses the active keymap for the following command. This
+# keeps tunnelling on raw 'T' even when the save uses roguelike commands, where
+# mapped 'T' means take off equipment.
+TUNNEL_KEY = "\\T"
 RUBBLE_DIG_LIMIT = 30
 # 's' searches the adjacent tiles for SECRET doors/passages, which are invisible
 # until found. When stuck at a dead-end we search this many times per tile before
@@ -81,12 +102,9 @@ FRONTIER_EXHAUST_VISITS = 8
 
 # Combat / survival thresholds
 FLEE_HP_RATIO = 0.30  # below this, break off and run from any hostile
-SWARM_HP_RATIO = 0.60  # below this, run when surrounded by 3+ hostiles
-SWARM_COUNT = 3
-DESPERATE_HP_RATIO = 0.15  # below this, escape UP the stairs if standing on them
-# A lone adjacent enemy this weak (fraction of our max HP) is better finished off
-# than fled from: fleeing a faster or ranged monster only draws out the beating.
-FINISHABLE_HP_FRACTION = 0.4
+SWARM_COUNT = 3  # this many adjacent hostiles is unsafe even at full HP
+SUMMONER_OPEN_NEIGHBORS = 5
+SUMMONER_CHOKE_NEIGHBORS = 3
 
 # Descending / healing. Dive only when healthy, and recover between fights so we
 # are never caught deep and weak (the classic too-fast-dive death).
@@ -113,12 +131,20 @@ MOVE_REASONS = frozenset(
         "seek-downstairs",
         "approach-descent",
         "breakout:seek-frontier",
+        "clear-descent",
         "hunt",
         "stuck:seek-stairs",
         "stuck:wander",
         "breakout",
         "pickup",
         "probe",
+        "summoner:retreat",
+        "return:explore",
+        "return:flee",
+        "return:seek-upstairs",
+        "return:wander",
+        "seek-loot",
+        "shop:approach",
     }
 )
 
@@ -128,6 +154,18 @@ READ_KEY = "r"
 EAT_KEY = "E"
 PICKUP_KEY = "g"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
+REFILL_KEY = "\\F"  # bypass keymaps, then refill from the selected pack slot
+# Drop one item to free a pack slot: '\d' bypasses keymaps to the raw Drop
+# command, then the slot letter; the trailing Return accepts the quantity prompt
+# (pre-filled "1") for a stack and is a harmless no-op for a single item.
+DROP_KEY = "\\d"
+DROP_SUFFIX = "\r"
+USE_STAFF_KEY = "u"
+ZAP_ROD_KEY = "z"
+DESTROY_KEY = "k"
+DESTROY_CONFIRM_SUFFIX = "\r\ry"
+LANTERN_REFILL_FUEL = 1000
+TORCH_REFILL_FUEL = 500
 
 # Shopping. In a store, 'p' is the (rewritten-to-'g') Purchase command; it prompts
 # for an item letter, then a quantity (pre-filled "1", so Return buys one), then a
@@ -142,6 +180,8 @@ BUY_KEY = "p"
 # harmless no-op, so this one macro buys one of anything.
 BUY_CONFIRM_SUFFIX = "\r\ry"
 LEAVE_STORE_KEY = "\x1b"
+SELL_KEY = "d"
+SELL_CONFIRM_SUFFIX = "\r\ry"
 # Fuel flasks to stock for the lantern. We only walk to the shop if we have at
 # least a little gold; true affordability is re-checked against the live price in
 # the store (and if we can't afford it there we give up rather than loop).
@@ -155,12 +195,28 @@ STORE_STUCK_LIMIT = 6
 
 PANIC_HP_RATIO = 0.20  # read teleport to escape below this when threatened
 HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
-FOOD_LOW = 2000  # eat when convenient below this (Angband "hungry")
-FOOD_CRITICAL = 500  # eat immediately below this ("weak/faint")
 # PlayerRaceFoodType::MANA — undead/construct races (Zombie, ...) restore hunger
 # by eating wand/staff CHARGES rather than food. bot-test (a Zombie) starved to
 # death next to a 20-charge staff it could have eaten.
 FOOD_TYPE_MANA = 4
+
+# Return to town before supplies become fatal, or as soon as every normal pack
+# slot is occupied. INVEN_PACK_SLOTS contains slots 0..22; slot 23 is only the
+# temporary overflow slot and is not emitted in bot snapshots.
+PACK_CAPACITY = 23
+# Rations to keep stocked; the General Store sells them, and a town return that
+# restocks nothing just bounces straight back down and returns again.
+FOOD_STOCK_TARGET = 5
+MIN_FREE_PACK_SLOTS = 5
+TELEPORT_SCROLL_TARGET = 3
+TELEPORT_REQUIRED_DEPTH = 10
+MINING_RUNS_PER_SET = 5
+INN_BUILDING_TYPE = 0
+RUMOR_KEY = "u"
+RUMOR_EXIT_SUFFIX = "\r\r\x1b"
+# A descent block from one bad landing must not ratchet the bot upward forever:
+# besides clearing on a level-up, it expires after this many decisions.
+DESCENT_BLOCK_DECISIONS = 200
 
 # Potion svals that restore HP (cure wounds / healing / life), from sv-potion-types.h.
 HEAL_POTION_SVALS = frozenset({34, 35, 36, 37, 38, 39})
@@ -218,6 +274,38 @@ class HengbotPolicy:
         # re-tried it unchanged — to bail out of a purchase that never registers.
         self._last_buy_sig: tuple[str, int] | None = None
         self._store_stuck_count = 0
+        self._descent_blocked_at_level: int | None = None
+        self._descent_block_countdown = 0
+        self._returning_to_town = False
+        self._deepest_level = 0
+        self._target_dungeon_id = DUNGEON_YEEK_CAVE
+        self._yeek_victory_loot = False
+        self._rumor_unlock_pending = False
+        self._town_store_attempted: set[int] = set()
+        self._last_sell_sig: tuple[str, int, int] | None = None
+        self._store_sell_stuck_count = 0
+        self._unsellable_items: set[tuple[str, int, int]] = set()
+        self._town_blocked_reason: str | None = None
+        self._fundraising_mode: str | None = None
+        self._mining_runs_completed = 0
+        self._mining_scroll_used_floor: tuple[int, int, int] | None = None
+        self._sell_scavenged_consumables = False
+        self._normal_weapon_name: str | None = None
+        self._yeek_conquest_processed = False
+        self._home_pending_item: tuple[str, int, int] | None = None
+        self._home_pending_slot: str | None = None
+        self._home_candidate_waiting = True
+        self._identification_need: str | None = None
+        self._identification_candidate: tuple[str, int, int] | None = None
+        self._processed_home_items: set[tuple[str, int, int]] = set()
+        self._deferred_home_items: set[tuple[str, int, int]] = set()
+        self._home_catalog: dict[tuple[str, int, int], StoreItem] = {}
+        self._pending_disposal_slot: str | None = None
+        self._pending_disposal_item: tuple[str, int, int] | None = None
+        self._disposal_store_attempts: set[int] = set()
+        self._disposal_stuck_count = 0
+        self._destroy_pending = False
+        self._destroy_attempts = 0
         self.last_reason = ""
 
     # ------------------------------------------------------------------ core
@@ -229,6 +317,30 @@ class HengbotPolicy:
         if self.last_reason != "rest":
             self._rest_count = 0
         return key
+
+    def prime(self, snapshot: Snapshot) -> None:
+        """Remember a dangerous landing before follow mode begins tailing.
+
+        The launcher uses a separate one-shot process for the first waiting turn.
+        Priming lets the long-lived policy retain the safety consequence of that
+        decision without sending a duplicate key.
+        """
+        self._observe(snapshot)
+        self._build_grid_index(snapshot)
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is None or not here.has_up_stairs:
+            return
+
+        hostiles = self._hostiles(snapshot)
+        adjacent = self._adjacent_hostiles(snapshot)
+        summoners = [monster for monster in hostiles if monster.can_summon]
+        unsafe_summoner_landing = (
+            bool(summoners)
+            and self._open_neighbor_count(snapshot, snapshot.player.position)
+            >= SUMMONER_OPEN_NEIGHBORS
+        )
+        if self._should_flee(snapshot.player, hostiles, adjacent) or unsafe_summoner_landing:
+            self._defer_descent(snapshot)
 
     def _break_livelock(self, snapshot: Snapshot, key: str) -> str:
         """Guard against re-issuing a move the game keeps rejecting.
@@ -306,10 +418,66 @@ class HengbotPolicy:
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
+        # A summoner with room around the player can turn a manageable fight into
+        # an irreversible surround. Leave open terrain before engaging, ideally
+        # breaking into a corridor where only a few monsters can reach us. But an
+        # ALREADY-ADJACENT summoner is past that point: walking away just donates
+        # free hits every step (and a faster summoner stays adjacent the whole
+        # way) — kill it instead; melee below already targets summoners first.
+        summoners = [monster for monster in hostiles if monster.can_summon]
+        summoner_adjacent = any(
+            player.position.distance_to(monster.position) <= 1 for monster in summoners
+        )
+        if (
+            summoners
+            and not summoner_adjacent
+            and self._open_neighbor_count(snapshot, player.position)
+            >= SUMMONER_OPEN_NEIGHBORS
+        ):
+            current = snapshot.grid_at(player.position)
+            if current is not None and current.has_up_stairs:
+                self._defer_descent(snapshot)
+                self.last_reason = "summoner:stairs"
+                return UP_STAIRS_KEY
+            step = self._summoner_retreat_step(snapshot, summoners, hostiles)
+            if step is not None:
+                self.last_reason = "summoner:retreat"
+                return self._step_toward(snapshot, step)
+
+        combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
+        if combat_equip is not None:
+            return combat_equip
+
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
         if adjacent and not player.afraid:
             self.last_reason = "melee"
             return self._direction_key(player.position, self._weakest(adjacent).position)
+
+        victory_loot = self._victory_loot_key(snapshot)
+        if victory_loot is not None:
+            return victory_loot
+
+        fundraising = self._fundraising_key(snapshot, hostiles)
+        if fundraising is not None:
+            return fundraising
+
+        # Low supplies and a full pack are expedition-ending conditions. Once
+        # triggered, keep heading upward even if using an item opens a pack slot.
+        town_return = self._return_to_town_key(snapshot, hostiles)
+        if town_return is not None:
+            return town_return
+
+        item_processing = self._town_item_processing_key(snapshot)
+        if item_processing is not None:
+            return item_processing
+
+        restore_weapon = self._town_restore_weapon_key(snapshot)
+        if restore_weapon is not None:
+            return restore_weapon
+
+        loot = self._normal_loot_key(snapshot, hostiles)
+        if loot is not None:
+            return loot
 
         # 2a. Before diving: while in town with money and no lantern, walk to the
         #     General Store to buy one. A brass lantern lights radius 2 vs a torch's
@@ -318,6 +486,29 @@ class HengbotPolicy:
         if step is not None:
             self.last_reason = "shop:approach"
             return self._step_toward(snapshot, step)
+
+        destroy = self._town_destroy_key(snapshot)
+        if destroy is not None:
+            return destroy
+
+        town_special = self._town_special_key(snapshot)
+        if town_special is not None:
+            return town_special
+
+        # Last-resort overflow drop: in town with a full pack and no productive
+        # action left (nothing to deposit, sell, buy, or fundraise), shed one
+        # non-essential item so the pack can shrink and the bot can descend
+        # again. Without this the bot cannot re-enter the dungeon (pack-full
+        # blocks descent) and wanders the town forever. Skipped mid-fight.
+        if (
+            snapshot.in_town
+            and not adjacent
+            and len(snapshot.inventory) >= PACK_CAPACITY
+        ):
+            overflow = self._overflow_drop_item(snapshot)
+            if overflow is not None:
+                self.last_reason = "town:drop-overflow"
+                return DROP_KEY + overflow.slot + DROP_SUFFIX
 
         # 2b. Keep a light lit: wield one if none is equipped, and upgrade a torch
         #     to a lantern once we own one. A fresh warrior carries torches yet the
@@ -330,13 +521,12 @@ class HengbotPolicy:
             if wield is not None:
                 self.last_reason = "wield-light"
                 return WIELD_KEY + wield.slot
+            refill = self._light_refill_item(snapshot)
+            if refill is not None:
+                self.last_reason = "refill-light"
+                return REFILL_KEY + refill.slot
 
-        # 3. Grab loot we are standing on.
         here = snapshot.grid_at(player.position)
-        if here is not None and here.object_count > 0:
-            self.last_reason = "pickup"
-            return PICKUP_KEY
-
         # 3b. Losing HP with nothing hostile in view means an attacker we cannot
         #     see (a monster in the dark, or invisible). Resting or idling here is
         #     how a full-HP clvl9 Half-Troll bled 187 -> dead to a Draugr it never
@@ -349,6 +539,7 @@ class HengbotPolicy:
             and not player.cut
         ):
             if here is not None and here.has_up_stairs:
+                self._defer_descent(snapshot)
                 self.last_reason = "unseen:ascend"
                 return UP_STAIRS_KEY
             step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
@@ -372,7 +563,7 @@ class HengbotPolicy:
             and not player.poisoned
             and not player.cut
             and not player.confused
-            and player.food >= FOOD_LOW
+            and player.food_state in {"normal", "full", "gorged"}
             and self._rest_count < REST_CAP
         ):
             # Note: resting burns many turns (= food). Skip it when hungry so we
@@ -386,7 +577,9 @@ class HengbotPolicy:
         if (
             here is not None
             and here.is_descent
+            and self._is_descent_target(snapshot, here)
             and player.hp_ratio >= DESCEND_MIN_HP_RATIO
+            and not self._descent_is_blocked(snapshot)
         ):
             self.last_reason = "descend"
             return ENTER_DUNGEON_MACRO if here.has_entrance else DOWN_STAIRS_KEY
@@ -397,10 +590,19 @@ class HengbotPolicy:
         #    A single BFS covers both, so the huge full-map scan runs only once.
         step = self._descent_step(snapshot)
         if step is not None:
+            # A visible monster can temporarily split the only known route to
+            # the stairs. Chasing a fallback frontier makes the monster vanish
+            # from sight, after which we turn back toward the stairs forever.
+            # Clear an easy blocker instead of bouncing at the visibility edge.
+            if self.last_reason == "approach-descent" and hostiles:
+                clear_step = self._hunt_step(snapshot, hostiles)
+                if clear_step is not None:
+                    self.last_reason = "clear-descent"
+                    return self._step_toward(snapshot, clear_step)
             return self._step_toward(snapshot, step)
 
         # 7. Eat when hungry and it is safe to do so.
-        if player.food < FOOD_LOW and not hostiles:
+        if player.hungry and not hostiles:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "eat"
@@ -431,6 +633,15 @@ class HengbotPolicy:
                 self._search_counts[here_key] += 1
                 self.last_reason = "search"
                 return SEARCH_KEY
+            # Once local probes and searches are exhausted, move toward the
+            # least-visited adjacent route before chasing another flickering
+            # frontier. Re-selecting the nearest frontier can pull us back into
+            # the same 3-4 tile pocket forever even though an older corridor
+            # leads out of it.
+            step = self._least_visited_neighbor(snapshot)
+            if step is not None:
+                self.last_reason = "breakout:least-visited"
+                return self._step_toward(snapshot, step)
             # The frontiers are reachable but the visit-penalised planner keeps
             # flipping between equidistant ones, circling in place. Commit to the
             # NEAREST frontier by a plain shortest-path BFS (which also opens any
@@ -447,8 +658,11 @@ class HengbotPolicy:
             return self._step_toward(snapshot, step)
 
         # 9. Nothing to explore: take any known stairs to reach a fresh floor.
+        allow_descent = not self._descent_is_blocked(snapshot)
         step = self._nearest_goal_step(
-            snapshot, lambda g: g.is_descent or g.has_up_stairs
+            snapshot,
+            lambda g: g.has_up_stairs
+            or (allow_descent and self._is_descent_target(snapshot, g)),
         )
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
@@ -468,6 +682,54 @@ class HengbotPolicy:
 
     # -------------------------------------------------------------- observers
     def _observe(self, snapshot: Snapshot) -> None:
+        previous_floor = self._floor_key
+        if snapshot.dungeon_level > 0:
+            self._deepest_level = max(self._deepest_level, snapshot.dungeon_level)
+
+        if snapshot.angband_recall_unlocked:
+            self._target_dungeon_id = DUNGEON_ANGBAND
+            self._rumor_unlock_pending = False
+        elif snapshot.yeek_cave_conquered:
+            self._rumor_unlock_pending = True
+
+        if (
+            snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
+            and snapshot.yeek_cave_conquered
+            and self._fundraising_mode is None
+            and not self._yeek_conquest_processed
+        ):
+            self._yeek_victory_loot = True
+
+        returned_from_fundraising = (
+            snapshot.in_town
+            and previous_floor is not None
+            and previous_floor[0] == DUNGEON_YEEK_CAVE
+            and previous_floor[1] == 1
+            and self._fundraising_mode in {"mine", "scavenge"}
+        )
+        if returned_from_fundraising:
+            if self._fundraising_mode == "mine":
+                self._mining_runs_completed += 1
+            else:
+                self._sell_scavenged_consumables = True
+            self._mining_scroll_used_floor = None
+            self._town_store_attempted.clear()
+
+        if snapshot.in_town:
+            self._returning_to_town = False
+            if snapshot.floor_key != self._floor_key:
+                # A fresh town visit retries the store: an earlier give-up (e.g.
+                # an unaffordable lantern) must not block buying the rations this
+                # return trip is for. The in-store bail-outs re-bound any retry.
+                self._shopping_abandoned = False
+                self._town_store_attempted.clear()
+                self._home_candidate_waiting = True
+                self._deferred_home_items.clear()
+
+            if snapshot.yeek_cave_conquered and self._yeek_victory_loot:
+                self._yeek_victory_loot = False
+                self._yeek_conquest_processed = True
+
         if snapshot.floor_key != self._floor_key:
             self._visit_counts.clear()
             self._recent.clear()
@@ -479,10 +741,19 @@ class HengbotPolicy:
             self._dig_attempts.clear()
             self._blocked_rubble.clear()
             self._search_counts.clear()
+            # A blocked-town/fundraising reason latches a permanent WAIT (which
+            # then trips the loop-detector and stops the bot). Several of those
+            # conditions are transient (a shop temporarily out of food, the inn
+            # not yet in view, home briefly full); clear the latch on any floor
+            # change so a fresh visit re-attempts instead of ending the run.
+            self._town_blocked_reason = None
             self._floor_key = snapshot.floor_key
             self._last_position = None
             self._rest_count = 0
             self._last_hp = None  # HP is not comparable across floors
+
+        if self._descent_block_countdown > 0:
+            self._descent_block_countdown -= 1
 
         # Damage since the last decision with no visible cause = unseen attacker.
         hp = snapshot.player.hp
@@ -504,9 +775,12 @@ class HengbotPolicy:
         return [m for m in self._hostiles(snapshot) if origin.distance_to(m.position) <= 1]
 
     def _weakest(self, monsters: list[MonsterState]) -> MonsterState:
-        # Kill the cheapest target first; break ties toward sleeping monsters
-        # (free hits) and then the closest.
-        return min(monsters, key=lambda m: (m.hp, not m.asleep, m.distance))
+        # Remove adjacent summoners before their minions multiply; otherwise use
+        # the visible health band and status to choose a finishing target.
+        return min(
+            monsters,
+            key=lambda m: (not m.can_summon, m.hp, not m.asleep, m.distance),
+        )
 
     def _should_flee(
         self,
@@ -520,19 +794,8 @@ class HengbotPolicy:
             # Fear forbids melee, so back away instead of failing to attack.
             return True
         if player.hp_ratio < FLEE_HP_RATIO:
-            # Exception: a single, already-weak adjacent enemy is better finished
-            # off than fled from. A slow melee character cannot outrun a faster or
-            # ranged monster — fleeing just trades blows we would lose, whereas one
-            # or two hits kills it outright (a full-HP Golem was shot to death
-            # circling and then fleeing a lone archer it could have one-shot).
-            if (
-                len(hostiles) == 1
-                and len(adjacent) == 1
-                and adjacent[0].hp <= FINISHABLE_HP_FRACTION * max(player.max_hp, 1)
-            ):
-                return False
             return True
-        if len(adjacent) >= SWARM_COUNT and player.hp_ratio < SWARM_HP_RATIO:
+        if len(adjacent) >= SWARM_COUNT:
             return True
         return False
 
@@ -562,11 +825,21 @@ class HengbotPolicy:
         return any(item.is_light for item in snapshot.equipment)
 
     def _find_light(self, snapshot: Snapshot) -> InventoryItem | None:
-        # Any light source in the pack we can wield. NOTE: the emitter reports a
-        # light's fuel only inside its name string, not as `charges` (which is 0
-        # for torches), so we cannot filter on fuel here — a fresh character
-        # carries a stack of fuelled torches and simply never wielded one.
-        return self._first_item(snapshot, lambda it: it.is_light)
+        light = self._first_item(snapshot, self._is_usable_light)
+        if light is not None:
+            return light
+        # Dungeon-found lights are unidentified, so their fuel is hidden (reads
+        # as 0). With nothing else to light the way, wielding one is strictly
+        # better than walking in the dark — the exact failure mode that killed
+        # the torch-carrying Half-Troll.
+        return self._first_item(snapshot, lambda it: it.is_light and not it.known)
+
+    @staticmethod
+    def _is_usable_light(item: InventoryItem) -> bool:
+        # Torches and lanterns consume fuel; higher svals are permanent lights.
+        # Fuel is only visible on identified lights (birth gear and store buys
+        # are known); unknown ones are handled by _find_light's fallback.
+        return item.is_light and (item.sval > SV_LITE_LANTERN or item.fuel > 0)
 
     def _light_to_wield(self, snapshot: Snapshot) -> InventoryItem | None:
         """The light we should wield now, or None. Wield any light when nothing is
@@ -575,10 +848,594 @@ class HengbotPolicy:
         if equipped is None:
             return self._find_light(snapshot)
         if not equipped.is_lantern:
-            return self._first_item(snapshot, lambda it: it.is_lantern)
+            return self._first_item(
+                snapshot, lambda it: it.is_lantern and self._is_usable_light(it)
+            )
+        return None
+
+    def _light_refill_item(self, snapshot: Snapshot) -> InventoryItem | None:
+        equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        if equipped is None:
+            return None
+        # Fuel is only reported for identified lights; an unidentified equipped
+        # light reads a redacted fuel of 0, which must NOT be mistaken for empty
+        # (that would burn a torch/oil topping up a light that is likely full).
+        if not equipped.known:
+            return None
+        if equipped.is_lantern:
+            if equipped.fuel > LANTERN_REFILL_FUEL:
+                return None
+            return self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0)
+        if equipped.sval == 0:
+            if equipped.fuel > TORCH_REFILL_FUEL:
+                return None
+            return self._first_item(
+                snapshot,
+                lambda it: it.is_light and it.sval == 0 and it.fuel > 0,
+            )
         return None
 
     # ------------------------------------------------------------------ shopping
+    def _planned_depth(self) -> int:
+        return max(1, self._deepest_level + 1)
+
+    @staticmethod
+    def _recall_target(depth: int) -> int:
+        if depth <= 4:
+            return 1
+        if depth <= 10:
+            return 3
+        if depth <= 15:
+            return 6
+        if depth <= 20:
+            return 9
+        return 10
+
+    def _count_recall_scrolls(self, snapshot: Snapshot) -> int:
+        return sum(it.count for it in snapshot.inventory if it.is_recall_scroll)
+
+    def _count_teleport_scrolls(self, snapshot: Snapshot) -> int:
+        return sum(it.count for it in snapshot.inventory if it.is_teleport_scroll)
+
+    def _count_treasure_detection_scrolls(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.count for it in snapshot.inventory if it.is_treasure_detection_scroll
+        )
+
+    def _count_usable_torches(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.count
+            for it in snapshot.inventory
+            if it.is_light and it.sval == 0 and it.known and it.fuel > 0
+        )
+
+    def _has_digging_tool(self, snapshot: Snapshot) -> bool:
+        return any(it.is_digging_tool for it in snapshot.inventory) or any(
+            it.is_digging_tool for it in snapshot.equipment
+        )
+
+    def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.charges
+            for it in snapshot.inventory
+            if it.known and it.is_wand_staff and it.charges > 0
+        )
+
+    def _food_ready(self, snapshot: Snapshot) -> bool:
+        if snapshot.player.food_type == FOOD_TYPE_MANA:
+            return self._count_mana_food_uses(snapshot) >= FOOD_STOCK_TARGET
+        return self._count_food(snapshot) >= FOOD_STOCK_TARGET
+
+    def _light_ready(self, snapshot: Snapshot) -> bool:
+        if self._owns_lantern(snapshot):
+            return self._count_oil(snapshot) >= OIL_TARGET
+        return self._count_usable_torches(snapshot) >= FOOD_STOCK_TARGET
+
+    def _recall_ready(self, snapshot: Snapshot) -> bool:
+        target = self._recall_target(self._planned_depth())
+        if (
+            snapshot.in_town
+            and self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+        ):
+            target += 1
+        return self._count_recall_scrolls(snapshot) >= target
+
+    def _teleport_ready(self, snapshot: Snapshot) -> bool:
+        if self._planned_depth() < TELEPORT_REQUIRED_DEPTH:
+            return True
+        return self._count_teleport_scrolls(snapshot) >= TELEPORT_SCROLL_TARGET
+
+    @staticmethod
+    def _temporary_status_clear(snapshot: Snapshot) -> bool:
+        player = snapshot.player
+        return not any(
+            (
+                player.blind,
+                player.confused,
+                player.afraid,
+                player.poisoned,
+                player.stunned,
+                player.cut,
+                player.paralyzed,
+                player.hallucinated,
+            )
+        )
+
+    def _town_departure_ready(self, snapshot: Snapshot) -> bool:
+        if snapshot.player.class_id < 0:
+            return True
+        player = snapshot.player
+        return (
+            self._recall_ready(snapshot)
+            and self._food_ready(snapshot)
+            and self._light_ready(snapshot)
+            and self._teleport_ready(snapshot)
+            and PACK_CAPACITY - len(snapshot.inventory) >= MIN_FREE_PACK_SLOTS
+            and player.hp >= player.max_hp
+            and player.mp >= player.max_mp
+            and self._temporary_status_clear(snapshot)
+            and (
+                not self._home_available(snapshot)
+                or (
+                    not self._home_candidate_waiting
+                    and self._home_pending_item is None
+                    and self._identification_need is None
+                )
+            )
+        )
+
+    @staticmethod
+    def _home_available(snapshot: Snapshot) -> bool:
+        if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            return True
+        return any(grid.store_number == STORE_HOME for grid in snapshot.grids.values())
+
+    def _home_deposit_candidate(self, item: InventoryItem) -> bool:
+        protected_equipment = (
+            item.is_equipment and not item.is_light and not item.is_digging_tool
+        )
+        protected_unknown_consumable = (
+            self._deepest_level >= 20
+            and (item.is_potion or item.is_scroll)
+            and not item.aware
+        )
+        return protected_equipment or protected_unknown_consumable
+
+    def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
+        return self._first_item(
+            snapshot,
+            lambda item: self._home_deposit_candidate(item)
+            and item.slot != self._home_pending_slot
+            and item.slot != self._pending_disposal_slot,
+        )
+
+    @staticmethod
+    def _survival_essential(item: InventoryItem) -> bool:
+        # Items the bot actively depends on to survive and to get home; these are
+        # never shed by the last-resort overflow drop.
+        return (
+            item.is_recall_scroll
+            or item.is_teleport_scroll
+            or (item.is_food and item.aware and item.sval >= FOOD_MIN_SVAL)
+            or item.is_light
+            or item.is_oil
+            or item.is_digging_tool
+        )
+
+    @staticmethod
+    def _has_town_economic_path(item: InventoryItem) -> bool:
+        # Items another town action can shed for value, so the overflow drop
+        # leaves them alone: equipment goes to the Home, and unidentified
+        # potions/scrolls sell to the Alchemist.
+        return item.is_equipment or (
+            not item.aware and (item.is_potion or item.is_scroll)
+        )
+
+    def _overflow_drop_item(self, snapshot: Snapshot) -> InventoryItem | None:
+        # A full pack of items no shop buys and the Home will not take — devices
+        # (wand/staff/rod), ammo, books, chests, identified junk — strands the
+        # bot in town: it cannot re-descend (pack-full blocks descent) and roams
+        # forever below the loop-detector's radar. As a last resort, drop one
+        # such item so a slot always frees. Only reached after every productive
+        # town action has declined this turn, so it never pre-empts a sale,
+        # deposit, or purchase; survival gear and economically-useful items are
+        # preserved.
+        return self._first_item(
+            snapshot,
+            lambda item: not self._survival_essential(item)
+            and not self._has_town_economic_path(item),
+        )
+
+    @staticmethod
+    def _item_signature(item: InventoryItem | StoreItem) -> tuple[str, int, int]:
+        return (item.name, item.tval, item.sval)
+
+    def _find_home_candidate(self, snapshot: Snapshot) -> StoreItem | None:
+        store = snapshot.store
+        if store is None or store.store_type != STORE_HOME:
+            return None
+        for item in store.items:
+            signature = self._item_signature(item)
+            if signature in self._processed_home_items:
+                continue
+            if signature in self._deferred_home_items:
+                continue
+            if item.is_equipment:
+                return item
+            if (
+                self._deepest_level >= 20
+                and (item.tval == TVAL_POTION or item.tval == TVAL_SCROLL)
+                and not item.aware
+            ):
+                return item
+        return None
+
+    def _pending_inventory_item(self, snapshot: Snapshot) -> InventoryItem | None:
+        if self._home_pending_slot is not None:
+            item = next(
+                (it for it in snapshot.inventory if it.slot == self._home_pending_slot),
+                None,
+            )
+            if item is not None:
+                return item
+        if self._home_pending_item is None:
+            return None
+        item = self._first_item(
+            snapshot, lambda it: self._item_signature(it) == self._home_pending_item
+        )
+        if item is not None:
+            self._home_pending_slot = item.slot
+        return item
+
+    def _find_identification_source(
+        self, snapshot: Snapshot, *, full: bool
+    ) -> tuple[str, InventoryItem] | None:
+        if not full:
+            staff = self._first_item(
+                snapshot,
+                lambda it: it.tval == TVAL_STAFF
+                and it.aware
+                and it.sval == SV_STAFF_IDENTIFY
+                and it.known
+                and it.charges > 0,
+            )
+            if staff is not None:
+                return USE_STAFF_KEY, staff
+            rod = self._first_item(
+                snapshot,
+                lambda it: it.tval == TVAL_ROD
+                and it.aware
+                and it.sval == SV_ROD_IDENTIFY
+                and it.known
+                and it.timeout == 0,
+            )
+            if rod is not None:
+                return ZAP_ROD_KEY, rod
+            scroll = self._first_item(
+                snapshot,
+                lambda it: it.is_scroll
+                and it.aware
+                and it.sval == SV_SCROLL_IDENTIFY,
+            )
+            if scroll is not None:
+                return READ_KEY, scroll
+            return None
+
+        scroll = self._first_item(
+            snapshot,
+            lambda it: it.is_scroll
+            and it.aware
+            and it.sval == SV_SCROLL_STAR_IDENTIFY,
+        )
+        if scroll is not None:
+            return READ_KEY, scroll
+        return None
+
+    def _request_identification(self, kind: str) -> None:
+        if self._identification_need != kind:
+            self._town_store_attempted.discard(STORE_ALCHEMIST)
+        self._identification_need = kind
+
+    def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
+        if not snapshot.in_town or self._home_pending_item is None:
+            return None
+        target = self._pending_inventory_item(snapshot)
+        if target is None:
+            self._town_blocked_reason = "home-withdraw-failed"
+            self.last_reason = "town:blocked:home-withdraw-failed"
+            return WAIT_KEY
+
+        if not target.known:
+            source = self._find_identification_source(snapshot, full=False)
+            if source is None:
+                self._request_identification("normal")
+                return None
+            command, item = source
+            self._identification_need = None
+            self.last_reason = "identify:normal"
+            return command + item.slot + target.slot
+
+        if (target.is_ego or target.is_artifact) and not target.fully_known:
+            source = self._find_identification_source(snapshot, full=True)
+            if source is None:
+                self._request_identification("full")
+                return None
+            command, item = source
+            self._identification_need = None
+            self.last_reason = "identify:full"
+            return command + item.slot + target.slot
+
+        disposable = self._is_disposable_dominated_armour(snapshot, target)
+        equip_key = None if disposable else self._safe_equipment_upgrade_key(snapshot, target)
+        self._processed_home_items.add(self._item_signature(target))
+        self._home_pending_item = None
+        self._home_pending_slot = None
+        self._identification_need = None
+        self._identification_candidate = None
+        self._home_candidate_waiting = True
+        if disposable:
+            self._pending_disposal_slot = target.slot
+            self._pending_disposal_item = self._item_signature(target)
+            self._disposal_store_attempts.clear()
+            self.last_reason = "equipment:dominated-disposal"
+            return None
+        if equip_key is not None:
+            return equip_key
+        self.last_reason = "identify:complete"
+        return None
+
+    @staticmethod
+    def _equipment_slot_group(item: InventoryItem | StoreItem) -> str | None:
+        groups = {
+            30: "feet",
+            31: "arms",
+            32: "head",
+            33: "head",
+            34: "shield",
+            35: "outer",
+            36: "body",
+            37: "body",
+            38: "body",
+        }
+        return groups.get(item.tval)
+
+    @staticmethod
+    def _equipment_dominates(
+        candidate: InventoryItem | StoreItem,
+        current: InventoryItem | StoreItem,
+    ) -> bool:
+        candidate_defense = candidate.ac + candidate.to_a
+        current_defense = current.ac + current.to_a
+        no_worse = (
+            candidate_defense >= current_defense
+            and candidate.to_h >= current.to_h
+            and candidate.to_d >= current.to_d
+            and candidate.pval >= current.pval
+            and candidate.known_flags.issuperset(current.known_flags)
+        )
+        strictly_better = (
+            candidate_defense > current_defense
+            or candidate.to_h > current.to_h
+            or candidate.to_d > current.to_d
+            or candidate.pval > current.pval
+            or candidate.known_flags > current.known_flags
+        )
+        return no_worse and strictly_better
+
+    def _safe_equipment_upgrade_key(
+        self, snapshot: Snapshot, candidate: InventoryItem
+    ) -> str | None:
+        if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
+            return None
+        group = self._equipment_slot_group(candidate)
+        if group is None or candidate.is_cursed or candidate.is_broken:
+            return None
+        equipped = [
+            item
+            for item in snapshot.equipment
+            if self._equipment_slot_group(item) == group
+        ]
+        if len(equipped) != 1:
+            return None
+        current = equipped[0]
+        if not current.known or (
+            (current.is_ego or current.is_artifact) and not current.fully_known
+        ):
+            return None
+        if not self._equipment_dominates(candidate, current):
+            return None
+        self.last_reason = "equipment:equip-dominating-upgrade"
+        return WIELD_KEY + candidate.slot
+
+    def _is_disposable_dominated_armour(
+        self, snapshot: Snapshot, candidate: InventoryItem
+    ) -> bool:
+        if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
+            return False
+        group = self._equipment_slot_group(candidate)
+        if (
+            group is None
+            or not candidate.known
+            or candidate.is_ego
+            or candidate.is_artifact
+            or bool(candidate.known_flags)
+        ):
+            return False
+
+        comparators: list[InventoryItem | StoreItem] = [
+            item
+            for item in snapshot.equipment
+            if self._equipment_slot_group(item) == group
+            and item.known
+            and not item.is_cursed
+            and not item.is_broken
+            and (not (item.is_ego or item.is_artifact) or item.fully_known)
+        ]
+        comparators.extend(
+            item
+            for signature, item in self._home_catalog.items()
+            if signature != self._item_signature(candidate)
+            and self._equipment_slot_group(item) == group
+            and item.known
+            and not item.is_cursed
+            and not item.is_broken
+            and (not (item.is_ego or item.is_artifact) or item.fully_known)
+        )
+        return any(
+            self._equipment_dominates(comparator, candidate)
+            for comparator in comparators
+        )
+
+    def _pending_disposal(self, snapshot: Snapshot) -> InventoryItem | None:
+        if self._pending_disposal_slot is not None:
+            item = next(
+                (
+                    it
+                    for it in snapshot.inventory
+                    if it.slot == self._pending_disposal_slot
+                ),
+                None,
+            )
+            if (
+                item is not None
+                and self._pending_disposal_item is not None
+                and self._item_signature(item) == self._pending_disposal_item
+            ):
+                return item
+        if self._pending_disposal_item is None:
+            return None
+        item = self._first_item(
+            snapshot,
+            lambda it: self._item_signature(it) == self._pending_disposal_item,
+        )
+        if item is not None:
+            self._pending_disposal_slot = item.slot
+        return item
+
+    def _clear_pending_disposal(self) -> None:
+        self._pending_disposal_slot = None
+        self._pending_disposal_item = None
+        self._disposal_store_attempts.clear()
+        self._disposal_stuck_count = 0
+        self._destroy_pending = False
+        self._destroy_attempts = 0
+
+    def _town_destroy_key(self, snapshot: Snapshot) -> str | None:
+        if not snapshot.in_town or not self._destroy_pending:
+            return None
+        target = self._pending_disposal(snapshot)
+        if target is None:
+            self._clear_pending_disposal()
+            self.last_reason = "equipment:destroy-complete"
+            return None
+        if self._destroy_attempts >= STORE_STUCK_LIMIT:
+            self._town_blocked_reason = "dominated-item-destroy-failed"
+            self.last_reason = "town:blocked:dominated-item-destroy-failed"
+            return WAIT_KEY
+        self._destroy_attempts += 1
+        self.last_reason = "equipment:destroy-unsellable-dominated"
+        return DESTROY_KEY + target.slot + DESTROY_CONFIRM_SUFFIX
+
+    def _find_low_level_sale(self, snapshot: Snapshot) -> InventoryItem | None:
+        if self._deepest_level >= 20 and not self._sell_scavenged_consumables:
+            return None
+        return self._first_item(
+            snapshot,
+            lambda it: (
+                (it.is_potion or it.is_scroll)
+                and not it.aware
+                and (it.name, it.tval, it.sval) not in self._unsellable_items
+            ),
+        )
+
+    def _fundraising_supplies_ready(self, snapshot: Snapshot) -> bool:
+        scrolls_needed = max(0, MINING_RUNS_PER_SET - self._mining_runs_completed)
+        return (
+            self._food_ready(snapshot)
+            and self._count_treasure_detection_scrolls(snapshot)
+            >= scrolls_needed
+            and self._has_digging_tool(snapshot)
+        )
+
+    def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        if snapshot.player.class_id < 0:
+            if self._shopping_abandoned or snapshot.player.gold < LANTERN_MIN_GOLD:
+                return None
+            if not self._owns_lantern(snapshot) or self._needs_food_restock(snapshot):
+                return STORE_GENERAL
+            return None
+        if self._pending_disposal_item is not None:
+            if self._pending_disposal(snapshot) is None:
+                self._clear_pending_disposal()
+            else:
+                for store_type in (STORE_ARMOURY, STORE_BLACK):
+                    if store_type not in self._disposal_store_attempts:
+                        return store_type
+                self._destroy_pending = True
+                return None
+        if self._identification_need is not None:
+            if STORE_ALCHEMIST not in self._town_store_attempted:
+                return STORE_ALCHEMIST
+            pending = self._pending_inventory_item(snapshot)
+            if pending is not None:
+                self._deferred_home_items.add(self._item_signature(pending))
+            elif self._identification_candidate is not None:
+                self._deferred_home_items.add(self._identification_candidate)
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._identification_need = None
+            self._identification_candidate = None
+            self._home_candidate_waiting = True
+        if self._home_candidate_waiting and self._home_available(snapshot):
+            return STORE_HOME
+        if self._home_available(snapshot) and self._find_home_deposit(snapshot) is not None:
+            return STORE_HOME
+        if self._find_low_level_sale(snapshot) is not None:
+            return STORE_ALCHEMIST
+
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            if not self._food_ready(snapshot):
+                if STORE_GENERAL in self._town_store_attempted:
+                    self._town_blocked_reason = "food-unavailable"
+                    return None
+                return STORE_GENERAL
+            scrolls_needed = max(
+                0, MINING_RUNS_PER_SET - self._mining_runs_completed
+            )
+            if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
+                if STORE_ALCHEMIST in self._town_store_attempted:
+                    self._fundraising_mode = "scavenge"
+                    return None
+                return STORE_ALCHEMIST
+            if not self._has_digging_tool(snapshot):
+                if STORE_GENERAL in self._town_store_attempted:
+                    self._fundraising_mode = "scavenge"
+                    return None
+                return STORE_GENERAL
+            return None
+
+        if not self._recall_ready(snapshot):
+            for store_type in (STORE_TEMPLE, STORE_ALCHEMIST):
+                if store_type not in self._town_store_attempted:
+                    return store_type
+            self._fundraising_mode = "prepare"
+            self._town_store_attempted.clear()
+            return self._next_required_store_type(snapshot)
+        if not self._food_ready(snapshot) or not self._light_ready(snapshot):
+            if STORE_GENERAL in self._town_store_attempted:
+                self._fundraising_mode = "prepare"
+                self._town_store_attempted.clear()
+                return self._next_required_store_type(snapshot)
+            return STORE_GENERAL
+        if not self._teleport_ready(snapshot):
+            if STORE_ALCHEMIST in self._town_store_attempted:
+                self._fundraising_mode = "prepare"
+                self._town_store_attempted.clear()
+                return self._next_required_store_type(snapshot)
+            return STORE_ALCHEMIST
+        return None
+
     def _owns_lantern(self, snapshot: Snapshot) -> bool:
         return any(it.is_lantern for it in snapshot.inventory) or any(
             it.is_lantern for it in snapshot.equipment
@@ -587,19 +1444,232 @@ class HengbotPolicy:
     def _count_oil(self, snapshot: Snapshot) -> int:
         return sum(it.count for it in snapshot.inventory if it.is_oil)
 
+    def _count_food(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.count
+            for it in snapshot.inventory
+            if it.is_food and it.sval >= FOOD_MIN_SVAL
+        )
+
+    def _needs_food_restock(self, snapshot: Snapshot) -> bool:
+        # MANA races (undead/constructs) sate hunger by draining wand/staff
+        # charges, not by eating rations, so buying food for them only burns gold
+        # and never satisfies _food_ready. They restock hunger by eating devices
+        # in the dungeon (see _find_edible), not at the General Store.
+        if snapshot.player.food_type == FOOD_TYPE_MANA:
+            return False
+        return not self._food_ready(snapshot)
+
     def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
         store = snapshot.store
         if store is None:
             return None
         gold = snapshot.player.gold
+        if snapshot.player.class_id < 0:
+            if not self._owns_lantern(snapshot):
+                return next(
+                    (it for it in store.items if it.is_lantern and it.price <= gold),
+                    None,
+                )
+            if self._count_oil(snapshot) < OIL_TARGET:
+                return next(
+                    (it for it in store.items if it.is_oil and it.price <= gold),
+                    None,
+                )
+            if self._needs_food_restock(snapshot):
+                return next(
+                    (
+                        it
+                        for it in store.items
+                        if it.tval == TVAL_FOOD
+                        and it.sval >= FOOD_MIN_SVAL
+                        and it.price <= gold
+                    ),
+                    None,
+                )
+            return None
+        if self._identification_need is not None:
+            full = self._identification_need == "full"
+            if self._find_identification_source(snapshot, full=full) is not None:
+                return None
+            wanted_sval = SV_SCROLL_STAR_IDENTIFY if full else SV_SCROLL_IDENTIFY
+            return next(
+                (
+                    it
+                    for it in store.items
+                    if it.tval == TVAL_SCROLL
+                    and it.sval == wanted_sval
+                    and it.price <= gold
+                ),
+                None,
+            )
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            if not self._food_ready(snapshot):
+                return next(
+                    (
+                        it
+                        for it in store.items
+                        if it.tval == TVAL_FOOD
+                        and it.sval >= FOOD_MIN_SVAL
+                        and it.price <= gold
+                    ),
+                    None,
+                )
+            scrolls_needed = max(
+                0, MINING_RUNS_PER_SET - self._mining_runs_completed
+            )
+            if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
+                return next(
+                    (
+                        it
+                        for it in store.items
+                        if it.is_treasure_detection_scroll and it.price <= gold
+                    ),
+                    None,
+                )
+            if not self._has_digging_tool(snapshot):
+                return next(
+                    (it for it in store.items if it.is_digging_tool and it.price <= gold),
+                    None,
+                )
+            return None
+
+        if not self._recall_ready(snapshot):
+            item = next(
+                (it for it in store.items if it.is_recall_scroll and it.price <= gold),
+                None,
+            )
+            if item is not None:
+                return item
+        if self._needs_food_restock(snapshot):
+            return next(
+                (
+                    it
+                    for it in store.items
+                    if it.tval == TVAL_FOOD
+                    and it.sval >= FOOD_MIN_SVAL
+                    and it.price <= gold
+                ),
+                None,
+            )
         if not self._owns_lantern(snapshot):
             return next((it for it in store.items if it.is_lantern and it.price <= gold), None)
         if self._count_oil(snapshot) < OIL_TARGET:
             return next((it for it in store.items if it.is_oil and it.price <= gold), None)
+        if not self._teleport_ready(snapshot):
+            return next(
+                (it for it in store.items if it.is_teleport_scroll and it.price <= gold),
+                None,
+            )
         return None
 
     def _shop(self, snapshot: Snapshot) -> str:
+        store = snapshot.store
+        if store is None:
+            self.last_reason = "shop:invalid"
+            return LEAVE_STORE_KEY
+
+        if store.store_type == STORE_HOME:
+            for stored in store.items:
+                self._home_catalog[self._item_signature(stored)] = stored
+
+        if (
+            store.store_type in {STORE_ARMOURY, STORE_BLACK}
+            and self._pending_disposal_item is not None
+        ):
+            target = self._pending_disposal(snapshot)
+            if target is None:
+                self._clear_pending_disposal()
+                self.last_reason = "equipment:sale-complete"
+                return LEAVE_STORE_KEY
+            sig = (target.slot, len(snapshot.inventory), snapshot.player.gold)
+            if sig == self._last_sell_sig:
+                self._disposal_stuck_count += 1
+            else:
+                self._last_sell_sig = sig
+                self._disposal_stuck_count = 0
+            if self._disposal_stuck_count >= STORE_STUCK_LIMIT:
+                self._disposal_store_attempts.add(store.store_type)
+                self._disposal_stuck_count = 0
+                self._last_sell_sig = None
+                self.last_reason = "equipment:sale-refused"
+                return LEAVE_STORE_KEY
+            self.last_reason = "equipment:sell-dominated"
+            return SELL_KEY + target.slot + SELL_CONFIRM_SUFFIX
+
+        if store.store_type == STORE_HOME:
+            deposit = self._find_home_deposit(snapshot)
+            if deposit is not None:
+                sig = (deposit.slot, len(snapshot.inventory), snapshot.player.gold)
+                if sig == self._last_sell_sig:
+                    self._store_sell_stuck_count += 1
+                else:
+                    self._last_sell_sig = sig
+                    self._store_sell_stuck_count = 0
+                if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
+                    self._town_blocked_reason = "home-full"
+                    self.last_reason = "home:full-stop"
+                    return LEAVE_STORE_KEY
+                self.last_reason = "home:deposit"
+                return SELL_KEY + deposit.slot + "\r"
+
+            if self._home_pending_item is not None:
+                self.last_reason = "home:leave-with-item"
+                return LEAVE_STORE_KEY
+
+            candidate = self._find_home_candidate(snapshot)
+            if candidate is not None:
+                needs_normal = not candidate.known
+                needs_full = (
+                    candidate.known
+                    and (candidate.is_ego or candidate.is_artifact)
+                    and not candidate.fully_known
+                )
+                if needs_normal and self._find_identification_source(
+                    snapshot, full=False
+                ) is None:
+                    self._request_identification("normal")
+                    self._identification_candidate = self._item_signature(candidate)
+                    self._home_candidate_waiting = True
+                    self.last_reason = "home:need-identify"
+                    return LEAVE_STORE_KEY
+                if needs_full and self._find_identification_source(
+                    snapshot, full=True
+                ) is None:
+                    self._request_identification("full")
+                    self._identification_candidate = self._item_signature(candidate)
+                    self._home_candidate_waiting = True
+                    self.last_reason = "home:need-full-identify"
+                    return LEAVE_STORE_KEY
+
+                self._home_pending_item = self._item_signature(candidate)
+                self._home_pending_slot = None
+                self._identification_candidate = None
+                self._home_candidate_waiting = False
+                self.last_reason = "home:withdraw-for-processing"
+                return BUY_KEY + candidate.letter + "\r"
+
+            self._home_candidate_waiting = False
+
+        if store.store_type == STORE_ALCHEMIST:
+            sale = self._find_low_level_sale(snapshot)
+            if sale is not None:
+                sig = (sale.slot, len(snapshot.inventory), snapshot.player.gold)
+                if sig == self._last_sell_sig:
+                    self._store_sell_stuck_count += 1
+                else:
+                    self._last_sell_sig = sig
+                    self._store_sell_stuck_count = 0
+                if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
+                    self._unsellable_items.add((sale.name, sale.tval, sale.sval))
+                    self._last_sell_sig = None
+                    self._store_sell_stuck_count = 0
+                    self.last_reason = "shop:unsellable-leave"
+                    return LEAVE_STORE_KEY
+                self.last_reason = "shop:sell-low-level-unknown"
+                return SELL_KEY + sale.slot + SELL_CONFIRM_SUFFIX
+
         item = self._next_purchase(snapshot)
         if item is not None:
             # Bail out of a purchase that never takes effect. A registered buy
@@ -615,48 +1685,489 @@ class HengbotPolicy:
                 self._store_stuck_count = 0
             if self._store_stuck_count >= STORE_STUCK_LIMIT:
                 self._shopping_abandoned = True
+                self._town_store_attempted.add(store.store_type)
                 self._store_stuck_count = 0
                 self._last_buy_sig = None
                 self.last_reason = "shop:stuck-leave"
                 return LEAVE_STORE_KEY
-            self.last_reason = "shop:buy-lantern" if item.is_lantern else "shop:buy-oil"
+            if item.is_lantern:
+                self.last_reason = "shop:buy-lantern"
+            elif item.is_oil:
+                self.last_reason = "shop:buy-oil"
+            elif item.is_recall_scroll:
+                self.last_reason = "shop:buy-recall"
+            elif item.is_teleport_scroll:
+                self.last_reason = "shop:buy-teleport"
+            elif item.is_treasure_detection_scroll:
+                self.last_reason = "shop:buy-treasure-detection"
+            elif item.is_digging_tool:
+                self.last_reason = "shop:buy-digging-tool"
+            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
+                self.last_reason = "shop:buy-identify"
+            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
+                self.last_reason = "shop:buy-star-identify"
+            else:
+                self.last_reason = "shop:buy-food"
             return BUY_KEY + item.letter + BUY_CONFIRM_SUFFIX
-        # Nothing left to buy. If we came for a lantern and still have none (can't
-        # afford it), give up so we don't loop in and out of the shop.
+
         self._last_buy_sig = None
+        self._last_sell_sig = None
         self._store_stuck_count = 0
-        store = snapshot.store
-        if store is not None and store.store_type == STORE_GENERAL and not self._owns_lantern(snapshot):
+        self._store_sell_stuck_count = 0
+        self._town_store_attempted.add(store.store_type)
+        if store.store_type == STORE_ALCHEMIST and self._find_low_level_sale(snapshot) is None:
+            self._sell_scavenged_consumables = False
+            if self._fundraising_mode == "scavenge" and snapshot.in_town:
+                self._fundraising_mode = "prepare"
+                self._town_store_attempted.clear()
+        if (
+            snapshot.player.class_id < 0
+            and store.store_type == STORE_GENERAL
+            and not self._owns_lantern(snapshot)
+        ):
             self._shopping_abandoned = True
         self.last_reason = "shop:leave"
         return LEAVE_STORE_KEY
 
     def _shopping_approach_step(self, snapshot: Snapshot) -> Position | None:
-        if not snapshot.in_town or self._shopping_abandoned:
+        if not snapshot.in_town or self._town_blocked_reason is not None:
             return None
-        if self._owns_lantern(snapshot):
-            return None
-        if snapshot.player.gold < LANTERN_MIN_GOLD:
+        store_type = self._next_required_store_type(snapshot)
+        if store_type is None:
             return None
         here = snapshot.grid_at(snapshot.player.position)
-        if here is not None and here.store_number == STORE_GENERAL:
+        if here is not None and here.store_number == store_type:
             # Standing on the store entrance in town (we just left it) — stepping
             # on it is what re-enters, so hop to an adjacent tile first, then the
             # next approach walks back on and opens the store.
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             return neighbors[0] if neighbors else None
-        return self._nearest_goal_step(snapshot, lambda g: g.store_number == STORE_GENERAL)
+        if self._is_oscillating():
+            # A required-store route can still enter a short cycle when several
+            # town corridors have equal-length first steps. Leave the repeatedly
+            # visited cells before replanning instead of waiting for the global
+            # loop detector to stop the bot.
+            breakout = self._least_visited_neighbor(snapshot)
+            if breakout is not None:
+                return breakout
+        return self._nearest_goal_step(snapshot, lambda g: g.store_number == store_type)
+
+    def _active_dungeon_target(self) -> int:
+        if self._fundraising_mode in {"mine", "scavenge"}:
+            return DUNGEON_YEEK_CAVE
+        return self._target_dungeon_id
+
+    def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
+        if not snapshot.in_town or self._equipped_digging_tool(snapshot) is None:
+            return None
+        if self._normal_weapon_name is None:
+            return None
+        weapon = self._first_item(
+            snapshot,
+            lambda it: it.is_equipment
+            and not it.is_digging_tool
+            and it.name == self._normal_weapon_name,
+        )
+        if weapon is None:
+            self._town_blocked_reason = "combat-weapon-missing"
+            self.last_reason = "town:blocked:combat-weapon-missing"
+            return WAIT_KEY
+        self.last_reason = "town:restore-combat-weapon"
+        return WIELD_KEY + weapon.slot
+
+    def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
+        player = snapshot.player
+        has_usable_light = self._has_light_equipped(snapshot) or self._find_light(snapshot) is not None
+        base_ready = (
+            self._food_ready(snapshot)
+            and has_usable_light
+            and player.hp >= player.max_hp
+            and player.mp >= player.max_mp
+            and self._temporary_status_clear(snapshot)
+        )
+        if not base_ready:
+            return False
+        if self._fundraising_mode == "mine":
+            return self._fundraising_supplies_ready(snapshot)
+        return True
+
+    def _town_special_key(self, snapshot: Snapshot) -> str | None:
+        if not snapshot.in_town or snapshot.player.class_id < 0:
+            return None
+        if self._town_blocked_reason is not None:
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            return WAIT_KEY
+
+        if self._fundraising_mode == "prepare" and self._fundraising_supplies_ready(snapshot):
+            self._fundraising_mode = "mine"
+            self._mining_runs_completed = 0
+            self._town_store_attempted.clear()
+
+        if (
+            self._fundraising_mode == "mine"
+            and self._mining_runs_completed >= MINING_RUNS_PER_SET
+        ):
+            self._fundraising_mode = None
+            self._mining_runs_completed = 0
+            self._town_store_attempted.clear()
+            return None
+
+        if self._fundraising_mode in {"mine", "scavenge"}:
+            if not self._fundraising_departure_ready(snapshot):
+                self.last_reason = "fundraise:departure-blocked"
+                return WAIT_KEY
+            return None
+
+        player = snapshot.player
+        if player.hp < player.max_hp or player.mp < player.max_mp or not self._temporary_status_clear(snapshot):
+            self.last_reason = "town:recover"
+            return REST_MACRO
+
+        if self._rumor_unlock_pending and not snapshot.angband_recall_unlocked:
+            if not self._town_departure_ready(snapshot):
+                self.last_reason = "town:rumor-wait-supplies"
+                return WAIT_KEY
+            if player.gold < 10:
+                self._fundraising_mode = "prepare"
+                self._town_store_attempted.clear()
+                self.last_reason = "town:rumor-needs-funds"
+                return WAIT_KEY
+            step = self._nearest_goal_step(
+                snapshot, lambda grid: grid.building_type == INN_BUILDING_TYPE
+            )
+            if step is not None:
+                self.last_reason = "town:rumor"
+                # _nearest_goal_step returns only the FIRST step of the path. The
+                # rumor keys must ride along ONLY when that step lands on the inn
+                # (walking onto it opens the building menu, which then consumes
+                # them); while still approaching, send the bare move — otherwise
+                # 'u'+exit leak into the town command loop and the inn is never
+                # entered, so Angband recall never unlocks.
+                target = snapshot.grids.get(step)
+                if target is not None and target.building_type == INN_BUILDING_TYPE:
+                    return self._step_toward(snapshot, step) + RUMOR_KEY + RUMOR_EXIT_SUFFIX
+                return self._step_toward(snapshot, step)
+            self._town_blocked_reason = "inn-not-found"
+            self.last_reason = "town:blocked:inn-not-found"
+            return WAIT_KEY
+
+        if (
+            self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+            and self._town_departure_ready(snapshot)
+        ):
+            if snapshot.player.recalling:
+                self.last_reason = "town:wait-recall"
+                return WAIT_KEY
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                self.last_reason = "town:recall-to-angband"
+                return READ_KEY + recall.slot
+
+        return None
+
+    def _equipped_digging_tool(self, snapshot: Snapshot) -> InventoryItem | None:
+        return next((it for it in snapshot.equipment if it.is_digging_tool), None)
+
+    def _fundraising_combat_equipment_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        if (
+            self._fundraising_mode not in {"mine", "scavenge"}
+            or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE
+            or snapshot.dungeon_level != 1
+        ):
+            return None
+        if not hostiles or snapshot.player.class_id == PLAYER_CLASS_WARRIOR:
+            return None
+        if self._equipped_digging_tool(snapshot) is None:
+            return None
+        weapon = self._first_item(
+            snapshot,
+            lambda it: it.is_equipment
+            and not it.is_digging_tool
+            and (self._normal_weapon_name is None or it.name == self._normal_weapon_name),
+        )
+        if weapon is None:
+            return None
+        self.last_reason = "fundraise:wield-combat-weapon"
+        return WIELD_KEY + weapon.slot
+
+    def _leave_fundraising_floor(self, snapshot: Snapshot) -> str:
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.has_up_stairs:
+            self.last_reason = "fundraise:ascend"
+            return UP_STAIRS_KEY
+        step = self._nearest_goal_step(snapshot, lambda grid: grid.has_up_stairs)
+        if step is not None:
+            self.last_reason = "fundraise:seek-upstairs"
+            return self._step_toward(snapshot, step)
+        step = self._explore_step(snapshot)
+        if step is not None:
+            self.last_reason = "fundraise:seek-upstairs-explore"
+            return self._step_toward(snapshot, step)
+        self.last_reason = "fundraise:upstairs-not-found"
+        return WAIT_KEY
+
+    def _treasure_step(self, snapshot: Snapshot) -> Position | None:
+        def beside_gold(grid: GridState) -> bool:
+            return any(
+                (neighbor := snapshot.grid_at(
+                    Position(grid.position.y + dy, grid.position.x + dx)
+                ))
+                is not None
+                and neighbor.has_gold
+                for dy, dx in NEIGHBOR_OFFSETS
+            )
+
+        return self._nearest_goal_step(snapshot, beside_gold)
+
+    def _fundraising_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        if self._fundraising_mode not in {"mine", "scavenge"}:
+            return None
+        if snapshot.floor_key[0] != DUNGEON_YEEK_CAVE or snapshot.dungeon_level != 1:
+            return None
+
+        no_food_left = self._find_edible(snapshot) is None and snapshot.player.food_state not in {
+            "full",
+            "gorged",
+        }
+        if no_food_left or not self._has_light_equipped(snapshot):
+            return self._leave_fundraising_floor(snapshot)
+
+        if snapshot.player.hungry:
+            food = self._find_edible(snapshot)
+            if food is not None:
+                self.last_reason = "fundraise:eat"
+                return EAT_KEY + food.slot
+
+        refill = self._light_refill_item(snapshot)
+        if refill is not None:
+            self.last_reason = "fundraise:refill-light"
+            return REFILL_KEY + refill.slot
+
+        combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
+        if combat_equip is not None:
+            return combat_equip
+        if hostiles:
+            step = self._hunt_step(snapshot, hostiles)
+            if step is not None:
+                self.last_reason = "fundraise:combat"
+                return self._step_toward(snapshot, step)
+            return self._leave_fundraising_floor(snapshot)
+
+        here = snapshot.grid_at(snapshot.player.position)
+        if (
+            here is not None
+            and here.object_count > 0
+            and len(snapshot.inventory) < PACK_CAPACITY
+        ):
+            self.last_reason = "fundraise:pickup"
+            return PICKUP_KEY
+
+        if self._fundraising_mode == "scavenge":
+            if len(snapshot.inventory) >= PACK_CAPACITY:
+                return self._leave_fundraising_floor(snapshot)
+            step = self._explore_step(snapshot)
+            if step is not None:
+                self.last_reason = "fundraise:scavenge"
+                return self._step_toward(snapshot, step)
+            return self._leave_fundraising_floor(snapshot)
+
+        if self._equipped_digging_tool(snapshot) is None:
+            tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
+            if tool is None:
+                self._town_blocked_reason = "digging-tool-lost"
+                self.last_reason = "fundraise:digging-tool-lost"
+                return WAIT_KEY
+            main_hand = next(
+                (it for it in snapshot.equipment if it.slot == "main_hand"), None
+            )
+            if main_hand is not None and not main_hand.is_digging_tool:
+                self._normal_weapon_name = main_hand.name
+            self.last_reason = "fundraise:wield-digging-tool"
+            return WIELD_KEY + tool.slot
+
+        if self._mining_scroll_used_floor != snapshot.floor_key:
+            scroll = self._first_item(
+                snapshot, lambda it: it.is_treasure_detection_scroll
+            )
+            if scroll is None:
+                self._town_blocked_reason = "treasure-detection-lost"
+                self.last_reason = "fundraise:treasure-detection-lost"
+                return WAIT_KEY
+            self._mining_scroll_used_floor = snapshot.floor_key
+            self.last_reason = "fundraise:detect-treasure"
+            return READ_KEY + scroll.slot
+
+        adjacent_gold = next(
+            (
+                grid
+                for grid in snapshot.grids.values()
+                if grid.has_gold
+                and snapshot.player.position.distance_to(grid.position) <= 1
+            ),
+            None,
+        )
+        if adjacent_gold is not None:
+            self.last_reason = "fundraise:mine-treasure"
+            return TUNNEL_KEY + self._direction_key(
+                snapshot.player.position, adjacent_gold.position
+            )
+        step = self._treasure_step(snapshot)
+        if step is not None:
+            self.last_reason = "fundraise:seek-treasure"
+            return self._step_toward(snapshot, step)
+        return self._leave_fundraising_floor(snapshot)
+
+    def _victory_loot_key(self, snapshot: Snapshot) -> str | None:
+        if not self._yeek_victory_loot or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE:
+            return None
+        here = snapshot.grid_at(snapshot.player.position)
+        if (
+            here is not None
+            and here.object_count > 0
+            and len(snapshot.inventory) < PACK_CAPACITY
+        ):
+            self.last_reason = "victory:pickup"
+            return PICKUP_KEY
+        step = self._nearest_goal_step(snapshot, lambda grid: grid.object_count > 0)
+        if step is not None:
+            self.last_reason = "victory:seek-loot"
+            return self._step_toward(snapshot, step)
+        self._returning_to_town = True
+        return self._return_to_town_key(snapshot, self._hostiles(snapshot))
+
+    def _normal_loot_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Collect visible drops before shopping or ordinary exploration.
+
+        Supply-driven return has already had priority before this is called, and
+        combat must never be delayed for loot. Unsafe target tiles are ignored;
+        the normal pathfinder still handles the route through known floor.
+        """
+        if hostiles or len(snapshot.inventory) >= PACK_CAPACITY:
+            return None
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.object_count > 0:
+            self.last_reason = "pickup"
+            return PICKUP_KEY
+        step = self._nearest_goal_step(
+            snapshot, lambda grid: grid.object_count > 0 and not grid.unsafe
+        )
+        if step is None:
+            return None
+        self.last_reason = "seek-loot"
+        return self._step_toward(snapshot, step)
 
     def _find_edible(self, snapshot: Snapshot) -> InventoryItem | None:
         # Race-dependent: MANA races (undead/constructs) drain wand/staff charges
         # for hunger; everyone else eats food. Eat with the same 'E' command.
+        # The emitter hides `charges` until an item is identified, so also try
+        # unidentified devices (the game allows eating any wand/staff; a known
+        # empty one is skipped, an unknown one is worth the attempt) — but prefer
+        # a device we know still has charges.
         if snapshot.player.food_type == FOOD_TYPE_MANA:
+            charged = self._first_item(
+                snapshot, lambda it: it.is_wand_staff and it.known and it.charges > 0
+            )
+            if charged is not None:
+                return charged
             return self._first_item(
-                snapshot, lambda it: it.is_wand_staff and it.charges > 0
+                snapshot, lambda it: it.is_wand_staff and not it.known
             )
         return self._first_item(
             snapshot, lambda it: it.is_food and it.aware and it.sval >= FOOD_MIN_SVAL
         )
+
+    def _find_recall_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+        return self._first_item(snapshot, lambda it: it.is_recall_scroll)
+
+    def _should_start_town_return(self, snapshot: Snapshot) -> bool:
+        if snapshot.in_town:
+            return False
+        if len(snapshot.inventory) >= PACK_CAPACITY:
+            return True
+        if snapshot.player.class_id >= 0:
+            if self._count_recall_scrolls(snapshot) < self._recall_target(
+                max(1, snapshot.dungeon_level)
+            ):
+                return True
+            if (
+                snapshot.dungeon_level >= TELEPORT_REQUIRED_DEPTH
+                and self._count_teleport_scrolls(snapshot) < TELEPORT_SCROLL_TARGET
+            ):
+                return True
+            equipped_light = next(
+                (it for it in snapshot.equipment if it.is_light), None
+            )
+            if equipped_light is None:
+                return True
+            if (
+                equipped_light.known
+                and equipped_light.sval <= SV_LITE_LANTERN
+                and equipped_light.fuel <= 0
+            ):
+                return True
+        if self._find_edible(snapshot) is not None:
+            return False
+
+        # The HUD reveals only a hunger band, not the exact food counter. Once
+        # we are no longer visibly Full/Gorged and carry no usable food, end the
+        # expedition while there is still ample time to reach town.
+        return snapshot.player.food_state not in {"full", "gorged"}
+
+    def _return_to_town_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        player = snapshot.player
+        if snapshot.in_town:
+            return None
+        if self._should_start_town_return(snapshot) or player.recalling:
+            self._returning_to_town = True
+        if not self._returning_to_town:
+            return None
+
+        here = snapshot.grid_at(player.position)
+        if here is not None and here.has_up_stairs:
+            self.last_reason = "return:ascend"
+            return UP_STAIRS_KEY
+
+        if hostiles:
+            step = self._flee_step(snapshot, hostiles)
+            if step is not None:
+                self.last_reason = "return:flee"
+                return self._step_toward(snapshot, step)
+
+        if player.recalling:
+            self.last_reason = "return:wait-recall"
+            return WAIT_KEY
+
+        recall = self._find_recall_scroll(snapshot)
+        if recall is not None and not player.blind and not player.confused:
+            self.last_reason = "return:recall"
+            return READ_KEY + recall.slot
+
+        step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+        if step is not None:
+            self.last_reason = "return:seek-upstairs"
+            return self._step_toward(snapshot, step)
+
+        step = self._explore_step(snapshot)
+        if step is not None:
+            self.last_reason = "return:explore"
+            return self._step_toward(snapshot, step)
+
+        step = self._least_visited_neighbor(snapshot)
+        if step is not None:
+            self.last_reason = "return:wander"
+            return self._step_toward(snapshot, step)
+
+        self.last_reason = "return:wait"
+        return WAIT_KEY
 
     def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         # Reading needs sight; a full teleport is preferred over a short phase.
@@ -682,7 +2193,7 @@ class HengbotPolicy:
                 self.last_reason = "item:heal"
                 return QUAFF_KEY + potion.slot
         # Eat before we faint from hunger.
-        if player.food < FOOD_CRITICAL:
+        if player.fainting:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "item:eat"
@@ -691,13 +2202,51 @@ class HengbotPolicy:
 
     def _escape_by_stairs(self, snapshot: Snapshot) -> str | None:
         # Only ever escape UPWARD. Diving to flee just leads somewhere more
-        # dangerous, and a down/up pair of stairs would ping-pong forever.
-        if snapshot.player.hp_ratio >= DESPERATE_HP_RATIO:
-            return None
+        # dangerous. This is called only after a threat triggered fleeing, so
+        # use a landing staircase immediately instead of waiting until near death.
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and here.has_up_stairs:
+            self._defer_descent(snapshot)
             return UP_STAIRS_KEY
         return None
+
+    def _defer_descent(self, snapshot: Snapshot) -> None:
+        self._descent_blocked_at_level = snapshot.player.level
+        self._descent_block_countdown = DESCENT_BLOCK_DECISIONS
+
+    def _descent_is_blocked(self, snapshot: Snapshot) -> bool:
+        if self._returning_to_town or len(snapshot.inventory) >= PACK_CAPACITY:
+            return True
+        if snapshot.in_town:
+            if self._fundraising_mode in {"mine", "scavenge"}:
+                if not self._fundraising_departure_ready(snapshot):
+                    return True
+            else:
+                if self._rumor_unlock_pending or not self._town_departure_ready(snapshot):
+                    return True
+        if self._descent_blocked_at_level is None:
+            return False
+        # The block lifts on a level-up (we grew stronger) or when the cooldown
+        # runs out — one bad landing must not ratchet the bot upward forever
+        # when the shallower floors cannot supply a whole level of XP.
+        if snapshot.player.level > self._descent_blocked_at_level:
+            self._descent_blocked_at_level = None
+            return False
+        if self._descent_block_countdown <= 0:
+            self._descent_blocked_at_level = None
+            return False
+        return True
+
+    def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
+        if not grid.is_descent:
+            return False
+        if snapshot.player.class_id < 0:
+            return True
+        if snapshot.in_town and grid.has_entrance:
+            return grid.entrance_dungeon_id == self._active_dungeon_target()
+        if self._fundraising_mode in {"mine", "scavenge"}:
+            return False
+        return True
 
     def _flee_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
         candidates = self._walkable_neighbors(snapshot, snapshot.player.position)
@@ -712,6 +2261,51 @@ class HengbotPolicy:
             return (nearest, -trap, -unsafe, -self._visit_counts[pos])
 
         return max(candidates, key=score)
+
+    def _open_neighbor_count(self, snapshot: Snapshot, position: Position) -> int:
+        return len(self._walkable_neighbors(snapshot, position))
+
+    def _summoner_retreat_step(
+        self,
+        snapshot: Snapshot,
+        summoners: list[MonsterState],
+        hostiles: list[MonsterState],
+    ) -> Position | None:
+        origin = snapshot.player.position
+        origin_distance = min(origin.distance_to(monster.position) for monster in summoners)
+        seen = {origin}
+        queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])
+        candidates: list[tuple[int, int, int, Position]] = []
+
+        while queue:
+            position, first_step, path_distance = queue.popleft()
+            if position != origin and first_step is not None:
+                openness = self._open_neighbor_count(snapshot, position)
+                summoner_distance = min(
+                    position.distance_to(monster.position) for monster in summoners
+                )
+                if (
+                    openness <= SUMMONER_CHOKE_NEIGHBORS
+                    and summoner_distance >= origin_distance
+                ):
+                    candidates.append(
+                        (path_distance, openness, -summoner_distance, first_step)
+                    )
+            for neighbor in self._walkable_neighbors(snapshot, position):
+                if neighbor in seen:
+                    continue
+                seen.add(neighbor)
+                queue.append(
+                    (
+                        neighbor,
+                        neighbor if first_step is None else first_step,
+                        path_distance + 1,
+                    )
+                )
+
+        if candidates:
+            return min(candidates, key=lambda candidate: candidate[:3])[3]
+        return self._flee_step(snapshot, hostiles)
 
     def _hunt_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
         player = snapshot.player
@@ -835,33 +2429,56 @@ class HengbotPolicy:
         """One BFS that either paths to a reachable downstairs/entrance, or, when
         the nearest known one is walled off (its approach unmapped), steps toward
         the reachable frontier closest to it. Sets ``last_reason`` accordingly."""
-        targets = [g.position for g in snapshot.grids.values() if g.is_descent]
+        if self._descent_is_blocked(snapshot):
+            return None
+        targets = [
+            g.position
+            for g in snapshot.grids.values()
+            if self._is_descent_target(snapshot, g)
+        ]
         if not targets:
             return None
+        if self._is_oscillating():
+            breakout = self._least_visited_neighbor(snapshot)
+            if breakout is not None:
+                self.last_reason = "breakout:descent"
+                return breakout
         origin = snapshot.player.position
         target = min(targets, key=lambda t: origin.distance_to(t))
 
         seen = {origin}
-        queue: deque[tuple[Position, Position | None]] = deque([(origin, None)])
+        queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])
         best_first: Position | None = None
-        best_dist: int | None = None
+        best_score: tuple[int, int, int] | None = None
         while queue:
-            pos, first = queue.popleft()
+            pos, first, path_distance = queue.popleft()
             grid = snapshot.grids.get(pos)
             if pos != origin and grid is not None:
-                if grid.is_descent:
+                if self._is_descent_target(snapshot, grid):
                     self.last_reason = "seek-downstairs"
                     return first
                 if self._is_frontier(snapshot, grid):
-                    dist = pos.distance_to(target)
-                    if best_dist is None or dist < best_dist:
-                        best_dist = dist
+                    visits = self._visit_counts[pos]
+                    target_distance = pos.distance_to(target)
+                    score = (
+                        target_distance + path_distance + VISIT_PENALTY * visits,
+                        visits,
+                        target_distance,
+                    )
+                    if best_score is None or score < best_score:
+                        best_score = score
                         best_first = first
             for neighbor in self._walkable_neighbors(snapshot, pos):
                 if neighbor in seen:
                     continue
                 seen.add(neighbor)
-                queue.append((neighbor, neighbor if first is None else first))
+                queue.append(
+                    (
+                        neighbor,
+                        neighbor if first is None else first,
+                        path_distance + 1,
+                    )
+                )
 
         if best_first is not None:
             self.last_reason = "approach-descent"

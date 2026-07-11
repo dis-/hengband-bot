@@ -8,8 +8,9 @@ from collections import deque
 from pathlib import Path
 from typing import Iterable
 
-from hengbot.model import parse_snapshot
-from hengbot.policy import ConservativePolicy
+from hengbot.model import MissingMonraceKnowledgeError, parse_snapshot
+from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
+from hengbot.policy import PACK_CAPACITY, ConservativePolicy
 
 
 # Character posted to the window to dismiss a message / "-more-" prompt that the
@@ -33,6 +34,16 @@ TERMINAL_NUDGE_LIMIT = 8
 DEATH_EXIT_KEYS = ("\x1b", "n", "\r")
 DEATH_EXIT_ROUNDS = 8
 
+# Every tenth level Hengband blocks outside the command loop and asks for a stat
+# (a-f), then confirmation; the screen ignores Escape and no JSON snapshot is
+# emitted while it is up. After two harmless Esc nudges, alternate the stat
+# choice (Strength, for the warrior bot) with a confirm — alternating retries
+# both keys, so a single lost keystroke cannot strand the game there. The gate
+# accepts levels ending in 8 or 9: one strong kill can jump two levels (8→10),
+# which still lands on the stat screen while our last snapshot said clvl 8.
+LEVEL_UP_STAT_CHOICE = "a"
+LEVEL_UP_RECOVERY_START = 2
+
 # Loop / stuck detection. If the character stays confined to a handful of tiles
 # on a single floor for this many consecutive decisions, it is looping — an
 # exploration oscillation the policy's own anti-stuck guards (visit penalty,
@@ -42,11 +53,150 @@ DEATH_EXIT_ROUNDS = 8
 # so the situation can be investigated from the preserved game state.
 LOOP_WINDOW = 40
 LOOP_MAX_DISTINCT = 4
+# The emitter can present the exact same command state several times while a
+# posted Windows key is still waiting to be consumed. Sending on every copy
+# builds a large input backlog and makes the loop detector judge stale positions.
+# A genuinely rejected move still needs retries so the policy can break out;
+# throttle exact duplicates instead of dropping them forever.
+DUPLICATE_RETRY_SECONDS = 2.0
+
+# Decision reasons that legitimately hold the player on one tile for many
+# consecutive snapshots and so must NOT feed the loop detector: searching a
+# dead-end, meleeing in place, and waiting out a Word of Recall countdown
+# (~15-35 stationary turns — enough to trip a ≤4-cell window by itself).
+STATIONARY_REASONS = frozenset(
+    {"search", "melee", "return:wait-recall", "town:wait-recall"}
+)
+
+
+def _objective_for_reason(reason: str) -> str:
+    if reason == "loop-detected":
+        return "Stopped for loop investigation"
+    prefix = reason.split(":", 1)[0]
+    if prefix in {"flee", "unseen", "summoner", "item"}:
+        return "Survive and disengage"
+    if prefix in {"melee", "hunt"}:
+        return "Fight visible threats"
+    if prefix == "return":
+        return "Return to town"
+    if prefix in {"shop", "home", "town", "identify", "equipment"}:
+        return "Town maintenance and resupply"
+    if prefix == "fundraise":
+        return "Raise funds on Yeek cave level 1"
+    if prefix == "victory":
+        return "Collect conquest drops and return"
+    if reason in {"pickup", "seek-loot"}:
+        return "Collect visible floor items"
+    if prefix in {"descend", "seek-downstairs", "approach-descent", "clear-descent"}:
+        return "Reach the next dungeon level"
+    if prefix in {"explore", "probe", "search", "breakout", "stuck"}:
+        return "Explore and break out of dead ends"
+    if prefix in {"rest", "eat", "wield-light", "refill-light"}:
+        return "Recover and maintain supplies"
+    if prefix in {"confused", "wait"}:
+        return "Wait safely"
+    return "Continue conservative progression"
+
+
+def _decision_record(snapshot, key: str, reason: str) -> dict:
+    player = snapshot.player
+    active_status = [
+        name
+        for name in (
+            "blind",
+            "confused",
+            "afraid",
+            "poisoned",
+            "stunned",
+            "cut",
+            "paralyzed",
+            "hallucinated",
+        )
+        if getattr(player, name)
+    ]
+    return {
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "turn": snapshot.turn,
+        "objective": _objective_for_reason(reason),
+        "reason": reason,
+        "key": key,
+        "floor": {
+            "dungeon_id": snapshot.floor_key[0],
+            "level": snapshot.floor_key[1],
+        },
+        "position": {"y": player.position.y, "x": player.position.x},
+        "player": {
+            "level": player.level,
+            "hp": player.hp,
+            "max_hp": player.max_hp,
+            "mp": player.mp,
+            "max_mp": player.max_mp,
+            "gold": player.gold,
+            "food_state": player.food_state,
+            "status": active_status,
+        },
+        "inventory": {
+            "used": len(snapshot.inventory),
+            "free": max(0, PACK_CAPACITY - len(snapshot.inventory)),
+        },
+        "visible_hostiles": sum(monster.hostile for monster in snapshot.visible_monsters),
+        "store_type": snapshot.store.store_type if snapshot.store is not None else None,
+    }
+
+
+def _write_decision(path: Path | None, snapshot, key: str, reason: str) -> None:
+    if path is None:
+        return
+    try:
+        with path.open("a", encoding="utf-8") as file:
+            json.dump(_decision_record(snapshot, key, reason), file, ensure_ascii=False)
+            file.write("\n")
+    except OSError as exc:
+        print(f"failed to write decision log: {exc}", file=sys.stderr)
+
+
+def _rewind_if_truncated(file, path: Path) -> bool:
+    """Rewind a tail reader after the emitter rolls over its JSONL file."""
+    try:
+        if path.stat().st_size >= file.tell():
+            return False
+        file.seek(0)
+        return True
+    except OSError:
+        return False
+
+
+def _duplicate_snapshot_ready(
+    line: str, previous_line: str | None, elapsed: float
+) -> bool:
+    return line != previous_line or elapsed >= DUPLICATE_RETRY_SECONDS
+
+
+def _stall_recovery_key(nudge_streak: int, last_player_level: int | None) -> tuple[str, str]:
+    if (
+        last_player_level is not None
+        and last_player_level % 10 in (8, 9)
+        and nudge_streak >= LEVEL_UP_RECOVERY_START
+    ):
+        if (nudge_streak - LEVEL_UP_RECOVERY_START) % 2 == 0:
+            return LEVEL_UP_STAT_CHOICE, f"<level-stat:{LEVEL_UP_STAT_CHOICE}>"
+        return "y", "<level-stat:y>"
+    return NUDGE_KEY, "<esc>"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
+    parser.add_argument(
+        "--decision-log",
+        type=Path,
+        help="append structured policy decisions for an external live viewer",
+    )
+    parser.add_argument(
+        "--monrace-definitions",
+        type=Path,
+        help="path to Hengband's lib/edit/MonraceDefinitions.jsonc",
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument("--send-to-window", action="store_true")
@@ -63,6 +213,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.decision_log is not None and not args.once:
+        try:
+            args.decision_log.parent.mkdir(parents=True, exist_ok=True)
+            args.decision_log.write_text("", encoding="utf-8")
+        except OSError as exc:
+            print(f"failed to initialize decision log: {exc}", file=sys.stderr)
+            return 2
+
     if args.list_windows:
         from hengbot.input_windows import list_windows
 
@@ -71,6 +229,17 @@ def main(argv: list[str] | None = None) -> int:
             encoding = sys.stdout.encoding or "utf-8"
             print(line.encode(encoding, errors="replace").decode(encoding))
         return 0
+
+    monrace_path = find_monrace_definitions(args.state_file, args.monrace_definitions)
+    if monrace_path is None:
+        print("MonraceDefinitions.jsonc was not found", file=sys.stderr)
+        return 2
+    else:
+        try:
+            monrace_knowledge = load_monrace_knowledge(monrace_path)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(f"invalid monster definitions: {exc}", file=sys.stderr)
+            return 2
 
     def send(key: str) -> bool:
         if not args.send_to_window:
@@ -104,33 +273,57 @@ def main(argv: list[str] | None = None) -> int:
             if not line.strip():
                 continue
             try:
-                snapshot = parse_snapshot(json.loads(line))
+                snapshot = parse_snapshot(json.loads(line), monrace_knowledge)
             except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 print(f"invalid snapshot: {exc}", file=sys.stderr)
                 return 2
             key = policy.choose_key(snapshot)
+            _write_decision(args.decision_log, snapshot, key, policy.last_reason)
             print(key, flush=True)
             if not send(key):
                 return 3
             return 0
         return 1
 
-    return _run_follow(args, policy, send)
+    try:
+        return _run_follow(args, policy, send, monrace_knowledge)
+    except MissingMonraceKnowledgeError as exc:
+        # The definitions file we loaded does not match the running game (e.g. a
+        # different lib/ was resolved). Fail fast but CLEANLY — a raw traceback
+        # here would leave the game blocked with no hint of what to fix.
+        print(
+            f"monster definitions mismatch: {exc}; "
+            "pass --monrace-definitions with the lib/edit the game actually loads",
+            file=sys.stderr,
+        )
+        return 2
 
 
-def _run_follow(args, policy, send) -> int:
+def _run_follow(args, policy, send, monrace_knowledge) -> int:
     path = args.state_file
     while not path.exists():
         time.sleep(args.poll_interval)
 
-    with path.open("r", encoding="utf-8") as file:
+    initial_snapshot = _newest_snapshot(
+        list(_read_last_line(path)), monrace_knowledge
+    )
+    if initial_snapshot is not None:
+        policy.prime(initial_snapshot)
+    # errors="replace": a poll can catch the emitter mid-write inside a multibyte
+    # character (Japanese monster names); a strict read would raise
+    # UnicodeDecodeError and kill the loop. Replacement characters at a torn
+    # boundary at worst spoil that one line, and drain-to-newest skips past it.
+    with path.open("r", encoding="utf-8", errors="replace") as file:
         file.seek(0, 2)
         pending = ""
         last_activity = time.monotonic()
         quiet_ok_until = 0.0  # suppress the nudge while a rest is expected to run
         nudge_streak = 0  # consecutive nudges with no snapshot in between
+        last_player_level = initial_snapshot.player.level if initial_snapshot is not None else None
         # (floor_key, y, x) of the last LOOP_WINDOW decisions, for loop detection.
         recent_cells: deque[tuple] = deque(maxlen=LOOP_WINDOW)
+        last_decision_line: str | None = None
+        last_decision_at = 0.0
         while True:
             chunk = file.read()
             if chunk:
@@ -147,13 +340,27 @@ def _run_follow(args, policy, send) -> int:
                 # newest line keeps every key matched to the live board and is
                 # self-healing: even after a stray desync the next decision re-syncs
                 # to the current state. Rejected moves (wall/door bumps) still
-                # re-emit the same board and are handled by the policy's own
-                # livelock breaker, so we deliberately do NOT skip duplicates here.
-                snapshot = _newest_snapshot(complete_lines)
-                if snapshot is not None:
+                # re-emit the same board and are retried at a bounded interval so
+                # the policy's livelock breaker can act without flooding the
+                # Windows input queue.
+                entry = _newest_snapshot_entry(complete_lines, monrace_knowledge)
+                if entry is not None:
+                    snapshot, snapshot_line = entry
                     # A snapshot means the game is alive and awaiting a command.
                     nudge_streak = 0
+                    last_player_level = snapshot.player.level
+                    now = time.monotonic()
+                    last_activity = now
+                    if not _duplicate_snapshot_ready(
+                        snapshot_line,
+                        last_decision_line,
+                        now - last_decision_at,
+                    ):
+                        continue
+                    last_decision_line = snapshot_line
+                    last_decision_at = now
                     key = policy.choose_key(snapshot)
+                    _write_decision(args.decision_log, snapshot, key, policy.last_reason)
                     print(key, flush=True)
                     send(key)
                     last_activity = time.monotonic()
@@ -169,15 +376,25 @@ def _run_follow(args, policy, send) -> int:
                     if snapshot.store is not None:
                         recent_cells.clear()
                         continue
-                    # Searching a dead-end for a secret door, and fighting/drinking
-                    # in place during combat, all hold position but are NOT
-                    # exploration oscillations — don't let them trip the guard (it
-                    # is meant to catch a stuck sweep, not abandon a long fight).
-                    if policy.last_reason == "search" or policy.last_reason == "melee" or policy.last_reason.startswith("item:"):
+                    # Searching a dead-end for a secret door, fighting/drinking in
+                    # place during combat, and deliberately waiting out a Word of
+                    # Recall countdown all hold position but are NOT exploration
+                    # oscillations — don't let them trip the guard (it is meant to
+                    # catch a stuck sweep, not abandon a long fight or stop the bot
+                    # in the middle of a safe recall home). Recall takes ~15-35
+                    # turns of standing still, easily enough to trip a ≤4-cell
+                    # window on its own.
+                    if (
+                        policy.last_reason in STATIONARY_REASONS
+                        or policy.last_reason.startswith("item:")
+                    ):
                         continue
                     pos = snapshot.player.position
                     recent_cells.append((snapshot.floor_key, pos.y, pos.x))
                     if _is_looping(recent_cells):
+                        _write_decision(
+                            args.decision_log, snapshot, "", "loop-detected"
+                        )
                         cells = sorted({(c[1], c[2]) for c in recent_cells})
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} turn={snapshot.turn} "
@@ -194,19 +411,13 @@ def _run_follow(args, policy, send) -> int:
                         return 0
                 continue
 
-            # The emitter truncates the JSONL at game start. If we opened the file
-            # and seeked to its end BEFORE that truncation, our read offset is now
-            # stranded past the new (smaller) EOF: we would read nothing forever
-            # and then falsely declare death. Detect the shrink and re-read from
-            # the new start (drain-to-newest still picks the latest snapshot).
-            try:
-                if args.state_file.stat().st_size < file.tell():
-                    file.seek(0)
-                    pending = ""
-                    nudge_streak = 0
-                    continue
-            except OSError:
-                pass
+            # The emitter truncates the JSONL at game start and when it reaches
+            # its size limit. Rewind after either shrink so the reader is not
+            # stranded beyond the new EOF.
+            if _rewind_if_truncated(file, args.state_file):
+                pending = ""
+                nudge_streak = 0
+                continue
 
             # No new snapshot. If the game has gone quiet for too long it is
             # probably blocked on a message/"-more-" prompt that emits no
@@ -218,8 +429,11 @@ def _run_follow(args, policy, send) -> int:
                 and now - last_activity > args.stall_timeout
                 and now >= quiet_ok_until
             ):
-                if send(NUDGE_KEY):
-                    print("<esc>", flush=True)
+                recovery_key, recovery_marker = _stall_recovery_key(
+                    nudge_streak, last_player_level
+                )
+                if send(recovery_key):
+                    print(recovery_marker, flush=True)
                 last_activity = now
                 nudge_streak += 1
                 # Nudges that never bring back a snapshot mean a terminal screen
@@ -237,25 +451,35 @@ def _run_follow(args, policy, send) -> int:
 
 
 def _is_looping(recent_cells) -> bool:
-    """True when the last LOOP_WINDOW decisions stayed on ONE floor and visited at
-    most LOOP_MAX_DISTINCT distinct tiles — an unbroken exploration oscillation.
+    """True for a confined single-floor oscillation or rapid two-floor ping-pong.
 
     Needs a full window so a genuinely small room or a brief back-and-forth while
-    routing does not trip it; a real sweep visits far more than a few tiles over
-    this many moves. Rest is bounded well under the window, and combat that pins
-    the player to one spot for this long without resolving is itself a stuck state
-    worth stopping on.
+    routing does not trip it. A normal floor change happens once; a stair loop
+    alternates between two floors on nearly every decision.
     """
     if len(recent_cells) < LOOP_WINDOW:
         return False
     floors = {c[0] for c in recent_cells}
-    if len(floors) != 1:
+    if len(floors) == 1:
+        cells = {(c[1], c[2]) for c in recent_cells}
+        return len(cells) <= LOOP_MAX_DISTINCT
+    if len(floors) != 2:
         return False
-    cells = {(c[1], c[2]) for c in recent_cells}
-    return len(cells) <= LOOP_MAX_DISTINCT
+
+    states = set(recent_cells)
+    floor_transitions = sum(
+        previous[0] != current[0]
+        for previous, current in zip(recent_cells, list(recent_cells)[1:])
+    )
+    return (
+        len(states) <= LOOP_MAX_DISTINCT
+        and floor_transitions >= LOOP_WINDOW // 2
+    )
 
 
-def _newest_snapshot(complete_lines: list[str]):
+def _newest_snapshot(
+    complete_lines: list[str], monrace_knowledge=None
+):
     """Return the most recent parseable snapshot in a read batch, or ``None``.
 
     Only the newest snapshot matters: older lines in the same read are stale
@@ -265,11 +489,21 @@ def _newest_snapshot(complete_lines: list[str]):
     at the first good line; a malformed tail line simply falls through to the one
     before it.
     """
+    entry = _newest_snapshot_entry(complete_lines, monrace_knowledge)
+    return entry[0] if entry is not None else None
+
+
+def _newest_snapshot_entry(
+    complete_lines: list[str], monrace_knowledge=None
+):
+    """Return the newest parseable snapshot together with its exact JSONL line."""
     for line in reversed(complete_lines):
         if not line.strip():
             continue
         try:
-            return parse_snapshot(json.loads(line))
+            return parse_snapshot(json.loads(line), monrace_knowledge), line
+        except MissingMonraceKnowledgeError:
+            raise
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"invalid snapshot: {exc}", file=sys.stderr)
     return None

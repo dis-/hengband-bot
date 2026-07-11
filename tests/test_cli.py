@@ -5,12 +5,19 @@ from tempfile import TemporaryDirectory
 
 from hengbot.cli import (
     LOOP_WINDOW,
+    STATIONARY_REASONS,
+    _decision_record,
+    _duplicate_snapshot_ready,
     _deduplicate_consecutive,
     _is_looping,
     _newest_snapshot,
     _read_last_line,
+    _rewind_if_truncated,
+    _stall_recovery_key,
     _split_complete_lines,
 )
+from hengbot.monrace_knowledge import MonraceKnowledge
+from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
 
 
 def _snap_line(turn, y, x):
@@ -45,6 +52,242 @@ class NewestSnapshotTest(unittest.TestCase):
     def test_returns_none_for_empty_or_all_blank(self):
         self.assertIsNone(_newest_snapshot([]))
         self.assertIsNone(_newest_snapshot(["\n", "   \n"]))
+
+    def test_derives_summoning_from_race_id_not_snapshot_capabilities(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "monster_index": 1,
+                "terrain": {"move": True},
+            },
+            {
+                "y": 5,
+                "x": 7,
+                "known": True,
+                "monster_index": 2,
+                "terrain": {"move": True},
+            },
+        ]
+        data["visible_monsters"] = [
+            {
+                "index": 1,
+                "race_id": 124,
+                "can_summon": False,
+                "hp": 1,
+                "max_hp": 1,
+                "speed": 999,
+                "health": "badly_wounded",
+                "confused": True,
+            },
+            {
+                "index": 2,
+                "race_id": 125,
+                "can_summon": True,
+            },
+        ]
+        knowledge = {
+            124: MonraceKnowledge(100, 115, True, False),
+            125: MonraceKnowledge(20, 110, False, False),
+        }
+        snapshot = _newest_snapshot(
+            [json.dumps(data) + "\n"], knowledge
+        )
+        self.assertTrue(snapshot.visible_monsters[0].can_summon)
+        self.assertFalse(snapshot.visible_monsters[1].can_summon)
+        self.assertEqual(snapshot.visible_monsters[0].hp, 24)
+        self.assertEqual(snapshot.visible_monsters[0].max_hp, 100)
+        self.assertEqual(snapshot.visible_monsters[0].speed, 115)
+        self.assertTrue(snapshot.visible_monsters[0].confused)
+        self.assertEqual(snapshot.visible_monsters[0].position.x, 6)
+
+    def test_rejects_a_visible_monster_missing_from_static_knowledge(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "monster_index": 1,
+                "terrain": {"move": True},
+            }
+        ]
+        data["visible_monsters"] = [{"index": 1, "race_id": 9999}]
+        with self.assertRaisesRegex(MissingMonraceKnowledgeError, "race_id=9999"):
+            parse_snapshot(data, {})
+
+        with self.assertRaises(MissingMonraceKnowledgeError):
+            _newest_snapshot([json.dumps(data) + "\n"], {})
+
+    def test_parses_redacted_unidentified_item_details(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["inventory"] = [
+            {
+                "slot": "h",
+                "name": "an unknown scroll",
+                "count": 1,
+                "tval": 70,
+                "aware": False,
+                "known": False,
+            }
+        ]
+
+        item = parse_snapshot(data, {}).inventory[0]
+
+        self.assertEqual(item.sval, -1)
+        self.assertEqual(item.charges, 0)
+        self.assertEqual(item.fuel, 0)
+        self.assertFalse(item.aware)
+        self.assertFalse(item.known)
+        self.assertFalse(item.fully_known)
+
+    def test_ignores_legacy_exact_food_and_recall_counters(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["player"]["food"] = 1
+        data["player"]["word_recall"] = 17
+
+        player = parse_snapshot(data, {}).player
+
+        self.assertEqual(player.food_state, "unknown")
+        self.assertFalse(player.recalling)
+
+    def test_parses_redacted_home_item_without_hidden_kind_or_price(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["store"] = {
+            "store_type": 7,
+            "items": [
+                {
+                    "letter": "a",
+                    "name": "an unknown ring",
+                    "count": 1,
+                    "tval": 45,
+                    "aware": False,
+                    "known": False,
+                    "fully_known": False,
+                }
+            ],
+        }
+
+        stored = parse_snapshot(data, {}).store.items[0]
+
+        self.assertEqual(stored.sval, -1)
+        self.assertEqual(stored.price, 0)
+        self.assertFalse(stored.aware)
+        self.assertFalse(stored.known)
+        self.assertFalse(stored.fully_known)
+
+    def test_parses_visible_progress_grid_and_known_item_details(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["player"].update(
+            {
+                "class_id": 0,
+                "ac": 42,
+                "melee": {
+                    "main_hand_blows": 200,
+                    "sub_hand_blows": 0,
+                    "main_hand_to_h": 12,
+                    "sub_hand_to_h": 0,
+                    "main_hand_to_d": 7,
+                    "sub_hand_to_d": 0,
+                },
+            }
+        )
+        data["progress"] = {
+            "recall_dungeon_id": 1,
+            "yeek_cave_conquered": True,
+            "angband_recall_unlocked": True,
+        }
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "terrain": {
+                    "move": False,
+                    "wall": True,
+                    "can_dig": True,
+                    "has_gold": True,
+                    "entrance": False,
+                },
+            },
+            {
+                "y": 5,
+                "x": 7,
+                "known": True,
+                "terrain": {"move": True, "entrance": True},
+                "entrance_dungeon_id": 2,
+            },
+        ]
+        data["inventory"] = [
+            {
+                "slot": "a",
+                "name": "known sword",
+                "count": 1,
+                "tval": 23,
+                "sval": 1,
+                "aware": True,
+                "known": True,
+                "fully_known": True,
+                "is_equipment": True,
+                "is_ego": True,
+                "is_artifact": False,
+                "is_cursed": False,
+                "is_broken": False,
+                "to_h": 3,
+                "to_d": 4,
+                "to_a": 0,
+                "ac": 0,
+                "damage_dice": {"num": 2, "sides": 5},
+                "known_flags": [12, 34],
+                "pval": 2,
+                "timeout": 3,
+            }
+        ]
+
+        snapshot = parse_snapshot(data, {})
+
+        self.assertEqual(snapshot.player.class_id, 0)
+        self.assertEqual(snapshot.player.ac, 42)
+        self.assertEqual(snapshot.player.main_hand_blows, 200)
+        self.assertTrue(snapshot.yeek_cave_conquered)
+        self.assertTrue(snapshot.angband_recall_unlocked)
+        self.assertTrue(snapshot.grids[Position(5, 6)].has_gold)
+        self.assertEqual(snapshot.grids[Position(5, 7)].entrance_dungeon_id, 2)
+        self.assertTrue(snapshot.inventory[0].is_ego)
+        self.assertEqual(snapshot.inventory[0].known_flags, frozenset({12, 34}))
+        self.assertEqual(snapshot.inventory[0].pval, 2)
+        self.assertEqual(snapshot.inventory[0].timeout, 3)
+
+
+class DecisionRecordTest(unittest.TestCase):
+    def test_records_policy_reason_and_observable_state(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+
+        record = _decision_record(snapshot, "6", "seek-loot")
+
+        self.assertEqual(record["turn"], 123)
+        self.assertEqual(record["objective"], "Collect visible floor items")
+        self.assertEqual(record["reason"], "seek-loot")
+        self.assertEqual(record["key"], "6")
+        self.assertEqual(record["position"], {"y": 5, "x": 7})
+        self.assertEqual(record["inventory"], {"used": 0, "free": 23})
+        self.assertEqual(record["visible_hostiles"], 0)
+
+
+class DuplicateSnapshotThrottleTest(unittest.TestCase):
+    def test_throttles_an_exact_duplicate_until_retry_interval(self):
+        line = _snap_line(100, 5, 5)
+
+        self.assertFalse(_duplicate_snapshot_ready(line, line, 1.9))
+        self.assertTrue(_duplicate_snapshot_ready(line, line, 2.0))
+
+    def test_acts_immediately_when_snapshot_state_changes(self):
+        previous = _snap_line(100, 5, 5)
+        current = _snap_line(110, 5, 6)
+
+        self.assertTrue(_duplicate_snapshot_ready(current, previous, 0.0))
 
 
 class LoopDetectionTest(unittest.TestCase):
@@ -85,6 +328,17 @@ class LoopDetectionTest(unittest.TestCase):
             cells.append((floor, 15, 43))
         self.assertFalse(_is_looping(cells))
 
+    def test_flags_a_two_floor_stair_ping_pong(self):
+        from collections import deque
+
+        cells = deque(maxlen=LOOP_WINDOW)
+        for i in range(LOOP_WINDOW):
+            if i % 2:
+                cells.append(((2, 10, 0), 7, 16))
+            else:
+                cells.append(((2, 9, 0), 13, 54))
+        self.assertTrue(_is_looping(cells))
+
 
 class DeduplicateConsecutiveTest(unittest.TestCase):
     def test_drops_only_consecutive_duplicate_snapshots(self):
@@ -112,6 +366,56 @@ class CompleteLineTest(unittest.TestCase):
             path.write_text('{"turn":1}\n{"turn":', encoding="utf-8")
 
             self.assertEqual(list(_read_last_line(path)), ['{"turn":1}'])
+
+
+class RolloverTest(unittest.TestCase):
+    def test_rewinds_an_open_reader_after_emitter_truncation(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "state.jsonl"
+            path.write_text("old snapshot\n" * 20, encoding="utf-8")
+
+            with path.open("r", encoding="utf-8") as stream:
+                stream.seek(0, 2)
+                path.write_text("new snapshot\n", encoding="utf-8")
+
+                self.assertTrue(_rewind_if_truncated(stream, path))
+                self.assertEqual(stream.read(), "new snapshot\n")
+
+
+class StallRecoveryTest(unittest.TestCase):
+    def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):
+        self.assertEqual(_stall_recovery_key(0, 9), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(1, 9), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(2, 9), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(3, 9), ("y", "<level-stat:y>"))
+
+    def test_keeps_retrying_the_stat_answers_if_a_key_was_lost(self):
+        # A single lost 'a' or 'y' must not strand the game on the stat screen:
+        # the recovery alternates the two answers until the terminal limit.
+        self.assertEqual(_stall_recovery_key(4, 9), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(5, 9), ("y", "<level-stat:y>"))
+
+    def test_covers_a_two_level_jump_over_the_stat_threshold(self):
+        # One out-of-depth kill can jump 8→10; the last snapshot still says
+        # clvl 8, and the stat screen is up all the same.
+        self.assertEqual(_stall_recovery_key(2, 8), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(3, 18), ("y", "<level-stat:y>"))
+
+    def test_does_not_send_stat_answers_at_other_levels(self):
+        self.assertEqual(_stall_recovery_key(2, 7), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 10), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(2, None), ("\x1b", "<esc>"))
+
+
+class StationaryReasonsTest(unittest.TestCase):
+    def test_recall_waits_are_exempt_from_loop_detection(self):
+        # Waiting out a Word of Recall countdown pins the player on one tile for
+        # ~15-35 turns; if those decisions fed the detector they could stop the
+        # bot mid-return. They must be exempt, alongside search and in-place melee.
+        self.assertIn("return:wait-recall", STATIONARY_REASONS)
+        self.assertIn("town:wait-recall", STATIONARY_REASONS)
+        self.assertIn("search", STATIONARY_REASONS)
+        self.assertIn("melee", STATIONARY_REASONS)
 
 
 if __name__ == "__main__":
