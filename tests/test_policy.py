@@ -3737,6 +3737,25 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(pol._next_purchase(snap), digger)
 
+    def test_fundraising_does_not_buy_digger_with_one_withdrawable_from_home(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "prepare"
+        home_digger = store_item(
+            "h", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        pol._equipment_catalog.observe_home_page([home_digger])
+        shop_digger = store_item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL, price=100)
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=self._strict_supplies(detection=5),
+            equipment=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000)],
+            store=StoreState(STORE_GENERAL, [shop_digger]),
+        )
+
+        self.assertIsNone(pol._next_purchase(snap))
+
     def test_identify_errand_still_buys_departure_teleport_scrolls(self):
         # An identify errand must not short-circuit _next_purchase: while at the
         # Alchemist (which also sells teleport scrolls) the bot has to keep

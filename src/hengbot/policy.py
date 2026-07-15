@@ -5059,7 +5059,7 @@ class HengbotPolicy:
                 )
             return None
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
-            if not self._has_digging_tool(snapshot):
+            if not self._has_withdrawable_digging_tool(snapshot):
                 digger = next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
                     None,
@@ -5110,7 +5110,7 @@ class HengbotPolicy:
                     ),
                     None,
                 )
-            if not self._has_digging_tool(snapshot):
+            if not self._has_withdrawable_digging_tool(snapshot):
                 return next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
                     None,
