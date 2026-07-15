@@ -625,10 +625,12 @@ class StationaryReasonsTest(unittest.TestCase):
         # must be exempt (the policy's MINING_STALL_LIMIT leash bounds them instead), so
         # a long tunnel-to-a-vein or dig-out is never mistaken for a stuck loop.
         self.assertIn("fundraise:mine-treasure", MINING_DIG_REASONS)
-        self.assertIn("fundraise:tunnel-to-treasure", MINING_DIG_REASONS)
         self.assertIn("fundraise:tunnel-out", MINING_DIG_REASONS)
-        # Walking reasons stay guardable — only in-place digging is exempt.
+        # Walking reasons stay guardable — only in-place digging is exempt. The
+        # two-phase design never tunnels toward far veins, so the old
+        # tunnel-to-treasure reason no longer exists at all.
         self.assertNotIn("fundraise:seek-treasure", MINING_DIG_REASONS)
+        self.assertNotIn("fundraise:tunnel-to-treasure", MINING_DIG_REASONS)
 
 
 if __name__ == "__main__":

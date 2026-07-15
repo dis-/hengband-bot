@@ -106,16 +106,15 @@ STATIONARY_REASONS = frozenset(
     }
 )
 
-# Digging holds the player on ONE tile for many turns (breaking rock toward a vein or
-# tunnelling out of a pocket), which looks like a confined oscillation to the position-
-# based loop guard. These are productive, not stuck, so they must not trip it — the
-# policy's own MINING_STALL_LIMIT leash bounds a dig instead (see policy.py). Pure mining
-# WALK-oscillation is NOT here: the policy gives that up at once, and leaving it guardable
-# keeps a genuine non-digging loop catchable.
+# Digging holds the player on ONE tile for many turns (a vein face, or tunnelling
+# out of a pocket), which looks like a confined oscillation to the position-based
+# loop guard. These are productive, not stuck, so they must not trip it — the
+# policy's own MINING_STALL_LIMIT leash bounds a dig instead (see policy.py). Pure
+# mining WALK-oscillation is NOT here: the policy gives that up at once, and
+# leaving it guardable keeps a genuine non-digging loop catchable.
 MINING_DIG_REASONS = frozenset(
     {
         "fundraise:mine-treasure",
-        "fundraise:tunnel-to-treasure",
         "fundraise:tunnel-out",
     }
 )
@@ -203,6 +202,7 @@ def _decision_record(
     threat_prediction: dict | None = None,
     equipment_optimization: dict | None = None,
     loot: dict | None = None,
+    mining: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -253,6 +253,7 @@ def _decision_record(
         "depth_safety": depth_safety or {},
         "equipment_optimization": equipment_optimization or {},
         "loot": loot or {},
+        "mining": mining or {},
     }
 
 
@@ -284,6 +285,25 @@ def _over_extension_state(policy) -> dict:
         "dive_loot": getattr(policy, "_dive_loot", 0),
         "dive_emergencies": getattr(policy, "_dive_emergencies", 0),
         "last_return_trigger": getattr(policy, "_last_return_trigger", None),
+    }
+
+
+def _mining_state(policy) -> dict:
+    """Surface the mining coverage counters so the user's design goal —
+    collect every low-dig-cost treasure before leaving a floor — is verifiable
+    live: detected_total should end ~equal to collected, with dropped the
+    (small) walk-failure remainder."""
+    known = getattr(policy, "_known_treasure", None) or set()
+    dropped_set = getattr(policy, "_mining_dropped_veins", None) or set()
+    collected = getattr(policy, "_mining_veins_collected", 0)
+    dropped = getattr(policy, "_mining_veins_dropped", 0)
+    remaining = len(known - dropped_set)
+    return {
+        "collected": collected,
+        "dropped": dropped,
+        "remaining_known": remaining,
+        "detected_total": collected + dropped + remaining,
+        "sweep_done": getattr(policy, "_mining_sweep_done", False),
     }
 
 
@@ -327,6 +347,7 @@ def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=N
                 else {}
             )
             loot = policy.loot_state(snapshot) if policy is not None else {}
+            mining = _mining_state(policy) if policy is not None else {}
             json.dump(
                 _decision_record(
                     snapshot,
@@ -338,6 +359,7 @@ def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=N
                     threat_prediction,
                     equipment_optimization,
                     loot,
+                    mining,
                 ),
                 file,
                 ensure_ascii=False,

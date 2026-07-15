@@ -113,6 +113,19 @@ WAIT_KEY = "5"
 # the displayed store landmarks 1-8 are selected with their shifted number-row
 # symbols (roguelike mode uses the bare digits instead).
 TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")
+# Travel-selector macro for the surface walk to the dungeon entrance: ` opens
+# travel, n declines a possible "continue previous travel?" prompt (point
+# selection ignores it otherwise), > jumps the cursor to the nearest known
+# STAIRS+DOWN_STAIRS grid — the wilderness dungeon entrance carries BOTH flags
+# (TerrainDefinitions ENTRANCE, id 193) — and . confirms. The bot never accepts
+# castle quests, so > cannot land on a quest entrance; the user allows this
+# shortcut exactly on that condition.
+ENTRANCE_TRAVEL_MACRO = "`n>."
+# Adjacent-ish goals are cheaper on foot than a travel round-trip.
+ENTRANCE_TRAVEL_MIN_DISTANCE = 3
+# Consecutive travel issues without getting closer before giving the goal back
+# to BFS walking (an unknown approach makes the game reject the route).
+ENTRANCE_TRAVEL_STALL_LIMIT = 2
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
@@ -696,6 +709,12 @@ class HengbotPolicy:
         self._shopping_approach_goal: Position | None = None
         self._pending_town_travel: tuple[Position, Position] | None = None
         self._town_travel_fallback_goal: Position | None = None
+        # Native travel toward the surface dungeon entrance (`n>.) — the goal
+        # _descent_step chose, the best distance seen for it, and how many
+        # issues brought no progress. See _entrance_travel_key.
+        self._descent_target_goal: Position | None = None
+        self._entrance_travel_state: tuple[Position, int, int] | None = None
+        self._entrance_travel_fallback_goal: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
         # weapon). The pre-recall weapon check blocks a dive until this clears (weapon
@@ -745,6 +764,20 @@ class HengbotPolicy:
         self._mining_route_visits: Counter[Position] = Counter()
         self._mining_navigation_visits: Counter[Position] = Counter()
         self._mining_oscillation_retargets = 0
+        # Two-phase mining (user design): after each detection read, SWEEP the
+        # detected area first (explore -> approaches become walkable), then
+        # collect every distance-1 vein until none qualify. Veins whose walk
+        # keeps failing go into the dropped set — _observe re-adds any grid that
+        # still shows gold on every observation, so without this persistent
+        # exclusion "skip to the next vein" silently retries the same one until
+        # a revisit limit ends the whole floor with most treasure uncollected.
+        self._mining_sweep_done = False
+        self._mining_dropped_veins: set[Position] = set()
+        self._mining_veins_collected = 0
+        self._mining_veins_dropped = 0
+        # Gold when scavenge mode was last entered — the scavenge->prepare
+        # transition re-checks latched stores only if gold actually rose.
+        self._scavenge_entry_gold = 0
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
@@ -1407,6 +1440,9 @@ class HengbotPolicy:
                 if clear_step is not None:
                     self.last_reason = "clear-descent"
                     return self._step_toward(snapshot, clear_step)
+            travel = self._entrance_travel_key(snapshot, self._descent_target_goal)
+            if travel is not None:
+                return travel
             return self._step_toward(snapshot, step)
 
         # 7. Eat when hungry and it is safe to do so.
@@ -1570,7 +1606,16 @@ class HengbotPolicy:
 
     # -------------------------------------------------------------- observers
     def _observe(self, snapshot: Snapshot) -> None:
+        # The threat memo exists only for repeat lookups within ONE decision
+        # (gates + telemetry); a new decision must never see the old entries.
+        self._threat_prediction_memo.clear()
         previous_floor = self._floor_key
+        if previous_floor is not None and previous_floor != snapshot.floor_key:
+            # Surface-travel bookkeeping is per-visit: positions repeat across
+            # town visits (static map), so a stale no-progress latch from the
+            # previous visit would suppress native travel forever.
+            self._entrance_travel_state = None
+            self._entrance_travel_fallback_goal = None
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
         # fighting (reset by any such progress, or by reaching town) — so a
@@ -1850,6 +1895,10 @@ class HengbotPolicy:
             self._mining_route_visits.clear()
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
+            self._mining_sweep_done = False
+            self._mining_dropped_veins.clear()
+            self._mining_veins_collected = 0
+            self._mining_veins_dropped = 0
             self._known_loot.clear()
             self._loot_target = None
             self._deferred_loot.clear()
@@ -1891,7 +1940,10 @@ class HengbotPolicy:
                 grid.position in self._known_treasure
                 and position.distance_to(grid.position) <= 1
             ):
+                # Gold gone with us standing next to it: we mined/picked it.
                 self._known_treasure.discard(grid.position)
+                self._mining_dropped_veins.discard(grid.position)
+                self._mining_veins_collected += 1
                 if self._treasure_target == grid.position:
                     self._treasure_target = None
             # CAVE_UNSAFE means trap detection has not covered this grid.  The
@@ -4390,6 +4442,7 @@ class HengbotPolicy:
                     if self._activate_partial_deep_mining_plan(snapshot):
                         return self._next_required_store_type(snapshot)
                     self._fundraising_mode = "scavenge"
+                    self._scavenge_entry_gold = snapshot.player.gold
                 else:
                     return STORE_ALCHEMIST
             if (
@@ -4402,6 +4455,7 @@ class HengbotPolicy:
                     return STORE_HOME
                 if STORE_GENERAL in self._town_store_attempted:
                     self._fundraising_mode = "scavenge"
+                    self._scavenge_entry_gold = snapshot.player.gold
                 else:
                     return STORE_GENERAL
             if not self._fundraising_light_ready(snapshot):
@@ -5037,12 +5091,18 @@ class HengbotPolicy:
         if store.store_type == STORE_HOME:
             for stored in store.items:
                 self._home_catalog[self._item_signature(stored)] = stored
-            dominated_disposal = self._home_dominated_disposal_key(snapshot)
-            if dominated_disposal is not None:
-                return dominated_disposal
+            # An active transaction session OWNS the Home visit: its town-side
+            # dispatcher keeps walking back in while it has Home work, so a
+            # disposal leave that preempts it just bounces the bot in and out of
+            # Home (store snapshots reset the harness loop guard, so nothing
+            # stops the bounce). Run the session first; when it completes or is
+            # abandoned it returns None and the disposal leave proceeds.
             transaction_key = self._equipment_transaction_home_key(snapshot)
             if transaction_key is not None:
                 return transaction_key
+            dominated_disposal = self._home_dominated_disposal_key(snapshot)
+            if dominated_disposal is not None:
+                return dominated_disposal
 
         if (
             store.store_type in {STORE_ARMOURY, STORE_BLACK}
@@ -5487,7 +5547,15 @@ class HengbotPolicy:
             self._sell_scavenged_consumables = False
             if self._fundraising_mode == "scavenge" and snapshot.in_town:
                 self._fundraising_mode = "prepare"
-                self._town_store_attempted.clear()
+                # Re-check the latched stores only when the scavenge pass
+                # actually raised gold — that is what could have changed their
+                # verdict. A blanket clear with UNCHANGED gold re-routed the
+                # bot into the same out-of-stock stores forever: the
+                # Alchemist<->Magic travel ping-pong, invisible to the loop
+                # guard because store snapshots reset it and travel keeps the
+                # position moving.
+                if snapshot.player.gold > self._scavenge_entry_gold:
+                    self._town_store_attempted.clear()
         if (
             snapshot.player.class_id < 0
             and store.store_type == STORE_GENERAL
@@ -5619,6 +5687,46 @@ class HengbotPolicy:
         self._pending_town_travel = (snapshot.player.position, goal)
         self.last_reason = travel_reason
         return f"`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}."
+
+    def _entrance_travel_key(self, snapshot: Snapshot, goal: Position | None) -> str | None:
+        """Native-travel leg of the surface walk to the dungeon entrance.
+
+        Walking the ~100-tile town/wilderness leg costs one bot decision (a full
+        snapshot round-trip) PER TILE; the travel command crosses it in one
+        command, so prefer it whenever _descent_step is heading for a far
+        surface goal. Progress is judged by distance-to-goal: an interruption
+        (a monster, a nudge Escape) just re-issues travel, while
+        ENTRANCE_TRAVEL_STALL_LIMIT issues with no progress at all latch a
+        fallback to BFS walking (the game rejects travel over an unknown
+        approach — the existing explore-toward path handles that)."""
+        if snapshot.dungeon_level != 0 or goal is None:
+            return None
+        if self.last_reason not in {"seek-downstairs", "approach-descent"}:
+            return None
+        position = snapshot.player.position
+        distance = position.distance_to(goal)
+        if distance < ENTRANCE_TRAVEL_MIN_DISTANCE:
+            return None
+        if self._entrance_travel_fallback_goal is not None:
+            if self._entrance_travel_fallback_goal == goal:
+                return None
+            self._entrance_travel_fallback_goal = None
+        state = self._entrance_travel_state
+        if state is not None and state[0] == goal:
+            _, best_distance, stalls = state
+            if distance < best_distance:
+                self._entrance_travel_state = (goal, distance, 0)
+            else:
+                stalls += 1
+                if stalls >= ENTRANCE_TRAVEL_STALL_LIMIT:
+                    self._entrance_travel_fallback_goal = goal
+                    self._entrance_travel_state = None
+                    return None
+                self._entrance_travel_state = (goal, best_distance, stalls)
+        else:
+            self._entrance_travel_state = (goal, distance, 0)
+        self.last_reason = "town:travel-entrance"
+        return ENTRANCE_TRAVEL_MACRO
 
     def _active_dungeon_target(self) -> int:
         if self._fundraising_mode in {"mine", "scavenge"}:
@@ -6193,66 +6301,50 @@ class HengbotPolicy:
                 return TUNNEL_KEY + DIRECTION_KEYS[(cy, cx)]
         return None
 
-    def _treasure_dig_step(self, snapshot: Snapshot) -> str | None:
-        """Dig one step toward a walled-off vein: tries the known veins nearest-first
-        and returns the first with a diggable neighbour in its direction. None means no
-        vein can currently be tunnelled toward (the caller then gives up and ascends)."""
-        start = snapshot.player.position
-        for vein in sorted(
-            self._known_treasure, key=lambda v: (start.distance_to(v), v.y, v.x)
-        ):
-            dig = self._tunnel_step_toward(snapshot, vein)
-            if dig is not None:
-                return dig
-        return None
+    def _drop_mining_vein(self, vein: Position) -> None:
+        """Give up on ONE vein without ending the floor run. The dropped set is
+        what makes this stick: _observe re-adds any still-golden grid to
+        _known_treasure every observation, so a bare discard would re-select
+        the same failed vein instead of moving on to the next."""
+        self._known_treasure.discard(vein)
+        if vein not in self._mining_dropped_veins:
+            self._mining_dropped_veins.add(vein)
+            self._mining_veins_dropped += 1
 
-    def _direct_treasure_approach_key(self, snapshot: Snapshot) -> str | None:
-        """Advance toward detected treasure through unexplored terrain.
-
-        Treasure detection reveals the vein but not a walkable route to it.  A
-        miner should probe toward that coordinate directly: entering an unknown
-        floor advances, while a revealed rock cell is tunnelled on the next
-        turn.  Generic frontier exploration is both much slower and can orbit a
-        room without ever approaching the detected vein.
-        """
-        if not self._known_treasure:
+    def _mining_sweep_step(self, snapshot: Snapshot) -> Position | None:
+        """One exploration step inside the detected area (phase 1 of the user's
+        mining design): mapping the area first gives every cheap vein a known
+        walkable approach, so the collection walk can actually reach it. None =
+        no in-radius frontier remains (or we are bouncing on a flickering one —
+        collect what is reachable instead of orbiting it)."""
+        centers = self._mining_detection_centers
+        if not centers:
             return None
-        start = snapshot.player.position
-        target = self._treasure_target
-        if target not in self._known_treasure:
-            target = min(
-                self._known_treasure,
-                key=lambda pos: (start.distance_to(pos), pos.y, pos.x),
-            )
-            self._treasure_target = target
-            self._mining_route_visits.clear()
+        if self._is_oscillating():
+            return None
+        return self._nearest_goal_step(
+            snapshot,
+            lambda grid: self._is_frontier(snapshot, grid)
+            and any(
+                grid.position.distance_to(center)
+                <= DEEP_FUNDRAISING_DETECTION_RADIUS
+                for center in centers
+            ),
+        )
 
-        dy = max(-1, min(1, target.y - start.y))
-        dx = max(-1, min(1, target.x - start.x))
-        candidates: list[tuple[int, int]] = []
-        if dy or dx:
-            candidates.append((dy, dx))
-        if abs(target.x - start.x) >= abs(target.y - start.y):
-            if dx:
-                candidates.append((0, dx))
-            if dy:
-                candidates.append((dy, 0))
-        else:
-            if dy:
-                candidates.append((dy, 0))
-            if dx:
-                candidates.append((0, dx))
-
-        for offset in dict.fromkeys(candidates):
-            neighbor = Position(start.y + offset[0], start.x + offset[1])
-            cell = snapshot.grids.get(neighbor)
-            if cell is None:
-                return DIRECTION_KEYS[offset]
-            if cell.can_dig:
-                return TUNNEL_KEY + DIRECTION_KEYS[offset]
-            if cell.passable:
-                return self._step_toward(snapshot, neighbor)
-        return None
+    def _mining_tapped_out_key(self, snapshot: Snapshot) -> str:
+        """No distance-1 vein is reachable right now. Mining opens new floor, so
+        first resume the sweep if fresh in-radius frontiers appeared (a dug vein
+        chain can unseal a whole pocket); once neither a vein nor a frontier
+        remains, the cheap treasure really is collected and the floor is done."""
+        sweep = self._mining_sweep_step(snapshot)
+        if sweep is not None:
+            self._mining_sweep_done = False
+            self._mining_stall_turns += 1
+            self.last_reason = "fundraise:sweep-explore"
+            return self._step_toward(snapshot, sweep)
+        self._mining_stall_turns = MINING_STALL_LIMIT
+        return self._finish_mining_floor(snapshot)
 
     def _nearest_upstairs(self, snapshot: Snapshot) -> Position | None:
         """Nearest tile known to hold up-stairs, reachable by walking or not."""
@@ -6282,8 +6374,12 @@ class HengbotPolicy:
         return best
 
     def _treasure_step(self, snapshot: Snapshot) -> Position | None:
+        # Dropped veins are excluded here even though _observe keeps re-adding
+        # them to _known_treasure while their gold is visible — otherwise
+        # "skip this vein" would immediately re-select it.
+        candidates = self._known_treasure - self._mining_dropped_veins
         target = self._treasure_target
-        if target is not None and target in self._known_treasure:
+        if target is not None and target in candidates:
             step = self._treasure_target_step(snapshot, target)
             if step is not None:
                 return step
@@ -6292,7 +6388,7 @@ class HengbotPolicy:
         # every turn can reverse direction at a junction when detected terrain
         # or temporary blockers change, leaving several treasures uncollected.
         approaches: dict[Position, list[Position]] = {}
-        for treasure in self._known_treasure:
+        for treasure in candidates:
             for dy, dx in CARDINAL_OFFSETS:
                 approach = Position(treasure.y + dy, treasure.x + dx)
                 approaches.setdefault(approach, []).append(treasure)
@@ -6317,7 +6413,7 @@ class HengbotPolicy:
                 queue.append(
                     (neighbor, neighbor if first_step is None else first_step)
                 )
-        if target not in self._known_treasure:
+        if target not in candidates:
             self._treasure_target = None
         return None
 
@@ -6518,6 +6614,10 @@ class HengbotPolicy:
             else:
                 self._mining_scroll_used_floor = snapshot.floor_key
                 self._mining_detection_centers.append(snapshot.player.position)
+                # Fresh detection = a fresh sweep of the (extended) area and a
+                # fresh chance for veins whose walk failed before.
+                self._mining_sweep_done = False
+                self._mining_dropped_veins.clear()
                 self.last_reason = (
                     "fundraise:detect-treasure"
                     if needs_initial_detection
@@ -6555,12 +6655,26 @@ class HengbotPolicy:
         # above on the way) until we collect again or change floor.
         if self._mining_stall_turns >= MINING_STALL_LIMIT:
             return self._finish_mining_floor(snapshot)
-        # Walk toward a vein reachable on foot — unless the walk is bouncing (oscillating),
-        # in which case walking is not making progress and we dig instead.
+        # Phase 1 (user design): SWEEP the detected area before collecting — map
+        # the terrain so every cheap vein gains a known walkable approach
+        # (upstream steps already killed monsters and grabbed loot on the way).
+        # The old routine skipped this and burned its leash tunneling toward one
+        # deep vein, leaving most of the detection uncollected.
+        if not self._mining_sweep_done:
+            sweep = self._mining_sweep_step(snapshot)
+            if sweep is not None:
+                self._mining_stall_turns += 1
+                self.last_reason = "fundraise:sweep-explore"
+                return self._step_toward(snapshot, sweep)
+            self._mining_sweep_done = True
+        # Phase 2: collect distance-1 veins (walk to a floor tile beside the
+        # vein, dig it directly) until none qualify. A dug vein becomes floor,
+        # which can expose the vein behind it — the walk picks that up next
+        # iteration, peeling whole clusters without ever digging blank rock.
         osc = self._is_oscillating()
         if osc and self._treasure_target is not None:
             self._mining_oscillation_retargets += 1
-            self._known_treasure.discard(self._treasure_target)
+            self._drop_mining_vein(self._treasure_target)
             self._treasure_target = None
             self._mining_route_visits.clear()
             if (
@@ -6583,98 +6697,21 @@ class HengbotPolicy:
                 ):
                     failed_target = self._treasure_target
                     if failed_target is not None:
-                        self._known_treasure.discard(failed_target)
+                        self._drop_mining_vein(failed_target)
                     self._treasure_target = None
                     self._mining_route_visits.clear()
-                    if self._known_treasure:
-                        step = self._treasure_step(snapshot)
-                        if step is not None:
-                            self.last_reason = "fundraise:seek-treasure"
-                            return self._step_toward(snapshot, step)
-                        direct = self._direct_treasure_approach_key(snapshot)
-                        if direct is not None:
-                            self.last_reason = (
-                                "fundraise:tunnel-to-treasure"
-                                if direct.startswith(TUNNEL_KEY)
-                                else "fundraise:approach-detected-treasure"
-                            )
-                            return direct
-                    self._mining_stall_turns = MINING_STALL_LIMIT
-                    return self._finish_mining_floor(snapshot)
+                    step = self._treasure_step(snapshot)
+                    if step is not None:
+                        self.last_reason = "fundraise:seek-treasure"
+                        return self._step_toward(snapshot, step)
+                    return self._mining_tapped_out_key(snapshot)
                 self._mining_stall_turns += 1
                 self.last_reason = "fundraise:seek-treasure"
                 return self._step_toward(snapshot, step)
-        # On foot we are blocked (no reachable vein) or bouncing: DIG toward the nearest
-        # vein whose direction has diggable rock. This is the miner-natural way to a walled-
-        # off vein and the no-scroll replacement for the old Teleport relocation — it also
-        # collects the gold. Digging holds the player on one tile, so tunnel-to-treasure is
-        # EXEMPT from the harness loop guard (cli.py); the leash above bounds it. Survival
-        # escapes (teleport/recall under real threat) run UPSTREAM, before fundraising.
-        dig = None
-        if not snapshot.player.blind and not snapshot.player.confused:
-            dig = self._treasure_dig_step(snapshot)
-        if dig is not None:
-            self._mining_route_visits.clear()
-            self._mining_stall_turns += 1
-            self.last_reason = "fundraise:tunnel-to-treasure"
-            return dig
-        # Detection exposes a vein coordinate without exposing the intervening
-        # terrain. Probe directly toward it; once a wall is revealed the same
-        # helper tunnels through it. This preserves the value of one detection
-        # scroll instead of spending most of the run on unrelated frontiers.
-        if not osc:
-            direct = self._direct_treasure_approach_key(snapshot)
-            if direct is not None:
-                if self._mining_navigation_stalled(snapshot):
-                    return self._finish_mining_floor(snapshot)
-                self._mining_route_visits[snapshot.player.position] += 1
-                if (
-                    self._mining_route_visits[snapshot.player.position]
-                    >= MINING_ROUTE_REVISIT_LIMIT
-                ):
-                    failed_target = self._treasure_target
-                    if failed_target is not None:
-                        self._known_treasure.discard(failed_target)
-                    self._treasure_target = None
-                    self._mining_route_visits.clear()
-                    if self._known_treasure:
-                        direct = self._direct_treasure_approach_key(snapshot)
-                        if direct is not None:
-                            self.last_reason = (
-                                "fundraise:tunnel-to-treasure"
-                                if direct.startswith(TUNNEL_KEY)
-                                else "fundraise:approach-detected-treasure"
-                            )
-                            return direct
-                    self._mining_stall_turns = MINING_STALL_LIMIT
-                    return self._finish_mining_floor(snapshot)
-                self._mining_stall_turns += 1
-                self.last_reason = (
-                    "fundraise:tunnel-to-treasure"
-                    if direct.startswith(TUNNEL_KEY)
-                    else "fundraise:approach-detected-treasure"
-                )
-                return direct
-        # Can't reach any vein on foot or by digging. When not bouncing, explore the
-        # detected route for MORE veins (exploring while oscillating just bounces too).
-        if not osc and self._known_treasure:
-            step = self._explore_step(snapshot)
-            if step is not None:
-                if self._mining_navigation_stalled(snapshot):
-                    return self._finish_mining_floor(snapshot)
-                self._mining_route_visits[snapshot.player.position] += 1
-                if (
-                    self._mining_route_visits[snapshot.player.position]
-                    >= MINING_ROUTE_REVISIT_LIMIT
-                ):
-                    self._mining_stall_turns = MINING_STALL_LIMIT
-                    return self._finish_mining_floor(snapshot)
-                self._mining_stall_turns += 1
-                self.last_reason = "fundraise:explore-treasure-route"
-                return self._step_toward(snapshot, step)
-        # Nothing to mine, walk to, dig to, or explore — the floor is tapped out (or we are
-        # oscillating with nothing diggable). Climb out; a fresh floor lays out new veins.
-        return self._finish_mining_floor(snapshot)
+        # No distance-1 vein is walkable-reachable. Never tunnel through blank
+        # rock toward a far vein — the user's design trades those few for
+        # reliably collecting every cheap one before leaving.
+        return self._mining_tapped_out_key(snapshot)
 
     def _mining_navigation_stalled(self, snapshot: Snapshot) -> bool:
         position = snapshot.player.position
@@ -7816,9 +7853,12 @@ class HengbotPolicy:
         # The aggregate-p95 convolution below costs hundreds of milliseconds per
         # deep-floor caster, and one decision asks for the same prediction up to
         # six times (emergency/return gates plus the decision-log telemetry).
-        # Key the memo on OBJECT IDENTITY (same snapshot and monster objects)
-        # plus turn/turns, so repeats within a decision are free and a reused
-        # id can never alias a different state.
+        # Key the memo on OBJECT IDENTITY plus turn/turns — and store the
+        # snapshot itself in the entry: the strong reference keeps its id from
+        # being recycled, and the `is` check proves the hit really is the same
+        # object (a gc'd snapshot's id CAN be reused by its successor, which
+        # once served a stale prediction). _observe also clears the memo every
+        # decision, scoping it to exactly the repeats it exists for.
         memo_key = (
             id(snapshot),
             snapshot.turn,
@@ -7826,8 +7866,8 @@ class HengbotPolicy:
             tuple(id(monster) for monster in hostiles),
         )
         cached = self._threat_prediction_memo.get(memo_key)
-        if cached is not None:
-            return cached
+        if cached is not None and cached[0] is snapshot:
+            return cached[1]
         total = 0
         operational_total = 0
         expected_total = 0.0
@@ -7995,7 +8035,7 @@ class HengbotPolicy:
         }
         if len(self._threat_prediction_memo) >= THREAT_PREDICTION_MEMO_LIMIT:
             self._threat_prediction_memo.clear()
-        self._threat_prediction_memo[memo_key] = result
+        self._threat_prediction_memo[memo_key] = (snapshot, result)
         return result
 
     @staticmethod
@@ -8491,7 +8531,9 @@ class HengbotPolicy:
     def _descent_step(self, snapshot: Snapshot) -> Position | None:
         """One BFS that either paths to a reachable downstairs/entrance, or, when
         the nearest known one is walled off (its approach unmapped), steps toward
-        the reachable frontier closest to it. Sets ``last_reason`` accordingly."""
+        the reachable frontier closest to it. Sets ``last_reason`` accordingly and
+        records the chosen goal in ``_descent_target_goal`` (for native travel)."""
+        self._descent_target_goal = None
         if self._descent_is_blocked(snapshot):
             return None
         visible_targets = {
@@ -8520,6 +8562,9 @@ class HengbotPolicy:
                 step = self._town_map_goal_step(snapshot, entrance)
                 if step is not None:
                     self.last_reason = "seek-downstairs"
+                    # The entrance is REMEMBER terrain, so the game itself still
+                    # knows it in the dark — native travel can take this leg too.
+                    self._descent_target_goal = entrance
                     return step
             return None
         if self._is_oscillating() and not forgotten_targets:
@@ -8529,6 +8574,7 @@ class HengbotPolicy:
                 return breakout
         origin = snapshot.player.position
         target = min(targets, key=lambda t: origin.distance_to(t))
+        self._descent_target_goal = target
 
         seen = {origin}
         queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])

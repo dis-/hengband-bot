@@ -4956,8 +4956,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._mining_scroll_used_floor = floor_key
         policy._mining_detection_centers.append(Position(10, 10))
 
+        # The sweep phase owns pre-recall exploration now: the unknown area sits
+        # inside the detected radius, so it is mapped before the floor is left.
         self.assertEqual(policy.choose_key(snap), "6", policy.last_reason)
-        self.assertEqual(policy.last_reason, "fundraise:deep-explore")
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
 
     def test_deep_mining_rearms_before_engaging_a_visible_hostile(self):
         floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
@@ -5823,7 +5825,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._treasure_target, Position(10, 15))
         self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
 
-    def test_mining_advances_directly_toward_detected_treasure_through_unknowns(self):
+    def test_mining_sweeps_the_detected_area_before_chasing_veins(self):
+        # Phase 1 of the two-phase design: unknown terrain inside the detected
+        # radius is mapped FIRST, giving every cheap vein a walkable approach —
+        # the old routine probed/tunnelled at one coordinate and left the rest.
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
         )
@@ -5843,24 +5848,26 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
+        policy._floor_key = snap.floor_key  # not a fresh floor: keep the centers
         policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
 
         self.assertEqual(policy.choose_key(snap), "6")
-        self.assertEqual(
-            policy.last_reason, "fundraise:approach-detected-treasure"
-        )
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
 
-    def test_mining_tunnels_on_direct_route_after_wall_is_revealed(self):
+    def test_mining_walks_to_a_reachable_vein_and_digs_it_from_the_floor(self):
+        # Phase 2: collection is walk + dig-the-adjacent-vein only.
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
         )
+        grids = {Position(10, x): grid(10, x) for x in (10, 11, 12, 13)}
+        grids[Position(10, 14)] = grid(
+            10, 14, passable=False, gold=True, can_dig=True
+        )
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): grid(10, 11, passable=False, can_dig=True),
-                Position(10, 14): grid(10, 14, gold=True),
-            },
+            grids,
             [],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             width=30,
@@ -5872,10 +5879,22 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._fundraising_mode = "mine"
         policy._mining_scroll_used_floor = snap.floor_key
 
-        self.assertEqual(policy.choose_key(snap), TUNNEL_KEY + "6")
-        self.assertEqual(policy.last_reason, "fundraise:tunnel-to-treasure")
+        self.assertEqual(policy.choose_key(snap), "6")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
 
-    def test_mining_does_not_orbit_diagonal_approaches_to_a_vein(self):
+        beside = replace(
+            snap, player=player(10, 13, class_id=PLAYER_CLASS_WARRIOR)
+        )
+        digger = HengbotPolicy()
+        digger._fundraising_mode = "mine"
+        digger._mining_scroll_used_floor = snap.floor_key
+        self.assertEqual(digger.choose_key(beside), TUNNEL_KEY + "6")
+        self.assertEqual(digger.last_reason, "fundraise:mine-treasure")
+
+    def test_mining_never_tunnels_toward_a_vein_without_a_walkable_approach(self):
+        # A vein with no walkable cardinal approach is the EXPENSIVE kind the
+        # user's design trades away: it must be left, not tunnelled at through
+        # blank rock (the leash burn that used to strand the rest of the floor).
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
         )
@@ -5903,8 +5922,105 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._treasure_target = treasure
         policy._build_grid_index(snap)
 
-        self.assertEqual(policy._fundraising_key(snap, []), TUNNEL_KEY + "3")
-        self.assertEqual(policy.last_reason, "fundraise:tunnel-to-treasure")
+        key = policy._fundraising_key(snap, [])
+        self.assertNotEqual(key, TUNNEL_KEY + "3")
+        self.assertNotEqual(policy.last_reason, "fundraise:tunnel-to-treasure")
+        self.assertEqual(policy._mining_stall_turns, MINING_STALL_LIMIT)
+
+    def test_mining_peels_a_vein_chain_via_the_opened_floor(self):
+        # Digging a vein leaves floor behind, so the vein BEHIND it becomes the
+        # next distance-1 target through that opening — clusters get collected
+        # without ever digging blank rock.
+        back = Position(10, 13)
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(10, 12): grid(10, 12),  # the front vein, already dug out
+            back: grid(10, 13, passable=False, gold=True, can_dig=True),
+        }
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+        )
+        policy = HengbotPolicy()
+        policy._known_treasure = {back}
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._treasure_step(snap), Position(10, 11))
+
+    def test_mining_resumes_the_sweep_when_digging_opens_new_frontiers(self):
+        # Peeling a vein chain can unseal a whole pocket: with no reachable vein
+        # left but fresh in-radius frontiers, sweep again instead of leaving.
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._mining_sweep_done = True
+        policy._build_grid_index(snap)
+
+        policy._fundraising_key(snap, [])
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
+
+    def test_redetection_restarts_the_sweep_and_forgives_dropped_veins(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_sweep_done = True
+        policy._drop_mining_vein(Position(10, 14))
+
+        key = policy._fundraising_key(snap, [])
+        self.assertEqual(policy.last_reason, "fundraise:detect-treasure")
+        self.assertTrue(key.startswith(READ_KEY))
+        self.assertFalse(policy._mining_sweep_done)
+        self.assertEqual(policy._mining_dropped_veins, set())
+
+    def test_mined_vein_counts_as_collected_when_its_gold_disappears(self):
+        # Coverage telemetry: standing next to a formerly-golden grid whose gold
+        # is gone means we collected it.
+        vein = Position(10, 11)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10), vein: grid(10, 11)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snap.floor_key
+        policy._known_treasure = {vein}
+        policy.choose_key(snap)
+        self.assertEqual(policy._mining_veins_collected, 1)
+        self.assertNotIn(vein, policy._known_treasure)
 
     def test_fundraising_recalls_after_a_trap_door_drops_player_below_level_one(self):
         snap = Snapshot(
@@ -5947,14 +6063,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._known_treasure = {Position(10, 14)}
         policy._build_grid_index(snap)
 
-        for _ in range(MINING_ROUTE_REVISIT_LIMIT - 1):
-            policy._fundraising_key(snap, [])
-            self.assertEqual(
-                policy.last_reason, "fundraise:approach-detected-treasure"
-            )
-
+        # Detection reveals coordinates, not routes. The sweep owns terrain
+        # discovery now, so with nothing to sweep and no walkable approach the
+        # floor is finished at once instead of probing blindly at the vein.
         self.assertEqual(policy._fundraising_key(snap, []), "8")
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
+        self.assertEqual(policy._mining_stall_turns, MINING_STALL_LIMIT)
 
     def test_mining_abandons_route_even_when_target_churn_clears_target_counter(self):
         tool = item(
@@ -5995,42 +6109,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._build_grid_index(moved)
         self.assertEqual(policy._fundraising_key(moved, []), "7")
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
-
-    def test_mining_retargets_remaining_treasure_after_one_route_stalls(self):
-        tool = item(
-            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
-        )
-        east = Position(10, 14)
-        south = Position(14, 10)
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): grid(10, 11),
-                east: grid(east.y, east.x, gold=True),
-                south: grid(south.y, south.x, gold=True),
-            },
-            [],
-            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
-            width=30,
-            height=30,
-            inventory=self._strict_supplies(recall=0, detection=1),
-            equipment=[tool, self._lantern()],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._mining_scroll_used_floor = snap.floor_key
-        policy._known_treasure = {east, south}
-        policy._build_grid_index(snap)
-
-        for _ in range(MINING_ROUTE_REVISIT_LIMIT - 1):
-            self.assertEqual(policy._fundraising_key(snap, []), "6")
-        self.assertEqual(policy._fundraising_key(snap, []), "2")
-        self.assertNotIn(east, policy._known_treasure)
-        self.assertIn(south, policy._known_treasure)
-        self.assertEqual(
-            policy.last_reason, "fundraise:approach-detected-treasure"
-        )
 
     def test_mining_retargets_after_a_walkable_treasure_route_stalls(self):
         tool = item(
@@ -10631,6 +10709,172 @@ class AggregateRangedCacheTest(unittest.TestCase):
         self.assertEqual(calls, 2)
 
 
+class ScavengeStoreLatchTest(unittest.TestCase):
+    """Leaving the Alchemist with nothing to sell used to flip scavenge->prepare
+    AND blanket-clear _town_store_attempted. With unchanged gold the router then
+    re-picked the same out-of-stock stores — an Alchemist<->Magic native-travel
+    ping-pong the loop guard cannot see (store snapshots reset it and travel
+    keeps the position changing). The latches may only be re-checked when the
+    scavenge pass actually raised gold."""
+
+    def _alchemist_snapshot(self, gold):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=gold),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[]),
+        )
+
+    def _scavenging_policy(self, entry_gold):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "scavenge"
+        pol._scavenge_entry_gold = entry_gold
+        pol._town_store_attempted = {STORE_ALCHEMIST: 100, STORE_GENERAL: 100}
+        return pol
+
+    def test_no_sale_keeps_the_store_latches(self):
+        pol = self._scavenging_policy(entry_gold=376)
+        key = pol._shop(self._alchemist_snapshot(gold=376))
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(pol._fundraising_mode, "prepare")
+        self.assertIn(STORE_GENERAL, pol._town_store_attempted)
+
+    def test_raised_gold_rechecks_the_stores(self):
+        pol = self._scavenging_policy(entry_gold=376)
+        pol._shop(self._alchemist_snapshot(gold=900))
+        self.assertEqual(pol._fundraising_mode, "prepare")
+        self.assertNotIn(STORE_GENERAL, pol._town_store_attempted)
+
+
+class HomeVisitOwnershipTest(unittest.TestCase):
+    """Inside Home, an active equipment-transaction session must run BEFORE the
+    dominated-disposal leave. The disposal Esc used to preempt the session, whose
+    town-side dispatcher then walked straight back in — an in/out bounce at the
+    Home door that the harness loop guard cannot see (store snapshots reset it)."""
+
+    def _home_snapshot(self, inventory):
+        return Snapshot(
+            player(45, 123),
+            {Position(45, 123): grid(45, 123)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=inventory,
+            equipment=[],
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+
+    @staticmethod
+    def _dominated(pol, snap, item_obj):
+        pol._pending_disposal_item = pol._item_signature(item_obj)
+        pol._pending_disposal_slot = item_obj.slot
+        return pol
+
+    def test_active_home_transaction_preempts_the_disposal_leave(self):
+        from unittest import mock
+
+        sword = item("d", TVAL_SWORD, 4, is_equipment=True, name="old sword")
+        snap = self._home_snapshot([sword])
+        pol = self._dominated(HengbotPolicy(), snap, sword)
+        with mock.patch.object(
+            pol, "_equipment_transaction_home_key", return_value="dj"
+        ):
+            self.assertEqual(pol._shop(snap), "dj")
+
+    def test_disposal_leave_resumes_once_the_session_is_done(self):
+        sword = item("d", TVAL_SWORD, 4, is_equipment=True, name="old sword")
+        snap = self._home_snapshot([sword])
+        pol = self._dominated(HengbotPolicy(), snap, sword)
+        # No session at all: _equipment_transaction_home_key returns None.
+        key = pol._shop(snap)
+        self.assertEqual(pol.last_reason, "home:leave-with-dominated")
+        self.assertEqual(key, LEAVE_STORE_KEY)
+
+
+class EntranceTravelTest(unittest.TestCase):
+    """The surface walk to the dungeon entrance costs one bot decision per tile
+    on foot; _entrance_travel_key rides Hengband's native travel instead
+    (`n>. — the selector's > jump matches the entrance's STAIRS+DOWN_STAIRS
+    terrain) and falls back to BFS walking only after issues that bring no
+    progress. The bot never accepts castle quests, so > cannot land on a
+    quest entrance."""
+
+    GOAL = Position(34, 120)
+
+    @staticmethod
+    def _surface_snap(x=94):
+        return Snapshot(
+            player(34, x),
+            {},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[],
+        )
+
+    def _travel(self, pol, snap, goal=GOAL):
+        pol.last_reason = "seek-downstairs"
+        return pol._entrance_travel_key(snap, goal)
+
+    def test_far_surface_goal_travels(self):
+        pol = HengbotPolicy()
+        key = self._travel(pol, self._surface_snap())
+        self.assertEqual(key, "`n>.")
+        self.assertEqual(pol.last_reason, "town:travel-entrance")
+
+    def test_progress_reissues_travel_after_an_interruption(self):
+        pol = HengbotPolicy()
+        self.assertEqual(self._travel(pol, self._surface_snap(x=94)), "`n>.")
+        # Interrupted mid-route but closer than before: travel again.
+        self.assertEqual(self._travel(pol, self._surface_snap(x=110)), "`n>.")
+
+    def test_no_progress_latches_a_walking_fallback(self):
+        pol = HengbotPolicy()
+        snap = self._surface_snap()
+        self.assertEqual(self._travel(pol, snap), "`n>.")
+        # Rejected route: same distance. One retry is allowed...
+        self.assertEqual(self._travel(pol, snap), "`n>.")
+        # ...then the goal falls back to BFS walking until it changes.
+        self.assertIsNone(self._travel(pol, snap))
+        self.assertIsNone(self._travel(pol, snap))
+
+    def test_dungeon_floors_never_travel(self):
+        pol = HengbotPolicy()
+        snap = Snapshot(
+            player(34, 94),
+            {},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 3, 0),
+            inventory=[],
+            equipment=[],
+        )
+        self.assertIsNone(self._travel(pol, snap))
+
+    def test_adjacent_goal_walks(self):
+        pol = HengbotPolicy()
+        self.assertIsNone(self._travel(pol, self._surface_snap(x=118)))
+
+    def test_floor_change_clears_the_fallback_latch(self):
+        pol = HengbotPolicy()
+        snap = self._surface_snap()
+        self._travel(pol, snap)
+        self._travel(pol, snap)
+        self.assertIsNone(self._travel(pol, snap))  # latched
+        pol._floor_key = snap.floor_key  # as if _observe had seen the surface
+        dungeon = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[],
+            equipment=[],
+        )
+        pol.choose_key(dungeon)  # _observe sees the floor change and resets
+        self.assertIsNone(pol._entrance_travel_fallback_goal)
+
+
 class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
     """prepare_warrior_optimization must receive the character's ACTUAL
     *Destruction* availability. The fail-closed False stub made
@@ -10816,11 +11060,11 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertEqual(pol._leave_fundraising_floor(snap), WAIT_KEY)
         self.assertEqual(pol.last_reason, "fundraise:upstairs-not-found")
 
-    def test_digs_toward_treasure_instead_of_teleporting_when_route_oscillates(self):
-        # Bouncing between two tiles seeking a vein the mining maze walled off must DIG
-        # toward the vein (miner-natural, collects the gold) — NOT read a scarce Teleport
-        # scroll to relocate, which only re-oscillates toward the same vein and drains
-        # the survival kit (the depletion that made the user stop the bot).
+    def test_oscillating_route_drops_the_vein_without_teleporting(self):
+        # Bouncing between two tiles seeking a walled-off vein must neither read
+        # a scarce Teleport scroll NOR start digging blank rock at it: the vein
+        # is dropped (it is not distance-1) and the run moves on — the coverage
+        # design trades the expensive vein for reliably finishing the cheap ones.
         from collections import deque
 
         grids = {
@@ -10844,11 +11088,15 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key  # already detected: skip re-read
         pol._known_treasure = {Position(12, 129)}
+        pol._treasure_target = Position(12, 129)
         pol._recent = deque(
             [Position(12, 126), Position(13, 126)] * 5, maxlen=STUCK_WINDOW
         )
-        self.assertEqual(pol._fundraising_key(snap, []), TUNNEL_KEY + "6")  # dig east at vein
-        self.assertEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
+        key = pol._fundraising_key(snap, [])
+        self.assertNotEqual(key, "rt")  # the teleport scroll stays in the kit
+        self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
+        self.assertIn(Position(12, 129), pol._mining_dropped_veins)
+        self.assertEqual(pol._mining_veins_dropped, 1)
 
     def test_gives_up_when_oscillating_with_nothing_diggable(self):
         # Oscillating with NO vein tunnellable toward and none reachable on foot: leave
@@ -10886,9 +11134,9 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             },
         )
 
-    def test_keeps_digging_toward_a_vein_up_to_the_leash_then_leaves(self):
-        # A diggable vein lets tunnelling run on a LONG leash (harness-exempt) — it keeps
-        # digging while under MINING_STALL_LIMIT and only leaves once the leash is spent.
+    def test_spent_leash_finishes_the_floor_without_tunneling(self):
+        # The safety leash still bounds a degenerate run, and even then the exit
+        # never falls back to digging blank rock toward a far vein.
         from collections import deque
         from hengbot.policy import MINING_STALL_LIMIT
 
@@ -10916,11 +11164,11 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._recent = deque(
             [Position(12, 126), Position(13, 126)] * 5, maxlen=STUCK_WINDOW
         )
-        # One shy of the leash: still digging (this dig pushes the counter to the limit).
-        pol._mining_stall_turns = MINING_STALL_LIMIT - 1
-        self.assertEqual(pol._fundraising_key(snap, []), TUNNEL_KEY + "6")
-        self.assertEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
-        # Leash now spent — the next decision leaves (no dig, no scroll read).
+        pol._mining_stall_turns = MINING_STALL_LIMIT
+        key = pol._fundraising_key(snap, [])
+        self.assertNotEqual(key, TUNNEL_KEY + "6")
+        self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
+        # And the exit never re-reads a detection scroll either.
         key = pol._fundraising_key(snap, [])
         self.assertFalse(key.startswith(READ_KEY))
         self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
@@ -10958,11 +11206,11 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "fundraise:tunnel-out")
         self.assertFalse(key.startswith(READ_KEY))  # neither detect-treasure nor teleport
 
-    def test_digs_toward_a_walled_vein_without_needing_to_oscillate_first(self):
-        # THE regression the user hit: a vein reachable only by digging (no walkable
-        # approach) was abandoned because tunnelling used to require an oscillation first.
-        # Now, the moment on-foot seeking is blocked, the miner digs toward the vein — it
-        # must not leave collectible gold behind, and must not read a scroll to do so.
+    def test_walled_vein_is_left_instead_of_tunneled_at(self):
+        # Coverage design: a vein with no walkable approach is the EXPENSIVE
+        # kind — blank-rock digging burned the leash and stranded the rest of
+        # the floor. It is left behind (never tunnelled at, never a reason to
+        # read a scroll); the cheap veins elsewhere get the time instead.
         grids = {
             Position(12, 126): grid(12, 126),  # player (its only known tile is walled in)
             Position(12, 127): grid(12, 127, passable=False, can_dig=True),  # rock toward vein
@@ -10986,8 +11234,9 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         # NOT oscillating (empty history) and no walkable approach to the vein.
         self.assertFalse(pol._is_oscillating())
         key = pol._fundraising_key(snap, [])
-        self.assertEqual(key, TUNNEL_KEY + "6")  # dig east at the vein
-        self.assertEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
+        self.assertNotEqual(key, TUNNEL_KEY + "6")
+        self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
+        self.assertEqual(pol._mining_stall_turns, MINING_STALL_LIMIT)
 
     def test_wields_digger_answering_the_which_hand_prompt_with_a_shield_on(self):
         # With BOTH hands full (weapon + shield) wielding a digging tool opens an
