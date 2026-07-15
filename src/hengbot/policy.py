@@ -4364,6 +4364,12 @@ class HengbotPolicy:
         return store_types[0]
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        if self._town_restock_suppressed:
+            # Post-cycle-break the visit is departure-only (_break_town_cycle):
+            # gating the router's OUTPUT is the choke point that covers every
+            # errand route at once — chasing the individual un-latched branches
+            # (sales, retries, sessions) left a new cycle fuel line each time.
+            return None
         if (
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.executable

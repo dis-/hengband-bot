@@ -10906,6 +10906,23 @@ class TownCycleDetectorTest(unittest.TestCase):
         key = pol._town_special_key(snap)
         self.assertNotEqual(pol.last_reason, "town:wait-restock")
 
+    def test_post_break_visit_routes_to_no_store_at_all(self):
+        # The choke point: after a cycle break the router yields NOTHING for the
+        # rest of the visit, whatever errand branch would otherwise fire —
+        # chasing individual un-gated branches left a new fuel line each time.
+        from unittest import mock
+
+        pol = HengbotPolicy()
+        pol._town_cycle_pending = True
+        snap = self._town_snap()
+        pol._town_special_key(snap)  # first break: suppression latched
+        with mock.patch.object(
+            pol,
+            "_find_weapon_sale",
+            return_value=item("w", TVAL_SWORD, 4, is_equipment=True),
+        ):
+            self.assertIsNone(pol._next_required_store_type(snap))
+
     def test_sale_routes_honor_the_store_latches(self):
         # An unsellable candidate re-routed the bot to the sale store forever,
         # immune even to the cycle break (the sale routes skipped the latches).
