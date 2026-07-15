@@ -1695,9 +1695,13 @@ class HengbotPolicy:
         if (
             snapshot.in_town
             and self._town_wander_streak >= TOWN_WANDER_LIMIT
-            and self._town_blocked_reason is None
+            and not self._town_cycle_pending
         ):
-            self._town_blocked_reason = "maintenance-exhausted"
+            # A long but spatially varied wander will not satisfy the generic
+            # repeated-signature detector.  Feed it into the same bounded
+            # repair path anyway: the first offense suppresses errands and
+            # forces departure, while a second offense stops visibly.
+            self._town_cycle_pending = True
         # Track how long we have been stuck in town wielding only a pickaxe: the pre-recall
         # weapon check blocks a dive until we re-arm, and this backstop lets us dive anyway
         # if we simply own no combat weapon. Only in-town decisions count — a digger worn
@@ -6008,9 +6012,6 @@ class HengbotPolicy:
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:
             return None
-        if self._town_blocked_reason is not None:
-            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
-            return WAIT_KEY
         if self._town_cycle_pending:
             # _observe caught a repetition cycle (see _town_cycle_detected).
             # First offense: cut every fuel line the known cycle shapes run on
@@ -6026,6 +6027,9 @@ class HengbotPolicy:
                 return WAIT_KEY
             self._break_town_cycle(snapshot)
             self.last_reason = "town:cycle-break"
+            return WAIT_KEY
+        if self._town_blocked_reason is not None:
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
             return WAIT_KEY
 
         if (

@@ -10024,8 +10024,8 @@ class TownWanderCircuitBreakerTest(unittest.TestCase):
     only ever wandering (a live logic deadlock paced town for 2 real hours
     before anyone noticed — see jsonlog/codex-stuck-investigation-2026-07-15.md).
     After TOWN_WANDER_LIMIT consecutive non-productive-wander decisions in
-    town, latch a blocked WAIT so the existing town:blocked: machinery (and
-    then cli's loop guard) stops the bot with a clearly logged state instead."""
+    town, enter the bounded town-cycle repair path so the first offense forces
+    departure and a repeated failure stops the bot visibly."""
 
     def _dungeon(self):
         return Snapshot(
@@ -10053,21 +10053,28 @@ class TownWanderCircuitBreakerTest(unittest.TestCase):
         self.assertEqual(pol._town_wander_streak, 2)
         self.assertIsNone(pol._town_blocked_reason)
 
-    def test_sixty_consecutive_wanders_latch_the_blocked_wait(self):
+    def test_sixty_consecutive_wanders_force_departure_cycle_break(self):
         pol = HengbotPolicy()
         t = self._town()
         for _ in range(TOWN_WANDER_LIMIT):
             pol.last_reason = "stuck:wander"
             pol._observe(t)
         self.assertEqual(pol._town_wander_streak, TOWN_WANDER_LIMIT)
-        self.assertEqual(pol._town_blocked_reason, "maintenance-exhausted")
+        self.assertTrue(pol._town_cycle_pending)
         self.assertEqual(pol._town_special_key(t), WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:maintenance-exhausted")
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertTrue(pol._town_restock_suppressed)
+        self.assertIsNone(pol._next_required_store_type(t))
 
-        # The next full decision (what the bot actually sends) is this same
-        # bounded, clearly logged WAIT rather than one more silent wander.
-        self.assertEqual(pol.choose_key(t), WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:maintenance-exhausted")
+    def test_second_wander_limit_after_break_stops_visibly(self):
+        pol = HengbotPolicy()
+        t = self._town()
+        pol._town_cycle_breaks = 1
+        for _ in range(TOWN_WANDER_LIMIT):
+            pol.last_reason = "stuck:wander"
+            pol._observe(t)
+        self.assertEqual(pol._town_special_key(t), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:repetition")
 
     def test_productive_decision_at_fifty_nine_resets_the_streak(self):
         pol = HengbotPolicy()
@@ -10098,13 +10105,14 @@ class TownWanderCircuitBreakerTest(unittest.TestCase):
         for _ in range(TOWN_WANDER_LIMIT):
             pol.last_reason = "stuck:wander"
             pol._observe(t)
-        self.assertEqual(pol._town_blocked_reason, "maintenance-exhausted")
+        self.assertTrue(pol._town_cycle_pending)
 
         pol.last_reason = "descend"
         pol._observe(self._dungeon())
 
         self.assertEqual(pol._town_wander_streak, 0)
         self.assertIsNone(pol._town_blocked_reason)
+        self.assertFalse(pol._town_cycle_pending)
 
 
 class StoreAttemptExpiryTest(unittest.TestCase):
