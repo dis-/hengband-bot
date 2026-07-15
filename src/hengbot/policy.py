@@ -122,10 +122,10 @@ TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")
 # shortcut exactly on that condition.
 ENTRANCE_TRAVEL_MACRO = "`n>."
 # Adjacent-ish goals are cheaper on foot than a travel round-trip.
-ENTRANCE_TRAVEL_MIN_DISTANCE = 3
+TOWN_TRAVEL_MIN_DISTANCE = 3
 # Consecutive travel issues without getting closer before giving the goal back
 # to BFS walking (an unknown approach makes the game reject the route).
-ENTRANCE_TRAVEL_STALL_LIMIT = 2
+TOWN_TRAVEL_STALL_LIMIT = 2
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
@@ -707,14 +707,12 @@ class HengbotPolicy:
         # with the existing one-step pathfinder instead of retrying forever.
         self._shopping_approach_store_type: int | None = None
         self._shopping_approach_goal: Position | None = None
-        self._pending_town_travel: tuple[Position, Position] | None = None
-        self._town_travel_fallback_goal: Position | None = None
-        # Native travel toward the surface dungeon entrance (`n>.) — the goal
-        # _descent_step chose, the best distance seen for it, and how many
-        # issues brought no progress. See _entrance_travel_key.
+        # Shared progress tracker for every native-travel leg (stores, Home and
+        # the dungeon entrance): the current goal, the best distance seen for
+        # it, and how many issues brought no progress. See _town_travel_key.
         self._descent_target_goal: Position | None = None
-        self._entrance_travel_state: tuple[Position, int, int] | None = None
-        self._entrance_travel_fallback_goal: Position | None = None
+        self._town_travel_state: tuple[Position, int, int] | None = None
+        self._town_travel_fallback: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
         # weapon). The pre-recall weapon check blocks a dive until this clears (weapon
@@ -1614,8 +1612,8 @@ class HengbotPolicy:
             # Surface-travel bookkeeping is per-visit: positions repeat across
             # town visits (static map), so a stale no-progress latch from the
             # previous visit would suppress native travel forever.
-            self._entrance_travel_state = None
-            self._entrance_travel_fallback_goal = None
+            self._town_travel_state = None
+            self._town_travel_fallback = None
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
         # fighting (reset by any such progress, or by reaching town) — so a
@@ -5653,40 +5651,65 @@ class HengbotPolicy:
     def _shopping_approach_key(
         self, snapshot: Snapshot, step: Position, travel_reason: str
     ) -> str:
-        """Use native town travel once, then fall back to the proven BFS step.
+        """Ride native town travel toward the store, walking only as fallback.
 
         In the original-keyset travel point selector, shifted number-row symbols
         are direct store landmarks; ``.`` selects the landmark. ``n`` first
         declines Hengband's "continue previous travel?" prompt after an
         interrupted route. When there is no such prompt, point selection simply
-        ignores that non-direction key. Native travel advances without waiting for a
-        bot snapshot after every tile, which removes most town round-trip cost.
-        Any interruption or rejection produces a snapshot short of the goal; in
-        that case this approach stays on ordinary walking until the goal changes.
-        """
+        ignores that non-direction key. Native travel advances without waiting
+        for a bot snapshot after every tile, which removes most town round-trip
+        cost; an interruption mid-route is re-issued as long as it made
+        progress (see _town_travel_key)."""
         goal = self._shopping_approach_goal
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
             return self._step_toward(snapshot, step)
+        travel = self._town_travel_key(
+            snapshot,
+            goal,
+            f"`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}.",
+            travel_reason,
+        )
+        if travel is not None:
+            return travel
+        return self._step_toward(snapshot, step)
 
-        if self._pending_town_travel is not None:
-            _, pending_goal = self._pending_town_travel
-            if pending_goal == goal and snapshot.player.position != goal:
-                self._town_travel_fallback_goal = goal
-            self._pending_town_travel = None
-
-        if self._town_travel_fallback_goal is not None:
-            if self._town_travel_fallback_goal != goal or snapshot.player.position == goal:
-                self._town_travel_fallback_goal = None
+    def _town_travel_key(
+        self, snapshot: Snapshot, goal: Position, macro: str, reason: str
+    ) -> str | None:
+        """Progress-based gate shared by every native-travel leg (stores, Home,
+        the dungeon entrance). Travel is re-issued after an interruption (a
+        monster, a nudge Escape) as long as it got CLOSER to the goal since the
+        last issue; TOWN_TRAVEL_STALL_LIMIT issues with no progress latch a
+        fallback to BFS walking for that goal (the game rejects travel over an
+        unknown approach). The latch clears when the goal changes or the floor
+        does. Near goals just walk — a travel round-trip costs more than the
+        last couple of steps."""
+        position = snapshot.player.position
+        distance = position.distance_to(goal)
+        if distance < TOWN_TRAVEL_MIN_DISTANCE:
+            return None
+        if self._town_travel_fallback is not None:
+            if self._town_travel_fallback == goal:
+                return None
+            self._town_travel_fallback = None
+        state = self._town_travel_state
+        if state is not None and state[0] == goal:
+            _, best_distance, stalls = state
+            if distance < best_distance:
+                self._town_travel_state = (goal, distance, 0)
             else:
-                return self._step_toward(snapshot, step)
-
-        if snapshot.player.position.distance_to(goal) < 3:
-            return self._step_toward(snapshot, step)
-
-        self._pending_town_travel = (snapshot.player.position, goal)
-        self.last_reason = travel_reason
-        return f"`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}."
+                stalls += 1
+                if stalls >= TOWN_TRAVEL_STALL_LIMIT:
+                    self._town_travel_fallback = goal
+                    self._town_travel_state = None
+                    return None
+                self._town_travel_state = (goal, best_distance, stalls)
+        else:
+            self._town_travel_state = (goal, distance, 0)
+        self.last_reason = reason
+        return macro
 
     def _entrance_travel_key(self, snapshot: Snapshot, goal: Position | None) -> str | None:
         """Native-travel leg of the surface walk to the dungeon entrance.
@@ -5696,37 +5719,16 @@ class HengbotPolicy:
         command, so prefer it whenever _descent_step is heading for a far
         surface goal. Progress is judged by distance-to-goal: an interruption
         (a monster, a nudge Escape) just re-issues travel, while
-        ENTRANCE_TRAVEL_STALL_LIMIT issues with no progress at all latch a
+        TOWN_TRAVEL_STALL_LIMIT issues with no progress at all latch a
         fallback to BFS walking (the game rejects travel over an unknown
         approach — the existing explore-toward path handles that)."""
         if snapshot.dungeon_level != 0 or goal is None:
             return None
         if self.last_reason not in {"seek-downstairs", "approach-descent"}:
             return None
-        position = snapshot.player.position
-        distance = position.distance_to(goal)
-        if distance < ENTRANCE_TRAVEL_MIN_DISTANCE:
-            return None
-        if self._entrance_travel_fallback_goal is not None:
-            if self._entrance_travel_fallback_goal == goal:
-                return None
-            self._entrance_travel_fallback_goal = None
-        state = self._entrance_travel_state
-        if state is not None and state[0] == goal:
-            _, best_distance, stalls = state
-            if distance < best_distance:
-                self._entrance_travel_state = (goal, distance, 0)
-            else:
-                stalls += 1
-                if stalls >= ENTRANCE_TRAVEL_STALL_LIMIT:
-                    self._entrance_travel_fallback_goal = goal
-                    self._entrance_travel_state = None
-                    return None
-                self._entrance_travel_state = (goal, best_distance, stalls)
-        else:
-            self._entrance_travel_state = (goal, distance, 0)
-        self.last_reason = "town:travel-entrance"
-        return ENTRANCE_TRAVEL_MACRO
+        return self._town_travel_key(
+            snapshot, goal, ENTRANCE_TRAVEL_MACRO, "town:travel-entrance"
+        )
 
     def _active_dungeon_target(self) -> int:
         if self._fundraising_mode in {"mine", "scavenge"}:

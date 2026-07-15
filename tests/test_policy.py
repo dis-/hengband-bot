@@ -629,7 +629,7 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
 
-    def test_failed_town_travel_falls_back_to_walking_for_that_store(self):
+    def test_interrupted_town_travel_retries_then_falls_back(self):
         walkable = frozenset(Position(10, x) for x in range(1, 16))
         goal = Position(10, 15)
         town_map = TownMap(
@@ -653,6 +653,12 @@ class ShoppingTest(unittest.TestCase):
 
         pol = HengbotPolicy(town_map=town_map)
         self.assertEqual(pol.choose_key(first), "`n!.")
+        # Interrupted mid-route but CLOSER than before: travel again instead of
+        # walking the remaining ten tiles one decision each.
+        self.assertEqual(pol.choose_key(interrupted), "`n!.")
+        self.assertEqual(pol.last_reason, "shop:travel")
+        # No progress across two more issues: give the goal back to walking.
+        self.assertEqual(pol.choose_key(interrupted), "`n!.")
         self.assertEqual(pol.choose_key(interrupted), "6")
         self.assertEqual(pol.last_reason, "shop:approach")
         self.assertEqual(pol.choose_key(interrupted), "6")
@@ -10793,6 +10799,44 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertEqual(key, LEAVE_STORE_KEY)
 
 
+class StoreTravelRetryTest(unittest.TestCase):
+    """Store/Home travel used to be one-shot: any interruption latched a walking
+    fallback and the rest of the leg went one decision per tile. It now shares
+    the progress-based gate with the entrance leg — re-issue while getting
+    closer, walk only after TOWN_TRAVEL_STALL_LIMIT no-progress issues."""
+
+    @staticmethod
+    def _snap(x):
+        return Snapshot(
+            player(34, x),
+            {},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[],
+        )
+
+    @staticmethod
+    def _approach(pol, snap):
+        pol._shopping_approach_goal = Position(34, 130)
+        pol._shopping_approach_store_type = 4
+        return pol._shopping_approach_key(snap, Position(34, 95), "shop:travel")
+
+    def test_travel_reissues_after_progress(self):
+        pol = HengbotPolicy()
+        self.assertEqual(self._approach(pol, self._snap(94)), "`n%.")
+        # Interrupted mid-route but closer than before: travel again.
+        self.assertEqual(self._approach(pol, self._snap(110)), "`n%.")
+
+    def test_no_progress_twice_falls_back_to_walking(self):
+        pol = HengbotPolicy()
+        snap = self._snap(94)
+        self.assertEqual(self._approach(pol, snap), "`n%.")
+        self.assertEqual(self._approach(pol, snap), "`n%.")
+        self.assertNotEqual(self._approach(pol, snap), "`n%.")
+        self.assertEqual(pol._town_travel_fallback, Position(34, 130))
+
+
 class EntranceTravelTest(unittest.TestCase):
     """The surface walk to the dungeon entrance costs one bot decision per tile
     on foot; _entrance_travel_key rides Hengband's native travel instead
@@ -10872,7 +10916,7 @@ class EntranceTravelTest(unittest.TestCase):
             equipment=[],
         )
         pol.choose_key(dungeon)  # _observe sees the floor change and resets
-        self.assertIsNone(pol._entrance_travel_fallback_goal)
+        self.assertIsNone(pol._town_travel_fallback)
 
 
 class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):

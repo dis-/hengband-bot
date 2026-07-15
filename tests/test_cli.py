@@ -24,6 +24,7 @@ from hengbot.cli import (
     _stall_recovery_key,
     _split_complete_lines,
 )
+from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
 
@@ -635,3 +636,25 @@ class StationaryReasonsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GameProcessAliveTest(unittest.TestCase):
+    """The bot concluded <dead> (and exited) on ANY 8-nudge snapshot silence —
+    twice abandoning a healthy full-HP character stuck at a store prompt chain.
+    Death is only concluded when the game PROCESS is actually gone."""
+
+    def test_running_process_reads_alive(self):
+        import os
+
+        self.assertTrue(_game_process_alive(os.getpid()))
+
+    def test_exited_process_reads_dead(self):
+        import subprocess
+        import sys
+
+        proc = subprocess.Popen([sys.executable, "-c", "pass"])
+        proc.wait()
+        self.assertFalse(_game_process_alive(proc.pid))
+
+    def test_unknown_pid_reads_dead(self):
+        self.assertFalse(_game_process_alive(None))

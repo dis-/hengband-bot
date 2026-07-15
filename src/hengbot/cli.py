@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from collections import deque
@@ -746,18 +747,62 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     print(recovery_marker, flush=True)
                 last_activity = now
                 nudge_streak += 1
-                # Nudges that never bring back a snapshot mean a terminal screen
-                # (the character died): drive close_game to completion so the
-                # game quit()s, then exit the bot.
+                # Nudges that never bring back a snapshot mean a screen outside
+                # the command loop. That is DEATH only if the game process is
+                # actually winding down — a store/sale prompt chain that ate the
+                # nudges looks identical from here, and concluding <dead> on it
+                # abandoned a healthy character twice (game alive, HP full). So:
+                # blast the exit keys, then look at the PROCESS. Gone -> death,
+                # exit. Still alive -> the blast doubled as prompt clearing;
+                # resync and keep playing.
                 if nudge_streak >= TERMINAL_NUDGE_LIMIT and args.send_to_window:
-                    print("<dead>", flush=True)
                     for _ in range(DEATH_EXIT_ROUNDS):
                         for exit_key in DEATH_EXIT_KEYS:
                             send(exit_key)
                             time.sleep(0.3)
-                    return 0
+                    # Give a genuine close_game -> quit() a moment to finish.
+                    time.sleep(2.0)
+                    if not _game_process_alive(args.window_pid):
+                        print("<dead>", flush=True)
+                        return 0
+                    print(
+                        "<stuck-prompt> nudges exhausted but the game process "
+                        "is alive; cleared prompts and resyncing",
+                        flush=True,
+                    )
+                    nudge_streak = 0
 
             time.sleep(args.poll_interval)
+
+
+def _game_process_alive(pid) -> bool:
+    """Whether the game process still exists. Unknown pid -> False, preserving
+    the old conclude-death behavior when there is nothing to check."""
+    if not pid:
+        return False
+    if not sys.platform.startswith("win"):
+        try:
+            os.kill(int(pid), 0)
+        except OSError:
+            return False
+        return True
+    import ctypes
+
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+    )
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _is_looping(recent_cells, *, window: int = LOOP_WINDOW) -> bool:
