@@ -7074,6 +7074,15 @@ class HengbotPolicy:
         if here is not None and here.has_up_stairs:
             self.last_reason = "fundraise:ascend"
             return UP_STAIRS_KEY
+        # The remembered route to a distant staircase can change as mining
+        # reveals terrain, making BFS alternate between two equally short first
+        # steps at a junction.  Break that confined cycle before asking BFS for
+        # the same step again; the next decision resumes the staircase route.
+        if self._is_oscillating():
+            step = self._least_visited_neighbor(snapshot)
+            if step is not None:
+                self.last_reason = "fundraise:seek-upstairs"
+                return self._step_toward(snapshot, step)
         step = self._nearest_goal_step(snapshot, lambda grid: grid.has_up_stairs)
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"

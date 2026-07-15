@@ -6835,6 +6835,34 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
         self.assertEqual(policy._mining_stall_turns, MINING_STALL_LIMIT)
 
+    def test_fundraising_upstairs_route_breaks_a_two_tile_cycle(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(9, 10): grid(9, 10),
+            Position(8, 10): grid(8, 10, upstairs=True),
+            Position(10, 11): grid(10, 11),
+        }
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._recent.extend(
+            [Position(10, 10), Position(9, 10)] * (STUCK_WINDOW // 2)
+        )
+        policy._visit_counts[Position(9, 10)] = STUCK_WINDOW
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._leave_fundraising_floor(snap), "6")
+        self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
+
     def test_mining_abandons_route_even_when_target_churn_clears_target_counter(self):
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
