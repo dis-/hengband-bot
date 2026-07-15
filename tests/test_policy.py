@@ -11159,6 +11159,113 @@ class StoreTravelRetryTest(unittest.TestCase):
         self.assertEqual(pol._town_travel_fallback, Position(34, 130))
 
 
+class TownTravelerCombatPriorityTest(unittest.TestCase):
+    GOAL = Position(10, 30)
+
+    @staticmethod
+    def _snapshot(*, monster_pos=Position(10, 13), include_monster=True, width=40, height=20):
+        grids = {
+            Position(10, x): grid(10, x, monster=include_monster and x == monster_pos.x)
+            for x in range(10, 31)
+        }
+        if monster_pos.y != 10 or monster_pos.x not in range(10, 31):
+            grids[monster_pos] = grid(
+                monster_pos.y, monster_pos.x, monster=include_monster
+            )
+        monsters = (
+            [hostile(1, monster_pos.y, monster_pos.x, distance=3)]
+            if include_monster
+            else []
+        )
+        return Snapshot(
+            player(10, 10),
+            grids,
+            monsters,
+            floor_key=(0, 0, 0),
+            width=width,
+            height=height,
+            town_flag=True,
+        )
+
+    def _approach(self, policy, snapshot):
+        policy._shopping_approach_goal = self.GOAL
+        policy._shopping_approach_store_type = STORE_GENERAL
+        policy._build_grid_index(snapshot)
+        return policy._shopping_approach_key(
+            snapshot, Position(10, 11), "shop:travel"
+        )
+
+    def test_reachable_hostile_preempts_town_travel(self):
+        policy = HengbotPolicy()
+
+        key = self._approach(policy, self._snapshot())
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "town:clear-traveler")
+        self.assertNotEqual(key, "`n!.")
+
+    def test_unreachable_hostile_falls_through_to_town_travel(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot()
+        snapshot = replace(
+            snapshot,
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 13): grid(10, 13, monster=True),
+            },
+        )
+
+        self.assertEqual(self._approach(policy, snapshot), "`n!.")
+        self.assertEqual(policy.last_reason, "shop:travel")
+
+    def test_adjacent_hostile_remains_owned_by_melee(self):
+        policy = HengbotPolicy()
+        snapshot = replace(
+            self._snapshot(monster_pos=Position(10, 11)),
+            visible_monsters=[hostile(1, 10, 11, distance=1)],
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "melee")
+
+    def test_border_hostile_does_not_pull_hunt_onto_border(self):
+        policy = HengbotPolicy()
+        monster_pos = Position(0, 3)
+        grids = {
+            Position(y, 3): grid(y, 3, monster=y == 0)
+            for y in range(5)
+        }
+        snapshot = Snapshot(
+            player(2, 3),
+            grids,
+            [hostile(1, 0, 3, distance=2)],
+            floor_key=(0, 0, 0),
+            width=7,
+            height=5,
+            town_flag=True,
+        )
+        policy._build_grid_index(snapshot)
+
+        key = policy._town_clear_traveler_key(snapshot)
+
+        self.assertEqual(key, "8")
+        self.assertEqual(policy.last_reason, "town:clear-traveler")
+        self.assertFalse(policy._on_town_border(snapshot, Position(1, 3)))
+
+    def test_hunt_interlude_preserves_travel_progress_and_then_resumes(self):
+        policy = HengbotPolicy()
+        clear = self._snapshot(include_monster=False)
+        self.assertEqual(self._approach(policy, clear), "`n!.")
+        travel_state = policy._town_travel_state
+
+        self.assertEqual(self._approach(policy, self._snapshot()), "6")
+        self.assertEqual(policy._town_travel_state, travel_state)
+
+        resumed = replace(clear, player=player(10, 11))
+        self.assertEqual(self._approach(policy, resumed), "`n!.")
+        self.assertEqual(policy.last_reason, "shop:travel")
+
+
 class EntranceTravelTest(unittest.TestCase):
     """The surface walk to the dungeon entrance costs one bot decision per tile
     on foot; _entrance_travel_key rides Hengband's native travel instead

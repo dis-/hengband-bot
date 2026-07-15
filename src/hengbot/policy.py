@@ -411,6 +411,7 @@ MOVE_REASONS = frozenset(
         "breakout:seek-frontier",
         "clear-descent",
         "hunt",
+        "town:clear-traveler",
         "stuck:seek-stairs",
         "seek-secret-wall",
         "stuck:wander",
@@ -5769,6 +5770,9 @@ class HengbotPolicy:
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
+        clear_traveler = self._town_clear_traveler_key(snapshot)
+        if clear_traveler is not None:
+            return clear_traveler
         goal = self._shopping_approach_goal
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
@@ -5834,9 +5838,28 @@ class HengbotPolicy:
             return None
         if self.last_reason not in {"seek-downstairs", "approach-descent"}:
             return None
+        clear_traveler = self._town_clear_traveler_key(snapshot)
+        if clear_traveler is not None:
+            return clear_traveler
         return self._town_travel_key(
             snapshot, goal, ENTRANCE_TRAVEL_MACRO, "town:travel-entrance"
         )
+
+    def _town_clear_traveler_key(self, snapshot: Snapshot) -> str | None:
+        """Clear a reachable town monster before resuming a locomotion leg.
+
+        This deliberately runs before ``_town_travel_key`` so an interrupted
+        route's no-progress budget is unchanged while combat is in progress.
+        The ordinary hunt pathfinder also inherits the town-border guard from
+        ``_walkable_neighbors`` and falls through when no safe route exists.
+        """
+        if snapshot.dungeon_level != 0 or not snapshot.in_town:
+            return None
+        step = self._hunt_step(snapshot, self._hostiles(snapshot))
+        if step is None:
+            return None
+        self.last_reason = "town:clear-traveler"
+        return self._step_toward(snapshot, step)
 
     def _active_dungeon_target(self) -> int:
         if self._fundraising_mode in {"mine", "scavenge"}:
