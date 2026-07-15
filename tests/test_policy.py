@@ -10889,6 +10889,23 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:blocked:repetition")
         self.assertEqual(pol._town_blocked_reason, "repetition")
 
+    def test_cycle_break_suppresses_restock_waits_for_the_visit(self):
+        # Without this the retry path starts a fresh in-town wait, un-latches
+        # the stores when it expires, and the cycle resumes (observed live).
+        pol = HengbotPolicy()
+        pol._town_cycle_pending = True
+        snap = self._town_snap()
+        pol._town_special_key(snap)
+        self.assertTrue(pol._town_restock_suppressed)
+        self.assertIsNone(
+            pol._retry_after_store_restock(snap, (STORE_ALCHEMIST,))
+        )
+        self.assertIsNone(pol._town_restock_wait_until)
+        # And the town ladder no longer waits for restock either.
+        pol._town_restock_wait_until = snap.turn + 1000
+        key = pol._town_special_key(snap)
+        self.assertNotEqual(pol.last_reason, "town:wait-restock")
+
     def test_sale_routes_honor_the_store_latches(self):
         # An unsellable candidate re-routed the bot to the sale store forever,
         # immune even to the cycle break (the sale routes skipped the latches).

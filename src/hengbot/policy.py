@@ -804,6 +804,7 @@ class HengbotPolicy:
         self._town_progress_marker: tuple | None = None
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
+        self._town_restock_suppressed = False
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
@@ -1646,6 +1647,7 @@ class HengbotPolicy:
             self._town_progress_marker = None
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
+            self._town_restock_suppressed = False
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
         # fighting (reset by any such progress, or by reaching town) — so a
@@ -4349,6 +4351,8 @@ class HengbotPolicy:
         self, snapshot: Snapshot, store_types: tuple[int, ...]
     ) -> int | None:
         """Wait for stock turnover, then make the relevant shops eligible again."""
+        if self._town_restock_suppressed:
+            return None
         if self._town_restock_wait_until is None:
             self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
             return None
@@ -5990,6 +5994,10 @@ class HengbotPolicy:
         self._town_travel_state = None
         self._town_travel_fallback = None
         self._town_restock_wait_until = None
+        # After a cycle the goal is DEPARTURE, not errands: without this, a
+        # restock-retry path starts a fresh in-town wait, un-latches the very
+        # stores above when it expires, and the cycle resumes.
+        self._town_restock_suppressed = True
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:
@@ -6015,7 +6023,8 @@ class HengbotPolicy:
             return WAIT_KEY
 
         if (
-            self._town_restock_wait_until is not None
+            not self._town_restock_suppressed
+            and self._town_restock_wait_until is not None
             and snapshot.turn < self._town_restock_wait_until
         ):
             self.last_reason = "town:wait-restock"
