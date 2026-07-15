@@ -57,8 +57,7 @@ def _localized_names(value: Any) -> tuple[str, str]:
     return str(value or ""), ""
 
 
-def _legacy_quest_file(path: Path) -> QuestInfo | None:
-    primary_id = int(path.name.split("_", 1)[0])
+def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
     names: dict[int, str] = {}
     names_en: dict[int, str] = {}
     definitions: dict[int, QuestInfo] = {}
@@ -74,12 +73,11 @@ def _legacy_quest_file(path: Path) -> QuestInfo | None:
             quest_id = int(parts[1].removeprefix("$"))
         except ValueError:
             continue
-        if quest_id != primary_id:
-            continue
         if len(parts) >= 4 and parts[2] == "N":
             (names_en if english else names)[quest_id] = ":".join(parts[3:])
-        elif len(parts) >= 12 and parts[2] == "Q":
-            values = [int(value, 0) for value in parts[3:12]]
+        elif len(parts) >= 11 and parts[2] == "Q":
+            values = [int(value, 0) for value in parts[3:11]]
+            flags = int(parts[11], 0) if len(parts) >= 12 else 0
             definitions[quest_id] = QuestInfo(
                 id=quest_id,
                 name=names.get(quest_id, ""),
@@ -91,20 +89,24 @@ def _legacy_quest_file(path: Path) -> QuestInfo | None:
                 monrace_id=values[5],
                 reward_artifact_id=values[6] or None,
                 dungeon=values[7],
-                flags=values[8],
+                flags=flags,
             )
-    info = definitions.get(primary_id)
-    if info is None:
-        return None
-    return QuestInfo(**{**info.__dict__, "name": names.get(primary_id, info.name), "name_en": names_en.get(primary_id, "")})
+    return {
+        quest_id: QuestInfo(
+            **{
+                **info.__dict__,
+                "name": names.get(quest_id, info.name),
+                "name_en": names_en.get(quest_id, ""),
+            }
+        )
+        for quest_id, info in definitions.items()
+    }
 
 
 def _legacy_quests(path: Path) -> dict[int, QuestInfo]:
     result: dict[int, QuestInfo] = {}
-    for quest_path in sorted((path.parent / "quests").glob("[0-9][0-9][0-9]_*.txt")):
-        info = _legacy_quest_file(quest_path)
-        if info is not None:
-            result[info.id] = info
+    for quest_path in sorted((path.parent / "quests").glob("[0-9][0-9][0-9]*.txt")):
+        result.update(_legacy_quest_file(quest_path))
     return result
 
 

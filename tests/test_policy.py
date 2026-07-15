@@ -120,6 +120,7 @@ from hengbot.policy import (
     TOWN_CYCLE_IGNORED_REASONS,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
+    TownTravelProgress,
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
@@ -11245,8 +11246,8 @@ class TownCycleDetectorTest(unittest.TestCase):
     def test_nine_cell_resupply_carousel_hits_no_progress_limit(self):
         # Exact class of the live failure: unaffordable shopping approaches
         # advance through several town cells, with breakout decisions adding
-        # enough distinct signatures to evade the compact-cycle detector.  The
-        # compact-cycle detector, then reaches the no-progress fallback.
+        # enough distinct signatures to evade the compact-cycle detector, then
+        # reaches the no-progress fallback.
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
         cells = [
@@ -11490,6 +11491,51 @@ class TownCycleDetectorTest(unittest.TestCase):
             return_value=item("w", TVAL_SWORD, 4, is_equipment=True),
         ):
             self.assertNotEqual(pol._next_required_store_type(snap), STORE_WEAPON)
+
+
+class TownTravelProgressTest(unittest.TestCase):
+    GOAL = Position(10, 20)
+
+    def test_progress_resets_both_counters(self):
+        progress = TownTravelProgress(self.GOAL, 10, 3, 4, 7)
+        self.assertEqual(progress.record(9, 8), "reissue")
+        self.assertEqual(
+            progress,
+            TownTravelProgress(self.GOAL, 9, 0, 0, 8),
+        )
+
+    def test_new_turn_resets_same_turn_stalls_and_reissues(self):
+        progress = TownTravelProgress(self.GOAL, 10, 3, 4, 7)
+        self.assertEqual(progress.record(10, 8), "reissue")
+        self.assertEqual(
+            (progress.stalls, progress.turn_stalls, progress.last_turn),
+            (0, 5, 8),
+        )
+
+    def test_new_turn_limit_falls_back(self):
+        progress = TownTravelProgress(
+            self.GOAL, 10, 3, TOWN_TRAVEL_TURN_STALL_LIMIT - 1, 7
+        )
+        self.assertEqual(progress.record(10, 8), "fallback")
+        self.assertEqual(
+            (progress.stalls, progress.turn_stalls, progress.last_turn),
+            (0, TOWN_TRAVEL_TURN_STALL_LIMIT, 8),
+        )
+
+    def test_same_turn_increments_stalls_and_reissues(self):
+        progress = TownTravelProgress(self.GOAL, 10, 3, 4, 7)
+        self.assertEqual(progress.record(10, 7), "reissue")
+        self.assertEqual(
+            (progress.stalls, progress.turn_stalls, progress.last_turn),
+            (4, 4, 7),
+        )
+
+    def test_same_turn_limit_falls_back(self):
+        progress = TownTravelProgress(
+            self.GOAL, 10, TOWN_TRAVEL_STALL_LIMIT - 1, 4, 7
+        )
+        self.assertEqual(progress.record(10, 7), "fallback")
+        self.assertEqual(progress.stalls, TOWN_TRAVEL_STALL_LIMIT)
 
 
 class StoreTravelRetryTest(unittest.TestCase):

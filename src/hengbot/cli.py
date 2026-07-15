@@ -17,6 +17,8 @@ from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
 from hengbot.policy import (
     PACK_CAPACITY,
     ConservativePolicy,
+    TOWN_TRAVEL_STALL_LIMIT,
+    TOWN_TRAVEL_TURN_STALL_LIMIT,
     required_depth_gates,
 )
 
@@ -77,6 +79,12 @@ DUPLICATE_RETRY_SECONDS = 2.0
 # digs and other rejected commands even when their reason is exempt from the
 # position-based loop detector.
 STALLED_COMMAND_STATE_LIMIT = 12
+# Zero-energy travel rejection must fall back before the CLI stops the bot.
+assert TOWN_TRAVEL_STALL_LIMIT < STALLED_COMMAND_STATE_LIMIT
+# Turn stalls operate after energy consumption, where the CLI signature changes.
+assert TOWN_TRAVEL_TURN_STALL_LIMIT == 12
+# Both finite travel guards are far below the 1500-decision town-residence net.
+assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < 1500
 # Store purchases and other multi-prompt commands redraw between each key. A
 # 50ms gap was too short on the live Windows build: Return/y reached the queue
 # before the quantity/confirmation prompt was ready and were flushed. Keep the
