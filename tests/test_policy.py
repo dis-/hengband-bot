@@ -4777,7 +4777,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertFalse(HengbotPolicy()._town_departure_ready(snap))
 
-    def test_mining_reads_one_detection_scroll_then_tunnels_visible_gold(self):
+    def test_mining_reads_one_detection_scroll_then_sweeps_visible_gold(self):
         grids = {
             Position(10, 10): grid(10, 10, upstairs=True),
             Position(10, 11): grid(10, 11, passable=False, rubble=True, gold=True),
@@ -4801,7 +4801,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "rd", policy.last_reason)
         self.assertEqual(policy.last_reason, "fundraise:detect-treasure")
         self.assertEqual(policy.choose_key(snap), "T6")
-        self.assertEqual(policy.last_reason, "fundraise:mine-treasure")
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
 
     def test_mining_prefers_orthogonal_gold_over_blocked_diagonal_gold(self):
         grids = {
@@ -6520,6 +6520,65 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 policy._fundraising_key(snap, [])
         self.assertTrue(policy._mining_sweep_done)
         self.assertEqual(policy._mining_sweep_steps, MINING_SWEEP_NO_PROGRESS_LIMIT)
+
+    def test_known_terrain_approach_to_sweep_goal_is_progress(self):
+        policy = HengbotPolicy()
+        goal = Position(10, 50)
+        policy._mining_sweep_goal = goal
+        first = Snapshot(player(10, 10), {Position(10, 10): grid(10, 10)}, [])
+        policy._reset_mining_sweep_progress(first)
+        policy._mining_sweep_goal = goal
+        for x in range(10, 41):
+            snap = replace(first, player=player(10, x))
+            policy._mining_sweep_goal = goal
+            policy._record_mining_sweep_step(snap)
+        self.assertEqual(policy._mining_sweep_steps, 31)
+        self.assertFalse(policy._mining_sweep_done)
+        self.assertEqual(policy._mining_sweep_no_progress, 0)
+
+    def test_sweep_escape_blacklists_goal_without_resetting_bounds(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, x): grid(10, x) for x in range(10, 14)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=30, height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snap.floor_key
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        bad, good = Position(10, 11), Position(10, 13)
+        goals = [(bad, bad), (bad, bad), (good, good)]
+        with patch.object(policy, "_nearest_goal_and_step", side_effect=goals):
+            for _ in range(2):
+                policy._recent.extend([Position(10, 10), bad] * (STUCK_WINDOW // 2))
+                policy._build_grid_index(snap)
+                policy._fundraising_key(snap, [])
+        self.assertIn(bad, policy._mining_swept_dead_targets)
+        self.assertEqual(policy._mining_sweep_goal, good)
+        self.assertEqual(policy._mining_sweep_steps, 2)
+        self.assertEqual(policy._mining_sweep_no_progress, 1)
+
+    def test_mining_collection_waits_for_honest_sweep_completion(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11, gold=True)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=30, height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snap.floor_key
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._recent.extend([Position(10, 10), Position(10, 9)] * (STUCK_WINDOW // 2))
+        with patch.object(policy, "_mining_sweep_step", return_value=Position(10, 9)):
+            policy._fundraising_key(snap, [])
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
 
     def test_mining_sweep_hard_cap_latches_done(self):
         snap = Snapshot(

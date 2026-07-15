@@ -901,6 +901,11 @@ class HengbotPolicy:
         self._mining_sweep_steps = 0
         self._mining_sweep_no_progress = 0
         self._mining_sweep_revealed_grids = 0
+        self._mining_sweep_goal: Position | None = None
+        self._mining_sweep_goal_distance: int | None = None
+        self._mining_sweep_last_escape_goal: Position | None = None
+        self._mining_sweep_last_escape_distance: int | None = None
+        self._mining_swept_dead_targets: set[Position] = set()
         self._mining_dropped_veins: set[Position] = set()
         self._mining_veins_collected = 0
         self._mining_veins_dropped = 0
@@ -2128,6 +2133,11 @@ class HengbotPolicy:
             self._mining_sweep_steps = 0
             self._mining_sweep_no_progress = 0
             self._mining_sweep_revealed_grids = 0
+            self._mining_sweep_goal = None
+            self._mining_sweep_goal_distance = None
+            self._mining_sweep_last_escape_goal = None
+            self._mining_sweep_last_escape_distance = None
+            self._mining_swept_dead_targets.clear()
             self._mining_dropped_veins.clear()
             self._mining_veins_collected = 0
             self._mining_veins_dropped = 0
@@ -7147,29 +7157,53 @@ class HengbotPolicy:
         centers = self._mining_detection_centers
         if not centers:
             return None
-        return self._nearest_goal_step(
+        result = self._nearest_goal_and_step(
             snapshot,
-            lambda grid: self._is_frontier(snapshot, grid)
+            lambda grid: grid.position not in self._mining_swept_dead_targets
+            and self._is_frontier(snapshot, grid)
             and any(
                 grid.position.distance_to(center)
                 <= DEEP_FUNDRAISING_DETECTION_RADIUS
                 for center in centers
             ),
         )
+        if result is None:
+            self._mining_sweep_goal = None
+            self._mining_sweep_goal_distance = None
+            return None
+        goal, step = result
+        if goal != self._mining_sweep_goal:
+            self._mining_sweep_goal_distance = None
+        self._mining_sweep_goal = goal
+        return step
 
     def _reset_mining_sweep_progress(self, snapshot: Snapshot) -> None:
         self._mining_sweep_steps = 0
         self._mining_sweep_no_progress = 0
         self._mining_sweep_revealed_grids = len(snapshot.grids)
+        self._mining_sweep_goal = None
+        self._mining_sweep_goal_distance = None
+        self._mining_sweep_last_escape_goal = None
+        self._mining_sweep_last_escape_distance = None
 
     def _record_mining_sweep_step(self, snapshot: Snapshot) -> None:
         """Account for one sweep move without spending the collection leash."""
         self._mining_sweep_steps += 1
         revealed = len(snapshot.grids)
-        if revealed > self._mining_sweep_revealed_grids:
+        goal = self._mining_sweep_goal
+        distance = (
+            snapshot.player.position.distance_to(goal) if goal is not None else None
+        )
+        approached_goal = (
+            goal is not None
+            and self._mining_sweep_goal_distance is not None
+            and distance < self._mining_sweep_goal_distance
+        )
+        if revealed > self._mining_sweep_revealed_grids or approached_goal:
             self._mining_sweep_no_progress = 0
         else:
             self._mining_sweep_no_progress += 1
+        self._mining_sweep_goal_distance = distance
         self._mining_sweep_revealed_grids = max(
             self._mining_sweep_revealed_grids, revealed
         )
@@ -7184,6 +7218,7 @@ class HengbotPolicy:
         first resume the sweep if fresh in-radius frontiers appeared (a dug vein
         chain can unseal a whole pocket); once neither a vein nor a frontier
         remains, the cheap treasure really is collected and the floor is done."""
+        was_done = self._mining_sweep_done
         if self._is_oscillating():
             # Waiting cannot drain _recent: choose_key appends our unchanged
             # position on every decision, so a stationary pause would keep the
@@ -7193,7 +7228,11 @@ class HengbotPolicy:
         sweep = self._mining_sweep_step(snapshot)
         if sweep is not None:
             self._mining_sweep_done = False
-            self._reset_mining_sweep_progress(snapshot)
+            if was_done:
+                self._reset_mining_sweep_progress(snapshot)
+                # The reset clears the freshly selected goal; select it again.
+                sweep = self._mining_sweep_step(snapshot)
+                assert sweep is not None
             self._record_mining_sweep_step(snapshot)
             self.last_reason = "fundraise:sweep-explore"
             return self._step_toward(snapshot, sweep)
@@ -7472,6 +7511,7 @@ class HengbotPolicy:
                 # fresh chance for veins whose walk failed before.
                 self._mining_sweep_done = False
                 self._reset_mining_sweep_progress(snapshot)
+                self._mining_swept_dead_targets.clear()
                 self._mining_dropped_veins.clear()
                 self.last_reason = (
                     "fundraise:detect-treasure"
@@ -7493,15 +7533,6 @@ class HengbotPolicy:
             ),
             None,
         )
-        if adjacent_gold is not None:
-            self._mining_stall_turns = 0
-            self._mining_route_visits.clear()
-            self._mining_navigation_visits.clear()
-            self._mining_oscillation_retargets = 0
-            self.last_reason = "fundraise:mine-treasure"
-            return TUNNEL_KEY + self._direction_key(
-                snapshot.player.position, adjacent_gold.position
-            )
         # Floor loot is handled above before chasing
         # veins — it is walkable gold we would otherwise leave behind.
         # Productivity leash: MINING_STALL_LIMIT turns with no gold collected means the
@@ -7516,19 +7547,39 @@ class HengbotPolicy:
         # The old routine skipped this and burned its leash tunneling toward one
         # deep vein, leaving most of the detection uncollected.
         if not self._mining_sweep_done:
-            # A post-combat oscillation pauses the sweep; it does not prove the
-            # detected area is exhausted.  Phase 2 may still progress meanwhile.
-            if not self._is_oscillating():
-                sweep = self._mining_sweep_step(snapshot)
-                if sweep is not None:
-                    self._record_mining_sweep_step(snapshot)
-                    self.last_reason = "fundraise:sweep-explore"
-                    return self._step_toward(snapshot, sweep)
-                self._mining_sweep_done = True
+            oscillating = self._is_oscillating()
+            sweep = self._mining_sweep_step(snapshot)
+            if oscillating and self._mining_sweep_goal is not None:
+                goal = self._mining_sweep_goal
+                distance = snapshot.player.position.distance_to(goal)
+                if (
+                    self._mining_sweep_last_escape_goal == goal
+                    and self._mining_sweep_last_escape_distance is not None
+                    and distance >= self._mining_sweep_last_escape_distance
+                ):
+                    self._mining_swept_dead_targets.add(goal)
+                    sweep = self._mining_sweep_step(snapshot)
+                self._mining_sweep_last_escape_goal = goal
+                self._mining_sweep_last_escape_distance = distance
+                self._recent.clear()
+            if sweep is not None:
+                self._record_mining_sweep_step(snapshot)
+                self.last_reason = "fundraise:sweep-explore"
+                return self._step_toward(snapshot, sweep)
+            self._mining_sweep_done = True
         # Phase 2: collect distance-1 veins (walk to a floor tile beside the
         # vein, dig it directly) until none qualify. A dug vein becomes floor,
         # which can expose the vein behind it — the walk picks that up next
         # iteration, peeling whole clusters without ever digging blank rock.
+        if adjacent_gold is not None:
+            self._mining_stall_turns = 0
+            self._mining_route_visits.clear()
+            self._mining_navigation_visits.clear()
+            self._mining_oscillation_retargets = 0
+            self.last_reason = "fundraise:mine-treasure"
+            return TUNNEL_KEY + self._direction_key(
+                snapshot.player.position, adjacent_gold.position
+            )
         osc = self._is_oscillating()
         if osc and self._treasure_target is not None:
             self._mining_oscillation_retargets += 1
@@ -9605,6 +9656,26 @@ class HengbotPolicy:
             grid = snapshot.grids.get(pos)
             if pos != start and grid is not None and predicate(grid):
                 return first_step
+            for neighbor in self._walkable_neighbors(snapshot, pos):
+                if neighbor in seen:
+                    continue
+                seen.add(neighbor)
+                queue.append((neighbor, neighbor if first_step is None else first_step))
+        return None
+
+    def _nearest_goal_and_step(
+        self, snapshot: Snapshot, predicate
+    ) -> tuple[Position, Position] | None:
+        """Return both the selected BFS goal and its first approach step."""
+        start = snapshot.player.position
+        seen = {start}
+        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        while queue:
+            pos, first_step = queue.popleft()
+            grid = snapshot.grids.get(pos)
+            if pos != start and grid is not None and predicate(grid):
+                assert first_step is not None
+                return pos, first_step
             for neighbor in self._walkable_neighbors(snapshot, pos):
                 if neighbor in seen:
                     continue
