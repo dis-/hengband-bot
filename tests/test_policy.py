@@ -10527,6 +10527,110 @@ class ThreatPredictionMemoTest(unittest.TestCase):
         )
 
 
+class AggregateRangedCacheTest(unittest.TestCase):
+    """_aggregate_ranged_percentile keys the expensive convolution on its actual
+    inputs, so an unchanged engagement (same race, actions, distance, player
+    profile) is computed once and reused ACROSS decisions. player_hp is in the
+    key only for HAND_DOOM races; for everyone else an HP change must still
+    hit the cache (the standoff/kite case the cache exists for)."""
+
+    KNOWLEDGE = MonraceKnowledge(
+        max_hp=48,
+        average_hp=30,
+        speed=110,
+        can_summon=False,
+        friendly=False,
+        level=12,
+        max_melee_damage=8,
+        max_ranged_damage=98,
+        abilities=frozenset({"BA_POIS", "BLINK", "CONF", "SLOW", "S_MONSTER"}),
+        spell_frequency=25,
+    )
+    DOOM_KNOWLEDGE = MonraceKnowledge(
+        max_hp=200,
+        average_hp=150,
+        speed=110,
+        can_summon=False,
+        friendly=False,
+        level=40,
+        max_melee_damage=8,
+        max_ranged_damage=90,
+        abilities=frozenset({"HAND_DOOM"}),
+        spell_frequency=25,
+    )
+
+    @staticmethod
+    def _monster(x=12, distance=2):
+        return replace(
+            hostile(
+                1, 10, x, distance=distance,
+                max_melee_damage=8, max_ranged_damage=98,
+            ),
+            race_id=224,
+        )
+
+    @staticmethod
+    def _snap(monster, hp=30):
+        grids = {
+            Position(10, x): grid(10, x, monster=(x == monster.position.x))
+            for x in range(10, monster.position.x + 1)
+        }
+        return Snapshot(
+            player(10, 10, hp=hp, max_hp=100),
+            grids,
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
+            inventory=[],
+        )
+
+    def _count_aggregate_calls(self, pol, engagements):
+        from unittest import mock
+
+        from hengbot.monster_ranged_evaluator import (
+            aggregate_ranged_damage_percentile as real_aggregate,
+        )
+
+        with mock.patch(
+            "hengbot.policy.aggregate_ranged_damage_percentile",
+            wraps=real_aggregate,
+        ) as agg:
+            for snap, monster in engagements:
+                pol.threat_prediction(snap, [monster])
+        return agg.call_count
+
+    def test_identical_engagement_across_snapshots_computes_once(self):
+        pol = HengbotPolicy(monrace_knowledge={224: self.KNOWLEDGE})
+        first, second = self._monster(), self._monster()
+        hurt = self._monster()
+        calls = self._count_aggregate_calls(
+            pol,
+            [
+                (self._snap(first), first),
+                (self._snap(second), second),
+                # Player HP changed but the race has no HAND_DOOM: still a hit.
+                (self._snap(hurt, hp=15), hurt),
+            ],
+        )
+        self.assertEqual(calls, 1)
+
+    def test_distance_change_recomputes(self):
+        pol = HengbotPolicy(monrace_knowledge={224: self.KNOWLEDGE})
+        near, far = self._monster(), self._monster(x=14, distance=4)
+        calls = self._count_aggregate_calls(
+            pol, [(self._snap(near), near), (self._snap(far), far)]
+        )
+        self.assertEqual(calls, 2)
+
+    def test_hand_of_doom_keys_on_player_hp(self):
+        pol = HengbotPolicy(monrace_knowledge={224: self.DOOM_KNOWLEDGE})
+        healthy, hurt = self._monster(), self._monster()
+        calls = self._count_aggregate_calls(
+            pol,
+            [(self._snap(healthy, hp=90), healthy), (self._snap(hurt, hp=45), hurt)],
+        )
+        self.assertEqual(calls, 2)
+
+
 class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
     """prepare_warrior_optimization must receive the character's ACTUAL
     *Destruction* availability. The fail-closed False stub made

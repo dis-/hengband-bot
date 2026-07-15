@@ -328,6 +328,11 @@ def required_depth_gates(depth: int) -> frozenset:
 # threat_prediction memo entries kept before the (per-snapshot) cache is reset;
 # a decision needs at most a few (turns=1 and turns=3 variants).
 THREAT_PREDICTION_MEMO_LIMIT = 8
+
+# Value-keyed aggregate-p95 results kept ACROSS decisions — a dive meets at most
+# a few hundred distinct (race, actions, distance, player-profile) combinations,
+# and every input is part of the key, so entries can never go stale.
+AGGREGATE_RANGED_CACHE_LIMIT = 4096
 OVEREXTEND_LOOT_MAX = 1  # "almost nothing": at most this many pickups on the dive
 OVEREXTEND_EMERGENCY_MIN = 2  # ...paired with at least this many emergency escapes
 PICKUP_REASONS = frozenset({"pickup", "victory:pickup", "conquest:pickup"})
@@ -781,6 +786,9 @@ class HengbotPolicy:
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
         self._threat_prediction_memo: dict[tuple, dict] = {}
+        # Value-keyed aggregate-p95 cache shared across decisions — see
+        # _aggregate_ranged_percentile. Bounded; cleared when it fills.
+        self._aggregate_ranged_cache: dict[tuple, object] = {}
         self._emergency_escape_pending = False
         # Speed-potion state for the currently engaged unique.  The baseline is
         # the speed observed before quaffing; after the bonus expires we may dose
@@ -7754,6 +7762,54 @@ class HengbotPolicy:
         prediction = self.threat_prediction(snapshot, hostiles, turns)
         return prediction["expected_total" if expected else "operational_total"]
 
+    def _aggregate_ranged_percentile(
+        self,
+        knowledge: MonraceKnowledge,
+        *,
+        actions: int,
+        selection_context: SpellSelectionContext,
+        selection_probabilities: dict[str, float],
+        flags: frozenset,
+        player_hp: int,
+        blind: bool,
+        saving_skill: int,
+    ):
+        """Value-keyed, cross-decision cache around aggregate_ranged_damage_percentile.
+
+        The convolution costs ~0.3-1s per deep-floor caster and its inputs are
+        coarse: the frozen race knowledge, the action count, the selection
+        context (which fully determines selection_probabilities — key the
+        CONTEXT, not the derived dict, so enriching the context later cannot
+        silently under-key), the player's resist/reflect flags, blindness, and
+        saving skill. player_hp feeds ONLY HAND_DOOM, so it joins the key just
+        for races that have it. A standoff or kiting fight therefore pays for
+        one computation and reuses it for the rest of the engagement.
+        """
+        key = (
+            knowledge,
+            actions,
+            selection_context,
+            flags,
+            blind,
+            saving_skill,
+            player_hp if "HAND_DOOM" in knowledge.abilities else None,
+        )
+        cached = self._aggregate_ranged_cache.get(key)
+        if cached is None:
+            cached = aggregate_ranged_damage_percentile(
+                knowledge,
+                actions=actions,
+                selection_probabilities=selection_probabilities,
+                flags=flags,
+                player_hp=player_hp,
+                blind=blind,
+                saving_skill=saving_skill,
+            )
+            if len(self._aggregate_ranged_cache) >= AGGREGATE_RANGED_CACHE_LIMIT:
+                self._aggregate_ranged_cache.clear()
+            self._aggregate_ranged_cache[key] = cached
+        return cached
+
     def threat_prediction(
         self, snapshot: Snapshot, hostiles: list[MonsterState], turns: int = 3
     ) -> dict:
@@ -7829,9 +7885,11 @@ class HengbotPolicy:
                         ) is not None
                     }
                     ranged = actions * max(maximum_by_ability.values(), default=0)
+                    selection_context = SpellSelectionContext(
+                        distance=max(1, monster.distance)
+                    )
                     selection = ability_selection_probabilities(
-                        knowledge,
-                        SpellSelectionContext(distance=max(1, monster.distance)),
+                        knowledge, selection_context
                     )
                     for ability, maximum in maximum_by_ability.items():
                         if ability.startswith("CAUSE_"):
@@ -7851,9 +7909,10 @@ class HengbotPolicy:
                                     "damage_p95": cause.total_damage,
                                 }
                             )
-                    aggregate_ranged = aggregate_ranged_damage_percentile(
+                    aggregate_ranged = self._aggregate_ranged_percentile(
                         knowledge,
                         actions=actions,
+                        selection_context=selection_context,
                         selection_probabilities=selection,
                         flags=flags,
                         player_hp=snapshot.player.hp,
