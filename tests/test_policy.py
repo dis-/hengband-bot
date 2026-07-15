@@ -114,6 +114,7 @@ from hengbot.policy import (
     TUNNEL_KEY,
     TR_NO_TELE,
     TOWN_CYCLE_WINDOW,
+    TOWN_CYCLE_IGNORED_REASONS,
     WAIT_KEY,
 )
 
@@ -10935,19 +10936,102 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._fundraising_mode = "prepare"
         pol._town_cycle_pending = True
-        snap = self._town_snap(gold=102)
+        snap = replace(
+            self._town_snap(gold=102),
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+        )
 
         self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertEqual(pol._fundraising_mode, "scavenge")
         self.assertEqual(pol._scavenge_entry_gold, 102)
 
+    def test_broke_but_lit_fundraiser_leaves_after_first_cycle_offense(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "prepare"
+        pol._town_cycle_pending = True
+        snap = replace(
+            self._town_snap(gold=0),
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+        )
+
+        self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertIsNone(pol._town_special_key(snap))
+        self.assertIsNone(pol._town_blocked_reason)
+
+    def test_first_cycle_offense_stops_visibly_when_departure_has_no_light(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "prepare"
+        pol._town_cycle_pending = True
+
+        self.assertEqual(pol._town_special_key(self._town_snap(gold=0)), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:departure-no-light")
+        self.assertEqual(pol._town_blocked_reason, "departure-no-light")
+
+    def test_scavenge_cycle_break_still_recovers_before_departure(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "scavenge"
+        pol._town_restock_suppressed = True
+        snap = replace(
+            self._town_snap(),
+            player=player(34, 94, hp=9, max_hp=10, class_id=PLAYER_CLASS_WARRIOR),
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+        )
+
+        self.assertEqual(pol._town_special_key(snap), REST_MACRO)
+        self.assertEqual(pol.last_reason, "town:recover")
+
+    def test_departure_blocked_reason_remains_cycle_detectable(self):
+        self.assertNotIn("fundraise:departure-blocked", TOWN_CYCLE_IGNORED_REASONS)
+
+    def test_departure_only_mode_without_light_keeps_entrance_blocked(self):
+        pol = HengbotPolicy()
+        pol._town_restock_suppressed = True
+
+        self.assertTrue(pol._descent_is_blocked(self._town_snap()))
+
     def test_cycle_break_bypasses_procurement_gate_and_exposes_entrance(self):
         from types import SimpleNamespace
 
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
-        snap = self._town_snap()
+        snap = replace(
+            self._town_snap(),
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+        )
         pol._town_special_key(snap)
         pol._town_map = SimpleNamespace(entrance=Position(34, 120))
         pol._town_map_active = lambda _snapshot: True

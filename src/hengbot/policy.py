@@ -6033,6 +6033,13 @@ class HengbotPolicy:
                 self.last_reason = "town:blocked:repetition"
                 return WAIT_KEY
             self._break_town_cycle(snapshot)
+            if (
+                self._fundraising_mode == "scavenge"
+                and not self._fundraising_light_ready(snapshot)
+            ):
+                self._town_blocked_reason = "departure-no-light"
+                self.last_reason = "town:blocked:departure-no-light"
+                return WAIT_KEY
             self.last_reason = "town:cycle-break"
             return WAIT_KEY
         if self._town_blocked_reason is not None:
@@ -6074,8 +6081,26 @@ class HengbotPolicy:
         # before applying the departure gate.
         if deep_fundraising and self._planned_mining_runs is None:
             self._activate_partial_deep_mining_plan(snapshot)
+        player = snapshot.player
+        if (
+            player.hp < player.max_hp
+            or player.mp < player.max_mp
+            or not self._temporary_status_clear(snapshot)
+        ):
+            self.last_reason = "town:recover"
+            return REST_MACRO
+
         if self._fundraising_mode in {"mine", "scavenge"}:
             if not self._fundraising_departure_ready(snapshot):
+                # Once every store route has been abandoned, preferred food is
+                # optional for a shallow scavenge dive.  A working light was
+                # checked when the cycle was broken and remains a hard gate.
+                if (
+                    self._town_restock_suppressed
+                    and self._fundraising_mode == "scavenge"
+                    and self._fundraising_light_ready(snapshot)
+                ):
+                    return None
                 here = snapshot.grid_at(snapshot.player.position)
                 if here is not None and here.is_store:
                     neighbors = self._walkable_neighbors(
@@ -6088,11 +6113,6 @@ class HengbotPolicy:
                 return WAIT_KEY
             if not deep_fundraising:
                 return None
-
-        player = snapshot.player
-        if player.hp < player.max_hp or player.mp < player.max_mp or not self._temporary_status_clear(snapshot):
-            self.last_reason = "town:recover"
-            return REST_MACRO
 
         if self._rumor_unlock_pending and not snapshot.angband_recall_unlocked:
             if not self._town_departure_ready(snapshot):
@@ -8347,6 +8367,13 @@ class HengbotPolicy:
                 ):
                     return True
             else:
+                # A departure-only visit may waive preferred procurement, but
+                # never expose the dungeon entrance when it would be dark.
+                if (
+                    self._town_restock_suppressed
+                    and not self._fundraising_light_ready(snapshot)
+                ):
+                    return True
                 if not self._town_restock_suppressed and (
                     self._rumor_unlock_pending
                     or not self._town_departure_ready(snapshot)
@@ -8670,6 +8697,9 @@ class HengbotPolicy:
         if self._town_map.entrance is None:
             return None
         if self._town_restock_suppressed:
+            # A deep character with no recall scroll loses its saved depth here,
+            # but an L1 walk-in is the only remaining departure; do not turn it
+            # into an unsupplied deep recall.
             return self._town_map.entrance
         if (
             self._fundraising_mode in {"mine", "scavenge"}
