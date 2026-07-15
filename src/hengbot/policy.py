@@ -1166,7 +1166,11 @@ class HengbotPolicy:
         if self._should_flee(snapshot, hostiles, adjacent):
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
-                self.last_reason = "flee:stairs"
+                self.last_reason = (
+                    "flee:stairs-quest-fail"
+                    if self._active_fixed_quest_id(snapshot) is not None
+                    else "flee:stairs"
+                )
                 return escape
             step = self._flee_step(snapshot, hostiles)
             if step is not None:

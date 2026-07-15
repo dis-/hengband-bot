@@ -2550,6 +2550,27 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "<")
         self.assertEqual(policy.last_reason, "emergency:stairs-quest-fail")
 
+    def test_flee_upstairs_reason_records_quest_failure(self):
+        grids = {
+            Position(10, 10): grid(
+                10, 10, upstairs=True, has_quest_exit=True, quest_id=self.QUEST_ID
+            ),
+            Position(10, 11): grid(10, 11, monster=True),
+        }
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=150),
+            grids,
+            [hostile(1, 10, 11, hp=100)],
+            floor_key=(0, 1, self.QUEST_ID),
+            quests={self.QUEST_ID: self._quest(1)},
+        )
+        policy = HengbotPolicy()
+
+        key = policy.choose_key(snap)
+
+        self.assertEqual(key, "<")
+        self.assertEqual(policy.last_reason, "flee:stairs-quest-fail")
+
 
 class ProbeTest(unittest.TestCase):
     def _sole_frontier_snapshot(self):
