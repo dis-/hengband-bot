@@ -95,6 +95,7 @@ from hengbot.policy import (
     DEEP_FUNDRAISING_DETECTION_RADIUS,
     DEEP_FUNDRAISING_SCROLLS_PER_RUN,
     FUNDRAISING_GOLD_TARGET,
+    FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
     FIXED_QUEST_MIN_LEVEL,
     FOOD_MIN_SVAL,
@@ -2915,7 +2916,10 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             ),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[],
+            inventory=[
+                item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+                item("t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
+            ],
             town_flag=True,
         )
         policy = HengbotPolicy()
@@ -3653,6 +3657,85 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         purchase = pol._next_purchase(snap)
         self.assertIsNotNone(purchase)
         self.assertTrue(purchase.is_treasure_detection_scroll)
+
+    def test_fundraising_routes_minimum_kit_before_dive_supplies(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "prepare"
+        snap = Snapshot(
+            player(10, 10, gold=FUNDRAISING_KIT_RESERVE, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[item("f", TVAL_FOOD, 35, count=9)],
+        )
+
+        self.assertEqual(pol._next_required_store_type(snap), STORE_HOME)
+        pol._town_store_attempted[STORE_HOME] = 0
+        self.assertEqual(pol._next_required_store_type(snap), STORE_GENERAL)
+        pol._town_store_attempted[STORE_GENERAL] = 0
+        self.assertEqual(pol._next_required_store_type(snap), STORE_ALCHEMIST)
+
+    def test_tight_gold_skips_dive_supply_that_breaks_fundraising_reserve(self):
+        pol = HengbotPolicy()
+        pol._deepest_level = 10
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_KIT_RESERVE + 50,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9),
+                item("f", TVAL_FOOD, 35, count=9),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=9, fuel=500),
+            ],
+            equipment=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000)],
+            store=StoreState(
+                STORE_ALCHEMIST,
+                [store_item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, price=60)],
+            ),
+        )
+
+        self.assertIsNone(pol._next_purchase(snap))
+        self.assertGreaterEqual(snap.player.gold, FUNDRAISING_KIT_RESERVE)
+
+    def test_owned_fundraising_kit_leaves_purchase_order_unchanged(self):
+        pol = HengbotPolicy()
+        pol._deepest_level = 10
+        teleport = store_item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, price=100)
+        snap = Snapshot(
+            player(10, 10, gold=5000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[
+                item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+                item("x", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9),
+                item("f", TVAL_FOOD, 35, count=9),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=9, fuel=500),
+            ],
+            equipment=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000)],
+            store=StoreState(STORE_ALCHEMIST, [teleport]),
+        )
+
+        self.assertEqual(pol._next_purchase(snap), teleport)
+
+    def test_reserve_never_blocks_fundraising_kit_purchase(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "prepare"
+        digger = store_item(
+            "d", TVAL_DIGGING, SV_DIGGING_SHOVEL, price=FUNDRAISING_KIT_RESERVE
+        )
+        snap = Snapshot(
+            player(10, 10, gold=FUNDRAISING_KIT_RESERVE, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            store=StoreState(STORE_GENERAL, [digger]),
+        )
+
+        self.assertEqual(pol._next_purchase(snap), digger)
 
     def test_identify_errand_still_buys_departure_teleport_scrolls(self):
         # An identify errand must not short-circuit _next_purchase: while at the
@@ -9662,6 +9745,8 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
         second = self._town(
             inventory=[
                 *self._supplies(),
+                item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+                item("t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
                 item("s", TVAL_POTION, SV_POTION_SPEED),
             ],
             store=StoreState(STORE_BLACK, wares),
@@ -9674,6 +9759,8 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
         stocked = self._town(
             inventory=[
                 *self._supplies(),
+                item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+                item("t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
                 item("s", TVAL_POTION, SV_POTION_SPEED, count=3),
                 item("h", TVAL_POTION, SV_POTION_HEALING, count=2),
             ],

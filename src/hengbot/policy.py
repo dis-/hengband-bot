@@ -687,6 +687,19 @@ FUNDRAISING_START_GOLD = 3000
 # for shallow runs, and one Treasure Detection scroll per fresh floor.  Build a
 # useful reserve in one batch instead of restarting fundraising after every dive.
 FUNDRAISING_GOLD_TARGET = 15000
+# Outpost base prices are about 20g for the General Store's cheapest Shovel and
+# 15g for one Alchemist Treasure Detection scroll.  Keep a deliberately round
+# 100g reserve to cover charisma/store-price variation and a useful margin.
+# When either missing component is visible in the live store snapshot, its
+# observed price replaces that component's base price for the reserve decision.
+FUNDRAISING_KIT_RESERVE = 100
+FUNDRAISING_DIGGER_BASE_PRICE = 20
+FUNDRAISING_DETECTION_BASE_PRICE = 15
+FUNDRAISING_KIT_MARGIN = (
+    FUNDRAISING_KIT_RESERVE
+    - FUNDRAISING_DIGGER_BASE_PRICE
+    - FUNDRAISING_DETECTION_BASE_PRICE
+)
 DEEP_FUNDRAISING_DEPTH = 13
 DEEP_FUNDRAISING_MIN_LEVEL = 20
 DEEP_FUNDRAISING_MIN_MAX_HP = 250
@@ -2510,6 +2523,52 @@ class HengbotPolicy:
         return any(it.is_digging_tool for it in snapshot.inventory) or any(
             it.is_digging_tool for it in snapshot.equipment
         )
+
+    def _has_withdrawable_digging_tool(self, snapshot: Snapshot) -> bool:
+        return self._has_digging_tool(snapshot) or any(
+            owned.origin == "home" and owned.item.is_digging_tool
+            for owned in self._equipment_catalog.items
+        )
+
+    def _has_withdrawable_treasure_detection(self, snapshot: Snapshot) -> bool:
+        if self._count_treasure_detection_scrolls(snapshot) > 0:
+            return True
+        return bool(
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and any(it.is_treasure_detection_scroll for it in snapshot.store.items)
+        )
+
+    def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:
+        return self._has_withdrawable_digging_tool(
+            snapshot
+        ) and self._has_withdrawable_treasure_detection(snapshot)
+
+    def _fundraising_kit_reserve(self, snapshot: Snapshot) -> int:
+        """Gold to retain for whichever minimum mining-kit pieces are missing."""
+        if self._fundraising_kit_secured(snapshot):
+            return 0
+        digger_price = FUNDRAISING_DIGGER_BASE_PRICE
+        detection_price = FUNDRAISING_DETECTION_BASE_PRICE
+        if snapshot.store is not None:
+            observed_diggers = [
+                it.price for it in snapshot.store.items if it.is_digging_tool
+            ]
+            observed_detection = [
+                it.price
+                for it in snapshot.store.items
+                if it.is_treasure_detection_scroll
+            ]
+            if observed_diggers:
+                digger_price = min(observed_diggers)
+            if observed_detection:
+                detection_price = min(observed_detection)
+        needed = FUNDRAISING_KIT_MARGIN
+        if not self._has_withdrawable_digging_tool(snapshot):
+            needed += digger_price
+        if not self._has_withdrawable_treasure_detection(snapshot):
+            needed += detection_price
+        return needed
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
         return sum(
@@ -4646,6 +4705,18 @@ class HengbotPolicy:
         ):
             return STORE_GENERAL
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            # Secure the minimum income engine before topping up food or the
+            # remaining multi-run detection batch.  Home is searched once for
+            # either component before scarce gold is spent in town.
+            if not self._fundraising_kit_secured(snapshot):
+                if STORE_HOME not in self._town_store_attempted:
+                    return STORE_HOME
+                if not self._has_withdrawable_digging_tool(snapshot):
+                    if STORE_GENERAL not in self._town_store_attempted:
+                        return STORE_GENERAL
+                if not self._has_withdrawable_treasure_detection(snapshot):
+                    if STORE_ALCHEMIST not in self._town_store_attempted:
+                        return STORE_ALCHEMIST
             if not self._fundraising_food_ready(snapshot):
                 food_store = (
                     STORE_MAGIC
@@ -4944,6 +5015,19 @@ class HengbotPolicy:
         return not self._food_ready(snapshot)
 
     def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        """Apply the cheap fundraising-kit reserve to the normal buy order."""
+        item = self._next_purchase_unreserved(snapshot)
+        if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
+            return item
+        reserve = self._fundraising_kit_reserve(snapshot)
+        if reserve == 0:
+            return item
+        quantity = self._purchase_quantity(snapshot, item)
+        if snapshot.player.gold - item.price * quantity < reserve:
+            return None
+        return item
+
+    def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
         store = snapshot.store
         if store is None:
@@ -4973,6 +5057,24 @@ class HengbotPolicy:
                 )
             return None
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            if not self._has_digging_tool(snapshot):
+                digger = next(
+                    (it for it in store.items if it.is_digging_tool and it.price <= gold),
+                    None,
+                )
+                if digger is not None:
+                    return digger
+            if self._count_treasure_detection_scrolls(snapshot) < 1:
+                detection = next(
+                    (
+                        it
+                        for it in store.items
+                        if it.is_treasure_detection_scroll and it.price <= gold
+                    ),
+                    None,
+                )
+                if detection is not None:
+                    return detection
             if not self._food_ready(snapshot):
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
                     candidates = [
