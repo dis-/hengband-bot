@@ -7078,9 +7078,10 @@ class HengbotPolicy:
         # reveals terrain, making BFS alternate between two equally short first
         # steps at a junction.  Break that confined cycle before asking BFS for
         # the same step again; the next decision resumes the staircase route.
-        if self._is_oscillating():
+        oscillation_cells = set(self._recent) if self._is_oscillating() else set()
+        if oscillation_cells:
             step = self._least_visited_neighbor(snapshot)
-            if step is not None:
+            if step is not None and step not in oscillation_cells:
                 self.last_reason = "fundraise:seek-upstairs"
                 return self._step_toward(snapshot, step)
         step = self._nearest_goal_step(snapshot, lambda grid: grid.has_up_stairs)
@@ -7102,11 +7103,14 @@ class HengbotPolicy:
                 self.last_reason = "fundraise:search"
                 return SEARCH_KEY
         step = self._least_visited_neighbor(snapshot)
-        if step is not None:
+        if step is not None and (
+            not oscillation_cells or step not in oscillation_cells
+        ):
             self.last_reason = "fundraise:seek-upstairs-wander"
             return self._step_toward(snapshot, step)
-        # Terminal: no reachable up-stairs, nothing to explore, and not even a walkable
-        # neighbour (a mining tunnel can wall us into a pocket). A miner DIGS out rather
+        # Terminal: no reachable up-stairs, nothing to explore, and no walkable
+        # neighbour that escapes a confined cycle (a mining tunnel can wall us into a
+        # pocket). A miner DIGS out rather
         # than spending a scarce Teleport/Recall scroll — tunnel toward the nearest known
         # up-stairs, or failing that toward the nearest remembered floor (back the way we
         # dug in). Survival escapes are handled upstream, before fundraising.

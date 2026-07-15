@@ -6863,6 +6863,42 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._leave_fundraising_floor(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
 
+    def test_fundraising_two_tile_sealed_pocket_tunnels_out(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+        }
+        for y in range(9, 12):
+            for x in range(9, 13):
+                pos = Position(y, x)
+                if pos not in grids:
+                    grids[pos] = grid(y, x, passable=False, can_dig=True)
+        grids[Position(10, 13)] = grid(
+            10, 13, passable=False, can_dig=True, upstairs=True
+        )
+        snap = Snapshot(
+            player(10, 11, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._recent.extend(
+            [Position(10, 11), Position(10, 10)] * (STUCK_WINDOW // 2)
+        )
+        policy._visit_counts[Position(10, 10)] = STUCK_WINDOW
+        policy._visit_counts[Position(10, 11)] = STUCK_WINDOW
+        policy._search_counts[(10, 11)] = SEARCH_LIMIT
+        policy._build_grid_index(snap)
+
+        self.assertEqual(
+            policy._leave_fundraising_floor(snap), TUNNEL_KEY + "6"
+        )
+        self.assertEqual(policy.last_reason, "fundraise:tunnel-out")
+
     def test_mining_abandons_route_even_when_target_churn_clears_target_counter(self):
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
