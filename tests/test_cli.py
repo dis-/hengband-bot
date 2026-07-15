@@ -13,6 +13,7 @@ from hengbot.cli import (
     STALLED_COMMAND_STATE_LIMIT,
     TUNNEL_PROMPT_DELAY_SECONDS,
     _advance_stalled_command_count,
+    _cell_loop_guard_applies,
     _delay_after_macro_key,
     _decision_record,
     _duplicate_snapshot_ready,
@@ -667,6 +668,16 @@ class StallRecoveryTest(unittest.TestCase):
 
 
 class StationaryReasonsTest(unittest.TestCase):
+    def test_town_uses_policy_cycle_guard_instead_of_cell_guard(self):
+        town = parse_snapshot(
+            json.loads(_snap_line(1, 10, 10).replace('"level": 1', '"level": 0')),
+            {},
+        )
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+
+        self.assertFalse(_cell_loop_guard_applies(town, "shop:approach"))
+        self.assertTrue(_cell_loop_guard_applies(dungeon, "explore"))
+
     def test_recall_waits_are_exempt_from_loop_detection(self):
         # Waiting out a Word of Recall countdown pins the player on one tile for
         # ~15-35 turns; if those decisions fed the detector they could stop the

@@ -128,6 +128,21 @@ MINING_DIG_REASONS = frozenset(
 TOWN_BLOCKED_STOP_LIMIT = 30
 
 
+def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
+    """Leave town repetition to the policy's bounded repair path.
+
+    Town deliberately has its own cycle/no-progress counters and a visible
+    blocked-state stop.  Feeding the same decisions to the generic dungeon
+    cell guard can stop the bot before ``town:cycle-break`` is emitted.
+    """
+    return (
+        not snapshot.in_town
+        and reason not in STATIONARY_REASONS
+        and reason not in MINING_DIG_REASONS
+        and not reason.startswith("item:")
+    )
+
+
 def _advance_town_blocked_streak(streak: int, reason: str) -> int:
     """Count consecutive latched-town-block decisions. In-store leaves do not
     break the streak: standing blocked on a store door alternates blocked WAITs
@@ -731,11 +746,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # in the middle of a safe recall home). Recall takes ~15-35
                     # turns of standing still, easily enough to trip a ≤4-cell
                     # window on its own.
-                    if (
-                        policy.last_reason in STATIONARY_REASONS
-                        or policy.last_reason in MINING_DIG_REASONS
-                        or policy.last_reason.startswith("item:")
-                    ):
+                    if not _cell_loop_guard_applies(snapshot, policy.last_reason):
                         if policy.last_reason == "melee" and multiplier_combat_grace:
                             multiplier_combat_grace = MULTIPLIER_COMBAT_GRACE
                         continue
