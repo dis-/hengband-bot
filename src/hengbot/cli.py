@@ -79,6 +79,7 @@ DUPLICATE_RETRY_SECONDS = 2.0
 # digs and other rejected commands even when their reason is exempt from the
 # position-based loop detector.
 STALLED_COMMAND_STATE_LIMIT = 12
+MELEE_STALLED_COMMAND_STATE_LIMIT = 24
 # Zero-energy travel rejection must fall back before the CLI stops the bot.
 assert TOWN_TRAVEL_STALL_LIMIT < STALLED_COMMAND_STATE_LIMIT
 # Turn stalls operate after energy consumption, where the CLI signature changes.
@@ -237,6 +238,18 @@ def _advance_stalled_command_count(
     if signature == previous_signature:
         return count + 1
     return 0
+
+
+def _stalled_command_state_limit(reason: str) -> int:
+    """Melee input may be delayed behind town travel/prompt cleanup messages.
+
+    It remains bounded, but gets a longer leash than commands whose repeated
+    rejection cannot be productive.  Cell-loop detection already treats melee
+    as a legitimate stationary action.
+    """
+    if reason == "melee":
+        return MELEE_STALLED_COMMAND_STATE_LIMIT
+    return STALLED_COMMAND_STATE_LIMIT
 
 
 def _delay_after_macro_key(key: str, index: int) -> float:
@@ -706,7 +719,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         previous_signature=last_command_signature,
                     )
                     last_command_signature = command_signature
-                    if stalled_command_count >= STALLED_COMMAND_STATE_LIMIT:
+                    if stalled_command_count >= _stalled_command_state_limit(
+                        policy.last_reason
+                    ):
                         _write_decision(
                             args.decision_log,
                             snapshot,
