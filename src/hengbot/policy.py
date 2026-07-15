@@ -122,7 +122,9 @@ TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")
 # (TerrainDefinitions ENTRANCE, id 193) — and . confirms. The bot never accepts
 # castle quests, so > cannot land on a quest entrance; the user allows this
 # shortcut exactly on that condition.
-ENTRANCE_TRAVEL_MACRO = "`n>."
+# Escape first clears a pending -more-/prompt and is a no-op at the command loop,
+# ensuring the following backtick reaches the travel selector.
+ENTRANCE_TRAVEL_MACRO = "\x1b`n>."
 # Adjacent-ish goals are cheaper on foot than a travel round-trip.
 TOWN_TRAVEL_MIN_DISTANCE = 3
 # Consecutive travel issues without getting closer before giving the goal back
@@ -6002,10 +6004,14 @@ class HengbotPolicy:
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
             return self._step_toward(snapshot, step)
+        # A leading Escape dismisses a lingering -more- or prompt before the
+        # backtick opens native travel; at the command loop it is a harmless
+        # no-op. Without it, the prompt can eat ` and leave (notably) % to open
+        # the visuals screen instead of selecting a store travel point.
         travel = self._town_travel_key(
             snapshot,
             goal,
-            f"`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}.",
+            f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}.",
             travel_reason,
         )
         if travel is not None:

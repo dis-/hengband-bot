@@ -644,7 +644,7 @@ class ShoppingTest(unittest.TestCase):
         )
 
         pol = HengbotPolicy(town_map=town_map)
-        self.assertEqual(pol.choose_key(snap), "`n!.")
+        self.assertEqual(pol.choose_key(snap), "\x1b`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
 
     def test_interrupted_town_travel_retries_then_falls_back(self):
@@ -670,14 +670,14 @@ class ShoppingTest(unittest.TestCase):
         )
 
         pol = HengbotPolicy(town_map=town_map)
-        self.assertEqual(pol.choose_key(first), "`n!.")
+        self.assertEqual(pol.choose_key(first), "\x1b`n!.")
         # Interrupted mid-route but CLOSER than before: travel again instead of
         # walking the remaining ten tiles one decision each.
-        self.assertEqual(pol.choose_key(interrupted), "`n!.")
+        self.assertEqual(pol.choose_key(interrupted), "\x1b`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
         # No progress across two more issues: give the goal back to walking.
         for _ in range(TOWN_TRAVEL_STALL_LIMIT - 1):
-            self.assertEqual(pol.choose_key(interrupted), "`n!.")
+            self.assertEqual(pol.choose_key(interrupted), "\x1b`n!.")
         self.assertEqual(
             pol.choose_key(interrupted),
             "6",
@@ -5079,7 +5079,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(step, home)
         self.assertEqual(
             policy._shopping_approach_key(snap, step, "shop:travel"),
-            "`n(.",
+            "\x1b`n(.",
         )
 
     def test_recall_wait_steps_off_home_entrance(self):
@@ -8229,7 +8229,7 @@ class TownMapNightRoutingTest(unittest.TestCase):
         self.assertNotEqual(without.last_reason, "shop:approach")
         # With it, the bot uses the store landmark for native travel.
         with_map = HengbotPolicy(town_map=town_map)
-        self.assertEqual(with_map.choose_key(snap), "`n(.")
+        self.assertEqual(with_map.choose_key(snap), "\x1b`n(.")
         self.assertEqual(with_map.last_reason, "shop:travel")
 
 
@@ -11651,16 +11651,16 @@ class StoreTravelRetryTest(unittest.TestCase):
 
     def test_travel_reissues_after_progress(self):
         pol = HengbotPolicy()
-        self.assertEqual(self._approach(pol, self._snap(94)), "`n%.")
+        self.assertEqual(self._approach(pol, self._snap(94)), "\x1b`n%.")
         # Interrupted mid-route but closer than before: travel again.
-        self.assertEqual(self._approach(pol, self._snap(110)), "`n%.")
+        self.assertEqual(self._approach(pol, self._snap(110)), "\x1b`n%.")
 
     def test_no_progress_twice_falls_back_to_walking(self):
         pol = HengbotPolicy()
         snap = self._snap(94, turn=1)
         for _ in range(TOWN_TRAVEL_STALL_LIMIT):
-            self.assertEqual(self._approach(pol, snap), "`n%.")
-        self.assertNotEqual(self._approach(pol, snap), "`n%.")
+            self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
+        self.assertNotEqual(self._approach(pol, snap), "\x1b`n%.")
         self.assertEqual(pol._town_travel_fallback, Position(34, 130))
 
     def test_input_latency_gets_several_reissues_before_fallback(self):
@@ -11668,7 +11668,7 @@ class StoreTravelRetryTest(unittest.TestCase):
         snap = self._snap(94, turn=7)
 
         for _ in range(5):
-            self.assertEqual(self._approach(pol, snap), "`n%.")
+            self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
 
         self.assertIsNone(pol._town_travel_fallback)
         self.assertEqual(pol._town_travel_state[2], 4)
@@ -11677,17 +11677,17 @@ class StoreTravelRetryTest(unittest.TestCase):
         pol = HengbotPolicy()
         snap = self._snap(94, turn=7)
         for _ in range(5):
-            self.assertEqual(self._approach(pol, snap), "`n%.")
+            self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
 
         detour = self._snap(94, turn=8)
-        self.assertEqual(self._approach(pol, detour), "`n%.")
+        self.assertEqual(self._approach(pol, detour), "\x1b`n%.")
         self.assertEqual(pol._town_travel_state[2], 0)
 
     def test_consumed_turns_without_distance_progress_eventually_fall_back(self):
         pol = HengbotPolicy()
         for turn in range(1, TOWN_TRAVEL_TURN_STALL_LIMIT + 1):
             self.assertEqual(
-                self._approach(pol, self._snap(94, turn=turn)), "`n%."
+                self._approach(pol, self._snap(94, turn=turn)), "\x1b`n%."
             )
 
         self.assertNotEqual(
@@ -11695,7 +11695,7 @@ class StoreTravelRetryTest(unittest.TestCase):
                 pol,
                 self._snap(94, turn=TOWN_TRAVEL_TURN_STALL_LIMIT + 1),
             ),
-            "`n%.",
+            "\x1b`n%.",
         )
 
 
@@ -11742,7 +11742,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
 
         self.assertEqual(key, "6")
         self.assertEqual(policy.last_reason, "town:clear-traveler")
-        self.assertNotEqual(key, "`n!.")
+        self.assertNotEqual(key, "\x1b`n!.")
 
     def test_unreachable_hostile_falls_through_to_town_travel(self):
         policy = HengbotPolicy()
@@ -11755,7 +11755,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(self._approach(policy, snapshot), "`n!.")
+        self.assertEqual(self._approach(policy, snapshot), "\x1b`n!.")
         self.assertEqual(policy.last_reason, "shop:travel")
 
     def test_adjacent_hostile_remains_owned_by_melee(self):
@@ -11795,14 +11795,14 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
     def test_hunt_interlude_preserves_travel_progress_and_then_resumes(self):
         policy = HengbotPolicy()
         clear = self._snapshot(include_monster=False)
-        self.assertEqual(self._approach(policy, clear), "`n!.")
+        self.assertEqual(self._approach(policy, clear), "\x1b`n!.")
         travel_state = policy._town_travel_state
 
         self.assertEqual(self._approach(policy, self._snapshot()), "6")
         self.assertEqual(policy._town_travel_state, travel_state)
 
         resumed = replace(clear, player=player(10, 11))
-        self.assertEqual(self._approach(policy, resumed), "`n!.")
+        self.assertEqual(self._approach(policy, resumed), "\x1b`n!.")
         self.assertEqual(policy.last_reason, "shop:travel")
 
 
@@ -11835,23 +11835,23 @@ class EntranceTravelTest(unittest.TestCase):
     def test_far_surface_goal_travels(self):
         pol = HengbotPolicy()
         key = self._travel(pol, self._surface_snap())
-        self.assertEqual(key, "`n>.")
+        self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
 
     def test_progress_reissues_travel_after_an_interruption(self):
         pol = HengbotPolicy()
-        self.assertEqual(self._travel(pol, self._surface_snap(x=94)), "`n>.")
+        self.assertEqual(self._travel(pol, self._surface_snap(x=94)), "\x1b`n>.")
         # Interrupted mid-route but closer than before: travel again.
-        self.assertEqual(self._travel(pol, self._surface_snap(x=110)), "`n>.")
+        self.assertEqual(self._travel(pol, self._surface_snap(x=110)), "\x1b`n>.")
 
     def test_no_progress_latches_a_walking_fallback(self):
         pol = HengbotPolicy()
         snap = self._surface_snap(turn=1)
-        self.assertEqual(self._travel(pol, snap), "`n>.")
+        self.assertEqual(self._travel(pol, snap), "\x1b`n>.")
         # Rejected route: allow a bounded set of retries for Windows input
         # latency, then give the goal back to BFS walking.
         for _ in range(TOWN_TRAVEL_STALL_LIMIT - 1):
-            self.assertEqual(self._travel(pol, snap), "`n>.")
+            self.assertEqual(self._travel(pol, snap), "\x1b`n>.")
         self.assertIsNone(self._travel(pol, snap))
         self.assertIsNone(self._travel(pol, snap))
 
