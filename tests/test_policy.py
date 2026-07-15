@@ -11441,6 +11441,9 @@ class TownCycleDetectorTest(unittest.TestCase):
     def test_departure_blocked_reason_remains_cycle_detectable(self):
         self.assertNotIn("fundraise:departure-blocked", TOWN_CYCLE_IGNORED_REASONS)
 
+    def test_bounded_entrance_travel_is_not_a_generic_town_cycle(self):
+        self.assertIn("town:travel-entrance", TOWN_CYCLE_IGNORED_REASONS)
+
     def test_departure_only_mode_without_light_keeps_entrance_blocked(self):
         pol = HengbotPolicy()
         pol._town_restock_suppressed = True

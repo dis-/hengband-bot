@@ -292,6 +292,11 @@ TOWN_CYCLE_IGNORED_REASONS = frozenset(
         "town:wait-recall",
         "return:wait-recall",
         "town:cycle-break",
+        # This long locomotion leg is independently bounded by both native-
+        # travel progress leashes.  Counting its duplicate input-latency rows
+        # as transaction/wander no-progress falsely blocks a productive walk
+        # across town before it can reach the entrance.
+        "town:travel-entrance",
     }
 )
 # Over-extension: this many dives into the recall-target dungeon that collect ZERO
