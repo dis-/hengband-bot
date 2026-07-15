@@ -6428,7 +6428,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
         self.assertFalse(policy._mining_sweep_done)
 
-    def test_mining_oscillation_escapes_and_resumes_sweep_itself(self):
+    def test_mining_oscillation_leaves_when_no_other_frontier_remains(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11)},
@@ -6444,16 +6444,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._recent.extend(
             [Position(10, 10), Position(10, 11)] * (STUCK_WINDOW // 2)
         )
-        # Feed only the same stationary snapshot.  The policy must clear the
-        # stale jitter itself and issue a real sweep move; the test must not
-        # inject fictional movement into _recent to make recovery possible.
-        self.assertEqual(policy.choose_key(snap), "6")
-        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
-        self.assertFalse(policy._mining_sweep_done)
+        # The only frontier is the tile just left. It is blacklisted as view
+        # flicker, and the existing evidence gate leaves because no unrelated
+        # frontier remains.
+        policy.choose_key(snap)
+        self.assertEqual(policy.last_reason, "fundraise:seek-upstairs-explore")
+        self.assertTrue(policy._mining_sweep_done)
+        self.assertIn(Position(10, 11), policy._mining_swept_dead_targets)
         self.assertEqual(list(policy._recent), [])
-
-        self.assertEqual(policy.choose_key(snap), "6")
-        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
 
     def test_long_mining_sweep_does_not_spend_collection_leash(self):
         policy = HengbotPolicy()
@@ -6560,6 +6558,52 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._mining_sweep_goal, good)
         self.assertEqual(policy._mining_sweep_steps, 2)
         self.assertEqual(policy._mining_sweep_no_progress, 1)
+
+    def test_sweep_blacklists_real_junction_flicker_pair_and_retargets(self):
+        a = Position(30, 119)
+        b = Position(29, 120)
+        c = Position(30, 121)
+        good = Position(28, 121)
+        grids = {
+            position: grid(position.y, position.x)
+            for position in (a, b, c, good)
+        }
+        base = Snapshot(
+            player(a.y, a.x), grids, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=200, height=100,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = base.floor_key
+        policy._mining_scroll_used_floor = base.floor_key
+        policy._mining_detection_centers.append(a)
+
+        # Real 06:09 shape: at A the goal is C with a first step to B; at B
+        # the goal flickers back to A. The second escape must blacklist both
+        # goals and select an unrelated frontier.
+        goals = [(c, b), (a, a), (good, good)]
+        with patch.object(policy, "_nearest_goal_and_step", side_effect=goals):
+            policy._recent.extend([a, b] * (STUCK_WINDOW // 2))
+            policy._build_grid_index(base)
+            self.assertEqual(policy._fundraising_key(base, []), "9")
+
+            at_b = replace(base, player=player(b.y, b.x))
+            policy._recent.extend([a, b] * (STUCK_WINDOW // 2))
+            policy._build_grid_index(at_b)
+            policy._fundraising_key(at_b, [])
+
+        self.assertTrue({a, c} <= policy._mining_swept_dead_targets)
+        self.assertEqual(policy._mining_sweep_goal, good)
+        self.assertLessEqual(len(policy._mining_sweep_escape_pairs), 3)
+        self.assertFalse(policy._mining_sweep_done)
 
     def test_mining_collection_waits_for_honest_sweep_completion(self):
         snap = Snapshot(
@@ -6739,14 +6783,45 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(digger.choose_key(beside), TUNNEL_KEY + "6")
         self.assertEqual(digger.last_reason, "fundraise:mine-treasure")
 
+    def test_mining_walks_to_a_diagonal_only_vein_approach_and_digs(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        treasure = Position(11, 12)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                treasure: grid(11, 12, passable=False, gold=True, can_dig=True),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=30, height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_sweep_done = True
+
+        self.assertEqual(policy.choose_key(snap), "6")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+
+        beside = replace(
+            snap, player=player(10, 11, class_id=PLAYER_CLASS_WARRIOR)
+        )
+        self.assertEqual(policy.choose_key(beside), TUNNEL_KEY + "3")
+        self.assertEqual(policy.last_reason, "fundraise:mine-treasure")
+
     def test_mining_never_tunnels_toward_a_vein_without_a_walkable_approach(self):
-        # A vein with no walkable cardinal approach is the EXPENSIVE kind the
+        # A vein with no walkable eight-direction approach is the EXPENSIVE kind the
         # user's design trades away: it must be left, not tunnelled at through
         # blank rock (the leash burn that used to strand the rest of the floor).
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
         )
-        treasure = Position(11, 11)
+        treasure = Position(12, 12)
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {

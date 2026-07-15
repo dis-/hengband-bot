@@ -903,8 +903,9 @@ class HengbotPolicy:
         self._mining_sweep_revealed_grids = 0
         self._mining_sweep_goal: Position | None = None
         self._mining_sweep_goal_distance: int | None = None
-        self._mining_sweep_last_escape_goal: Position | None = None
-        self._mining_sweep_last_escape_distance: int | None = None
+        self._mining_sweep_escape_pairs: deque[
+            tuple[Position, Position]
+        ] = deque(maxlen=3)
         self._mining_swept_dead_targets: set[Position] = set()
         # Known-grid high-water mark at the moment the sweep latched done. A
         # tapped-out RESUME must show the map grew past this (mining exposed
@@ -2142,8 +2143,7 @@ class HengbotPolicy:
             self._mining_sweep_revealed_grids = 0
             self._mining_sweep_goal = None
             self._mining_sweep_goal_distance = None
-            self._mining_sweep_last_escape_goal = None
-            self._mining_sweep_last_escape_distance = None
+            self._mining_sweep_escape_pairs.clear()
             self._mining_swept_dead_targets.clear()
             self._mining_grids_at_sweep_done = 0
             self._mining_dropped_veins.clear()
@@ -7204,8 +7204,7 @@ class HengbotPolicy:
         self._mining_sweep_revealed_grids = len(snapshot.grids)
         self._mining_sweep_goal = None
         self._mining_sweep_goal_distance = None
-        self._mining_sweep_last_escape_goal = None
-        self._mining_sweep_last_escape_distance = None
+        self._mining_sweep_escape_pairs.clear()
 
     def _record_mining_sweep_step(self, snapshot: Snapshot) -> None:
         """Account for one sweep move without spending the collection leash."""
@@ -7319,7 +7318,7 @@ class HengbotPolicy:
         # or temporary blockers change, leaving several treasures uncollected.
         approaches: dict[Position, list[Position]] = {}
         for treasure in candidates:
-            for dy, dx in CARDINAL_OFFSETS:
+            for dy, dx in NEIGHBOR_OFFSETS:
                 approach = Position(treasure.y + dy, treasure.x + dx)
                 approaches.setdefault(approach, []).append(treasure)
 
@@ -7357,7 +7356,7 @@ class HengbotPolicy:
         while queue:
             pos, first_step = queue.popleft()
             if pos != start and (
-                abs(pos.y - target.y) + abs(pos.x - target.x) == 1
+                pos.distance_to(target) == 1
             ):
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos):
@@ -7558,18 +7557,21 @@ class HengbotPolicy:
                 )
                 return READ_KEY + scroll.slot
 
-        adjacent_gold = next(
+        adjacent_gold = min(
             (
                 grid
                 for grid in snapshot.grids.values()
                 if grid.has_gold
-                and (
-                    abs(snapshot.player.position.y - grid.position.y)
-                    + abs(snapshot.player.position.x - grid.position.x)
-                    == 1
-                )
+                and snapshot.player.position.distance_to(grid.position) == 1
             ),
-            None,
+            key=lambda grid: (
+                abs(snapshot.player.position.y - grid.position.y)
+                + abs(snapshot.player.position.x - grid.position.x)
+                != 1,
+                grid.position.y,
+                grid.position.x,
+            ),
+            default=None,
         )
         # Floor loot is handled above before chasing
         # veins — it is walkable gold we would otherwise leave behind.
@@ -7589,16 +7591,25 @@ class HengbotPolicy:
             sweep = self._mining_sweep_step(snapshot)
             if oscillating and self._mining_sweep_goal is not None:
                 goal = self._mining_sweep_goal
-                distance = snapshot.player.position.distance_to(goal)
-                if (
-                    self._mining_sweep_last_escape_goal == goal
-                    and self._mining_sweep_last_escape_distance is not None
-                    and distance >= self._mining_sweep_last_escape_distance
-                ):
-                    self._mining_swept_dead_targets.add(goal)
+                position = snapshot.player.position
+                oscillation_cells = set(self._recent)
+                self._mining_sweep_escape_pairs.append((position, goal))
+                escape_goals = {
+                    escape_goal
+                    for _, escape_goal in self._mining_sweep_escape_pairs
+                }
+                # A frontier that retargets to a cell in the stationary output
+                # cycle (especially the adjacent tile just left) is view flicker,
+                # not exploration. The three-escape fallback also catches an
+                # alternating pair just outside the sampled position set.
+                flickering = goal in oscillation_cells
+                repeated_small_set = (
+                    len(self._mining_sweep_escape_pairs) == 3
+                    and len(escape_goals) <= 2
+                )
+                if flickering or repeated_small_set:
+                    self._mining_swept_dead_targets.update(escape_goals)
                     sweep = self._mining_sweep_step(snapshot)
-                self._mining_sweep_last_escape_goal = goal
-                self._mining_sweep_last_escape_distance = distance
                 self._recent.clear()
             if sweep is not None:
                 self._record_mining_sweep_step(snapshot)
