@@ -3543,6 +3543,36 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(pol._shop(with_pick), "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-digging-tool")
 
+    def test_fundraising_leave_with_mining_supplies_latches_home(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_HOME
+                ),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+
+        self.assertEqual(pol._shop(snap), "\x1b")
+        self.assertEqual(pol.last_reason, "home:leave-with-mining-supplies")
+        self.assertEqual(pol._town_store_attempted[STORE_HOME], 123)
+
+        outside = replace(snap, store=None)
+        self.assertNotEqual(pol._next_required_store_type(outside), STORE_HOME)
+        self.assertNotEqual(pol._shopping_approach_step(outside), Position(10, 11))
+
     def test_fundraising_does_not_revisit_home_for_unrelated_deposit(self):
         spare = item(
             "z",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import faulthandler
 import json
 import os
 import sys
@@ -33,6 +34,20 @@ NUDGE_KEY = "\x1b"
 # After issuing a rest, the game runs many turns without emitting a snapshot;
 # hold off the stall nudge this long so it does not cut the rest short.
 REST_STALL_GRACE = 20.0
+
+# Emit a live Python stack when one follow-loop iteration stops making progress.
+# Re-arming at the top of every iteration means normal polling never reaches the
+# deadline; a stuck read/parse/decision/send path repeats the dump once a minute.
+DECISION_WATCHDOG_SECONDS = 60
+
+
+def _arm_decision_watchdog() -> None:
+    faulthandler.cancel_dump_traceback_later()
+    faulthandler.dump_traceback_later(
+        DECISION_WATCHDOG_SECONDS,
+        repeat=True,
+        file=sys.stderr,
+    )
 # The live emitter spends about nine seconds serializing a 5.7 MB town snapshot
 # before any bytes reach the JSONL file.  Prompt recovery must not enqueue
 # Escapes during that normal command-response gap.
@@ -728,6 +743,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         residence_floor_key = None
         last_command_signature: tuple | None = None
         while True:
+            _arm_decision_watchdog()
             chunk = file.read()
             if chunk:
                 last_activity = _last_activity_after_read(

@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import (
     COMMAND_RESPONSE_GRACE,
@@ -15,6 +16,7 @@ from hengbot.cli import (
     STALLED_COMMAND_STATE_LIMIT,
     TUNNEL_PROMPT_DELAY_SECONDS,
     _advance_stalled_command_count,
+    _arm_decision_watchdog,
     _cell_loop_guard_applies,
     _delay_after_macro_key,
     _decision_record,
@@ -32,6 +34,21 @@ from hengbot.cli import (
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
+
+
+class DecisionWatchdogTest(unittest.TestCase):
+    @patch("hengbot.cli.faulthandler.dump_traceback_later")
+    @patch("hengbot.cli.faulthandler.cancel_dump_traceback_later")
+    def test_rearms_for_each_decision_iteration(self, cancel, dump):
+        _arm_decision_watchdog()
+        _arm_decision_watchdog()
+
+        self.assertEqual(cancel.call_count, 2)
+        self.assertEqual(dump.call_count, 2)
+        for call in dump.call_args_list:
+            self.assertEqual(call.args, (60,))
+            self.assertTrue(call.kwargs["repeat"])
+            self.assertIsNotNone(call.kwargs["file"])
 
 
 def _snap_line(turn, y, x):

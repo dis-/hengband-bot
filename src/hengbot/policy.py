@@ -5973,6 +5973,10 @@ class HengbotPolicy:
                     return LEAVE_STORE_KEY
 
                 self._home_digger_seen_pages.clear()
+                # This Home stop is complete for the current town visit.  Without
+                # the latch, the errand plan keeps its pinned Home stop and walks
+                # straight back through the door after Escape.
+                self._town_store_attempted[STORE_HOME] = snapshot.turn
                 self.last_reason = "home:leave-with-mining-supplies"
                 return LEAVE_STORE_KEY
 
