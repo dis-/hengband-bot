@@ -979,6 +979,10 @@ class HengbotPolicy:
         # consumable possession (a Speed potion bought/drunk/stashed) cannot flip
         # the recall destination back and forth.
         self._conquest_committed: int | None = None
+        # The conquest clear is a one-shot transition per target.  A standing
+        # but not-yet-launchable target must not fight the low-gold router on
+        # every observation.
+        self._fundraising_cleared_for_conquest: int | None = None
         self._rumor_unlock_pending = False
         # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
         self._town_store_attempted: dict[int, int] = {}
@@ -1973,11 +1977,19 @@ class HengbotPolicy:
         conquest = self._conquest_target(snapshot)
         if conquest is not None:
             self._target_dungeon_id = conquest
-            # Fundraising is only a fallback for ordinary preparation.  Once the
-            # current kit can already defeat an unlocked guardian, do not let a
-            # low-gold fundraising latch keep the bot scavenging Yeek Cave 1F.
-            self._fundraising_mode = None
-            self._planned_mining_runs = None
+            # Fundraising is only superseded when the conquest expedition can
+            # actually leave town.  In particular, poverty plus a supply gap is
+            # still a fundraising problem even when the guardian fight itself is
+            # viable.  Remember successful clears by target so observe cannot
+            # repeatedly undo a mode re-established by decide.
+            if (
+                snapshot.in_town
+                and conquest != self._fundraising_cleared_for_conquest
+                and self._conquest_departure_ready(snapshot)
+            ):
+                self._fundraising_mode = None
+                self._planned_mining_runs = None
+                self._fundraising_cleared_for_conquest = conquest
 
         # Fresh conquest: the char just killed a dungeon's final guardian while
         # standing in it. Latch it so the loot phase grabs the drop before recalling
@@ -3236,6 +3248,7 @@ class HengbotPolicy:
             ignore_free_slots
             or PACK_CAPACITY - len(snapshot.inventory) >= MIN_FREE_PACK_SLOTS
         )
+
         return (
             self._recall_departure_ready(snapshot)
             and (
@@ -3270,6 +3283,17 @@ class HengbotPolicy:
                 )
             )
         )
+
+    def _conquest_departure_ready(self, snapshot: Snapshot) -> bool:
+        """Apply the ordinary recall departure gate, independent of fundraising."""
+        fundraising_mode = self._fundraising_mode
+        try:
+            self._fundraising_mode = None
+            return self._town_departure_ready(snapshot) and self._combat_weapon_ready(
+                snapshot
+            )
+        finally:
+            self._fundraising_mode = fundraising_mode
 
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
@@ -6630,7 +6654,13 @@ class HengbotPolicy:
         # the required shops are exhausted.  Suppression returns before that
         # router can run, so preserve the same transition here; otherwise the
         # departure gates keep hiding the entrance and the bot merely wanders.
-        if self._fundraising_mode == "prepare":
+        if (
+            self._fundraising_mode is None
+            and snapshot.player.gold < FUNDRAISING_START_GOLD
+        ):
+            self._fundraising_mode = "scavenge"
+            self._scavenge_entry_gold = snapshot.player.gold
+        elif self._fundraising_mode == "prepare":
             self._fundraising_mode = "scavenge"
             self._scavenge_entry_gold = snapshot.player.gold
         # After a cycle the goal is DEPARTURE, not errands: without this, a
@@ -8305,6 +8335,11 @@ class HengbotPolicy:
         if len(snapshot.inventory) >= PACK_CAPACITY:
             self._last_return_trigger = "pack-full"
             return True
+        # Income dives own their completion/return policy in _fundraising_key.
+        # Ordinary expedition supply thresholds must not bounce a freshly
+        # launched scavenge or mining run straight back to town.
+        if self._fundraising_mode in {"mine", "scavenge"}:
+            return False
         if snapshot.player.class_id >= 0:
             # A resistance gap at the CURRENT floor -- not the next one, which
             # _is_descent_target already gates before a descent is taken -- means

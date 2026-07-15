@@ -11511,7 +11511,7 @@ class TownCycleDetectorTest(unittest.TestCase):
     def test_first_detection_breaks_the_cycle_and_latches_stores(self):
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
-        key = pol._town_special_key(self._town_snap())
+        key = pol._town_special_key(self._town_snap(gold=FUNDRAISING_START_GOLD))
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertIn(STORE_ALCHEMIST, pol._town_store_attempted)
@@ -11527,7 +11527,7 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
-        snap = self._town_snap()
+        snap = self._town_snap(gold=FUNDRAISING_START_GOLD)
         with mock.patch.object(
             pol, "_shopping_approach_step", return_value=Position(1, 1)
         ):
@@ -11602,6 +11602,34 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertEqual(pol._fundraising_mode, "scavenge")
         self.assertEqual(pol._scavenge_entry_gold, 102)
+
+    def test_low_gold_cycle_break_starts_scavenge_and_avoids_immediate_return(self):
+        pol = HengbotPolicy()
+        town = replace(
+            self._town_snap(gold=102),
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+        )
+
+        pol._break_town_cycle(town)
+
+        self.assertEqual(pol._fundraising_mode, "scavenge")
+        self.assertEqual(pol._scavenge_entry_gold, 102)
+        yeek_one = replace(
+            town,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            town_flag=False,
+            inventory=[],
+        )
+        self.assertFalse(pol._should_start_town_return(yeek_one))
+        self.assertIsNone(pol._last_return_trigger)
 
     def test_broke_but_lit_fundraiser_leaves_after_first_cycle_offense(self):
         pol = HengbotPolicy()
@@ -12901,21 +12929,47 @@ class DungeonConquestTest(unittest.TestCase):
         policy._observe(snapshot)
         self.assertEqual(policy._target_dungeon_id, 2)
 
-    def test_beatable_guardian_cancels_fundraising_latch(self):
+    def test_launchable_beatable_guardian_cancels_fundraising_latch(self):
         policy = self._yeek_guardian_policy()
         policy._fundraising_mode = "scavenge"
         snapshot = replace(
             self._minotaur_snapshot(1),
             entered_dungeon_ids=(1, 2),
             angband_recall_unlocked=True,
-            floor_key=(2, 1, 0),
-            town_flag=False,
         )
+        policy._town_departure_ready = lambda _snapshot: True
+        policy._combat_weapon_ready = lambda _snapshot: True
 
         policy._observe(snapshot)
 
         self.assertEqual(policy._target_dungeon_id, 2)
         self.assertIsNone(policy._fundraising_mode)
+
+    def test_blocked_poor_conquest_observe_decide_alternation_is_stable(self):
+        policy = self._yeek_guardian_policy()
+        snapshot = replace(
+            self._minotaur_snapshot(1),
+            player=replace(self._minotaur_snapshot(1).player, gold=130),
+            entered_dungeon_ids=(1, 2),
+            angband_recall_unlocked=True,
+        )
+        policy._conquest_target = lambda _snapshot: 2
+        policy._conquest_departure_ready = lambda _snapshot: False
+        policy._fundraising_supplies_ready = lambda _snapshot: False
+        policy._observe(snapshot)
+        policy._identification_need = "full"
+        policy._start_fundraising(snapshot)
+        policy._town_store_attempted[STORE_HOME] = 77
+
+        reasons = []
+        for offset in range(8):
+            fresh = replace(snapshot, turn=snapshot.turn + offset)
+            policy.choose_key(fresh)
+            reasons.append(policy.last_reason)
+            self.assertEqual(policy._fundraising_mode, "prepare")
+
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], 77)
+        self.assertNotIn("home:need-full-identify", reasons)
 
     def test_beatable_guardian_defers_unavailable_full_identification(self):
         policy = self._yeek_guardian_policy()
