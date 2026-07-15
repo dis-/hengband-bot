@@ -127,6 +127,7 @@ TOWN_TRAVEL_MIN_DISTANCE = 3
 # Consecutive travel issues without getting closer before giving the goal back
 # to BFS walking (an unknown approach makes the game reject the route).
 TOWN_TRAVEL_STALL_LIMIT = 8
+TOWN_TRAVEL_TURN_STALL_LIMIT = 4
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
@@ -756,7 +757,7 @@ class HengbotPolicy:
         # the dungeon entrance): the current goal, the best distance seen for
         # it, and how many issues brought no progress. See _town_travel_key.
         self._descent_target_goal: Position | None = None
-        self._town_travel_state: tuple[Position, int, int] | None = None
+        self._town_travel_state: tuple[Position, int, int, int, int] | None = None
         self._town_travel_fallback: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
@@ -5886,18 +5887,43 @@ class HengbotPolicy:
             self._town_travel_fallback = None
         state = self._town_travel_state
         if state is not None and state[0] == goal:
-            _, best_distance, stalls = state
+            _, best_distance, stalls, turn_stalls, last_turn = state
             if distance < best_distance:
-                self._town_travel_state = (goal, distance, 0)
+                self._town_travel_state = (
+                    goal,
+                    distance,
+                    0,
+                    0,
+                    snapshot.turn,
+                )
+            elif snapshot.turn != last_turn:
+                turn_stalls += 1
+                if turn_stalls >= TOWN_TRAVEL_TURN_STALL_LIMIT:
+                    self._town_travel_fallback = goal
+                    self._town_travel_state = None
+                    return None
+                self._town_travel_state = (
+                    goal,
+                    best_distance,
+                    0,
+                    turn_stalls,
+                    snapshot.turn,
+                )
             else:
                 stalls += 1
                 if stalls >= TOWN_TRAVEL_STALL_LIMIT:
                     self._town_travel_fallback = goal
                     self._town_travel_state = None
                     return None
-                self._town_travel_state = (goal, best_distance, stalls)
+                self._town_travel_state = (
+                    goal,
+                    best_distance,
+                    stalls,
+                    turn_stalls,
+                    last_turn,
+                )
         else:
-            self._town_travel_state = (goal, distance, 0)
+            self._town_travel_state = (goal, distance, 0, 0, snapshot.turn)
         self.last_reason = reason
         return macro
 
