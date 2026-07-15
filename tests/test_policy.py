@@ -71,6 +71,7 @@ from hengbot.model import (
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
+from hengbot.quest_knowledge import QuestInfo
 from hengbot.policy import (
     HengbotPolicy,
     BUY_KEY,
@@ -95,6 +96,7 @@ from hengbot.policy import (
     DEEP_FUNDRAISING_SCROLLS_PER_RUN,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_START_GOLD,
+    FIXED_QUEST_MIN_LEVEL,
     FOOD_MIN_SVAL,
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
@@ -2404,6 +2406,21 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(key, "6q\x1b")
         self.assertEqual(policy.last_reason, "fixedquest:request")
+
+    def test_readiness_uses_static_once_flag_and_level(self):
+        info = QuestInfo(1, "Thieves Hideout", 6, 5, 6)
+        policy = HengbotPolicy(self._town_map(), quest_knowledge={1: info})
+        snapshot = self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0)
+        self.assertEqual(FIXED_QUEST_MIN_LEVEL[1], 8)
+        self.assertGreaterEqual(FIXED_QUEST_MIN_LEVEL[1], info.level)
+        self.assertTrue(policy._fixed_quest_is_once(1))
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+        self.assertTrue(policy._fixed_quest_ready(snapshot, 1))
+
+        not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 4)
+        policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
+        self.assertIsNone(policy._fixed_quest_target(snapshot))
 
     def test_enters_taken_fixed_quest_from_visible_entrance(self):
         grids = {

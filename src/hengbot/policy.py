@@ -14,6 +14,7 @@ from hengbot.equipment_transaction_session import (
     observe_equipment_transactions,
 )
 from hengbot.monrace_knowledge import MonraceKnowledge
+from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QuestInfo
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -712,6 +713,7 @@ class HengbotPolicy:
         town_map: "TownMap | None" = None,
         dungeon_knowledge: "dict[int, DungeonInfo] | None" = None,
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
+        quest_knowledge: "dict[int, QuestInfo] | None" = None,
     ) -> None:
         # A pre-loaded static town layout (lib/edit/towns) the bot may know in
         # advance, like a returning player — used to route across a dark town to a
@@ -722,6 +724,7 @@ class HengbotPolicy:
         # one is too deep to loot. See _pick_alternate_dungeon.
         self._dungeon_knowledge = dungeon_knowledge or {}
         self._monrace_knowledge = monrace_knowledge or {}
+        self._quest_knowledge = quest_knowledge or {}
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
         self._dive_loot = 0  # items grabbed on the current dive
         self._dive_emergencies = 0  # emergency escapes forced on the current dive
@@ -7185,17 +7188,24 @@ class HengbotPolicy:
         return quest_id
 
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
-        if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
+        if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST and self._fixed_quest_is_once(snapshot.floor_key[2]):
             return snapshot.floor_key[2]
         for quest_id in FIXED_QUEST_ALLOWLIST:
-            if quest_id in snapshot.quests:
+            if quest_id in snapshot.quests and self._fixed_quest_is_once(quest_id):
                 return quest_id
         return None
+
+    def _fixed_quest_is_once(self, quest_id: int) -> bool:
+        info = self._quest_knowledge.get(quest_id)
+        return info is None or bool(info.flags & QUEST_FLAG_ONCE)
 
     def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
         if snapshot.town_id not in {-1, 0}:
             return False
         if snapshot.player.level < FIXED_QUEST_MIN_LEVEL.get(quest_id, 99):
+            return False
+        info = self._quest_knowledge.get(quest_id)
+        if info is not None and FIXED_QUEST_MIN_LEVEL.get(quest_id, 0) < info.level:
             return False
         if snapshot.player.hp < snapshot.player.max_hp:
             return False

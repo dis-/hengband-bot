@@ -12,6 +12,7 @@ from typing import Iterable
 from hengbot.model import MissingMonraceKnowledgeError, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_knowledge
+from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
 from hengbot.policy import (
     PACK_CAPACITY,
@@ -441,6 +442,11 @@ def main(argv: list[str] | None = None) -> int:
         help="path to Hengband's lib/edit/DungeonDefinitions.jsonc "
         "(auto-located near the state file if omitted)",
     )
+    parser.add_argument(
+        "--quest-definitions",
+        type=Path,
+        help="path to QuestDefinitionList.txt or the migrated quests directory",
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument("--send-to-window", action="store_true")
@@ -536,10 +542,19 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
 
+    quest_knowledge: dict[int, object] = {}
+    quest_path = find_quest_definitions(args.state_file, args.quest_definitions)
+    if quest_path is not None:
+        try:
+            quest_knowledge = load_quest_knowledge(quest_path)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(f"could not load quest definitions ({quest_path}): {exc}", file=sys.stderr)
+
     policy = ConservativePolicy(
         town_map=outpost_map,
         dungeon_knowledge=dungeon_knowledge,
         monrace_knowledge=monrace_knowledge,
+        quest_knowledge=quest_knowledge,
     )
 
     if args.once:
