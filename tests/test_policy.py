@@ -2435,7 +2435,9 @@ class FixedQuestTest(unittest.TestCase):
     def test_completed_fixed_quest_floor_heads_for_upstairs(self):
         grids = {
             Position(10, 10): grid(10, 10),
-            Position(10, 11): grid(10, 11, upstairs=True),
+            Position(10, 11): grid(
+                10, 11, upstairs=True, has_quest_exit=True, quest_id=self.QUEST_ID
+            ),
         }
         snap = Snapshot(
             player(10, 10),
@@ -2450,6 +2452,48 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(key, "6")
         self.assertEqual(policy.last_reason, "fixedquest:seek-exit")
+
+    def test_pack_full_taken_quest_does_not_route_to_exit(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(
+                10, 11, upstairs=True, has_quest_exit=True, quest_id=self.QUEST_ID
+            ),
+        }
+        inventory = [item(chr(ord("a") + i), 1, i) for i in range(PACK_CAPACITY)]
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            inventory,
+            floor_key=(0, 1, self.QUEST_ID),
+            quests={self.QUEST_ID: self._quest(1)},
+        )
+        policy = HengbotPolicy()
+
+        key = policy._return_to_town_key(snap, [])
+
+        self.assertIsNone(key)
+        self.assertFalse(policy._returning_to_town)
+
+    def test_completed_quest_leaves_from_quest_exit(self):
+        grids = {
+            Position(10, 10): grid(
+                10, 10, upstairs=True, has_quest_exit=True, quest_id=self.QUEST_ID
+            )
+        }
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            floor_key=(0, 1, self.QUEST_ID),
+            quests={self.QUEST_ID: self._quest(2)},
+        )
+        policy = HengbotPolicy()
+
+        key = policy.choose_key(snap)
+
+        self.assertEqual(key, "<")
+        self.assertEqual(policy.last_reason, "fixedquest:exit")
 
     def test_collects_pending_fixed_quest_reward_from_reward_tile(self):
         grids = {
@@ -2471,6 +2515,40 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(key, "g")
         self.assertEqual(policy.last_reason, "fixedquest:reward-pickup")
+
+        policy._floor_key = (0, 0, 0)
+        policy._last_position = Position(27, 98)
+        empty_grids = {
+            Position(27, 97): grid(27, 97),
+            Position(27, 98): grid(27, 98),
+        }
+        empty = self._town_snapshot(27, 98, empty_grids, 3)
+        self.assertIsNone(policy._fixed_quest_key(empty, []))
+        self.assertIsNone(policy._fixed_quest_reward_pending)
+        self.assertIsNone(policy._fixed_quest_key(empty, []))
+        self.assertNotEqual(policy.last_reason, "fixedquest:reward-approach")
+
+    def test_emergency_upstairs_reason_records_quest_failure(self):
+        grids = {
+            Position(10, 10): grid(
+                10, 10, upstairs=True, has_quest_exit=True, quest_id=self.QUEST_ID
+            ),
+            Position(10, 11): grid(10, 11),
+        }
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            floor_key=(0, 1, self.QUEST_ID),
+            quests={self.QUEST_ID: self._quest(1)},
+        )
+        policy = HengbotPolicy()
+        policy._emergency_escape_pending = True
+
+        key = policy._emergency_item(snap, [])
+
+        self.assertEqual(key, "<")
+        self.assertEqual(policy.last_reason, "emergency:stairs-quest-fail")
 
 
 class ProbeTest(unittest.TestCase):

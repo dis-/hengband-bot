@@ -890,8 +890,6 @@ class HengbotPolicy:
         # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
         self._town_store_attempted: dict[int, int] = {}
         self._town_restock_wait_until: int | None = None
-        self._town_restock_wait_gold: int | None = None
-        self._town_restock_wait_pack_size: int | None = None
         self._town_restock_rechecked: set[int] = set()
         self._last_sell_sig: tuple[str, int, int] | None = None
         self._store_sell_stuck_count = 0
@@ -1204,7 +1202,11 @@ class HengbotPolicy:
             current = snapshot.grid_at(player.position)
             if current is not None and current.has_up_stairs:
                 self._defer_descent(snapshot)
-                self.last_reason = "summoner:stairs"
+                self.last_reason = (
+                    "summoner:stairs-quest-fail"
+                    if self._active_fixed_quest_id(snapshot) is not None
+                    else "summoner:stairs"
+                )
                 return UP_STAIRS_KEY
             step = self._summoner_retreat_step(snapshot, summoners, hostiles)
             if step is not None:
@@ -1418,7 +1420,11 @@ class HengbotPolicy:
         ):
             if here is not None and here.has_up_stairs:
                 self._defer_descent(snapshot)
-                self.last_reason = "unseen:ascend"
+                self.last_reason = (
+                    "unseen:ascend-quest-fail"
+                    if self._active_fixed_quest_id(snapshot) is not None
+                    else "unseen:ascend"
+                )
                 return UP_STAIRS_KEY
             step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
             if step is None:
@@ -1627,16 +1633,20 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, step)
 
         # 9. Nothing to explore: take any known stairs to reach a fresh floor.
+        active_fixed_quest = self._active_fixed_quest_id(snapshot) is not None
         allow_descent = not self._descent_is_blocked(snapshot)
         step = self._nearest_goal_step(
             snapshot,
-            lambda g: g.has_up_stairs
-            or (allow_descent and self._is_descent_target(snapshot, g)),
+            lambda g: not active_fixed_quest
+            and (
+                g.has_up_stairs
+                or (allow_descent and self._is_descent_target(snapshot, g))
+            ),
         )
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
             return self._step_toward(snapshot, step)
-        if here is not None and here.has_up_stairs:
+        if not active_fixed_quest and here is not None and here.has_up_stairs:
             self._defer_descent(snapshot)
             self.last_reason = "stuck:ascend"
             return UP_STAIRS_KEY
@@ -1672,8 +1682,6 @@ class HengbotPolicy:
             self._town_cycle_breaks = 0
             self._town_restock_suppressed = False
             self._town_restock_wait_until = None
-            self._town_restock_wait_gold = None
-            self._town_restock_wait_pack_size = None
             self._town_restock_rechecked.clear()
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
@@ -4413,8 +4421,6 @@ class HengbotPolicy:
             return None
         if self._town_restock_wait_until is None:
             self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
-            self._town_restock_wait_gold = snapshot.player.gold
-            self._town_restock_wait_pack_size = len(snapshot.inventory)
             return None
         if snapshot.turn < self._town_restock_wait_until:
             return None
@@ -4428,12 +4434,8 @@ class HengbotPolicy:
             # already received its one genuine stock-turnover re-check this
             # visit.  Keep waiting without re-fuelling the shopping carousel.
             self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
-            self._town_restock_wait_gold = snapshot.player.gold
-            self._town_restock_wait_pack_size = len(snapshot.inventory)
             return None
         self._town_restock_wait_until = None
-        self._town_restock_wait_gold = None
-        self._town_restock_wait_pack_size = None
         for store_type in eligible:
             self._town_store_attempted.pop(store_type, None)
             self._town_restock_rechecked.add(store_type)
@@ -4756,8 +4758,6 @@ class HengbotPolicy:
             # boundary that re-arms it instead of falling through to town wander.
             return self._next_required_store_type(snapshot)
         self._town_restock_wait_until = None
-        self._town_restock_wait_gold = None
-        self._town_restock_wait_pack_size = None
         return None
 
     def _defer_identification_for_conquest(self, snapshot: Snapshot) -> None:
@@ -7156,7 +7156,7 @@ class HengbotPolicy:
             return None
         if not snapshot.in_town:
             return None
-        if self._fixed_quest_reward_pending == quest_id or quest.status == QUEST_STATUS_REWARDED:
+        if self._fixed_quest_reward_pending == quest_id:
             return self._fixed_quest_reward_key(snapshot, quest_id)
         if quest.status == QUEST_STATUS_COMPLETED:
             return self._fixed_quest_building_key(
@@ -7169,6 +7169,16 @@ class HengbotPolicy:
                 snapshot, quest_id, "fixedquest:request", set_reward_pending=False
             )
         return None
+
+    def _active_fixed_quest_id(self, snapshot: Snapshot) -> int | None:
+        """Return the allowlisted TAKEN quest whose one-way floor we occupy."""
+        quest_id = snapshot.floor_key[2]
+        if quest_id not in FIXED_QUEST_ALLOWLIST:
+            return None
+        quest = snapshot.quests.get(quest_id)
+        if quest is None or quest.status != QUEST_STATUS_TAKEN:
+            return None
+        return quest_id
 
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
         if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
@@ -7300,14 +7310,25 @@ class HengbotPolicy:
 
     def _fixed_quest_exit_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         here = snapshot.grid_at(snapshot.player.position)
-        if here is not None and here.has_up_stairs:
+        if here is not None and here.has_quest_exit:
             self.last_reason = "fixedquest:exit"
             return UP_STAIRS_KEY
-        step = self._nearest_upstairs(snapshot)
+        step = self._nearest_goal_step(snapshot, lambda grid: grid.has_quest_exit)
         if step is not None:
             self.last_reason = "fixedquest:seek-exit"
             return self._step_toward(snapshot, step)
         return None
+
+    def _fixed_quest_reward_positions(
+        self, snapshot: Snapshot, quest_id: int
+    ) -> frozenset[Position]:
+        expected = FIXED_QUEST_REWARD_POSITIONS.get(quest_id, frozenset())
+        if not self._town_map_active(snapshot):
+            return expected
+        # Static map metadata is the source of truth, restricted to the
+        # allowlisted quest's reviewed coordinates so another reward glyph
+        # cannot become an accidental quest-1 target.
+        return self._town_map.reward_positions & expected
 
     def _fixed_quest_reward_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         if len(snapshot.inventory) >= PACK_CAPACITY:
@@ -7323,7 +7344,7 @@ class HengbotPolicy:
         )
         if current is not None:
             return current
-        positions = FIXED_QUEST_REWARD_POSITIONS.get(quest_id, frozenset())
+        positions = self._fixed_quest_reward_positions(snapshot, quest_id)
         visible_reward = [
             pos
             for pos in positions
@@ -7885,6 +7906,13 @@ class HengbotPolicy:
         player = snapshot.player
         if snapshot.in_town:
             return None
+        if self._active_fixed_quest_id(snapshot) is not None:
+            # A quest exit is represented as up-stairs, but ordinary pack/light/
+            # supply returns must never fail a one-shot quest. Survival escapes
+            # run earlier and remain intentionally permitted.
+            self._returning_to_town = False
+            self._last_return_trigger = None
+            return None
         if self._should_start_town_return(snapshot) or player.recalling:
             self._returning_to_town = True
         if not self._returning_to_town:
@@ -8157,7 +8185,11 @@ class HengbotPolicy:
         if self._emergency_escape_pending:
             stairs = self._escape_by_stairs(snapshot)
             if stairs is not None:
-                self.last_reason = "emergency:stairs"
+                self.last_reason = (
+                    "emergency:stairs-quest-fail"
+                    if self._active_fixed_quest_id(snapshot) is not None
+                    else "emergency:stairs"
+                )
                 return stairs
 
             if player.blind or player.confused or player.cut:
@@ -8705,6 +8737,8 @@ class HengbotPolicy:
 
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
+            return False
+        if self._active_fixed_quest_id(snapshot) is not None:
             return False
         if snapshot.player.class_id < 0:
             return True

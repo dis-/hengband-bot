@@ -133,7 +133,13 @@ def _reward_flag_chars(lines: list[str]) -> frozenset[str]:
         if not line.startswith("F:"):
             continue
         parts = line.split(":")
-        if len(parts) >= 5 and parts[2] == "FLOOR" and any(part != "0" for part in parts[4:]):
+        if len(parts) < 6 or parts[2] != "FLOOR":
+            continue
+        try:
+            reward_object_id = int(parts[5])
+        except ValueError:
+            continue
+        if reward_object_id > 0:
             chars.add(parts[1])
     return frozenset(chars)
 

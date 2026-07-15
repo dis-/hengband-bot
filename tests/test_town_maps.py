@@ -22,9 +22,10 @@ class TownMapParseTest(unittest.TestCase):
                 "F:h:BUILDING_13:3",
                 "F:q:QUEST_ENTER:3:0:0:0:0:NONE:1",
                 "F:r:FLOOR:3:0:42",
+                "F:s:FLOOR:3:99:0",  # unrelated nonzero floor field
                 "F:H:BUILDING_1:3:0:0:0:0:NONE:1",
                 "D:#######",
-                "D:#.1.!.#",
+                "D:#s1.!.#",
                 "D:#.hqrH#",
                 "D:#######",
             ]
@@ -43,6 +44,7 @@ class TownMapParseTest(unittest.TestCase):
         self.assertEqual(tm.quest_entrance_positions(1), frozenset({Position(2, 3)}))
         self.assertEqual(tm.quest_building_positions(1), frozenset({Position(2, 5)}))
         self.assertEqual(tm.reward_positions, frozenset({Position(2, 4)}))
+        self.assertNotIn(Position(1, 1), tm.reward_positions)
         self.assertFalse(tm.is_walkable(Position(2, 6)))  # wall
         self.assertFalse(tm.is_walkable(Position(0, 0)))  # wall
 
