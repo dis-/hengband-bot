@@ -8341,10 +8341,16 @@ class HengbotPolicy:
             return True
         if snapshot.in_town:
             if self._fundraising_mode in {"mine", "scavenge"}:
-                if not self._fundraising_departure_ready(snapshot):
+                if (
+                    not self._town_restock_suppressed
+                    and not self._fundraising_departure_ready(snapshot)
+                ):
                     return True
             else:
-                if self._rumor_unlock_pending or not self._town_departure_ready(snapshot):
+                if not self._town_restock_suppressed and (
+                    self._rumor_unlock_pending
+                    or not self._town_departure_ready(snapshot)
+                ):
                     return True
         if self._descent_blocked_at_level is None:
             return False
@@ -8663,6 +8669,8 @@ class HengbotPolicy:
             return None
         if self._town_map.entrance is None:
             return None
+        if self._town_restock_suppressed:
+            return self._town_map.entrance
         if (
             self._fundraising_mode in {"mine", "scavenge"}
             or self._deepest_level < RECALL_MIN_DEPTH
