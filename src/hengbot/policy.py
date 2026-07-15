@@ -4467,11 +4467,25 @@ class HengbotPolicy:
         if self._find_low_level_sale(snapshot) is not None:
             return STORE_ALCHEMIST
         if self._town_device_processing_key(snapshot) is None:
-            if self._find_device_sale(snapshot) is not None:
+            if (
+                self._find_device_sale(snapshot) is not None
+                and STORE_MAGIC not in self._town_store_attempted
+            ):
                 return STORE_MAGIC
-        if self._find_weapon_sale(snapshot) is not None:
+        # Sale routes honor the attempted latches like every purchase route: a
+        # store that just proved it will not complete the sale (left with the
+        # item still in the pack, gold unchanged) must not be re-picked until
+        # the latch expires — an unsellable candidate otherwise re-routes the
+        # bot there forever, immune even to the town-cycle break.
+        if (
+            self._find_weapon_sale(snapshot) is not None
+            and STORE_WEAPON not in self._town_store_attempted
+        ):
             return STORE_WEAPON
-        if self._find_light_sale(snapshot) is not None:
+        if (
+            self._find_light_sale(snapshot) is not None
+            and STORE_GENERAL not in self._town_store_attempted
+        ):
             return STORE_GENERAL
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             if not self._fundraising_food_ready(snapshot):

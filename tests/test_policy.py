@@ -10889,6 +10889,21 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:blocked:repetition")
         self.assertEqual(pol._town_blocked_reason, "repetition")
 
+    def test_sale_routes_honor_the_store_latches(self):
+        # An unsellable candidate re-routed the bot to the sale store forever,
+        # immune even to the cycle break (the sale routes skipped the latches).
+        from unittest import mock
+
+        pol = HengbotPolicy()
+        pol._town_store_attempted[STORE_WEAPON] = 100
+        snap = self._town_snap()
+        with mock.patch.object(
+            pol,
+            "_find_weapon_sale",
+            return_value=item("w", TVAL_SWORD, 4, is_equipment=True),
+        ):
+            self.assertNotEqual(pol._next_required_store_type(snap), STORE_WEAPON)
+
 
 class StoreTravelRetryTest(unittest.TestCase):
     """Store/Home travel used to be one-shot: any interruption latched a walking

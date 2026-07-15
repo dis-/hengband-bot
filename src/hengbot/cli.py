@@ -120,6 +120,23 @@ MINING_DIG_REASONS = frozenset(
     }
 )
 
+# Consecutive town:blocked:* decisions before the bot stops itself. The block
+# is a deliberate stationary latch, so this is a short fuse — it exists because
+# store-door snapshots reset the cell-based loop guard and could otherwise hide
+# the latched state forever.
+TOWN_BLOCKED_STOP_LIMIT = 30
+
+
+def _advance_town_blocked_streak(streak: int, reason: str) -> int:
+    """Count consecutive latched-town-block decisions. In-store leaves do not
+    break the streak: standing blocked on a store door alternates blocked WAITs
+    with shop:leave rows."""
+    if reason.startswith("town:blocked:"):
+        return streak + 1
+    if reason == "shop:leave":
+        return streak
+    return 0
+
 
 def _objective_for_reason(reason: str) -> str:
     if reason == "loop-detected":
@@ -584,6 +601,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         last_decision_line: str | None = None
         last_decision_at = 0.0
         stalled_command_count = 0
+        blocked_streak = 0
         last_command_signature: tuple | None = None
         while True:
             chunk = file.read()
@@ -664,6 +682,23 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # the stall nudge does not immediately disturb it.
                     if key.startswith("R"):
                         quiet_ok_until = last_activity + REST_STALL_GRACE
+                    # A latched town block is stationary BY DESIGN, but standing
+                    # on a store door interleaves store snapshots that reset the
+                    # cell-based guard below — the visible stop would never fire.
+                    # Count the blocked decisions directly (in-store leaves do
+                    # not break the streak).
+                    blocked_streak = _advance_town_blocked_streak(
+                        blocked_streak, policy.last_reason
+                    )
+                    if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
+                        print(
+                            f"<loop-detected> floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn} town blocked "
+                            f"({policy.last_reason}) for {blocked_streak} "
+                            "decisions; stopping the bot for investigation",
+                            flush=True,
+                        )
+                        return 0
                     # Loop detection: confined to a few tiles on one floor for a
                     # long stretch means the policy is stuck oscillating. Stop so
                     # the cause can be investigated rather than looping forever.

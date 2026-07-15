@@ -658,3 +658,28 @@ class GameProcessAliveTest(unittest.TestCase):
 
     def test_unknown_pid_reads_dead(self):
         self.assertFalse(_game_process_alive(None))
+
+
+class TownBlockedStreakTest(unittest.TestCase):
+    """A latched town block waits in place; when it waits on a store door, the
+    interleaved store snapshots reset the cell loop guard, so the visible stop
+    never fired. The streak counter stops the bot regardless."""
+
+    def test_blocked_decisions_accumulate_through_store_leaves(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        streak = 0
+        for reason in (
+            "town:blocked:repetition",
+            "shop:leave",
+            "town:blocked:repetition",
+            "town:blocked:repetition",
+        ):
+            streak = _advance_town_blocked_streak(streak, reason)
+        self.assertEqual(streak, 3)
+
+    def test_any_other_reason_resets_the_streak(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        streak = _advance_town_blocked_streak(5, "shop:travel")
+        self.assertEqual(streak, 0)
