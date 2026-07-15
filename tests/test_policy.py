@@ -11288,6 +11288,23 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertTrue(pol._shopping_stuck)
         self.assertIsNone(pol._town_blocked_reason)
 
+    def test_pending_cycle_preempts_shopping_approach_in_decide(self):
+        # The live carousel always had another shopping approach available.
+        # A pending repair must run before that early return or cycle-break is
+        # scheduled by _observe but never emitted.
+        from unittest import mock
+
+        pol = HengbotPolicy()
+        pol._town_cycle_pending = True
+        snap = self._town_snap()
+        with mock.patch.object(
+            pol, "_shopping_approach_step", return_value=Position(1, 1)
+        ):
+            self.assertEqual(pol._decide(snap), WAIT_KEY)
+
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertTrue(pol._town_restock_suppressed)
+
     def test_second_detection_stops_visibly(self):
         pol = HengbotPolicy()
         pol._town_cycle_pending = True

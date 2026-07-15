@@ -1370,6 +1370,16 @@ class HengbotPolicy:
         if loot is not None:
             return loot
 
+        # _observe schedules the town circuit breaker before _decide runs.  It
+        # must preempt the shopping approach below: that router otherwise
+        # returns on every decision and starves _town_special_key forever,
+        # leaving the breaker pending while the character repeats the same
+        # unaffordable errand.
+        if self._town_cycle_pending:
+            town_cycle_repair = self._town_special_key(snapshot)
+            if town_cycle_repair is not None:
+                return town_cycle_repair
+
         # 2a. Before diving: while in town with money and no lantern, walk to the
         #     General Store to buy one. A brass lantern lights radius 2 vs a torch's
         #     radius 1 — seeing the dark is what the Half-Troll lacked when it died.
