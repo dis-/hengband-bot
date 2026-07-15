@@ -658,11 +658,11 @@ class ShoppingTest(unittest.TestCase):
         )
         first = Snapshot(
             player(10, 1, gold=1000), grids, [], floor_key=(0, 0, 0),
-            width=20, height=20, town_flag=True,
+            width=20, height=20, town_flag=True, turn=1,
         )
         interrupted = Snapshot(
             player(10, 5, gold=1000), grids, [], floor_key=(0, 0, 0),
-            width=20, height=20, town_flag=True,
+            width=20, height=20, town_flag=True, turn=2,
         )
 
         pol = HengbotPolicy(town_map=town_map)
@@ -672,8 +672,8 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(interrupted), "`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
         # No progress across two more issues: give the goal back to walking.
-        self.assertEqual(pol.choose_key(interrupted), "`n!.")
-        self.assertEqual(pol.choose_key(interrupted), "6")
+        self.assertEqual(pol.choose_key(replace(interrupted, turn=3)), "`n!.")
+        self.assertEqual(pol.choose_key(replace(interrupted, turn=4)), "6")
         self.assertEqual(pol.last_reason, "shop:approach")
         self.assertEqual(pol.choose_key(interrupted), "6")
 
@@ -11490,12 +11490,13 @@ class StoreTravelRetryTest(unittest.TestCase):
     closer, walk only after TOWN_TRAVEL_STALL_LIMIT no-progress issues."""
 
     @staticmethod
-    def _snap(x):
+    def _snap(x, turn=0):
         return Snapshot(
             player(34, x),
             {},
             [],
             floor_key=(0, 0, 0),
+            turn=turn,
             inventory=[],
             equipment=[],
         )
@@ -11514,11 +11515,20 @@ class StoreTravelRetryTest(unittest.TestCase):
 
     def test_no_progress_twice_falls_back_to_walking(self):
         pol = HengbotPolicy()
-        snap = self._snap(94)
-        self.assertEqual(self._approach(pol, snap), "`n%.")
-        self.assertEqual(self._approach(pol, snap), "`n%.")
-        self.assertNotEqual(self._approach(pol, snap), "`n%.")
+        self.assertEqual(self._approach(pol, self._snap(94, turn=1)), "`n%.")
+        self.assertEqual(self._approach(pol, self._snap(94, turn=2)), "`n%.")
+        self.assertNotEqual(self._approach(pol, self._snap(94, turn=3)), "`n%.")
         self.assertEqual(pol._town_travel_fallback, Position(34, 130))
+
+    def test_duplicate_same_turn_does_not_consume_travel_stall_budget(self):
+        pol = HengbotPolicy()
+        snap = self._snap(94, turn=7)
+
+        for _ in range(5):
+            self.assertEqual(self._approach(pol, snap), "`n%.")
+
+        self.assertIsNone(pol._town_travel_fallback)
+        self.assertEqual(pol._town_travel_state[2], 0)
 
 
 class TownTravelerCombatPriorityTest(unittest.TestCase):
@@ -11639,12 +11649,13 @@ class EntranceTravelTest(unittest.TestCase):
     GOAL = Position(34, 120)
 
     @staticmethod
-    def _surface_snap(x=94):
+    def _surface_snap(x=94, turn=0):
         return Snapshot(
             player(34, x),
             {},
             [],
             floor_key=(0, 0, 0),
+            turn=turn,
             inventory=[],
             equipment=[],
         )
@@ -11667,12 +11678,12 @@ class EntranceTravelTest(unittest.TestCase):
 
     def test_no_progress_latches_a_walking_fallback(self):
         pol = HengbotPolicy()
-        snap = self._surface_snap()
+        snap = self._surface_snap(turn=1)
         self.assertEqual(self._travel(pol, snap), "`n>.")
         # Rejected route: same distance. One retry is allowed...
-        self.assertEqual(self._travel(pol, snap), "`n>.")
+        self.assertEqual(self._travel(pol, replace(snap, turn=2)), "`n>.")
         # ...then the goal falls back to BFS walking until it changes.
-        self.assertIsNone(self._travel(pol, snap))
+        self.assertIsNone(self._travel(pol, replace(snap, turn=3)))
         self.assertIsNone(self._travel(pol, snap))
 
     def test_dungeon_floors_never_travel(self):
@@ -11693,10 +11704,10 @@ class EntranceTravelTest(unittest.TestCase):
 
     def test_floor_change_clears_the_fallback_latch(self):
         pol = HengbotPolicy()
-        snap = self._surface_snap()
+        snap = self._surface_snap(turn=1)
         self._travel(pol, snap)
-        self._travel(pol, snap)
-        self.assertIsNone(self._travel(pol, snap))  # latched
+        self._travel(pol, replace(snap, turn=2))
+        self.assertIsNone(self._travel(pol, replace(snap, turn=3)))  # latched
         pol._floor_key = snap.floor_key  # as if _observe had seen the surface
         dungeon = Snapshot(
             player(10, 10),
