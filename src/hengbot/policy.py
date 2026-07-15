@@ -7185,10 +7185,15 @@ class HengbotPolicy:
         chain can unseal a whole pocket); once neither a vein nor a frontier
         remains, the cheap treasure really is collected and the floor is done."""
         if self._is_oscillating():
-            return WAIT_KEY
+            # Waiting cannot drain _recent: choose_key appends our unchanged
+            # position on every decision, so a stationary pause would keep the
+            # oscillation predicate true forever.  Drop the stale combat jitter
+            # and let the resumed sweep make a real move below.
+            self._recent.clear()
         sweep = self._mining_sweep_step(snapshot)
         if sweep is not None:
             self._mining_sweep_done = False
+            self._reset_mining_sweep_progress(snapshot)
             self._record_mining_sweep_step(snapshot)
             self.last_reason = "fundraise:sweep-explore"
             return self._step_toward(snapshot, sweep)
