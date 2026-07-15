@@ -11236,6 +11236,37 @@ class TownCycleDetectorTest(unittest.TestCase):
             steps += 1
         self.assertTrue(pol._town_cycle_pending)
 
+    def test_confined_resupply_carousel_breaks_before_cli_guard(self):
+        # Exact class of the live failure: unaffordable shopping approaches
+        # advance through several town cells, with breakout decisions adding
+        # enough distinct signatures to evade the compact-cycle detector.  The
+        # policy must schedule its repair before cli.py's 40-decision guard can
+        # stop the bot.
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        cells = [
+            (34, 94),
+            (34, 95),
+            (33, 96),
+            (32, 97),
+            (31, 98),
+            (30, 98),
+            (29, 99),
+            (28, 100),
+            (27, 101),
+        ]
+        steps = 0
+        while not pol._town_cycle_pending and steps < 39:
+            y, x = cells[min(steps // 4, len(cells) - 1)]
+            pol.last_reason = (
+                "breakout:least-visited" if steps % 6 == 5 else "shop:approach"
+            )
+            pol._observe(self._town_snap(y=y, x=x, gold=111))
+            steps += 1
+
+        self.assertTrue(pol._town_cycle_pending)
+        self.assertLess(steps, 40)
+
     def test_progress_resets_the_window(self):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
