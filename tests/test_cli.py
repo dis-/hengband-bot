@@ -22,8 +22,8 @@ from hengbot.cli import (
     _newest_snapshot,
     _read_last_line,
     _rewind_if_truncated,
+    _last_activity_after_read,
     _stall_recovery_key,
-    _stalled_command_state_limit,
     _split_complete_lines,
 )
 from hengbot.cli import _game_process_alive
@@ -607,6 +607,13 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
+    def test_partial_snapshot_bytes_refresh_emitter_activity(self):
+        self.assertEqual(
+            _last_activity_after_read(10.0, 20.0, '{"turn":'),
+            20.0,
+        )
+        self.assertEqual(_last_activity_after_read(10.0, 20.0, ""), 10.0)
+
     def test_counts_repeated_command_with_no_state_progress(self):
         signature = ((2, 1, 0), 100, 10, 20, "fundraise:mine-treasure", "T3")
         count = 0
@@ -669,15 +676,6 @@ class StallRecoveryTest(unittest.TestCase):
 
 
 class StationaryReasonsTest(unittest.TestCase):
-    def test_melee_has_a_longer_but_bounded_stalled_command_leash(self):
-        self.assertGreater(
-            _stalled_command_state_limit("melee"), STALLED_COMMAND_STATE_LIMIT
-        )
-        self.assertEqual(
-            _stalled_command_state_limit("shop:approach"),
-            STALLED_COMMAND_STATE_LIMIT,
-        )
-
     def test_town_uses_policy_cycle_guard_instead_of_cell_guard(self):
         town = parse_snapshot(
             json.loads(_snap_line(1, 10, 10).replace('"level": 1', '"level": 0')),
