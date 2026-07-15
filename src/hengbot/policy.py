@@ -6372,6 +6372,13 @@ class HengbotPolicy:
         unknown approach). The latch clears when the goal changes or the floor
         does. Near goals just walk — a travel round-trip costs more than the
         last couple of steps."""
+        if goal not in snapshot.grids:
+            # The game-side selector can jump only to grids the game remembers;
+            # snapshot.grids is its is_mark/is_view set. For an absent goal the
+            # symbol jump resets the cursor to the player, where ``.`` refuses
+            # to confirm, leaving the selector open until the multi-second stall
+            # nudge. Walk toward and reveal the static-map goal instead.
+            return None
         position = snapshot.player.position
         distance = position.distance_to(goal)
         if distance < TOWN_TRAVEL_MIN_DISTANCE:

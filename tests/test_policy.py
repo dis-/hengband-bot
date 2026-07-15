@@ -11770,10 +11770,13 @@ class StoreTravelRetryTest(unittest.TestCase):
     closer, walk only after TOWN_TRAVEL_STALL_LIMIT no-progress issues."""
 
     @staticmethod
-    def _snap(x, turn=0):
+    def _snap(x, turn=0, *, goal_remembered=True):
+        grids = {Position(34, x): grid(34, x)}
+        if goal_remembered:
+            grids[Position(34, 130)] = grid(34, 130)
         return Snapshot(
             player(34, x),
-            {},
+            grids,
             [],
             floor_key=(0, 0, 0),
             turn=turn,
@@ -11792,6 +11795,25 @@ class StoreTravelRetryTest(unittest.TestCase):
         self.assertEqual(self._approach(pol, self._snap(94)), "\x1b`n%.")
         # Interrupted mid-route but closer than before: travel again.
         self.assertEqual(self._approach(pol, self._snap(110)), "\x1b`n%.")
+
+    def test_unremembered_static_store_goal_walks_without_recording_issue(self):
+        pol = HengbotPolicy()
+        snap = self._snap(94, goal_remembered=False)
+        pol.last_reason = "shop:approach"
+
+        self.assertEqual(self._approach(pol, snap), "6")
+        self.assertEqual(pol.last_reason, "shop:approach")
+        self.assertIsNone(pol._town_travel_state)
+
+    def test_store_travel_engages_after_walk_reveals_goal(self):
+        pol = HengbotPolicy()
+        self.assertEqual(
+            self._approach(pol, self._snap(94, goal_remembered=False)), "6"
+        )
+        self.assertIsNone(pol._town_travel_state)
+
+        self.assertEqual(self._approach(pol, self._snap(95)), "\x1b`n%.")
+        self.assertEqual(pol.last_reason, "shop:travel")
 
     def test_no_progress_twice_falls_back_to_walking(self):
         pol = HengbotPolicy()
@@ -11890,6 +11912,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
             grids={
                 Position(10, 10): grid(10, 10),
                 Position(10, 13): grid(10, 13, monster=True),
+                self.GOAL: grid(self.GOAL.y, self.GOAL.x),
             },
         )
 
@@ -11955,10 +11978,15 @@ class EntranceTravelTest(unittest.TestCase):
     GOAL = Position(34, 120)
 
     @staticmethod
-    def _surface_snap(x=94, turn=0):
+    def _surface_snap(x=94, turn=0, *, goal_remembered=True):
+        grids = {Position(34, x): grid(34, x)}
+        if goal_remembered:
+            grids[EntranceTravelTest.GOAL] = grid(
+                EntranceTravelTest.GOAL.y, EntranceTravelTest.GOAL.x
+            )
         return Snapshot(
             player(34, x),
-            {},
+            grids,
             [],
             floor_key=(0, 0, 0),
             turn=turn,
@@ -11975,6 +12003,14 @@ class EntranceTravelTest(unittest.TestCase):
         key = self._travel(pol, self._surface_snap())
         self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
+
+    def test_unremembered_entrance_goal_does_not_issue_or_record_travel(self):
+        pol = HengbotPolicy()
+        snap = self._surface_snap(goal_remembered=False)
+
+        self.assertIsNone(self._travel(pol, snap))
+        self.assertEqual(pol.last_reason, "seek-downstairs")
+        self.assertIsNone(pol._town_travel_state)
 
     def test_progress_reissues_travel_after_an_interruption(self):
         pol = HengbotPolicy()
