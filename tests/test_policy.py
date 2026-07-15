@@ -6600,6 +6600,89 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._mining_sweep_done)
         self.assertEqual(policy._mining_sweep_steps, MINING_SWEEP_HARD_LIMIT)
 
+    def test_tapped_out_without_new_reveals_finishes_the_floor(self):
+        # The live 06:09 macro-cycle: the sweep honestly latched done, phase 2
+        # found no distance-1 vein, and tapped-out resumed the exact sweep that
+        # had just dead-ended (nothing had been dug, nothing newly revealed) —
+        # bouncing the same junction until the cli loop guard killed the bot.
+        # Without map growth past the at-done high-water mark, tapped-out must
+        # LEAVE, not resume.
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snap.floor_key
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._mining_sweep_done = True
+        policy._mining_grids_at_sweep_done = len(snap.grids)
+        policy._build_grid_index(snap)
+
+        key = policy._mining_tapped_out_key(snap)
+        self.assertNotEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertEqual(policy._mining_stall_turns, MINING_STALL_LIMIT)
+        self.assertTrue(policy._mining_sweep_done)
+        self.assertIsNotNone(key)
+
+    def test_tapped_out_resumes_after_digging_reveals_new_grids(self):
+        # The legitimate resume: collection dug a vein and the map grew past
+        # the at-done high-water mark — fresh frontiers may have been unsealed,
+        # so the sweep restarts with reset counters.
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(10, 12): grid(10, 12),
+        }
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snap.floor_key
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._mining_sweep_done = True
+        # done was latched when only two grids were known; the third grid is
+        # the newly exposed floor from a dug vein.
+        policy._mining_grids_at_sweep_done = 2
+        policy._build_grid_index(snap)
+
+        policy._mining_tapped_out_key(snap)
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
+        self.assertEqual(policy._mining_sweep_steps, 1)
+
     def test_tapped_out_sweep_resume_resets_hard_cap_progress(self):
         snap = Snapshot(
             player(10, 10),

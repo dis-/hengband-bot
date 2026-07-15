@@ -906,6 +906,13 @@ class HengbotPolicy:
         self._mining_sweep_last_escape_goal: Position | None = None
         self._mining_sweep_last_escape_distance: int | None = None
         self._mining_swept_dead_targets: set[Position] = set()
+        # Known-grid high-water mark at the moment the sweep latched done. A
+        # tapped-out RESUME must show the map grew past this (mining exposed
+        # new floor); resuming on mere frontier existence re-runs the exact
+        # sweep that just dead-ended (live: a done→resume macro-cycle bounced
+        # a junction until the loop guard killed the bot). 0 = no evidence
+        # recorded (fresh process/floor) → resume stays permitted.
+        self._mining_grids_at_sweep_done = 0
         self._mining_dropped_veins: set[Position] = set()
         self._mining_veins_collected = 0
         self._mining_veins_dropped = 0
@@ -2138,6 +2145,7 @@ class HengbotPolicy:
             self._mining_sweep_last_escape_goal = None
             self._mining_sweep_last_escape_distance = None
             self._mining_swept_dead_targets.clear()
+            self._mining_grids_at_sweep_done = 0
             self._mining_dropped_veins.clear()
             self._mining_veins_collected = 0
             self._mining_veins_dropped = 0
@@ -7225,6 +7233,9 @@ class HengbotPolicy:
             or self._mining_sweep_steps >= MINING_SWEEP_HARD_LIMIT
         ):
             self._mining_sweep_done = True
+            self._mining_grids_at_sweep_done = max(
+                len(snapshot.grids), self._mining_sweep_revealed_grids
+            )
 
     def _mining_tapped_out_key(self, snapshot: Snapshot) -> str:
         """No distance-1 vein is reachable right now. Mining opens new floor, so
@@ -7240,6 +7251,19 @@ class HengbotPolicy:
             self._recent.clear()
         sweep = self._mining_sweep_step(snapshot)
         if sweep is not None:
+            if (
+                was_done
+                and self._mining_grids_at_sweep_done > 0
+                and len(snapshot.grids) <= self._mining_grids_at_sweep_done
+            ):
+                # The sweep finished and NOTHING has been exposed since (no
+                # vein was dug, no new floor revealed): resuming would re-run
+                # the exact sweep that just dead-ended — the observed
+                # done→resume macro-cycle that bounced a junction until the
+                # loop guard stopped the bot. The cheap treasure here is
+                # done; leave for a fresh floor instead.
+                self._mining_stall_turns = MINING_STALL_LIMIT
+                return self._finish_mining_floor(snapshot)
             self._mining_sweep_done = False
             if was_done:
                 self._reset_mining_sweep_progress(snapshot)
@@ -7525,6 +7549,7 @@ class HengbotPolicy:
                 self._mining_sweep_done = False
                 self._reset_mining_sweep_progress(snapshot)
                 self._mining_swept_dead_targets.clear()
+                self._mining_grids_at_sweep_done = 0
                 self._mining_dropped_veins.clear()
                 self.last_reason = (
                     "fundraise:detect-treasure"
@@ -7580,6 +7605,9 @@ class HengbotPolicy:
                 self.last_reason = "fundraise:sweep-explore"
                 return self._step_toward(snapshot, sweep)
             self._mining_sweep_done = True
+            self._mining_grids_at_sweep_done = max(
+                len(snapshot.grids), self._mining_sweep_revealed_grids
+            )
         # Phase 2: collect distance-1 veins (walk to a floor tile beside the
         # vein, dig it directly) until none qualify. A dug vein becomes floor,
         # which can expose the vein behind it — the walk picks that up next
