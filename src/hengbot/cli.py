@@ -121,6 +121,31 @@ STORE_ITEM_PROMPT_DELAY_SECONDS = 0.5
 # advance a real digging turn.
 TUNNEL_PROMPT_DELAY_SECONDS = 2.0
 
+# BOT_PLAY.prf binds these otherwise-unused control characters to complete
+# tunnelling commands. A single WM_CHAR then lets Hengband's own macro queue
+# supply both ``T`` and the direction without racing the direction prompt.
+TUNNEL_MACRO_PREF_MARKER = "HENGBOT_TUNNEL_MACROS_V1"
+TUNNEL_MACRO_TRIGGERS = {
+    "1": "\x01",
+    "2": "\x02",
+    "3": "\x03",
+    "4": "\x04",
+    "6": "\x05",
+    "7": "\x06",
+    "8": "\x07",
+    "9": "\x08",
+}
+TUNNEL_MACRO_PREF_TRIGGERS = {
+    "1": "^A",
+    "2": "^B",
+    "3": "^C",
+    "4": "^D",
+    "6": "^E",
+    "7": "^F",
+    "8": "^G",
+    "9": "^H",
+}
+
 # Decision reasons that legitimately hold the player on one tile for many
 # consecutive snapshots and so must NOT feed the loop detector: searching a
 # dead-end, meleeing in place, and waiting out a Word of Recall countdown
@@ -279,6 +304,62 @@ def _delay_after_macro_key(key: str, index: int) -> float:
     if key[0] in {"d", "g"} and index == 0:
         return STORE_ITEM_PROMPT_DELAY_SECONDS
     return MULTI_KEY_DELAY_SECONDS
+
+
+def _tunnel_macro_pref_path(monrace_path: Path) -> Path | None:
+    """Find BOT_PLAY.prf beside the lib tree used by the running game."""
+    try:
+        hengband_root = monrace_path.resolve().parents[2]
+    except (IndexError, OSError):
+        return None
+    return hengband_root / "lib" / "user" / "BOT_PLAY.prf"
+
+
+def _valid_tunnel_macro_pref(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="ascii")
+    except (OSError, UnicodeError):
+        return False
+    if TUNNEL_MACRO_PREF_MARKER not in text:
+        return False
+    normalized = text.replace("\r\n", "\n")
+    return all(
+        f"A:T{direction}\nP:{trigger}" in normalized
+        for direction, trigger in TUNNEL_MACRO_PREF_TRIGGERS.items()
+    )
+
+
+def _tunnel_macros_ready(
+    state_file: Path,
+    monrace_path: Path,
+    window_pid: int | None,
+) -> bool:
+    """Whether this game process loaded the verified BOT_PLAY macro file.
+
+    The lifecycle writes hengband.pid immediately after process creation. The
+    pref must predate that marker: a pref installed while an existing game is
+    running is not in that process's macro table and must use the slow fallback.
+    """
+    if not window_pid:
+        return False
+    pref_path = _tunnel_macro_pref_path(monrace_path)
+    pid_path = state_file.parent / "hengband.pid"
+    if pref_path is None or not _valid_tunnel_macro_pref(pref_path):
+        return False
+    try:
+        recorded_pid = int(pid_path.read_text(encoding="ascii").strip())
+        return (
+            recorded_pid == window_pid
+            and pref_path.stat().st_mtime_ns <= pid_path.stat().st_mtime_ns
+        )
+    except (OSError, ValueError):
+        return False
+
+
+def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
+    if tunnel_macros_ready and len(key) == 2 and key[0] == "T":
+        return TUNNEL_MACRO_TRIGGERS.get(key[1], key)
+    return key
 
 
 def _decision_record(
@@ -613,12 +694,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"invalid monster definitions: {exc}", file=sys.stderr)
             return 2
 
+    tunnel_macros_ready = _tunnel_macros_ready(
+        args.state_file, monrace_path, args.window_pid
+    )
+
     def send(key: str) -> bool:
         if not args.send_to_window:
             return True
         try:
             from hengbot.input_windows import send_key_to_window
 
+            key = _transport_key(key, tunnel_macros_ready)
             # A decision may be a multi-key macro (e.g. "qf" = quaff item f). Post
             # each key in turn; the gap lets the game raise each successive
             # prompt before the follow-up character arrives so it is not flushed.
