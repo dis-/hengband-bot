@@ -5,7 +5,15 @@ from tempfile import TemporaryDirectory
 
 from hengbot.cli import (
     LOOP_WINDOW,
+    MINING_DIG_REASONS,
+    MULTI_KEY_DELAY_SECONDS,
+    MULTIPLIER_COMBAT_LOOP_WINDOW,
+    STORE_ITEM_PROMPT_DELAY_SECONDS,
     STATIONARY_REASONS,
+    STALLED_COMMAND_STATE_LIMIT,
+    TUNNEL_PROMPT_DELAY_SECONDS,
+    _advance_stalled_command_count,
+    _delay_after_macro_key,
     _decision_record,
     _duplicate_snapshot_ready,
     _deduplicate_consecutive,
@@ -34,6 +42,57 @@ def _snap_line(turn, y, x):
 
 
 class NewestSnapshotTest(unittest.TestCase):
+    def test_parses_equipment_optimizer_player_inputs(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["player"].update(
+            {
+                "class_id": 0,
+                "race_id": 12,
+                "personality_id": 3,
+                "stats": {
+                    name: {
+                        "cur": 10 + index,
+                        "max": 11 + index,
+                        "use": 12 + index,
+                        "index": 13 + index,
+                    }
+                    for index, name in enumerate(("str", "int", "wis", "dex", "con", "chr"))
+                },
+                "skills": {
+                    "melee": 70,
+                    "saving": 40,
+                    "device": 31,
+                    "stealth": 2,
+                    "two_weapon": 123,
+                    "shield": 456,
+                },
+            }
+        )
+        data["equipment"] = [
+            {
+                "slot": "main_hand",
+                "name": "Sword",
+                "count": 1,
+                "tval": 23,
+                "sval": 1,
+                "aware": True,
+                "known": True,
+                "fully_known": True,
+                "is_equipment": True,
+                "weight": 120,
+                "weapon_proficiency": 3456,
+            }
+        ]
+        snapshot = parse_snapshot(data, {})
+        self.assertEqual(snapshot.player.race_id, 12)
+        self.assertEqual(snapshot.player.personality_id, 3)
+        self.assertEqual(snapshot.player.stat_cur, (10, 11, 12, 13, 14, 15))
+        self.assertEqual(snapshot.player.stat_index, (13, 14, 15, 16, 17, 18))
+        self.assertEqual(snapshot.player.two_weapon_skill, 123)
+        self.assertEqual(snapshot.player.shield_skill, 456)
+        self.assertEqual(snapshot.equipment[0].weight, 120)
+        self.assertEqual(snapshot.equipment[0].weapon_proficiency, 3456)
+
     def test_returns_only_the_latest_of_a_batch(self):
         # A fast monster can emit several prompts before we read; we must act on
         # the newest board, not replay the stale ones (which desyncs our keys).
@@ -121,6 +180,41 @@ class NewestSnapshotTest(unittest.TestCase):
         with self.assertRaises(MissingMonraceKnowledgeError):
             _newest_snapshot([json.dumps(data) + "\n"], {})
 
+    def test_hallucinated_monster_is_a_positional_threat_without_identity(self):
+        # While hallucinating, the emitter reports the tile a monster occupies but
+        # redacts its identity/health. The bot must still register a hostile at
+        # that position — and must NOT raise for the absent race_id.
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "monster_index": 1,
+                "terrain": {"move": True},
+            }
+        ]
+        data["visible_monsters"] = [
+            {"index": 1, "hallucinated": True, "friendly": False, "pet": False}
+        ]
+        snapshot = parse_snapshot(data, {})  # empty knowledge must not raise
+        monster = snapshot.visible_monsters[0]
+        self.assertTrue(monster.hostile)
+        self.assertEqual((monster.position.y, monster.position.x), (5, 6))
+        self.assertEqual(monster.race_id, 0)
+        self.assertFalse(monster.can_summon)
+
+    def test_hallucinated_pet_is_not_treated_as_hostile(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {"y": 5, "x": 6, "known": True, "monster_index": 1, "terrain": {"move": True}}
+        ]
+        data["visible_monsters"] = [
+            {"index": 1, "hallucinated": True, "friendly": True, "pet": True}
+        ]
+        monster = parse_snapshot(data, {}).visible_monsters[0]
+        self.assertFalse(monster.hostile)
+
     def test_parses_redacted_unidentified_item_details(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["inventory"] = [
@@ -131,6 +225,7 @@ class NewestSnapshotTest(unittest.TestCase):
                 "tval": 70,
                 "aware": False,
                 "known": False,
+                "pseudo_feeling": "average",
             }
         ]
 
@@ -142,6 +237,30 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertFalse(item.aware)
         self.assertFalse(item.known)
         self.assertFalse(item.fully_known)
+        self.assertEqual(item.pseudo_feeling, "average")
+
+    def test_parses_the_in_town_flag(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["floor"]["level"] = 0
+        data["floor"]["in_town"] = False  # on the open wilderness surface
+        snap = parse_snapshot(data, {})
+        self.assertFalse(snap.in_town)
+        self.assertTrue(snap.on_open_wilderness)
+        data["floor"]["in_town"] = True
+        town = parse_snapshot(data, {})
+        self.assertTrue(town.in_town)
+        self.assertFalse(town.on_open_wilderness)
+
+    def test_parses_entered_dungeon_ids_for_recall_selection(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["progress"] = {
+            "recall_dungeon_id": 2,
+            "entered_dungeon_ids": [1, 2, 5],
+        }
+
+        snap = parse_snapshot(data, {})
+
+        self.assertEqual(snap.entered_dungeon_ids, (1, 2, 5))
 
     def test_ignores_legacy_exact_food_and_recall_counters(self):
         data = json.loads(_snap_line(100, 5, 5))
@@ -207,7 +326,9 @@ class NewestSnapshotTest(unittest.TestCase):
                 "terrain": {
                     "move": False,
                     "wall": True,
-                    "can_dig": True,
+                    # Hengband veins are TUNNEL terrain but do not carry the
+                    # narrower CAN_DIG flag currently emitted as `can_dig`.
+                    "can_dig": False,
                     "has_gold": True,
                     "entrance": False,
                 },
@@ -254,6 +375,7 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertTrue(snapshot.yeek_cave_conquered)
         self.assertTrue(snapshot.angband_recall_unlocked)
         self.assertTrue(snapshot.grids[Position(5, 6)].has_gold)
+        self.assertTrue(snapshot.grids[Position(5, 6)].can_dig)
         self.assertEqual(snapshot.grids[Position(5, 7)].entrance_dungeon_id, 2)
         self.assertTrue(snapshot.inventory[0].is_ego)
         self.assertEqual(snapshot.inventory[0].known_flags, frozenset({12, 34}))
@@ -263,17 +385,43 @@ class NewestSnapshotTest(unittest.TestCase):
 
 class DecisionRecordTest(unittest.TestCase):
     def test_records_policy_reason_and_observable_state(self):
-        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+        data = json.loads(_snap_line(123, 5, 7))
+        data["floor"]["quest_id"] = 40
+        snapshot = parse_snapshot(data, {})
 
-        record = _decision_record(snapshot, "6", "seek-loot")
+        requirements = [
+            {"item": "Food rations", "current": 2, "target": 5, "missing": 3}
+        ]
+        record = _decision_record(snapshot, "6", "seek-loot", requirements)
 
         self.assertEqual(record["turn"], 123)
         self.assertEqual(record["objective"], "Collect visible floor items")
         self.assertEqual(record["reason"], "seek-loot")
         self.assertEqual(record["key"], "6")
+        self.assertEqual(
+            record["floor"], {"dungeon_id": 0, "level": 1, "quest_id": 40}
+        )
         self.assertEqual(record["position"], {"y": 5, "x": 7})
         self.assertEqual(record["inventory"], {"used": 0, "free": 23})
+        self.assertEqual(record["procurement_requirements"], requirements)
         self.assertEqual(record["visible_hostiles"], 0)
+        self.assertEqual(record["threat_prediction"], {})
+        self.assertEqual(record["loot"], {})
+
+    def test_records_loot_telemetry(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+        loot = {
+            "visible": [{"position": {"y": 5, "x": 8}, "count": 1}],
+            "known": [{"y": 5, "x": 8}],
+            "target": {"y": 5, "x": 8},
+            "blocker": None,
+        }
+
+        record = _decision_record(
+            snapshot, "6", "seek-loot", loot=loot
+        )
+
+        self.assertEqual(record["loot"], loot)
 
 
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
@@ -317,6 +465,22 @@ class LoopDetectionTest(unittest.TestCase):
         for i in range(LOOP_WINDOW - 1):
             cells.append((self.FLOOR, 15, 43) if i % 2 else (self.FLOOR, 16, 42))
         self.assertFalse(_is_looping(cells))
+
+    def test_multiplier_combat_uses_a_larger_finite_window(self):
+        from collections import deque
+
+        cells = deque(maxlen=MULTIPLIER_COMBAT_LOOP_WINDOW)
+        for i in range(LOOP_WINDOW):
+            cells.append((self.FLOOR, 15, 43) if i % 2 else (self.FLOOR, 16, 42))
+        self.assertFalse(
+            _is_looping(cells, window=MULTIPLIER_COMBAT_LOOP_WINDOW)
+        )
+
+        for i in range(LOOP_WINDOW, MULTIPLIER_COMBAT_LOOP_WINDOW):
+            cells.append((self.FLOOR, 15, 43) if i % 2 else (self.FLOOR, 16, 42))
+        self.assertTrue(
+            _is_looping(cells, window=MULTIPLIER_COMBAT_LOOP_WINDOW)
+        )
 
     def test_floor_change_resets_the_signal(self):
         # Confined tiles but spread across two floors is descent, not a loop.
@@ -383,6 +547,43 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
+    def test_counts_repeated_command_with_no_state_progress(self):
+        signature = ((2, 1, 0), 100, 10, 20, "fundraise:mine-treasure", "T3")
+        count = 0
+        for _ in range(STALLED_COMMAND_STATE_LIMIT):
+            count = _advance_stalled_command_count(
+                count,
+                signature=signature,
+                previous_signature=signature,
+            )
+        self.assertEqual(count, STALLED_COMMAND_STATE_LIMIT)
+
+    def test_stalled_snapshot_count_resets_on_real_progress(self):
+        self.assertEqual(
+            _advance_stalled_command_count(
+                2,
+                signature=("new",),
+                previous_signature=("old",),
+            ),
+            0,
+        )
+
+    def test_tunnel_macro_waits_for_direction_prompt(self):
+        self.assertEqual(_delay_after_macro_key("T3", 0), TUNNEL_PROMPT_DELAY_SECONDS)
+        self.assertEqual(_delay_after_macro_key("T3", 1), 0.0)
+        self.assertEqual(_delay_after_macro_key("rb", 0), MULTI_KEY_DELAY_SECONDS)
+
+    def test_store_macro_waits_for_the_item_selector_redraw(self):
+        self.assertEqual(
+            _delay_after_macro_key("dk\r", 0),
+            STORE_ITEM_PROMPT_DELAY_SECONDS,
+        )
+        self.assertEqual(_delay_after_macro_key("dk\r", 1), MULTI_KEY_DELAY_SECONDS)
+        self.assertEqual(
+            _delay_after_macro_key("ga\r", 0),
+            STORE_ITEM_PROMPT_DELAY_SECONDS,
+        )
+
     def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):
         self.assertEqual(_stall_recovery_key(0, 9), ("\x1b", "<esc>"))
         self.assertEqual(_stall_recovery_key(1, 9), ("\x1b", "<esc>"))
@@ -414,8 +615,20 @@ class StationaryReasonsTest(unittest.TestCase):
         # bot mid-return. They must be exempt, alongside search and in-place melee.
         self.assertIn("return:wait-recall", STATIONARY_REASONS)
         self.assertIn("town:wait-recall", STATIONARY_REASONS)
+        self.assertIn("town:wait-restock", STATIONARY_REASONS)
         self.assertIn("search", STATIONARY_REASONS)
         self.assertIn("melee", STATIONARY_REASONS)
+
+    def test_mining_digs_are_exempt_from_loop_detection(self):
+        # Digging breaks rock while standing on ONE tile for many turns, which the
+        # position-based loop guard would read as a confined oscillation. Mining digs
+        # must be exempt (the policy's MINING_STALL_LIMIT leash bounds them instead), so
+        # a long tunnel-to-a-vein or dig-out is never mistaken for a stuck loop.
+        self.assertIn("fundraise:mine-treasure", MINING_DIG_REASONS)
+        self.assertIn("fundraise:tunnel-to-treasure", MINING_DIG_REASONS)
+        self.assertIn("fundraise:tunnel-out", MINING_DIG_REASONS)
+        # Walking reasons stay guardable — only in-place digging is exempt.
+        self.assertNotIn("fundraise:seek-treasure", MINING_DIG_REASONS)
 
 
 if __name__ == "__main__":

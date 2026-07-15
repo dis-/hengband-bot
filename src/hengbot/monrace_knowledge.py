@@ -32,11 +32,33 @@ SUMMON_ABILITIES = frozenset(
 
 
 @dataclass(frozen=True)
+class MonsterBlow:
+    method: str
+    effect: str
+    dice_num: int = 0
+    dice_sides: int = 0
+
+
+@dataclass(frozen=True)
 class MonraceKnowledge:
     max_hp: int
     speed: int
     can_summon: bool
     friendly: bool
+    level: int = 0
+    max_melee_damage: int = 0
+    max_ranged_damage: int = 0
+    can_multiply: bool = False
+    average_hp: int = 0
+    armor_class: int = 0
+    rarity: int = 0
+    flags: frozenset[str] = frozenset()
+    abilities: frozenset[str] = frozenset()
+    blows: tuple[MonsterBlow, ...] = ()
+    spell_frequency: int = 0
+    powerful: bool = False
+    shoot_dice_num: int = 0
+    shoot_dice_sides: int = 0
 
 
 def _strip_jsonc(text: str) -> str:
@@ -116,17 +138,110 @@ def _maximum_hp(hit_point: str) -> int:
     return int(match.group(1)) * int(match.group(2))
 
 
+def _average_hp(hit_point: str, force_max_hp: bool) -> int:
+    match = re.fullmatch(r"(\d+)d(\d+)", hit_point)
+    if match is None:
+        raise ValueError(f"invalid monster hit_point: {hit_point!r}")
+    number, sides = (int(value) for value in match.groups())
+    return number * sides if force_max_hp else number * (sides + 1) // 2
+
+
+def _maximum_dice(dice: str | None) -> int:
+    if not dice:
+        return 0
+    match = re.fullmatch(r"(\d+)d(\d+)", dice)
+    if match is None:
+        return 0
+    return int(match.group(1)) * int(match.group(2))
+
+
+def _parse_dice(dice: str | None) -> tuple[int, int]:
+    if not dice:
+        return 0, 0
+    match = re.fullmatch(r"(\d+)d(\d+)", dice)
+    if match is None:
+        raise ValueError(f"invalid monster damage_dice: {dice!r}")
+    return tuple(int(value) for value in match.groups())
+
+
+def _maximum_ranged_damage(
+    abilities: set[str], level: int, max_hp: int, shoot: str | None
+) -> int:
+    """Conservative pre-resistance maximum for one ranged monster action."""
+    maximum = _maximum_dice(shoot) if "SHOOT" in abilities else 0
+    if any(ability.startswith("BR_") for ability in abilities):
+        maximum = max(maximum, max_hp // 3)
+    if "ROCKET" in abilities:
+        maximum = max(maximum, max_hp // 4)
+    if any(ability.startswith("BA_") for ability in abilities):
+        maximum = max(maximum, level * 4 + 50)
+    if any(ability.startswith(("BO_", "PSY_SPEAR")) for ability in abilities):
+        maximum = max(maximum, level * 3 + 24)
+    if any(ability.startswith("CAUSE_") for ability in abilities):
+        maximum = max(maximum, level * 2 + 30)
+    if abilities.intersection({"MIND_BLAST", "BRAIN_SMASH", "MISSILE"}):
+        maximum = max(maximum, level * 2 + 20)
+    if "HAND_DOOM" in abilities:
+        # The spell is percentage based. A large sentinel makes it unconditionally
+        # lethal without requiring hidden player data in the race definition.
+        maximum = max(maximum, 100_000)
+    return maximum
+
+
 def load_monrace_knowledge(path: Path) -> dict[int, MonraceKnowledge]:
     data: dict[str, Any] = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
     result: dict[int, MonraceKnowledge] = {}
     for monster in data.get("monsters", []):
-        abilities = monster.get("skill", {}).get("list", [])
+        skill = monster.get("skill", {})
+        abilities = set(skill.get("list", []))
+        if skill.get("shoot"):
+            abilities.add("SHOOT")
         flags = set(monster.get("flags", []))
+        max_hp = _maximum_hp(monster["hit_point"])
+        level = int(monster.get("level", 0))
+        blows = tuple(
+            MonsterBlow(
+                method=str(blow.get("method", "")),
+                effect=str(blow.get("effect", "")),
+                dice_num=_parse_dice(blow.get("damage_dice"))[0],
+                dice_sides=_parse_dice(blow.get("damage_dice"))[1],
+            )
+            for blow in monster.get("blows", [])
+        )
+        max_melee_damage = sum(
+            blow.dice_num * blow.dice_sides for blow in blows
+        )
+        probability = str(skill.get("probability", ""))
+        probability_match = re.fullmatch(r"1_IN_(\d+)", probability)
+        spell_frequency = (
+            100 // int(probability_match.group(1))
+            if probability_match is not None
+            else 0
+        )
+        shoot_num, shoot_sides = _parse_dice(skill.get("shoot"))
         result[int(monster["id"])] = MonraceKnowledge(
-            max_hp=_maximum_hp(monster["hit_point"]),
+            max_hp=max_hp,
             speed=110 + int(monster.get("speed", 0)),
             can_summon=bool(SUMMON_ABILITIES.intersection(abilities)),
             friendly="FRIENDLY" in flags,
+            level=level,
+            max_melee_damage=max_melee_damage,
+            max_ranged_damage=_maximum_ranged_damage(
+                abilities, level, max_hp, skill.get("shoot")
+            ),
+            can_multiply="MULTIPLY" in flags,
+            average_hp=_average_hp(
+                monster["hit_point"], "FORCE_MAXHP" in flags
+            ),
+            armor_class=int(monster.get("armor_class", 0)),
+            rarity=int(monster.get("rarity", 0)),
+            flags=frozenset(flags),
+            abilities=frozenset(abilities),
+            blows=blows,
+            spell_frequency=spell_frequency,
+            powerful="POWERFUL" in flags,
+            shoot_dice_num=shoot_num,
+            shoot_dice_sides=shoot_sides,
         )
     return result
 

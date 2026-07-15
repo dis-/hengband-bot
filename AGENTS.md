@@ -7,6 +7,41 @@ JSONL mode (see `README.md`). Developed alongside the C++ emitter on branch
 Tests: `PYTHONPATH=src <python> -m unittest discover -s tests`
 (use the codex runtime python, not the WindowsApps `python` stub).
 
+## Authoritative depth requirements
+
+Claude Code and other agents must use this table when implementing equipment
+selection or descent gates. It supersedes earlier discussion and provisional
+speed requirements.
+
+| Dungeon depth | Required | Recommended / optimization |
+| --- | --- | --- |
+| 1-19F | No additional resistance requirement | Maximize offense and defense. |
+| 20-25F | Confusion and fire resistance | Poison resistance is recommended. |
+| 26-30F | Poison, cold, electricity and acid resistance | Maximize offense and defense after satisfying it. |
+| 31-39F | Chaos resistance only | Add no further mandatory resistance. |
+| 40-49F | Chaos and nether resistance | Nether resistance is required from 40F onward. |
+| 50-80F | Chaos, nether, telepathy, and a usable `*Destruction*` method | There is no equipment-speed requirement before 81F. Exploration of 80F is allowed. |
+| 81F+ | Speed `+25`, chaos, nether, telepathy, a usable `*Destruction*` method, and as many resistances as reasonably possible | Do not descend from 80F until this strict gate is satisfied. |
+
+Each band lists its own mandatory abilities (the "only" bands add nothing beyond
+what is named). Chaos resistance is required continuously from 31F; nether
+resistance continuously from 40F; telepathy and `*Destruction*` from 50F; speed
+`+25` from 81F. The 20-25F and 26-30F elemental requirements are specific to those
+bands.
+
+Supporting rules:
+
+- Telepathy and the `*Destruction*` requirement begin at 50F, not 80F.
+- A spell may satisfy an ability requirement only when its success rate is at
+  least 90 percent.
+- Weight is not an equipment comparison criterion.
+- Weapon offense means expected damage per player turn against AC 100 using the
+  current character's stats and number of blows. A higher single-hit value that
+  lowers total damage because it reduces blows is a downgrade.
+- Among loadouts satisfying the depth requirements, maximize offense and
+  defense. Do not trade away a required resistance or ability for raw AC or
+  damage.
+
 ---
 
 ## Getting a Claude Code review (Codex → Claude Code)

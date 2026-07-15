@@ -1,0 +1,50 @@
+import unittest
+
+from hengbot.equipment_encounters import EncounterTarget, representative_encounters
+from hengbot.monrace_knowledge import MonraceKnowledge
+
+
+def encounter(race_id, level, weight, *, unique=False):
+    flags = frozenset({"UNIQUE"}) if unique else frozenset()
+    monster = MonraceKnowledge(
+        max_hp=10,
+        average_hp=10,
+        speed=110,
+        can_summon=False,
+        friendly=False,
+        level=level,
+        spell_frequency=0,
+        flags=flags,
+    )
+    return EncounterTarget(race_id, weight, monster)
+
+
+class EquipmentEncounterSamplingTest(unittest.TestCase):
+    def test_excludes_uniques_and_preserves_normalized_weight(self):
+        source = tuple(
+            encounter(index, index % 40, 1.0 / 41, unique=index == 40)
+            for index in range(41)
+        )
+
+        sampled = representative_encounters(source, max_count=12)
+
+        self.assertEqual(len(sampled), 12)
+        self.assertTrue(all("UNIQUE" not in item.knowledge.flags for item in sampled))
+        self.assertAlmostEqual(sum(item.weight for item in sampled), 1.0)
+
+    def test_keeps_each_populated_depth_band(self):
+        source = (
+            encounter(1, 5, 0.25),
+            encounter(2, 15, 0.25),
+            encounter(3, 25, 0.25),
+            encounter(4, 35, 0.25),
+            encounter(5, 35, 0.01),
+        )
+
+        sampled = representative_encounters(source, max_count=4)
+
+        self.assertEqual({item.knowledge.level // 10 for item in sampled}, {0, 1, 2, 3})
+
+
+if __name__ == "__main__":
+    unittest.main()

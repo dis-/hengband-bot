@@ -10,7 +10,13 @@ from typing import Iterable
 
 from hengbot.model import MissingMonraceKnowledgeError, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
-from hengbot.policy import PACK_CAPACITY, ConservativePolicy
+from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_knowledge
+from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
+from hengbot.policy import (
+    PACK_CAPACITY,
+    ConservativePolicy,
+    required_depth_gates,
+)
 
 
 # Character posted to the window to dismiss a message / "-more-" prompt that the
@@ -53,19 +59,65 @@ LEVEL_UP_RECOVERY_START = 2
 # so the situation can be investigated from the preserved game state.
 LOOP_WINDOW = 40
 LOOP_MAX_DISTINCT = 4
+# Multipliers repeatedly appear and disappear between melee turns as their pack
+# shifts around the player. Give that productive fight longer to resolve, while
+# retaining a finite guard for a genuinely unwinnable engagement.
+MULTIPLIER_COMBAT_LOOP_WINDOW = 80
+MULTIPLIER_COMBAT_GRACE = 10
 # The emitter can present the exact same command state several times while a
 # posted Windows key is still waiting to be consumed. Sending on every copy
 # builds a large input backlog and makes the loop detector judge stale positions.
 # A genuinely rejected move still needs retries so the policy can break out;
 # throttle exact duplicates instead of dropping them forever.
 DUPLICATE_RETRY_SECONDS = 2.0
+# A command that repeatedly returns the same turn, player state, inventory, and
+# equipment consumed no energy and made no useful progress. This catches invalid
+# digs and other rejected commands even when their reason is exempt from the
+# position-based loop detector.
+STALLED_COMMAND_STATE_LIMIT = 12
+# Store purchases and other multi-prompt commands redraw between each key. A
+# 50ms gap was too short on the live Windows build: Return/y reached the queue
+# before the quantity/confirmation prompt was ready and were flushed. Keep the
+# macro deliberate; single movement keys are unaffected.
+MULTI_KEY_DELAY_SECONDS = 0.25
+# Entering the item selector from a busy store redraw is measurably slower than
+# advancing an already-open prompt. At a 49-stack Home, 250 ms repeatedly lost
+# the inventory letter after ``d``; 300 ms succeeded in the preserved game.
+# Leave margin for busier redraws instead of relying on that narrow boundary.
+STORE_ITEM_PROMPT_DELAY_SECONDS = 0.5
+# Tunnelling raises a direction prompt more slowly than ordinary item prompts on
+# the live Windows Release build. Posting the direction at the generic 250 ms
+# interval leaves the game blocked at that prompt; two seconds is verified to
+# advance a real digging turn.
+TUNNEL_PROMPT_DELAY_SECONDS = 2.0
 
 # Decision reasons that legitimately hold the player on one tile for many
 # consecutive snapshots and so must NOT feed the loop detector: searching a
 # dead-end, meleeing in place, and waiting out a Word of Recall countdown
 # (~15-35 stationary turns — enough to trip a ≤4-cell window by itself).
 STATIONARY_REASONS = frozenset(
-    {"search", "melee", "return:wait-recall", "town:wait-recall"}
+    {
+        "search",
+        "melee",
+        "return:wait-recall",
+        "town:wait-recall",
+        "town:wait-restock",
+        "wilderness:wait-recall",
+    }
+)
+
+# Digging holds the player on ONE tile for many turns (breaking rock toward a vein or
+# tunnelling out of a pocket), which looks like a confined oscillation to the position-
+# based loop guard. These are productive, not stuck, so they must not trip it — the
+# policy's own MINING_STALL_LIMIT leash bounds a dig instead (see policy.py). Pure mining
+# WALK-oscillation is NOT here: the policy gives that up at once, and leaving it guardable
+# keeps a genuine non-digging loop catchable.
+MINING_DIG_REASONS = frozenset(
+    {
+        "fundraise:mine-treasure",
+        "fundraise:tunnel-to-treasure",
+        "fundraise:tunnel-out",
+    }
 )
 
 
@@ -98,7 +150,60 @@ def _objective_for_reason(reason: str) -> str:
     return "Continue conservative progression"
 
 
-def _decision_record(snapshot, key: str, reason: str) -> dict:
+def _command_state_signature(snapshot, reason: str, key: str) -> tuple:
+    """Return the stable, player-visible state relevant to command progress."""
+    store_signature = None
+    if snapshot.store is not None:
+        store_signature = (
+            snapshot.store.store_type,
+            tuple(snapshot.store.items),
+        )
+    return (
+        snapshot.floor_key,
+        snapshot.turn,
+        snapshot.player,
+        tuple(snapshot.inventory),
+        tuple(snapshot.equipment),
+        store_signature,
+        reason,
+        key,
+    )
+
+
+def _advance_stalled_command_count(
+    count: int,
+    *,
+    signature: tuple,
+    previous_signature: tuple | None,
+) -> int:
+    """Count repeated commands that consume no turn and change no useful state."""
+    if signature == previous_signature:
+        return count + 1
+    return 0
+
+
+def _delay_after_macro_key(key: str, index: int) -> float:
+    """Return the prompt-settling delay after one character in a macro."""
+    if len(key) <= 1 or index >= len(key) - 1:
+        return 0.0
+    if key.startswith("T") and index == 0:
+        return TUNNEL_PROMPT_DELAY_SECONDS
+    if key[0] in {"d", "g"} and index == 0:
+        return STORE_ITEM_PROMPT_DELAY_SECONDS
+    return MULTI_KEY_DELAY_SECONDS
+
+
+def _decision_record(
+    snapshot,
+    key: str,
+    reason: str,
+    procurement_requirements: list[dict] | None = None,
+    over_extension: dict | None = None,
+    depth_safety: dict | None = None,
+    threat_prediction: dict | None = None,
+    equipment_optimization: dict | None = None,
+    loot: dict | None = None,
+) -> dict:
     player = snapshot.player
     active_status = [
         name
@@ -123,6 +228,7 @@ def _decision_record(snapshot, key: str, reason: str) -> dict:
         "floor": {
             "dungeon_id": snapshot.floor_key[0],
             "level": snapshot.floor_key[1],
+            "quest_id": snapshot.floor_key[2],
         },
         "position": {"y": player.position.y, "x": player.position.x},
         "player": {
@@ -139,17 +245,103 @@ def _decision_record(snapshot, key: str, reason: str) -> dict:
             "used": len(snapshot.inventory),
             "free": max(0, PACK_CAPACITY - len(snapshot.inventory)),
         },
+        "procurement_requirements": procurement_requirements or [],
         "visible_hostiles": sum(monster.hostile for monster in snapshot.visible_monsters),
+        "threat_prediction": threat_prediction or {},
         "store_type": snapshot.store.store_type if snapshot.store is not None else None,
+        "over_extension": over_extension or {},
+        "depth_safety": depth_safety or {},
+        "equipment_optimization": equipment_optimization or {},
+        "loot": loot or {},
     }
 
 
-def _write_decision(path: Path | None, snapshot, key: str, reason: str) -> None:
+def _over_extension_state(policy) -> dict:
+    """Surface the policy's over-extension counters so the switch is observable.
+
+    The decision to abandon an over-deep dungeon builds up across several dives in
+    private policy state; exposing it here lets the viewer (and a watching human)
+    see the streak climb and the alternate target get chosen, instead of the switch
+    appearing from nowhere.
+    """
+    knowledge = getattr(policy, "_dungeon_knowledge", {}) or {}
+
+    def name(dungeon_id):
+        if dungeon_id is None:
+            return None
+        info = knowledge.get(dungeon_id)
+        return info.name if info is not None else None
+
+    target = getattr(policy, "_target_dungeon_id", None)
+    alternate = getattr(policy, "_alternate_dungeon", None)
+    return {
+        "target_dungeon_id": target,
+        "target_dungeon": name(target),
+        "over_extended_dive_streak": getattr(policy, "_target_empty_dives", 0),
+        "alternate_dungeon_id": alternate,
+        "alternate_dungeon": name(alternate),
+        "last_overextended_depth": getattr(policy, "_last_overextended_depth", 0),
+        "dive_loot": getattr(policy, "_dive_loot", 0),
+        "dive_emergencies": getattr(policy, "_dive_emergencies", 0),
+        "last_return_trigger": getattr(policy, "_last_return_trigger", None),
+    }
+
+
+def _depth_safety(snapshot, policy) -> dict:
+    """Surface the depth-requirement check so a lethal resistance gap is visible
+    (the bot gates its descent on this — see AGENTS.md)."""
+    depth = max(1, snapshot.floor_key[1])
+    required = sorted(required_depth_gates(depth))
+    missing = (
+        sorted(policy._missing_required_abilities(snapshot, depth)) if policy else []
+    )
+    return {
+        "depth": depth,
+        "required": required,
+        "missing": missing,
+        "has": sorted(snapshot.player.abilities),
+    }
+
+
+def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=None) -> None:
     if path is None:
         return
     try:
         with path.open("a", encoding="utf-8") as file:
-            json.dump(_decision_record(snapshot, key, reason), file, ensure_ascii=False)
+            requirements = (
+                policy.procurement_requirements(snapshot) if policy is not None else []
+            )
+            over_extension = _over_extension_state(policy) if policy is not None else {}
+            depth_safety = _depth_safety(snapshot, policy) if policy is not None else {}
+            threat_prediction = (
+                policy.threat_prediction(
+                    snapshot,
+                    [monster for monster in snapshot.visible_monsters if monster.hostile],
+                )
+                if policy is not None
+                else {}
+            )
+            equipment_optimization = (
+                policy.equipment_optimization_state(snapshot)
+                if policy is not None
+                else {}
+            )
+            loot = policy.loot_state(snapshot) if policy is not None else {}
+            json.dump(
+                _decision_record(
+                    snapshot,
+                    key,
+                    reason,
+                    requirements,
+                    over_extension,
+                    depth_safety,
+                    threat_prediction,
+                    equipment_optimization,
+                    loot,
+                ),
+                file,
+                ensure_ascii=False,
+            )
             file.write("\n")
     except OSError as exc:
         print(f"failed to write decision log: {exc}", file=sys.stderr)
@@ -196,6 +388,18 @@ def main(argv: list[str] | None = None) -> int:
         "--monrace-definitions",
         type=Path,
         help="path to Hengband's lib/edit/MonraceDefinitions.jsonc",
+    )
+    parser.add_argument(
+        "--outpost-map",
+        type=Path,
+        help="path to Hengband's lib/edit/towns/01_Outpost_Full.txt "
+        "(auto-located near the state file if omitted)",
+    )
+    parser.add_argument(
+        "--dungeon-definitions",
+        type=Path,
+        help="path to Hengband's lib/edit/DungeonDefinitions.jsonc "
+        "(auto-located near the state file if omitted)",
     )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-interval", type=float, default=0.1)
@@ -248,10 +452,10 @@ def main(argv: list[str] | None = None) -> int:
             from hengbot.input_windows import send_key_to_window
 
             # A decision may be a multi-key macro (e.g. "qf" = quaff item f). Post
-            # each key in turn; the small gap lets the game raise its item-select
-            # prompt before the follow-up letter arrives so it is not flushed.
+            # each key in turn; the gap lets the game raise each successive
+            # prompt before the follow-up character arrives so it is not flushed.
             multi = len(key) > 1
-            for char in key:
+            for index, char in enumerate(key):
                 send_key_to_window(
                     char,
                     args.window_title,
@@ -259,14 +463,44 @@ def main(argv: list[str] | None = None) -> int:
                     class_name=args.window_class,
                     process_id=args.window_pid,
                 )
-                if multi:
-                    time.sleep(0.05)
+                delay = _delay_after_macro_key(key, index) if multi else 0.0
+                if delay:
+                    time.sleep(delay)
             return True
         except RuntimeError as exc:
             print(f"failed to send key: {exc}", file=sys.stderr)
             return False
 
-    policy = ConservativePolicy()
+    # The static Outpost layout lets the bot route across a dark town to a store
+    # (prior knowledge a returning player has). Optional: if it is not found the
+    # bot still plays, just without night-town routing help.
+    outpost_map: TownMap | None = None
+    outpost_path = args.outpost_map or find_outpost_map(args.state_file)
+    if outpost_path is not None:
+        try:
+            outpost_map = parse_town_map(outpost_path)
+        except (OSError, ValueError) as exc:
+            print(f"could not load Outpost map ({outpost_path}): {exc}", file=sys.stderr)
+
+    # Static dungeon depth/level facts let the bot recall into a level-appropriate
+    # dungeon instead of over-extending in one far past its recommended level.
+    # Optional: without it the bot still plays, just never switches dungeons.
+    dungeon_knowledge: dict[int, object] = {}
+    dungeon_path = find_dungeon_definitions(args.state_file, args.dungeon_definitions)
+    if dungeon_path is not None:
+        try:
+            dungeon_knowledge = load_dungeon_knowledge(dungeon_path)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(
+                f"could not load dungeon definitions ({dungeon_path}): {exc}",
+                file=sys.stderr,
+            )
+
+    policy = ConservativePolicy(
+        town_map=outpost_map,
+        dungeon_knowledge=dungeon_knowledge,
+        monrace_knowledge=monrace_knowledge,
+    )
 
     if args.once:
         for line in _read_last_line(args.state_file):
@@ -277,8 +511,9 @@ def main(argv: list[str] | None = None) -> int:
             except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 print(f"invalid snapshot: {exc}", file=sys.stderr)
                 return 2
+            policy.prime(snapshot)
             key = policy.choose_key(snapshot)
-            _write_decision(args.decision_log, snapshot, key, policy.last_reason)
+            _write_decision(args.decision_log, snapshot, key, policy.last_reason, policy)
             print(key, flush=True)
             if not send(key):
                 return 3
@@ -321,9 +556,12 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         nudge_streak = 0  # consecutive nudges with no snapshot in between
         last_player_level = initial_snapshot.player.level if initial_snapshot is not None else None
         # (floor_key, y, x) of the last LOOP_WINDOW decisions, for loop detection.
-        recent_cells: deque[tuple] = deque(maxlen=LOOP_WINDOW)
+        recent_cells: deque[tuple] = deque(maxlen=MULTIPLIER_COMBAT_LOOP_WINDOW)
+        multiplier_combat_grace = 0
         last_decision_line: str | None = None
         last_decision_at = 0.0
+        stalled_command_count = 0
+        last_command_signature: tuple | None = None
         while True:
             chunk = file.read()
             if chunk:
@@ -360,7 +598,42 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_decision_line = snapshot_line
                     last_decision_at = now
                     key = policy.choose_key(snapshot)
-                    _write_decision(args.decision_log, snapshot, key, policy.last_reason)
+                    command_signature = _command_state_signature(
+                        snapshot,
+                        policy.last_reason,
+                        key,
+                    )
+                    stalled_command_count = _advance_stalled_command_count(
+                        stalled_command_count,
+                        signature=command_signature,
+                        previous_signature=last_command_signature,
+                    )
+                    last_command_signature = command_signature
+                    if stalled_command_count >= STALLED_COMMAND_STATE_LIMIT:
+                        _write_decision(
+                            args.decision_log,
+                            snapshot,
+                            "",
+                            "loop-detected",
+                            policy,
+                        )
+                        print(
+                            f"<loop-detected> floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn} command repeated without "
+                            "consuming a turn or changing player state; stopping "
+                            "the bot for investigation",
+                            flush=True,
+                        )
+                        print(
+                            f"stalled command loop at floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn}; stopping bot (game left running)",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        return 0
+                    _write_decision(
+                        args.decision_log, snapshot, key, policy.last_reason, policy
+                    )
                     print(key, flush=True)
                     send(key)
                     last_activity = time.monotonic()
@@ -375,6 +648,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # decisions (one per item bought), so it must not count.
                     if snapshot.store is not None:
                         recent_cells.clear()
+                        multiplier_combat_grace = 0
                         continue
                     # Searching a dead-end for a secret door, fighting/drinking in
                     # place during combat, and deliberately waiting out a Word of
@@ -386,19 +660,33 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # window on its own.
                     if (
                         policy.last_reason in STATIONARY_REASONS
+                        or policy.last_reason in MINING_DIG_REASONS
                         or policy.last_reason.startswith("item:")
                     ):
+                        if policy.last_reason == "melee" and multiplier_combat_grace:
+                            multiplier_combat_grace = MULTIPLIER_COMBAT_GRACE
                         continue
+                    if policy.last_reason.startswith(
+                        "fundraise:eliminate-multiplier"
+                    ):
+                        multiplier_combat_grace = MULTIPLIER_COMBAT_GRACE
+                    elif multiplier_combat_grace:
+                        multiplier_combat_grace -= 1
                     pos = snapshot.player.position
                     recent_cells.append((snapshot.floor_key, pos.y, pos.x))
-                    if _is_looping(recent_cells):
+                    loop_window = (
+                        MULTIPLIER_COMBAT_LOOP_WINDOW
+                        if multiplier_combat_grace
+                        else LOOP_WINDOW
+                    )
+                    if _is_looping(recent_cells, window=loop_window):
                         _write_decision(
-                            args.decision_log, snapshot, "", "loop-detected"
+                            args.decision_log, snapshot, "", "loop-detected", policy
                         )
                         cells = sorted({(c[1], c[2]) for c in recent_cells})
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} turn={snapshot.turn} "
-                            f"confined to {cells} over {LOOP_WINDOW} decisions; stopping the bot "
+                            f"confined to {cells} over {loop_window} decisions; stopping the bot "
                             f"for investigation",
                             flush=True,
                         )
@@ -450,15 +738,16 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
             time.sleep(args.poll_interval)
 
 
-def _is_looping(recent_cells) -> bool:
+def _is_looping(recent_cells, *, window: int = LOOP_WINDOW) -> bool:
     """True for a confined single-floor oscillation or rapid two-floor ping-pong.
 
     Needs a full window so a genuinely small room or a brief back-and-forth while
     routing does not trip it. A normal floor change happens once; a stair loop
     alternates between two floors on nearly every decision.
     """
-    if len(recent_cells) < LOOP_WINDOW:
+    if len(recent_cells) < window:
         return False
+    recent_cells = list(recent_cells)[-window:]
     floors = {c[0] for c in recent_cells}
     if len(floors) == 1:
         cells = {(c[1], c[2]) for c in recent_cells}
@@ -473,7 +762,7 @@ def _is_looping(recent_cells) -> bool:
     )
     return (
         len(states) <= LOOP_MAX_DISTINCT
-        and floor_transitions >= LOOP_WINDOW // 2
+        and floor_transitions >= window // 2
     )
 
 

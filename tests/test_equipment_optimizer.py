@@ -1,0 +1,442 @@
+import unittest
+
+from hengbot.equipment_optimizer import (
+    LoadoutMetrics,
+    OwnedEquipment,
+    OwnedEquipmentCatalog,
+    SLOT_MAIN_HAND,
+    SLOT_SUB_HAND,
+    TR_NO_TELE,
+    TR_TELEPORT,
+    enumerate_loadouts,
+    optimize_loadout,
+)
+from hengbot.model import (
+    SV_DRAGON_HELM,
+    SV_LITE_LANTERN,
+    TVAL_ARROW,
+    TVAL_HELM,
+    TVAL_LITE,
+    InventoryItem,
+)
+from hengbot.model import StoreItem
+
+
+def gear(
+    item_id,
+    tval,
+    *,
+    flags=(),
+    known=True,
+    fully_known=True,
+    ego=False,
+    artifact=False,
+    cursed=False,
+    broken=False,
+    pseudo_feeling="",
+    equipped_slot=None,
+    teleport_suppressed=False,
+    sval=1,
+):
+    item = InventoryItem(
+        slot=item_id,
+        name=item_id,
+        count=1,
+        tval=tval,
+        sval=sval,
+        aware=known,
+        known=known,
+        fully_known=fully_known,
+        is_equipment=True,
+        is_ego=ego,
+        is_artifact=artifact,
+        is_cursed=cursed,
+        is_broken=broken,
+        pseudo_feeling=pseudo_feeling,
+        known_flags=frozenset(flags),
+    )
+    return OwnedEquipment(
+        item_id,
+        item,
+        "equipped" if equipped_slot else "home",
+        equipped_slot=equipped_slot,
+        random_teleport_suppressed=teleport_suppressed,
+    )
+
+
+def metrics(margin, *, dps=None, survival=None, speed=0, secondary=0, traits=()):
+    return LoadoutMetrics(
+        expected_dps=margin if dps is None else dps,
+        survival_turns=margin if survival is None else survival,
+        combat_margin=margin,
+        speed_bonus=speed,
+        secondary_value=secondary,
+        relevant_traits=frozenset(traits),
+    )
+
+
+class EquipmentOptimizerTest(unittest.TestCase):
+    def setUp(self):
+        self.light = gear("light", 39)
+
+    def test_enumerates_shield_two_hand_and_dual_wield_configs(self):
+        sword = gear("sword", 23)
+        axe = gear("axe", 22)
+        shield = gear("shield", 34)
+        modes = {
+            loadout.hand_mode
+            for loadout in enumerate_loadouts([self.light, sword, axe, shield])
+        }
+        self.assertEqual(
+            modes,
+            {"empty", "one_handed", "two_handed", "weapon_shield", "dual_wield"},
+        )
+
+    def test_digging_tool_is_never_a_combat_loadout_weapon(self):
+        shovel = gear("shovel", 20)
+        sword = gear("sword", 23)
+        result = optimize_loadout(
+            [self.light, shovel, sword],
+            lambda loadout: metrics(
+                1000 if "shovel" in loadout.item_ids else len(loadout.item_ids)
+            ),
+            depth=1,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertNotIn("shovel", result.best.loadout.item_ids)
+        self.assertIn("sword", result.best.loadout.item_ids)
+
+    def test_never_uses_one_physical_ring_twice(self):
+        ring = gear("ring", 45)
+        loadouts = list(enumerate_loadouts([self.light, ring]))
+        self.assertTrue(any(loadout.item_ids == {"light", "ring"} for loadout in loadouts))
+        self.assertTrue(all(len(loadout.slots) == len(loadout.item_ids) for loadout in loadouts))
+
+    def test_global_synergy_beats_individually_stronger_weapon(self):
+        raw_weapon = gear("raw", 23)
+        utility_weapon = gear("utility", 23)
+        raw_armour = gear("raw-armour", 36)
+        synergy_armour = gear("synergy-armour", 36)
+
+        def evaluate(loadout):
+            ids = loadout.item_ids
+            score = 10.0
+            if "raw" in ids:
+                score += 5.0
+            if "utility" in ids:
+                score += 4.0
+            if "raw-armour" in ids:
+                score += 4.0
+            if "synergy-armour" in ids:
+                score += 3.0
+            if {"utility", "synergy-armour"}.issubset(ids):
+                score += 5.0
+            return metrics(score)
+
+        result = optimize_loadout(
+            [self.light, raw_weapon, utility_weapon, raw_armour, synergy_armour],
+            evaluate,
+            depth=1,
+        )
+        self.assertIsNotNone(result.best)
+        self.assertIn("utility", result.best.loadout.item_ids)
+        self.assertIn("synergy-armour", result.best.loadout.item_ids)
+
+    def test_depth_requirements_apply_to_complete_loadout_union(self):
+        fire = gear("fire-ring", 45, flags={50})
+        confusion = gear("confusion-amulet", 40, flags={57})
+        result = optimize_loadout(
+            [self.light, fire, confusion],
+            lambda loadout: metrics(float(len(loadout.item_ids))),
+            depth=20,
+        )
+        self.assertEqual(result.best.loadout.item_ids, {"light", "fire-ring", "confusion-amulet"})
+
+    def test_no_teleport_is_never_an_exploration_candidate(self):
+        blocked = gear("blocked", 23, flags={TR_NO_TELE})
+        safe = gear("safe", 23)
+        result = optimize_loadout(
+            [self.light, blocked, safe],
+            lambda loadout: metrics(100 if "blocked" in loadout.item_ids else 1),
+            depth=1,
+        )
+        self.assertNotIn("blocked", result.best.loadout.item_ids)
+
+    def test_random_teleport_requires_verified_suppression(self):
+        unsafe = gear("unsafe", 23, flags={TR_TELEPORT})
+        safe = gear(
+            "safe-teleport",
+            23,
+            flags={TR_TELEPORT},
+            teleport_suppressed=True,
+        )
+        loadouts = list(enumerate_loadouts([self.light, unsafe, safe]))
+        self.assertTrue(all("unsafe" not in loadout.item_ids for loadout in loadouts))
+        self.assertTrue(any("safe-teleport" in loadout.item_ids for loadout in loadouts))
+
+    def test_ego_and_artifact_need_full_identification(self):
+        ego = gear("ego", 23, ego=True, fully_known=False)
+        result = optimize_loadout(
+            [self.light, ego], lambda loadout: metrics(1), depth=1
+        )
+        self.assertEqual(result.incomplete_item_ids, {"ego"})
+        self.assertEqual(result.combinations_considered, 0)
+        self.assertFalse(result.timed_out)
+        self.assertTrue(all("ego" not in entry.loadout.item_ids for entry in result.pareto_frontier))
+
+    def test_dragon_helm_needs_full_identification_for_random_resistance(self):
+        helm = gear(
+            "dragon-helm",
+            TVAL_HELM,
+            sval=SV_DRAGON_HELM,
+            fully_known=False,
+        )
+        result = optimize_loadout(
+            [self.light, helm], lambda loadout: metrics(1), depth=40
+        )
+        self.assertEqual(result.incomplete_item_ids, {"dragon-helm"})
+        self.assertTrue(
+            all(
+                "dragon-helm" not in entry.loadout.item_ids
+                for entry in result.pareto_frontier
+            )
+        )
+
+    def test_unidentified_average_item_is_ignored_without_blocking(self):
+        average = gear(
+            "average",
+            23,
+            known=False,
+            fully_known=False,
+            pseudo_feeling="average",
+        )
+        result = optimize_loadout(
+            [self.light, average], lambda loadout: metrics(1), depth=1
+        )
+        self.assertFalse(result.timed_out)
+        self.assertEqual(result.incomplete_item_ids, frozenset())
+        self.assertIsNotNone(result.best)
+        self.assertNotIn("average", result.best.loadout.item_ids)
+
+    def test_cursed_and_broken_items_are_not_candidates(self):
+        cursed = gear("cursed", 23, cursed=True)
+        broken = gear("broken", 23, broken=True)
+        loadouts = list(enumerate_loadouts([self.light, cursed, broken]))
+        self.assertTrue(all(not ({"cursed", "broken"} & loadout.item_ids) for loadout in loadouts))
+
+    def test_destruction_is_required_from_fifty(self):
+        chaos = gear("chaos", 45, flags={62})
+        nether = gear("nether", 40, flags={60})
+        telepathy = gear("telepathy", 32, flags={79})
+        owned = [self.light, chaos, nether, telepathy]
+        blocked = optimize_loadout(owned, lambda loadout: metrics(10), depth=50)
+        ready = optimize_loadout(
+            owned, lambda loadout: metrics(10), depth=50, has_destruction=True
+        )
+        self.assertIsNone(blocked.best)
+        self.assertIsNotNone(ready.best)
+
+    def test_speed_plus_twenty_five_is_required_only_after_eighty(self):
+        requirements = frozenset({"resist_chaos", "resist_neth", "telepathy"})
+        at_eighty = optimize_loadout(
+            [self.light],
+            lambda loadout: metrics(10, speed=0),
+            depth=80,
+            intrinsic_abilities=requirements,
+            has_destruction=True,
+        )
+        at_eighty_one = optimize_loadout(
+            [self.light],
+            lambda loadout: metrics(10, speed=24),
+            depth=81,
+            intrinsic_abilities=requirements,
+            has_destruction=True,
+        )
+        self.assertIsNotNone(at_eighty.best)
+        self.assertIsNone(at_eighty_one.best)
+
+    def test_one_percent_tie_keeps_current_loadout(self):
+        current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)
+        candidate = gear("candidate", 23)
+
+        def evaluate(loadout):
+            return metrics(100.5 if "candidate" in loadout.item_ids else 100.0)
+
+        result = optimize_loadout(
+            [self.light, current, candidate],
+            evaluate,
+            depth=1,
+            current_item_ids=frozenset({"light", "current"}),
+        )
+        self.assertEqual(result.best.loadout.item_ids, {"light", "current"})
+
+    def test_more_than_one_percent_replaces_current_loadout(self):
+        current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)
+        candidate = gear("candidate", 23)
+
+        def evaluate(loadout):
+            return metrics(102.0 if "candidate" in loadout.item_ids else 100.0)
+
+        result = optimize_loadout(
+            [self.light, current, candidate],
+            evaluate,
+            depth=1,
+            current_item_ids=frozenset({"light", "current"}),
+        )
+        self.assertIn("candidate", result.best.loadout.item_ids)
+
+    def test_finite_combat_margin_replaces_negative_infinity(self):
+        empty = gear("empty", 39)
+        weapon = gear("weapon", 23)
+
+        result = optimize_loadout(
+            [empty, weapon],
+            lambda loadout: metrics(
+                1 if "weapon" in loadout.item_ids else -float("inf")
+            ),
+            depth=1,
+        )
+
+        self.assertIn("weapon", result.best.loadout.item_ids)
+
+    def test_best_selection_does_not_claim_a_disposal_proof(self):
+        weak = gear("weak", 23)
+        strong = gear("strong", 23)
+
+        def evaluate(loadout):
+            if "strong" in loadout.item_ids:
+                return metrics(20, traits={"resist_fire"})
+            if "weak" in loadout.item_ids:
+                return metrics(10)
+            return metrics(1)
+
+        result = optimize_loadout([self.light, weak, strong], evaluate, depth=1)
+        self.assertEqual(result.dominated_item_ids, frozenset())
+
+    def test_timeout_returns_no_partial_best(self):
+        result = optimize_loadout(
+            [self.light], lambda loadout: metrics(1), depth=1, timeout_seconds=0
+        )
+        self.assertTrue(result.timed_out)
+        self.assertIsNone(result.best)
+
+    def test_static_requirements_skip_expensive_evaluation(self):
+        calls = 0
+
+        def evaluate(loadout):
+            nonlocal calls
+            calls += 1
+            return metrics(1)
+
+        result = optimize_loadout([self.light], evaluate, depth=1)
+
+        self.assertFalse(result.timed_out)
+        self.assertEqual(result.combinations_considered, 2)
+        self.assertEqual(result.invalid_combinations, 1)
+        self.assertEqual(calls, 1)
+
+
+class OwnedEquipmentCatalogTest(unittest.TestCase):
+    @staticmethod
+    def _home_item(letter, name="sword"):
+        return StoreItem(
+            letter=letter,
+            name=name,
+            count=1,
+            tval=23,
+            sval=1,
+            price=0,
+            known=True,
+            fully_known=True,
+            is_equipment=True,
+        )
+
+    def test_keeps_identical_physical_home_items(self):
+        catalog = OwnedEquipmentCatalog()
+        catalog.observe_home_page(
+            [self._home_item("a"), self._home_item("b")]
+        )
+        self.assertEqual(len(catalog.items), 2)
+        self.assertEqual(len({item.id for item in catalog.items}), 2)
+
+    def test_home_scan_completes_only_when_a_page_repeats(self):
+        catalog = OwnedEquipmentCatalog()
+        first = [self._home_item("a", "sword")]
+        second = [self._home_item("a", "armour")]
+        self.assertFalse(catalog.observe_home_page(first))
+        self.assertFalse(catalog.observe_home_page(second))
+        self.assertTrue(catalog.observe_home_page(first))
+        self.assertTrue(catalog.home_scan_complete)
+
+    def test_invalidation_discards_stale_home_scan(self):
+        catalog = OwnedEquipmentCatalog()
+        page = [self._home_item("a")]
+        catalog.observe_home_page(page)
+        catalog.observe_home_page(page)
+        catalog.invalidate_home()
+        self.assertFalse(catalog.home_scan_complete)
+        self.assertEqual(catalog.items, ())
+
+    def test_refresh_carried_preserves_equipped_slot(self):
+        catalog = OwnedEquipmentCatalog()
+        worn = InventoryItem(
+            slot="main_hand",
+            name="sword",
+            count=1,
+            tval=23,
+            sval=1,
+            aware=True,
+            known=True,
+            fully_known=True,
+            is_equipment=True,
+        )
+        catalog.refresh_carried([], [worn])
+        self.assertEqual(catalog.items[0].equipped_slot, "main_hand")
+
+    def test_refresh_carried_keeps_light_identity_when_fuel_name_changes(self):
+        catalog = OwnedEquipmentCatalog()
+
+        def lantern(fuel):
+            return InventoryItem(
+                slot="light",
+                name=f"Brass Lantern ({fuel} turns of light)",
+                count=1,
+                tval=TVAL_LITE,
+                sval=SV_LITE_LANTERN,
+                aware=True,
+                known=True,
+                fully_known=True,
+                is_equipment=True,
+                fuel=fuel,
+                known_flags=frozenset({86, 122, 127}),
+            )
+
+        catalog.refresh_carried([], [lantern(8004)])
+        first_id = catalog.items[0].id
+        catalog.refresh_carried([], [lantern(8003)])
+
+        self.assertEqual(catalog.items[0].id, first_id)
+
+    def test_ammunition_is_not_owned_loadout_equipment(self):
+        arrow = StoreItem(
+            letter="a",
+            name="cursed arrow",
+            count=1,
+            tval=TVAL_ARROW,
+            sval=1,
+            price=0,
+            known=False,
+            fully_known=False,
+            is_equipment=True,
+            pseudo_feeling="cursed",
+        )
+        catalog = OwnedEquipmentCatalog()
+
+        catalog.observe_home_page([arrow])
+
+        self.assertEqual(catalog.items, ())
+
+
+if __name__ == "__main__":
+    unittest.main()

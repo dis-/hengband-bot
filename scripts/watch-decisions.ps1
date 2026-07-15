@@ -14,7 +14,7 @@ function Format-Key([string]$Key) {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Hengbot - Current Policy Decision"
-$form.Size = New-Object System.Drawing.Size(720, 510)
+$form.Size = New-Object System.Drawing.Size(760, 620)
 $form.MinimumSize = New-Object System.Drawing.Size(600, 420)
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.BackColor = [System.Drawing.Color]::FromArgb(24, 28, 34)
@@ -60,6 +60,14 @@ $timer.Add_Tick({
         } else {
             "outside store"
         }
+        $requirements = @($decision.procurement_requirements | ForEach-Object {
+            "  - $($_.item): $($_.current)/$($_.target)  (need $($_.missing))"
+        })
+        $requirementsText = if ($requirements.Count -gt 0) {
+            $requirements -join "`r`n"
+        } else {
+            "  none"
+        }
         $view.Text = @"
 HENGBOT CURRENT POLICY
 
@@ -77,6 +85,9 @@ Resources : gold $($decision.player.gold)  food $($decision.player.food_state)
 Pack      : $($decision.inventory.used)/23 used  ($($decision.inventory.free) free)
 Threats   : $($decision.visible_hostiles) visible hostiles  |  $status
 Context   : $store
+
+PROCUREMENT REQUIREMENTS
+$requirementsText
 "@
         $view.SelectionStart = 0
         $view.SelectionLength = 22
