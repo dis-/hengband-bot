@@ -39,6 +39,9 @@ class TownMap:
     walkable: frozenset[Position]
     stores: dict[int, Position] = field(default_factory=dict)  # store_type -> entrance
     buildings: dict[int, Position] = field(default_factory=dict)
+    quest_buildings: dict[int, frozenset[Position]] = field(default_factory=dict)
+    quest_entrances: dict[int, frozenset[Position]] = field(default_factory=dict)
+    reward_positions: frozenset[Position] = frozenset()
     entrance: Position | None = None  # the '>' dungeon entrance the town wraps
 
     def is_walkable(self, position: Position) -> bool:
@@ -49,6 +52,12 @@ class TownMap:
 
     def building_position(self, building_type: int) -> Position | None:
         return self.buildings.get(building_type)
+
+    def quest_building_positions(self, quest_id: int) -> frozenset[Position]:
+        return self.quest_buildings.get(quest_id, frozenset())
+
+    def quest_entrance_positions(self, quest_id: int) -> frozenset[Position]:
+        return self.quest_entrances.get(quest_id, frozenset())
 
 
 def _floor_flag_chars(lines: list[str]) -> frozenset[str]:
@@ -79,6 +88,56 @@ def _building_flag_chars(lines: list[str]) -> dict[str, int]:
     return result
 
 
+def _flag_special(parts: list[str]) -> int | None:
+    """Return the terrain special field when an F: line carries one."""
+    if len(parts) < 10:
+        return None
+    try:
+        return int(parts[9])
+    except ValueError:
+        return None
+
+
+def _quest_entrance_flag_chars(lines: list[str]) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for line in lines:
+        if not line.startswith("F:"):
+            continue
+        parts = line.split(":")
+        if len(parts) < 3 or parts[2] != "QUEST_ENTER":
+            continue
+        quest_id = _flag_special(parts)
+        if quest_id is not None and quest_id > 0:
+            result[parts[1]] = quest_id
+    return result
+
+
+def _quest_building_flag_chars(lines: list[str]) -> dict[str, set[int]]:
+    result: dict[str, set[int]] = {}
+    for line in lines:
+        if not line.startswith("F:"):
+            continue
+        parts = line.split(":")
+        if len(parts) < 3 or not parts[2].startswith("BUILDING_"):
+            continue
+        quest_id = _flag_special(parts)
+        if quest_id is not None and quest_id > 0:
+            result.setdefault(parts[1], set()).add(quest_id)
+    return result
+
+
+def _reward_flag_chars(lines: list[str]) -> frozenset[str]:
+    """Map floor glyphs that can materialize a quest reward object."""
+    chars = set()
+    for line in lines:
+        if not line.startswith("F:"):
+            continue
+        parts = line.split(":")
+        if len(parts) >= 5 and parts[2] == "FLOOR" and any(part != "0" for part in parts[4:]):
+            chars.add(parts[1])
+    return frozenset(chars)
+
+
 def parse_town_map(path: Path) -> TownMap:
     text = path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
@@ -99,27 +158,41 @@ def parse_town_map(path: Path) -> TownMap:
     width = max(len(r) for r in rows)
     floor_chars = _floor_flag_chars(definition_lines)
     building_chars = _building_flag_chars(definition_lines)
+    quest_entrance_chars = _quest_entrance_flag_chars(definition_lines)
+    quest_building_chars = _quest_building_flag_chars(definition_lines)
+    reward_chars = _reward_flag_chars(definition_lines)
     walkable_here = _WALKABLE_CHARS | floor_chars
 
     walkable: set[Position] = set()
     stores: dict[int, Position] = {}
     buildings: dict[int, Position] = {}
+    quest_buildings: dict[int, set[Position]] = {}
+    quest_entrances: dict[int, set[Position]] = {}
+    reward_positions: set[Position] = set()
     entrance: Position | None = None
     for y, row in enumerate(rows):
         for x, ch in enumerate(row):
+            pos = Position(y, x)
             if ch in _STORE_DIGITS:
-                stores[int(ch) - 1] = Position(y, x)
-                walkable.add(Position(y, x))  # you walk onto the entrance
+                stores[int(ch) - 1] = pos
+                walkable.add(pos)  # you walk onto the entrance
             elif ch in building_chars:
-                buildings[building_chars[ch]] = Position(y, x)
-                walkable.add(Position(y, x))
+                buildings[building_chars[ch]] = pos
+                walkable.add(pos)
             elif ch in walkable_here:
-                walkable.add(Position(y, x))
+                walkable.add(pos)
+            if ch in quest_entrance_chars:
+                quest_entrances.setdefault(quest_entrance_chars[ch], set()).add(pos)
+                walkable.add(pos)
+            for quest_id in quest_building_chars.get(ch, set()):
+                quest_buildings.setdefault(quest_id, set()).add(pos)
+            if ch in reward_chars:
+                reward_positions.add(pos)
             if ch == ">":
                 # The dungeon entrance the player descends from. Recorded as a
                 # first-class goal so the bot can route to it at night, when the
                 # unlit '>' tile is absent from the emitted snapshot.
-                entrance = Position(y, x)
+                entrance = pos
 
     name = path.stem
     return TownMap(
@@ -129,6 +202,9 @@ def parse_town_map(path: Path) -> TownMap:
         walkable=frozenset(walkable),
         stores=stores,
         buildings=buildings,
+        quest_buildings={key: frozenset(value) for key, value in quest_buildings.items()},
+        quest_entrances={key: frozenset(value) for key, value in quest_entrances.items()},
+        reward_positions=frozenset(reward_positions),
         entrance=entrance,
     )
 

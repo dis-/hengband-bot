@@ -20,9 +20,12 @@ class TownMapParseTest(unittest.TestCase):
                 "# a tiny town",
                 "F:!:FLOOR:3",  # '!' is an explicit floor char
                 "F:h:BUILDING_13:3",
+                "F:q:QUEST_ENTER:3:0:0:0:0:NONE:1",
+                "F:r:FLOOR:3:0:42",
+                "F:H:BUILDING_1:3:0:0:0:0:NONE:1",
                 "D:#######",
                 "D:#.1.!.#",
-                "D:#.hTT.#",  # T = tree, blocked
+                "D:#.hqrH#",
                 "D:#######",
             ]
         )
@@ -36,7 +39,11 @@ class TownMapParseTest(unittest.TestCase):
         self.assertTrue(tm.is_walkable(Position(1, 2)))  # store entrance
         self.assertTrue(tm.is_walkable(Position(1, 4)))  # '!' -> FLOOR flag
         self.assertTrue(tm.is_walkable(Position(2, 2)))  # building entrance
-        self.assertFalse(tm.is_walkable(Position(2, 3)))  # tree
+        self.assertTrue(tm.is_walkable(Position(2, 3)))  # quest entrance
+        self.assertEqual(tm.quest_entrance_positions(1), frozenset({Position(2, 3)}))
+        self.assertEqual(tm.quest_building_positions(1), frozenset({Position(2, 5)}))
+        self.assertEqual(tm.reward_positions, frozenset({Position(2, 4)}))
+        self.assertFalse(tm.is_walkable(Position(2, 6)))  # wall
         self.assertFalse(tm.is_walkable(Position(0, 0)))  # wall
 
     def test_all_eight_store_digits_map_to_store_types(self):
@@ -66,6 +73,9 @@ class RealOutpostMapTest(unittest.TestCase):
         self.assertEqual(tm.store_position(0), Position(31, 119))
         self.assertEqual(len(tm.stores), 8)
         self.assertIsNotNone(tm.building_position(13))
+        self.assertEqual(tm.quest_building_positions(1), frozenset({Position(26, 98)}))
+        self.assertIn(Position(35, 177), tm.quest_entrance_positions(1))
+        self.assertIn(Position(27, 98), tm.reward_positions)
 
     def test_a_floor_route_exists_from_the_dungeon_entrance_to_a_store(self):
         # The Yeek-Cave up-stairs land at (31, 150); a walkable route to the

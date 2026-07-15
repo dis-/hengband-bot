@@ -64,6 +64,7 @@ from hengbot.model import (
     MonsterState,
     PlayerState,
     Position,
+    QuestState,
     Snapshot,
     StoreItem,
     StoreState,
@@ -152,6 +153,10 @@ def grid(
     can_dig=False,
     entrance_dungeon_id=-1,
     building_type=-1,
+    has_quest_enter=False,
+    has_quest_exit=False,
+    quest_id=-1,
+    building_special=-1,
 ):
     pos = Position(y, x)
     walkable = (passable and not closed_door and not rubble) or open_door
@@ -173,6 +178,10 @@ def grid(
         has_gold=known and gold,
         entrance_dungeon_id=entrance_dungeon_id,
         building_type=building_type,
+        has_quest_enter=known and has_quest_enter,
+        has_quest_exit=known and has_quest_exit,
+        quest_id=quest_id if known else -1,
+        building_special=building_special if known else -1,
     )
 
 
@@ -2334,6 +2343,134 @@ class BountyCashoutTest(unittest.TestCase):
         self.assertNotIn(Position(10, 11), policy._known_loot)
         self.assertIsNone(policy._loot_target)
         self.assertNotEqual(policy.last_reason, "seek-loot")
+
+
+class FixedQuestTest(unittest.TestCase):
+    QUEST_ID = 1
+
+    def _quest(self, status: int) -> QuestState:
+        return QuestState(
+            id=self.QUEST_ID,
+            name="Thieves Hideout",
+            status=status,
+            type=6,
+            level=5,
+            flags=6,
+            fixed=True,
+            has_reward=True,
+            reward_baseitem_id=42,
+        )
+
+    def _town_map(self, *, reward=False) -> TownMap:
+        walkable = {
+            Position(y, x)
+            for y in range(66)
+            for x in range(198)
+            if not reward or y == 27
+        }
+        return TownMap(
+            name="Outpost",
+            width=198,
+            height=66,
+            walkable=frozenset(walkable),
+            quest_buildings={self.QUEST_ID: frozenset({Position(26, 98)})},
+            quest_entrances={self.QUEST_ID: frozenset({Position(35, 177)})},
+            reward_positions=frozenset({Position(27, 98)}),
+        )
+
+    def _town_snapshot(self, y, x, grids, status):
+        return Snapshot(
+            player(y, x, level=8, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(0, 0, 0),
+            width=198,
+            height=66,
+            town_flag=True,
+            town_id=0,
+            town_index=1,
+            quests={self.QUEST_ID: self._quest(status)},
+        )
+
+    def test_requests_allowed_fixed_quest_at_quest_building(self):
+        grids = {
+            Position(26, 97): grid(26, 97),
+            Position(26, 98): grid(26, 98, building_type=1, building_special=1),
+        }
+        policy = HengbotPolicy(self._town_map())
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+
+        key = policy.choose_key(self._town_snapshot(26, 97, grids, 0))
+
+        self.assertEqual(key, "6q\x1b")
+        self.assertEqual(policy.last_reason, "fixedquest:request")
+
+    def test_enters_taken_fixed_quest_from_visible_entrance(self):
+        grids = {
+            Position(35, 176): grid(35, 176),
+            Position(35, 177): grid(
+                35, 177, has_quest_enter=True, quest_id=self.QUEST_ID
+            ),
+        }
+        policy = HengbotPolicy(self._town_map())
+
+        key = policy.choose_key(self._town_snapshot(35, 176, grids, 1))
+
+        self.assertEqual(key, "6y")
+        self.assertEqual(policy.last_reason, "fixedquest:enter")
+
+    def test_claims_completed_fixed_quest_and_latches_reward(self):
+        grids = {
+            Position(26, 97): grid(26, 97),
+            Position(26, 98): grid(26, 98, building_type=1, building_special=1),
+        }
+        policy = HengbotPolicy(self._town_map())
+
+        key = policy.choose_key(self._town_snapshot(26, 97, grids, 2))
+
+        self.assertEqual(key, "6q\x1b")
+        self.assertEqual(policy.last_reason, "fixedquest:claim")
+        self.assertEqual(policy._fixed_quest_reward_pending, self.QUEST_ID)
+
+    def test_completed_fixed_quest_floor_heads_for_upstairs(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11, upstairs=True),
+        }
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            floor_key=(0, 1, self.QUEST_ID),
+            quests={self.QUEST_ID: self._quest(2)},
+        )
+        policy = HengbotPolicy()
+
+        key = policy.choose_key(snap)
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "fixedquest:seek-exit")
+
+    def test_collects_pending_fixed_quest_reward_from_reward_tile(self):
+        grids = {
+            Position(27, 97): grid(27, 97),
+            Position(27, 98): grid(27, 98, objects=1),
+        }
+        policy = HengbotPolicy(self._town_map(reward=True))
+        policy._fixed_quest_reward_pending = self.QUEST_ID
+
+        key = policy.choose_key(self._town_snapshot(27, 97, grids, 3))
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "fixedquest:reward-approach")
+
+        policy._floor_key = (0, 0, 0)
+        policy._last_position = Position(27, 97)
+        pickup = self._town_snapshot(27, 98, grids, 3)
+        key = policy.choose_key(pickup)
+
+        self.assertEqual(key, "g")
+        self.assertEqual(policy.last_reason, "fixedquest:reward-pickup")
 
 
 class ProbeTest(unittest.TestCase):

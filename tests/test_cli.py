@@ -252,6 +252,63 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertTrue(town.in_town)
         self.assertFalse(town.on_open_wilderness)
 
+    def test_parses_fixed_quest_progress_and_visible_quest_grids(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["floor"].update({"level": 0, "in_town": True, "town_id": 0, "town_index": 1})
+        data["progress"] = {
+            "quests": [
+                {
+                    "id": 1,
+                    "name": "Thieves Hideout",
+                    "status": 1,
+                    "type": 6,
+                    "level": 5,
+                    "dungeon_id": 0,
+                    "r_idx": 0,
+                    "cur_num": 0,
+                    "max_num": 0,
+                    "num_mon": 0,
+                    "flags": 6,
+                    "complev": 0,
+                    "comptime": 0,
+                    "fixed": True,
+                    "has_reward": True,
+                    "reward_artifact_id": None,
+                    "reward_baseitem_id": 42,
+                    "reward_instant_artifact": False,
+                }
+            ]
+        }
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "terrain": {"move": True, "quest_enter": True, "quest_exit": False},
+                "quest_id": 1,
+            },
+            {
+                "y": 5,
+                "x": 7,
+                "known": True,
+                "terrain": {"move": True, "building": True},
+                "building_type": 1,
+                "building_special": 1,
+            },
+        ]
+
+        snap = parse_snapshot(data, {})
+
+        self.assertEqual(snap.town_id, 0)
+        self.assertEqual(snap.town_index, 1)
+        self.assertIn(1, snap.quests)
+        self.assertEqual(snap.quests[1].status, 1)
+        self.assertTrue(snap.quests[1].fixed)
+        self.assertEqual(snap.quests[1].reward_baseitem_id, 42)
+        self.assertTrue(snap.grids[Position(5, 6)].has_quest_enter)
+        self.assertEqual(snap.grids[Position(5, 6)].quest_id, 1)
+        self.assertEqual(snap.grids[Position(5, 7)].building_special, 1)
+
     def test_parses_entered_dungeon_ids_for_recall_selection(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["progress"] = {

@@ -438,6 +438,10 @@ class GridState:
     has_gold: bool = False
     entrance_dungeon_id: int = -1
     building_type: int = -1
+    has_quest_enter: bool = False
+    has_quest_exit: bool = False
+    quest_id: int = -1
+    building_special: int = -1
 
     @property
     def is_store(self) -> bool:
@@ -499,6 +503,28 @@ class MonsterState:
 
 
 @dataclass(frozen=True)
+class QuestState:
+    id: int
+    name: str = ""
+    status: int = 0
+    type: int = 0
+    level: int = 0
+    dungeon_id: int = 0
+    r_idx: int = 0
+    cur_num: int = 0
+    max_num: int = 0
+    num_mon: int = 0
+    flags: int = 0
+    complev: int = 0
+    comptime: int = 0
+    fixed: bool = False
+    has_reward: bool = False
+    reward_artifact_id: int | None = None
+    reward_baseitem_id: int = 0
+    reward_instant_artifact: bool = False
+
+
+@dataclass(frozen=True)
 class Snapshot:
     player: PlayerState
     grids: dict[Position, GridState]
@@ -520,9 +546,12 @@ class Snapshot:
     recall_depth: int = 0
     yeek_cave_conquered: bool = False
     angband_recall_unlocked: bool = False
+    quests: dict[int, QuestState] = field(default_factory=dict)
     # From the emitter's floor.in_town (AngbandWorld::is_in_any_town). None when an
     # older emitter did not send it, so in_town falls back to the floor heuristic.
     town_flag: bool | None = None
+    town_id: int = -1
+    town_index: int = 0
 
     def in_bounds(self, position: Position) -> bool:
         # With unknown dimensions, treat everything as in-bounds (no filtering).
@@ -678,6 +707,12 @@ def parse_snapshot(
                 int(grid_data.get("entrance_dungeon_id", -1)) if known else -1
             ),
             building_type=int(grid_data.get("building_type", -1)) if known else -1,
+            has_quest_enter=known and _as_bool(terrain.get("quest_enter", False)),
+            has_quest_exit=known and _as_bool(terrain.get("quest_exit", False)),
+            quest_id=int(grid_data.get("quest_id", -1)) if known else -1,
+            building_special=(
+                int(grid_data.get("building_special", -1)) if known else -1
+            ),
         )
 
     positions = {
@@ -752,6 +787,35 @@ def parse_snapshot(
     )
 
     progress = data.get("progress", {})
+    quests: dict[int, QuestState] = {}
+    for quest_data in progress.get("quests", []):
+        quest_id = int(quest_data.get("id", 0))
+        quests[quest_id] = QuestState(
+            id=quest_id,
+            name=str(quest_data.get("name", "")),
+            status=int(quest_data.get("status", 0)),
+            type=int(quest_data.get("type", 0)),
+            level=int(quest_data.get("level", 0)),
+            dungeon_id=int(quest_data.get("dungeon_id", 0)),
+            r_idx=int(quest_data.get("r_idx", 0)),
+            cur_num=int(quest_data.get("cur_num", 0)),
+            max_num=int(quest_data.get("max_num", 0)),
+            num_mon=int(quest_data.get("num_mon", 0)),
+            flags=int(quest_data.get("flags", 0)),
+            complev=int(quest_data.get("complev", 0)),
+            comptime=int(quest_data.get("comptime", 0)),
+            fixed=_as_bool(quest_data.get("fixed", False)),
+            has_reward=_as_bool(quest_data.get("has_reward", False)),
+            reward_artifact_id=(
+                int(quest_data["reward_artifact_id"])
+                if quest_data.get("reward_artifact_id") is not None
+                else None
+            ),
+            reward_baseitem_id=int(quest_data.get("reward_baseitem_id", 0)),
+            reward_instant_artifact=_as_bool(
+                quest_data.get("reward_instant_artifact", False)
+            ),
+        )
     return Snapshot(
         player=player,
         grids=grids,
@@ -764,6 +828,8 @@ def parse_snapshot(
         town_flag=(
             _as_bool(floor_data["in_town"]) if "in_town" in floor_data else None
         ),
+        town_id=int(floor_data.get("town_id", -1)),
+        town_index=int(floor_data.get("town_index", 0)),
         inventory=_parse_items(data.get("inventory", [])),
         equipment=_parse_items(data.get("equipment", [])),
         store=_parse_store(data.get("store")),
@@ -779,6 +845,7 @@ def parse_snapshot(
         angband_recall_unlocked=_as_bool(
             progress.get("angband_recall_unlocked", False)
         ),
+        quests=quests,
     )
 
 

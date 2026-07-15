@@ -144,6 +144,17 @@ RESTOCK_WAIT_MACRO = "R300\r"
 STORE_RETRY_TURNS = 5000
 DOWN_STAIRS_KEY = ">"
 UP_STAIRS_KEY = "<"
+QUEST_STATUS_UNTAKEN = 0
+QUEST_STATUS_TAKEN = 1
+QUEST_STATUS_COMPLETED = 2
+QUEST_STATUS_REWARDED = 3
+QUEST_STATUS_FINISHED = 4
+QUEST_ID_THIEF = 1
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF})
+FIXED_QUEST_MIN_LEVEL = {QUEST_ID_THIEF: 8}
+FIXED_QUEST_REWARD_POSITIONS = {
+    QUEST_ID_THIEF: frozenset({Position(27, 98)}),
+}
 # A closed door does not open just by walking into it (that depends on game
 # options and fails on locked doors); explicitly open it with 'o' + direction.
 OPEN_KEY = "o"
@@ -870,6 +881,7 @@ class HengbotPolicy:
         # dungeon whose final-guardian drop we are collecting before we recall out.
         self._conquered_seen: set[int] = set()
         self._victory_loot_dungeon: int | None = None
+        self._fixed_quest_reward_pending: int | None = None
         # The conquest target latch (see _conquest_target): sticky once chosen, so
         # consumable possession (a Speed potion bought/drunk/stashed) cannot flip
         # the recall destination back and forth.
@@ -1245,6 +1257,10 @@ class HengbotPolicy:
         conquest_loot = self._conquest_loot_key(snapshot)
         if conquest_loot is not None:
             return conquest_loot
+
+        fixed_quest = self._fixed_quest_key(snapshot, hostiles)
+        if fixed_quest is not None:
+            return fixed_quest
 
         stat_restore = self._stat_restore_quaff_key(snapshot, hostiles)
         if stat_restore is not None:
@@ -7122,6 +7138,219 @@ class HengbotPolicy:
         key = self._return_to_town_key(snapshot, self._hostiles(snapshot))
         self._last_return_trigger = "conquest-complete"
         return key
+
+    def _fixed_quest_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        if hostiles:
+            return None
+        quest_id = self._fixed_quest_target(snapshot)
+        if quest_id is None:
+            return None
+        quest = snapshot.quests.get(quest_id)
+        if quest is None:
+            return None
+        if snapshot.floor_key[2] == quest_id:
+            if quest.status == QUEST_STATUS_COMPLETED:
+                return self._fixed_quest_exit_key(snapshot, quest_id)
+            return None
+        if not snapshot.in_town:
+            return None
+        if self._fixed_quest_reward_pending == quest_id or quest.status == QUEST_STATUS_REWARDED:
+            return self._fixed_quest_reward_key(snapshot, quest_id)
+        if quest.status == QUEST_STATUS_COMPLETED:
+            return self._fixed_quest_building_key(
+                snapshot, quest_id, "fixedquest:claim", set_reward_pending=True
+            )
+        if quest.status == QUEST_STATUS_TAKEN:
+            return self._fixed_quest_enter_key(snapshot, quest_id)
+        if quest.status == QUEST_STATUS_UNTAKEN and self._fixed_quest_ready(snapshot, quest_id):
+            return self._fixed_quest_building_key(
+                snapshot, quest_id, "fixedquest:request", set_reward_pending=False
+            )
+        return None
+
+    def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
+        if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
+            return snapshot.floor_key[2]
+        for quest_id in FIXED_QUEST_ALLOWLIST:
+            if quest_id in snapshot.quests:
+                return quest_id
+        return None
+
+    def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
+        if snapshot.town_id not in {-1, 0}:
+            return False
+        if snapshot.player.level < FIXED_QUEST_MIN_LEVEL.get(quest_id, 99):
+            return False
+        if snapshot.player.hp < snapshot.player.max_hp:
+            return False
+        if not self._temporary_status_clear(snapshot):
+            return False
+        if not self._combat_weapon_ready(snapshot):
+            return False
+        if PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS:
+            return False
+        if not self._town_departure_ready(snapshot):
+            return False
+        return True
+
+    def _fixed_quest_building_positions(
+        self, snapshot: Snapshot, quest_id: int
+    ) -> frozenset[Position]:
+        visible = frozenset(
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.building_special == quest_id
+        )
+        if visible:
+            return visible
+        if self._town_map_active(snapshot):
+            return self._town_map.quest_building_positions(quest_id)
+        return frozenset()
+
+    def _fixed_quest_entrance_positions(
+        self, snapshot: Snapshot, quest_id: int
+    ) -> frozenset[Position]:
+        visible = frozenset(
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.has_quest_enter and grid.quest_id == quest_id
+        )
+        if visible:
+            return visible
+        if self._town_map_active(snapshot):
+            return self._town_map.quest_entrance_positions(quest_id)
+        return frozenset()
+
+    def _fixed_quest_building_key(
+        self,
+        snapshot: Snapshot,
+        quest_id: int,
+        reason: str,
+        *,
+        set_reward_pending: bool,
+    ) -> str | None:
+        positions = self._fixed_quest_building_positions(snapshot, quest_id)
+        if not positions:
+            return None
+        if snapshot.player.position in positions:
+            neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
+            if neighbors:
+                self.last_reason = f"{reason}:step-off"
+                return self._step_toward(snapshot, neighbors[0])
+            return None
+        step = self._nearest_goal_step(
+            snapshot,
+            lambda grid: grid.building_special == quest_id,
+        )
+        if step is None:
+            step = min(
+                (
+                    candidate
+                    for candidate in (
+                        self._town_map_goal_step(snapshot, pos) for pos in positions
+                    )
+                    if candidate is not None
+                ),
+                key=lambda pos: snapshot.player.position.distance_to(pos),
+                default=None,
+            )
+        if step is None:
+            return None
+        step_grid = snapshot.grid_at(step)
+        if step in positions or (
+            step_grid is not None and step_grid.building_special == quest_id
+        ):
+            if set_reward_pending:
+                self._fixed_quest_reward_pending = quest_id
+            self.last_reason = reason
+            return self._step_toward(snapshot, step) + "q" + LEAVE_STORE_KEY
+        self.last_reason = f"{reason}:approach"
+        return self._step_toward(snapshot, step)
+
+    def _fixed_quest_enter_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
+        positions = self._fixed_quest_entrance_positions(snapshot, quest_id)
+        if not positions:
+            return None
+        if snapshot.player.position in positions:
+            self.last_reason = "fixedquest:enter"
+            return DOWN_STAIRS_KEY + "y"
+        step = self._nearest_goal_step(
+            snapshot,
+            lambda grid: grid.has_quest_enter and grid.quest_id == quest_id,
+        )
+        if step is None:
+            step = min(
+                (
+                    candidate
+                    for candidate in (
+                        self._town_map_goal_step(snapshot, pos) for pos in positions
+                    )
+                    if candidate is not None
+                ),
+                key=lambda pos: snapshot.player.position.distance_to(pos),
+                default=None,
+            )
+        if step is None:
+            return None
+        self.last_reason = "fixedquest:enter" if step in positions else "fixedquest:approach"
+        suffix = "y" if step in positions else ""
+        return self._step_toward(snapshot, step) + suffix
+
+    def _fixed_quest_exit_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.has_up_stairs:
+            self.last_reason = "fixedquest:exit"
+            return UP_STAIRS_KEY
+        step = self._nearest_upstairs(snapshot)
+        if step is not None:
+            self.last_reason = "fixedquest:seek-exit"
+            return self._step_toward(snapshot, step)
+        return None
+
+    def _fixed_quest_reward_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
+        if len(snapshot.inventory) >= PACK_CAPACITY:
+            destroy = self._full_pack_destroy_key(snapshot)
+            if destroy is not None:
+                return destroy
+            self.last_reason = "fixedquest:reward-pack-full"
+            return WAIT_KEY
+        current = self._current_floor_item_key(
+            snapshot,
+            pickup_reason="fixedquest:reward-pickup",
+            trigger_reason="fixedquest:reward-trigger-autodestroy",
+        )
+        if current is not None:
+            return current
+        positions = FIXED_QUEST_REWARD_POSITIONS.get(quest_id, frozenset())
+        visible_reward = [
+            pos
+            for pos in positions
+            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
+        ]
+        if snapshot.player.position in positions and not visible_reward:
+            self._fixed_quest_reward_pending = None
+            self.last_reason = "fixedquest:reward-complete"
+            return None
+        target_positions = visible_reward or list(positions)
+        step = min(
+            (
+                candidate
+                for candidate in (
+                    self._town_map_goal_step(snapshot, pos) for pos in target_positions
+                )
+                if candidate is not None
+            ),
+            key=lambda pos: snapshot.player.position.distance_to(pos),
+            default=None,
+        )
+        if step is None:
+            if not positions:
+                self._fixed_quest_reward_pending = None
+            return None
+        self.last_reason = "fixedquest:reward-approach"
+        return self._step_toward(snapshot, step)
 
     def _bounty_cashout_key(self, snapshot: Snapshot) -> str | None:
         """Redeem every known wanted remain before ordinary town maintenance."""
