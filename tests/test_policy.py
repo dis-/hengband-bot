@@ -113,6 +113,7 @@ from hengbot.policy import (
     SHOP_APPROACH_STUCK_LIMIT,
     TUNNEL_KEY,
     TR_NO_TELE,
+    TOWN_CYCLE_WINDOW,
     WAIT_KEY,
 )
 
@@ -10797,6 +10798,96 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         key = pol._shop(snap)
         self.assertEqual(pol.last_reason, "home:leave-with-dominated")
         self.assertEqual(key, LEAVE_STORE_KEY)
+
+
+class TownCycleDetectorTest(unittest.TestCase):
+    """User directive: auto-detect and repair town repetition loops as a CLASS.
+    Every observed shape (Home-door bounce, store-to-store travel ping-pong)
+    collapses to a handful of (reason, position) signatures with zero
+    gold/pack/equipment progress — while staying invisible to the cell-based
+    loop guard (store snapshots reset it; travel keeps the position moving)."""
+
+    @staticmethod
+    def _town_snap(y=34, x=94, gold=100):
+        return Snapshot(
+            player(y, x, class_id=PLAYER_CLASS_WARRIOR, gold=gold),
+            {Position(y, x): grid(y, x)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[],
+        )
+
+    @staticmethod
+    def _prime_cycle(pol):
+        cycle = [
+            ("shop:travel", 37, 91),
+            ("shop:approach", 31, 77),
+            ("shop:leave", 31, 77),
+            ("shop:travel", 31, 77),
+            ("shop:approach", 37, 91),
+            ("shop:leave", 37, 91),
+        ]
+        for i in range(TOWN_CYCLE_WINDOW):
+            pol._town_signature_history.append(cycle[i % len(cycle)])
+
+    def test_cycle_detected_over_a_full_window(self):
+        pol = HengbotPolicy()
+        self._prime_cycle(pol)
+        self.assertTrue(pol._town_cycle_detected())
+
+    def test_varied_town_activity_is_not_a_cycle(self):
+        pol = HengbotPolicy()
+        for i in range(TOWN_CYCLE_WINDOW):
+            pol._town_signature_history.append(("shop:approach", 30, i))
+        self.assertFalse(pol._town_cycle_detected())
+
+    def test_live_pingpong_shape_trips_through_observe(self):
+        # The exact live shape: travel/approach/leave alternating between the
+        # Alchemist and Temple door tiles, gold frozen.
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        positions = [(37, 91), (31, 77)]
+        reasons = ["shop:travel", "shop:approach", "shop:leave"]
+        steps = 0
+        while not pol._town_cycle_pending and steps < TOWN_CYCLE_WINDOW + 12:
+            y, x = positions[(steps // 3) % 2]
+            pol.last_reason = reasons[steps % 3]
+            pol._observe(self._town_snap(y=y, x=x))
+            steps += 1
+        self.assertTrue(pol._town_cycle_pending)
+
+    def test_progress_resets_the_window(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_progress_marker = (100, 0, 0)
+        self._prime_cycle(pol)
+        pol.last_reason = "shop:travel"
+        pol._observe(self._town_snap(gold=900))  # gold rose: not a cycle
+        self.assertFalse(pol._town_cycle_pending)
+        self.assertLessEqual(len(pol._town_signature_history), 1)
+
+    def test_first_detection_breaks_the_cycle_and_latches_stores(self):
+        pol = HengbotPolicy()
+        pol._town_cycle_pending = True
+        key = pol._town_special_key(self._town_snap())
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertIn(STORE_ALCHEMIST, pol._town_store_attempted)
+        self.assertIn(STORE_HOME, pol._town_store_attempted)
+        self.assertTrue(pol._shopping_stuck)
+        self.assertIsNone(pol._town_blocked_reason)
+
+    def test_second_detection_stops_visibly(self):
+        pol = HengbotPolicy()
+        pol._town_cycle_pending = True
+        snap = self._town_snap()
+        pol._town_special_key(snap)
+        pol._town_cycle_pending = True
+        key = pol._town_special_key(snap)
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+        self.assertEqual(pol._town_blocked_reason, "repetition")
 
 
 class StoreTravelRetryTest(unittest.TestCase):

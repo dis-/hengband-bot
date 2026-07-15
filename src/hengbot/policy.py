@@ -251,6 +251,27 @@ STUCK_ESCAPE_LIMIT = 60
 # future deadlock to roughly a minute of wall-clock play instead of hours.
 TOWN_WANDER_REASONS = frozenset({"stuck:wander", "breakout:least-visited"})
 TOWN_WANDER_LIMIT = 60
+
+# Generic town-repetition detector (user directive: auto-detect and repair this
+# CLASS). Every observed shape — Home-door bounce, store-to-store travel
+# ping-pong — is a short cycle of (reason, position) signatures with no
+# progress, and each one evaded the cell-based loop guard (store snapshots
+# reset it; travel keeps the position changing). A window of town decisions
+# whose signatures collapse to a handful of distinct values while gold, pack
+# and equipment all stay unchanged IS such a cycle, whatever subsystem drives
+# it. Waits are excluded (deliberate stationary states), and any progress
+# resets the window.
+TOWN_CYCLE_WINDOW = 48
+TOWN_CYCLE_MAX_DISTINCT = 8
+TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
+TOWN_CYCLE_IGNORED_REASONS = frozenset(
+    {
+        "town:wait-restock",
+        "town:wait-recall",
+        "return:wait-recall",
+        "town:cycle-break",
+    }
+)
 # Over-extension: this many dives into the recall-target dungeon that collect ZERO
 # loot means it is too deep for the character (a clvl-24 warrior in Angband, whose
 # recommended level is 30, grabs one trivial item, burns escape scrolls on repeated
@@ -776,6 +797,13 @@ class HengbotPolicy:
         # Gold when scavenge mode was last entered — the scavenge->prepare
         # transition re-checks latched stores only if gold actually rose.
         self._scavenge_entry_gold = 0
+        # Town-repetition detector state — see TOWN_CYCLE_WINDOW.
+        self._town_signature_history: deque[tuple] = deque(
+            maxlen=TOWN_CYCLE_WINDOW
+        )
+        self._town_progress_marker: tuple | None = None
+        self._town_cycle_pending = False
+        self._town_cycle_breaks = 0
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
@@ -1614,6 +1642,10 @@ class HengbotPolicy:
             # previous visit would suppress native travel forever.
             self._town_travel_state = None
             self._town_travel_fallback = None
+            self._town_signature_history.clear()
+            self._town_progress_marker = None
+            self._town_cycle_pending = False
+            self._town_cycle_breaks = 0
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
         # fighting (reset by any such progress, or by reaching town) — so a
@@ -1632,6 +1664,32 @@ class HengbotPolicy:
             self._town_wander_streak += 1
         else:
             self._town_wander_streak = 0
+        # Generic town-repetition detector (see TOWN_CYCLE_WINDOW): record the
+        # previous decision's signature; any real progress (gold, pack or
+        # equipment change) resets the window.
+        if snapshot.in_town:
+            marker = (
+                snapshot.player.gold,
+                len(snapshot.inventory),
+                len(snapshot.equipment),
+            )
+            if marker != self._town_progress_marker:
+                self._town_progress_marker = marker
+                self._town_signature_history.clear()
+            if (
+                self.last_reason
+                and self.last_reason not in TOWN_CYCLE_IGNORED_REASONS
+            ):
+                position = snapshot.player.position
+                self._town_signature_history.append(
+                    (self.last_reason, position.y, position.x)
+                )
+                if self._town_cycle_detected():
+                    self._town_cycle_pending = True
+                    self._town_signature_history.clear()
+        else:
+            self._town_signature_history.clear()
+            self._town_progress_marker = None
         if (
             snapshot.in_town
             and self._town_wander_streak >= TOWN_WANDER_LIMIT
@@ -5893,11 +5951,53 @@ class HengbotPolicy:
             )
         return True
 
+    def _town_cycle_detected(self) -> bool:
+        """A full window of town decisions collapsing to a handful of distinct
+        (reason, position) signatures with no progress is a repetition cycle,
+        whatever subsystem drives it."""
+        history = self._town_signature_history
+        if len(history) < TOWN_CYCLE_WINDOW:
+            return False
+        return len(set(history)) <= TOWN_CYCLE_MAX_DISTINCT
+
+    def _break_town_cycle(self, snapshot: Snapshot) -> None:
+        """Cut every fuel line the known cycle shapes run on. Latching all the
+        stores sends the errand router to its no-store path (the departure
+        gates take over); the session/disposal/travel resets kill the other
+        observed drivers. The latches expire on the normal STORE_RETRY_TURNS
+        schedule, so a later town visit shops normally again."""
+        for store_type in range(len(TOWN_TRAVEL_STORE_SYMBOLS) + 1):
+            self._town_store_attempted.setdefault(store_type, snapshot.turn)
+        self._abandon_blocked_equipment_transaction()
+        self._clear_pending_disposal()
+        self._shopping_approach_goal = None
+        self._shopping_approach_store_type = None
+        self._shopping_stuck = True
+        self._town_travel_state = None
+        self._town_travel_fallback = None
+        self._town_restock_wait_until = None
+
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:
             return None
         if self._town_blocked_reason is not None:
             self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            return WAIT_KEY
+        if self._town_cycle_pending:
+            # _observe caught a repetition cycle (see _town_cycle_detected).
+            # First offense: cut every fuel line the known cycle shapes run on
+            # (errand router latches, transaction session, disposal target,
+            # travel state) and carry on. A second cycle in the same town
+            # visit means the repair did not hold — stop visibly instead of
+            # burning supplies for hours.
+            self._town_cycle_pending = False
+            self._town_cycle_breaks += 1
+            if self._town_cycle_breaks >= TOWN_CYCLE_BREAK_LIMIT:
+                self._town_blocked_reason = "repetition"
+                self.last_reason = "town:blocked:repetition"
+                return WAIT_KEY
+            self._break_town_cycle(snapshot)
+            self.last_reason = "town:cycle-break"
             return WAIT_KEY
 
         if (
