@@ -4862,6 +4862,13 @@ class HengbotPolicy:
             self._town_errand_plan = None
             return None
         if (
+            snapshot.in_town
+            and snapshot.player.class_id >= 0
+            and snapshot.player.gold < FUNDRAISING_START_GOLD
+            and self._fundraising_mode is None
+        ):
+            self._start_fundraising(snapshot)
+        if (
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.executable
             and self._equipment_transaction_session.required_context == "home"
@@ -5121,6 +5128,8 @@ class HengbotPolicy:
                     return None
                 if self._conquest_target(snapshot) is not None:
                     self._defer_identification_for_conquest(snapshot)
+                    if snapshot.player.gold < FUNDRAISING_START_GOLD:
+                        self._start_fundraising(snapshot)
                     return self._next_required_store_type(snapshot)
                 if self._start_fundraising(snapshot):
                     return self._next_required_store_type(snapshot)
@@ -5253,10 +5262,11 @@ class HengbotPolicy:
         self._home_candidate_waiting = False
 
     def _start_fundraising(self, snapshot: Snapshot) -> bool:
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            return True
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False
-        if self._fundraising_mode not in {"prepare", "mine", "scavenge"}:
-            self._planned_mining_runs = None
+        self._planned_mining_runs = None
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True

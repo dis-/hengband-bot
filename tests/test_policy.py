@@ -192,7 +192,7 @@ def grid(
     )
 
 
-def player(y, x, *, hp=20, max_hp=20, mp=0, max_mp=0, level=1, food=12000, food_type=0, gold=0, word_recall=0, afraid=False, confused=False, blind=False, poisoned=False, cut=False, class_id=-1, main_hand_blows=0, main_hand_to_h=0, main_hand_to_d=0, drained_stats=(), abilities=frozenset(), speed=110):
+def player(y, x, *, hp=20, max_hp=20, mp=0, max_mp=0, level=1, food=12000, food_type=0, gold=FUNDRAISING_START_GOLD, word_recall=0, afraid=False, confused=False, blind=False, poisoned=False, cut=False, class_id=-1, main_hand_blows=0, main_hand_to_h=0, main_hand_to_d=0, drained_stats=(), abilities=frozenset(), speed=110):
     if food < 500:
         food_state = "fainting"
     elif food < 1000:
@@ -3403,7 +3403,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._next_required_store_type(snap),
             (STORE_TEMPLE, STORE_ALCHEMIST),
         )
-        self.assertIsNone(policy._fundraising_mode)
+        self.assertEqual(policy._fundraising_mode, "prepare")
 
     def test_deep_recall_below_safe_departure_stock_still_fundraises(self):
         snap = Snapshot(
@@ -4199,7 +4199,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_prime_restores_fundraising_from_multiple_detection_scrolls(self):
         snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10,
+                10,
+                class_id=PLAYER_CLASS_WARRIOR,
+                gold=FUNDRAISING_START_GOLD - 1,
+            ),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
@@ -4267,6 +4272,105 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertTrue(policy._start_fundraising(poor))
 
+    def test_low_gold_itself_starts_fundraising_with_home_first(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD - 1,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        self.assertEqual(policy._fundraising_mode, "prepare")
+
+    def test_gold_at_start_threshold_does_not_start_fundraising(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        policy._next_required_store_type(snap)
+
+        self.assertIsNone(policy._fundraising_mode)
+
+    def test_repeated_fundraising_start_preserves_store_attempt_latch(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD - 1,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+        )
+        policy = HengbotPolicy()
+        self.assertTrue(policy._start_fundraising(snap))
+        policy._town_store_attempted[STORE_HOME] = 123
+
+        self.assertTrue(policy._start_fundraising(snap))
+
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], 123)
+
+    def test_low_gold_identification_defer_still_starts_fundraising(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD - 1,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._identification_need = "full"
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._conquest_target = lambda snapshot: 1
+
+        policy._legacy_town_router_terminal(snap)
+
+        self.assertIsNone(policy._identification_need)
+        self.assertEqual(policy._fundraising_mode, "prepare")
+
+    def test_restock_suppression_blocks_low_gold_trigger(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD - 1,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._town_restock_suppressed = True
+
+        self.assertIsNone(policy._next_required_store_type(snap))
+        self.assertIsNone(policy._fundraising_mode)
+
     def test_prime_restores_a_home_withdrawal_from_the_initial_snapshot(self):
         withdrawn = item(
             "e", 23, 5, name="a Long Sword", is_equipment=True, aware=False
@@ -4333,7 +4437,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ),
         }
         snap = Snapshot(
-            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
             grids,
             [],
             inventory=self._strict_supplies(recall=0),
@@ -7426,7 +7535,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # skips it, so _has_actionable_incomplete_home_item must agree — otherwise
         # home:processing-complete is reported while routing still insists on the
         # Home, looping the visit (or masking the real departure block).
-        town = self._ready_home_town()
+        town = self._ready_home_town(gold=FUNDRAISING_START_GOLD)
         incomplete = store_item(
             "a", 31, 1, name="partly known ego gloves", known=True,
             fully_known=False, is_equipment=True, is_ego=True,
@@ -10656,9 +10765,10 @@ class StatRestoreTest(unittest.TestCase):
         pol = HengbotPolicy()
         snap = self._snap(drained=("con",))
         self.assertTrue(pol._needs_stat_restore(snap))
-        # The mapless canonical circuit serves the already-needed Temple first;
-        # the Alchemist remains in the same plan for the restore errand.
-        self.assertEqual(pol._next_required_store_type(snap), STORE_TEMPLE)
+        # Poverty now activates fundraising before ordinary stat restoration,
+        # securing the income kit at Home first; the restore errand remains in
+        # the same batched plan.
+        self.assertEqual(pol._next_required_store_type(snap), STORE_HOME)
         self.assertIn(STORE_ALCHEMIST, pol._town_errand_plan.stops)
 
     def test_carrying_the_potion_removes_the_alchemist_errand(self):
@@ -12794,10 +12904,13 @@ class DungeonConquestTest(unittest.TestCase):
         policy._identification_candidate = signature
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
-        next_store = policy._next_required_store_type(snapshot)
+        # Exercise the terminal identification branch directly: the top-level
+        # router's new poverty source otherwise activates fundraising before
+        # this already-in-flight defer can be serviced.
+        next_store = policy._legacy_town_router_terminal(snapshot)
 
-        self.assertIsNone(policy._fundraising_mode)
-        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
         self.assertIsNone(policy._identification_need)
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotEqual(next_store, STORE_ALCHEMIST)
@@ -13018,7 +13131,12 @@ class DungeonConquestTest(unittest.TestCase):
 class TownErrandPlanTest(unittest.TestCase):
     def _snapshot(self, *, turn=100, width=20, height=20):
         return Snapshot(
-            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10,
+                10,
+                gold=FUNDRAISING_START_GOLD,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
             {Position(10, 10): grid(10, 10)},
             [],
             width=width,

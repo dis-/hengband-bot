@@ -15,6 +15,7 @@ from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_kno
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
 from hengbot.policy import (
+    FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
     ConservativePolicy,
     TOWN_TRAVEL_STALL_LIMIT,
@@ -276,6 +277,7 @@ def _decision_record(
     equipment_optimization: dict | None = None,
     loot: dict | None = None,
     mining: dict | None = None,
+    fundraising: dict | None = None,
     town_plan: dict | None = None,
 ) -> dict:
     player = snapshot.player
@@ -328,6 +330,7 @@ def _decision_record(
         "equipment_optimization": equipment_optimization or {},
         "loot": loot or {},
         "mining": mining or {},
+        "fundraising": fundraising or {},
         **({"town_plan": town_plan} if town_plan else {}),
     }
 
@@ -379,6 +382,21 @@ def _mining_state(policy) -> dict:
         "remaining_known": remaining,
         "detected_total": collected + dropped + remaining,
         "sweep_done": getattr(policy, "_mining_sweep_done", False),
+    }
+
+
+def _fundraising_state(snapshot, policy) -> dict:
+    mode = getattr(policy, "_fundraising_mode", None)
+    return {
+        "mode": mode,
+        "planned_runs": getattr(policy, "_planned_mining_runs", None),
+        "kit_secured": policy._fundraising_kit_secured(snapshot),
+        "gold_trigger": (
+            snapshot.in_town
+            and snapshot.player.class_id >= 0
+            and snapshot.player.gold < FUNDRAISING_START_GOLD
+            and mode in {"prepare", "mine", "scavenge"}
+        ),
     }
 
 
@@ -449,6 +467,9 @@ def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=N
             )
             loot = policy.loot_state(snapshot) if policy is not None else {}
             mining = _mining_state(policy) if policy is not None else {}
+            fundraising = (
+                _fundraising_state(snapshot, policy) if policy is not None else {}
+            )
             town_plan = _town_plan_state(policy) if policy is not None else {}
             json.dump(
                 _decision_record(
@@ -462,6 +483,7 @@ def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=N
                     equipment_optimization,
                     loot,
                     mining,
+                    fundraising,
                     town_plan,
                 ),
                 file,

@@ -19,6 +19,7 @@ from hengbot.cli import (
     _delay_after_macro_key,
     _decision_record,
     _duplicate_snapshot_ready,
+    _fundraising_state,
     _deduplicate_consecutive,
     _is_looping,
     _newest_snapshot,
@@ -484,6 +485,36 @@ class DecisionRecordTest(unittest.TestCase):
         )
 
         self.assertEqual(record["loot"], loot)
+
+    def test_records_fundraising_telemetry(self):
+        data = json.loads(_snap_line(123, 5, 7))
+        data["floor"]["dungeon_id"] = 0
+        data["floor"]["level"] = 0
+        data["player"]["class_id"] = 0
+        data["player"]["gold"] = 100
+        snapshot = parse_snapshot(data, {})
+
+        class Policy:
+            _fundraising_mode = "prepare"
+            _planned_mining_runs = 2
+
+            def _fundraising_kit_secured(self, snapshot):
+                return False
+
+        fundraising = _fundraising_state(snapshot, Policy())
+        record = _decision_record(
+            snapshot, "6", "fundraise:prepare", fundraising=fundraising
+        )
+
+        self.assertEqual(
+            record["fundraising"],
+            {
+                "mode": "prepare",
+                "planned_runs": 2,
+                "kit_secured": False,
+                "gold_trigger": True,
+            },
+        )
 
 
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
