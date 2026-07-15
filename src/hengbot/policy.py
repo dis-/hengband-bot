@@ -127,7 +127,7 @@ TOWN_TRAVEL_MIN_DISTANCE = 3
 # Consecutive travel issues without getting closer before giving the goal back
 # to BFS walking (an unknown approach makes the game reject the route).
 TOWN_TRAVEL_STALL_LIMIT = 8
-TOWN_TRAVEL_TURN_STALL_LIMIT = 4
+TOWN_TRAVEL_TURN_STALL_LIMIT = 12
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
