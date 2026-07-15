@@ -32,6 +32,10 @@ NUDGE_KEY = "\x1b"
 # After issuing a rest, the game runs many turns without emitting a snapshot;
 # hold off the stall nudge this long so it does not cut the rest short.
 REST_STALL_GRACE = 20.0
+# The live emitter spends about nine seconds serializing a 5.7 MB town snapshot
+# before any bytes reach the JSONL file.  Prompt recovery must not enqueue
+# Escapes during that normal command-response gap.
+COMMAND_RESPONSE_GRACE = 12.0
 
 # When the character dies, the game leaves the command loop for the tombstone /
 # death-info / high-score screens (close_game) and never emits another snapshot;
@@ -764,10 +768,13 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     print(key, flush=True)
                     send(key)
                     last_activity = time.monotonic()
+                    quiet_ok_until = last_activity + COMMAND_RESPONSE_GRACE
                     # A rest runs many turns emitting no snapshot; give it room so
                     # the stall nudge does not immediately disturb it.
                     if key.startswith("R"):
-                        quiet_ok_until = last_activity + REST_STALL_GRACE
+                        quiet_ok_until = max(
+                            quiet_ok_until, last_activity + REST_STALL_GRACE
+                        )
                     # A latched town block is stationary BY DESIGN, but standing
                     # on a store door interleaves store snapshots that reset the
                     # cell-based guard below — the visible stop would never fire.

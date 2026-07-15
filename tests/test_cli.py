@@ -4,10 +4,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import (
+    COMMAND_RESPONSE_GRACE,
     LOOP_WINDOW,
     MINING_DIG_REASONS,
     MULTI_KEY_DELAY_SECONDS,
     MULTIPLIER_COMBAT_LOOP_WINDOW,
+    REST_STALL_GRACE,
     STORE_ITEM_PROMPT_DELAY_SECONDS,
     STATIONARY_REASONS,
     STALLED_COMMAND_STATE_LIMIT,
@@ -607,6 +609,10 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
+    def test_command_response_grace_covers_live_snapshot_serialization(self):
+        self.assertGreater(COMMAND_RESPONSE_GRACE, 9.0)
+        self.assertLess(COMMAND_RESPONSE_GRACE, REST_STALL_GRACE)
+
     def test_partial_snapshot_bytes_refresh_emitter_activity(self):
         self.assertEqual(
             _last_activity_after_read(10.0, 20.0, '{"turn":'),
