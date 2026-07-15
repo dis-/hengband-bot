@@ -118,6 +118,7 @@ from hengbot.policy import (
     TR_NO_TELE,
     TOWN_CYCLE_WINDOW,
     TOWN_CYCLE_IGNORED_REASONS,
+    TOWN_TRAVEL_STALL_LIMIT,
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
@@ -672,8 +673,16 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(interrupted), "`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
         # No progress across two more issues: give the goal back to walking.
-        self.assertEqual(pol.choose_key(replace(interrupted, turn=3)), "`n!.")
-        self.assertEqual(pol.choose_key(replace(interrupted, turn=4)), "6")
+        for turn in range(3, TOWN_TRAVEL_STALL_LIMIT + 2):
+            self.assertEqual(
+                pol.choose_key(replace(interrupted, turn=turn)), "`n!."
+            )
+        self.assertEqual(
+            pol.choose_key(
+                replace(interrupted, turn=TOWN_TRAVEL_STALL_LIMIT + 2)
+            ),
+            "6",
+        )
         self.assertEqual(pol.last_reason, "shop:approach")
         self.assertEqual(pol.choose_key(interrupted), "6")
 
@@ -11515,12 +11524,13 @@ class StoreTravelRetryTest(unittest.TestCase):
 
     def test_no_progress_twice_falls_back_to_walking(self):
         pol = HengbotPolicy()
-        self.assertEqual(self._approach(pol, self._snap(94, turn=1)), "`n%.")
-        self.assertEqual(self._approach(pol, self._snap(94, turn=2)), "`n%.")
-        self.assertNotEqual(self._approach(pol, self._snap(94, turn=3)), "`n%.")
+        snap = self._snap(94, turn=1)
+        for _ in range(TOWN_TRAVEL_STALL_LIMIT):
+            self.assertEqual(self._approach(pol, snap), "`n%.")
+        self.assertNotEqual(self._approach(pol, snap), "`n%.")
         self.assertEqual(pol._town_travel_fallback, Position(34, 130))
 
-    def test_duplicate_same_turn_does_not_consume_travel_stall_budget(self):
+    def test_input_latency_gets_several_reissues_before_fallback(self):
         pol = HengbotPolicy()
         snap = self._snap(94, turn=7)
 
@@ -11528,7 +11538,7 @@ class StoreTravelRetryTest(unittest.TestCase):
             self.assertEqual(self._approach(pol, snap), "`n%.")
 
         self.assertIsNone(pol._town_travel_fallback)
-        self.assertEqual(pol._town_travel_state[2], 0)
+        self.assertEqual(pol._town_travel_state[2], 4)
 
 
 class TownTravelerCombatPriorityTest(unittest.TestCase):
@@ -11680,10 +11690,17 @@ class EntranceTravelTest(unittest.TestCase):
         pol = HengbotPolicy()
         snap = self._surface_snap(turn=1)
         self.assertEqual(self._travel(pol, snap), "`n>.")
-        # Rejected route: same distance. One retry is allowed...
-        self.assertEqual(self._travel(pol, replace(snap, turn=2)), "`n>.")
-        # ...then the goal falls back to BFS walking until it changes.
-        self.assertIsNone(self._travel(pol, replace(snap, turn=3)))
+        # Rejected route: allow a bounded set of retries for Windows input
+        # latency, then give the goal back to BFS walking.
+        for turn in range(2, TOWN_TRAVEL_STALL_LIMIT + 1):
+            self.assertEqual(
+                self._travel(pol, replace(snap, turn=turn)), "`n>."
+            )
+        self.assertIsNone(
+            self._travel(
+                pol, replace(snap, turn=TOWN_TRAVEL_STALL_LIMIT + 1)
+            )
+        )
         self.assertIsNone(self._travel(pol, snap))
 
     def test_dungeon_floors_never_travel(self):
@@ -11706,8 +11723,13 @@ class EntranceTravelTest(unittest.TestCase):
         pol = HengbotPolicy()
         snap = self._surface_snap(turn=1)
         self._travel(pol, snap)
-        self._travel(pol, replace(snap, turn=2))
-        self.assertIsNone(self._travel(pol, replace(snap, turn=3)))  # latched
+        for turn in range(2, TOWN_TRAVEL_STALL_LIMIT + 1):
+            self._travel(pol, replace(snap, turn=turn))
+        self.assertIsNone(
+            self._travel(
+                pol, replace(snap, turn=TOWN_TRAVEL_STALL_LIMIT + 1)
+            )
+        )  # latched
         pol._floor_key = snap.floor_key  # as if _observe had seen the surface
         dungeon = Snapshot(
             player(10, 10),
