@@ -122,6 +122,7 @@ from hengbot.policy import (
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     TownTravelProgress,
+    TownNeed,
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
@@ -4339,6 +4340,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
+        # Keep this recall-routing test focused: an outstanding Home catalog
+        # scan now correctly preempts the circuit under the Home-first rule.
+        policy._equipment_catalog.home_scan_complete = True
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "shop:approach")
 
@@ -9447,7 +9451,6 @@ class HighValueBookSaleTest(unittest.TestCase):
         self.assertTrue(policy._has_town_economic_path(third))
 
     def test_routes_books_to_a_store_that_buys_their_realm(self):
-        policy = HengbotPolicy()
         cases = (
             (TVAL_CHAOS_BOOK, STORE_MAGIC),
             (TVAL_LIFE_BOOK, STORE_TEMPLE),
@@ -9455,6 +9458,9 @@ class HighValueBookSaleTest(unittest.TestCase):
         )
         for tval, store_type in cases:
             with self.subTest(tval=tval):
+                # Each case represents a fresh town visit; a live circuit never
+                # abandons its current still-needed stop for a new mid-visit need.
+                policy = HengbotPolicy()
                 book = item("b", tval, 2, name="valuable book")
                 self.assertEqual(
                     policy._next_required_store_type(self._town([book])), store_type
@@ -10650,7 +10656,10 @@ class StatRestoreTest(unittest.TestCase):
         pol = HengbotPolicy()
         snap = self._snap(drained=("con",))
         self.assertTrue(pol._needs_stat_restore(snap))
-        self.assertEqual(pol._next_required_store_type(snap), STORE_ALCHEMIST)
+        # The mapless canonical circuit serves the already-needed Temple first;
+        # the Alchemist remains in the same plan for the restore errand.
+        self.assertEqual(pol._next_required_store_type(snap), STORE_TEMPLE)
+        self.assertIn(STORE_ALCHEMIST, pol._town_errand_plan.stops)
 
     def test_carrying_the_potion_removes_the_alchemist_errand(self):
         inv = [item("a", TVAL_POTION, SV_POTION_RESTORE_CON)]
@@ -13004,6 +13013,115 @@ class DungeonConquestTest(unittest.TestCase):
         regressed = self._snap(set(), conquered=(4,))
         self.assertIsNone(policy._conquest_target(regressed))
         self.assertIsNone(policy._conquest_committed)
+
+
+class TownErrandPlanTest(unittest.TestCase):
+    def _snapshot(self, *, turn=100, width=20, height=20):
+        return Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            width=width,
+            height=height,
+            turn=turn,
+        )
+
+    def _policy(self, needs, town_map=None):
+        policy = HengbotPolicy(town_map=town_map)
+        policy._enumerate_town_needs = lambda snapshot: list(needs)
+        policy._legacy_town_router_terminal = lambda snapshot: None
+        return policy
+
+    def test_multi_errand_circuit_is_home_first_and_nearest_neighbor(self):
+        stores = {
+            STORE_HOME: Position(10, 9),
+            STORE_GENERAL: Position(10, 5),
+            STORE_ALCHEMIST: Position(10, 12),
+            STORE_TEMPLE: Position(10, 16),
+            STORE_BLACK: Position(15, 16),
+        }
+        town_map = TownMap("Outpost", 20, 20, frozenset(), stores)
+        needs = [
+            TownNeed(STORE_HOME, "deposit", "home-first"),
+            TownNeed(STORE_ALCHEMIST, "teleport", "normal"),
+            TownNeed(STORE_TEMPLE, "cure", "normal"),
+            TownNeed(STORE_GENERAL, "oil", "normal"),
+            TownNeed(STORE_BLACK, "black", "normal"),
+        ]
+        policy = self._policy(needs, town_map)
+        snapshot = self._snapshot()
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertEqual(
+            policy._town_errand_plan.stops,
+            [STORE_HOME, STORE_ALCHEMIST, STORE_TEMPLE, STORE_BLACK, STORE_GENERAL],
+        )
+        self.assertEqual(len(policy._town_errand_plan.stops), len(set(policy._town_errand_plan.stops)))
+
+    def test_identification_source_precedes_single_withdrawal_home(self):
+        needs = [
+            TownNeed(STORE_ALCHEMIST, "identification-source", "before-withdrawal"),
+            TownNeed(STORE_HOME, "identification-withdrawal", "post-alchemist-home"),
+        ]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_ALCHEMIST)
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_ALCHEMIST, STORE_HOME])
+        self.assertLessEqual(policy._town_errand_plan.stops.count(STORE_HOME), 2)
+
+    def test_latched_stop_skips_and_expired_latch_can_replan(self):
+        needs = [TownNeed(STORE_ALCHEMIST, "teleport", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        policy._town_store_attempted.pop(STORE_ALCHEMIST)
+        self.assertEqual(policy._next_required_store_type(replace(snapshot, turn=200)), STORE_ALCHEMIST)
+
+    def test_mid_visit_need_is_inserted_after_current_stop(self):
+        active = [TownNeed(STORE_GENERAL, "oil", "normal")]
+        policy = self._policy(active)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+        active.append(TownNeed(STORE_ALCHEMIST, "teleport", "normal"))
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_GENERAL, STORE_ALCHEMIST])
+        self.assertEqual(policy._town_errand_plan.inserted_this_visit, [STORE_ALCHEMIST])
+
+    def test_enumeration_is_pure_and_terminal_ready_builds_no_plan(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot()
+        watched = (
+            policy._fundraising_mode,
+            policy._planned_mining_runs,
+            dict(policy._town_store_attempted),
+            policy._town_blocked_reason,
+            policy._town_restock_wait_until,
+        )
+        first = policy._enumerate_town_needs(snapshot)
+        second = policy._enumerate_town_needs(snapshot)
+        self.assertEqual(first, second)
+        self.assertEqual(
+            watched,
+            (
+                policy._fundraising_mode,
+                policy._planned_mining_runs,
+                dict(policy._town_store_attempted),
+                policy._town_blocked_reason,
+                policy._town_restock_wait_until,
+            ),
+        )
+        empty = self._policy([])
+        self.assertIsNone(empty._next_required_store_type(snapshot))
+        self.assertIsNone(empty._town_errand_plan)
+
+    def test_cycle_break_and_restock_suppression_clear_plan(self):
+        policy = self._policy([TownNeed(STORE_GENERAL, "oil", "normal")])
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+        policy._break_town_cycle(snapshot)
+        self.assertIsNone(policy._town_errand_plan)
+        self.assertIsNone(policy._next_required_store_type(snapshot))
 
 
 if __name__ == "__main__":

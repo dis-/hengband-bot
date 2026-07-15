@@ -169,6 +169,27 @@ class TownTravelProgress:
             if self.stalls >= TOWN_TRAVEL_STALL_LIMIT:
                 return "fallback"
         return "reissue"
+
+
+@dataclass(frozen=True)
+class TownNeed:
+    store_type: int
+    category: str
+    ordering_class: str
+
+
+@dataclass
+class TownErrandPlan:
+    stops: list[int]
+    index: int = 0
+    inserted_this_visit: list[int] | None = None
+    skipped_latched: list[int] | None = None
+
+    def __post_init__(self) -> None:
+        if self.inserted_this_visit is None:
+            self.inserted_this_visit = []
+        if self.skipped_latched is None:
+            self.skipped_latched = []
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
@@ -890,6 +911,7 @@ class HengbotPolicy:
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
         self._town_restock_suppressed = False
+        self._town_errand_plan: TownErrandPlan | None = None
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
@@ -1766,6 +1788,7 @@ class HengbotPolicy:
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
             self._town_restock_suppressed = False
+            self._town_errand_plan = None
             self._town_restock_wait_until = None
             self._town_restock_rechecked.clear()
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
@@ -4572,7 +4595,317 @@ class HengbotPolicy:
             self._town_restock_rechecked.add(store_type)
         return eligible[0]
 
+    def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
+        """Return every currently true town errand without changing policy state."""
+        needs: list[TownNeed] = []
+        fundraising_active = (
+            self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and snapshot.player.gold < FUNDRAISING_GOLD_TARGET
+        )
+
+        def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
+            needs.append(TownNeed(store_type, category, ordering_class))
+
+        if snapshot.player.class_id < 0:
+            if not self._shopping_abandoned and snapshot.player.gold >= LANTERN_MIN_GOLD:
+                if not self._owns_lantern(snapshot) or self._needs_food_restock(snapshot):
+                    add(STORE_GENERAL, "birth-supplies")
+            return needs
+
+        if (
+            self._pending_disposal_item is not None
+            and self._pending_disposal(snapshot) is not None
+            and STORE_ARMOURY not in self._disposal_store_attempts
+        ):
+            add(STORE_ARMOURY, "disposal")
+        if self._pending_disposal_item is not None:
+            return needs
+
+        equipped_weapon = next(
+            (item for item in snapshot.equipment if item.slot == "main_hand"), None
+        )
+        blocked_weapon_in_pack = any(
+            item.is_melee_weapon and self._blocks_teleport(item)
+            for item in snapshot.inventory
+        )
+        safe_weapon_equipped = (
+            equipped_weapon is not None
+            and equipped_weapon.is_melee_weapon
+            and not self._blocks_teleport(equipped_weapon)
+        )
+        if (
+            (
+                self._no_teleport_rearm_pending
+                or (equipped_weapon is not None and self._blocks_teleport(equipped_weapon))
+                or (blocked_weapon_in_pack and not safe_weapon_equipped)
+            )
+            and not self._pack_has_safe_melee_weapon(snapshot)
+        ):
+            add(STORE_HOME, "safe-weapon", "home-first")
+        if (
+            self._equipped_digging_tool(snapshot) is not None
+            and not self._pack_has_melee_weapon(snapshot)
+            and not self._combat_weapon_ready(snapshot)
+        ):
+            add(STORE_HOME, "combat-weapon", "home-first")
+        book_sale = self._find_book_sale(snapshot)
+        if book_sale is not None:
+            add(self._book_sale_store_type(book_sale), "book-sale")
+        if self._home_available(snapshot) and any(
+            self._must_stash_before_deep_mining(snapshot, item)
+            for item in snapshot.inventory
+        ):
+            add(STORE_HOME, "deep-mining-deposit", "home-first")
+        if (
+            self._identification_need is None
+            and self._home_available(snapshot)
+            and (
+                not fundraising_active
+                or (
+                    self._fundraising_mode in {"prepare", "mine"}
+                    and self._deep_fundraising_eligible(snapshot)
+                )
+            )
+            and self._find_home_deposit(snapshot) is not None
+        ):
+            add(STORE_HOME, "deposit", "home-first")
+        if self._needs_stat_restore(snapshot) and STORE_ALCHEMIST not in self._town_store_attempted:
+            add(STORE_ALCHEMIST, "stat-restore")
+        if self._find_low_level_sale(snapshot) is not None:
+            add(STORE_ALCHEMIST, "low-level-sale")
+        unknown_device = self._first_item(
+            snapshot,
+            lambda item: item.tval in {TVAL_WAND, TVAL_STAFF}
+            and not item.known
+            and self._item_signature(item) not in self._deferred_device_items,
+        )
+        device_processing_actionable = (
+            unknown_device is not None
+            and self._find_identification_source(snapshot, full=False) is not None
+        )
+        if (
+            not device_processing_actionable
+            and self._find_device_sale(snapshot) is not None
+            and STORE_MAGIC not in self._town_store_attempted
+        ):
+            add(STORE_MAGIC, "device-sale")
+        if self._find_weapon_sale(snapshot) is not None and STORE_WEAPON not in self._town_store_attempted:
+            add(STORE_WEAPON, "weapon-sale")
+        if self._find_light_sale(snapshot) is not None and STORE_GENERAL not in self._town_store_attempted:
+            add(STORE_GENERAL, "light-sale")
+
+        if fundraising_active:
+            if not self._fundraising_kit_secured(snapshot):
+                if STORE_HOME not in self._town_store_attempted:
+                    add(STORE_HOME, "fundraising-kit", "home-first")
+                if not self._has_withdrawable_digging_tool(snapshot):
+                    if STORE_GENERAL not in self._town_store_attempted:
+                        add(STORE_GENERAL, "fundraising-digger")
+                if not self._has_withdrawable_treasure_detection(snapshot):
+                    if STORE_ALCHEMIST not in self._town_store_attempted:
+                        add(STORE_ALCHEMIST, "fundraising-detection")
+            if not self._fundraising_food_ready(snapshot):
+                food_store = STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
+                if food_store not in self._town_store_attempted:
+                    add(food_store, "fundraising-food")
+            if self._planned_mining_runs is None:
+                remaining_cap = max(0, MINING_RUNS_PER_SET - self._mining_runs_completed)
+                per_run = DEEP_FUNDRAISING_SCROLLS_PER_RUN if self._deep_fundraising_eligible(snapshot) else 1
+                additional_runs = min(
+                    remaining_cap,
+                    self._count_treasure_detection_scrolls(snapshot) // per_run,
+                    self._count_recall_scrolls(snapshot) - DEEP_FUNDRAISING_RECALL_RESERVE
+                    if self._deep_fundraising_eligible(snapshot)
+                    else remaining_cap,
+                )
+                planned_runs = self._mining_runs_completed + max(0, additional_runs)
+            else:
+                planned_runs = self._planned_mining_runs
+            scrolls_needed = max(0, planned_runs - self._mining_runs_completed) * (
+                DEEP_FUNDRAISING_SCROLLS_PER_RUN if self._deep_fundraising_eligible(snapshot) else 1
+            )
+            if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
+                if STORE_HOME not in self._town_store_attempted:
+                    add(STORE_HOME, "stored-detection", "home-first")
+                if STORE_ALCHEMIST not in self._town_store_attempted:
+                    add(STORE_ALCHEMIST, "mining-detection")
+            if self._fundraising_mode != "scavenge" and not self._has_digging_tool(snapshot):
+                if STORE_HOME not in self._town_store_attempted:
+                    add(STORE_HOME, "stored-digger", "home-first")
+                if STORE_GENERAL not in self._town_store_attempted:
+                    add(STORE_GENERAL, "mining-digger")
+            if not self._fundraising_light_ready(snapshot):
+                if STORE_GENERAL not in self._town_store_attempted:
+                    add(STORE_GENERAL, "fundraising-light")
+            return needs
+
+        if self._identification_need is not None:
+            source = self._find_identification_source(
+                snapshot, full=self._identification_need == "full"
+            )
+            if source is None and STORE_ALCHEMIST not in self._town_store_attempted:
+                add(STORE_ALCHEMIST, "identification-source", "before-withdrawal")
+            elif self._home_candidate_waiting and self._home_available(snapshot):
+                add(STORE_HOME, "identification-withdrawal", "post-alchemist-home")
+            return needs
+        if self._home_candidate_waiting and self._home_available(snapshot):
+            add(STORE_HOME, "identification-withdrawal", "post-alchemist-home")
+
+        if not self._recall_ready(snapshot) or not self._recall_departure_ready(snapshot):
+            available = [store for store in (STORE_TEMPLE, STORE_ALCHEMIST) if store not in self._town_store_attempted]
+            for store in available:
+                add(store, "recall")
+            if not available and not self._recall_departure_ready(snapshot):
+                return needs
+        if not self._food_ready(snapshot):
+            food_store = STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
+            if food_store in self._town_store_attempted:
+                return needs
+            add(food_store, "food")
+        if not self._light_ready(snapshot):
+            if STORE_GENERAL in self._town_store_attempted:
+                return needs
+            add(STORE_GENERAL, "light")
+        if not self._teleport_ready(snapshot):
+            if STORE_ALCHEMIST in self._town_store_attempted:
+                return needs
+            add(STORE_ALCHEMIST, "teleport")
+        if not self._cure_critical_ready(snapshot):
+            available = [store for store in (STORE_TEMPLE, STORE_ALCHEMIST) if store not in self._town_store_attempted]
+            if not available:
+                return needs
+            for store in available:
+                add(store, "cure-critical")
+        if not self._identify_staff_ready(snapshot):
+            if STORE_MAGIC in self._town_store_attempted:
+                return needs
+            add(STORE_MAGIC, "identify-staff")
+        if self._has_cursed_equipment(snapshot) and self._find_remove_curse_scroll(snapshot) is None:
+            if STORE_TEMPLE in self._town_store_attempted:
+                return needs
+            add(STORE_TEMPLE, "remove-curse")
+        if (
+            snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            and (
+                not self._equipment_catalog.home_scan_complete
+                or self._has_actionable_incomplete_home_item()
+            )
+            and bool(self._equipment_catalog.items)
+        ):
+            add(STORE_HOME, "equipment-catalog", "home-first")
+        if STORE_BLACK not in self._town_store_attempted:
+            add(STORE_BLACK, "black-market")
+        return needs
+
+    def _order_town_stops(
+        self, snapshot: Snapshot, stores: list[int], start: Position | None = None
+    ) -> list[int]:
+        """Nearest-neighbour order; numeric store order is the mapless fallback."""
+        remaining = list(dict.fromkeys(stores))
+        ordered: list[int] = []
+        position = start or snapshot.player.position
+        while remaining:
+            if self._town_map_active(snapshot):
+                store_type = min(
+                    remaining,
+                    key=lambda value: (
+                        position.distance_to(self._town_map.store_position(value))
+                        if self._town_map.store_position(value) is not None
+                        else 10**9,
+                        value,
+                    ),
+                )
+                target = self._town_map.store_position(store_type)
+                if target is not None:
+                    position = target
+            else:
+                # Stable mapless circuit, chosen to retain the historical
+                # high-value/service ordering while still batching by building.
+                canonical = (
+                    STORE_ARMOURY,
+                    STORE_MAGIC,
+                    STORE_WEAPON,
+                    STORE_TEMPLE,
+                    STORE_GENERAL,
+                    STORE_ALCHEMIST,
+                    STORE_BLACK,
+                    STORE_HOME,
+                )
+                rank = {value: index for index, value in enumerate(canonical)}
+                store_type = min(remaining, key=lambda value: (rank.get(value, 99), value))
+            remaining.remove(store_type)
+            ordered.append(store_type)
+        return ordered
+
+    def _build_town_errand_plan(
+        self, snapshot: Snapshot, needs: list[TownNeed]
+    ) -> TownErrandPlan | None:
+        leading_home = any(
+            need.store_type == STORE_HOME and need.ordering_class != "post-alchemist-home"
+            for need in needs
+        )
+        post_home = any(need.ordering_class == "post-alchemist-home" for need in needs)
+        stores = {need.store_type for need in needs if need.store_type != STORE_HOME}
+        stops: list[int] = [STORE_HOME] if leading_home else []
+        start = self._town_map.store_position(STORE_HOME) if leading_home and self._town_map_active(snapshot) else snapshot.player.position
+        ordered = self._order_town_stops(snapshot, list(stores), start)
+        if post_home and STORE_ALCHEMIST in ordered:
+            alchemist_index = ordered.index(STORE_ALCHEMIST)
+            ordered.insert(alchemist_index + 1, STORE_HOME)
+        elif post_home:
+            ordered.append(STORE_HOME)
+        stops.extend(ordered)
+        return TownErrandPlan(stops) if stops else None
+
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        if self._town_restock_suppressed:
+            self._town_errand_plan = None
+            return None
+        if (
+            self._equipment_transaction_session is not None
+            and self._equipment_transaction_session.executable
+            and self._equipment_transaction_session.required_context == "home"
+        ):
+            return STORE_HOME
+
+        needs = self._enumerate_town_needs(snapshot)
+        needed_stores = {need.store_type for need in needs}
+        plan = self._town_errand_plan
+        if plan is None or plan.index >= len(plan.stops):
+            plan = self._build_town_errand_plan(snapshot, needs)
+            self._town_errand_plan = plan
+        elif plan.index < len(plan.stops):
+            pending = set(plan.stops[plan.index + 1 :])
+            additions = needed_stores - pending - {plan.stops[plan.index]}
+            if additions:
+                current_store = plan.stops[plan.index]
+                current_position = (
+                    self._town_map.store_position(current_store)
+                    if self._town_map_active(snapshot)
+                    else snapshot.player.position
+                )
+                old_remaining = plan.stops[plan.index + 1 :]
+                reordered = self._order_town_stops(
+                    snapshot, old_remaining + sorted(additions), current_position
+                )
+                plan.stops[plan.index + 1 :] = reordered
+                plan.inserted_this_visit.extend(sorted(additions))
+
+        while plan is not None and plan.index < len(plan.stops):
+            store_type = plan.stops[plan.index]
+            if store_type not in needed_stores:
+                plan.index += 1
+                continue
+            if store_type in self._town_store_attempted:
+                plan.skipped_latched.append(store_type)
+                plan.index += 1
+                continue
+            return store_type
+
+        self._town_errand_plan = None
+        return self._legacy_town_router_terminal(snapshot)
+
+    def _legacy_town_router_terminal(self, snapshot: Snapshot) -> int | None:
         if self._town_restock_suppressed:
             # Post-cycle-break the visit is departure-only (_break_town_cycle):
             # gating the router's OUTPUT is the choke point that covers every
@@ -6287,6 +6620,7 @@ class HengbotPolicy:
         # restock-retry path starts a fresh in-town wait, un-latches the very
         # stores above when it expires, and the cycle resumes.
         self._town_restock_suppressed = True
+        self._town_errand_plan = None
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:

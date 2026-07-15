@@ -276,6 +276,7 @@ def _decision_record(
     equipment_optimization: dict | None = None,
     loot: dict | None = None,
     mining: dict | None = None,
+    town_plan: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -327,6 +328,7 @@ def _decision_record(
         "equipment_optimization": equipment_optimization or {},
         "loot": loot or {},
         "mining": mining or {},
+        **({"town_plan": town_plan} if town_plan else {}),
     }
 
 
@@ -380,6 +382,32 @@ def _mining_state(policy) -> dict:
     }
 
 
+def _town_plan_state(policy) -> dict:
+    plan = getattr(policy, "_town_errand_plan", None)
+    if plan is None:
+        return {}
+    names = (
+        "General Store",
+        "Armoury",
+        "Weapon Smiths",
+        "Temple",
+        "Alchemist",
+        "Magic Shop",
+        "Black Market",
+        "Home",
+    )
+
+    def name(store_type):
+        return names[store_type] if 0 <= store_type < len(names) else str(store_type)
+
+    return {
+        "stops": [name(store_type) for store_type in plan.stops],
+        "index": plan.index,
+        "inserted_this_visit": [name(store_type) for store_type in plan.inserted_this_visit],
+        "skipped_latched": [name(store_type) for store_type in plan.skipped_latched],
+    }
+
+
 def _depth_safety(snapshot, policy) -> dict:
     """Surface the depth-requirement check so a lethal resistance gap is visible
     (the bot gates its descent on this — see AGENTS.md)."""
@@ -421,6 +449,7 @@ def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=N
             )
             loot = policy.loot_state(snapshot) if policy is not None else {}
             mining = _mining_state(policy) if policy is not None else {}
+            town_plan = _town_plan_state(policy) if policy is not None else {}
             json.dump(
                 _decision_record(
                     snapshot,
@@ -433,6 +462,7 @@ def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=N
                     equipment_optimization,
                     loot,
                     mining,
+                    town_plan,
                 ),
                 file,
                 ensure_ascii=False,
