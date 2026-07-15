@@ -4394,6 +4394,61 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "T6")
         self.assertEqual(policy.last_reason, "fundraise:mine-treasure")
 
+    def _shallow_partial_mining_snapshot(self, detection):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(recall=1, detection=detection),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            ],
+            equipment=[self._lantern()],
+        )
+
+    def test_shallow_mining_uses_three_carried_scrolls_as_partial_campaign(self):
+        snap = self._shallow_partial_mining_snapshot(3)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertIsNone(policy._next_required_store_type(snap))
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertEqual(policy._planned_mining_runs, 3)
+        self.assertEqual(policy._mining_detection_scroll_target(snap), 3)
+        self.assertTrue(policy._fundraising_supplies_ready(snap))
+
+    def test_shallow_mining_uses_one_carried_scroll_as_partial_campaign(self):
+        snap = self._shallow_partial_mining_snapshot(1)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertIsNone(policy._next_required_store_type(snap))
+        self.assertEqual(policy._planned_mining_runs, 1)
+        self.assertEqual(policy._mining_detection_scroll_target(snap), 1)
+
+    def test_shallow_mining_with_zero_scrolls_still_shops(self):
+        snap = self._shallow_partial_mining_snapshot(0)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        self.assertIsNone(policy._planned_mining_runs)
+
+    def test_completed_shallow_partial_campaign_restores_full_set_target(self):
+        snap = self._shallow_partial_mining_snapshot(0)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = 3
+        policy._mining_runs_completed = 3
+
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertIsNone(policy._planned_mining_runs)
+        self.assertEqual(
+            policy._mining_detection_scroll_target(snap), MINING_RUNS_PER_SET
+        )
+
     def test_deep_fundraising_requires_a_large_batch_of_scrolls_and_recalls(self):
         snap = Snapshot(
             player(
@@ -10979,6 +11034,15 @@ class TownCycleDetectorTest(unittest.TestCase):
     def test_first_cycle_offense_stops_visibly_when_departure_has_no_light(self):
         pol = HengbotPolicy()
         pol._fundraising_mode = "prepare"
+        pol._town_cycle_pending = True
+
+        self.assertEqual(pol._town_special_key(self._town_snap(gold=0)), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:departure-no-light")
+        self.assertEqual(pol._town_blocked_reason, "departure-no-light")
+
+    def test_mine_cycle_first_offense_stops_visibly_when_light_died(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
         pol._town_cycle_pending = True
 
         self.assertEqual(pol._town_special_key(self._town_snap(gold=0)), WAIT_KEY)

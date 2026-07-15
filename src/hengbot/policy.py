@@ -4318,6 +4318,26 @@ class HengbotPolicy:
         self._fundraising_mode = "mine"
         return True
 
+    def _activate_partial_mining_plan(self, snapshot: Snapshot) -> bool:
+        """Use the mining runs supported by detection scrolls already carried."""
+        if self._deep_fundraising_eligible(snapshot):
+            return self._activate_partial_deep_mining_plan(snapshot)
+        remaining_cap = max(
+            0, MINING_RUNS_PER_SET - self._mining_runs_completed
+        )
+        additional_runs = min(
+            remaining_cap,
+            self._count_treasure_detection_scrolls(snapshot),
+        )
+        if additional_runs < 1:
+            return False
+        planned_total = self._mining_runs_completed + additional_runs
+        if planned_total >= self._effective_mining_run_target():
+            return False
+        self._planned_mining_runs = planned_total
+        self._fundraising_mode = "mine"
+        return True
+
     def _mining_detection_scroll_target(self, snapshot: Snapshot) -> int:
         remaining_runs = max(
             0,
@@ -4516,6 +4536,8 @@ class HengbotPolicy:
                     )
                     return None
                 return food_store
+            if self._planned_mining_runs is None:
+                self._activate_partial_mining_plan(snapshot)
             scrolls_needed = self._mining_detection_scroll_target(snapshot)
             if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
                 # Mining supplies kept at Home are already owned. Search every
@@ -6034,7 +6056,7 @@ class HengbotPolicy:
                 return WAIT_KEY
             self._break_town_cycle(snapshot)
             if (
-                self._fundraising_mode == "scavenge"
+                self._fundraising_mode in {"mine", "scavenge"}
                 and not self._fundraising_light_ready(snapshot)
             ):
                 self._town_blocked_reason = "departure-no-light"
@@ -6079,8 +6101,8 @@ class HengbotPolicy:
         # A resumed bot does not retain the in-memory partial batch selected
         # after shop stock ran out. Reconstruct it from supplies already carried
         # before applying the departure gate.
-        if deep_fundraising and self._planned_mining_runs is None:
-            self._activate_partial_deep_mining_plan(snapshot)
+        if self._fundraising_mode == "mine" and self._planned_mining_runs is None:
+            self._activate_partial_mining_plan(snapshot)
         player = snapshot.player
         if (
             player.hp < player.max_hp
