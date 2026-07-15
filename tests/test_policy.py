@@ -11236,12 +11236,11 @@ class TownCycleDetectorTest(unittest.TestCase):
             steps += 1
         self.assertTrue(pol._town_cycle_pending)
 
-    def test_confined_resupply_carousel_breaks_before_cli_guard(self):
+    def test_nine_cell_resupply_carousel_hits_no_progress_limit(self):
         # Exact class of the live failure: unaffordable shopping approaches
         # advance through several town cells, with breakout decisions adding
         # enough distinct signatures to evade the compact-cycle detector.  The
-        # policy must schedule its repair before cli.py's 40-decision guard can
-        # stop the bot.
+        # compact-cycle detector, then reaches the no-progress fallback.
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
         cells = [
@@ -11256,8 +11255,8 @@ class TownCycleDetectorTest(unittest.TestCase):
             (27, 101),
         ]
         steps = 0
-        while not pol._town_cycle_pending and steps < 39:
-            y, x = cells[min(steps // 4, len(cells) - 1)]
+        while not pol._town_cycle_pending and steps < TOWN_NO_PROGRESS_LIMIT:
+            y, x = cells[(steps // 4) % len(cells)]
             pol.last_reason = (
                 "breakout:least-visited" if steps % 6 == 5 else "shop:approach"
             )
@@ -11265,7 +11264,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             steps += 1
 
         self.assertTrue(pol._town_cycle_pending)
-        self.assertLess(steps, 40)
+        self.assertEqual(steps, TOWN_NO_PROGRESS_LIMIT)
 
     def test_progress_resets_the_window(self):
         pol = HengbotPolicy()

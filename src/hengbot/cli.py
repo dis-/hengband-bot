@@ -126,6 +126,11 @@ MINING_DIG_REASONS = frozenset(
 # store-door snapshots reset the cell-based loop guard and could otherwise hide
 # the latched state forever.
 TOWN_BLOCKED_STOP_LIMIT = 30
+# Outermost town safety net. Policy-level repetition checks deliberately reset
+# when gold, pack, or equipment changes, so transaction ping-pong can evade
+# them forever. A continuous town residence this long is faulty regardless of
+# the recorded reasons (about 25+ minutes at normal decision cadence).
+TOWN_RESIDENCE_STOP_LIMIT = 1500
 
 
 def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
@@ -151,6 +156,17 @@ def _advance_town_blocked_streak(streak: int, reason: str) -> int:
         return streak + 1
     if reason == "shop:leave":
         return streak
+    return 0
+
+
+def _advance_town_residence_streak(
+    streak: int, previous_floor_key: tuple | None, floor_key: tuple
+) -> int:
+    """Count decisions in one uninterrupted residence on the town floor."""
+    if floor_key != previous_floor_key:
+        streak = 0
+    if floor_key[0] == 0 and floor_key[1] == 0:
+        return streak + 1
     return 0
 
 
@@ -632,6 +648,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         last_decision_at = 0.0
         stalled_command_count = 0
         blocked_streak = 0
+        town_residence_streak = 0
+        residence_floor_key = None
         last_command_signature: tuple | None = None
         while True:
             chunk = file.read()
@@ -705,6 +723,22 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     _write_decision(
                         args.decision_log, snapshot, key, policy.last_reason, policy
                     )
+                    town_residence_streak = _advance_town_residence_streak(
+                        town_residence_streak,
+                        residence_floor_key,
+                        snapshot.floor_key,
+                    )
+                    residence_floor_key = snapshot.floor_key
+                    if town_residence_streak >= TOWN_RESIDENCE_STOP_LIMIT:
+                        print(
+                            f"<loop-detected> floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn} town-residence reached "
+                            f"{town_residence_streak} consecutive decisions "
+                            "without a floor change; stopping the bot for "
+                            "investigation",
+                            flush=True,
+                        )
+                        return 0
                     print(key, flush=True)
                     send(key)
                     last_activity = time.monotonic()

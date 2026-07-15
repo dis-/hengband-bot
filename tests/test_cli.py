@@ -751,3 +751,21 @@ class TownBlockedStreakTest(unittest.TestCase):
 
         streak = _advance_town_blocked_streak(5, "shop:travel")
         self.assertEqual(streak, 0)
+
+
+class TownResidenceStreakTest(unittest.TestCase):
+    def test_counts_town_residence_and_resets_on_every_floor_change(self):
+        from hengbot.cli import _advance_town_residence_streak
+
+        town = (0, 0, 0)
+        other_town_key = (0, 0, 1)
+        dungeon = (1, 1, 0)
+        streak = _advance_town_residence_streak(0, None, town)
+        streak = _advance_town_residence_streak(streak, town, town)
+        self.assertEqual(streak, 2)
+        streak = _advance_town_residence_streak(streak, town, other_town_key)
+        self.assertEqual(streak, 1)
+        streak = _advance_town_residence_streak(streak, other_town_key, dungeon)
+        self.assertEqual(streak, 0)
+        streak = _advance_town_residence_streak(streak, dungeon, town)
+        self.assertEqual(streak, 1)

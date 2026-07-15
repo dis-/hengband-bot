@@ -273,13 +273,17 @@ TOWN_WANDER_LIMIT = 60
 # and equipment all stay unchanged IS such a cycle, whatever subsystem drives
 # it. Waits are excluded (deliberate stationary states), and any progress
 # resets the window.
-TOWN_CYCLE_WINDOW = 32
+TOWN_CYCLE_WINDOW = 48
 TOWN_CYCLE_MAX_DISTINCT = 8
-# This fallback must fire before cli.py's 40-decision confined-cell guard.  A
-# live unaffordable-resupply carousel used enough distinct (reason, position)
-# signatures to evade the compact-cycle test, so the CLI stopped the bot at 40
-# while this policy repair was still waiting for 96 decisions.
-TOWN_NO_PROGRESS_LIMIT = 32
+# d309c2a lowered this fallback only to beat cli.py's 40-decision cell guard in
+# town.  1e46bb5 removed that guard from town entirely, so that race no longer
+# exists and the tighter bound only adds false positives: on a first visit,
+# native travel may reject an unknown approach and leave a long per-tile walking
+# leg (roughly one recorded locomotion decision per tile) while the progress
+# marker remains frozen until the first transaction.  The original 96-decision
+# bound is safe for every known legitimate shape: Home scans are page-bounded,
+# and purchases reset the marker per transaction.
+TOWN_NO_PROGRESS_LIMIT = 96
 TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
 TOWN_CYCLE_IGNORED_REASONS = frozenset(
     {
