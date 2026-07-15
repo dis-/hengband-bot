@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
+    QUEST_FLAG_PRESET,
     find_quest_definitions,
     load_quest_knowledge,
 )
@@ -13,32 +14,46 @@ from hengbot.quest_knowledge import (
 
 class QuestKnowledgeTest(unittest.TestCase):
     def test_loads_legacy_quest_one_exact_values(self):
-        text = "Q:1:N:Thieves Hideout\nQ:1:Q:6:0:0:0:5:0:42:6\n"
+        text = "Q:$1:N:Thieves Hideout\nQ:1:N:Japanese name\nQ:$1:Q:6:0:0:0:5:0:0:0:6\nQ:1:Q:6:0:0:0:5:0:0:0:6\n"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "QuestDefinitionList.txt"
-            path.write_text(text, encoding="utf-8")
+            quests = path.parent / "quests"
+            quests.mkdir()
+            path.write_text("%:quests/001_ThievesHideout.txt\n", encoding="utf-8")
+            (quests / "001_ThievesHideout.txt").write_text(text, encoding="utf-8")
             info = load_quest_knowledge(path)[1]
-        self.assertEqual((info.name, info.type, info.level, info.flags), ("Thieves Hideout", 6, 5, 6))
+        self.assertEqual((info.name, info.name_en, info.type, info.level, info.flags), ("Japanese name", "Thieves Hideout", 6, 5, 6))
         self.assertTrue(info.flags & QUEST_FLAG_ONCE)
-        self.assertEqual(info.baseitem_id, 42)
+        self.assertEqual((info.dungeon, info.reward_artifact_id), (0, None))
 
     def test_loads_migrated_jsonc_to_the_same_shape(self):
         text = '''{
           // Future per-quest format
           "id": 1,
-          "name": {"en": "Thieves Hideout", "ja": "盗賊の隠れ家"},
+          "name": {"en": "Thieves Hideout", "ja": "Japanese name"},
           "definition": {
-            "type": 6, "level": 5, "dungeon": 0,
-            "flags": ["ONCE", "PRESET"], "monraceId": 0,
-            "baseitemId": 42,
+            "type": "KILL_ALL", "level": 5, "dungeon": 0,
+            "flags": ["ONCE", "PRESET"], "monster": 44,
+            "reward": {"artifacts": [42, 43]},
           },
         }'''
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "001_thieves.jsonc"
             path.write_text(text, encoding="utf-8")
             info = load_quest_knowledge(Path(directory))[1]
-        self.assertEqual((info.name, info.type, info.level, info.flags), ("Thieves Hideout", 6, 5, 6))
-        self.assertEqual(info.baseitem_id, 42)
+        self.assertEqual((info.name, info.name_en, info.type, info.level, info.flags), ("Japanese name", "Thieves Hideout", 6, 5, 6))
+        self.assertEqual((info.monrace_id, info.reward_artifact_ids), (44, (42, 43)))
+
+    def test_real_lib_edit_quest_one_matches_policy_constants(self):
+        edit = Path(r"C:\hengband\lib\edit")
+        if not (edit / "QuestDefinitionList.txt").is_file():
+            self.skipTest("real Hengband lib/edit is not available")
+        from hengbot.policy import FIXED_QUEST_MIN_LEVEL
+
+        info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[1]
+        self.assertEqual(info.name, "\u76d7\u8cca\u306e\u96a0\u308c\u5bb6")
+        self.assertEqual((info.type, info.level, info.flags), (6, 5, QUEST_FLAG_PRESET | QUEST_FLAG_ONCE))
+        self.assertGreaterEqual(FIXED_QUEST_MIN_LEVEL[1], info.level)
 
     def test_locator_prefers_legacy_then_falls_back_to_jsonc(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -48,8 +63,7 @@ class QuestKnowledgeTest(unittest.TestCase):
             edit = root / "lib" / "edit"
             quests = edit / "quests"
             quests.mkdir(parents=True)
-            jsonc = quests / "001_test.jsonc"
-            jsonc.write_text("{}", encoding="utf-8")
+            (quests / "001_test.jsonc").write_text("{}", encoding="utf-8")
             with patch.dict(os.environ, {}, clear=True), patch("pathlib.Path.cwd", return_value=state.parent):
                 self.assertEqual(find_quest_definitions(state), quests)
                 legacy = edit / "QuestDefinitionList.txt"

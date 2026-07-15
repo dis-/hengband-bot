@@ -2418,7 +2418,7 @@ class FixedQuestTest(unittest.TestCase):
         policy._town_departure_ready = lambda _snapshot: True
         self.assertTrue(policy._fixed_quest_ready(snapshot, 1))
 
-        not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 4)
+        not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 2)
         policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
         self.assertIsNone(policy._fixed_quest_target(snapshot))
 
