@@ -382,6 +382,7 @@ def _mining_state(policy) -> dict:
         "remaining_known": remaining,
         "detected_total": collected + dropped + remaining,
         "sweep_done": getattr(policy, "_mining_sweep_done", False),
+        "sweep_steps": getattr(policy, "_mining_sweep_steps", 0),
     }
 
 

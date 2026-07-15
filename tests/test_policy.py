@@ -2,6 +2,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.model import (
@@ -105,6 +106,8 @@ from hengbot.policy import (
     MINING_ROUTE_REVISIT_LIMIT,
     MINING_NAVIGATION_REVISIT_LIMIT,
     MINING_STALL_LIMIT,
+    MINING_SWEEP_HARD_LIMIT,
+    MINING_SWEEP_NO_PROGRESS_LIMIT,
     MIN_FREE_PACK_SLOTS,
     PACK_CAPACITY,
     REST_MACRO,
@@ -6394,6 +6397,119 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
         self.assertFalse(policy._mining_sweep_done)
+
+    def test_mining_oscillation_pauses_sweep_then_it_resumes(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11)},
+            [], floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=30, height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._recent.extend(
+            [Position(10, 10), Position(10, 11)] * (STUCK_WINDOW // 2)
+        )
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._fundraising_key(snap, []), WAIT_KEY)
+        self.assertFalse(policy._mining_sweep_done)
+
+        policy._recent.clear()
+        policy._recent.extend(Position(10, x) for x in range(STUCK_WINDOW))
+        policy._build_grid_index(snap)
+        self.assertEqual(policy._fundraising_key(snap, []), "6")
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
+
+    def test_long_mining_sweep_does_not_spend_collection_leash(self):
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = (DUNGEON_YEEK_CAVE, 1, 0)
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._mining_stall_turns = 7
+        base = {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11)}
+        with patch.object(policy, "_mining_sweep_step", return_value=Position(10, 11)):
+            for index in range(MINING_STALL_LIMIT + 1):
+                grids = dict(base)
+                grids.update(
+                    {Position(20 + n, 20): grid(20 + n, 20) for n in range(index)}
+                )
+                snap = Snapshot(
+                    player(10, 10), grids, [],
+                    floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=1000, height=1000,
+                    inventory=self._strict_supplies(recall=0, detection=1),
+                    equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+                )
+                policy._build_grid_index(snap)
+                policy._fundraising_key(snap, [])
+                self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertEqual(policy._mining_stall_turns, 7)
+        self.assertFalse(policy._mining_sweep_done)
+
+        with patch.object(policy, "_mining_sweep_step", return_value=None), patch.object(
+            policy, "_treasure_step", return_value=Position(10, 11)
+        ):
+            policy._fundraising_key(snap, [])
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+
+    def test_mining_sweep_latches_done_only_when_frontier_is_exhausted(self):
+        snap = Snapshot(
+            player(0, 0), {Position(0, 0): grid(0, 0)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=1, height=1,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(0, 0))
+        policy._build_grid_index(snap)
+        policy._fundraising_key(snap, [])
+        self.assertTrue(policy._mining_sweep_done)
+
+    def test_mining_sweep_no_progress_cutoff_latches_done(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11)},
+            [], floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=30, height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._reset_mining_sweep_progress(snap)
+        with patch.object(policy, "_mining_sweep_step", return_value=Position(10, 11)):
+            for _ in range(MINING_SWEEP_NO_PROGRESS_LIMIT):
+                policy._build_grid_index(snap)
+                policy._fundraising_key(snap, [])
+        self.assertTrue(policy._mining_sweep_done)
+        self.assertEqual(policy._mining_sweep_steps, MINING_SWEEP_NO_PROGRESS_LIMIT)
+
+    def test_mining_sweep_hard_cap_latches_done(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11)},
+            [], floor_key=(DUNGEON_YEEK_CAVE, 1, 0), width=30, height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._mining_sweep_steps = MINING_SWEEP_HARD_LIMIT - 1
+        policy._mining_sweep_revealed_grids = 1
+        with patch.object(policy, "_mining_sweep_step", return_value=Position(10, 11)):
+            policy._build_grid_index(snap)
+            policy._fundraising_key(snap, [])
+        self.assertTrue(policy._mining_sweep_done)
+        self.assertEqual(policy._mining_sweep_steps, MINING_SWEEP_HARD_LIMIT)
 
     def test_mining_walks_to_a_reachable_vein_and_digs_it_from_the_floor(self):
         # Phase 2: collection is walk + dig-the-adjacent-vein only.

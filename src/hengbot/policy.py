@@ -609,6 +609,8 @@ DIGGER_WIELD_LIMIT = 8
 # Never spends a Teleport/Recall scroll. (Pure oscillation with nothing diggable gives up
 # at once instead — that path is NOT harness-exempt, so it must not linger.)
 MINING_STALL_LIMIT = 150
+MINING_SWEEP_NO_PROGRESS_LIMIT = 24
+MINING_SWEEP_HARD_LIMIT = 600
 MINING_ROUTE_REVISIT_LIMIT = 4
 # Target selection may churn across a large Treasure Detection result and clear
 # the per-target route counter.  This floor-route counter survives retargeting so
@@ -896,6 +898,9 @@ class HengbotPolicy:
         # exclusion "skip to the next vein" silently retries the same one until
         # a revisit limit ends the whole floor with most treasure uncollected.
         self._mining_sweep_done = False
+        self._mining_sweep_steps = 0
+        self._mining_sweep_no_progress = 0
+        self._mining_sweep_revealed_grids = 0
         self._mining_dropped_veins: set[Position] = set()
         self._mining_veins_collected = 0
         self._mining_veins_dropped = 0
@@ -2120,6 +2125,9 @@ class HengbotPolicy:
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
             self._mining_sweep_done = False
+            self._mining_sweep_steps = 0
+            self._mining_sweep_no_progress = 0
+            self._mining_sweep_revealed_grids = 0
             self._mining_dropped_veins.clear()
             self._mining_veins_collected = 0
             self._mining_veins_dropped = 0
@@ -7129,13 +7137,11 @@ class HengbotPolicy:
     def _mining_sweep_step(self, snapshot: Snapshot) -> Position | None:
         """One exploration step inside the detected area (phase 1 of the user's
         mining design): mapping the area first gives every cheap vein a known
-        walkable approach, so the collection walk can actually reach it. None =
-        no in-radius frontier remains (or we are bouncing on a flickering one —
-        collect what is reachable instead of orbiting it)."""
+        walkable approach, so the collection walk can actually reach it. None
+        means that no in-radius frontier remains; transient oscillation is a
+        caller-managed pause, not completion."""
         centers = self._mining_detection_centers
         if not centers:
-            return None
-        if self._is_oscillating():
             return None
         return self._nearest_goal_step(
             snapshot,
@@ -7147,15 +7153,39 @@ class HengbotPolicy:
             ),
         )
 
+    def _reset_mining_sweep_progress(self, snapshot: Snapshot) -> None:
+        self._mining_sweep_steps = 0
+        self._mining_sweep_no_progress = 0
+        self._mining_sweep_revealed_grids = len(snapshot.grids)
+
+    def _record_mining_sweep_step(self, snapshot: Snapshot) -> None:
+        """Account for one sweep move without spending the collection leash."""
+        self._mining_sweep_steps += 1
+        revealed = len(snapshot.grids)
+        if revealed > self._mining_sweep_revealed_grids:
+            self._mining_sweep_no_progress = 0
+        else:
+            self._mining_sweep_no_progress += 1
+        self._mining_sweep_revealed_grids = max(
+            self._mining_sweep_revealed_grids, revealed
+        )
+        if (
+            self._mining_sweep_no_progress >= MINING_SWEEP_NO_PROGRESS_LIMIT
+            or self._mining_sweep_steps >= MINING_SWEEP_HARD_LIMIT
+        ):
+            self._mining_sweep_done = True
+
     def _mining_tapped_out_key(self, snapshot: Snapshot) -> str:
         """No distance-1 vein is reachable right now. Mining opens new floor, so
         first resume the sweep if fresh in-radius frontiers appeared (a dug vein
         chain can unseal a whole pocket); once neither a vein nor a frontier
         remains, the cheap treasure really is collected and the floor is done."""
+        if self._is_oscillating():
+            return WAIT_KEY
         sweep = self._mining_sweep_step(snapshot)
         if sweep is not None:
             self._mining_sweep_done = False
-            self._mining_stall_turns += 1
+            self._record_mining_sweep_step(snapshot)
             self.last_reason = "fundraise:sweep-explore"
             return self._step_toward(snapshot, sweep)
         self._mining_stall_turns = MINING_STALL_LIMIT
@@ -7432,6 +7462,7 @@ class HengbotPolicy:
                 # Fresh detection = a fresh sweep of the (extended) area and a
                 # fresh chance for veins whose walk failed before.
                 self._mining_sweep_done = False
+                self._reset_mining_sweep_progress(snapshot)
                 self._mining_dropped_veins.clear()
                 self.last_reason = (
                     "fundraise:detect-treasure"
@@ -7476,12 +7507,15 @@ class HengbotPolicy:
         # The old routine skipped this and burned its leash tunneling toward one
         # deep vein, leaving most of the detection uncollected.
         if not self._mining_sweep_done:
-            sweep = self._mining_sweep_step(snapshot)
-            if sweep is not None:
-                self._mining_stall_turns += 1
-                self.last_reason = "fundraise:sweep-explore"
-                return self._step_toward(snapshot, sweep)
-            self._mining_sweep_done = True
+            # A post-combat oscillation pauses the sweep; it does not prove the
+            # detected area is exhausted.  Phase 2 may still progress meanwhile.
+            if not self._is_oscillating():
+                sweep = self._mining_sweep_step(snapshot)
+                if sweep is not None:
+                    self._record_mining_sweep_step(snapshot)
+                    self.last_reason = "fundraise:sweep-explore"
+                    return self._step_toward(snapshot, sweep)
+                self._mining_sweep_done = True
         # Phase 2: collect distance-1 veins (walk to a floor tile beside the
         # vein, dig it directly) until none qualify. A dug vein becomes floor,
         # which can expose the vein behind it — the walk picks that up next
