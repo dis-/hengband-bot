@@ -6004,6 +6004,13 @@ class HengbotPolicy:
         self._town_travel_state = None
         self._town_travel_fallback = None
         self._town_restock_wait_until = None
+        # The ordinary fundraising router changes prepare -> scavenge after
+        # the required shops are exhausted.  Suppression returns before that
+        # router can run, so preserve the same transition here; otherwise the
+        # departure gates keep hiding the entrance and the bot merely wanders.
+        if self._fundraising_mode == "prepare":
+            self._fundraising_mode = "scavenge"
+            self._scavenge_entry_gold = snapshot.player.gold
         # After a cycle the goal is DEPARTURE, not errands: without this, a
         # restock-retry path starts a fresh in-town wait, un-latches the very
         # stores above when it expires, and the cycle resumes.

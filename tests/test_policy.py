@@ -10931,6 +10931,17 @@ class TownCycleDetectorTest(unittest.TestCase):
         ):
             self.assertIsNone(pol._next_required_store_type(snap))
 
+    def test_prepare_cycle_break_enters_scavenge_for_departure(self):
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "prepare"
+        pol._town_cycle_pending = True
+        snap = self._town_snap(gold=102)
+
+        self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertEqual(pol._fundraising_mode, "scavenge")
+        self.assertEqual(pol._scavenge_entry_gold, 102)
+
     def test_sale_routes_honor_the_store_latches(self):
         # An unsellable candidate re-routed the bot to the sale store forever,
         # immune even to the cycle break (the sale routes skipped the latches).
