@@ -115,6 +115,7 @@ from hengbot.policy import (
     TR_NO_TELE,
     TOWN_CYCLE_WINDOW,
     TOWN_CYCLE_IGNORED_REASONS,
+    TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
 
@@ -10905,6 +10906,67 @@ class TownCycleDetectorTest(unittest.TestCase):
         for i in range(TOWN_CYCLE_WINDOW):
             pol._town_signature_history.append(("shop:approach", 30, i))
         self.assertFalse(pol._town_cycle_detected())
+
+    def test_varied_three_store_carousel_hits_no_progress_limit(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        reasons = ["shop:travel", "shop:approach", "shop:leave"]
+        stores = [(37, 91), (31, 77), (30, 49)]
+        for step in range(TOWN_NO_PROGRESS_LIMIT):
+            y, base_x = stores[(step // 3) % len(stores)]
+            # Position jitter keeps the old distinct-signature detector false.
+            x = base_x + step
+            pol.last_reason = reasons[step % len(reasons)]
+            pol._observe(self._town_snap(y=y, x=x, gold=102))
+        self.assertTrue(pol._town_cycle_pending)
+        departure = replace(
+            self._town_snap(gold=102),
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+        )
+        self.assertEqual(pol._town_special_key(departure), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertTrue(pol._town_restock_suppressed)
+        self.assertIsNone(pol._town_special_key(departure))
+
+    def test_progress_resets_no_progress_count(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        for step in range(TOWN_NO_PROGRESS_LIMIT - 1):
+            pol.last_reason = "shop:travel"
+            pol._observe(self._town_snap(y=30, x=step, gold=102))
+        self.assertEqual(pol._town_no_progress_count, TOWN_NO_PROGRESS_LIMIT - 1)
+        pol.last_reason = "shop:travel"
+        pol._observe(self._town_snap(y=30, x=200, gold=103))
+        self.assertFalse(pol._town_cycle_pending)
+        self.assertEqual(pol._town_no_progress_count, 1)
+
+    def test_restock_timer_unlatches_each_store_only_once_per_visit(self):
+        pol = HengbotPolicy()
+        snap = self._town_snap(gold=102)
+        pol._town_store_attempted[STORE_ALCHEMIST] = 0
+
+        self.assertIsNone(pol._retry_after_store_restock(snap, (STORE_ALCHEMIST,)))
+        expiry = replace(snap, turn=pol._town_restock_wait_until)
+        self.assertEqual(
+            pol._retry_after_store_restock(expiry, (STORE_ALCHEMIST,)),
+            STORE_ALCHEMIST,
+        )
+        pol._town_store_attempted[STORE_ALCHEMIST] = expiry.turn
+        self.assertIsNone(pol._retry_after_store_restock(expiry, (STORE_ALCHEMIST,)))
+        second_expiry = replace(expiry, turn=pol._town_restock_wait_until)
+        self.assertIsNone(
+            pol._retry_after_store_restock(second_expiry, (STORE_ALCHEMIST,))
+        )
+        self.assertIn(STORE_ALCHEMIST, pol._town_store_attempted)
+        self.assertIsNotNone(pol._town_restock_wait_until)
 
     def test_live_pingpong_shape_trips_through_observe(self):
         # The exact live shape: travel/approach/leave alternating between the

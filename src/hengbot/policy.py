@@ -263,6 +263,7 @@ TOWN_WANDER_LIMIT = 60
 # resets the window.
 TOWN_CYCLE_WINDOW = 48
 TOWN_CYCLE_MAX_DISTINCT = 8
+TOWN_NO_PROGRESS_LIMIT = 96
 TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
 TOWN_CYCLE_IGNORED_REASONS = frozenset(
     {
@@ -803,6 +804,7 @@ class HengbotPolicy:
             maxlen=TOWN_CYCLE_WINDOW
         )
         self._town_progress_marker: tuple | None = None
+        self._town_no_progress_count = 0
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
         self._town_restock_suppressed = False
@@ -876,6 +878,9 @@ class HengbotPolicy:
         # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
         self._town_store_attempted: dict[int, int] = {}
         self._town_restock_wait_until: int | None = None
+        self._town_restock_wait_gold: int | None = None
+        self._town_restock_wait_pack_size: int | None = None
+        self._town_restock_rechecked: set[int] = set()
         self._last_sell_sig: tuple[str, int, int] | None = None
         self._store_sell_stuck_count = 0
         # Explicit Home-capacity failures may stop deposits for one town visit.
@@ -1646,9 +1651,14 @@ class HengbotPolicy:
             self._town_travel_fallback = None
             self._town_signature_history.clear()
             self._town_progress_marker = None
+            self._town_no_progress_count = 0
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
             self._town_restock_suppressed = False
+            self._town_restock_wait_until = None
+            self._town_restock_wait_gold = None
+            self._town_restock_wait_pack_size = None
+            self._town_restock_rechecked.clear()
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
         # fighting (reset by any such progress, or by reaching town) — so a
@@ -1679,6 +1689,7 @@ class HengbotPolicy:
             if marker != self._town_progress_marker:
                 self._town_progress_marker = marker
                 self._town_signature_history.clear()
+                self._town_no_progress_count = 0
             if (
                 self.last_reason
                 and self.last_reason not in TOWN_CYCLE_IGNORED_REASONS
@@ -1687,12 +1698,18 @@ class HengbotPolicy:
                 self._town_signature_history.append(
                     (self.last_reason, position.y, position.x)
                 )
-                if self._town_cycle_detected():
+                self._town_no_progress_count += 1
+                if (
+                    self._town_cycle_detected()
+                    or self._town_no_progress_count >= TOWN_NO_PROGRESS_LIMIT
+                ):
                     self._town_cycle_pending = True
                     self._town_signature_history.clear()
+                    self._town_no_progress_count = 0
         else:
             self._town_signature_history.clear()
             self._town_progress_marker = None
+            self._town_no_progress_count = 0
         if (
             snapshot.in_town
             and self._town_wander_streak >= TOWN_WANDER_LIMIT
@@ -4380,13 +4397,31 @@ class HengbotPolicy:
             return None
         if self._town_restock_wait_until is None:
             self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
+            self._town_restock_wait_gold = snapshot.player.gold
+            self._town_restock_wait_pack_size = len(snapshot.inventory)
             return None
         if snapshot.turn < self._town_restock_wait_until:
             return None
+        eligible = [
+            store_type
+            for store_type in store_types
+            if store_type not in self._town_restock_rechecked
+        ]
+        if not eligible:
+            # Nothing acquired since the wait began and every relevant store
+            # already received its one genuine stock-turnover re-check this
+            # visit.  Keep waiting without re-fuelling the shopping carousel.
+            self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
+            self._town_restock_wait_gold = snapshot.player.gold
+            self._town_restock_wait_pack_size = len(snapshot.inventory)
+            return None
         self._town_restock_wait_until = None
-        for store_type in store_types:
+        self._town_restock_wait_gold = None
+        self._town_restock_wait_pack_size = None
+        for store_type in eligible:
             self._town_store_attempted.pop(store_type, None)
-        return store_types[0]
+            self._town_restock_rechecked.add(store_type)
+        return eligible[0]
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
         if self._town_restock_suppressed:
@@ -4705,6 +4740,8 @@ class HengbotPolicy:
             # boundary that re-arms it instead of falling through to town wander.
             return self._next_required_store_type(snapshot)
         self._town_restock_wait_until = None
+        self._town_restock_wait_gold = None
+        self._town_restock_wait_pack_size = None
         return None
 
     def _defer_identification_for_conquest(self, snapshot: Snapshot) -> None:
