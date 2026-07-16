@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import time
 from typing import Iterable
 
 
@@ -104,7 +105,18 @@ class HomeDisposalState:
         }
         temporary = self.history_path.with_suffix(self.history_path.suffix + ".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        temporary.replace(self.history_path)
+        # Antivirus/indexers and concurrent readers can briefly hold the old
+        # file without delete sharing on Windows.  Preserve atomic replacement,
+        # but tolerate that transient sharing violation instead of killing the
+        # gameplay bot.
+        for attempt in range(5):
+            try:
+                temporary.replace(self.history_path)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
 
     def record(self, action: str, signature: Signature, turn: int) -> None:
         if action not in {"deposit", "withdraw"}:

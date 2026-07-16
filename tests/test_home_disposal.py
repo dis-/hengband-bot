@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState, signature_key
 from hengbot.model import (
@@ -50,6 +51,25 @@ class HomeDisposalTests(unittest.TestCase):
         restarted_again = self.state()
         self.assertFalse(restarted_again.is_idle(signature))
         self.assertEqual(restarted_again.recall_count, 5)
+
+    def test_history_save_retries_transient_windows_replace_denial(self):
+        state = self.state()
+        real_replace = Path.replace
+        attempts = 0
+
+        def deny_once(path, target):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise PermissionError("transient sharing violation")
+            return real_replace(path, target)
+
+        with patch.object(Path, "replace", deny_once), patch("hengbot.home_disposal.time.sleep") as sleep:
+            state.record("deposit", ("a Potion", TVAL_POTION, 3), 100)
+
+        self.assertEqual(attempts, 2)
+        sleep.assert_called_once_with(0.05)
+        self.assertEqual(json.loads(self.paths[0].read_text(encoding="utf-8"))["transactions"][0]["turn"], 100)
 
     def test_queue_is_real_data_shaped_and_collapses_duplicate_signatures(self):
         state = self.state()
