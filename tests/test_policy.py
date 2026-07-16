@@ -6947,6 +6947,51 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._mining_sweep_done)
         self.assertEqual(policy._mining_sweep_steps, 1)
 
+    def test_tapped_out_uses_revealed_high_water_after_tiles_leave_view(self):
+        base_grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+        }
+        base = Snapshot(
+            player(10, 10),
+            base_grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = base.floor_key
+        policy._mining_scroll_used_floor = base.floor_key
+        policy._mining_detection_centers.append(Position(10, 10))
+        policy._mining_sweep_done = True
+        policy._mining_grids_at_sweep_done = len(base_grids)
+
+        expanded = replace(
+            base,
+            grids={
+                **base_grids,
+                Position(10, 12): grid(10, 12, gold=True),
+            },
+        )
+        policy._fundraising_key(expanded, [])
+        self.assertEqual(policy._mining_sweep_revealed_grids, 3)
+
+        reduced = replace(base, grids=base_grids)
+        policy._build_grid_index(reduced)
+        policy._mining_tapped_out_key(reduced)
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
+
     def test_tapped_out_sweep_resume_resets_hard_cap_progress(self):
         snap = Snapshot(
             player(10, 10),

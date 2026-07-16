@@ -7832,6 +7832,9 @@ class HengbotPolicy:
         chain can unseal a whole pocket); once neither a vein nor a frontier
         remains, the cheap treasure really is collected and the floor is done."""
         was_done = self._mining_sweep_done
+        self._mining_sweep_revealed_grids = max(
+            self._mining_sweep_revealed_grids, len(snapshot.grids)
+        )
         if self._is_oscillating():
             # Waiting cannot drain _recent: choose_key appends our unchanged
             # position on every decision, so a stationary pause would keep the
@@ -7843,7 +7846,8 @@ class HengbotPolicy:
             if (
                 was_done
                 and self._mining_grids_at_sweep_done > 0
-                and len(snapshot.grids) <= self._mining_grids_at_sweep_done
+                and self._mining_sweep_revealed_grids
+                <= self._mining_grids_at_sweep_done
             ):
                 # The sweep finished and NOTHING has been exposed since (no
                 # vein was dug, no new floor revealed): resuming would re-run
@@ -8163,6 +8167,10 @@ class HengbotPolicy:
             ),
             default=None,
         )
+        if self._mining_sweep_done:
+            self._mining_sweep_revealed_grids = max(
+                self._mining_sweep_revealed_grids, len(snapshot.grids)
+            )
         # Floor loot is handled above before chasing
         # veins — it is walkable gold we would otherwise leave behind.
         # Productivity leash: MINING_STALL_LIMIT turns with no gold collected means the
@@ -8209,9 +8217,7 @@ class HengbotPolicy:
                 self.last_reason = "fundraise:sweep-explore"
                 return self._step_toward(snapshot, sweep)
             self._mining_sweep_done = True
-            self._mining_grids_at_sweep_done = max(
-                len(snapshot.grids), self._mining_sweep_revealed_grids
-            )
+            self._mining_grids_at_sweep_done = self._mining_sweep_revealed_grids
         # Phase 2: collect distance-1 veins (walk to a floor tile beside the
         # vein, dig it directly) until none qualify. A dug vein becomes floor,
         # which can expose the vein behind it — the walk picks that up next
