@@ -6,7 +6,10 @@ problems. Fable (Claude) supervises you, reviews every fix, and is the only
 one who pushes. BOT LIFECYCLE OWNERSHIP: the supervisor+operator own bot
 start/stop/resume; Fable never resumes the bot while the operator layer is
 healthy (it intervenes only when supervision itself is down). If you find the
-bot stopped, resuming it is YOUR duty per this brief.
+bot stopped, resuming it is YOUR duty per this brief — UNLESS
+jsonlog\maintenance.hold exists: that file means a live investigation owns
+the stopped state (the 2026-07-16 auto-resume during an investigation forced
+the user to kill the game); never start/resume anything while it exists.
 The human user directs Fable; escalate open questions through
 the event log, never assume approval.
 

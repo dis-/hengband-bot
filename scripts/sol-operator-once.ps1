@@ -15,7 +15,10 @@ $stderr = Join-Path $runtime 'sol-operator.err.log'
 # the same shape as every dispatch that has worked.
 $instruction = @'
 You are the bot operator for ONE supervised iteration. Do not ask for
-instructions and do not wait for input - act now, autonomously:
+instructions and do not wait for input - act now, autonomously.
+MAINTENANCE HOLD: if the file jsonlog\maintenance.hold exists, an
+investigation owns the stopped processes - do NOT start or resume the game
+or the bot; only observe, append a status event noting the hold, and exit.
 (1) Assess the session: game/bot PIDs under jsonlog (hengband.pid, bot.pid),
     log freshness (bot-state-fixed.jsonl / bot-decisions.jsonl mtimes),
     bot-stderr.log tail.
