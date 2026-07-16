@@ -13468,6 +13468,37 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertFalse(key.startswith(READ_KEY))
         self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
 
+    def test_spent_leash_still_digs_one_adjacent_gold_vein(self):
+        from hengbot.policy import MINING_STALL_LIMIT
+
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(
+                    10, 11, passable=False, gold=True, can_dig=True
+                ),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            equipment=[
+                item(
+                    "g", TVAL_LITE, SV_LITE_LANTERN,
+                    fuel=5000, is_equipment=True,
+                ),
+                item("d", 20, 1, is_equipment=True),
+            ],
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._mining_scroll_used_floor = snap.floor_key
+        pol._mining_sweep_done = True
+        pol._mining_stall_turns = MINING_STALL_LIMIT
+
+        self.assertEqual(pol._fundraising_key(snap, []), TUNNEL_KEY + "6")
+        self.assertEqual(pol.last_reason, "fundraise:mine-treasure")
+        self.assertEqual(pol._mining_stall_turns, 0)
+
     def test_leash_expiry_leaves_toward_upstairs_without_reading_a_scroll(self):
         # With the leash already spent and no gold in reach, the miner heads out (digging
         # toward the up-stairs here) rather than re-reading a detection scroll or teleporting.

@@ -8169,7 +8169,10 @@ class HengbotPolicy:
         # remaining veins are effectively out of reach — leave for a fresh floor. Not reset
         # here, so once tripped we keep heading out (still grabbing any adjacent gold / loot
         # above on the way) until we collect again or change floor.
-        if self._mining_stall_turns >= MINING_STALL_LIMIT:
+        if (
+            self._mining_stall_turns >= MINING_STALL_LIMIT
+            and adjacent_gold is None
+        ):
             return self._finish_mining_floor(snapshot)
         # Phase 1 (user design): SWEEP the detected area before collecting — map
         # the terrain so every cheap vein gains a known walkable approach
