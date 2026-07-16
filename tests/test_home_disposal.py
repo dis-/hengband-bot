@@ -113,6 +113,28 @@ class HomeDisposalTests(unittest.TestCase):
         snapshot = SimpleNamespace(inventory=(identified,))
         self.assertIs(policy._home_disposal_inventory_item(snapshot), identified)
 
+    def test_destroy_waits_for_exact_approved_signature(self):
+        state = self.state()
+        policy = HengbotPolicy(home_disposal_state=state)
+        approved = ("a Metallic Red Potion", TVAL_POTION, 7)
+        undecided = InventoryItem("b", "a Cloudy Potion", 1, TVAL_POTION, 7, True, False)
+        policy._home_disposal_pending = (approved, "destroy")
+
+        outside = SimpleNamespace(in_town=True, store=None, inventory=(undecided,))
+        self.assertIsNone(policy._home_disposal_processing_key(outside))
+        self.assertEqual(policy._home_disposal_pending, (approved, "destroy"))
+
+        home = SimpleNamespace(
+            store=SimpleNamespace(store_type=STORE_HOME, items=()),
+            inventory=(undecided,),
+        )
+        self.assertIsNone(policy._home_disposal_home_key(home))
+        self.assertEqual(policy._home_disposal_pending, (approved, "destroy"))
+
+        withdrawn = InventoryItem("c", approved[0], 1, approved[1], approved[2], True, False)
+        appeared = SimpleNamespace(in_town=True, store=None, inventory=(undecided, withdrawn))
+        self.assertEqual(policy._home_disposal_processing_key(appeared), "01kc")
+
 
 if __name__ == "__main__":
     unittest.main()

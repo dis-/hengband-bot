@@ -4190,10 +4190,12 @@ class HengbotPolicy:
     def _home_disposal_inventory_item(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_disposal_pending is None:
             return None
-        signature, _ = self._home_disposal_pending
+        signature, decision = self._home_disposal_pending
         exact = self._first_item(snapshot, lambda item: self._item_signature(item) == signature)
         if exact is not None:
             return exact
+        if decision != "sell":
+            return None
         # Identify changes the displayed name (and therefore the signature) while
         # preserving the visible base kind.  Keep the approved item attached to
         # its sale pipeline across that rename; the pending pipeline owns only one
@@ -4210,6 +4212,8 @@ class HengbotPolicy:
             if self._home_disposal_inventory_item(snapshot) is not None:
                 self.last_reason = "home-disposal:leave-with-approved-item"
                 return LEAVE_STORE_KEY
+            if self._home_disposal_pending[1] == "destroy":
+                return None
             self._home_disposal_pending = None
         if not self._home_disposal_pass:
             return None
@@ -4252,6 +4256,8 @@ class HengbotPolicy:
         signature, decision = self._home_disposal_pending
         target = self._home_disposal_inventory_item(snapshot)
         if target is None:
+            if decision == "destroy":
+                return None
             self._home_disposal_pending = None
             return None
         if decision == "destroy":
