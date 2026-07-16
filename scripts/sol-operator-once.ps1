@@ -27,6 +27,11 @@ instructions and do not wait for input - act now, autonomously:
     stderr watchdog dumps, economy progress).
 (4) Append start/status events with concrete numbers to
     jsonlog\sol-events.jsonl, then exit; the supervisor relaunches you.
+    Include in EVERY status event the one-line economy summary produced by:
+    set PYTHONPATH=src and run
+    C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+    -m hengbot.economy_summary --ledger jsonlog\bot-economy.jsonl
+    --since-minutes 30
 The operator contract follows.
 
 '@
