@@ -228,10 +228,17 @@ QUEST_STATUS_COMPLETED = 2
 QUEST_STATUS_REWARDED = 3
 QUEST_STATUS_FINISHED = 4
 QUEST_ID_THIEF = 1
-FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF})
-FIXED_QUEST_MIN_LEVEL = {QUEST_ID_THIEF: 8}
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 18, 25, 28})
+# A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
+# and adds modest insurance before committing to another one-shot floor.  The
+# full-health, loadout, pack-space, and departure gates below still all apply.
+FIXED_QUEST_LEVEL_MARGIN = 3
 FIXED_QUEST_REWARD_POSITIONS = {
     QUEST_ID_THIEF: frozenset({Position(27, 98)}),
+    # Rewarding Outpost castle quests share this `!` floor square. Quest 28
+    # explicitly has no floor reward and therefore needs no latch/coordinate.
+    18: frozenset({Position(27, 98)}),
+    25: frozenset({Position(27, 98)}),
 }
 # A closed door does not open just by walking into it (that depends on game
 # options and fails on locked doors); explicitly open it with 'o' + direction.
@@ -8329,7 +8336,10 @@ class HengbotPolicy:
             return self._fixed_quest_reward_key(snapshot, quest_id)
         if quest.status == QUEST_STATUS_COMPLETED:
             return self._fixed_quest_building_key(
-                snapshot, quest_id, "fixedquest:claim", set_reward_pending=True
+                snapshot,
+                quest_id,
+                "fixedquest:claim",
+                set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
             )
         if quest.status == QUEST_STATUS_TAKEN:
             return self._fixed_quest_enter_key(snapshot, quest_id)
@@ -8342,7 +8352,9 @@ class HengbotPolicy:
     def _active_fixed_quest_id(self, snapshot: Snapshot) -> int | None:
         """Return the allowlisted TAKEN quest whose one-way floor we occupy."""
         quest_id = snapshot.floor_key[2]
-        if quest_id not in FIXED_QUEST_ALLOWLIST:
+        if quest_id not in FIXED_QUEST_ALLOWLIST or not self._fixed_quest_is_once(
+            quest_id
+        ):
             return None
         quest = snapshot.quests.get(quest_id)
         if quest is None or quest.status != QUEST_STATUS_TAKEN:
@@ -8350,12 +8362,55 @@ class HengbotPolicy:
         return quest_id
 
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
-        if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST and self._fixed_quest_is_once(snapshot.floor_key[2]):
-            return snapshot.floor_key[2]
-        for quest_id in FIXED_QUEST_ALLOWLIST:
-            if quest_id in snapshot.quests and self._fixed_quest_is_once(quest_id):
-                return quest_id
+        def supported(quest_id: int) -> bool:
+            return quest_id in FIXED_QUEST_ALLOWLIST and self._fixed_quest_is_once(
+                quest_id
+            )
+
+        floor_quest = snapshot.floor_key[2]
+        if supported(floor_quest):
+            return floor_quest
+        pending = self._fixed_quest_reward_pending
+        if pending is not None and supported(pending):
+            return pending
+
+        # Complete work already in flight first. Even an unsupported fixed
+        # quest blocks acceptance so the bot never holds two TAKEN fixed quests.
+        taken = [
+            quest
+            for quest in snapshot.quests.values()
+            if quest.fixed and quest.status == QUEST_STATUS_TAKEN
+        ]
+        supported_taken = [quest for quest in taken if supported(quest.id)]
+        if supported_taken:
+            return min(supported_taken, key=self._fixed_quest_order).id
+        if taken:
+            return None
+
+        completed = [
+            quest
+            for quest in snapshot.quests.values()
+            if supported(quest.id) and quest.status == QUEST_STATUS_COMPLETED
+        ]
+        if completed:
+            return min(completed, key=self._fixed_quest_order).id
+
+        eligible = [
+            quest
+            for quest in snapshot.quests.values()
+            if supported(quest.id)
+            and quest.status == QUEST_STATUS_UNTAKEN
+            and self._fixed_quest_ready(snapshot, quest.id)
+        ]
+        if eligible:
+            return min(eligible, key=self._fixed_quest_order).id
         return None
+
+    def _fixed_quest_order(self, quest: QuestState) -> tuple[int, int]:
+        quest_id = quest.id
+        info = self._quest_knowledge.get(quest_id)
+        level = info.level if info is not None else quest.level
+        return level, quest_id
 
     def _fixed_quest_is_once(self, quest_id: int) -> bool:
         info = self._quest_knowledge.get(quest_id)
@@ -8364,10 +8419,8 @@ class HengbotPolicy:
     def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
         if snapshot.town_id not in {-1, 0}:
             return False
-        if snapshot.player.level < FIXED_QUEST_MIN_LEVEL.get(quest_id, 99):
-            return False
         info = self._quest_knowledge.get(quest_id)
-        if info is not None and FIXED_QUEST_MIN_LEVEL.get(quest_id, 0) < info.level:
+        if info is None or snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
             return False
         if snapshot.player.hp < snapshot.player.max_hp:
             return False

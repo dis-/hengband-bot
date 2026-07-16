@@ -101,7 +101,7 @@ from hengbot.policy import (
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
-    FIXED_QUEST_MIN_LEVEL,
+    FIXED_QUEST_LEVEL_MARGIN,
     FOOD_MIN_SVAL,
     OIL_TARGET,
     AMMO_PURCHASE_TARGET,
@@ -2425,20 +2425,85 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6q\x1b")
         self.assertEqual(policy.last_reason, "fixedquest:request")
 
-    def test_readiness_uses_static_once_flag_and_level(self):
-        info = QuestInfo(1, "Thieves Hideout", 6, 5, 6)
-        policy = HengbotPolicy(self._town_map(), quest_knowledge={1: info})
-        snapshot = self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0)
-        self.assertEqual(FIXED_QUEST_MIN_LEVEL[1], 8)
-        self.assertGreaterEqual(FIXED_QUEST_MIN_LEVEL[1], info.level)
-        self.assertTrue(policy._fixed_quest_is_once(1))
+    def test_readiness_uses_static_level_plus_safety_margin(self):
+        info = QuestInfo(18, "Water Cave", 4, 35, 6)
+        policy = HengbotPolicy(self._town_map(), quest_knowledge={18: info})
+        snapshot = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(26, 97, level=info.level + FIXED_QUEST_LEVEL_MARGIN),
+        )
         policy._combat_weapon_ready = lambda _snapshot: True
         policy._town_departure_ready = lambda _snapshot: True
-        self.assertTrue(policy._fixed_quest_ready(snapshot, 1))
+        self.assertTrue(policy._fixed_quest_ready(snapshot, 18))
+        too_early = replace(
+            snapshot,
+            player=replace(snapshot.player, level=snapshot.player.level - 1),
+        )
+        self.assertFalse(policy._fixed_quest_ready(too_early, 18))
 
         not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 2)
         policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
+        original = self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0)
+        self.assertIsNone(policy._fixed_quest_target(original))
+
+    def test_selects_lowest_level_eligible_untaken_quest(self):
+        quest18 = replace(self._quest(0), id=18, level=35)
+        quest25 = replace(self._quest(0), id=25, level=48)
+        knowledge = {
+            18: QuestInfo(18, "Water Cave", 4, 35, 6),
+            25: QuestInfo(25, "Haunted House", 6, 48, 6),
+        }
+        policy = HengbotPolicy(self._town_map(), quest_knowledge=knowledge)
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, 0),
+            quests={25: quest25, 18: quest18},
+        )
+
+        self.assertEqual(policy._fixed_quest_target(snapshot), 18)
+
+    def test_existing_taken_fixed_quest_blocks_new_acceptance(self):
+        quest14 = replace(self._quest(1), id=14, level=5, flags=2)
+        quest18 = replace(self._quest(0), id=18, level=35)
+        knowledge = {
+            14: QuestInfo(14, "Warg Problem", 1, 5, 2),
+            18: QuestInfo(18, "Water Cave", 4, 35, 6),
+        }
+        policy = HengbotPolicy(self._town_map(), quest_knowledge=knowledge)
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, 0),
+            quests={18: quest18, 14: quest14},
+        )
+
         self.assertIsNone(policy._fixed_quest_target(snapshot))
+
+    def test_generalized_castle_quest_claim_latches_shared_reward_tile(self):
+        quest_id = 18
+        quest = replace(self._quest(2), id=quest_id, level=35)
+        town_map = replace(
+            self._town_map(),
+            quest_buildings={quest_id: frozenset({Position(26, 98)})},
+        )
+        grids = {
+            Position(26, 97): grid(26, 97),
+            Position(26, 98): grid(
+                26, 98, building_type=1, building_special=quest_id
+            ),
+        }
+        snapshot = replace(
+            self._town_snapshot(26, 97, grids, 2),
+            quests={quest_id: quest},
+        )
+        policy = HengbotPolicy(town_map)
+
+        self.assertEqual(policy.choose_key(snapshot), "6q\x1b")
+        self.assertEqual(policy.last_reason, "fixedquest:claim")
+        self.assertEqual(policy._fixed_quest_reward_pending, quest_id)
+        self.assertEqual(
+            policy._fixed_quest_reward_positions(snapshot, quest_id),
+            frozenset({Position(27, 98)}),
+        )
 
     def test_enters_taken_fixed_quest_from_visible_entrance(self):
         grids = {

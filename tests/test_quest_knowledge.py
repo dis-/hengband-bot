@@ -74,12 +74,12 @@ class QuestKnowledgeTest(unittest.TestCase):
         edit = Path(r"C:\hengband\lib\edit")
         if not (edit / "QuestDefinitionList.txt").is_file():
             self.skipTest("real Hengband lib/edit is not available")
-        from hengbot.policy import FIXED_QUEST_MIN_LEVEL
+        from hengbot.policy import FIXED_QUEST_LEVEL_MARGIN
 
         info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[1]
         self.assertEqual(info.name, "\u76d7\u8cca\u306e\u96a0\u308c\u5bb6")
         self.assertEqual((info.type, info.level, info.flags), (6, 5, QUEST_FLAG_PRESET | QUEST_FLAG_ONCE))
-        self.assertGreaterEqual(FIXED_QUEST_MIN_LEVEL[1], info.level)
+        self.assertEqual(info.level + FIXED_QUEST_LEVEL_MARGIN, 8)
 
     def test_locator_prefers_legacy_then_falls_back_to_jsonc(self):
         with tempfile.TemporaryDirectory() as directory:
