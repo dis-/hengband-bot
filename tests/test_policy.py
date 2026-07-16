@@ -13604,6 +13604,34 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             [policy._item_signature(incomplete)],
         )
 
+    def test_optimizer_preserves_inferior_pack_weapon_for_smith_sale(self):
+        policy = HengbotPolicy()
+        spare = item(
+            "b", 23, 0, name="mundane spare", known=True, fully_known=True,
+            is_equipment=True,
+        )
+        snap = self._town(inventory=(spare,), equipment=(
+            item(
+                "main_hand", 23, 8, name="ego weapon", known=True,
+                fully_known=True, is_equipment=True, is_ego=True,
+            ),
+        ))
+        policy._equipment_catalog.refresh_carried(snap.inventory, snap.equipment)
+        captured = {}
+
+        def fake_prepare(*args, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(ready=False, transaction=None)
+
+        with patch("hengbot.policy.prepare_warrior_optimization", fake_prepare):
+            policy._prepare_equipment_optimization(snap)
+
+        spare_id = next(
+            owned.id for owned in policy._equipment_catalog.items
+            if owned.origin == "pack"
+        )
+        self.assertIn(spare_id, captured["preserve_pack_item_ids"])
+
 
 class FullPackDisposalTest(unittest.TestCase):
     """Full-pack disposal: destroy keys must fire in the original keyset, progress must be

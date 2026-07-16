@@ -3133,12 +3133,25 @@ class HengbotPolicy:
         if signature == self._equipment_optimization_signature:
             return self._equipment_optimization_preparation
 
+        # Keep pack weapons that the ordinary town policy has already classified
+        # as sale loot out of the optimizer's Home staging deposits.  Otherwise
+        # the optimizer stores them, Home processing immediately withdraws them
+        # for the Weapon Smith, and the next optimization stores them again.
+        # This produced a live deposit/withdraw carousel without changing gold.
         preserve = frozenset(
             item.id
             for item in catalog
             if item.origin == "pack"
-            and item.item.is_digging_tool
-            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and (
+                (
+                    item.item.is_digging_tool
+                    and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+                )
+                or (
+                    self._equipped_weapon_high_grade(snapshot)
+                    and self._weapon_is_inferior(item.item)
+                )
+            )
         )
         preparation = prepare_warrior_optimization(
             snapshot,
