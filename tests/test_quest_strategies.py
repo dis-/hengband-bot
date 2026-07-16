@@ -1,9 +1,13 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 
+from hengbot.monrace_knowledge import _strip_jsonc
 from hengbot.policy import HengbotPolicy
+from hengbot.policy import FIXED_QUEST_ALLOWLIST
+from hengbot.quest_knowledge import load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 
 
@@ -37,6 +41,42 @@ class QuestStrategiesTest(unittest.TestCase):
             state.parent.mkdir()
             with patch.dict("os.environ", {}, clear=True), patch("pathlib.Path.cwd", return_value=state.parent):
                 self.assertEqual(find_quest_strategies(state), strategies)
+
+    def test_shipped_drafts_match_real_quest_data(self):
+        edit = Path(r"C:\hengband\lib\edit")
+        definitions = edit / "QuestDefinitionList.txt"
+        if not definitions.is_file():
+            self.skipTest("real Hengband lib/edit is not available")
+        directory = Path(__file__).parents[1] / "strategy" / "quests"
+        quests = load_quest_knowledge(definitions)
+        required = {
+            "quest_id", "name", "approved", "approved_note",
+            "engagement_plan", "priority_targets", "consumable_plan",
+            "abort_conditions", "required_force", "generated_by", "generated_at",
+        }
+        paths = sorted(directory.glob("QUEST_*.jsonc"))
+        self.assertEqual(
+            {int(path.stem.removeprefix("QUEST_")) for path in paths},
+            set(FIXED_QUEST_ALLOWLIST),
+        )
+        for path in paths:
+            with self.subTest(path=path.name):
+                data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
+                self.assertTrue(required <= data.keys())
+                self.assertFalse(data["approved"])
+                quest_id = int(path.stem.removeprefix("QUEST_"))
+                self.assertEqual(data["quest_id"], quest_id)
+                info = quests[quest_id]
+                hold = data["engagement_plan"]["hold_position"]
+                if info.battlefield is None:
+                    self.assertIsNone(hold)
+                else:
+                    position = tuple(hold)
+                    self.assertEqual(info.battlefield.terrain.get(position), "floor")
+                    if info.battlefield.chokepoints:
+                        self.assertIn(position, info.battlefield.chokepoints)
+                roster_ids = {r_idx for r_idx, _ in info.threat_roster}
+                self.assertLessEqual(set(data["priority_targets"]), roster_ids)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,21 @@
+{
+  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
+  "quest_id": 14,
+  "name": {"ja": "ワーグを殱滅せよ", "en": "Warg problem"},
+  "approved": false,
+  "approved_note": "",
+  "engagement_plan": {
+    "opening": "On dungeon level 5, scout from the arrival area and draw Wargs back one at a time.",
+    "hold_position": null,
+    "formation": "Use the narrowest locally observed corridor; this random dungeon-level quest has no preset battlefield coordinate in quest_knowledge."
+  },
+  "priority_targets": [257],
+  "consumable_plan": {"speed_potion": "Use before engaging the first Warg pack.", "heal_threshold_ratio": 0.55, "other": "Carry food, light, and two Healing potions."},
+  "abort_conditions": {"hp_ratio": 0.30, "allowed": true},
+  "required_force": {
+    "min_level": 8, "min_hp": 1, "resists": [], "speed_potions": 1, "heal_potions": 2,
+    "rationale": "Threat-gate arithmetic from the real roster of sixteen r_idx 257: the eight-monster simultaneous cap, max melee 10, speed 120, and three actions in three modeled turns gives 8*10*3=240 incoming. Two Healing potions provide 600 HP; requiring 240 < 0.50*(min_hp+600) gives min_hp >= 1 after integer rounding. Quest level 5 plus the policy margin gives min_level 8. No static hold coordinate exists because quest_knowledge correctly reports no preset battlefield; choose a defensible observed corridor at runtime."
+  },
+  "generated_by": "Codex Phase 3 real-data draft generator",
+  "generated_at": "2026-07-16T00:00:00+09:00"
+}

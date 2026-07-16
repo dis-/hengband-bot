@@ -1,0 +1,21 @@
+{
+  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
+  "quest_id": 28,
+  "name": {"ja": "王家の墓", "en": "The Royal Crypt"},
+  "approved": false,
+  "approved_note": "",
+  "engagement_plan": {
+    "opening": "From [9,3], advance east only to the verified corridor floor choke at [9,7].",
+    "hold_position": [9, 7],
+    "formation": "Fight the five real r_idx 776 targets through the west corridor choke; never enter their formation together."
+  },
+  "priority_targets": [776],
+  "consumable_plan": {"speed_potion": "Use before the first r_idx 776 enters line of fire.", "heal_threshold_ratio": 0.75, "other": "Carry nether, confusion, blindness, fear, hold/free-action protection, and anti-summoning escape resources."},
+  "abort_conditions": {"hp_ratio": 0.45, "allowed": false},
+  "required_force": {
+    "min_level": 73, "min_hp": 8281, "resists": ["nether", "confusion", "blindness", "fear", "free_action"], "speed_potions": 1, "heal_potions": 3,
+    "rationale": "Threat-gate arithmetic from the real roster of five r_idx 776 uses max ranged damage 306, speed 120, and three actions in three modeled turns: 5*306*3=4590 incoming. Three Healing potions provide 900 HP; requiring 4590 < 0.50*(min_hp+900) gives min_hp >= 8281. Quest level 70 plus the policy margin gives min_level 73. The pre-resistance maximum is intentionally conservative. [9,7] is the nearest verified corridor floor chokepoint east of the [9,3] start. This ONCE quest cannot be aborted."
+  },
+  "generated_by": "Codex Phase 3 real-data draft generator",
+  "generated_at": "2026-07-16T00:00:00+09:00"
+}

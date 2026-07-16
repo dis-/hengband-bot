@@ -1,0 +1,21 @@
+{
+  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
+  "quest_id": 18,
+  "name": {"ja": "湖の洞窟", "en": "Water Cave"},
+  "approved": false,
+  "approved_note": "",
+  "engagement_plan": {
+    "opening": "Enter at [1,22], move west through the top passage, and establish the nearby choke at [1,23].",
+    "hold_position": [1, 23],
+    "formation": "Pull enemies through the verified one-tile top-passage chokepoint; avoid fighting the aquatic roster in open water."
+  },
+  "priority_targets": [775, 740, 482, 443, 903, 406, 386, 292, 1272, 944, 88, 220, 160, 40],
+  "consumable_plan": {"speed_potion": "Use before leaving the [1,23] choke to engage the deep-water threats.", "heal_threshold_ratio": 0.70, "other": "Carry poison, acid, electricity, cold, darkness, confusion, and blindness protection where available."},
+  "abort_conditions": {"hp_ratio": 0.40, "allowed": false},
+  "required_force": {
+    "min_level": 38, "min_hp": 20083, "resists": ["acid", "electricity", "cold", "poison", "darkness", "confusion"], "speed_potions": 1, "heal_potions": 3,
+    "rationale": "Threat-gate arithmetic uses modeled speed 120 and the eight-monster cap. The worst real roster entries contribute r_idx 775: 1333*3=3999, r_idx 740: 1100*3=3300, and six r_idx 482: 266*2=532 each, totaling 10491 incoming over three turns. Three Healing potions provide 900 HP; requiring 10491 < 0.50*(min_hp+900) gives min_hp >= 20083. Quest level 35 plus the policy margin gives min_level 38. The deliberately conservative pre-resistance maximum makes this an approval-review figure. [1,23] is a verified floor chokepoint adjacent to the entrance. This ONCE quest cannot be aborted."
+  },
+  "generated_by": "Codex Phase 3 real-data draft generator",
+  "generated_at": "2026-07-16T00:00:00+09:00"
+}

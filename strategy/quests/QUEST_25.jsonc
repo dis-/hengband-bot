@@ -1,0 +1,21 @@
+{
+  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
+  "quest_id": 25,
+  "name": {"ja": "幽霊屋敷", "en": "Haunted House"},
+  "approved": false,
+  "approved_note": "",
+  "engagement_plan": {
+    "opening": "Enter at [13,1], advance north along the west edge, and hold the verified floor choke at [8,1].",
+    "hold_position": [8, 1],
+    "formation": "Pull undead down the west-edge corridor; eliminate summoners before opening interior rooms."
+  },
+  "priority_targets": [705, 739, 748, 557, 690, 665, 623, 571, 508, 466, 202, 439, 480],
+  "consumable_plan": {"speed_potion": "Use before advancing north from the entrance corridor.", "heal_threshold_ratio": 0.70, "other": "Carry nether, poison, cold, fire, confusion, blindness, and free-action protection where available."},
+  "abort_conditions": {"hp_ratio": 0.40, "allowed": false},
+  "required_force": {
+    "min_level": 51, "min_hp": 13101, "resists": ["nether", "poison", "cold", "fire", "confusion", "blindness"], "speed_potions": 1, "heal_potions": 3,
+    "rationale": "Threat-gate arithmetic uses modeled speed 120 and the eight-monster cap. The worst real entries contribute r_idx 705: 1000*3=3000, 739: 300*3=900, 748: 140*5=700, 557: 194*3=582, 690: 156*3=468, and three r_idx 665: 150*3=450 each, totaling 7000 incoming. Three Healing potions provide 900 HP; requiring 7000 < 0.50*(min_hp+900) gives min_hp >= 13101. Quest level 48 plus the policy margin gives min_level 51. The pre-resistance maximum is intentionally conservative. [8,1] is the nearest verified floor chokepoint on the west corridor from the [13,1] start. This ONCE quest cannot be aborted."
+  },
+  "generated_by": "Codex Phase 3 real-data draft generator",
+  "generated_at": "2026-07-16T00:00:00+09:00"
+}
