@@ -6697,7 +6697,10 @@ class HengbotPolicy:
         ):
             self._fundraising_mode = "scavenge"
             self._scavenge_entry_gold = snapshot.player.gold
-        elif self._fundraising_mode == "prepare":
+        elif self._fundraising_mode == "prepare" or (
+            self._fundraising_mode == "mine"
+            and not self._fundraising_departure_ready(snapshot)
+        ):
             self._fundraising_mode = "scavenge"
             self._scavenge_entry_gold = snapshot.player.gold
         # After a cycle the goal is DEPARTURE, not errands: without this, a
