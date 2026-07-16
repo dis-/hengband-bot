@@ -233,6 +233,16 @@ FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 18, 25, 28})
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
 FIXED_QUEST_LEVEL_MARGIN = 3
+# Fixed quest maps are one-shot commitments.  Model the three most dangerous
+# placed monsters as a simultaneous adjacent engagement (three attackers is a
+# realistic bad doorway/open-room contact, without pretending the whole map can
+# melee at once).  Acceptance requires its operational three-turn damage to be
+# strictly below half max HP, and enough AC-100 melee output to kill the toughest
+# placed monster within ten player turns.
+FIXED_QUEST_SIMULTANEOUS_MONSTERS = 3
+FIXED_QUEST_THREAT_TURNS = 3
+FIXED_QUEST_MAX_DAMAGE_RATIO = 0.50
+FIXED_QUEST_TOUGHEST_KILL_TURNS = 10
 FIXED_QUEST_REWARD_POSITIONS = {
     QUEST_ID_THIEF: frozenset({Position(27, 98)}),
     # Rewarding Outpost castle quests share this `!` floor square. Quest 28
@@ -683,6 +693,10 @@ WEAPON_BLOCK_LIMIT = 400
 
 PANIC_HP_RATIO = 0.20  # read teleport to escape below this when threatened
 HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
+# Fixed quests have no ordinary retreat/recovery loop.  Preserve the scarce
+# healing stock until HP is below 30%; lethal prediction and status cures still
+# run first and are unaffected by this lower routine-healing threshold.
+FIXED_QUEST_HEAL_HP_RATIO = 0.30
 # A successful emergency relocation is not itself expedition-ending. Reassess
 # the landing and return only when recovery is genuinely unsafe or this is the
 # second forced escape of the dive.
@@ -743,6 +757,9 @@ UNIQUE_COMBAT_MAX_ATTACKS = 20
 UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 HEALING_POTION_HP = 300
 SPEED_POTION_BONUS = 10
+# Cure Critical Wounds heals 6d8 in Hengband: use its 27 HP mean in the
+# readiness pool.  Healing uses its documented flat 300 HP value above.
+FIXED_QUEST_CURE_CRITICAL_HP = 27
 # From this depth the loot stream is dense enough that carrying a Staff of Identify
 # (rechargeable, unlike scrolls) pays for itself: unknowns get resolved in the
 # dungeon so junk can be shed instead of hoarded. Required in the departure kit.
@@ -1054,6 +1071,9 @@ class HengbotPolicy:
         self._conquered_seen: set[int] = set()
         self._victory_loot_dungeon: int | None = None
         self._fixed_quest_reward_pending: int | None = None
+        self._fixed_quest_readiness: dict = {}
+        self._fixed_quest_speed_floor: tuple[int, int, int] | None = None
+        self._fixed_quest_speed_attempted = False
         # The conquest target latch (see _conquest_target): sticky once chosen, so
         # consumable possession (a Speed potion bought/drunk/stashed) cannot flip
         # the recall destination back and forth.
@@ -1336,6 +1356,17 @@ class HengbotPolicy:
         emergency = self._emergency_item(snapshot, hostiles)
         if emergency is not None:
             return emergency
+
+        # A reviewed one-shot quest is entered on the assumption that its carried
+        # Speed dose is part of the action-economy budget.  Spend it on first
+        # contact, once for this floor entry (a rejected command is not looped).
+        active_quest = self._active_fixed_quest_id(snapshot)
+        if active_quest is not None and hostiles and not self._fixed_quest_speed_attempted:
+            self._fixed_quest_speed_attempted = True
+            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            if speed is not None:
+                self.last_reason = "quest:quaff-speed"
+                return QUAFF_KEY + speed.slot
 
         # 0a. Open wilderness = a non-town surface tile the town routine strayed
         #     onto by crossing a map border. It spawns out-of-depth monsters (a
@@ -1893,6 +1924,12 @@ class HengbotPolicy:
         self._threat_prediction_memo.clear()
         previous_floor = self._floor_key
         if previous_floor is not None and previous_floor != snapshot.floor_key:
+            if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
+                self._fixed_quest_speed_floor = snapshot.floor_key
+                self._fixed_quest_speed_attempted = False
+            else:
+                self._fixed_quest_speed_floor = None
+                self._fixed_quest_speed_attempted = False
             # Surface-travel bookkeeping is per-visit: positions repeat across
             # town visits (static map), so a stale no-progress latch from the
             # previous visit would suppress native travel forever.
@@ -8603,22 +8640,135 @@ class HengbotPolicy:
         return info is None or bool(info.flags & QUEST_FLAG_ONCE)
 
     def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
+        telemetry = {
+            "quest_id": quest_id,
+            "roster_size": 0,
+            "toughest_r_idx": None,
+            "worst3": None,
+            "hp_healing_budget": snapshot.player.max_hp,
+            "hasted": False,
+            "verdict": False,
+        }
+        self._fixed_quest_readiness = telemetry
+
+        def reject(reason: str) -> bool:
+            telemetry["reason"] = reason
+            return False
+
         if snapshot.town_id not in {-1, 0}:
-            return False
+            return reject("not-in-town")
         info = self._quest_knowledge.get(quest_id)
-        if info is None or snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
-            return False
+        if info is None:
+            return reject("unknown-quest")
+        telemetry["roster_size"] = info.placed_monster_count
+        if snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
+            return reject("level-floor")
         if snapshot.player.hp < snapshot.player.max_hp:
-            return False
+            return reject("not-full-hp")
         if not self._temporary_status_clear(snapshot):
-            return False
+            return reject("temporary-status")
         if not self._combat_weapon_ready(snapshot):
-            return False
+            return reject("combat-weapon")
         if PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS:
-            return False
+            return reject("pack-space")
         if not self._town_departure_ready(snapshot):
-            return False
+            return reject("departure")
+        if not info.placed_monsters:
+            return reject("empty-roster")
+
+        healing_budget = (
+            self._exact_potion_count(snapshot, SV_POTION_HEALING) * HEALING_POTION_HP
+            + self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
+            * FIXED_QUEST_CURE_CRITICAL_HP
+        )
+        speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+        hasted = speed_potion is not None
+        modeled_speed = snapshot.player.speed + (SPEED_POTION_BONUS if hasted else 0)
+        telemetry["hp_healing_budget"] = snapshot.player.max_hp + healing_budget
+        telemetry["hasted"] = hasted
+
+        candidates: list[tuple[int, int, MonsterState]] = []
+        player_pos = snapshot.player.position
+        positions = [
+            Position(player_pos.y - 1, player_pos.x),
+            Position(player_pos.y, player_pos.x + 1),
+            Position(player_pos.y + 1, player_pos.x),
+        ]
+        combat_grids = dict(snapshot.grids)
+        combat_grids[player_pos] = GridState(
+            player_pos, True, True, False, False, False, False, False
+        )
+        for position in positions:
+            combat_grids[position] = GridState(
+                position, True, True, False, True, False, False, False
+            )
+        combat_snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, speed=modeled_speed),
+            grids=combat_grids,
+            store=None,
+        )
+        for r_idx, count_placed in info.placed_monsters:
+            knowledge = self._monrace_knowledge.get(r_idx)
+            if knowledge is None:
+                telemetry["toughest_r_idx"] = r_idx
+                return reject("unknown-monster")
+            hp = knowledge.average_hp or knowledge.max_hp
+            monster = MonsterState(
+                index=-r_idx,
+                position=positions[0],
+                hp=hp,
+                max_hp=hp,
+                distance=1,
+                friendly=knowledge.friendly,
+                pet=False,
+                speed=knowledge.speed,
+                name=f"fixedquest:{r_idx}",
+                race_id=r_idx,
+                can_summon=knowledge.can_summon,
+                level=knowledge.level,
+                max_melee_damage=knowledge.max_melee_damage,
+                max_ranged_damage=knowledge.max_ranged_damage,
+                can_multiply=knowledge.can_multiply,
+            )
+            individual = self.threat_prediction(
+                combat_snapshot, [monster], FIXED_QUEST_THREAT_TURNS
+            )["operational_total"]
+            candidates.extend((individual, r_idx, monster) for _ in range(count_placed))
+
+        candidates.sort(key=lambda entry: (entry[0], entry[2].max_hp), reverse=True)
+        _, toughest_r_idx, toughest = candidates[0]
+        telemetry["toughest_r_idx"] = toughest_r_idx
+        simultaneous = [
+            replace(entry[2], index=-(index + 1), position=positions[index], distance=1)
+            for index, entry in enumerate(candidates[:FIXED_QUEST_SIMULTANEOUS_MONSTERS])
+        ]
+        worst3 = self.threat_prediction(
+            combat_snapshot, simultaneous, FIXED_QUEST_THREAT_TURNS
+        )["operational_total"]
+        telemetry["worst3"] = worst3
+        if worst3 >= telemetry["hp_healing_budget"] * FIXED_QUEST_MAX_DAMAGE_RATIO:
+            return reject("three-turn-threat")
+        weapon = next(
+            (item for item in snapshot.equipment if item.slot == "main_hand"), None
+        )
+        melee_output = self._main_hand_dps(snapshot, weapon) if weapon is not None else 0.0
+        # _main_hand_dps is damage per player action. Convert it to output over
+        # ten baseline player turns so a carried Speed dose affects both sides of
+        # the same readiness projection.
+        melee_output *= self._speed_energy(modeled_speed) / self._speed_energy(
+            snapshot.player.speed
+        )
+        telemetry["toughest_hp"] = toughest.max_hp
+        telemetry["melee_output"] = melee_output
+        if melee_output * FIXED_QUEST_TOUGHEST_KILL_TURNS < toughest.max_hp:
+            return reject("toughest-kill-time")
+        telemetry["verdict"] = True
+        telemetry["reason"] = "ready"
         return True
+
+    def fixed_quest_readiness_state(self) -> dict:
+        return dict(self._fixed_quest_readiness)
 
     def _fixed_quest_building_positions(
         self, snapshot: Snapshot, quest_id: int
@@ -9682,7 +9832,12 @@ class HengbotPolicy:
                 return QUAFF_KEY + potion.slot
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
-        if hostiles and player.hp_ratio < HEAL_HP_RATIO:
+        heal_ratio = (
+            FIXED_QUEST_HEAL_HP_RATIO
+            if self._active_fixed_quest_id(snapshot) is not None
+            else HEAL_HP_RATIO
+        )
+        if hostiles and player.hp_ratio < heal_ratio:
             potion = self._find_heal_potion(snapshot)
             if potion is not None:
                 self.last_reason = "item:heal"
@@ -10034,16 +10189,17 @@ class HengbotPolicy:
         return 0.05 + 0.90 * normal_hit
 
     @staticmethod
-    def _monster_actions(monster_speed: int, player_speed: int, turns: int) -> int:
-        def energy(speed: int) -> int:
-            if speed < 90:
-                return 3  # conservative upper bound for very slow actors
-            if speed >= 200:
-                return 49
-            return SPEED_ENERGY_90[speed - 90]
+    def _speed_energy(speed: int) -> int:
+        if speed < 90:
+            return 3  # conservative upper bound for very slow actors
+        if speed >= 200:
+            return 49
+        return SPEED_ENERGY_90[speed - 90]
 
-        monster_energy = energy(monster_speed)
-        player_energy = energy(player_speed)
+    @classmethod
+    def _monster_actions(cls, monster_speed: int, player_speed: int, turns: int) -> int:
+        monster_energy = cls._speed_energy(monster_speed)
+        player_energy = cls._speed_energy(player_speed)
         ratio_actions = (turns * monster_energy + player_energy - 1) // player_energy
         # Runtime energy phase is intentionally not emitted. In the worst phase
         # the monster can squeeze in one action beyond the steady-state ratio.

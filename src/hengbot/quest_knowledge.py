@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,11 @@ class QuestInfo:
     reward_artifact_id: int | None = None
     reward_artifact_ids: tuple[int, ...] = ()
     reward_baseitem_id: int = 0
+    placed_monsters: tuple[tuple[int, int], ...] = ()
+
+    @property
+    def placed_monster_count(self) -> int:
+        return sum(count for _, count in self.placed_monsters)
 
 
 def _flag_mask(value: Any) -> int:
@@ -61,11 +67,39 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
     names: dict[int, str] = {}
     names_en: dict[int, str] = {}
     definitions: dict[int, QuestInfo] = {}
-    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    glyph_monsters: dict[str, int] = {}
+    map_rows: list[str] = []
+    for raw_line in lines:
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split(":")
+        # QuestPreferences.txt defines F as
+        # F:glyph:terrain:cave_info:monster:object:ego:artifact:trap:special.
+        # The roster count comes from occurrences of that glyph in D map rows.
+        if parts[0] == "F" and len(parts) >= 5:
+            try:
+                r_idx = int(parts[4], 0)
+            except ValueError:  # random-depth forms such as *10 are not placed races
+                r_idx = 0
+            if r_idx > 0:
+                glyph_monsters[parts[1]] = r_idx
+            continue
+        if parts[0] == "M" and len(parts) >= 2:
+            # Some quest-map revisions use an explicit M:r_idx[:count] roster.
+            try:
+                r_idx = int(parts[1], 0)
+                count = int(parts[2], 0) if len(parts) >= 3 else 1
+            except ValueError:
+                continue
+            if r_idx > 0 and count > 0:
+                glyph_monsters[f"\0{r_idx}"] = r_idx
+                map_rows.extend([f"\0{r_idx}"] * count)
+            continue
+        if parts[0] == "D" and len(parts) >= 2:
+            map_rows.append(":".join(parts[1:]))
+            continue
         if len(parts) < 3 or parts[0] != "Q":
             continue
         english = parts[1].startswith("$")
@@ -91,12 +125,19 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
                 dungeon=values[7],
                 flags=flags,
             )
+    roster = Counter(
+        r_idx
+        for row in map_rows
+        for glyph, r_idx in glyph_monsters.items()
+        for _ in range(row.count(glyph))
+    )
     return {
         quest_id: QuestInfo(
             **{
                 **info.__dict__,
                 "name": names.get(quest_id, info.name),
                 "name_en": names_en.get(quest_id, ""),
+                "placed_monsters": tuple(sorted(roster.items())),
             }
         )
         for quest_id, info in definitions.items()
@@ -123,6 +164,7 @@ def _json_quest(path: Path) -> QuestInfo:
     if reward.get("artifact") is not None:
         artifacts = [reward["artifact"]]
     artifact_ids = tuple(int(value) for value in artifacts)
+    roster = _json_placed_monsters(data)
     return QuestInfo(
         id=quest_id,
         name=name,
@@ -139,7 +181,46 @@ def _json_quest(path: Path) -> QuestInfo:
         reward_artifact_id=artifact_ids[0] if artifact_ids else None,
         reward_artifact_ids=artifact_ids,
         reward_baseitem_id=int(reward.get("baseitemId", 0) or 0),
+        placed_monsters=tuple(sorted(roster.items())),
     )
+
+
+def _json_placed_monsters(data: dict[str, Any]) -> Counter[int]:
+    """Read migrated fixed-map placements without treating the quest target as a placement.
+
+    Migrated files have appeared with both explicit ``placed_monsters`` arrays and
+    map feature/symbol objects.  Restrict recursion to map-shaped keys so a
+    definition's ordinary ``monster`` field is never mistaken for a hand placement.
+    """
+    roster: Counter[int] = Counter()
+    map_keys = {"map", "fixed_map", "layout", "floor", "placements", "placed_monsters", "features", "symbols"}
+
+    def visit(value: Any, *, in_map: bool = False) -> None:
+        if isinstance(value, list):
+            for item in value:
+                visit(item, in_map=in_map)
+            return
+        if not isinstance(value, dict):
+            return
+        if in_map:
+            raw_id = next(
+                (value[key] for key in ("r_idx", "monrace_id", "monster_id", "monster") if key in value),
+                None,
+            )
+            if raw_id is not None:
+                try:
+                    r_idx = int(raw_id)
+                    count = int(value.get("count", value.get("quantity", 1)))
+                except (TypeError, ValueError):
+                    pass
+                else:
+                    if r_idx > 0 and count > 0:
+                        roster[r_idx] += count
+        for key, child in value.items():
+            visit(child, in_map=in_map or key in map_keys)
+
+    visit(data)
+    return roster
 
 
 def load_quest_knowledge(path: Path) -> dict[int, QuestInfo]:

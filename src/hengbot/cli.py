@@ -439,6 +439,7 @@ def _decision_record(
     mining: dict | None = None,
     fundraising: dict | None = None,
     town_plan: dict | None = None,
+    fixedquest_readiness: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -492,6 +493,7 @@ def _decision_record(
         "mining": mining or {},
         "fundraising": fundraising or {},
         **({"town_plan": town_plan} if town_plan else {}),
+        **({"fixedquest_readiness": fixedquest_readiness} if fixedquest_readiness else {}),
     }
 
 
@@ -700,6 +702,9 @@ def _write_decision(
                 _fundraising_state(snapshot, policy) if policy is not None else {}
             )
             town_plan = _town_plan_state(policy) if policy is not None else {}
+            fixedquest_readiness = (
+                policy.fixed_quest_readiness_state() if policy is not None else {}
+            )
             json.dump(
                 _decision_record(
                     snapshot,
@@ -714,6 +719,7 @@ def _write_decision(
                     mining,
                     fundraising,
                     town_plan,
+                    fixedquest_readiness,
                 ),
                 file,
                 ensure_ascii=False,

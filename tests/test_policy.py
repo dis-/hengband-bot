@@ -2451,11 +2451,19 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "fixedquest:request")
 
     def test_readiness_uses_static_level_plus_safety_margin(self):
-        info = QuestInfo(18, "Water Cave", 4, 35, 6)
-        policy = HengbotPolicy(self._town_map(), quest_knowledge={18: info})
+        info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
+        harmless = MonraceKnowledge(1, 110, False, False)
+        policy = HengbotPolicy(
+            self._town_map(), quest_knowledge={18: info}, monrace_knowledge={44: harmless}
+        )
         snapshot = replace(
             self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
-            player=player(26, 97, level=info.level + FIXED_QUEST_LEVEL_MARGIN),
+            player=player(
+                26, 97, level=info.level + FIXED_QUEST_LEVEL_MARGIN,
+                hp=100, max_hp=100, main_hand_blows=4, main_hand_to_d=10,
+            ),
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                            damage_dice_num=2, damage_dice_sides=6)],
         )
         policy._combat_weapon_ready = lambda _snapshot: True
         policy._town_departure_ready = lambda _snapshot: True
@@ -2465,6 +2473,76 @@ class FixedQuestTest(unittest.TestCase):
             player=replace(snapshot.player, level=snapshot.player.level - 1),
         )
         self.assertFalse(policy._fixed_quest_ready(too_early, 18))
+
+    def test_fixed_quest_roster_threat_rejects_despite_level_floor(self):
+        info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 3),))
+        threat = MonraceKnowledge(100, 110, False, False, max_melee_damage=50)
+        policy = HengbotPolicy(
+            self._town_map(), quest_knowledge={18: info}, monrace_knowledge={44: threat}
+        )
+        snapshot = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(26, 97, level=38, hp=200, max_hp=200,
+                          main_hand_blows=4, main_hand_to_d=20),
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                            damage_dice_num=3, damage_dice_sides=6)],
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+
+        self.assertFalse(policy._fixed_quest_ready(snapshot, 18))
+        self.assertEqual(policy.fixed_quest_readiness_state()["reason"], "three-turn-threat")
+
+    def test_fixed_quest_consumables_flip_borderline_readiness(self):
+        info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
+        threat = MonraceKnowledge(100, 120, False, False, max_melee_damage=30)
+        policy = HengbotPolicy(
+            self._town_map(), quest_knowledge={18: info}, monrace_knowledge={44: threat}
+        )
+        base = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(26, 97, level=38, hp=200, max_hp=200,
+                          main_hand_blows=4, main_hand_to_d=20),
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                            damage_dice_num=3, damage_dice_sides=6)],
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+        self.assertFalse(policy._fixed_quest_ready(base, 18))
+
+        stocked = replace(base, inventory=[
+            item("s", TVAL_POTION, SV_POTION_SPEED),
+            item("h", TVAL_POTION, SV_POTION_HEALING),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=2),
+        ])
+        self.assertTrue(policy._fixed_quest_ready(stocked, 18))
+        state = policy.fixed_quest_readiness_state()
+        self.assertEqual(state["hp_healing_budget"], 554)
+        self.assertTrue(state["hasted"])
+        self.assertTrue(state["verdict"])
+
+    def test_fixed_quest_quaffs_speed_once_on_first_engagement(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11, monster=True),
+        }
+        snapshot = replace(
+            self._town_snapshot(10, 10, grids, 1),
+            player=player(10, 10, hp=100, max_hp=100, level=8,
+                          main_hand_blows=2, main_hand_to_d=10),
+            inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                            damage_dice_num=2, damage_dice_sides=6)],
+            visible_monsters=[hostile(1, 10, 11, hp=10, max_melee_damage=1)],
+            floor_key=(0, 0, self.QUEST_ID),
+            town_flag=False,
+            town_id=-1,
+        )
+        policy = HengbotPolicy(self._town_map())
+
+        self.assertEqual(policy.choose_key(snapshot), "qs")
+        self.assertEqual(policy.last_reason, "quest:quaff-speed")
+        self.assertNotEqual(policy.choose_key(snapshot), "qs")
 
         not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 2)
         policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
