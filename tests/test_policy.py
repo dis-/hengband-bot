@@ -44,6 +44,7 @@ from hengbot.model import (
     SV_STAFF_IDENTIFY,
     TVAL_BOTTLE,
     TVAL_ARROW,
+    TVAL_CHEST,
     TVAL_SHOT,
     TVAL_BOW,
     SV_BOW_SLING,
@@ -106,6 +107,9 @@ from hengbot.policy import (
     OIL_TARGET,
     AMMO_PURCHASE_TARGET,
     TORCH_THROW_TARGET,
+    CHEST_SEARCH_BUDGET,
+    CHEST_DISARM_BUDGET,
+    CHEST_OPEN_BUDGET,
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
@@ -12844,6 +12848,120 @@ class RangedAttackTest(unittest.TestCase):
             item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
             item("v", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
         ]
+
+
+class ChestProcessingTest(unittest.TestCase):
+    """Drop → step beside → search → disarm → open, on fixed key budgets."""
+
+    def _snap(self, *, inventory=(), grids=None, player_pos=(10, 10)):
+        base = grids or {
+            Position(y, x): grid(y, x) for y in range(9, 12) for x in range(9, 13)
+        }
+        return Snapshot(
+            player(
+                *player_pos, hp=50, max_hp=50, class_id=PLAYER_CLASS_WARRIOR
+            ),
+            base,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
+            width=30,
+            height=30,
+            inventory=list(inventory),
+            equipment=[
+                item("a", TVAL_SWORD, 17, name="sword", is_equipment=True),
+                item(
+                    "l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True
+                ),
+            ],
+        )
+
+    def test_full_pipeline_runs_on_budgets(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest")
+        snap = self._snap(inventory=[chest])
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "dc")
+        self.assertEqual(policy.last_reason, "chest:drop")
+
+        # The chest now sits under the player (the tile reports an object);
+        # step off, then work it from the adjacent tile.
+        dropped_grids = dict(snap.grids)
+        dropped_grids[Position(10, 10)] = grid(10, 10, objects=1)
+        dropped = replace(snap, inventory=[], grids=dropped_grids)
+        key = policy.choose_key(dropped)
+        self.assertEqual(policy.last_reason, "chest:step-off")
+
+        beside = replace(
+            dropped,
+            player=player(
+                10, 11, hp=50, max_hp=50, class_id=PLAYER_CLASS_WARRIOR
+            ),
+        )
+        chest_grids = dict(beside.grids)
+        chest_grids[Position(10, 10)] = grid(10, 10, objects=1)
+        beside = replace(beside, grids=chest_grids)
+
+        for _ in range(CHEST_SEARCH_BUDGET):
+            self.assertEqual(policy.choose_key(beside), "s")
+            self.assertEqual(policy.last_reason, "chest:search")
+        for _ in range(CHEST_DISARM_BUDGET):
+            self.assertEqual(policy.choose_key(beside), "D4")
+            self.assertEqual(policy.last_reason, "chest:disarm")
+        for _ in range(CHEST_OPEN_BUDGET):
+            self.assertEqual(policy.choose_key(beside), "o4")
+            self.assertEqual(policy.last_reason, "chest:open")
+
+        # Budgets exhausted: the pipeline abandons and normal behavior resumes.
+        policy.choose_key(beside)
+        self.assertFalse(policy.last_reason.startswith("chest:"))
+        self.assertIsNone(policy._chest_position)
+
+    def test_looted_chest_tile_ends_the_pipeline(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest")
+        snap = self._snap(inventory=[chest])
+        policy = HengbotPolicy()
+        policy.choose_key(snap)  # drop at (10,10)
+
+        emptied = replace(
+            snap,
+            inventory=[],
+            player=player(
+                10, 11, hp=50, max_hp=50, class_id=PLAYER_CLASS_WARRIOR
+            ),
+        )
+        policy.choose_key(emptied)
+        self.assertFalse(policy.last_reason.startswith("chest:"))
+        self.assertIsNone(policy._chest_position)
+
+    def test_empty_chest_is_not_processed(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest (empty)")
+        snap = self._snap(inventory=[chest])
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "chest:drop")
+
+    def test_hostiles_defer_the_pipeline(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest")
+        snap = self._snap(inventory=[chest])
+        snap = replace(
+            snap, visible_monsters=[hostile(1, 11, 11, distance=1)]
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertFalse(policy.last_reason.startswith("chest:"))
+
+    def test_low_hp_defers_the_drop(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest")
+        snap = self._snap(inventory=[chest])
+        snap = replace(
+            snap,
+            player=player(
+                10, 10, hp=20, max_hp=50, class_id=PLAYER_CLASS_WARRIOR
+            ),
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "chest:drop")
 
 
 class TownTravelerCombatPriorityTest(unittest.TestCase):

@@ -570,6 +570,20 @@ AMMO_RESTOCK_THRESHOLD = 10
 # is near-free ranged pressure while the launcher has no matching ammo.
 TORCH_THROW_MAX_DEPTH = 10
 TORCH_THROW_TARGET = 10
+# Chest processing (user-specified procedure): drop the carried chest, step
+# to an adjacent tile, `s` to discover its trap (search() marks adjacent
+# trapped chests known — player-move.cpp discover_hidden_things), `D` to
+# disarm, `o` to open (repeats pick a lock). The bot cannot OBSERVE the
+# "trap discovered" message through snapshots, so each phase runs a fixed
+# budget instead: search chances are skill_srh% per press, disarm may fail,
+# a locked chest needs several picks.
+CHEST_DROP_KEY = "d"
+CHEST_SEARCH_KEY = "s"
+CHEST_DISARM_KEY = "D"
+CHEST_OPEN_KEY = "o"
+CHEST_SEARCH_BUDGET = 6
+CHEST_DISARM_BUDGET = 2
+CHEST_OPEN_BUDGET = 8
 EAT_KEY = "E"
 PICKUP_KEY = "g"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
@@ -950,6 +964,10 @@ class HengbotPolicy:
             tuple[Position, Position]
         ] = deque(maxlen=3)
         self._mining_swept_dead_targets: set[Position] = set()
+        # Chest pipeline: position of the dropped chest and the per-phase key
+        # budgets already spent (search/disarm/open). None = no chest placed.
+        self._chest_position: Position | None = None
+        self._chest_phase_counts: dict[str, int] = {}
         # Known-grid high-water mark at the moment the sweep latched done. A
         # tapped-out RESUME must show the map grew past this (mining exposed
         # new floor); resuming on mere frontier existence re-runs the exact
@@ -1471,6 +1489,15 @@ class HengbotPolicy:
             destroy = self._full_pack_destroy_key(snapshot)
             if destroy is not None:
                 return destroy
+
+        # Process a carried chest while things are calm — BEFORE committing to
+        # a supply return: the pipeline takes a couple dozen decisions and the
+        # contents may themselves be the supplies (drop → step beside → s ×N →
+        # D ×N → o ×N, the user-specified procedure). Emergencies never reach
+        # here (handled at the top), so only the leisurely return is deferred.
+        chest = self._chest_processing_key(snapshot, hostiles)
+        if chest is not None:
+            return chest
 
         # A routine supply return can afford a short sweep for already-seen safe
         # loot. Hunger, darkness, a full pack, and emergency returns never detour.
@@ -2214,6 +2241,8 @@ class HengbotPolicy:
             self._mining_dropped_veins.clear()
             self._mining_veins_collected = 0
             self._mining_veins_dropped = 0
+            self._chest_position = None
+            self._chest_phase_counts = {}
             self._known_loot.clear()
             self._loot_target = None
             self._deferred_loot.clear()
@@ -2405,6 +2434,92 @@ class HengbotPolicy:
             return None
         self.last_reason = reason
         return prefix + slot + self._direction_key(player.position, target.position)
+
+    @staticmethod
+    def _is_processable_chest(item: InventoryItem) -> bool:
+        """A chest still worth the drop/search/disarm/open pipeline.
+
+        An opened or smashed chest announces itself in the display name
+        (player-visible), in either language; those are junk, not work."""
+        if not item.is_chest:
+            return False
+        name = item.name
+        return not any(
+            marker in name for marker in ("(empty)", "(空)", "壊れた", "(disarmed)")
+        )
+
+    def _chest_processing_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.
+
+        The trap-discovered message is invisible to snapshots, so each phase
+        spends a fixed key budget instead of observing: search() reveals an
+        adjacent trapped chest at skill_srh% per press, disarm can fail, and a
+        locked chest takes several picks. Budget exhaustion abandons the chest
+        (whatever spilled is normal loot)."""
+        player = snapshot.player
+        if hostiles or player.blind or player.confused:
+            return None
+        if self._chest_position is not None:
+            chest_pos = self._chest_position
+            grid = snapshot.grids.get(chest_pos)
+            if grid is not None and grid.object_count == 0:
+                # Opened and fully looted, or destroyed by its own trap.
+                self._chest_position = None
+                self._chest_phase_counts = {}
+                return None
+            distance = player.position.distance_to(chest_pos)
+            if distance == 0:
+                neighbors = self._walkable_neighbors(snapshot, player.position)
+                if not neighbors:
+                    self._chest_position = None
+                    self._chest_phase_counts = {}
+                    return None
+                self.last_reason = "chest:step-off"
+                return self._step_toward(snapshot, neighbors[0])
+            if distance > 1:
+                step = self._nearest_goal_step(
+                    snapshot,
+                    lambda g: g.position != chest_pos
+                    and g.position.distance_to(chest_pos) == 1,
+                )
+                if step is None:
+                    self._chest_position = None
+                    self._chest_phase_counts = {}
+                    return None
+                self.last_reason = "chest:approach"
+                return self._step_toward(snapshot, step)
+            counts = self._chest_phase_counts
+            if counts.get("search", 0) < CHEST_SEARCH_BUDGET:
+                counts["search"] = counts.get("search", 0) + 1
+                self.last_reason = "chest:search"
+                return CHEST_SEARCH_KEY
+            direction = self._direction_key(player.position, chest_pos)
+            if counts.get("disarm", 0) < CHEST_DISARM_BUDGET:
+                counts["disarm"] = counts.get("disarm", 0) + 1
+                self.last_reason = "chest:disarm"
+                return CHEST_DISARM_KEY + direction
+            if counts.get("open", 0) < CHEST_OPEN_BUDGET:
+                counts["open"] = counts.get("open", 0) + 1
+                self.last_reason = "chest:open"
+                return CHEST_OPEN_KEY + direction
+            self._chest_position = None
+            self._chest_phase_counts = {}
+            return None
+        chest = next(
+            (it for it in snapshot.inventory if self._is_processable_chest(it)),
+            None,
+        )
+        if chest is None:
+            return None
+        if player.hp < player.max_hp * 0.8:
+            # A chest trap can hurt; open on a healthy bar.
+            return None
+        self._chest_position = player.position
+        self._chest_phase_counts = {}
+        self.last_reason = "chest:drop"
+        return CHEST_DROP_KEY + chest.slot
 
     def _weakest(self, monsters: list[MonsterState]) -> MonsterState:
         # Remove adjacent summoners before their minions multiply; otherwise use

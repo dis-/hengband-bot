@@ -21,6 +21,7 @@ class Position:
 
 # Item categories (tval), from src/object/tval-types.h.
 TVAL_BOTTLE = 2  # empty bottles ('!'), left behind by quaffed potions — pure junk
+TVAL_CHEST = 7  # chests ('&') — trapped/locked loot containers
 TVAL_SHOT = 16
 TVAL_ARROW = 17
 TVAL_BOLT = 18
@@ -345,6 +346,10 @@ class InventoryItem:
         # digger (TV_DIGGING, its own category) and bows/ammo. Used to re-arm the
         # combat weapon after mining swapped a digging tool into the main hand.
         return self.tval in (TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD)
+
+    @property
+    def is_chest(self) -> bool:
+        return self.tval == TVAL_CHEST
 
     @property
     def is_launcher(self) -> bool:

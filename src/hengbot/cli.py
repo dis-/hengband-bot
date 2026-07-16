@@ -48,9 +48,12 @@ def _arm_decision_watchdog() -> None:
         repeat=True,
         file=sys.stderr,
     )
-# The live emitter spends about nine seconds serializing a 5.7 MB town snapshot
-# before any bytes reach the JSONL file.  Prompt recovery must not enqueue
-# Escapes during that normal command-response gap.
+# Measured Release-build serialization is ~250 ms even for a 4.5 MB town
+# snapshot (the old "nine seconds" note was Debug-era queue congestion, not
+# emitter cost). The grace now exists for the QUIET periods the game
+# legitimately spends outside the command loop with no snapshot: multi-turn
+# travel legs and store transitions. Prompt recovery must not enqueue Escapes
+# during those.
 COMMAND_RESPONSE_GRACE = 12.0
 
 # When the character dies, the game leaves the command loop for the tombstone /
@@ -103,8 +106,10 @@ STALLED_COMMAND_STATE_LIMIT = 12
 assert TOWN_TRAVEL_STALL_LIMIT < STALLED_COMMAND_STATE_LIMIT
 # Turn stalls operate after energy consumption, where the CLI signature changes.
 assert TOWN_TRAVEL_TURN_STALL_LIMIT == 12
-# Both finite travel guards are far below the 1500-decision town-residence net.
-assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < 1500
+# Both finite travel guards are far below the town-residence net. (The
+# constant is defined later in this module; the literal here would silently
+# diverge if the net were retuned, so assert against the real value at the
+# bottom of the module instead.)
 # Store purchases and other multi-prompt commands redraw between each key. A
 # 50ms gap was too short on the live Windows build: Return/y reached the queue
 # before the quantity/confirmation prompt was ready and were flushed. Keep the
@@ -211,6 +216,9 @@ TOWN_BLOCKED_STOP_LIMIT = 30
 # them forever. A continuous town residence this long is faulty regardless of
 # the recorded reasons (about 25+ minutes at normal decision cadence).
 TOWN_RESIDENCE_STOP_LIMIT = 1500
+# Relocated from the travel-guard block: assert against the real constant so
+# a retuned residence net cannot silently invert the guard ordering.
+assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
 
 
 def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
@@ -227,6 +235,8 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
         and not reason.startswith("item:")
         # A firefight legitimately holds one tile for many decisions.
         and not reason.startswith("ranged:")
+        # The chest pipeline (search/disarm/open budgets) holds two tiles.
+        and not reason.startswith("chest:")
     )
 
 
