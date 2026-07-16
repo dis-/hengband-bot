@@ -121,10 +121,10 @@ STORE_ITEM_PROMPT_DELAY_SECONDS = 0.5
 # advance a real digging turn.
 TUNNEL_PROMPT_DELAY_SECONDS = 2.0
 
-# BOT_PLAY.prf binds these otherwise-unused control characters to complete
+# The bot character's pref binds these otherwise-unused control characters to complete
 # tunnelling commands. A single WM_CHAR then lets Hengband's own macro queue
 # supply both ``T`` and the direction without racing the direction prompt.
-TUNNEL_MACRO_PREF_MARKER = "HENGBOT_TUNNEL_MACROS_V1"
+BOT_PLAY_MACRO_PREF_MARKER = "HENGBOT_INPUT_MACROS_V2"
 TUNNEL_MACRO_TRIGGERS = {
     "1": "\x01",
     "2": "\x02",
@@ -144,6 +144,33 @@ TUNNEL_MACRO_PREF_TRIGGERS = {
     "7": "^F",
     "8": "^G",
     "9": "^H",
+}
+# Native travel uses five external key messages without a loaded macro. Busy
+# target-selector redraws intermittently flush one of them at 250 ms, leaving
+# the game at destination selection until the duplicate retry. The verified
+# BOT_PLAY macro path replaces each complete sequence with one WM_CHAR.
+TRAVEL_PROMPT_DELAY_SECONDS = 0.5
+TRAVEL_MACRO_TRIGGERS = {
+    "\x1b`n!.": "\x0b",
+    "\x1b`n\".": "\x0c",
+    "\x1b`n#.": "\x0e",
+    "\x1b`n$.": "\x0f",
+    "\x1b`n%.": "\x10",
+    "\x1b`n&.": "\x11",
+    "\x1b`n'.": "\x12",
+    "\x1b`n(.": "\x13",
+    "\x1b`n>.": "\x14",
+}
+TRAVEL_MACRO_PREF_TRIGGERS = {
+    "\x1b`n!.": "^K",
+    "\x1b`n\".": "^L",
+    "\x1b`n#.": "^N",
+    "\x1b`n$.": "^O",
+    "\x1b`n%.": "^P",
+    "\x1b`n&.": "^Q",
+    "\x1b`n'.": "^R",
+    "\x1b`n(.": "^S",
+    "\x1b`n>.": "^T",
 }
 
 # Decision reasons that legitimately hold the player on one tile for many
@@ -221,6 +248,13 @@ def _advance_town_residence_streak(
     if floor_key[0] == 0 and floor_key[1] == 0:
         return streak + 1
     return 0
+
+
+def _floor_transition_needs_prompt_clear(
+    previous_floor_key: tuple | None, floor_key: tuple
+) -> bool:
+    """Clear level-arrival messages once before sending the first floor action."""
+    return previous_floor_key is not None and floor_key != previous_floor_key
 
 
 def _objective_for_reason(reason: str) -> str:
@@ -301,35 +335,46 @@ def _delay_after_macro_key(key: str, index: int) -> float:
         return 0.0
     if key.startswith("T") and index == 0:
         return TUNNEL_PROMPT_DELAY_SECONDS
+    if key in TRAVEL_MACRO_TRIGGERS and index in {1, 2, 3}:
+        return TRAVEL_PROMPT_DELAY_SECONDS
     if key[0] in {"d", "g"} and index == 0:
         return STORE_ITEM_PROMPT_DELAY_SECONDS
     return MULTI_KEY_DELAY_SECONDS
 
 
-def _tunnel_macro_pref_path(monrace_path: Path) -> Path | None:
-    """Find BOT_PLAY.prf beside the lib tree used by the running game."""
+def _bot_play_macro_pref_path(monrace_path: Path) -> Path | None:
+    """Find bot-test.prf beside the lib tree used by the running game.
+
+    ``-u BOT_PLAY`` selects the savefile, but Hengband loads character prefs by
+    PlayerType.base_name. The established BOT_PLAY character is named bot-test.
+    """
     try:
         hengband_root = monrace_path.resolve().parents[2]
     except (IndexError, OSError):
         return None
-    return hengband_root / "lib" / "user" / "BOT_PLAY.prf"
+    return hengband_root / "lib" / "user" / "bot-test.prf"
 
 
-def _valid_tunnel_macro_pref(path: Path) -> bool:
+def _valid_bot_play_macro_pref(path: Path) -> bool:
     try:
         text = path.read_text(encoding="ascii")
     except (OSError, UnicodeError):
         return False
-    if TUNNEL_MACRO_PREF_MARKER not in text:
+    if BOT_PLAY_MACRO_PREF_MARKER not in text:
         return False
     normalized = text.replace("\r\n", "\n")
-    return all(
+    tunnel_bindings_valid = all(
         f"A:T{direction}\nP:{trigger}" in normalized
         for direction, trigger in TUNNEL_MACRO_PREF_TRIGGERS.items()
     )
+    travel_bindings_valid = all(
+        f"A:{macro.replace(chr(27), r'\e')}\nP:{trigger}" in normalized
+        for macro, trigger in TRAVEL_MACRO_PREF_TRIGGERS.items()
+    )
+    return tunnel_bindings_valid and travel_bindings_valid
 
 
-def _tunnel_macros_ready(
+def _bot_play_macros_ready(
     state_file: Path,
     monrace_path: Path,
     window_pid: int | None,
@@ -342,9 +387,9 @@ def _tunnel_macros_ready(
     """
     if not window_pid:
         return False
-    pref_path = _tunnel_macro_pref_path(monrace_path)
+    pref_path = _bot_play_macro_pref_path(monrace_path)
     pid_path = state_file.parent / "hengband.pid"
-    if pref_path is None or not _valid_tunnel_macro_pref(pref_path):
+    if pref_path is None or not _valid_bot_play_macro_pref(pref_path):
         return False
     try:
         recorded_pid = int(pid_path.read_text(encoding="ascii").strip())
@@ -357,6 +402,8 @@ def _tunnel_macros_ready(
 
 
 def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
+    if tunnel_macros_ready and key in TRAVEL_MACRO_TRIGGERS:
+        return TRAVEL_MACRO_TRIGGERS[key]
     if tunnel_macros_ready and len(key) == 2 and key[0] == "T":
         return TUNNEL_MACRO_TRIGGERS.get(key[1], key)
     return key
@@ -694,7 +741,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"invalid monster definitions: {exc}", file=sys.stderr)
             return 2
 
-    tunnel_macros_ready = _tunnel_macros_ready(
+    tunnel_macros_ready = _bot_play_macros_ready(
         args.state_file, monrace_path, args.window_pid
     )
 
@@ -827,6 +874,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         blocked_streak = 0
         town_residence_streak = 0
         residence_floor_key = None
+        last_snapshot_floor_key = (
+            initial_snapshot.floor_key if initial_snapshot is not None else None
+        )
         last_command_signature: tuple | None = None
         while True:
             _arm_decision_watchdog()
@@ -859,6 +909,19 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_player_level = snapshot.player.level
                     now = time.monotonic()
                     last_activity = now
+                    if _floor_transition_needs_prompt_clear(
+                        last_snapshot_floor_key, snapshot.floor_key
+                    ):
+                        # Hengband can print a level feeling / arrival message
+                        # after emitting the first snapshot on a new floor. With
+                        # quick_messages enabled, the first policy key dismisses
+                        # it and the remainder of a multi-key command is then
+                        # interpreted at the command loop (often opening a menu).
+                        # Escape clears the message under either option setting
+                        # and is harmless if no prompt is present.
+                        if send(NUDGE_KEY):
+                            print("<floor-transition:esc>", flush=True)
+                    last_snapshot_floor_key = snapshot.floor_key
                     if not _duplicate_snapshot_ready(
                         snapshot_line,
                         last_decision_line,

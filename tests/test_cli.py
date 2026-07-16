@@ -17,6 +17,8 @@ from hengbot.cli import (
     STALLED_COMMAND_STATE_LIMIT,
     TUNNEL_PROMPT_DELAY_SECONDS,
     TUNNEL_MACRO_TRIGGERS,
+    TRAVEL_MACRO_TRIGGERS,
+    TRAVEL_PROMPT_DELAY_SECONDS,
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
@@ -24,6 +26,7 @@ from hengbot.cli import (
     _decision_record,
     _duplicate_snapshot_ready,
     _fundraising_state,
+    _floor_transition_needs_prompt_clear,
     _deduplicate_consecutive,
     _is_looping,
     _newest_snapshot,
@@ -33,8 +36,8 @@ from hengbot.cli import (
     _stall_recovery_key,
     _split_complete_lines,
     _transport_key,
-    _tunnel_macros_ready,
-    _valid_tunnel_macro_pref,
+    _bot_play_macros_ready,
+    _valid_bot_play_macro_pref,
 )
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -662,6 +665,15 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
+    def test_floor_transition_clears_arrival_prompt_exactly_on_change(self):
+        town = (0, 0, 0)
+        yeek_one = (2, 1, 0)
+
+        self.assertFalse(_floor_transition_needs_prompt_clear(None, town))
+        self.assertFalse(_floor_transition_needs_prompt_clear(town, town))
+        self.assertTrue(_floor_transition_needs_prompt_clear(town, yeek_one))
+        self.assertTrue(_floor_transition_needs_prompt_clear(yeek_one, town))
+
     def test_command_response_grace_covers_live_snapshot_serialization(self):
         self.assertGreater(COMMAND_RESPONSE_GRACE, 9.0)
         self.assertLess(COMMAND_RESPONSE_GRACE, REST_STALL_GRACE)
@@ -699,6 +711,15 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertEqual(_delay_after_macro_key("T3", 1), 0.0)
         self.assertEqual(_delay_after_macro_key("rb", 0), MULTI_KEY_DELAY_SECONDS)
 
+    def test_travel_fallback_waits_for_each_selector_redraw(self):
+        key = "\x1b`n%."
+        self.assertEqual(_delay_after_macro_key(key, 0), MULTI_KEY_DELAY_SECONDS)
+        for index in (1, 2, 3):
+            self.assertEqual(
+                _delay_after_macro_key(key, index), TRAVEL_PROMPT_DELAY_SECONDS
+            )
+        self.assertEqual(_delay_after_macro_key(key, 4), 0.0)
+
     def test_loaded_tunnel_macro_replaces_each_direction_with_one_character(self):
         for direction, trigger in TUNNEL_MACRO_TRIGGERS.items():
             self.assertEqual(_transport_key(f"T{direction}", True), trigger)
@@ -706,6 +727,12 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertEqual(_transport_key("T5", True), "T5")
         self.assertEqual(_transport_key("T3", False), "T3")
         self.assertEqual(_transport_key("qf", True), "qf")
+
+    def test_loaded_travel_macro_replaces_each_destination_with_one_character(self):
+        for macro, trigger in TRAVEL_MACRO_TRIGGERS.items():
+            self.assertEqual(_transport_key(macro, True), trigger)
+            self.assertEqual(len(_transport_key(macro, True)), 1)
+        self.assertEqual(_transport_key("\x1b`n%.", False), "\x1b`n%.")
 
     def test_tunnel_macros_require_pref_loaded_before_this_game_started(self):
         with TemporaryDirectory() as temp:
@@ -718,33 +745,36 @@ class StallRecoveryTest(unittest.TestCase):
             logs.mkdir()
             monrace = edit / "MonraceDefinitions.jsonc"
             monrace.write_text("{}", encoding="ascii")
-            pref = user / "BOT_PLAY.prf"
+            pref = user / "bot-test.prf"
             pref.write_text(
-                "# HENGBOT_TUNNEL_MACROS_V1\n"
+                "# HENGBOT_INPUT_MACROS_V2\n"
                 "A:T1\nP:^A\nA:T2\nP:^B\nA:T3\nP:^C\nA:T4\nP:^D\n"
-                "A:T6\nP:^E\nA:T7\nP:^F\nA:T8\nP:^G\nA:T9\nP:^H\n",
+                "A:T6\nP:^E\nA:T7\nP:^F\nA:T8\nP:^G\nA:T9\nP:^H\n"
+                "A:\\e`n!.\nP:^K\nA:\\e`n\".\nP:^L\nA:\\e`n#.\nP:^N\n"
+                "A:\\e`n$.\nP:^O\nA:\\e`n%.\nP:^P\nA:\\e`n&.\nP:^Q\n"
+                "A:\\e`n'.\nP:^R\nA:\\e`n(.\nP:^S\nA:\\e`n>.\nP:^T\n",
                 encoding="ascii",
             )
             pid_file = logs / "hengband.pid"
             pid_file.write_text("1234", encoding="ascii")
             state_file = logs / "state.jsonl"
 
-            self.assertTrue(_valid_tunnel_macro_pref(pref))
-            self.assertTrue(_tunnel_macros_ready(state_file, monrace, 1234))
-            self.assertFalse(_tunnel_macros_ready(state_file, monrace, 4321))
+            self.assertTrue(_valid_bot_play_macro_pref(pref))
+            self.assertTrue(_bot_play_macros_ready(state_file, monrace, 1234))
+            self.assertFalse(_bot_play_macros_ready(state_file, monrace, 4321))
 
             newer = pid_file.stat().st_mtime_ns + 1_000_000_000
             os.utime(pref, ns=(newer, newer))
-            self.assertFalse(_tunnel_macros_ready(state_file, monrace, 1234))
+            self.assertFalse(_bot_play_macros_ready(state_file, monrace, 1234))
 
     def test_incomplete_tunnel_macro_pref_is_rejected(self):
         with TemporaryDirectory() as temp:
-            pref = Path(temp) / "BOT_PLAY.prf"
+            pref = Path(temp) / "bot-test.prf"
             pref.write_text(
-                "# HENGBOT_TUNNEL_MACROS_V1\nA:T1\nP:^A\n",
+                "# HENGBOT_INPUT_MACROS_V2\nA:T1\nP:^A\n",
                 encoding="ascii",
             )
-            self.assertFalse(_valid_tunnel_macro_pref(pref))
+            self.assertFalse(_valid_bot_play_macro_pref(pref))
 
     def test_store_macro_waits_for_the_item_selector_redraw(self):
         self.assertEqual(
