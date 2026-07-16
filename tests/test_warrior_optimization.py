@@ -162,7 +162,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         snapshot = SimpleNamespace(player=player, inventory=())
         monster = MonraceKnowledge(
-            max_hp=80, average_hp=80, speed=110, can_summon=False,
+            max_hp=15, average_hp=15, speed=110, can_summon=False,
             friendly=False, level=1, armor_class=100, rarity=1,
             blows=(MonsterBlow("HIT", "HURT", 1, 6),),
         )

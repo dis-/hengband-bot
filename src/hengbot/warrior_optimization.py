@@ -34,6 +34,7 @@ from hengbot.warrior_equipment_evaluator import (
     TR_DEX,
     TR_STR,
     WarriorCombatInputs,
+    evaluate_warrior_melee,
     modify_stat_value,
 )
 from hengbot.warrior_loadout_evaluator import (
@@ -79,6 +80,45 @@ class WarriorOptimizationPreparation:
     @property
     def ready(self) -> bool:
         return not self.blockers and self.transaction is not None
+
+
+def weapon_expected_dps(snapshot: Snapshot, weapon) -> float | None:
+    """Score a main-hand replacement with the optimizer's AC-100 formula."""
+    equipped = tuple(
+        OwnedEquipment(
+            f"equipped:{index}", item, "equipped", equipped_slot=item.slot
+        )
+        for index, item in enumerate(snapshot.equipment)
+        if item.is_equipment
+    )
+    current = current_loadout(equipped)
+    if len(snapshot.player.stat_cur) < 4 and len(snapshot.player.stat_use) < 4:
+        return None
+    displayed_stats = (
+        snapshot.player.stat_use
+        if len(snapshot.player.stat_use) >= 4
+        and snapshot.player.stat_use[0] > 0
+        and snapshot.player.stat_use[3] > 0
+        else snapshot.player.stat_cur
+    )
+    inputs = WarriorCombatInputs(
+        level=snapshot.player.level,
+        natural_str=_base_stat_without_current_gear(displayed_stats[0], current, TR_STR),
+        natural_dex=_base_stat_without_current_gear(displayed_stats[3], current, TR_DEX),
+        melee_skill=snapshot.player.melee_skill,
+        two_weapon_skill=snapshot.player.two_weapon_skill,
+    )
+    replacement = OwnedEquipment("sale-candidate", weapon, "pack")
+    slots = tuple(
+        (slot, owned) for slot, owned in current.slots if slot != "main_hand"
+    ) + (("main_hand", replacement),)
+    sub = current.item_at("sub_hand")
+    hand_mode = (
+        current.hand_mode
+        if sub is not None
+        else "two_handed" if weapon.tval == 22 or weapon.weight > 99 else "one_handed"
+    )
+    return evaluate_warrior_melee(Loadout(tuple(sorted(slots)), hand_mode), inputs).expected_dps_ac100
 
 
 def _intrinsic_flags(abilities: frozenset[str]) -> frozenset[int]:

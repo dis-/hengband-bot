@@ -32,6 +32,7 @@ from hengbot.monster_ranged_evaluator import (
 from hengbot.warrior_optimization import (
     WarriorOptimizationPreparation,
     prepare_warrior_optimization,
+    weapon_expected_dps,
 )
 from hengbot.model import (
     DUNGEON_ANGBAND,
@@ -4314,9 +4315,29 @@ class HengbotPolicy:
         # are redundant — sell them at the Weapon Smith instead of hoarding.
         if not self._equipped_weapon_high_grade(snapshot):
             return None
+        wielded = next(
+            (
+                item for item in snapshot.equipment
+                if item.slot == "main_hand" and item.is_melee_weapon
+            ),
+            None,
+        )
+        wielded_dps = (
+            weapon_expected_dps(snapshot, wielded) if wielded is not None else 0.0
+        )
+
+        def sale_quality_allows(item: InventoryItem) -> bool:
+            candidate_dps = weapon_expected_dps(snapshot, item)
+            return (
+                candidate_dps is not None
+                and wielded_dps is not None
+                and candidate_dps <= wielded_dps
+            )
+
         return self._first_item(
             snapshot,
             lambda it: self._weapon_is_inferior(it)
+            and sale_quality_allows(it)
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 

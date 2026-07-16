@@ -9613,6 +9613,52 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
+    def test_departure_block_telemetry_names_failed_gate_and_values(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pol._town_departure_ready = lambda _snapshot: False
+
+        self.assertIsNone(pol._town_special_key(snap))
+        block = pol.departure_block_state()
+        self.assertEqual(block["gate"], "town_departure_ready")
+        self.assertIn("town_departure_ready", block["failed"])
+        self.assertFalse(block["values"]["town_departure_ready"])
+        self.assertEqual(
+            block["values"]["free_pack_slots"], PACK_CAPACITY - len(snap.inventory)
+        )
+
+    def test_inert_home_identification_latch_is_cleared_before_recall(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pol._home_pending_item = ("stale", 23, 99)
+        pol._identification_need = "stale-home-item"
+        pol._identification_candidate = ("stale", 23, 99)
+        pol._home_candidate_waiting = False
+
+        self.assertEqual(
+            pol._town_special_key(snap), "rra",
+            (pol.last_reason, pol.departure_block_state()),
+        )
+        self.assertIsNone(pol._home_pending_item)
+        self.assertIsNone(pol._identification_need)
+
+    def test_active_home_latch_is_retained_and_blocks_recall(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pending = replace(
+            item("b", 23, 8, known=True, is_equipment=True, name="pending sword"),
+            damage_dice_num=2, damage_dice_sides=5, weight=80,
+        )
+        snap = replace(snap, inventory=[*snap.inventory, pending])
+        signature = pol._item_signature(pending)
+        pol._home_pending_item = signature
+
+        self.assertNotEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._home_pending_item, signature)
+
     def test_fundraising_keeps_walking_to_mine_level_one(self):
         pol, snap = self._ready_town(8, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
         pol._fundraising_mode = "mine"
@@ -11120,7 +11166,11 @@ class WeaponSaleTest(unittest.TestCase):
 
     def _town(self, inventory, equipment, store=None):
         return Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            replace(
+                player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+                stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18),
+                melee_skill=60, two_weapon_skill=4000,
+            ),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
@@ -11162,6 +11212,27 @@ class WeaponSaleTest(unittest.TestCase):
         self.assertEqual(pol._find_weapon_sale(self._town([inf], [self._ego()])).slot, "b")
         plain = item("main_hand", 23, 0, is_equipment=True, known=True, pseudo_feeling="good")
         self.assertIsNone(pol._find_weapon_sale(self._town([inf], [plain])))
+
+    def test_higher_dps_plain_spare_is_not_sold_beside_ego_weapon(self):
+        pol = HengbotPolicy()
+        wielded = replace(
+            self._ego(), damage_dice_num=1, damage_dice_sides=4, weight=50
+        )
+        spare = replace(
+            self._inferior(), damage_dice_num=2, damage_dice_sides=6,
+            to_h=5, to_d=7, weight=50,
+        )
+        town = self._town([spare], [wielded])
+        town = replace(
+            town,
+            player=replace(
+                town.player, level=27, stat_cur=(68, 10, 10, 68),
+                stat_use=(68, 10, 10, 68), melee_skill=80,
+                two_weapon_skill=4000,
+            ),
+        )
+
+        self.assertIsNone(pol._find_weapon_sale(town))
 
     def test_sells_no_teleport_artifact_after_replacement(self):
         policy = HengbotPolicy()
