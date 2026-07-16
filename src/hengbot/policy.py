@@ -4687,25 +4687,43 @@ class HengbotPolicy:
 
     def _activate_shallow_fundraising_trip(self, snapshot: Snapshot) -> bool:
         """Convert an unmeetable deep trip directly to one carried-scroll 1F run."""
+        shallow_ready = self._shallow_fundraising_ready(snapshot)
+        deep_kit_ready = (
+            self._fundraising_supplies_ready(snapshot)
+            and self._recall_ready(snapshot)
+            and self._deep_fundraising_teleport_ready(snapshot)
+            and self._cure_critical_ready(snapshot)
+        )
         if (
             self._fundraising_mode != "mine"
             or not self._deep_fundraising_eligible(snapshot)
             or self._fundraising_departure_ready(snapshot)
+            # A non-supply deep gate (for example an identification candidate
+            # awaiting Home deposit) retains its owner when the deep kit itself
+            # is complete.  The fallback is specifically for an unmeetable
+            # deep kit that can already support a safe shallow trip.
+            or deep_kit_ready
             or not self._shallow_fundraising_available(snapshot)
-            # This fallback owns only an unmeetable consumable kit.  Home
-            # deposits, unsafe weapons, and teleport-blocking equipment retain
-            # their existing hard-gate owners instead of being bypassed.
-            or self._has_unsecured_full_identification_candidate(snapshot)
-            or self._find_home_deposit(snapshot) is not None
-            or not any(
-                item.slot == "main_hand"
-                and item.is_melee_weapon
-                and not item.is_digging_tool
-                for item in snapshot.equipment
-            )
-            or any(
-                self._blocks_teleport(item)
-                for item in (*snapshot.inventory, *snapshot.equipment)
+            # These are deep-trip gates, not 1F mining requirements.  Preserve
+            # their owners while the shallow kit still needs shopping, but do
+            # not let them reject an already-carried safe shallow kit: the old
+            # scavenge cycle recovery bypasses them too, only much later.
+            or (
+                not shallow_ready
+                and (
+                    self._has_unsecured_full_identification_candidate(snapshot)
+                    or self._find_home_deposit(snapshot) is not None
+                    or not any(
+                        item.slot == "main_hand"
+                        and item.is_melee_weapon
+                        and not item.is_digging_tool
+                        for item in snapshot.equipment
+                    )
+                    or any(
+                        self._blocks_teleport(item)
+                        for item in (*snapshot.inventory, *snapshot.equipment)
+                    )
+                )
             )
         ):
             return False

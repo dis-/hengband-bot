@@ -5056,6 +5056,52 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._fundraising_departure_ready(snap))
         self.assertFalse(policy._descent_is_blocked(snap))
 
+    def test_promoted_deep_campaign_with_live_shallow_kit_departs_immediately(self):
+        # Live trace shape: Home completed the two-run detection batch, which
+        # promoted prepare -> mine, but recall remained below the deep reserve.
+        # A partly identified item is also still carried; that is a deep-trip
+        # gate, not a reason to wait before a safe 1F mining departure.
+        candidate = item(
+            "e",
+            31,
+            1,
+            name="partly known ego gloves",
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+        )
+        snap = self._deep_fundraising_town_snapshot(detection=8, gold=10666)
+        snap = replace(
+            snap,
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=2, fuel=500),
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+                item(
+                    "d",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=8,
+                ),
+                item("p", TVAL_DIGGING, 6, is_equipment=True),
+                candidate,
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._planned_mining_runs = 2
+
+        policy._fundraising_mode = "mine"
+        self.assertFalse(policy._fundraising_departure_ready(snap))
+        policy._fundraising_mode = "prepare"
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertEqual(policy.last_reason, "fundraise:fallback-shallow")
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertTrue(policy._shallow_fundraising_trip)
+        self.assertTrue(policy._fundraising_departure_ready(snap))
+        self.assertNotEqual(policy._fundraising_mode, "scavenge")
+
     def test_blocked_deep_campaign_without_shallow_kit_still_scavenges(self):
         snap = self._deep_fundraising_town_snapshot(
             detection=0, digger=False, gold=0
