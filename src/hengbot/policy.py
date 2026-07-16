@@ -659,6 +659,11 @@ LANTERN_MIN_GOLD = 1
 # leave the store. The store re-emits a snapshot every loop with no loop-detector
 # or stall exit, so without this the bot would hammer the buy macro forever.
 STORE_STUCK_LIMIT = 6
+# Equipment commands can be separated from their resulting JSON snapshot by
+# prompt/animation frames.  Three unchanged observations are nevertheless a
+# bounded visit-local attempt: after that, exclude the failed item and optimize
+# the loadout that is actually achievable this visit so departure cannot stall.
+EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = 3
 # Oscillating store-approach turns (while _is_oscillating) tolerated before giving
 # up an unreachable store and diving with what we have. Above STUCK_WINDOW so a
 # reachable store one tile on is still pursued; below the cli loop guard's window
@@ -3391,7 +3396,9 @@ class HengbotPolicy:
         self._equipment_transaction_session = (
             EquipmentTransactionSession(
                 preparation.transaction,
-                max_unconfirmed_observations=3,
+                max_unconfirmed_observations=(
+                    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT
+                ),
             )
             if preparation.ready
             and preparation.transaction is not None
@@ -3713,6 +3720,16 @@ class HengbotPolicy:
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
         preparation = self._prepare_equipment_optimization(snapshot)
+        session = self._equipment_transaction_session
+        if session is not None and not session.executable:
+            # Confirmation is deliberately bounded.  The normal transaction
+            # dispatcher also abandons a blocked session, but departure may be
+            # the next policy path reached after a partially successful Home
+            # loadout (for example, main hand equipped while the Home shield
+            # withdrawal never confirms).  Resolve the same failed-item
+            # exclusion here instead of retaining a permanently-false gate.
+            self._abandon_blocked_equipment_transaction()
+            preparation = self._prepare_equipment_optimization(snapshot)
         return bool(
             preparation is not None
             and preparation.ready

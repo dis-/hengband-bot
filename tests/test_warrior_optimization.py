@@ -29,6 +29,7 @@ from hengbot.model import (
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.warrior_optimization import (
+    WarriorOptimizationPreparation,
     _base_stat_without_current_gear,
     _conservative_intrinsic_abilities,
     prepare_warrior_optimization,
@@ -267,6 +268,63 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertIn("stored", policy._equipment_transaction_failed_items)
         self.assertIsNone(policy._town_blocked_reason)
+
+    def test_departure_releases_after_bounded_home_shield_withdraw_stall(self):
+        """Live shape: the optimal main hand is on; Home sub hand never moves."""
+        main = gear("main", "equipped", slot="main_hand")
+        shield = gear("shield", "home", slot="sub_hand", tval=34)
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "withdraw", shield.id,
+            item_identity=equipment_identity(shield.item),
+        )
+        pending_plan = EquipmentTransactionPlan((action,), (), 1)
+        achieved_plan = EquipmentTransactionPlan((), (), 1)
+        current = Loadout((("main_hand", main),), "one_handed")
+        pending = WarriorOptimizationPreparation(
+            current, None, pending_plan, (),
+        )
+        achieved = WarriorOptimizationPreparation(
+            current, None, achieved_plan, (),
+        )
+        policy = HengbotPolicy()
+        session = EquipmentTransactionSession(
+            pending_plan, max_unconfirmed_observations=3,
+        )
+        before = observe_equipment_transactions(SimpleNamespace(
+            inventory=(), equipment=(main.item,), store=SimpleNamespace(
+                store_type=STORE_HOME,
+            ),
+        ))
+        self.assertTrue(session.dispatch(action, before))
+        policy._equipment_transaction_session = session
+        policy._equipment_optimization_preparation = pending
+        policy._prepare_equipment_optimization = lambda _snapshot: (
+            pending if policy._equipment_transaction_session is not None else achieved
+        )
+        snapshot = SimpleNamespace(
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+        )
+
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
+        session.observe(before)
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
+        session.observe(before)
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
+        session.observe(before)
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
+        self.assertIn(shield.id, policy._equipment_transaction_failed_items)
+
+    def test_departure_is_immediate_for_already_optimal_loadout(self):
+        policy = HengbotPolicy()
+        current = Loadout((), "empty")
+        prepared = WarriorOptimizationPreparation(
+            current, None, EquipmentTransactionPlan((), (), 0), (),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: prepared
+        snapshot = SimpleNamespace(
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+        )
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
 
 
 if __name__ == "__main__":
