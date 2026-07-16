@@ -24,10 +24,11 @@ from typing import Hashable
 # Decisions a committed target may go without improving its best achieved
 # distance before it expires for the floor visit. The known-legitimate worst
 # case is a static-map detour that held distance flat for ~12 turns (the town
-# travel leash history); 48 leaves a 4x margin while still expiring the
-# incident's doomed stair target hundreds of decisions before the old
-# behaviour would have starved the character.
-NAV_TARGET_STALL_LIMIT = 48
+# travel leash history).  The target must expire before the CLI's 40-decision
+# confined-cell loop guard, or that outer fail-safe stops the bot before the
+# ledger can abandon a two-cell stair oscillation.  32 still leaves more than
+# a 2x margin for the observed legitimate detour.
+NAV_TARGET_STALL_LIMIT = 32
 
 
 @dataclass

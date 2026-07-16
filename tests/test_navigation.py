@@ -11,6 +11,7 @@ last ration and reached food_state "weak" with an empty pack.
 import unittest
 
 from hengbot.model import Position, Snapshot
+from hengbot.cli import LOOP_WINDOW
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
     NAV_NO_PROGRESS_LIMIT,
@@ -27,6 +28,12 @@ DESCENT_TRIAD_REASONS = {"seek-downstairs", "approach-descent", "breakout:descen
 
 
 class NavigationLedgerTest(unittest.TestCase):
+    def test_target_expiry_precedes_process_loop_detector(self):
+        # The ledger is the recovery mechanism; the outer detector is only a
+        # fail-safe.  If this ordering reverses, a two-cell descent oscillation
+        # stops the bot before the policy can abandon its stale stair target.
+        self.assertLess(NAV_TARGET_STALL_LIMIT, LOOP_WINDOW)
+
     def test_first_observation_counts_as_improvement(self):
         ledger = NavigationLedger()
         self.assertTrue(ledger.observe("descend", Position(1, 1), 10))
