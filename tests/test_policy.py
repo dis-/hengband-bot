@@ -1614,6 +1614,24 @@ class ReturnToTownTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "\\Fo")
         self.assertEqual(policy.last_reason, "refill-light")
 
+    def test_latched_return_refills_empty_lantern_before_reading_recall(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(4, 18, 0),
+            inventory=[
+                item("f", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=8),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500),
+            ],
+            equipment=[item("light", TVAL_LITE, SV_LITE_LANTERN, fuel=0)],
+        )
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+
+        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.last_reason, "refill-light")
+
     def test_return_mode_survives_an_opened_pack_slot_and_blocks_descent(self):
         policy = HengbotPolicy()
         full = Snapshot(

@@ -9292,6 +9292,16 @@ class HengbotPolicy:
             self.last_reason = "return:wait-recall"
             return WAIT_KEY
 
+        # A previously latched return bypasses the ordinary light-upkeep block
+        # later in _decide.  Refill here before trying to read Word of Recall:
+        # Hengband rejects reading in darkness without consuming a turn, which
+        # otherwise repeats READ_KEY + slot until the loop watchdog stops us.
+        if not player.confused:
+            refill = self._light_refill_item(snapshot)
+            if refill is not None:
+                self.last_reason = "refill-light"
+                return REFILL_KEY + refill.slot
+
         recall = self._find_recall_scroll(snapshot)
         if recall is not None and not player.blind and not player.confused:
             self.last_reason = "return:recall"
