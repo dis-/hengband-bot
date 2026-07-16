@@ -14215,6 +14215,41 @@ class DungeonConquestTest(unittest.TestCase):
             monrace_knowledge={237: guardian},
         )
 
+    def _launchable_yeek_snapshot(self, *, recall_count=10):
+        snapshot = replace(
+            self._minotaur_snapshot(1),
+            player=replace(self._minotaur_snapshot(1).player, gold=130),
+            entered_dungeon_ids=(1, 2),
+            angband_recall_unlocked=True,
+        )
+        return replace(
+            snapshot,
+            inventory=[
+                *snapshot.inventory,
+                item(
+                    "r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                    count=recall_count,
+                ),
+                item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=10),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=10),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=20),
+                item(
+                    "c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10
+                ),
+                item(
+                    "i", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                    charges=20,
+                ),
+            ],
+            equipment=[
+                *snapshot.equipment,
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN,
+                    fuel=5000, is_equipment=True,
+                ),
+            ],
+        )
+
     def test_resistance_limit_without_confusion_stops_below_20(self):
         self.assertEqual(self._policy()._resistance_depth_limit(self._snap({"resist_fire"})), 19)
 
@@ -14272,16 +14307,11 @@ class DungeonConquestTest(unittest.TestCase):
 
     def test_blocked_poor_conquest_observe_decide_alternation_is_stable(self):
         policy = self._yeek_guardian_policy()
-        snapshot = replace(
-            self._minotaur_snapshot(1),
-            player=replace(self._minotaur_snapshot(1).player, gold=130),
-            entered_dungeon_ids=(1, 2),
-            angband_recall_unlocked=True,
-        )
-        policy._conquest_target = lambda _snapshot: 2
-        policy._conquest_departure_ready = lambda _snapshot: False
+        snapshot = self._launchable_yeek_snapshot(recall_count=0)
         policy._fundraising_supplies_ready = lambda _snapshot: False
         policy._observe(snapshot)
+        self.assertEqual(policy._conquest_target(snapshot), 2)
+        self.assertFalse(policy._conquest_departure_ready(snapshot))
         policy._identification_need = "full"
         policy._start_fundraising(snapshot)
         policy._town_store_attempted[STORE_HOME] = 77
@@ -14295,6 +14325,25 @@ class DungeonConquestTest(unittest.TestCase):
 
         self.assertEqual(policy._town_store_attempted[STORE_HOME], 77)
         self.assertNotIn("home:need-full-identify", reasons)
+
+    def test_blocked_conquest_clears_fundraising_once_when_departure_becomes_ready(self):
+        policy = self._yeek_guardian_policy()
+        blocked = self._launchable_yeek_snapshot(recall_count=0)
+        ready = self._launchable_yeek_snapshot()
+
+        policy._observe(blocked)
+        policy._start_fundraising(blocked)
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertIsNone(policy._fundraising_cleared_for_conquest)
+
+        policy._observe(ready)
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertEqual(policy._fundraising_cleared_for_conquest, 2)
+
+        policy._start_fundraising(ready)
+        policy._observe(replace(ready, turn=ready.turn + 1))
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._fundraising_cleared_for_conquest, 2)
 
     def test_beatable_guardian_defers_unavailable_full_identification(self):
         policy = self._yeek_guardian_policy()
