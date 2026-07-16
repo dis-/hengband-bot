@@ -478,6 +478,65 @@ def _decision_record(
     }
 
 
+class EconomyLedger:
+    """Append confirmed gold changes with the command that caused them."""
+
+    def __init__(self, path: Path | None) -> None:
+        self.path = path
+        self.previous_gold: int | None = None
+        self.previous_reason: str | None = None
+        self.previous_key: str | None = None
+        self.previous_store_type: int | None = None
+        self.previous_floor: tuple[int, int, int] | None = None
+
+    def prime(self, snapshot) -> None:
+        self.previous_gold = snapshot.player.gold
+        self.previous_store_type = (
+            snapshot.store.store_type if snapshot.store is not None else None
+        )
+        self.previous_floor = snapshot.floor_key
+
+    def observe(self, snapshot, key: str, reason: str) -> dict | None:
+        current_gold = snapshot.player.gold
+        event = None
+        if self.previous_gold is not None and current_gold != self.previous_gold:
+            delta = current_gold - self.previous_gold
+            event = {
+                "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "turn": snapshot.turn,
+                "kind": "income" if delta > 0 else "expense",
+                "amount": abs(delta),
+                "delta": delta,
+                "gold_before": self.previous_gold,
+                "gold_after": current_gold,
+                "cause_reason": self.previous_reason or "unattributed",
+                "cause_key": self.previous_key or "",
+                "store_type": self.previous_store_type,
+                "floor": {
+                    "dungeon_id": self.previous_floor[0],
+                    "level": self.previous_floor[1],
+                    "quest_id": self.previous_floor[2],
+                } if self.previous_floor is not None else None,
+            }
+            if self.path is not None:
+                try:
+                    self.path.parent.mkdir(parents=True, exist_ok=True)
+                    with self.path.open("a", encoding="utf-8") as file:
+                        json.dump(event, file, ensure_ascii=False)
+                        file.write("\n")
+                except OSError as exc:
+                    print(f"failed to write economy log: {exc}", file=sys.stderr)
+
+        self.previous_gold = current_gold
+        self.previous_reason = reason
+        self.previous_key = key
+        self.previous_store_type = (
+            snapshot.store.store_type if snapshot.store is not None else None
+        )
+        self.previous_floor = snapshot.floor_key
+        return event
+
+
 def _over_extension_state(policy) -> dict:
     """Surface the policy's over-extension counters so the switch is observable.
 
@@ -586,7 +645,16 @@ def _depth_safety(snapshot, policy) -> dict:
     }
 
 
-def _write_decision(path: Path | None, snapshot, key: str, reason: str, policy=None) -> None:
+def _write_decision(
+    path: Path | None,
+    snapshot,
+    key: str,
+    reason: str,
+    policy=None,
+    economy_ledger: EconomyLedger | None = None,
+) -> None:
+    if economy_ledger is not None:
+        economy_ledger.observe(snapshot, key, reason)
     if path is None:
         return
     try:
@@ -676,6 +744,11 @@ def main(argv: list[str] | None = None) -> int:
         help="append structured policy decisions for an external live viewer",
     )
     parser.add_argument(
+        "--economy-log",
+        type=Path,
+        help="append confirmed income and expense events (defaults beside decision log)",
+    )
+    parser.add_argument(
         "--monrace-definitions",
         type=Path,
         help="path to Hengband's lib/edit/MonraceDefinitions.jsonc",
@@ -712,6 +785,9 @@ def main(argv: list[str] | None = None) -> int:
         help="seconds without a new snapshot before nudging a stuck prompt (0 disables)",
     )
     args = parser.parse_args(argv)
+
+    if args.economy_log is None and args.decision_log is not None:
+        args.economy_log = args.decision_log.with_name("bot-economy.jsonl")
 
     if args.decision_log is not None and not args.once:
         try:
@@ -854,6 +930,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
     )
     if initial_snapshot is not None:
         policy.prime(initial_snapshot)
+    economy_ledger = EconomyLedger(args.economy_log)
+    if initial_snapshot is not None:
+        economy_ledger.prime(initial_snapshot)
     # errors="replace": a poll can catch the emitter mid-write inside a multibyte
     # character (Japanese monster names); a strict read would raise
     # UnicodeDecodeError and kill the loop. Replacement characters at a torn
@@ -949,6 +1028,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             "",
                             "loop-detected",
                             policy,
+                            economy_ledger,
                         )
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} "
@@ -965,7 +1045,12 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         )
                         return 0
                     _write_decision(
-                        args.decision_log, snapshot, key, policy.last_reason, policy
+                        args.decision_log,
+                        snapshot,
+                        key,
+                        policy.last_reason,
+                        policy,
+                        economy_ledger,
                     )
                     town_residence_streak = _advance_town_residence_streak(
                         town_residence_streak,
@@ -1046,7 +1131,12 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     )
                     if _is_looping(recent_cells, window=loop_window):
                         _write_decision(
-                            args.decision_log, snapshot, "", "loop-detected", policy
+                            args.decision_log,
+                            snapshot,
+                            "",
+                            "loop-detected",
+                            policy,
+                            economy_ledger,
                         )
                         cells = sorted({(c[1], c[2]) for c in recent_cells})
                         print(

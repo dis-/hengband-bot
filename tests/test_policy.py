@@ -71,6 +71,7 @@ from hengbot.model import (
     StoreState,
 )
 from hengbot.dungeon_knowledge import DungeonInfo
+from hengbot.equipment_optimizer import TR_TELEPORT
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.quest_knowledge import QuestInfo
 from hengbot.policy import (
@@ -7025,6 +7026,29 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._leave_fundraising_floor(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
 
+    def test_fundraising_upstairs_search_leash_recalls_from_level_one(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+            inventory=self._strict_supplies(recall=1),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._leave_fundraising_floor(snap), "rr")
+        self.assertEqual(policy.last_reason, "fundraise:recall-stuck")
+        self.assertTrue(policy._returning_to_town)
+
     def test_fundraising_two_tile_sealed_pocket_tunnels_out(self):
         grids = {
             Position(10, 10): grid(10, 10),
@@ -7748,6 +7772,27 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(home), "\x1b")
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertFalse(policy._home_candidate_waiting)
+
+    def test_home_catalog_does_not_wrap_after_non_page_action(self):
+        average = store_item(
+            "a", 23, 1, name="average sword", known=False,
+            fully_known=False, is_equipment=True, pseudo_feeling="average",
+        )
+        home = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=self._strict_supplies(recall=1),
+            equipment=[self._lantern(), item("main_hand", 23, 2, is_equipment=True)],
+            store=StoreState(store_type=STORE_HOME, items=[average]),
+        )
+        policy = HengbotPolicy()
+
+        policy.choose_key(home)
+        policy.last_reason = "home:withdraw-processing-item"
+        policy.choose_key(home)
+
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
 
     def test_home_scans_known_candidates_without_withdrawing_them(self):
         gloves = store_item(
@@ -13118,7 +13163,7 @@ class HomeFullLatchTest(unittest.TestCase):
 
 
 class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
-    def _town(self, *, inventory=(), store=None):
+    def _town(self, *, inventory=(), equipment=(), store=None):
         return Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -13126,7 +13171,93 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             town_flag=True,
             inventory=list(inventory),
+            equipment=list(equipment),
             store=store,
+        )
+
+    def test_inscribes_pack_random_teleport_item_in_town(self):
+        mask = item(
+            "a", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+
+        key = policy._town_random_teleport_suppression_key(
+            self._town(inventory=(mask,))
+        )
+
+        self.assertEqual(key, "{a.\r")
+        self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
+
+    def test_withdraws_home_random_teleport_item_before_inscribing(self):
+        mask = store_item(
+            "b", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+
+        key = policy._town_random_teleport_suppression_key(
+            self._town(store=StoreState(STORE_HOME, [mask]))
+        )
+
+        self.assertEqual(key, "pb\r")
+        self.assertEqual(
+            policy.last_reason, "home:withdraw-random-teleport-for-inscription"
+        )
+
+    def test_leaves_store_before_inscribing_carried_item(self):
+        mask = item(
+            "a", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+
+        key = policy._town_random_teleport_suppression_key(
+            self._town(
+                inventory=(mask,),
+                store=StoreState(STORE_HOME, []),
+            )
+        )
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+
+    def test_inscribes_equipped_random_teleport_item(self):
+        mask = item(
+            "head", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+
+        key = policy._town_random_teleport_suppression_key(
+            self._town(equipment=(mask,))
+        )
+
+        self.assertEqual(key, "{/j.\r")
+
+    def test_cursed_random_teleport_item_is_not_inscribed(self):
+        mask = item(
+            "a", 32, 5, name="Cursed Terror Mask", known=True,
+            fully_known=True, is_equipment=True, is_cursed=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        self.assertIsNone(
+            HengbotPolicy()._town_random_teleport_suppression_key(
+                self._town(inventory=(mask,))
+            )
+        )
+
+    def test_already_suppressed_home_item_is_not_withdrawn_again(self):
+        mask = store_item(
+            "b", 32, 5, name="Terror Mask {.}", known=True,
+            fully_known=True, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        self.assertIsNone(
+            HengbotPolicy()._town_random_teleport_suppression_key(
+                self._town(store=StoreState(STORE_HOME, [mask]))
+            )
         )
 
     def test_home_processing_withdraws_only_incomplete_equipment(self):

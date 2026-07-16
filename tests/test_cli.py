@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from hengbot.cli import (
     COMMAND_RESPONSE_GRACE,
+    EconomyLedger,
     LOOP_WINDOW,
     MINING_DIG_REASONS,
     MULTI_KEY_DELAY_SECONDS,
@@ -70,6 +71,53 @@ def _snap_line(turn, y, x):
         )
         + "\n"
     )
+
+
+class EconomyLedgerTest(unittest.TestCase):
+    @staticmethod
+    def _snapshot(turn, gold):
+        data = json.loads(_snap_line(turn, 5, 7))
+        data["player"]["gold"] = gold
+        return parse_snapshot(data, {})
+
+    def test_records_confirmed_expense_and_income_with_causes(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "bot-economy.jsonl"
+            ledger = EconomyLedger(path)
+            before = self._snapshot(100, 1000)
+            ledger.prime(before)
+
+            self.assertIsNone(
+                ledger.observe(before, "pa\r", "shop:buy-recall")
+            )
+            expense = ledger.observe(
+                self._snapshot(101, 750), "\x1b", "shop:leave"
+            )
+            ledger.observe(
+                self._snapshot(101, 750), "g", "fundraise:pickup"
+            )
+            income = ledger.observe(
+                self._snapshot(102, 825), "6", "fundraise:seek-loot"
+            )
+
+            self.assertEqual(
+                expense,
+                {
+                    **expense,
+                    "kind": "expense",
+                    "amount": 250,
+                    "delta": -250,
+                    "gold_before": 1000,
+                    "gold_after": 750,
+                    "cause_reason": "shop:buy-recall",
+                    "cause_key": "pa\r",
+                },
+            )
+            self.assertEqual(income["kind"], "income")
+            self.assertEqual(income["amount"], 75)
+            self.assertEqual(income["cause_reason"], "fundraise:pickup")
+            records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(records, [expense, income])
 
 
 class NewestSnapshotTest(unittest.TestCase):

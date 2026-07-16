@@ -10,6 +10,7 @@ from hengbot.equipment_optimizer import (
     TR_TELEPORT,
     enumerate_loadouts,
     optimize_loadout,
+    random_teleport_is_suppressed,
 )
 from hengbot.model import (
     SV_DRAGON_HELM,
@@ -369,6 +370,69 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertTrue(catalog.observe_home_page(first))
         self.assertTrue(catalog.home_scan_complete)
 
+    def test_repeated_snapshot_does_not_complete_without_page_advance(self):
+        catalog = OwnedEquipmentCatalog()
+        page = [self._home_item("a", "sword")]
+
+        self.assertFalse(catalog.observe_home_page(page, allow_wrap=False))
+        self.assertFalse(catalog.observe_home_page(page, allow_wrap=False))
+        self.assertFalse(catalog.home_scan_complete)
+        self.assertTrue(catalog.observe_home_page(page, allow_wrap=True))
+
+    def test_equipment_identity_is_not_shifted_by_preceding_consumable(self):
+        catalog = OwnedEquipmentCatalog()
+        consumable = StoreItem(
+            letter="a", count=1, tval=70, sval=1, price=10, name="ration",
+            is_equipment=False,
+        )
+        sword = self._home_item("b", "sword")
+
+        catalog.observe_home_page([consumable, sword])
+
+        self.assertEqual(len(catalog.items), 1)
+        self.assertEqual(catalog.items[0].item.name, "sword")
+
+    def test_non_equipment_pages_do_not_hide_later_weapon_pages(self):
+        ammunition_page = [
+            StoreItem(
+                letter="a",
+                name="arrows",
+                count=20,
+                tval=TVAL_ARROW,
+                sval=1,
+                price=0,
+                known=True,
+                fully_known=True,
+                is_equipment=True,
+            )
+        ]
+        consumable_page = [
+            StoreItem(
+                letter="a",
+                name="healing potion",
+                count=2,
+                tval=75,
+                sval=1,
+                price=0,
+                known=True,
+                fully_known=True,
+                is_equipment=False,
+            )
+        ]
+        weapon_page = [self._home_item("a", "extra attacks trident")]
+        catalog = OwnedEquipmentCatalog()
+
+        self.assertFalse(catalog.observe_home_page(ammunition_page))
+        self.assertFalse(catalog.observe_home_page(consumable_page))
+        self.assertFalse(catalog.observe_home_page(weapon_page))
+        self.assertTrue(catalog.observe_home_page(ammunition_page))
+
+        self.assertTrue(catalog.home_scan_complete)
+        self.assertEqual(
+            [owned.item.name for owned in catalog.items],
+            ["extra attacks trident"],
+        )
+
     def test_invalidation_discards_stale_home_scan(self):
         catalog = OwnedEquipmentCatalog()
         page = [self._home_item("a")]
@@ -393,6 +457,49 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         )
         catalog.refresh_carried([], [worn])
         self.assertEqual(catalog.items[0].equipped_slot, "main_hand")
+
+    def test_verified_dot_inscription_makes_random_teleport_legal(self):
+        mask = InventoryItem(
+            slot="a",
+            name="Terror Mask {.}",
+            count=1,
+            tval=TVAL_HELM,
+            sval=5,
+            aware=True,
+            known=True,
+            fully_known=True,
+            is_equipment=True,
+            is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        catalog = OwnedEquipmentCatalog()
+        catalog.refresh_carried([mask], [])
+
+        self.assertTrue(random_teleport_is_suppressed(mask))
+        self.assertTrue(catalog.items[0].random_teleport_suppressed)
+        self.assertTrue(catalog.items[0].exploration_legal)
+
+    def test_period_outside_inscription_does_not_suppress_random_teleport(self):
+        mask = InventoryItem(
+            slot="a", name="Terror.Mask {special}", count=1,
+            tval=TVAL_HELM, sval=5, aware=True, known=True,
+            fully_known=True, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        self.assertFalse(random_teleport_is_suppressed(mask))
+
+    def test_verified_home_inscription_is_also_legal(self):
+        mask = StoreItem(
+            letter="a", name="Terror Mask {special;.}", count=1,
+            tval=TVAL_HELM, sval=5, price=0, known=True, fully_known=True,
+            is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        catalog = OwnedEquipmentCatalog()
+        catalog.observe_home_page([mask])
+
+        self.assertTrue(catalog.items[0].random_teleport_suppressed)
+        self.assertTrue(catalog.items[0].exploration_legal)
 
     def test_refresh_carried_keeps_light_identity_when_fuel_name_changes(self):
         catalog = OwnedEquipmentCatalog()

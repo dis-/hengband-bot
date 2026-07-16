@@ -9,7 +9,12 @@ from typing import Literal
 
 from hengbot.town_maps import TownMap
 from hengbot.dungeon_knowledge import DungeonInfo
-from hengbot.equipment_optimizer import OwnedEquipmentCatalog, equipment_identity
+from hengbot.equipment_optimizer import (
+    TR_TELEPORT,
+    OwnedEquipmentCatalog,
+    equipment_identity,
+    random_teleport_is_suppressed,
+)
 from hengbot.equipment_transaction_session import (
     EquipmentTransactionSession,
     observe_equipment_transactions,
@@ -131,6 +136,15 @@ TOWN_TRAVEL_MIN_DISTANCE = 3
 # to BFS walking (an unknown approach makes the game reject the route).
 TOWN_TRAVEL_STALL_LIMIT = 8
 TOWN_TRAVEL_TURN_STALL_LIMIT = 12
+HOME_PAGE_ADVANCE_REASONS = frozenset(
+    {
+        "equipment-transaction:seek-home-page",
+        "home:seek-combat-weapon-page",
+        "home:seek-treasure-detection-page",
+        "home:seek-digging-tool-page",
+        "home:seek-processing-page",
+    }
+)
 
 
 @dataclass
@@ -532,6 +546,7 @@ EAT_KEY = "E"
 PICKUP_KEY = "g"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
 TAKEOFF_KEY = "t"
+INSCRIBE_KEY = "{"
 EQUIPMENT_SLOT_KEY = {
     "main_hand": "a",
     "sub_hand": "b",
@@ -1086,7 +1101,10 @@ class HengbotPolicy:
             snapshot.inventory, snapshot.equipment
         )
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
-            self._equipment_catalog.observe_home_page(snapshot.store.items)
+            self._equipment_catalog.observe_home_page(
+                snapshot.store.items,
+                allow_wrap=self.last_reason in HOME_PAGE_ADVANCE_REASONS,
+            )
         if self._equipment_transaction_session is not None:
             self._equipment_transaction_session.observe(
                 observe_equipment_transactions(snapshot)
@@ -1465,6 +1483,12 @@ class HengbotPolicy:
         remove_curse = self._town_remove_curse_key(snapshot)
         if remove_curse is not None:
             return remove_curse
+
+        suppress_random_teleport = self._town_random_teleport_suppression_key(
+            snapshot
+        )
+        if suppress_random_teleport is not None:
+            return suppress_random_teleport
 
         # Equipment changes have one owner: after Home identification and the
         # complete-page scan, execute the globally optimized loadout transaction.
@@ -5822,6 +5846,12 @@ class HengbotPolicy:
             self.last_reason = "shop:invalid"
             return LEAVE_STORE_KEY
 
+        suppress_random_teleport = self._town_random_teleport_suppression_key(
+            snapshot
+        )
+        if suppress_random_teleport is not None:
+            return suppress_random_teleport
+
         if store.store_type == STORE_HOME:
             for stored in store.items:
                 self._home_catalog[self._item_signature(stored)] = stored
@@ -6627,6 +6657,67 @@ class HengbotPolicy:
         self.last_reason = "town:remove-curse"
         return READ_KEY + scroll.slot
 
+    @staticmethod
+    def _needs_random_teleport_suppression(item) -> bool:
+        return (
+            item.is_equipment
+            and item.known
+            and not item.is_cursed
+            and TR_TELEPORT in item.known_flags
+            and not random_teleport_is_suppressed(item)
+        )
+
+    def _town_random_teleport_suppression_key(
+        self, snapshot: Snapshot
+    ) -> str | None:
+        """Inscribe `{.}` on every known, non-cursed random-teleport item."""
+        if not snapshot.in_town:
+            return None
+
+        pack_item = next(
+            (
+                item
+                for item in snapshot.inventory
+                if self._needs_random_teleport_suppression(item)
+            ),
+            None,
+        )
+        equipped_item = next(
+            (
+                item
+                for item in snapshot.equipment
+                if self._needs_random_teleport_suppression(item)
+            ),
+            None,
+        )
+        if pack_item is not None or equipped_item is not None:
+            if snapshot.store is not None:
+                self.last_reason = "equipment:leave-store-to-suppress-random-teleport"
+                return LEAVE_STORE_KEY
+            if pack_item is not None:
+                self.last_reason = "equipment:suppress-random-teleport"
+                return INSCRIBE_KEY + pack_item.slot + ".\r"
+            slot_key = EQUIPMENT_SLOT_KEY.get(equipped_item.slot)
+            if slot_key is not None:
+                self.last_reason = "equipment:suppress-equipped-random-teleport"
+                return INSCRIBE_KEY + "/" + slot_key + ".\r"
+
+        store = snapshot.store
+        if store is None or store.store_type != STORE_HOME:
+            return None
+        home_item = next(
+            (
+                item
+                for item in store.items
+                if self._needs_random_teleport_suppression(item)
+            ),
+            None,
+        )
+        if home_item is None:
+            return None
+        self.last_reason = "home:withdraw-random-teleport-for-inscription"
+        return BUY_KEY + home_item.letter + "\r"
+
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
         player = snapshot.player
         base_ready = (
@@ -7107,26 +7198,35 @@ class HengbotPolicy:
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
             return self._step_toward(snapshot, step)
-        step = self._explore_step(snapshot)
-        if step is not None:
-            self.last_reason = "fundraise:seek-upstairs-explore"
-            return self._step_toward(snapshot, step)
-        if self._is_oscillating():
-            step = self._probe_unknown_step(snapshot)
+        upstairs_search_expired = self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+        if upstairs_search_expired:
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None and not player.blind and not player.confused:
+                self._stuck_escape_streak = 0
+                self._returning_to_town = True
+                self.last_reason = "fundraise:recall-stuck"
+                return READ_KEY + recall.slot
+        else:
+            step = self._explore_step(snapshot)
             if step is not None:
-                self.last_reason = "fundraise:probe"
+                self.last_reason = "fundraise:seek-upstairs-explore"
                 return self._step_toward(snapshot, step)
-            here_key = (snapshot.player.position.y, snapshot.player.position.x)
-            if self._search_counts[here_key] < SEARCH_LIMIT:
-                self._search_counts[here_key] += 1
-                self.last_reason = "fundraise:search"
-                return SEARCH_KEY
-        step = self._least_visited_neighbor(snapshot)
-        if step is not None and (
-            not oscillation_cells or step not in oscillation_cells
-        ):
-            self.last_reason = "fundraise:seek-upstairs-wander"
-            return self._step_toward(snapshot, step)
+            if self._is_oscillating():
+                step = self._probe_unknown_step(snapshot)
+                if step is not None:
+                    self.last_reason = "fundraise:probe"
+                    return self._step_toward(snapshot, step)
+                here_key = (snapshot.player.position.y, snapshot.player.position.x)
+                if self._search_counts[here_key] < SEARCH_LIMIT:
+                    self._search_counts[here_key] += 1
+                    self.last_reason = "fundraise:search"
+                    return SEARCH_KEY
+            step = self._least_visited_neighbor(snapshot)
+            if step is not None and (
+                not oscillation_cells or step not in oscillation_cells
+            ):
+                self.last_reason = "fundraise:seek-upstairs-wander"
+                return self._step_toward(snapshot, step)
         # Terminal: no reachable up-stairs, nothing to explore, and no walkable
         # neighbour that escapes a confined cycle (a mining tunnel can wall us into a
         # pocket). A miner DIGS out rather

@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha1
 from itertools import combinations, product
+import re
 from math import isfinite
 from time import monotonic
 from typing import Callable, Iterable, Iterator
@@ -128,6 +129,22 @@ ABILITY_FLAG = {
     "resist_chaos": TR_RES_CHAOS,
     "telepathy": TR_TELEPATHY,
 }
+
+
+_INSCRIPTION_BLOCK = re.compile(r"\{[^{}]*\.[^{}]*\}")
+
+
+def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
+    """Return whether the player-visible inscription contains `{.}`.
+
+    Hengband suppresses non-cursed random teleport when any inscription block
+    contains a period. The emitter currently exposes that inscription through
+    the display name, so require the period inside braces rather than accepting
+    an unrelated period elsewhere in the item name.
+    """
+    return TR_TELEPORT in item.known_flags and bool(
+        _INSCRIPTION_BLOCK.search(item.name)
+    )
 
 
 def required_abilities(depth: int) -> frozenset[str]:
@@ -332,29 +349,44 @@ class OwnedEquipmentCatalog:
                     item,
                     origin,
                     equipped_slot=item.slot if origin == "equipped" else None,
-                    # Random teleport requires an explicit inscription/verification
-                    # transaction.  A display-name guess is not sufficient proof.
-                    random_teleport_suppressed=False,
+                    random_teleport_suppressed=random_teleport_is_suppressed(item),
                 )
         self._carried = carried
 
-    def observe_home_page(self, items: Iterable[StoreItem]) -> bool:
-        """Record one page; return True after the page sequence wraps."""
+    def observe_home_page(
+        self,
+        items: Iterable[StoreItem],
+        *,
+        allow_wrap: bool = True,
+    ) -> bool:
+        """Record one page; return True after an intentional page turn wraps."""
+        all_page_items = tuple(items)
         page_items = tuple(
             item
-            for item in items
+            for item in all_page_items
             if item.is_equipment and item.tval not in AMMUNITION_TVALS
         )
-        page = tuple(_catalog_signature(item) for item in page_items)
+        # Page identity must include everything visible in the Home. Distinct
+        # consumable-only or ammunition-only pages otherwise both collapse to
+        # (), falsely completing the scan before later weapon pages are seen.
+        page = tuple(_catalog_signature(item) for item in all_page_items)
         if page in self._home_seen_pages:
+            if not allow_wrap:
+                return False
             self.home_scan_complete = True
             return True
         self._home_seen_pages.add(page)
-        for item, signature in zip(page_items, page):
+        for item in page_items:
+            signature = _catalog_signature(item)
             occurrence = self._home_occurrences.get(signature, 0)
             self._home_occurrences[signature] = occurrence + 1
             item_id = f"home:{_catalog_digest(signature)}:{occurrence}"
-            self._home[item_id] = OwnedEquipment(item_id, item, "home")
+            self._home[item_id] = OwnedEquipment(
+                item_id,
+                item,
+                "home",
+                random_teleport_suppressed=random_teleport_is_suppressed(item),
+            )
         return False
 
     def invalidate_home(self) -> None:
