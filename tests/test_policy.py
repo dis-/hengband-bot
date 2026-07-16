@@ -6754,6 +6754,31 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._mining_sweep_steps, 2)
         self.assertEqual(policy._mining_sweep_no_progress, 1)
 
+    def test_sweep_frontier_predicate_excludes_blacklisted_goal(self):
+        start = Position(10, 10)
+        blacklisted = Position(10, 11)
+        other_frontier = Position(11, 10)
+        snap = Snapshot(
+            player(start.y, start.x),
+            {
+                start: grid(start.y, start.x),
+                blacklisted: grid(blacklisted.y, blacklisted.x),
+                other_frontier: grid(other_frontier.y, other_frontier.x),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=30,
+            height=30,
+        )
+        policy = HengbotPolicy()
+        policy._mining_detection_centers.append(start)
+        policy._mining_swept_dead_targets.add(blacklisted)
+        policy._build_grid_index(snap)
+
+        self.assertTrue(policy._is_frontier(snap, snap.grids[blacklisted]))
+        self.assertEqual(policy._mining_sweep_step(snap), other_frontier)
+        self.assertEqual(policy._mining_sweep_goal, other_frontier)
+
     def test_sweep_blacklists_real_junction_flicker_pair_and_retargets(self):
         a = Position(30, 119)
         b = Position(29, 120)
