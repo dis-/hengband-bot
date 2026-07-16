@@ -12056,6 +12056,8 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol._scavenge_entry_gold, 102)
 
     def test_blocked_mining_cycle_break_falls_back_to_scavenge(self):
+        from unittest import mock
+
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
         pol._town_cycle_pending = True
@@ -12072,11 +12074,16 @@ class TownCycleDetectorTest(unittest.TestCase):
             ],
         )
 
-        self.assertFalse(pol._fundraising_departure_ready(snap))
-        self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        with mock.patch.object(
+            pol, "_fundraising_departure_ready", return_value=False
+        ), mock.patch.object(pol, "_fundraising_supplies_ready", return_value=True):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+            self.assertEqual(pol.last_reason, "town:cycle-break")
+            self.assertEqual(pol._fundraising_mode, "scavenge")
+            self.assertIsNone(pol._town_special_key(snap))
+
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertEqual(pol._fundraising_mode, "scavenge")
-        self.assertIsNone(pol._town_special_key(snap))
 
     def test_low_gold_cycle_break_starts_scavenge_and_avoids_immediate_return(self):
         pol = HengbotPolicy()

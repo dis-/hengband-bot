@@ -6748,7 +6748,8 @@ class HengbotPolicy:
             return RESTOCK_WAIT_MACRO
 
         if (
-            self._fundraising_mode in {"prepare", "scavenge"}
+            not self._town_restock_suppressed
+            and self._fundraising_mode in {"prepare", "scavenge"}
             and self._fundraising_supplies_ready(snapshot)
         ):
             self._fundraising_mode = "mine"
