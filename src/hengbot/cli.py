@@ -14,6 +14,7 @@ from hengbot.model import MissingMonraceKnowledgeError, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_knowledge
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
+from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
 from hengbot.policy import (
     FUNDRAISING_START_GOLD,
@@ -441,6 +442,7 @@ def _decision_record(
     town_plan: dict | None = None,
     fixedquest_readiness: dict | None = None,
     departure_block: dict | None = None,
+    quest_strategy: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -496,6 +498,7 @@ def _decision_record(
         **({"town_plan": town_plan} if town_plan else {}),
         **({"fixedquest_readiness": fixedquest_readiness} if fixedquest_readiness else {}),
         **({"departure_block": departure_block} if departure_block else {}),
+        **({"quest_strategy": quest_strategy} if quest_strategy is not None else {}),
     }
 
 
@@ -712,6 +715,13 @@ def _write_decision(
             departure_block = (
                 policy.departure_block_state() if policy is not None else {}
             )
+            quest_strategy = None
+            quest_id = snapshot.floor_key[2] or int(fixedquest_readiness.get("quest_id", 0))
+            if policy is not None and quest_id > 0:
+                quest_strategy = {
+                    "quest_id": quest_id,
+                    "approved_profile": policy.approved_quest_strategy(quest_id) is not None,
+                }
             json.dump(
                 _decision_record(
                     snapshot,
@@ -728,6 +738,7 @@ def _write_decision(
                     town_plan,
                     fixedquest_readiness,
                     departure_block,
+                    quest_strategy,
                 ),
                 file,
                 ensure_ascii=False,
@@ -800,6 +811,11 @@ def main(argv: list[str] | None = None) -> int:
         "--quest-definitions",
         type=Path,
         help="path to QuestDefinitionList.txt or the migrated quests directory",
+    )
+    parser.add_argument(
+        "--quest-strategies",
+        type=Path,
+        help="path to strategy/quests (auto-located near the state file if omitted)",
     )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-interval", type=float, default=0.1)
@@ -912,11 +928,17 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"could not load quest definitions ({quest_path}): {exc}", file=sys.stderr)
 
+    quest_strategies: dict[int, object] = {}
+    strategy_path = find_quest_strategies(args.state_file, args.quest_strategies)
+    if strategy_path is not None:
+        quest_strategies = load_quest_strategies(strategy_path)
+
     policy = ConservativePolicy(
         town_map=outpost_map,
         dungeon_knowledge=dungeon_knowledge,
         monrace_knowledge=monrace_knowledge,
         quest_knowledge=quest_knowledge,
+        quest_strategies=quest_strategies,
     )
     if args.decision_log is not None:
         policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")

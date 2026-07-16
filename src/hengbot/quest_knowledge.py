@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,26 @@ QUEST_TYPE_KILL_NUMBER = _QUEST_TYPES["KILL_NUMBER"]
 QUEST_TYPE_KILL_LEVEL = _QUEST_TYPES["KILL_LEVEL"]
 QUEST_TYPE_RANDOM = _QUEST_TYPES["RANDOM"]
 QUEST_TYPE_TOWER = _QUEST_TYPES["TOWER"]
+
+
+@dataclass(frozen=True)
+class QuestBattlefield:
+    """Coordinate-level facts from a fixed quest's D-map.
+
+    Terrain features are reduced to five planning classes: FLOOR and traversable
+    features (including stairs and water) become ``floor``; permanent/granite
+    features become ``wall``; CLOSED/OPEN_DOOR becomes ``door``; PASSAGE becomes
+    ``passage``; and RUBBLE features become ``rubble``. Unknown legacy glyphs are
+    conservatively walls. Chokepoints are walkable tiles with at most two
+    orthogonal neighbours whose removal disconnects those neighbours.
+    """
+
+    terrain: dict[tuple[int, int], str] = field(default_factory=dict)
+    monster_placements: tuple[tuple[tuple[int, int], int], ...] = ()
+    player_start: tuple[int, int] | None = None
+    entrance: tuple[int, int] | None = None
+    reward_tile: tuple[int, int] | None = None
+    chokepoints: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -42,6 +62,7 @@ class QuestInfo:
     reward_artifact_ids: tuple[int, ...] = ()
     reward_baseitem_id: int = 0
     placed_monsters: tuple[tuple[int, int], ...] = ()
+    battlefield: QuestBattlefield | None = None
 
     @property
     def placed_monster_count(self) -> int:
@@ -85,7 +106,14 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
     definitions: dict[int, QuestInfo] = {}
     lines = path.read_text(encoding="utf-8-sig").splitlines()
     glyph_monsters: dict[str, int] = {}
+    glyph_features: dict[str, str] = {
+        "X": "PERMANENT", ".": "FLOOR", "D": "CLOSED_DOOR",
+        "<": "UP_STAIR", "%": "GRANITE",
+    }
+    reward_glyphs: set[str] = set()
+    explicit_monsters: list[int] = []
     map_rows: list[str] = []
+    player_start: tuple[int, int] | None = None
     for raw_line in lines:
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -95,12 +123,22 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
         # F:glyph:terrain:cave_info:monster:object:ego:artifact:trap:special.
         # The roster count comes from occurrences of that glyph in D map rows.
         if parts[0] == "F" and len(parts) >= 5:
+            glyph_features[parts[1]] = parts[2]
             try:
                 r_idx = int(parts[4], 0)
             except ValueError:  # random-depth forms such as *10 are not placed races
                 r_idx = 0
             if r_idx > 0:
                 glyph_monsters[parts[1]] = r_idx
+            if len(parts) >= 6:
+                try:
+                    if int(parts[5], 0) > 0:
+                        reward_glyphs.add(parts[1])
+                except ValueError:
+                    pass
+            continue
+        if parts[0] == "F" and len(parts) >= 3:
+            glyph_features[parts[1]] = parts[2]
             continue
         if parts[0] == "M" and len(parts) >= 2:
             # Some quest-map revisions use an explicit M:r_idx[:count] roster.
@@ -110,11 +148,16 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
             except ValueError:
                 continue
             if r_idx > 0 and count > 0:
-                glyph_monsters[f"\0{r_idx}"] = r_idx
-                map_rows.extend([f"\0{r_idx}"] * count)
+                explicit_monsters.extend([r_idx] * count)
             continue
         if parts[0] == "D" and len(parts) >= 2:
             map_rows.append(":".join(parts[1:]))
+            continue
+        if parts[0] == "P" and len(parts) >= 3:
+            try:
+                player_start = (int(parts[1], 0), int(parts[2], 0))
+            except ValueError:
+                pass
             continue
         if len(parts) < 3 or parts[0] != "Q":
             continue
@@ -141,12 +184,19 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
                 dungeon=values[7],
                 flags=flags,
             )
-    roster = Counter(
-        r_idx
-        for row in map_rows
-        for glyph, r_idx in glyph_monsters.items()
-        for _ in range(row.count(glyph))
-    )
+    placements = [
+        ((y, x), glyph_monsters[ch])
+        for y, row in enumerate(map_rows)
+        for x, ch in enumerate(row)
+        if ch in glyph_monsters
+    ]
+    # M records have no map coordinate. Preserve every placement using a stable
+    # negative-y sentinel rather than inventing an in-map location.
+    placements.extend(((-1, index), r_idx) for index, r_idx in enumerate(explicit_monsters))
+    roster = Counter(r_idx for _, r_idx in placements)
+    battlefield = _legacy_battlefield(
+        map_rows, glyph_features, placements, player_start, reward_glyphs
+    ) if map_rows else None
     return {
         quest_id: QuestInfo(
             **{
@@ -154,10 +204,64 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
                 "name": names.get(quest_id, info.name),
                 "name_en": names_en.get(quest_id, ""),
                 "placed_monsters": tuple(sorted(roster.items())),
+                "battlefield": battlefield,
             }
         )
         for quest_id, info in definitions.items()
     }
+
+
+def _terrain_class(feature: str) -> str:
+    upper = feature.upper()
+    if "RUBBLE" in upper:
+        return "rubble"
+    if "DOOR" in upper:
+        return "door"
+    if "PASSAGE" in upper:
+        return "passage"
+    if any(word in upper for word in ("PERMANENT", "WALL", "GRANITE", "MAGMA", "QUARTZ")):
+        return "wall"
+    if any(word in upper for word in ("FLOOR", "STAIR", "WATER", "QUEST_EXIT")):
+        return "floor"
+    return "wall"
+
+
+def _legacy_battlefield(
+    rows: list[str], features: dict[str, str],
+    placements: list[tuple[tuple[int, int], int]],
+    player_start: tuple[int, int] | None, reward_glyphs: set[str],
+) -> QuestBattlefield:
+    terrain = {
+        (y, x): _terrain_class(features.get(ch, "UNKNOWN"))
+        for y, row in enumerate(rows) for x, ch in enumerate(row)
+    }
+    entrance = next(((y, x) for y, row in enumerate(rows) for x, ch in enumerate(row) if ch == "<"), None)
+    reward = next(((y, x) for y, row in enumerate(rows) for x, ch in enumerate(row) if ch in reward_glyphs), None)
+    walkable = {pos for pos, kind in terrain.items() if kind in {"floor", "door", "passage"}}
+    neighbours = lambda pos: {
+        (pos[0] + dy, pos[1] + dx) for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
+        if (pos[0] + dy, pos[1] + dx) in walkable
+    }
+    chokepoints: list[tuple[int, int]] = []
+    for pos in sorted(walkable):
+        adjacent = neighbours(pos)
+        if not (2 <= len(adjacent) <= 2):
+            continue
+        start, target = tuple(adjacent)
+        seen = {pos, start}
+        pending = [start]
+        while pending:
+            current = pending.pop()
+            for nxt in neighbours(current) - seen:
+                seen.add(nxt)
+                pending.append(nxt)
+        if target not in seen:
+            chokepoints.append(pos)
+    return QuestBattlefield(
+        terrain=terrain, monster_placements=tuple(placements),
+        player_start=player_start, entrance=entrance, reward_tile=reward,
+        chokepoints=tuple(chokepoints),
+    )
 
 
 def _legacy_quests(path: Path) -> dict[int, QuestInfo]:

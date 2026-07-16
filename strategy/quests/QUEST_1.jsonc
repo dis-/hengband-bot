@@ -1,0 +1,21 @@
+{
+  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
+  "quest_id": 1,
+  "name": {"ja": "盗賊の隠れ家", "en": "Thieves Hideout"},
+  "approved": false,
+  "approved_note": "",
+  "engagement_plan": {
+    "opening": "Enter at [8,1], clear the west room, then use the door at [8,4].",
+    "hold_position": [8, 4],
+    "formation": "Fight through the one-tile doorway; do not advance into multiple adjacent thieves."
+  },
+  "priority_targets": [150, 44],
+  "consumable_plan": {"speed_potion": "Use before opening the eastern room if not already fast.", "heal_threshold_ratio": 0.55, "other": "Carry food and healing."},
+  "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
+  "required_force": {
+    "min_level": 8, "min_hp": 70, "resists": [], "speed_potions": 1, "heal_potions": 2,
+    "rationale": "Draft guesses from the real four-monster map and its [8,4] doorway. This ONCE quest cannot be retreated from; the user must judge these estimates before approval."
+  },
+  "generated_by": "Codex Phase 2 format draft",
+  "generated_at": "2026-07-16T00:00:00+09:00"
+}

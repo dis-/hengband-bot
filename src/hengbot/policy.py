@@ -27,6 +27,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
+from hengbot.quest_strategies import StrategyProfile
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -891,6 +892,7 @@ class HengbotPolicy:
         dungeon_knowledge: "dict[int, DungeonInfo] | None" = None,
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
+        quest_strategies: "dict[int, StrategyProfile] | None" = None,
     ) -> None:
         # A pre-loaded static town layout (lib/edit/towns) the bot may know in
         # advance, like a returning player — used to route across a dark town to a
@@ -902,6 +904,7 @@ class HengbotPolicy:
         self._dungeon_knowledge = dungeon_knowledge or {}
         self._monrace_knowledge = monrace_knowledge or {}
         self._quest_knowledge = quest_knowledge or {}
+        self._quest_strategies = quest_strategies or {}
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
         self._dive_loot = 0  # items grabbed on the current dive
         self._dive_emergencies = 0  # emergency escapes forced on the current dive
@@ -8669,6 +8672,11 @@ class HengbotPolicy:
         key = self._return_to_town_key(snapshot, self._hostiles(snapshot))
         self._last_return_trigger = "conquest-complete"
         return key
+
+    def approved_quest_strategy(self, quest_id: int) -> StrategyProfile | None:
+        """Return only a user-approved profile; Phase 2 does not execute it."""
+        profile = self._quest_strategies.get(quest_id)
+        return profile if profile is not None and profile.execution_eligible else None
 
     def _fixed_quest_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

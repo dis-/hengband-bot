@@ -104,6 +104,24 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertEqual(info.level + FIXED_QUEST_LEVEL_MARGIN, 8)
         self.assertEqual(info.placed_monster_count, 4)
         self.assertEqual(info.placed_monsters, ((44, 2), (150, 2)))
+        battlefield = info.battlefield
+        self.assertIsNotNone(battlefield)
+        self.assertEqual(len(battlefield.monster_placements), info.threat_roster_count)
+        self.assertEqual(len(battlefield.terrain), 10 * 15)
+        self.assertEqual(battlefield.player_start, (8, 1))
+        self.assertIn((8, 4), battlefield.chokepoints)
+
+    def test_real_water_cave_battlefield_matches_roster(self):
+        edit = Path(r"C:\hengband\lib\edit")
+        if not (edit / "QuestDefinitionList.txt").is_file():
+            self.skipTest("real Hengband lib/edit is not available")
+        info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[18]
+        battlefield = info.battlefield
+        self.assertIsNotNone(battlefield)
+        self.assertEqual(len(battlefield.monster_placements), info.threat_roster_count)
+        self.assertEqual(len(battlefield.terrain), 21 * 28)
+        self.assertTrue(set(battlefield.terrain.values()) <= {"floor", "wall", "door", "passage", "rubble"})
+        self.assertTrue(battlefield.chokepoints)
 
     def test_locator_prefers_legacy_then_falls_back_to_jsonc(self):
         with tempfile.TemporaryDirectory() as directory:

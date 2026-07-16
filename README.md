@@ -123,6 +123,13 @@ race knowledge, including maximum attack dice, by matching each visible
 monster's `race_id`. Use
 `--monrace-definitions PATH` to override that lookup.
 
+Fixed-quest strategy profiles live one per quest in
+`strategy/quests/QUEST_<id>.jsonc`; use `--quest-strategies PATH` to override
+the auto-located directory. Profiles default to `approved: false`. Drafts load
+for review, but only explicitly approved profiles pass the read-side policy
+gate. Phase 2 reports approval coverage in decision telemetry and does not yet
+change quest acceptance or combat behavior.
+
 Player and item data follows the same observable-information rule. Hunger is a
 HUD band (`fainting`, `weak`, `hungry`, `normal`, `full`, or `gorged`) and recall
 is only an active/inactive flag; exact internal counters are not emitted.
