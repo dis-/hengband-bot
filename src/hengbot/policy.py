@@ -8044,6 +8044,16 @@ class HengbotPolicy:
         combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
         if combat_equip is not None:
             return combat_equip
+        if (
+            snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
+            and hostiles
+            and self._equipped_digging_tool(snapshot) is None
+        ):
+            # Once combat equipment is on, leave the visible hostile to the
+            # ordinary combat policy.  Re-wielding the digger here makes the
+            # next snapshot re-arm again, producing an endless weapon/digger
+            # toggle while a weak ranged monster remains in view.
+            return None
 
         multipliers = [monster for monster in hostiles if monster.can_multiply]
         if multipliers:

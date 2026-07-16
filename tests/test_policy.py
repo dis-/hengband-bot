@@ -1562,7 +1562,10 @@ class ReturnToTownTest(unittest.TestCase):
 
     def test_does_not_return_after_refill_reduces_oil_below_town_target(self):
         snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10, 10, level=24, hp=413, max_hp=413,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
@@ -5862,6 +5865,36 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._fundraising_combat_equipment_key(snap, [monster]), "woa"
         )
         self.assertEqual(policy.last_reason, "fundraise:wield-combat-weapon")
+
+    def test_deep_fundraising_does_not_rewield_digger_with_hostile_visible(self):
+        monster = hostile(1, 10, 12, distance=2)
+        snap = Snapshot(
+            player(
+                10, 10, level=24, hp=413, max_hp=413,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            inventory=self._strict_supplies(recall=5, detection=1)
+            + [item("u", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
+            equipment=[
+                item("main_hand", 23, 11, is_equipment=True, name="Saber"),
+                self._lantern(),
+            ],
+            recall_depth=DEEP_FUNDRAISING_DEPTH,
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            yeek_cave_conquered=True,
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertIsNone(policy._fundraising_key(snap, [monster]))
+        self.assertNotEqual(policy.last_reason, "fundraise:wield-digging-tool")
 
     def test_deep_mining_recalls_only_after_the_floor_has_no_frontier(self):
         snap = Snapshot(
