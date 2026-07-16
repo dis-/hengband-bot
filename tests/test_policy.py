@@ -5832,6 +5832,37 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "fundraise:wield-combat-weapon")
 
+    def test_fundraising_combat_restore_skips_pack_jewelry(self):
+        monster = hostile(1, 10, 12, distance=2)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            inventory=[
+                item("n", 45, 1, is_equipment=True, name="Rusty Ring"),
+                item("o", 23, 1, is_equipment=True, name="Saber"),
+            ],
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                item("sub_hand", 23, 5, is_equipment=True, name="Main Gauche"),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertEqual(
+            policy._fundraising_combat_equipment_key(snap, [monster]), "woa"
+        )
+        self.assertEqual(policy.last_reason, "fundraise:wield-combat-weapon")
+
     def test_deep_mining_recalls_only_after_the_floor_has_no_frontier(self):
         snap = Snapshot(
             player(

@@ -7623,7 +7623,9 @@ class HengbotPolicy:
             weapon = self._first_item(
                 snapshot,
                 lambda it: it.is_equipment
+                and it.is_melee_weapon
                 and not it.is_digging_tool
+                and not self._blocks_teleport(it)
                 and (
                     self._normal_weapon_name is None
                     or it.name == self._normal_weapon_name
