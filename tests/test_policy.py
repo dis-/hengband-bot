@@ -6882,6 +6882,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._recent.extend([a, b] * (STUCK_WINDOW // 2))
             policy._build_grid_index(base)
             self.assertEqual(policy._fundraising_key(base, []), "9")
+            # The replacement step is still inside A/B, so preserve the
+            # oscillation evidence and reject another flickering goal on the
+            # next decision instead of spending a fresh stuck window.
+            self.assertTrue(policy._is_oscillating())
 
             at_b = replace(base, player=player(b.y, b.x))
             policy._recent.extend([a, b] * (STUCK_WINDOW // 2))

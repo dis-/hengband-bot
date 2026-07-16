@@ -8237,7 +8237,13 @@ class HengbotPolicy:
                 if flickering or repeated_small_set:
                     self._mining_swept_dead_targets.update(escape_goals)
                     sweep = self._mining_sweep_step(snapshot)
-                self._recent.clear()
+                # Keep the evidence while the replacement route still takes
+                # us through the same output cycle.  Clearing it here made
+                # each bad frontier consume another full STUCK_WINDOW; the
+                # CLI's broader 40-decision guard could stop the bot before
+                # phase 1 blacklisted enough flickering goals to escape.
+                if sweep is None or sweep not in oscillation_cells:
+                    self._recent.clear()
             if sweep is not None:
                 self._record_mining_sweep_step(snapshot)
                 self.last_reason = "fundraise:sweep-explore"
