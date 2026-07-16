@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from math import comb
 
+import numpy as np
+
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.monrace_knowledge import MonraceKnowledge, SUMMON_ABILITIES
 
@@ -802,18 +804,15 @@ def _distribution_percentile(
     return max(damage for damage, _ in items)
 
 
-def _convolve_damage_distributions(
-    left: dict[int, float], right: tuple[tuple[int, float], ...]
-) -> dict[int, float]:
-    result: dict[int, float] = {}
-    for left_damage, left_probability in left.items():
-        for right_damage, right_probability in right:
-            damage = left_damage + right_damage
-            result[damage] = (
-                result.get(damage, 0.0)
-                + left_probability * right_probability
-            )
-    return result
+def _dense_damage_distribution(
+    distribution: tuple[tuple[int, float], ...] | dict[int, float],
+) -> np.ndarray:
+    items = distribution.items() if isinstance(distribution, dict) else distribution
+    items = tuple(items)
+    dense = np.zeros(max(damage for damage, _ in items) + 1, dtype=np.float64)
+    for damage, probability in items:
+        dense[damage] += probability
+    return dense
 
 
 def aggregate_ranged_damage_percentile(
@@ -880,13 +879,21 @@ def aggregate_ranged_damage_percentile(
         for damage, probability in per_action.items()
         if probability > 1e-15
     }
-    per_action_items = tuple(sorted(per_action.items()))
-    aggregate = {0: 1.0}
+    per_action_dense = _dense_damage_distribution(per_action)
+    aggregate = np.ones(1, dtype=np.float64)
     for _ in range(max(0, actions)):
-        aggregate = _convolve_damage_distributions(aggregate, per_action_items)
+        aggregate = np.convolve(aggregate, per_action_dense)
 
-    total_damage = _distribution_percentile(aggregate, percentile)
-    probability_any_damage = 1.0 - aggregate.get(0, 0.0)
+    cumulative = np.cumsum(aggregate)
+    total_damage = min(
+        int(
+            np.searchsorted(
+                cumulative, percentile / 100.0 - 1e-12, side="left"
+            )
+        ),
+        aggregate.size - 1,
+    )
+    probability_any_damage = 1.0 - float(aggregate[0])
     floor_applied = (
         total_damage == 0
         and probability_any_damage > 0.0
@@ -894,9 +901,7 @@ def aggregate_ranged_damage_percentile(
     )
     if floor_applied:
         total_damage = single_hit_floor
-    expected_damage = sum(
-        damage * probability for damage, probability in aggregate.items()
-    )
+    expected_damage = float(np.dot(np.arange(aggregate.size), aggregate))
     return RangedDamagePercentile(
         total_damage=total_damage,
         expected_damage=expected_damage,
