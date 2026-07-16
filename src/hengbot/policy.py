@@ -1072,6 +1072,9 @@ class HengbotPolicy:
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
         self._home_full = False
+        # Exhausted input retries mean only that deposits should be abandoned
+        # for this visit; they do not prove that the Home is at capacity.
+        self._home_deposit_abandoned = False
         # A command can reject one item even while the Home still has free pages.
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
         # Pack-pressure identify verification: items whose identify never lands
@@ -1977,6 +1980,7 @@ class HengbotPolicy:
             # Away from town, clear the "Home is full" latch so the next visit
             # re-checks (the bot may have withdrawn items or a later Home differs).
             self._home_full = False
+            self._home_deposit_abandoned = False
             self._home_rejected_deposits.clear()
             self._device_identify_watch = None
             self._device_identify_fail_streak = 0
@@ -3752,25 +3756,34 @@ class HengbotPolicy:
     def _home_deposit_key(
         self, snapshot: Snapshot, deposit: InventoryItem
     ) -> str:
-        sig = (deposit.slot, len(snapshot.inventory), snapshot.player.gold)
+        sig = (
+            deposit.slot,
+            self._item_signature(deposit),
+            deposit.count,
+            deposit.charges,
+            len(snapshot.inventory),
+            snapshot.player.gold,
+        )
         if sig == self._last_sell_sig:
             self._store_sell_stuck_count += 1
         else:
             self._last_sell_sig = sig
             self._store_sell_stuck_count = 0
         if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
-            # Defer only this item for the visit. An unchanged snapshot does not
-            # prove Home is full; the selector can miss a key during a redraw.
+            # Stop this visit's deposit errand without claiming the Home is full;
+            # otherwise every eligible pack item consumes the same retry budget.
             self._home_rejected_deposits.add(self._item_signature(deposit))
+            self._home_deposit_abandoned = True
             self._store_sell_stuck_count = 0
             self._last_sell_sig = None
             self.last_reason = "home:deposit-rejected"
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
-        return SELL_KEY + deposit.slot + "\r"
+        quantity = f"{deposit.count}" if deposit.tval == TVAL_ARROW and deposit.count > 1 else ""
+        return SELL_KEY + deposit.slot + quantity + "\r"
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
-        if self._home_full:
+        if self._home_full or self._home_deposit_abandoned:
             return None
         # With an excellent-or-better weapon wielded, an inferior spare weapon is
         # sold at the Weapon Smith rather than hoarded in the Home.
@@ -4992,7 +5005,7 @@ class HengbotPolicy:
             # awaiting Home deposit) retains its owner when the deep kit itself
             # is complete.  The fallback is specifically for an unmeetable
             # deep kit that can already support a safe shallow trip.
-            or deep_kit_ready
+            or (deep_kit_ready and not self._home_deposit_abandoned)
             or not self._shallow_fundraising_available(snapshot)
             # These are deep-trip gates, not 1F mining requirements.  Preserve
             # their owners while the shallow kit still needs shopping, but do
@@ -5216,6 +5229,12 @@ class HengbotPolicy:
             if not self._fundraising_light_ready(snapshot):
                 if STORE_GENERAL not in self._town_store_attempted:
                     add(STORE_GENERAL, "fundraising-light")
+            if (
+                self._owns_lantern(snapshot)
+                and self._count_oil(snapshot) < OIL_TARGET
+                and STORE_GENERAL not in self._town_store_attempted
+            ):
+                add(STORE_GENERAL, "fundraising-oil")
             return needs
 
         if self._identification_need is not None:

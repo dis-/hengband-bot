@@ -3600,6 +3600,30 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
         self.assertEqual(policy.last_reason, "town:wait-restock")
 
+    def test_fundraising_routes_one_flask_oil_shortage_to_general_store(self):
+        snap = Snapshot(
+            player(10, 10, gold=3374, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET - 1, fuel=500),
+                item("d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=3),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = 3
+
+        self.assertEqual(policy._next_required_store_type(snap), STORE_GENERAL)
+
     def test_fundraising_withdraws_best_digger_from_home_and_leaves(self):
         inventory = self._strict_supplies(detection=5)
         store = StoreState(
@@ -5193,6 +5217,32 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._shallow_fundraising_trip)
         self.assertTrue(policy._fundraising_departure_ready(snap))
         self.assertNotEqual(policy._fundraising_mode, "scavenge")
+
+    def test_abandoned_home_deposit_falls_back_to_shallow_mining(self):
+        snap = self._deep_fundraising_town_snapshot()
+        snap = replace(
+            snap,
+            inventory=[
+                *self._strict_supplies(
+                    recall=10,
+                    detection=20,
+                    teleport=15,
+                    critical=10,
+                ),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+                item("q", TVAL_RING, 8, is_equipment=True, known=True),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = MINING_RUNS_PER_SET
+        policy._home_deposit_abandoned = True
+
+        self.assertTrue(policy._fundraising_supplies_ready(snap))
+        self.assertFalse(policy._fundraising_departure_ready(snap))
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertTrue(policy._shallow_fundraising_trip)
+        self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_blocked_deep_campaign_without_shallow_kit_still_scavenges(self):
         snap = self._deep_fundraising_town_snapshot(
@@ -13814,10 +13864,11 @@ class HomeFullLatchTest(unittest.TestCase):
         )
         self.assertFalse(pol._home_full)
 
-    def test_rejected_deposit_defers_only_that_item_not_the_whole_home(self):
+    def test_rejected_deposit_stops_all_deposits_for_the_town_visit(self):
         ring = item("k", TVAL_RING, 39, is_equipment=True, known=True)
+        amulet = item("l", TVAL_AMULET, 4, is_equipment=True, known=True)
         snap = replace(
-            self._town_snap([ring]),
+            self._town_snap([ring, amulet]),
             store=StoreState(STORE_HOME, []),
         )
         pol = HengbotPolicy()
@@ -13827,8 +13878,35 @@ class HomeFullLatchTest(unittest.TestCase):
         self.assertEqual(keys[-1], LEAVE_STORE_KEY)
         self.assertEqual(pol.last_reason, "home:deposit-rejected")
         self.assertFalse(pol._home_full)
+        self.assertTrue(pol._home_deposit_abandoned)
         self.assertIn(pol._item_signature(ring), pol._home_rejected_deposits)
         self.assertIsNone(pol._find_home_deposit(snap))
+
+    def test_arrow_home_deposit_enters_full_stack_quantity(self):
+        arrows = item("m", TVAL_ARROW, 5, count=9, name="animal slayer arrows")
+        snap = replace(
+            self._town_snap([arrows]),
+            store=StoreState(STORE_HOME, []),
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol._home_deposit_key(snap, arrows), "dm9\r")
+        self.assertEqual(pol.last_reason, "home:deposit")
+
+    def test_partial_arrow_stack_progress_does_not_count_as_rejection(self):
+        pol = HengbotPolicy()
+
+        for count in range(9, 2, -1):
+            arrows = item("m", TVAL_ARROW, 5, count=count, name="animal slayer arrows")
+            snap = replace(
+                self._town_snap([arrows]),
+                store=StoreState(STORE_HOME, []),
+            )
+            self.assertEqual(pol._home_deposit_key(snap, arrows), f"dm{count}\r")
+
+        self.assertEqual(pol.last_reason, "home:deposit")
+        self.assertFalse(pol._home_deposit_abandoned)
+        self.assertEqual(pol._store_sell_stuck_count, 0)
 
 
 class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
