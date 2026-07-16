@@ -2543,6 +2543,38 @@ class FixedQuestTest(unittest.TestCase):
         self.assertTrue(policy._fixed_quest_ready(snapshot, 18))
         self.assertEqual(policy.fixed_quest_readiness_state()["hp_healing_budget"], 1100)
 
+    def test_kill_number_readiness_uses_q_line_roster(self):
+        info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
+        warg = MonraceKnowledge(14, 120, False, False, max_melee_damage=1)
+        policy = HengbotPolicy(self._town_map(), quest_knowledge={14: info}, monrace_knowledge={257: warg})
+        snapshot = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(26, 97, level=8, hp=5000, max_hp=5000, main_hand_blows=4, main_hand_to_d=30),
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True, damage_dice_num=3, damage_dice_sides=6)],
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+        self.assertTrue(policy._fixed_quest_ready(snapshot, 14))
+        self.assertEqual(policy.fixed_quest_readiness_state()["roster_size"], 16)
+
+    def test_active_kill_floor_locks_stairs_and_recall_but_allows_teleport(self):
+        info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
+        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, num_mon=16, fixed=True)
+        snap = Snapshot(
+            player(10, 10, hp=10, max_hp=100),
+            {Position(10, 10): grid(10, 10, upstairs=True)},
+            [], floor_key=(0, 5, 14), quests={14: quest},
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT), item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+        )
+        policy = HengbotPolicy(quest_knowledge={14: info})
+        self.assertTrue(policy._quest_floor_exit_locked(snap))
+        self.assertIsNone(policy._escape_by_stairs(snap))
+        self.assertEqual(policy._escape_scroll(snap).slot, "t")
+        self.assertIsNone(policy._return_to_town_key(snap, []))
+
+        complete = replace(snap, quests={14: replace(quest, cur_num=16)})
+        self.assertFalse(policy._quest_floor_exit_locked(complete))
+
     def test_real_lib_fixed_quest_rosters_25_and_28_run_through_readiness(self):
         edit = Path(r"C:\hengband\lib\edit")
         quest_path = edit / "QuestDefinitionList.txt"
@@ -2616,7 +2648,7 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(policy._fixed_quest_target(snapshot), 18)
 
-    def test_existing_taken_fixed_quest_blocks_new_acceptance(self):
+    def test_existing_taken_kill_quest_is_selected_before_new_acceptance(self):
         quest14 = replace(self._quest(1), id=14, level=5, flags=2)
         quest18 = replace(self._quest(0), id=18, level=35)
         knowledge = {
@@ -2630,7 +2662,7 @@ class FixedQuestTest(unittest.TestCase):
             quests={18: quest18, 14: quest14},
         )
 
-        self.assertIsNone(policy._fixed_quest_target(snapshot))
+        self.assertEqual(policy._fixed_quest_target(snapshot), 14)
 
     def test_generalized_castle_quest_claim_latches_shared_reward_tile(self):
         quest_id = 18

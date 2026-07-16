@@ -20,7 +20,7 @@ from hengbot.equipment_transaction_session import (
     observe_equipment_transactions,
 )
 from hengbot.monrace_knowledge import MonraceKnowledge
-from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QuestInfo
+from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER, QuestInfo
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -229,7 +229,7 @@ QUEST_STATUS_COMPLETED = 2
 QUEST_STATUS_REWARDED = 3
 QUEST_STATUS_FINISHED = 4
 QUEST_ID_THIEF = 1
-FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 18, 25, 28})
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 14, 18, 25, 28})
 # A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
@@ -1363,7 +1363,7 @@ class HengbotPolicy:
         # A reviewed one-shot quest is entered on the assumption that its carried
         # Speed dose is part of the action-economy budget.  Spend it on first
         # contact, once for this floor entry (a rejected command is not looped).
-        active_quest = self._active_fixed_quest_id(snapshot)
+        active_quest = self._active_fixed_quest_id(snapshot) or self._active_kill_quest_id(snapshot)
         if active_quest is not None and hostiles and not self._fixed_quest_speed_attempted:
             self._fixed_quest_speed_attempted = True
             speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
@@ -1415,17 +1415,22 @@ class HengbotPolicy:
         # free hits every step (and a faster summoner stays adjacent the whole
         # way) — kill it instead; melee below already targets summoners first.
         summoners = [monster for monster in hostiles if monster.can_summon]
+        # A KILL_NUMBER pack gets the same reviewed choke-point movement as a
+        # summoner fight.  The normal ranged phase below then softens pursuers.
+        corridor_threats = summoners
+        if self._active_kill_quest_id(snapshot) is not None:
+            corridor_threats = hostiles
         summoner_adjacent = any(
-            player.position.distance_to(monster.position) <= 1 for monster in summoners
+            player.position.distance_to(monster.position) <= 1 for monster in corridor_threats
         )
         if (
-            summoners
+            corridor_threats
             and not summoner_adjacent
             and self._open_neighbor_count(snapshot, player.position)
             >= SUMMONER_OPEN_NEIGHBORS
         ):
             current = snapshot.grid_at(player.position)
-            if current is not None and current.has_up_stairs:
+            if current is not None and current.has_up_stairs and not self._quest_floor_exit_locked(snapshot):
                 self._defer_descent(snapshot)
                 self.last_reason = (
                     "summoner:stairs-quest-fail"
@@ -1433,7 +1438,7 @@ class HengbotPolicy:
                     else "summoner:stairs"
                 )
                 return UP_STAIRS_KEY
-            step = self._summoner_retreat_step(snapshot, summoners, hostiles)
+            step = self._summoner_retreat_step(snapshot, corridor_threats, hostiles)
             if step is not None:
                 self.last_reason = "summoner:retreat"
                 return self._step_toward(snapshot, step)
@@ -1675,7 +1680,7 @@ class HengbotPolicy:
             and not player.poisoned
             and not player.cut
         ):
-            if here is not None and here.has_up_stairs:
+            if here is not None and here.has_up_stairs and not self._quest_floor_exit_locked(snapshot):
                 self._defer_descent(snapshot)
                 self.last_reason = (
                     "unseen:ascend-quest-fail"
@@ -8653,6 +8658,16 @@ class HengbotPolicy:
         quest = snapshot.quests.get(quest_id)
         if quest is None:
             return None
+        info = self._quest_knowledge.get(quest_id)
+        if info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}:
+            if quest.status == QUEST_STATUS_COMPLETED:
+                return None
+            if quest.status == QUEST_STATUS_UNTAKEN and not self._fixed_quest_ready(snapshot, quest_id):
+                return None
+            # Accepted by entering its dungeon floor, not through a building.
+            # Reuse ordinary entrance routing and stair descent.
+            self._target_dungeon_id = info.dungeon
+            return None
         if snapshot.floor_key[2] == quest_id:
             if quest.status == QUEST_STATUS_COMPLETED:
                 return self._fixed_quest_exit_key(snapshot, quest_id)
@@ -8688,10 +8703,33 @@ class HengbotPolicy:
             return None
         return quest_id
 
+    def _active_kill_quest_id(self, snapshot: Snapshot) -> int | None:
+        """Return an incomplete KILL_NUMBER quest occupying this dungeon floor."""
+        dungeon_id, level, floor_quest_id = snapshot.floor_key
+        for quest in snapshot.quests.values():
+            info = self._quest_knowledge.get(quest.id)
+            if (
+                info is not None
+                and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
+                and quest.status == QUEST_STATUS_TAKEN
+                and quest.cur_num < (quest.num_mon or quest.max_num or info.num_mon or info.max_num)
+                and dungeon_id == info.dungeon
+                and level == info.level
+                and floor_quest_id in {0, quest.id}
+            ):
+                return quest.id
+        return None
+
+    def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
+        """A distinct hard lock for an incomplete KILL_NUMBER attempt."""
+        return self._active_kill_quest_id(snapshot) is not None
+
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
         def supported(quest_id: int) -> bool:
-            return quest_id in FIXED_QUEST_ALLOWLIST and self._fixed_quest_is_once(
-                quest_id
+            info = self._quest_knowledge.get(quest_id)
+            return quest_id in FIXED_QUEST_ALLOWLIST and (
+                self._fixed_quest_is_once(quest_id)
+                or (info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER})
             )
 
         floor_quest = snapshot.floor_key[2]
@@ -8764,7 +8802,7 @@ class HengbotPolicy:
         info = self._quest_knowledge.get(quest_id)
         if info is None:
             return reject("unknown-quest")
-        telemetry["roster_size"] = info.placed_monster_count
+        telemetry["roster_size"] = info.threat_roster_count
         if snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
             return reject("level-floor")
         if snapshot.player.hp < snapshot.player.max_hp:
@@ -8777,7 +8815,7 @@ class HengbotPolicy:
             return reject("pack-space")
         if not self._town_departure_ready(snapshot):
             return reject("departure")
-        if not info.placed_monsters:
+        if not info.threat_roster:
             return reject("empty-roster")
 
         # One potion consumes one player action.  Across the three-turn threat
@@ -8821,7 +8859,7 @@ class HengbotPolicy:
             grids=combat_grids,
             store=None,
         )
-        for r_idx, count_placed in info.placed_monsters:
+        for r_idx, count_placed in info.threat_roster:
             knowledge = self._monrace_knowledge.get(r_idx)
             if knowledge is None:
                 telemetry["toughest_r_idx"] = r_idx
@@ -9589,7 +9627,7 @@ class HengbotPolicy:
         player = snapshot.player
         if snapshot.in_town:
             return None
-        if self._active_fixed_quest_id(snapshot) is not None:
+        if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
             # A quest exit is represented as up-stairs, but ordinary pack/light/
             # supply returns must never fail a one-shot quest. Survival escapes
             # run earlier and remain intentionally permitted.
@@ -9911,7 +9949,7 @@ class HengbotPolicy:
                     # starts the countdown home; subsequent turns flee to
                     # survive it. (Teleport relocates on-floor; recall leaves
                     # the floor entirely, so it is the escape of last resort.)
-                    if not player.recalling:
+                    if not player.recalling and not self._quest_floor_exit_locked(snapshot):
                         recall = self._find_recall_scroll(snapshot)
                         if recall is not None:
                             self.last_reason = "emergency:recall"
@@ -9948,6 +9986,7 @@ class HengbotPolicy:
         heal_ratio = (
             FIXED_QUEST_HEAL_HP_RATIO
             if self._active_fixed_quest_id(snapshot) is not None
+            or self._active_kill_quest_id(snapshot) is not None
             else HEAL_HP_RATIO
         )
         if hostiles and player.hp_ratio < heal_ratio:
@@ -10383,6 +10422,8 @@ class HengbotPolicy:
         # Only ever escape UPWARD. Diving to flee just leads somewhere more
         # dangerous. This is called only after a threat triggered fleeing, so
         # use a landing staircase immediately instead of waiting until near death.
+        if self._quest_floor_exit_locked(snapshot):
+            return None
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and here.has_up_stairs:
             self._defer_descent(snapshot)
@@ -10437,8 +10478,21 @@ class HengbotPolicy:
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
             return False
-        if self._active_fixed_quest_id(snapshot) is not None:
+        if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
             return False
+        kill_target = next(
+            (
+                info
+                for quest in snapshot.quests.values()
+                if quest.id in FIXED_QUEST_ALLOWLIST
+                and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
+                and (info := self._quest_knowledge.get(quest.id)) is not None
+                and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
+            ),
+            None,
+        )
+        if kill_target is not None and snapshot.floor_key[0] == kill_target.dungeon:
+            return snapshot.dungeon_level < kill_target.level
         if snapshot.player.class_id < 0:
             return True
         if snapshot.in_town and grid.has_entrance:

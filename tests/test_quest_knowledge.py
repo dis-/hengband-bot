@@ -7,6 +7,7 @@ from unittest.mock import patch
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_PRESET,
+    QUEST_TYPE_KILL_NUMBER,
     find_quest_definitions,
     load_quest_knowledge,
 )
@@ -54,6 +55,27 @@ class QuestKnowledgeTest(unittest.TestCase):
             (quests / "008_Quest.txt").write_text(text, encoding="utf-8")
             info = load_quest_knowledge(path)[8]
         self.assertEqual((info.level, info.dungeon, info.flags), (10, 2, 0))
+
+    def test_kill_number_q_line_builds_threat_roster(self):
+        text = "Q:14:N:Warg Problem\nQ:14:Q:5:16:0:0:5:257:0:0:2\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "QuestDefinitionList.txt"
+            quests = path.parent / "quests"
+            quests.mkdir()
+            path.write_text("", encoding="utf-8")
+            (quests / "014_WargProblem.txt").write_text(text, encoding="utf-8")
+            info = load_quest_knowledge(path)[14]
+        self.assertEqual(info.type, QUEST_TYPE_KILL_NUMBER)
+        self.assertEqual((info.dungeon, info.level, info.monrace_id, info.num_mon), (0, 5, 257, 16))
+        self.assertEqual(info.threat_roster, ((257, 16),))
+
+    def test_real_warg_problem_q_line_matches_activation_floor(self):
+        edit = Path(r"C:\hengband\lib\edit")
+        if not (edit / "QuestDefinitionList.txt").is_file():
+            self.skipTest("real Hengband lib/edit is not available")
+        info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[14]
+        self.assertEqual((info.type, info.max_num, info.level, info.monrace_id, info.dungeon), (1, 16, 5, 257, 2))
+        self.assertEqual(info.threat_roster, ((257, 16),))
 
     def test_legacy_random_quest_file_loads_each_quest_id(self):
         text = (

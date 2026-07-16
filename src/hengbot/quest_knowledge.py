@@ -18,6 +18,9 @@ QUEST_FLAG_ONCE = 0x04
 QUEST_FLAG_TOWER = 0x08
 _FLAG_BITS = {"SILENT": QUEST_FLAG_SILENT, "PRESET": QUEST_FLAG_PRESET, "ONCE": QUEST_FLAG_ONCE, "TOWER": QUEST_FLAG_TOWER}
 _QUEST_TYPES = {"NONE": 0, "KILL_LEVEL": 1, "KILL_ANY_LEVEL": 2, "FIND_ARTIFACT": 3, "FIND_EXIT": 4, "KILL_NUMBER": 5, "KILL_ALL": 6, "RANDOM": 7, "TOWER": 8}
+QUEST_TYPE_KILL_NUMBER = _QUEST_TYPES["KILL_NUMBER"]
+QUEST_TYPE_KILL_LEVEL = _QUEST_TYPES["KILL_LEVEL"]
+QUEST_TYPE_TOWER = _QUEST_TYPES["TOWER"]
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,18 @@ class QuestInfo:
     @property
     def placed_monster_count(self) -> int:
         return sum(count for _, count in self.placed_monsters)
+
+    @property
+    def threat_roster(self) -> tuple[tuple[int, int], ...]:
+        """Monsters used by the shared fixed-quest readiness projection."""
+        target_count = self.num_mon or self.max_num
+        if self.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER} and self.monrace_id > 0 and target_count > 0:
+            return ((self.monrace_id, target_count),)
+        return self.placed_monsters
+
+    @property
+    def threat_roster_count(self) -> int:
+        return sum(count for _, count in self.threat_roster)
 
 
 def _flag_mask(value: Any) -> int:
