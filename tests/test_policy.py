@@ -14007,6 +14007,21 @@ class FullPackDisposalTest(unittest.TestCase):
         pol = HengbotPolicy()
         self.assertEqual(pol._full_pack_destroy_key(self._full_pack(potions)), "04kq")
 
+    def test_empty_chests_are_disposable_junk(self):
+        policy = HengbotPolicy()
+        for name in (
+            "small wooden chest (empty)",
+            "小さな木の箱 (空)",
+            "壊れた鉄の箱",
+        ):
+            with self.subTest(name=name):
+                chest = item("q", TVAL_CHEST, 1, name=name)
+                self.assertTrue(policy._is_disposable_item(chest))
+                self.assertEqual(
+                    policy._full_pack_destroy_key(self._full_pack(chest)), "01kq"
+                )
+                policy._destroy_watch = None
+
     def test_unidentified_mushroom_is_disposable_but_food_ration_is_kept(self):
         pol = HengbotPolicy()
         # Unidentified mushroom (unaware food): a poison gamble worth nothing.

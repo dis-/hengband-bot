@@ -2623,6 +2623,13 @@ class HengbotPolicy:
             # Empty bottles are the worthless junk a quaffed potion leaves behind;
             # no shop buys them, so shed them rather than let them fill the pack.
             or item.is_empty_bottle
+            # Opened or smashed chests have no remaining contents or utility.
+            or (
+                item.is_chest
+                and any(
+                    marker in item.name for marker in ("(empty)", "(空)", "壊れた")
+                )
+            )
             # Unidentified mushrooms (unaware food; rations are always aware) are a
             # poison gamble worth almost nothing — shed them instead of hoarding.
             or (item.is_food and not item.aware)
