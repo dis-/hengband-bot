@@ -6202,7 +6202,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
         self.assertEqual(policy.choose_key(snap), "Ef")
-        self.assertEqual(policy.last_reason, "fundraise:eat")
+        # The R1 survival gate now owns hunger-eating and runs before the
+        # fundraising steps; the action (eat, same slot, same turn) is
+        # unchanged, only the reason label moved.
+        self.assertEqual(policy.last_reason, "survival:eat")
 
     def test_mining_collects_visible_item_after_detected_treasure_is_gone(self):
         tool = item(

@@ -1107,6 +1107,27 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         policy,
                         economy_ledger,
                     )
+                    # The policy's mode-independent navigation invariant found
+                    # no coverage/goal/economy progress for hundreds of
+                    # decisions AND could not leave the floor. This is the
+                    # designed visible stop — cell-based guards cannot see a
+                    # loop that keeps its cells varied.
+                    if policy.last_reason == "livelock:exhausted":
+                        print(
+                            f"<loop-detected> floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn} navigation exhausted: no new "
+                            "coverage, goal progress or combat for the policy's "
+                            "no-progress budget and no escape route; stopping "
+                            "the bot for investigation",
+                            flush=True,
+                        )
+                        print(
+                            f"navigation exhausted at floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn}; stopping bot (game left running)",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        return 0
                     town_residence_streak = _advance_town_residence_streak(
                         town_residence_streak,
                         residence_floor_key,

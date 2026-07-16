@@ -20,6 +20,7 @@ from hengbot.equipment_transaction_session import (
     observe_equipment_transactions,
 )
 from hengbot.monrace_knowledge import MonraceKnowledge
+from hengbot.navigation import NavigationLedger
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_TYPE_KILL_LEVEL,
@@ -355,6 +356,23 @@ STUCK_NEUTRAL_REASONS = frozenset(
     {"rest", "refill-light", "wield-light", "eat", "item:eat"}
 )
 STUCK_ESCAPE_LIMIT = 60
+# Mode-independent navigation invariant (R1 redesign): a dungeon decision makes
+# "progress" only when it grows remembered map coverage, improves a committed
+# navigation target's best distance, changes gold/pack/equipment, fights, or
+# waits out a recall. This many consecutive decisions with NONE of those means
+# every navigation mode is livelocked no matter how varied its reasons look —
+# the incident this replaces cycled three modes over 41 cells for 1600+
+# decisions while each individual detector saw "progress". Big enough that a
+# legitimate secret-door hunt (SEARCH_LIMIT per tile across a handful of
+# dead-ends) finishes well under it. Accepted tradeoff: a pathological
+# 400+-decision stretch of pure backtracking (an extreme serpentine return
+# over fully-visited ground) ends in a VISIBLE stop rather than a silent
+# loop — per the operating rule, stopping for investigation beats guessing.
+NAV_NO_PROGRESS_LIMIT = 400
+# Once the invariant trips, the escape route (recall/up-stairs) gets its own
+# bounded budget so a broken escape cannot itself loop forever: past it, the
+# policy reports livelock:exhausted and the CLI stops the bot visibly.
+NAV_ESCAPE_STEP_LIMIT = 200
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of
 # the map, so cli's position-based loop guard never fires on wandering alone — a
 # live logic deadlock (Home identification stuck behind an equipment-optimizer
@@ -551,6 +569,8 @@ MOVE_REASONS = frozenset(
         "return:flee",
         "return:seek-upstairs",
         "return:wander",
+        "livelock:seek-upstairs",
+        "survival:seek-exit",
         "fundraise:probe",
         "fundraise:seek-upstairs",
         "fundraise:seek-upstairs-explore",
@@ -1077,6 +1097,14 @@ class HengbotPolicy:
         self._unique_speed_was_active = False
         self._unique_combat_committed_race_id: int | None = None
         self._stuck_escape_streak = 0
+        # R1 navigation redesign: the shared per-floor-visit target ledger and
+        # the mode-independent no-progress invariant (see NAV_NO_PROGRESS_LIMIT).
+        self._nav_ledger = NavigationLedger()
+        self._nav_stall_count = 0
+        self._nav_exhausted = False
+        self._nav_escape_steps = 0
+        self._nav_known_high = 0
+        self._nav_progress_marker: tuple[int, int, int] | None = None
         self._town_wander_streak = 0
         self._deepest_level = 0
         self._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -1205,8 +1233,10 @@ class HengbotPolicy:
                 self._equipment_optimization_signature = None
                 self._equipment_transaction_home_pages.clear()
         self._observe(snapshot)
+        self._nav_ledger.begin_decision()
         key = self._decide(snapshot)
         key = self._break_livelock(snapshot, key)
+        self._update_navigation_progress(snapshot)
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -1473,6 +1503,15 @@ class HengbotPolicy:
         if ranged is not None:
             return ranged
 
+        # 2s. Survival gate (R1): starvation safety is mode- and objective-
+        # independent. It runs ABOVE fundraising/quests/descent because every
+        # one of those returns keys on its own and would otherwise starve this
+        # step of decisions — which is exactly how a mining run walked a
+        # character to food_state "weak" with an empty pack (2026-07-17).
+        survival = self._survival_gate_key(snapshot, hostiles)
+        if survival is not None:
+            return survival
+
         cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
         if cancel_unsafe_recall is not None:
             return cancel_unsafe_recall
@@ -1573,6 +1612,18 @@ class HengbotPolicy:
             )
             if return_loot is not None:
                 return return_loot
+
+        # R1 navigation invariant: every mode below (including a latched town
+        # return that can only wander) is some form of navigation. When
+        # NAV_NO_PROGRESS_LIMIT decisions have produced no new coverage, no
+        # first-visit tile, no target-distance improvement and no combat, they
+        # are collectively livelocked regardless of how varied their reasons
+        # look — leave the floor (recall/up-stairs), or stop visibly. This must
+        # run ABOVE the town return: a return with no reachable exit degrades
+        # to return:wander forever and would shadow the escape.
+        livelock = self._navigation_livelock_key(snapshot)
+        if livelock is not None:
+            return livelock
 
         # Low supplies and a full pack are expedition-ending conditions. Once
         # triggered, keep heading upward even if using an item opens a pack slot.
@@ -2321,6 +2372,13 @@ class HengbotPolicy:
             self._last_position = None
             self._rest_count = 0
             self._last_hp = None  # HP is not comparable across floors
+            # R1: navigation progress accounting is per floor visit.
+            self._nav_ledger.reset()
+            self._nav_stall_count = 0
+            self._nav_exhausted = False
+            self._nav_escape_steps = 0
+            self._nav_known_high = 0
+            self._nav_progress_marker = None
 
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1
@@ -8777,6 +8835,14 @@ class HengbotPolicy:
         # visible loss of even an ONCE/RANDOM quest.
         if snapshot.player.hp_ratio <= PANIC_HP_RATIO and self._escape_scroll(snapshot) is None:
             return False
+        # Starvation kills through paralysis with HP untouched, so the panic
+        # release above never sees it coming. Weak-or-worse with nothing edible
+        # is the same "worse than losing the quest" call.
+        if (
+            snapshot.player.food_state in {"weak", "fainting"}
+            and self._find_edible(snapshot) is None
+        ):
+            return False
         # Depth quests that Hengband does not fail on leave may regenerate a bad
         # floor after the ordinary stuck budget is exhausted.
         if (
@@ -9553,6 +9619,61 @@ class HengbotPolicy:
             return "a"
         return None
 
+    def _survival_gate_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Starvation safety, independent of mode and objective (R1).
+
+        Hungry with something edible: eat now (the old step-7 eat was dead
+        whenever a descent target was known, because step 6 returned first).
+        Hungry with NOTHING edible: the expedition is over no matter what the
+        current objective thinks — latch the town return and route home. Quest
+        exit locks are respected via _return_to_town_key's own guards.
+        """
+        player = snapshot.player
+        if snapshot.in_town or not player.hungry:
+            return None
+        # Only a NEARBY threat defers the gate: a monster merely visible across
+        # the floor may never engage at all, and waiting on it indefinitely is
+        # how eating gets starved out of the schedule.
+        near_hostiles = [
+            monster for monster in hostiles if monster.distance <= 4
+        ]
+        food = self._find_edible(snapshot)
+        if food is not None:
+            # Mid-fight, finishing the threat comes first — unless already
+            # fainting, where one more fighting turn may be one too many.
+            if near_hostiles and not player.is_fainting:
+                return None
+            self.last_reason = "survival:eat"
+            return EAT_KEY + food.slot
+        if near_hostiles:
+            return None  # fight/flee first; re-fires on the next quiet decision
+        key = self._return_to_town_key(snapshot, hostiles)
+        if key is not None:
+            return key
+        # A quest exit lock refused the ordinary return. While merely "hungry"
+        # the quest may still be finished first, but weak-or-worse means
+        # starvation (paralysis death with full HP) is now closer than any
+        # kill count: leave via the exit stairs and take the visible loss.
+        if player.food_state not in {"weak", "fainting"}:
+            return None
+        here = snapshot.grid_at(player.position)
+        exit_reason = (
+            "survival:stairs-quest-fail"
+            if self._quest_exit_would_fail(snapshot)
+            else "survival:ascend"
+        )
+        if here is not None and here.has_up_stairs:
+            self._defer_descent(snapshot)
+            self.last_reason = exit_reason
+            return UP_STAIRS_KEY
+        step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+        if step is not None:
+            self.last_reason = "survival:seek-exit"
+            return self._step_toward(snapshot, step)
+        return None
+
     def _should_start_town_return(self, snapshot: Snapshot) -> bool:
         # Records WHICH condition ends the run in self._last_return_trigger, so the
         # decision log shows why every dive returned (see the depth_safety telemetry).
@@ -9563,6 +9684,14 @@ class HengbotPolicy:
             return True
         if len(snapshot.inventory) >= PACK_CAPACITY:
             self._last_return_trigger = "pack-full"
+            return True
+        # Hungry with nothing edible left ends ANY run — including mining and
+        # scavenge dives, which the suppression below otherwise exempts from
+        # every supply threshold. A fundraising character starved to death
+        # behind that exemption (2026-07-17): income policy owns its economics,
+        # never the character's survival.
+        if snapshot.player.hungry and self._find_edible(snapshot) is None:
+            self._last_return_trigger = "food-hungry"
             return True
         # Income dives own their completion/return policy in _fundraising_key.
         # Ordinary expedition supply thresholds must not bounce a freshly
@@ -9617,18 +9746,12 @@ class HengbotPolicy:
             if knows_downstairs and self._next_depth_supply_shortage(snapshot):
                 self._last_return_trigger = "next-depth-kit"
                 return True
-        if self._find_edible(snapshot) is not None:
-            return False
-
-        # End the run for hunger only once we are ACTUALLY hungry (the hungry / weak
-        # / fainting bands), not the instant we slip below Full. "normal" is a wide
-        # band with ample margin to reach town, and a MANA character lives off its
-        # mandatory identify-staff charges, so it usually has charge-food to eat well
-        # before real hunger. Bailing at "normal" abandoned deep dives far too
-        # eagerly (it was the dominant no-threat return). Was: not in {full, gorged}.
-        if snapshot.player.hungry:
-            self._last_return_trigger = "food-hungry"
-            return True
+        # Hunger-without-food already returned True above (it runs before the
+        # fundraising exemption); with something edible carried, the survival
+        # gate eats instead of ending the run. Note the trigger fires only at
+        # the ACTUAL hungry bands (hungry/weak/fainting), not below Full —
+        # "normal" is a wide band with ample margin to reach town, and bailing
+        # there abandoned deep dives far too eagerly.
         return False
 
     def _next_depth_supply_shortage(self, snapshot: Snapshot) -> bool:
@@ -9759,6 +9882,97 @@ class HengbotPolicy:
 
         self.last_reason = "return:wait"
         return WAIT_KEY
+
+    def _navigation_livelock_key(self, snapshot: Snapshot) -> str | None:
+        """Leave (or visibly stop on) a floor where navigation is exhausted (R1).
+
+        Fires only after NAV_NO_PROGRESS_LIMIT consecutive dungeon decisions
+        with no new coverage, no target-distance improvement, no combat and no
+        gold/pack/equipment change — the mode-independent definition of a
+        livelock. The escape itself is bounded by NAV_ESCAPE_STEP_LIMIT; past
+        that (or when quest locks forbid leaving) the policy reports
+        livelock:exhausted, which the CLI treats as a visible stop.
+        """
+        if not self._nav_exhausted or snapshot.in_town:
+            return None
+        player = snapshot.player
+        if player.recalling:
+            # The countdown will end the floor by itself; stand down.
+            self._nav_exhausted = False
+            self._nav_stall_count = 0
+            return None
+        quest_locked = (
+            self._quest_floor_exit_locked(snapshot)
+            or snapshot.floor_key[2] != 0
+        )
+        if not quest_locked and self._nav_escape_steps < NAV_ESCAPE_STEP_LIMIT:
+            self._nav_escape_steps += 1
+            if not player.blind and not player.confused:
+                recall = self._find_recall_scroll(snapshot)
+                if recall is not None:
+                    self._returning_to_town = True
+                    self.last_reason = "livelock:recall-escape"
+                    return READ_KEY + recall.slot
+            here = snapshot.grid_at(player.position)
+            if here is not None and here.has_up_stairs:
+                self._defer_descent(snapshot)
+                self.last_reason = "livelock:ascend"
+                return UP_STAIRS_KEY
+            step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+            if step is not None:
+                self.last_reason = "livelock:seek-upstairs"
+                return self._step_toward(snapshot, step)
+        self.last_reason = "livelock:exhausted"
+        return WAIT_KEY
+
+    def _update_navigation_progress(self, snapshot: Snapshot) -> None:
+        """Advance the mode-independent no-progress invariant (R1).
+
+        Called once per decision, after _decide. "Progress" is defined by
+        observable outcomes, not by which mode produced the decision — reason
+        exemption lists are exactly how the 41-cell descent triad evaded every
+        earlier detector.
+        """
+        if snapshot.in_town or snapshot.store is not None:
+            self._nav_stall_count = 0
+            self._nav_exhausted = False
+            self._nav_escape_steps = 0
+            return
+        coverage = len(self._remembered_known_t)
+        marker = (
+            snapshot.player.gold,
+            len(snapshot.inventory),
+            len(snapshot.equipment),
+        )
+        progress = (
+            coverage > self._nav_known_high
+            or self._nav_ledger.improved_this_decision
+            or marker != self._nav_progress_marker
+            or snapshot.player.recalling
+            # Stepped onto a first-visit tile this decision: any walk over
+            # fresh ground (a long return backtrack aside) is real locomotion,
+            # not a loop. Standing still never counts (position unchanged).
+            or (
+                self._position_changed
+                and self._visit_counts[snapshot.player.position] <= 1
+            )
+            # Combat counts only when actually ENGAGED — adjacency or a
+            # fighting decision. A monster merely visible across the floor
+            # (unreachable, feared, asleep behind glass) must not reset the
+            # counter, or a varied livelock with a spectator never trips.
+            or bool(self._adjacent_hostiles(snapshot))
+            or self.last_reason.startswith(
+                ("melee", "ranged", "flee", "hunt", "emergency", "quest:")
+            )
+        )
+        self._nav_known_high = max(self._nav_known_high, coverage)
+        self._nav_progress_marker = marker
+        if progress:
+            self._nav_stall_count = 0
+            return
+        self._nav_stall_count += 1
+        if self._nav_stall_count >= NAV_NO_PROGRESS_LIMIT:
+            self._nav_exhausted = True
 
     def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         # Reading needs sight; a full teleport is preferred over a short phase.
@@ -10918,10 +11132,15 @@ class HengbotPolicy:
         self._descent_target_goal = None
         if self._descent_is_blocked(snapshot):
             return None
+        # R1: a descent target whose approach stalled past the ledger budget is
+        # expired for this floor visit — for EVERY mode at once. Without this,
+        # seek/approach/breakout handed the same unreachable remembered stair
+        # to each other forever (the 2026-07-17 starvation incident).
+        expired = self._nav_ledger.expired_targets("descend")
         visible_targets = {
             g.position
             for g in snapshot.grids.values()
-            if self._is_descent_target(snapshot, g)
+            if self._is_descent_target(snapshot, g) and g.position not in expired
         }
         targets = set(visible_targets)
         forgotten_targets: set[Position] = set()
@@ -10932,7 +11151,9 @@ class HengbotPolicy:
                 snapshot, snapshot.dungeon_level + 1
             )
         ):
-            forgotten_targets = self._remembered_downstairs - visible_targets
+            forgotten_targets = (
+                self._remembered_downstairs - visible_targets - expired
+            )
             targets.update(forgotten_targets)
         if not targets:
             # Night in a static town: the '>' entrance is unlit and absent from
@@ -10965,11 +11186,22 @@ class HengbotPolicy:
         while queue:
             pos, first, path_distance = queue.popleft()
             if pos != origin and pos in targets:
+                # Reachable target: record true path length. It shrinks every
+                # real step, so a legitimate walk never expires — only a step
+                # the game keeps rejecting accumulates stall here.
+                self._nav_ledger.observe("descend", pos, path_distance)
+                if self._nav_ledger.is_expired("descend", pos):
+                    self._descent_target_goal = None
+                    return None
                 self.last_reason = "seek-downstairs"
                 return first
             grid = snapshot.grids.get(pos)
             if pos != origin and grid is not None:
                 if self._is_descent_target(snapshot, grid):
+                    self._nav_ledger.observe("descend", pos, path_distance)
+                    if self._nav_ledger.is_expired("descend", pos):
+                        self._descent_target_goal = None
+                        return None
                     self.last_reason = "seek-downstairs"
                     return first
                 if self._is_frontier(snapshot, grid):
@@ -10995,7 +11227,18 @@ class HengbotPolicy:
                     )
                 )
 
-        if best_first is not None:
+        if best_first is not None and best_score is not None:
+            # Unreachable target, frontier approach: no known path exists, so
+            # progress is how close the best reachable FRONTIER has gotten to
+            # the target — circumnavigating a vault keeps revealing frontiers
+            # nearer the stair (improvement), while the doomed flicker pocket's
+            # frontiers never get any closer. Spending the whole ledger budget
+            # without the frontier line advancing means the floor will not
+            # yield this stair — expire it.
+            self._nav_ledger.observe("descend", target, best_score[2])
+            if self._nav_ledger.is_expired("descend", target):
+                self._descent_target_goal = None
+                return None
             self.last_reason = "approach-descent"
         return best_first
 
