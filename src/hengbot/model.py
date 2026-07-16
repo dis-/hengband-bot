@@ -304,6 +304,10 @@ class InventoryItem:
         return self.tval == TVAL_LITE and self.sval == SV_LITE_LANTERN
 
     @property
+    def is_torch(self) -> bool:
+        return self.tval == TVAL_LITE and self.sval == SV_LITE_TORCH
+
+    @property
     def is_oil(self) -> bool:
         return self.tval == TVAL_FLASK and self.sval == SV_FLASK_OIL
 

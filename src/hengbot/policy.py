@@ -557,6 +557,12 @@ RANGED_SLEEPER_MAX_DISTANCE = 4
 # The Weapon Smith always stocks SHOT/ARROW/BOLT (articles-on-sale.cpp).
 AMMO_PURCHASE_TARGET = 30
 AMMO_RESTOCK_THRESHOLD = 10
+# User directive (2026-07-16): potions are never thrown (weak), and on early
+# floors the bot actively throws CHEAP TORCHES instead — a thrown light
+# survives 50% (object-broken.cpp) and costs ~1g at the General Store, so it
+# is near-free ranged pressure while the launcher has no matching ammo.
+TORCH_THROW_MAX_DEPTH = 10
+TORCH_THROW_TARGET = 10
 EAT_KEY = "E"
 PICKUP_KEY = "g"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
@@ -2288,6 +2294,13 @@ class HengbotPolicy:
             None,
         )
 
+    def _count_throwing_torches(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.count
+            for it in snapshot.inventory
+            if it.is_torch and not it.is_equipment
+        )
+
     def _count_matching_ammo(self, snapshot: Snapshot) -> int:
         launcher = self._equipped_launcher(snapshot)
         if launcher is None:
@@ -2361,11 +2374,21 @@ class HengbotPolicy:
         if player.confused or player.blind:
             return None
         ammo = self._matching_ammo(snapshot)
+        torch = self._first_item(
+            snapshot, lambda it: it.is_torch and not it.is_equipment
+        )
         if ammo is not None:
             prefix, slot, reason = FIRE_KEY, ammo.slot, "ranged:fire"
+        elif (
+            torch is not None
+            and 1 <= snapshot.dungeon_level <= TORCH_THROW_MAX_DEPTH
+        ):
+            # Early floors: spam thrown torches (user directive) — ~1g each
+            # and half of them survive on the floor for pickup.
+            prefix, slot, reason = THROW_KEY, torch.slot, "ranged:throw-torch"
         else:
-            # No launcher/ammo: throw a spare flask of oil (cheap thrown
-            # damage) while keeping the lantern-fuel reserve intact.
+            # Deeper with no ammo: throw a spare flask of oil while keeping
+            # the lantern-fuel reserve intact. Potions are NEVER thrown.
             flask = self._first_item(snapshot, lambda it: it.is_oil)
             if flask is None or self._count_oil(snapshot) <= OIL_TARGET:
                 return None
@@ -5115,6 +5138,17 @@ class HengbotPolicy:
             and STORE_WEAPON not in self._town_store_attempted
         ):
             add(STORE_WEAPON, "ammo")
+        # Throwing torches for the early floors (user directive). Routed only
+        # for fundraising trips (the shallow 1-10F fighting happens there);
+        # ordinary visits still buy torches opportunistically when the General
+        # Store is entered for another errand. Never blocks the visit.
+        if (
+            self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+            and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+            and STORE_GENERAL not in self._town_store_attempted
+        ):
+            add(STORE_GENERAL, "throwing-torches")
         if self._has_cursed_equipment(snapshot) and self._find_remove_curse_scroll(snapshot) is None:
             if STORE_TEMPLE in self._town_store_attempted:
                 return needs
@@ -5804,6 +5838,24 @@ class HengbotPolicy:
                     (it for it in store.items if it.is_lantern and it.price <= gold),
                     None,
                 )
+            if (
+                self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+                and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+            ):
+                # Shallow mining trips carry throwing torches (user directive);
+                # this ranks BELOW the whole kit so it can never starve it.
+                torch = next(
+                    (
+                        it
+                        for it in store.items
+                        if it.tval == TVAL_LITE
+                        and it.sval == SV_LITE_TORCH
+                        and it.price <= gold
+                    ),
+                    None,
+                )
+                if torch is not None:
+                    return torch
             return None
 
         if self._identification_need is not None:
@@ -5868,6 +5920,22 @@ class HengbotPolicy:
             return next((it for it in store.items if it.is_lantern and it.price <= gold), None)
         if self._count_oil(snapshot) < OIL_TARGET:
             return next((it for it in store.items if it.is_oil and it.price <= gold), None)
+        if (
+            self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+            and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+        ):
+            torch = next(
+                (
+                    it
+                    for it in store.items
+                    if it.tval == TVAL_LITE
+                    and it.sval == SV_LITE_TORCH
+                    and it.price <= gold
+                ),
+                None,
+            )
+            if torch is not None:
+                return torch
         if not self._teleport_ready(snapshot):
             return next(
                 (it for it in store.items if it.is_teleport_scroll and it.price <= gold),
@@ -6007,6 +6075,8 @@ class HengbotPolicy:
             needed = target - self._count_treasure_detection_scrolls(snapshot)
         elif item.is_ammo:
             needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
+        elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
+            needed = TORCH_THROW_TARGET - self._count_throwing_torches(snapshot)
         elif item.tval == TVAL_SCROLL and item.sval in {
             SV_SCROLL_IDENTIFY,
             SV_SCROLL_STAR_IDENTIFY,
@@ -6570,6 +6640,8 @@ class HengbotPolicy:
                 self.last_reason = "shop:buy-digging-tool"
             elif item.is_ammo:
                 self.last_reason = "shop:buy-ammo"
+            elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
+                self.last_reason = "shop:buy-torch"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
                 self.last_reason = "shop:buy-identify"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:

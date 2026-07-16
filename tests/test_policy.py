@@ -105,6 +105,7 @@ from hengbot.policy import (
     FOOD_MIN_SVAL,
     OIL_TARGET,
     AMMO_PURCHASE_TARGET,
+    TORCH_THROW_TARGET,
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
@@ -12680,6 +12681,62 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "vo6")
         self.assertEqual(policy.last_reason, "ranged:throw-oil")
+
+    def test_early_floor_throws_cheap_torches(self):
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", count=8)
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[torch],
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "vt6")
+        self.assertEqual(policy.last_reason, "ranged:throw-torch")
+
+    def test_deep_floor_does_not_throw_torches(self):
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", count=8)
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[torch],
+        )
+        snap = replace(snap, floor_key=(DUNGEON_YEEK_CAVE, 11, 0))
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "ranged:throw-torch")
+
+    def test_potions_are_never_thrown(self):
+        potions = item(
+            "p", TVAL_POTION, SV_POTION_CURE_CRITICAL, name="potion", count=9
+        )
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[potions],
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertFalse(policy.last_reason.startswith("ranged:"))
+
+    def test_torch_restock_for_shallow_plans(self):
+        torch_ware = StoreItem("f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=1)
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._strict_supplies_for_ammo()],
+            equipment=[self._lantern()],
+            store=StoreState(STORE_GENERAL, [torch_ware]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        selected = policy._next_purchase(snap)
+        self.assertIsNotNone(selected)
+        self.assertEqual(
+            (selected.tval, selected.sval), (TVAL_LITE, SV_LITE_TORCH)
+        )
+        self.assertEqual(
+            policy._purchase_quantity(snap, selected), TORCH_THROW_TARGET
+        )
 
     def test_oil_reserve_is_never_thrown(self):
         oil = item("o", TVAL_FLASK, 0, name="flask of oil", count=OIL_TARGET)
