@@ -44,7 +44,9 @@ from hengbot.model import (
     SV_STAFF_IDENTIFY,
     TVAL_BOTTLE,
     TVAL_ARROW,
+    TVAL_SHOT,
     TVAL_BOW,
+    SV_BOW_SLING,
     TVAL_DIGGING,
     TVAL_FLASK,
     TVAL_AMULET,
@@ -101,6 +103,8 @@ from hengbot.policy import (
     FUNDRAISING_START_GOLD,
     FIXED_QUEST_MIN_LEVEL,
     FOOD_MIN_SVAL,
+    OIL_TARGET,
+    AMMO_PURCHASE_TARGET,
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
@@ -12528,6 +12532,196 @@ class StoreTravelRetryTest(unittest.TestCase):
             ),
             "\x1b`n%.",
         )
+
+
+class RangedAttackTest(unittest.TestCase):
+    """Direction-key firing at ray-aligned hostiles (no targeting UI)."""
+
+    def _snap(self, *, monsters, inventory=(), equipment=(), player_kw=None):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 14)
+            for x in range(8, 22)
+        }
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, **(player_kw or {})),
+            grids,
+            list(monsters),
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
+            width=30,
+            height=30,
+            inventory=list(inventory),
+            equipment=[
+                item("a", TVAL_SWORD, 17, name="sword", is_equipment=True),
+                self._lantern(),
+                *equipment,
+            ],
+        )
+
+    @staticmethod
+    def _lantern():
+        return item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True)
+
+    @staticmethod
+    def _sling():
+        return item("b", TVAL_BOW, SV_BOW_SLING, name="sling", is_equipment=True)
+
+    @staticmethod
+    def _shots(count=20):
+        return item("s", TVAL_SHOT, 1, name="iron shots", count=count)
+
+    def test_fires_matching_ammo_at_ray_aligned_hostile(self):
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "fs6")
+        self.assertEqual(policy.last_reason, "ranged:fire")
+
+    def test_fires_along_a_diagonal_ray(self):
+        snap = self._snap(
+            monsters=[hostile(1, 13, 13, distance=3)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "fs3")
+        self.assertEqual(policy.last_reason, "ranged:fire")
+
+    def test_adjacent_hostile_stays_melee(self):
+        snap = self._snap(
+            monsters=[hostile(1, 10, 11, distance=1)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertEqual(policy.last_reason, "melee")
+
+    def test_off_axis_hostile_is_not_fired_at(self):
+        snap = self._snap(
+            monsters=[hostile(1, 11, 14, distance=4)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "ranged:fire")
+
+    def test_blocked_ray_prevents_firing(self):
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        blocked = dict(snap.grids)
+        blocked[Position(10, 12)] = grid(10, 12, passable=False)
+        snap = replace(snap, grids=blocked)
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "ranged:fire")
+
+    def test_shot_targets_first_body_on_ray(self):
+        snap = self._snap(
+            monsters=[
+                hostile(1, 10, 15, distance=5),
+                hostile(2, 10, 12, distance=2),
+            ],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        key = policy.choose_key(snap)
+        self.assertEqual(policy.last_reason, "ranged:fire")
+        self.assertEqual(key, "fs6")
+
+    def test_distant_sleeper_is_left_asleep(self):
+        snap = self._snap(
+            monsters=[hostile(1, 10, 18, distance=8, asleep=True)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "ranged:fire")
+
+    def test_afraid_player_still_fires(self):
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+            player_kw={"afraid": True},
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "fs6")
+        self.assertEqual(policy.last_reason, "ranged:fire")
+
+    def test_confused_player_does_not_fire(self):
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+            player_kw={"confused": True},
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "ranged:fire")
+
+    def test_mismatched_ammo_falls_back_to_oil_throw(self):
+        arrows = item("s", TVAL_ARROW, 1, name="arrows", count=16)
+        oil = item("o", TVAL_FLASK, 0, name="flask of oil", count=OIL_TARGET + 3)
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[arrows, oil],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "vo6")
+        self.assertEqual(policy.last_reason, "ranged:throw-oil")
+
+    def test_oil_reserve_is_never_thrown(self):
+        oil = item("o", TVAL_FLASK, 0, name="flask of oil", count=OIL_TARGET)
+        snap = self._snap(
+            monsters=[hostile(1, 10, 15, distance=5)],
+            inventory=[oil],
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+        self.assertNotEqual(policy.last_reason, "ranged:throw-oil")
+
+    def test_ammo_purchase_at_weapon_smith(self):
+        shots = StoreItem("d", "iron shot", 99, TVAL_SHOT, 1, price=1)
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._strict_supplies_for_ammo()],
+            equipment=[self._sling(), self._lantern()],
+            store=StoreState(STORE_WEAPON, [shots]),
+        )
+        policy = HengbotPolicy()
+        selected = policy._next_purchase(snap)
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.tval, TVAL_SHOT)
+        self.assertEqual(
+            policy._purchase_quantity(snap, selected), AMMO_PURCHASE_TARGET
+        )
+
+    @staticmethod
+    def _strict_supplies_for_ammo():
+        return [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=12),
+            item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=5),
+            item("o", TVAL_FLASK, 0, count=OIL_TARGET),
+            item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            item("v", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
+        ]
 
 
 class TownTravelerCombatPriorityTest(unittest.TestCase):

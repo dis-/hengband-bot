@@ -225,6 +225,8 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
         and reason not in STATIONARY_REASONS
         and reason not in MINING_DIG_REASONS
         and not reason.startswith("item:")
+        # A firefight legitimately holds one tile for many decisions.
+        and not reason.startswith("ranged:")
     )
 
 
@@ -337,7 +339,9 @@ def _delay_after_macro_key(key: str, index: int) -> float:
         return TUNNEL_PROMPT_DELAY_SECONDS
     if key in TRAVEL_MACRO_TRIGGERS and index in {1, 2, 3}:
         return TRAVEL_PROMPT_DELAY_SECONDS
-    if key[0] in {"d", "g"} and index == 0:
+    # f/v raise an item-selection prompt before the direction prompt, the same
+    # settle shape as store drop/get.
+    if key[0] in {"d", "g", "f", "v"} and index == 0:
         return STORE_ITEM_PROMPT_DELAY_SECONDS
     return MULTI_KEY_DELAY_SECONDS
 

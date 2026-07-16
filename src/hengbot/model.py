@@ -29,6 +29,12 @@ TVAL_DIGGING = 20
 TVAL_HAFTED = 21  # maces/hammers ('\')
 TVAL_POLEARM = 22  # spears/axes ('/')
 TVAL_SWORD = 23  # edged weapons ('|')
+# sv-bow-types.h launcher subtypes (ammo matching)
+SV_BOW_SLING = 2
+SV_BOW_SHORT = 12
+SV_BOW_LONG = 13
+SV_BOW_LIGHT_XBOW = 23
+SV_BOW_HEAVY_XBOW = 24
 TVAL_BOOTS = 30
 TVAL_GLOVES = 31
 TVAL_HELM = 32
@@ -336,6 +342,35 @@ class InventoryItem:
         # combat weapon after mining swapped a digging tool into the main hand.
         return self.tval in (TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD)
 
+    @property
+    def is_launcher(self) -> bool:
+        # TV_BOW covers every launcher (sling/bows/crossbows). The special
+        # non-firing svals (Crimson, Harp) are excluded by ammo matching: they
+        # have no ammo tval, so ammo_tval returns None for them.
+        return self.tval == TVAL_BOW
+
+    @property
+    def ammo_tval(self) -> int | None:
+        """The ammo tval this launcher fires (do_cmd_fire's tval_ammo).
+
+        Mirrors get_arrow_kind(): sling -> TV_SHOT, short/long bow -> TV_ARROW,
+        crossbows -> TV_BOLT (sv-bow-types.h: SLING=2, SHORT=12, LONG=13,
+        LIGHT_XBOW=23, HEAVY_XBOW=24).
+        """
+        if self.tval != TVAL_BOW:
+            return None
+        if self.sval == SV_BOW_SLING:
+            return TVAL_SHOT
+        if self.sval in (SV_BOW_SHORT, SV_BOW_LONG):
+            return TVAL_ARROW
+        if self.sval in (SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW):
+            return TVAL_BOLT
+        return None
+
+    @property
+    def is_ammo(self) -> bool:
+        return self.tval in (TVAL_SHOT, TVAL_ARROW, TVAL_BOLT)
+
 
 @dataclass(frozen=True)
 class StoreItem:
@@ -347,6 +382,10 @@ class StoreItem:
     price: int
     aware: bool = True
     known: bool = True
+
+    @property
+    def is_ammo(self) -> bool:
+        return self.tval in (TVAL_SHOT, TVAL_ARROW, TVAL_BOLT)
     fully_known: bool = True
     is_equipment: bool = False
     is_ego: bool = False

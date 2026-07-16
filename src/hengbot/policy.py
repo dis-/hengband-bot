@@ -542,6 +542,21 @@ MOVE_REASONS = frozenset(
 # Consumable use (item command + inventory letter, sent as a macro).
 QUAFF_KEY = "q"
 READ_KEY = "r"
+# Ranged attack: fire (f) / throw (v) + item slot + a plain direction digit.
+# get_aim_dir resolves a direction key immediately with no targeting UI, so
+# the bot only shoots RAY-ALIGNED targets (8 directions) it can verify a clear
+# known path to — no target_set cursor session, snapshot-safe as a macro.
+FIRE_KEY = "f"
+THROW_KEY = "v"
+# Fire range is 13+tmul/80 (shoot.cpp:531) ≈ 15 for a sling; the bot stays
+# conservative because every ray tile must be KNOWN passable to fire at all.
+RANGED_MAX_DISTANCE = 10
+# Don't wake distant sleepers with a shot — approach quietly instead (the
+# existing hunt path); close sleepers get softened before they act anyway.
+RANGED_SLEEPER_MAX_DISTANCE = 4
+# The Weapon Smith always stocks SHOT/ARROW/BOLT (articles-on-sale.cpp).
+AMMO_PURCHASE_TARGET = 30
+AMMO_RESTOCK_THRESHOLD = 10
 EAT_KEY = "E"
 PICKUP_KEY = "g"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
@@ -1363,6 +1378,13 @@ class HengbotPolicy:
         if adjacent and not player.afraid:
             self.last_reason = "melee"
             return self._direction_key(player.position, self._weakest(adjacent).position)
+
+        # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
+        # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,
+        # so an afraid archer still fights back while it retreats.
+        ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
+        if ranged is not None:
+            return ranged
 
         cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
         if cancel_unsafe_recall is not None:
@@ -2250,6 +2272,109 @@ class HengbotPolicy:
     def _adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         origin = snapshot.player.position
         return [m for m in self._hostiles(snapshot) if origin.distance_to(m.position) <= 1]
+
+    def _equipped_launcher(self, snapshot: Snapshot) -> InventoryItem | None:
+        return next(
+            (it for it in snapshot.equipment if it.is_launcher and it.ammo_tval is not None),
+            None,
+        )
+
+    def _matching_ammo(self, snapshot: Snapshot) -> InventoryItem | None:
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None:
+            return None
+        return next(
+            (it for it in snapshot.inventory if it.tval == launcher.ammo_tval),
+            None,
+        )
+
+    def _count_matching_ammo(self, snapshot: Snapshot) -> int:
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None:
+            return 0
+        return sum(
+            it.count for it in snapshot.inventory if it.tval == launcher.ammo_tval
+        )
+
+    def _ranged_target(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> MonsterState | None:
+        """Nearest hostile the bot can hit with a plain direction-key shot.
+
+        Requirements, all verifiable from the emitted (player-visible) state:
+        ray-aligned on one of the 8 directions, within RANGED_MAX_DISTANCE,
+        every intermediate ray tile KNOWN and passable (a shot flies over
+        floor; walls/doors/rubble and unknown tiles abort), and no other
+        monster earlier on the ray (the projectile hits the first body)."""
+        player = snapshot.player
+        occupied = {
+            monster.position
+            for monster in snapshot.visible_monsters
+            if monster.position != player.position
+        }
+        best: MonsterState | None = None
+        best_distance = RANGED_MAX_DISTANCE + 1
+        for monster in hostiles:
+            dy = monster.position.y - player.position.y
+            dx = monster.position.x - player.position.x
+            if dy == 0 and dx == 0:
+                continue
+            if not (dy == 0 or dx == 0 or abs(dy) == abs(dx)):
+                continue
+            distance = max(abs(dy), abs(dx))
+            if distance < 2 or distance > RANGED_MAX_DISTANCE:
+                continue
+            if monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE:
+                continue
+            step_y = (dy > 0) - (dy < 0)
+            step_x = (dx > 0) - (dx < 0)
+            clear = True
+            for i in range(1, distance):
+                tile = Position(
+                    player.position.y + step_y * i,
+                    player.position.x + step_x * i,
+                )
+                grid = snapshot.grids.get(tile)
+                if grid is None or not grid.passable or tile in occupied:
+                    clear = False
+                    break
+            if clear and distance < best_distance:
+                best = monster
+                best_distance = distance
+        return best
+
+    def _ranged_attack_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        """Fire at (or throw oil at) a ray-aligned hostile before it closes.
+
+        Adjacency is melee's job; confusion randomizes the aim direction and
+        blindness hides the ray, so both bail. Fear deliberately does NOT
+        bail — do_cmd_fire works while afraid, which turns the old
+        flee-while-shot-to-death pattern into an exchange."""
+        if adjacent or not hostiles:
+            return None
+        player = snapshot.player
+        if player.confused or player.blind:
+            return None
+        ammo = self._matching_ammo(snapshot)
+        if ammo is not None:
+            prefix, slot, reason = FIRE_KEY, ammo.slot, "ranged:fire"
+        else:
+            # No launcher/ammo: throw a spare flask of oil (cheap thrown
+            # damage) while keeping the lantern-fuel reserve intact.
+            flask = self._first_item(snapshot, lambda it: it.is_oil)
+            if flask is None or self._count_oil(snapshot) <= OIL_TARGET:
+                return None
+            prefix, slot, reason = THROW_KEY, flask.slot, "ranged:throw-oil"
+        target = self._ranged_target(snapshot, hostiles)
+        if target is None:
+            return None
+        self.last_reason = reason
+        return prefix + slot + self._direction_key(player.position, target.position)
 
     def _weakest(self, monsters: list[MonsterState]) -> MonsterState:
         # Remove adjacent summoners before their minions multiply; otherwise use
@@ -4969,6 +5094,14 @@ class HengbotPolicy:
             if STORE_MAGIC in self._town_store_attempted:
                 return needs
             add(STORE_MAGIC, "identify-staff")
+        # Ammo is an optional supply: restock when low, but never block the
+        # visit on it (the Weapon Smith always stocks SHOT/ARROW/BOLT).
+        if (
+            self._equipped_launcher(snapshot) is not None
+            and self._count_matching_ammo(snapshot) < AMMO_RESTOCK_THRESHOLD
+            and STORE_WEAPON not in self._town_store_attempted
+        ):
+            add(STORE_WEAPON, "ammo")
         if self._has_cursed_equipment(snapshot) and self._find_remove_curse_scroll(snapshot) is None:
             if STORE_TEMPLE in self._town_store_attempted:
                 return needs
@@ -5738,6 +5871,21 @@ class HengbotPolicy:
                 ),
                 None,
             )
+        launcher = self._equipped_launcher(snapshot)
+        if (
+            launcher is not None
+            and self._count_matching_ammo(snapshot) < AMMO_PURCHASE_TARGET
+        ):
+            ammo = next(
+                (
+                    it
+                    for it in store.items
+                    if it.tval == launcher.ammo_tval and it.price <= gold
+                ),
+                None,
+            )
+            if ammo is not None:
+                return ammo
         if not self._identify_staff_ready(snapshot):
             return next(
                 (
@@ -5844,6 +5992,8 @@ class HengbotPolicy:
         elif item.is_treasure_detection_scroll:
             target = self._mining_detection_scroll_target(snapshot)
             needed = target - self._count_treasure_detection_scrolls(snapshot)
+        elif item.is_ammo:
+            needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_SCROLL and item.sval in {
             SV_SCROLL_IDENTIFY,
             SV_SCROLL_STAR_IDENTIFY,
@@ -6405,6 +6555,8 @@ class HengbotPolicy:
                 self.last_reason = "shop:buy-treasure-detection"
             elif item.is_digging_tool:
                 self.last_reason = "shop:buy-digging-tool"
+            elif item.is_ammo:
+                self.last_reason = "shop:buy-ammo"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
                 self.last_reason = "shop:buy-identify"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
