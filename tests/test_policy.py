@@ -5009,6 +5009,76 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             FUNDRAISING_GOLD_TARGET - FUNDRAISING_START_GOLD, 10000
         )
 
+    def _deep_fundraising_town_snapshot(
+        self, *, detection=1, digger=True, gold=10000
+    ):
+        inventory = self._strict_supplies(recall=0, detection=detection)
+        if digger:
+            inventory.append(
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)
+            )
+        return Snapshot(
+            player(
+                10,
+                10,
+                hp=413,
+                max_hp=413,
+                level=24,
+                gold=gold,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory,
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True),
+                self._lantern(),
+            ],
+            recall_depth=DEEP_FUNDRAISING_DEPTH,
+            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
+            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            yeek_cave_conquered=True,
+        )
+
+    def test_blocked_deep_campaign_with_shallow_kit_falls_back_and_departs(self):
+        snap = self._deep_fundraising_town_snapshot()
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = MINING_RUNS_PER_SET
+
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertTrue(policy._shallow_fundraising_trip)
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertEqual(policy._planned_mining_runs, 1)
+        self.assertFalse(policy._deep_fundraising_active(snap))
+        self.assertTrue(policy._fundraising_departure_ready(snap))
+        self.assertFalse(policy._descent_is_blocked(snap))
+
+    def test_blocked_deep_campaign_without_shallow_kit_still_scavenges(self):
+        snap = self._deep_fundraising_town_snapshot(
+            detection=0, digger=False, gold=0
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._town_cycle_pending = True
+
+        self.assertEqual(policy._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertFalse(policy._shallow_fundraising_trip)
+
+    def test_shallow_fallback_cannot_promote_deep_while_restock_suppressed(self):
+        snap = self._deep_fundraising_town_snapshot()
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._town_restock_suppressed = True
+
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertFalse(policy._deep_fundraising_active(snap))
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertTrue(policy._shallow_fundraising_trip)
+
     def test_deep_fundraising_recalls_to_yeek_cave_with_safe_supplies(self):
         inventory = self._strict_supplies(
             recall=13,
