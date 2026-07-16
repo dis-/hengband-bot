@@ -8692,11 +8692,9 @@ class HengbotPolicy:
         return None
 
     def _active_fixed_quest_id(self, snapshot: Snapshot) -> int | None:
-        """Return the allowlisted TAKEN quest whose one-way floor we occupy."""
+        """Return the allowlisted TAKEN fixed quest whose floor we occupy."""
         quest_id = snapshot.floor_key[2]
-        if quest_id not in FIXED_QUEST_ALLOWLIST or not self._fixed_quest_is_once(
-            quest_id
-        ):
+        if quest_id not in FIXED_QUEST_ALLOWLIST:
             return None
         quest = snapshot.quests.get(quest_id)
         if quest is None or quest.status != QUEST_STATUS_TAKEN:
@@ -8726,11 +8724,10 @@ class HengbotPolicy:
 
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
         def supported(quest_id: int) -> bool:
-            info = self._quest_knowledge.get(quest_id)
-            return quest_id in FIXED_QUEST_ALLOWLIST and (
-                self._fixed_quest_is_once(quest_id)
-                or (info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER})
-            )
+            # TODO(tower): add quests 5/6/7 to the allowlist only with
+            # direction-aware QUEST_UP/QUEST_DOWN progression across all three
+            # linked floors.  The final floor is not shaped like 5 and 6.
+            return quest_id in FIXED_QUEST_ALLOWLIST
 
         floor_quest = snapshot.floor_key[2]
         if supported(floor_quest):
@@ -9627,7 +9624,11 @@ class HengbotPolicy:
         player = snapshot.player
         if snapshot.in_town:
             return None
-        if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
+        active_fixed = self._active_fixed_quest_id(snapshot)
+        if (
+            self._quest_floor_exit_locked(snapshot)
+            or active_fixed is not None and self._fixed_quest_is_once(active_fixed)
+        ):
             # A quest exit is represented as up-stairs, but ordinary pack/light/
             # supply returns must never fail a one-shot quest. Survival escapes
             # run earlier and remain intentionally permitted.

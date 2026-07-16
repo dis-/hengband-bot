@@ -2629,8 +2629,24 @@ class FixedQuestTest(unittest.TestCase):
 
         not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 2)
         policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
         original = self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0)
-        self.assertIsNone(policy._fixed_quest_target(original))
+        self.assertEqual(policy._fixed_quest_target(original), 1)
+
+    def test_non_once_fixed_quest_allows_recoverable_floor_exit(self):
+        info = QuestInfo(1, "Repeatable Hideout", 6, 5, 2)
+        quest = self._quest(1)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10, upstairs=True)},
+            [], floor_key=(0, 1, 1), quests={1: quest},
+        )
+        policy = HengbotPolicy(quest_knowledge={1: info})
+        policy._returning_to_town = True
+
+        self.assertEqual(policy._active_fixed_quest_id(snap), 1)
+        self.assertEqual(policy._return_to_town_key(snap, []), "<")
+        self.assertEqual(policy.last_reason, "return:ascend")
 
     def test_selects_lowest_level_eligible_untaken_quest(self):
         quest18 = replace(self._quest(0), id=18, level=35)
