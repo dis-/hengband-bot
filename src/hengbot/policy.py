@@ -6,6 +6,7 @@ from heapq import heappop, heappush
 from itertools import count
 from math import ceil
 from typing import Literal
+from pathlib import Path
 
 from hengbot.town_maps import TownMap
 from hengbot.dungeon_knowledge import DungeonInfo
@@ -21,6 +22,7 @@ from hengbot.equipment_transaction_session import (
 )
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.navigation import NavigationLedger
+from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_TYPE_KILL_LEVEL,
@@ -913,6 +915,7 @@ class HengbotPolicy:
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
         quest_strategies: "dict[int, StrategyProfile] | None" = None,
+        home_disposal_state: HomeDisposalState | None = None,
     ) -> None:
         # A pre-loaded static town layout (lib/edit/towns) the bot may know in
         # advance, like a returning player — used to route across a dark town to a
@@ -925,6 +928,13 @@ class HengbotPolicy:
         self._monrace_knowledge = monrace_knowledge or {}
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
+        self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
+        self._home_disposal_pass = False
+        self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
+        self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
+        self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
+        self._home_history_inflight: tuple[str, tuple[str, int, int], int, int] | None = None
+        self._saw_dungeon_recall = False
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
         self._dive_loot = 0  # items grabbed on the current dive
         self._dive_emergencies = 0  # emergency escapes forced on the current dive
@@ -1216,6 +1226,7 @@ class HengbotPolicy:
 
     # ------------------------------------------------------------------ core
     def choose_key(self, snapshot: Snapshot) -> str:
+        self._observe_home_history(snapshot)
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -1245,6 +1256,7 @@ class HengbotPolicy:
             # A withdrawal/deposit changes Home ordering and page boundaries.
             # Require a fresh complete scan before optimization or departure.
             self._equipment_catalog.invalidate_home()
+        self._capture_home_history_intent(snapshot, key)
         # The rest counter only survives consecutive rests; anything else clears it.
         if self.last_reason != "rest":
             self._rest_count = 0
@@ -1511,6 +1523,10 @@ class HengbotPolicy:
         survival = self._survival_gate_key(snapshot, hostiles)
         if survival is not None:
             return survival
+
+        home_disposal = self._home_disposal_processing_key(snapshot)
+        if home_disposal is not None:
+            return home_disposal
 
         cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
         if cancel_unsafe_recall is not None:
@@ -1996,6 +2012,23 @@ class HengbotPolicy:
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()
         previous_floor = self._floor_key
+        if not snapshot.in_town and snapshot.player.recalling:
+            self._saw_dungeon_recall = True
+        if (
+            snapshot.in_town
+            and previous_floor is not None
+            and previous_floor[1] > 0
+            and previous_floor != snapshot.floor_key
+            and self._saw_dungeon_recall
+        ):
+            self._home_disposal_pass = self._home_disposal.note_dungeon_recall()
+            self._home_disposal_seen_pages.clear()
+            self._home_disposal_candidates.clear()
+            self._saw_dungeon_recall = False
+            self._town_errand_plan = None
+            self._town_store_attempted.pop(STORE_HOME, None)
+        if snapshot.in_town:
+            self._home_disposal.reload_decisions()
         if previous_floor is not None and previous_floor != snapshot.floor_key:
             if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
                 self._fixed_quest_speed_floor = snapshot.floor_key
@@ -4107,6 +4140,135 @@ class HengbotPolicy:
     def _item_signature(item: InventoryItem | StoreItem) -> tuple[str, int, int]:
         return (item.name, item.tval, item.sval)
 
+    def _observe_home_history(self, snapshot: Snapshot) -> None:
+        """Persist only a Home command whose inventory delta confirms success."""
+        if self._home_history_inflight is None:
+            return
+        action, signature, before_length, before_count = self._home_history_inflight
+        after_count = self._inventory_signature_count(snapshot, signature)
+        succeeded = (
+            after_count > before_count or len(snapshot.inventory) > before_length
+            if action == "withdraw"
+            else after_count < before_count or len(snapshot.inventory) < before_length
+        )
+        if succeeded:
+            self._home_disposal.record(action, signature, snapshot.turn)
+            self._home_history_inflight = None
+        elif snapshot.store is None or snapshot.store.store_type != STORE_HOME:
+            self._home_history_inflight = None
+
+    def _capture_home_history_intent(self, snapshot: Snapshot, key: str) -> None:
+        store = snapshot.store
+        if store is None or store.store_type != STORE_HOME or not key:
+            return
+        if key.startswith(BUY_KEY) and len(key) > 1:
+            target = next((item for item in store.items if item.letter == key[1]), None)
+            action = "withdraw"
+        elif key.startswith(SELL_KEY) and len(key) > 1:
+            target = next((item for item in snapshot.inventory if item.slot == key[1]), None)
+            action = "deposit"
+        else:
+            return
+        if target is None:
+            return
+        signature = self._item_signature(target)
+        self._home_history_inflight = (
+            action,
+            signature,
+            len(snapshot.inventory),
+            self._inventory_signature_count(snapshot, signature),
+        )
+
+    @staticmethod
+    def _home_disposal_store(signature: tuple[str, int, int]) -> int:
+        if signature[1] in {TVAL_WAND, TVAL_STAFF, TVAL_ROD}:
+            return STORE_MAGIC
+        if signature[1] == TVAL_FOOD:
+            return STORE_GENERAL
+        return STORE_ALCHEMIST
+
+    def _home_disposal_inventory_item(self, snapshot: Snapshot) -> InventoryItem | None:
+        if self._home_disposal_pending is None:
+            return None
+        signature, _ = self._home_disposal_pending
+        exact = self._first_item(snapshot, lambda item: self._item_signature(item) == signature)
+        if exact is not None:
+            return exact
+        # Identify changes the displayed name (and therefore the signature) while
+        # preserving the visible base kind.  Keep the approved item attached to
+        # its sale pipeline across that rename; the pending pipeline owns only one
+        # Home signature at a time, so this fallback cannot consume two decisions.
+        return self._first_item(
+            snapshot, lambda item: (item.tval, item.sval) == signature[1:]
+        )
+
+    def _home_disposal_home_key(self, snapshot: Snapshot) -> str | None:
+        store = snapshot.store
+        if store is None or store.store_type != STORE_HOME:
+            return None
+        if self._home_disposal_pending is not None:
+            if self._home_disposal_inventory_item(snapshot) is not None:
+                self.last_reason = "home-disposal:leave-with-approved-item"
+                return LEAVE_STORE_KEY
+            self._home_disposal_pending = None
+        if not self._home_disposal_pass:
+            return None
+
+        page = tuple((item.letter, item.name, item.tval, item.sval) for item in store.items)
+        for item in store.items:
+            signature = self._item_signature(item)
+            if item.tval not in {TVAL_POTION, TVAL_SCROLL, TVAL_WAND, TVAL_STAFF, TVAL_ROD, TVAL_FOOD}:
+                continue
+            self._home_disposal_candidates.setdefault(
+                signature,
+                HomeDisposalCandidate(
+                    signature, item.name, item.tval, item.sval, item.count,
+                    item.aware, item.known,
+                ),
+            )
+            if not self._home_disposal.is_idle(signature):
+                continue
+            decision = self._home_disposal.decision(signature)
+            if decision in {"sell", "destroy"}:
+                self._home_disposal_pending = (signature, decision)
+                self.last_reason = f"home-disposal:withdraw-{decision}"
+                return BUY_KEY + item.letter + "\r"
+
+        if page not in self._home_disposal_seen_pages:
+            self._home_disposal_seen_pages.add(page)
+            self.last_reason = "home-disposal:seek-page"
+            return " "
+
+        self._home_disposal.emit_queue(self._home_disposal_candidates.values(), snapshot.turn)
+        self._home_disposal_pass = False
+        self._home_disposal_seen_pages.clear()
+        self._home_disposal_candidates.clear()
+        self.last_reason = "home-disposal:scan-complete"
+        return LEAVE_STORE_KEY
+
+    def _home_disposal_processing_key(self, snapshot: Snapshot) -> str | None:
+        if self._home_disposal_pending is None or not snapshot.in_town or snapshot.store is not None:
+            return None
+        signature, decision = self._home_disposal_pending
+        target = self._home_disposal_inventory_item(snapshot)
+        if target is None:
+            self._home_disposal_pending = None
+            return None
+        if decision == "destroy":
+            self.last_reason = "home-disposal:destroy-approved"
+            self._home_disposal_pending = None
+            return self._destroy_item_key(target)
+        if not target.known:
+            source = self._find_identification_source(snapshot, full=False)
+            if source is None:
+                self._request_identification("normal")
+                return None
+            command, source_item = source
+            self._identification_need = None
+            self.last_reason = "home-disposal:identify-before-sale"
+            return command + source_item.slot + target.slot
+        return None
+
     @staticmethod
     def _is_ammunition(item: InventoryItem | StoreItem) -> bool:
         return item.tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}
@@ -5246,6 +5408,17 @@ class HengbotPolicy:
 
         def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
             needs.append(TownNeed(store_type, category, ordering_class))
+
+        if self._home_disposal_pass:
+            add(STORE_HOME, "idle-consumable-scan", "home-first")
+        if self._home_disposal_pending is not None:
+            signature, decision = self._home_disposal_pending
+            target = self._home_disposal_inventory_item(snapshot)
+            if decision == "sell" and target is not None:
+                if not target.known and self._find_identification_source(snapshot, full=False) is None:
+                    add(STORE_ALCHEMIST, "home-disposal-identify")
+                else:
+                    add(self._home_disposal_store(signature), "home-disposal-sale")
 
         if snapshot.player.class_id < 0:
             if not self._shopping_abandoned and snapshot.player.gold >= LANTERN_MIN_GOLD:
@@ -6515,6 +6688,9 @@ class HengbotPolicy:
             transaction_key = self._equipment_transaction_home_key(snapshot)
             if transaction_key is not None:
                 return transaction_key
+            disposal_key = self._home_disposal_home_key(snapshot)
+            if disposal_key is not None:
+                return disposal_key
             dominated_disposal = self._home_dominated_disposal_key(snapshot)
             if dominated_disposal is not None:
                 return dominated_disposal
@@ -6542,6 +6718,19 @@ class HengbotPolicy:
                 return LEAVE_STORE_KEY
             self.last_reason = "equipment:sell-dominated"
             return SELL_KEY + target.slot + SELL_CONFIRM_SUFFIX
+
+        if self._home_disposal_pending is not None:
+            signature, decision = self._home_disposal_pending
+            target = self._home_disposal_inventory_item(snapshot)
+            if (
+                decision == "sell"
+                and target is not None
+                and target.known
+                and store.store_type == self._home_disposal_store(signature)
+            ):
+                self.last_reason = "home-disposal:sell-approved"
+                self._home_disposal_pending = None
+                return SELL_KEY + target.slot + SELL_CONFIRM_SUFFIX
 
         if store.store_type == STORE_HOME:
             mandatory_deposit = self._first_item(

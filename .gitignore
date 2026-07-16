@@ -11,3 +11,5 @@ build/
 # Runtime bot state / logs (can grow to hundreds of MB).
 jsonlog/
 *.jsonl
+home-withdraw-history.jsonc
+home-disposal-decisions.jsonc
