@@ -78,7 +78,7 @@ from hengbot.equipment_optimizer import TR_TELEPORT
 from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
-from hengbot.quest_knowledge import QuestInfo, load_quest_knowledge
+from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QuestInfo, load_quest_knowledge
 from hengbot.policy import (
     HengbotPolicy,
     BUY_KEY,
@@ -2557,23 +2557,86 @@ class FixedQuestTest(unittest.TestCase):
         self.assertTrue(policy._fixed_quest_ready(snapshot, 14))
         self.assertEqual(policy.fixed_quest_readiness_state()["roster_size"], 16)
 
-    def test_active_kill_floor_locks_stairs_and_recall_but_allows_teleport(self):
+    def test_active_kill_floor_locks_healthy_exit_but_allows_teleport(self):
         info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
         quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, num_mon=16, fixed=True)
         snap = Snapshot(
-            player(10, 10, hp=10, max_hp=100),
+            player(10, 10, hp=100, max_hp=100),
             {Position(10, 10): grid(10, 10, upstairs=True)},
             [], floor_key=(0, 5, 14), quests={14: quest},
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT), item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
         policy = HengbotPolicy(quest_knowledge={14: info})
         self.assertTrue(policy._quest_floor_exit_locked(snap))
+        self.assertTrue(policy._floor_navigation_exit_locked(snap))
         self.assertIsNone(policy._escape_by_stairs(snap))
         self.assertEqual(policy._escape_scroll(snap).slot, "t")
         self.assertIsNone(policy._return_to_town_key(snap, []))
 
         complete = replace(snap, quests={14: replace(quest, cur_num=16)})
         self.assertFalse(policy._quest_floor_exit_locked(complete))
+
+    def test_dying_kill_quest_with_no_teleport_may_take_stairs(self):
+        info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
+        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, num_mon=16, fixed=True)
+        snap = Snapshot(
+            player(10, 10, hp=10, max_hp=100),
+            {Position(10, 10): grid(10, 10, upstairs=True)},
+            [], floor_key=(0, 5, 14), quests={14: quest},
+        )
+        policy = HengbotPolicy(quest_knowledge={14: info})
+        self.assertFalse(policy._quest_floor_exit_locked(snap))
+        self.assertEqual(policy._escape_by_stairs(snap), "<")
+
+    def test_non_once_kill_quest_releases_after_stuck_budget(self):
+        info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
+        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, cur_num=15, num_mon=16, fixed=True)
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {Position(10, 10): grid(10, 10, upstairs=True)},
+            [], floor_key=(0, 5, 14), quests={14: quest},
+        )
+        policy = HengbotPolicy(quest_knowledge={14: info})
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+        self.assertFalse(policy._quest_floor_exit_locked(snap))
+        self.assertEqual(policy._escape_by_stairs(snap), "<")
+
+    def test_once_kill_level_only_releases_when_dying_without_teleport(self):
+        info = QuestInfo(28, "Royal Crypt", 1, 70, QUEST_FLAG_ONCE, dungeon=0, max_num=1, monrace_id=999)
+        quest = QuestState(id=28, status=1, type=1, level=70, dungeon_id=0, cur_num=0, max_num=1, fixed=True)
+        healthy = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {Position(10, 10): grid(10, 10, upstairs=True)},
+            [], floor_key=(0, 70, 28), quests={28: quest},
+        )
+        policy = HengbotPolicy(quest_knowledge={28: info})
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+        self.assertTrue(policy._quest_floor_exit_locked(healthy))
+        dying = replace(healthy, player=player(10, 10, hp=10, max_hp=100))
+        self.assertTrue(policy._kill_quest_exit_would_fail(dying))
+        self.assertFalse(policy._quest_floor_exit_locked(dying))
+        self.assertEqual(policy._escape_by_stairs(dying), "<")
+
+    def test_kill_level_completion_uses_max_num_not_nonzero_num_mon(self):
+        info = QuestInfo(28, "Royal Crypt", 1, 70, QUEST_FLAG_ONCE, dungeon=0, num_mon=99, max_num=1, monrace_id=999)
+        quest = QuestState(id=28, status=1, type=1, cur_num=1, max_num=1, num_mon=99)
+        snap = Snapshot(player(10, 10), {}, [], floor_key=(0, 70, 28), quests={28: quest})
+        self.assertIsNone(HengbotPolicy(quest_knowledge={28: info})._active_kill_quest_id(snap))
+
+    def test_descent_guard_selects_kill_quest_in_current_dungeon(self):
+        other = QuestInfo(14, "Other", 5, 3, 0, dungeon=1, num_mon=16)
+        current = QuestInfo(28, "Current", 1, 5, 0, dungeon=2, max_num=1)
+        quests = {
+            14: QuestState(id=14, status=0),
+            28: QuestState(id=28, status=0),
+        }
+        snap = Snapshot(
+            player(10, 10, class_id=-1),
+            {Position(10, 10): grid(10, 10, downstairs=True)},
+            [], floor_key=(2, 5, 0), quests=quests,
+        )
+        policy = HengbotPolicy(quest_knowledge={14: other, 28: current})
+        self.assertFalse(policy._is_descent_target(snap, snap.grids[Position(10, 10)]))
 
     def test_real_lib_fixed_quest_rosters_25_and_28_run_through_readiness(self):
         edit = Path(r"C:\hengband\lib\edit")

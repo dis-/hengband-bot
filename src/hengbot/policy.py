@@ -20,7 +20,13 @@ from hengbot.equipment_transaction_session import (
     observe_equipment_transactions,
 )
 from hengbot.monrace_knowledge import MonraceKnowledge
-from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER, QuestInfo
+from hengbot.quest_knowledge import (
+    QUEST_FLAG_ONCE,
+    QUEST_TYPE_KILL_LEVEL,
+    QUEST_TYPE_KILL_NUMBER,
+    QUEST_TYPE_RANDOM,
+    QuestInfo,
+)
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -1394,7 +1400,7 @@ class HengbotPolicy:
             if escape is not None:
                 self.last_reason = (
                     "flee:stairs-quest-fail"
-                    if self._active_fixed_quest_id(snapshot) is not None
+                    if self._quest_exit_would_fail(snapshot)
                     else "flee:stairs"
                 )
                 return escape
@@ -1439,7 +1445,7 @@ class HengbotPolicy:
                 self._defer_descent(snapshot)
                 self.last_reason = (
                     "summoner:stairs-quest-fail"
-                    if self._active_fixed_quest_id(snapshot) is not None
+                    if self._quest_exit_would_fail(snapshot)
                     else "summoner:stairs"
                 )
                 return UP_STAIRS_KEY
@@ -1689,7 +1695,7 @@ class HengbotPolicy:
                 self._defer_descent(snapshot)
                 self.last_reason = (
                     "unseen:ascend-quest-fail"
-                    if self._active_fixed_quest_id(snapshot) is not None
+                    if self._quest_exit_would_fail(snapshot)
                     else "unseen:ascend"
                 )
                 return UP_STAIRS_KEY
@@ -1900,11 +1906,11 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, step)
 
         # 9. Nothing to explore: take any known stairs to reach a fresh floor.
-        active_fixed_quest = self._active_fixed_quest_id(snapshot) is not None
+        floor_exit_locked = self._floor_navigation_exit_locked(snapshot)
         allow_descent = not self._descent_is_blocked(snapshot)
         step = self._nearest_goal_step(
             snapshot,
-            lambda g: not active_fixed_quest
+            lambda g: not floor_exit_locked
             and (
                 g.has_up_stairs
                 or (allow_descent and self._is_descent_target(snapshot, g))
@@ -1913,7 +1919,7 @@ class HengbotPolicy:
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
             return self._step_toward(snapshot, step)
-        if not active_fixed_quest and here is not None and here.has_up_stairs:
+        if not floor_exit_locked and here is not None and here.has_up_stairs:
             self._defer_descent(snapshot)
             self.last_reason = "stuck:ascend"
             return UP_STAIRS_KEY
@@ -8727,7 +8733,7 @@ class HengbotPolicy:
                 info is not None
                 and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
                 and quest.status == QUEST_STATUS_TAKEN
-                and quest.cur_num < (quest.num_mon or quest.max_num or info.num_mon or info.max_num)
+                and quest.cur_num < self._kill_quest_completion_target(quest, info)
                 and dungeon_id == info.dungeon
                 and level == info.level
                 and floor_quest_id in {0, quest.id}
@@ -8735,9 +8741,56 @@ class HengbotPolicy:
                 return quest.id
         return None
 
+    @staticmethod
+    def _kill_quest_completion_target(quest: QuestState, info: QuestInfo) -> int:
+        """Return the counter that completes each supported kill-quest type."""
+        if info.type == QUEST_TYPE_KILL_LEVEL:
+            # KILL_LEVEL advances cur_num until max_num; num_mon describes the
+            # generated pack and is not necessarily the completion threshold.
+            return quest.max_num or info.max_num
+        if info.type == QUEST_TYPE_KILL_NUMBER:
+            return quest.num_mon or info.num_mon
+        return 0
+
+    def _kill_quest_exit_would_fail(self, snapshot: Snapshot) -> bool:
+        quest_id = self._active_kill_quest_id(snapshot)
+        if quest_id is None:
+            return False
+        info = self._quest_knowledge.get(quest_id)
+        return info is not None and (
+            bool(info.flags & QUEST_FLAG_ONCE) or info.type == QUEST_TYPE_RANDOM
+        )
+
     def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
-        """A distinct hard lock for an incomplete KILL_NUMBER attempt."""
-        return self._active_kill_quest_id(snapshot) is not None
+        """Protect an incomplete kill attempt, with bounded survival releases."""
+        if self._active_kill_quest_id(snapshot) is None:
+            return False
+        # Once relocation is exhausted, dying on the floor is worse than the
+        # visible loss of even an ONCE/RANDOM quest.
+        if snapshot.player.hp_ratio <= PANIC_HP_RATIO and self._escape_scroll(snapshot) is None:
+            return False
+        # Depth quests that Hengband does not fail on leave may regenerate a bad
+        # floor after the ordinary stuck budget is exhausted.
+        if (
+            not self._kill_quest_exit_would_fail(snapshot)
+            and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+        ):
+            return False
+        return True
+
+    def _floor_navigation_exit_locked(self, snapshot: Snapshot) -> bool:
+        """Gate exhausted-floor stair navigation for every active quest kind."""
+        return (
+            self._active_fixed_quest_id(snapshot) is not None
+            or self._quest_floor_exit_locked(snapshot)
+        )
+
+    def _quest_exit_would_fail(self, snapshot: Snapshot) -> bool:
+        """Match Hengband's leave_quest_check for visible escape reasons."""
+        active_fixed = self._active_fixed_quest_id(snapshot)
+        return self._kill_quest_exit_would_fail(snapshot) or (
+            active_fixed is not None and self._fixed_quest_is_once(active_fixed)
+        )
 
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
         def supported(quest_id: int) -> bool:
@@ -9936,7 +9989,7 @@ class HengbotPolicy:
             if stairs is not None:
                 self.last_reason = (
                     "emergency:stairs-quest-fail"
-                    if self._active_fixed_quest_id(snapshot) is not None
+                    if self._quest_exit_would_fail(snapshot)
                     else "emergency:stairs"
                 )
                 return stairs
@@ -9970,7 +10023,11 @@ class HengbotPolicy:
                     if not player.recalling and not self._quest_floor_exit_locked(snapshot):
                         recall = self._find_recall_scroll(snapshot)
                         if recall is not None:
-                            self.last_reason = "emergency:recall"
+                            self.last_reason = (
+                                "emergency:recall-quest-fail"
+                                if self._quest_exit_would_fail(snapshot)
+                                else "emergency:recall"
+                            )
                             return READ_KEY + recall.slot
                 step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
                 if step is None:
@@ -10506,6 +10563,7 @@ class HengbotPolicy:
                 and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
                 and (info := self._quest_knowledge.get(quest.id)) is not None
                 and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
+                and info.dungeon == snapshot.floor_key[0]
             ),
             None,
         )
