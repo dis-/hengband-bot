@@ -4764,7 +4764,14 @@ class HengbotPolicy:
                 additional_runs = min(
                     remaining_cap,
                     self._count_treasure_detection_scrolls(snapshot) // per_run,
-                    self._count_recall_scrolls(snapshot) - DEEP_FUNDRAISING_RECALL_RESERVE
+                    max(
+                        0,
+                        (
+                            self._count_recall_scrolls(snapshot)
+                            - RECALL_RETURN_THRESHOLD
+                        )
+                        // 2,
+                    )
                     if self._deep_fundraising_eligible(snapshot)
                     else remaining_cap,
                 )

@@ -5087,6 +5087,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._mining_detection_scroll_target(snap), 12)
         self.assertEqual(policy._recall_required_target(snap), 9)
         self.assertTrue(policy._fundraising_supplies_ready(snap))
+        self.assertNotIn(
+            "mining-detection",
+            [reason for _, reason in policy._enumerate_town_needs(snap)],
+        )
 
         policy._planned_mining_runs = None
         policy._fundraising_mode = "mine"
