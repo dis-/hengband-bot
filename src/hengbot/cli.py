@@ -38,7 +38,10 @@ REST_STALL_GRACE = 20.0
 # Emit a live Python stack when one follow-loop iteration stops making progress.
 # Re-arming at the top of every iteration means normal polling never reaches the
 # deadline; a stuck read/parse/decision/send path repeats the dump once a minute.
-DECISION_WATCHDOG_SECONDS = 60
+# Exact equipment optimization is intentionally allowed 60 seconds.  Leave a
+# margin so a normal optimization timeout cannot itself produce a false hang
+# dump; truly stuck work still emits a diagnostic shortly afterwards.
+DECISION_WATCHDOG_SECONDS = 90
 
 
 def _arm_decision_watchdog() -> None:

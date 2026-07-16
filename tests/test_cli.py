@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from hengbot.cli import (
     COMMAND_RESPONSE_GRACE,
+    DECISION_WATCHDOG_SECONDS,
     EconomyLedger,
     LOOP_WINDOW,
     MINING_DIG_REASONS,
@@ -55,7 +56,8 @@ class DecisionWatchdogTest(unittest.TestCase):
         self.assertEqual(cancel.call_count, 2)
         self.assertEqual(dump.call_count, 2)
         for call in dump.call_args_list:
-            self.assertEqual(call.args, (60,))
+            self.assertEqual(call.args, (DECISION_WATCHDOG_SECONDS,))
+            self.assertGreater(DECISION_WATCHDOG_SECONDS, 60)
             self.assertTrue(call.kwargs["repeat"])
             self.assertIsNotNone(call.kwargs["file"])
 
