@@ -1110,6 +1110,8 @@ class HengbotPolicy:
         self._device_identify_fail_streak = 0
         self._unsellable_items: set[tuple[str, int, int]] = set()
         self._town_blocked_reason: str | None = None
+        self._departure_block: dict[str, object] = {}
+        self._loadout_report_path = None
         self._fundraising_mode: str | None = None
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
@@ -3376,6 +3378,7 @@ class HengbotPolicy:
             # departure even when the character already carried the scroll.
             has_destruction=has_destruction,
             preserve_pack_item_ids=preserve,
+            loadout_report_path=self._loadout_report_path,
         )
         self._equipment_optimization_signature = signature
         self._equipment_optimization_preparation = preparation
@@ -3734,10 +3737,7 @@ class HengbotPolicy:
         # later mining run needs it. No snapshot (a handful of item-only call sites)
         # falls back to the old, conservative always-protect behaviour. Unidentified
         # or mundane spare weapons still shelve/sell regardless.
-        real_weapon_wielded = snapshot is not None and any(
-            it.slot == "main_hand" and it.is_melee_weapon for it in snapshot.equipment
-        )
-        good_weapon = item.is_melee_weapon and item.known and not real_weapon_wielded and (
+        good_weapon = item.is_melee_weapon and item.known and (
             item.is_ego
             or item.is_artifact
             or item.to_h > 0
@@ -3840,24 +3840,15 @@ class HengbotPolicy:
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_full or self._home_deposit_abandoned:
             return None
-        # With an excellent-or-better weapon wielded, an inferior spare weapon is
-        # sold at the Weapon Smith rather than hoarded in the Home.
+        # Inferior weapons may be sold by the sale path, but enhanced weapons stay
+        # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)
-        has_equipped_combat_weapon = any(
-            item.slot == "main_hand" and item.is_melee_weapon
-            for item in snapshot.equipment
-        )
         return self._first_item(
             snapshot,
             lambda item: (
                 self._must_stash_before_deep_mining(snapshot, item)
                 or self._home_deposit_candidate(item, snapshot)
                 or self._is_surplus_digging_tool(snapshot, item)
-                or (
-                    has_equipped_combat_weapon
-                    and item.is_melee_weapon
-                    and self._weapon_is_high_grade(item)
-                )
             )
             and not self._is_wanted_jewelry(snapshot, item)
             and self._item_signature(item) not in self._home_rejected_deposits
@@ -7536,6 +7527,29 @@ class HengbotPolicy:
             and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
         ):
             recall_dest = "yeek-cave"
+        # A consumed/moved item can leave the old in-memory pointer behind even
+        # though there is no longer an errand capable of clearing it.  Do this
+        # immediately before the departure gate so an inert latch cannot turn a
+        # ready recall into generic town wandering.
+        if (
+            self._home_pending_item is not None
+            and self._home_withdraw_inflight is None
+            and self._pending_inventory_item(snapshot) is None
+            and not self._home_candidate_waiting
+        ):
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._identification_candidate = None
+            self._identification_need = None
+        if (
+            self._identification_need is not None
+            and self._home_pending_item is None
+            and not self._home_pending_batch
+            and not self._home_batch_review_items
+            and not self._home_candidate_waiting
+        ):
+            self._identification_need = None
+            self._identification_candidate = None
         # Free pack space is a hard departure requirement. A full Home or an
         # unreachable shop must not become permission to Recall over-packed.
         # Combat readiness remains an independent hard gate as well.
@@ -7552,6 +7566,12 @@ class HengbotPolicy:
             and self._home_withdraw_inflight is None
             and self._identification_need is None
         )
+        if recall_dest is not None and not departure_ok:
+            self._departure_block = self._departure_block_state(
+                snapshot, deep_fundraising=deep_fundraising
+            )
+        else:
+            self._departure_block = {}
         if recall_dest is not None and departure_ok:
             if snapshot.player.recalling:
                 here = snapshot.grid_at(snapshot.player.position)
@@ -7586,6 +7606,69 @@ class HengbotPolicy:
                     return READ_KEY + recall.slot + selection
 
         return None
+
+    def _departure_block_state(
+        self, snapshot: Snapshot, *, deep_fundraising: bool
+    ) -> dict[str, object]:
+        """Expose every recall AND-gate value instead of an opaque false."""
+        home_available = self._home_available(snapshot)
+        values: dict[str, object] = {
+            "home_pending_item": self._home_pending_item,
+            "home_pending_batch": list(self._home_pending_batch),
+            "home_batch_review_items": list(self._home_batch_review_items),
+            "home_withdraw_inflight": self._home_withdraw_inflight,
+            "identification_need": self._identification_need,
+            "combat_weapon_ready": self._combat_weapon_ready(snapshot),
+            "free_pack_slots": PACK_CAPACITY - len(snapshot.inventory),
+            "minimum_free_pack_slots": MIN_FREE_PACK_SLOTS,
+            "home_available": home_available,
+            "home_candidate_waiting": self._home_candidate_waiting,
+            "home_scan_complete": self._equipment_catalog.home_scan_complete,
+            "pending_home_deposit": self._find_home_deposit(snapshot) is not None,
+            "equipment_departure_ready": (
+                self._equipment_departure_ready(snapshot) if home_available else True
+            ),
+            "fundraising_departure_ready": self._fundraising_departure_ready(snapshot),
+            "town_departure_ready": self._town_departure_ready(snapshot),
+            "recall_departure_ready": self._recall_departure_ready(snapshot),
+            "food_ready": self._food_ready(snapshot),
+            "light_ready": self._light_ready(snapshot),
+            "teleport_ready": self._teleport_ready(snapshot),
+            "cure_critical_ready": self._cure_critical_ready(snapshot),
+            "identify_staff_ready": self._identify_staff_ready(snapshot),
+            "hp_full": snapshot.player.hp >= snapshot.player.max_hp,
+            "mp_full": snapshot.player.mp >= snapshot.player.max_mp,
+            "temporary_status_clear": self._temporary_status_clear(snapshot),
+        }
+        selected_gate = (
+            "fundraising_departure_ready"
+            if deep_fundraising
+            else "town_departure_ready"
+        )
+        failures = [
+            name
+            for name, failed in (
+                ("combat_weapon_ready", not values["combat_weapon_ready"]),
+                ("free_pack_slots", values["free_pack_slots"] < MIN_FREE_PACK_SLOTS),
+                ("home_pending_item", values["home_pending_item"] is not None),
+                ("home_pending_batch", bool(values["home_pending_batch"])),
+                ("home_batch_review_items", bool(values["home_batch_review_items"])),
+                ("home_withdraw_inflight", values["home_withdraw_inflight"] is not None),
+                ("identification_need", values["identification_need"] is not None),
+                ("pending_home_deposit", bool(values["pending_home_deposit"])),
+                ("home_candidate_waiting", home_available and values["home_candidate_waiting"]),
+                ("home_scan_complete", home_available and not values["home_scan_complete"]),
+                ("equipment_departure_ready", home_available and not values["equipment_departure_ready"]),
+                (selected_gate, not values[selected_gate]),
+            )
+            if failed
+        ]
+        return {"failed": failures, "values": values, "gate": (
+            selected_gate
+        )}
+
+    def departure_block_state(self) -> dict[str, object]:
+        return self._departure_block
 
     def _equipped_digging_tool(self, snapshot: Snapshot) -> InventoryItem | None:
         return next((it for it in snapshot.equipment if it.is_digging_tool), None)

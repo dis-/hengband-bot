@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import json
+from math import isfinite
+from pathlib import Path
 from typing import Mapping
 
 from hengbot.equipment_encounters import normal_encounters, representative_encounters
@@ -132,6 +136,7 @@ def prepare_warrior_optimization(
     has_destruction: bool = False,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
     timeout_seconds: float = 60.0,
+    loadout_report_path: Path | None = None,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command."""
     current = current_loadout(items)
@@ -223,6 +228,8 @@ def prepare_warrior_optimization(
         timeout_seconds=timeout_seconds,
         candidate_loadouts=candidate_loadouts,
     )
+    if loadout_report_path is not None:
+        _append_loadout_report(loadout_report_path, depth, result, evaluator, defense)
     if result.timed_out:
         return WarriorOptimizationPreparation(
             current,
@@ -264,3 +271,64 @@ def prepare_warrior_optimization(
         len(all_encounters),
         len(encounters),
     )
+
+
+def _append_loadout_report(
+    path: Path,
+    depth: int,
+    result: OptimizationResult,
+    evaluator: CachedWarriorLoadoutEvaluator,
+    defense_inputs: WarriorDefenseInputs,
+) -> None:
+    """Append one inspectable record for every completed loadout search."""
+    candidates = []
+    for rank, entry in enumerate(result.top_candidates, 1):
+        detailed = evaluator(entry.loadout)
+        resistances = sorted(
+            name for name, flag in ABILITY_FLAG.items()
+            if name.startswith("resist_") and flag in entry.loadout.flags
+        )
+        candidates.append({
+            "rank": rank,
+            "slots": {
+                slot: {
+                    "id": owned.id,
+                    "name": owned.item.name,
+                    "origin": owned.origin,
+                }
+                for slot, owned in entry.loadout.slots
+            },
+            "score": {
+                "melee_output": entry.metrics.expected_dps,
+                "ac": loadout_armor_class(entry.loadout, defense_inputs),
+                "resist_coverage": resistances,
+                "resist_coverage_count": len(resistances),
+                "speed": entry.metrics.speed_bonus,
+                "total": entry.metrics.combat_margin if isfinite(entry.metrics.combat_margin) else None,
+                "survival_turns": entry.metrics.survival_turns if isfinite(entry.metrics.survival_turns) else None,
+                "secondary_value": entry.metrics.secondary_value,
+            },
+            "melee_hands": [
+                {"blows": hand.blows, "hit_chance_ac100": hand.hit_chance_ac100,
+                 "damage_per_hit": hand.expected_damage_per_hit,
+                 "damage_per_turn": hand.expected_damage_per_round}
+                for hand in detailed.melee.hands
+            ],
+        })
+    record = {
+        "time": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+        "depth": depth,
+        "timed_out": result.timed_out,
+        "search_truncated": result.search_truncated,
+        "considered": result.combinations_considered,
+        "evaluated": result.combinations_evaluated,
+        "candidates": candidates,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as file:
+            json.dump(record, file, ensure_ascii=False, allow_nan=False)
+            file.write("\n")
+    except (OSError, ValueError):
+        # Diagnostics must never turn a safe fail-closed optimizer into a crash.
+        return

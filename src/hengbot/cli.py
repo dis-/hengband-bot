@@ -440,6 +440,7 @@ def _decision_record(
     fundraising: dict | None = None,
     town_plan: dict | None = None,
     fixedquest_readiness: dict | None = None,
+    departure_block: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -494,6 +495,7 @@ def _decision_record(
         "fundraising": fundraising or {},
         **({"town_plan": town_plan} if town_plan else {}),
         **({"fixedquest_readiness": fixedquest_readiness} if fixedquest_readiness else {}),
+        **({"departure_block": departure_block} if departure_block else {}),
     }
 
 
@@ -707,6 +709,9 @@ def _write_decision(
                 if policy is not None
                 else {}
             )
+            departure_block = (
+                policy.departure_block_state() if policy is not None else {}
+            )
             json.dump(
                 _decision_record(
                     snapshot,
@@ -722,6 +727,7 @@ def _write_decision(
                     fundraising,
                     town_plan,
                     fixedquest_readiness,
+                    departure_block,
                 ),
                 file,
                 ensure_ascii=False,
@@ -912,6 +918,8 @@ def main(argv: list[str] | None = None) -> int:
         monrace_knowledge=monrace_knowledge,
         quest_knowledge=quest_knowledge,
     )
+    if args.decision_log is not None:
+        policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
 
     if args.once:
         for line in _read_last_line(args.state_file):

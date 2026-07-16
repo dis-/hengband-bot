@@ -1,4 +1,7 @@
 import unittest
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 from hengbot.equipment_optimizer import (
@@ -35,13 +38,13 @@ from hengbot.warrior_equipment_evaluator import TR_DEX, TR_STR
 
 def gear(
     item_id, origin, *, slot=None, tval=23, ac=0, to_a=0, to_d=0,
-    pval=0, flags=(),
+    to_h=0, pval=0, flags=(), dice=(1, 4), weight=30,
 ):
     item = InventoryItem(
         slot=slot or item_id, name=item_id, count=1, tval=tval, sval=1,
         aware=True, known=True, fully_known=True, is_equipment=True,
-        ac=ac, to_a=to_a, to_d=to_d, pval=pval,
-        damage_dice_num=1, damage_dice_sides=4,
+        ac=ac, to_a=to_a, to_h=to_h, to_d=to_d, pval=pval, weight=weight,
+        damage_dice_num=dice[0], damage_dice_sides=dice[1],
         known_flags=frozenset(flags),
     )
     return OwnedEquipment(item_id, item, origin, equipped_slot=slot)
@@ -128,7 +131,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             snapshot, (light, old, better), {1: monster}, depth=1,
             home_scan_complete=True,
         )
-        self.assertTrue(prepared.ready)
+        self.assertTrue(prepared.ready, prepared.blockers)
         self.assertIn("better", prepared.result.best.loadout.item_ids)
         self.assertTrue(
             any(
@@ -136,6 +139,52 @@ class WarriorOptimizationTest(unittest.TestCase):
                 for action in prepared.transaction.actions
             )
         )
+
+    def test_saber_loses_to_strictly_better_home_long_sword(self):
+        light = gear("light", "equipped", slot="light", tval=39)
+        saber = gear(
+            "saber", "equipped", slot="main_hand", to_h=2, to_d=1,
+            dice=(1, 7), weight=50,
+        )
+        gauche = gear(
+            "gauche", "equipped", slot="sub_hand", to_h=3, to_d=3,
+            dice=(1, 5), weight=30,
+        )
+        long_sword = gear(
+            "long-sword", "home", to_h=5, to_d=7,
+            dice=(2, 5), weight=130,
+        )
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR, stat_cur=(68, 10, 10, 68),
+            stat_use=(68, 10, 10, 68), level=27, shield_skill=0,
+            speed=110, saving_skill=40, abilities=frozenset(), ac=0,
+            melee_skill=80, two_weapon_skill=4000, max_hp=494, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=80, average_hp=80, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=100, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 6),),
+        )
+        with TemporaryDirectory() as directory:
+            report = Path(directory) / "loadout-report.jsonl"
+            prepared = prepare_warrior_optimization(
+                snapshot, (light, saber, gauche, long_sword), {1: monster},
+                depth=1, home_scan_complete=True, loadout_report_path=report,
+            )
+            record = json.loads(report.read_text(encoding="utf-8"))
+        self.assertLessEqual(len(record["candidates"]), 3)
+        self.assertEqual(record["candidates"][0]["rank"], 1)
+        self.assertIn("melee_output", record["candidates"][0]["score"])
+        self.assertIn("long-sword", {
+            item["id"] for item in record["candidates"][0]["slots"].values()
+        })
+        self.assertTrue(prepared.ready, prepared.blockers)
+        self.assertIn("long-sword", prepared.result.best.loadout.item_ids)
+        self.assertTrue(any(
+            action.kind == "withdraw" and action.item_id == "long-sword"
+            for action in prepared.transaction.actions
+        ))
 
     def test_policy_dispatches_takeoff_with_equipment_slot_letter(self):
         shield = gear("shield", "equipped", slot="sub_hand", tval=34)

@@ -10,6 +10,7 @@ heuristics while the Warrior formula is being completed.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cmp_to_key
 from hashlib import sha1
 from itertools import combinations, product
 import re
@@ -270,6 +271,7 @@ class OptimizationResult:
     timed_out: bool
     incomplete_item_ids: frozenset[str]
     search_truncated: bool = False
+    top_candidates: tuple[EvaluatedLoadout, ...] = ()
 
 
 LoadoutEvaluator = Callable[[Loadout], LoadoutMetrics]
@@ -587,6 +589,18 @@ def _prefer(
 ) -> bool:
     cm = candidate.metrics
     im = incumbent.metrics
+    # When every defensive/utility result is identical, offense is the whole
+    # comparison.  The general 1% anti-churn band used combat_margin and could
+    # therefore retain an inferior wielded weapon even though a Home weapon had
+    # strictly higher AC-100 damage per player turn.
+    same_non_offense = (
+        cm.survival_turns == im.survival_turns
+        and cm.speed_bonus == im.speed_bonus
+        and cm.secondary_value == im.secondary_value
+        and cm.relevant_traits == im.relevant_traits
+    )
+    if same_non_offense and cm.expected_dps != im.expected_dps:
+        return cm.expected_dps > im.expected_dps
     if not isfinite(cm.combat_margin) or not isfinite(im.combat_margin):
         if cm.combat_margin != im.combat_margin:
             return cm.combat_margin > im.combat_margin
@@ -705,6 +719,18 @@ def optimize_loadout(
             reverse=True,
         )[:5]
     )
+    ranked = tuple(
+        sorted(
+            evaluated,
+            key=cmp_to_key(
+                lambda left, right: (
+                    -1 if _prefer(left, right, current_item_ids)
+                    else 1 if _prefer(right, left, current_item_ids)
+                    else 0
+                )
+            ),
+        )[:3]
+    )
 
     # Disposal proof is deliberately separate from best-loadout selection. The
     # previous all-loadouts-by-all-loadouts proof was cubic at terminal Home
@@ -724,4 +750,5 @@ def optimize_loadout(
         timed_out=timed_out,
         incomplete_item_ids=incomplete,
         search_truncated=bool(getattr(candidate_loadouts, "truncated", False)),
+        top_candidates=ranked,
     )

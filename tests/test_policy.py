@@ -11191,17 +11191,14 @@ class WeaponSaleTest(unittest.TestCase):
         plain = item("main_hand", 23, 0, is_equipment=True, known=True, pseudo_feeling="good")
         self.assertIsNotNone(pol._find_home_deposit(self._town([inf], [plain])))
 
-    def test_high_grade_spare_is_deposited_when_combat_weapon_is_equipped(self):
+    def test_high_grade_spare_is_not_deposited_before_optimizer_compares_it(self):
         pol = HengbotPolicy()
         spare = item(
             "b", 23, 8, is_equipment=True, is_ego=True, known=True,
             name="ego spare",
         )
 
-        self.assertEqual(
-            pol._find_home_deposit(self._town([spare], [self._ego()])),
-            spare,
-        )
+        self.assertIsNone(pol._find_home_deposit(self._town([spare], [self._ego()])))
 
     def test_high_grade_weapon_is_protected_when_only_digger_is_equipped(self):
         pol = HengbotPolicy()
@@ -11216,7 +11213,7 @@ class WeaponSaleTest(unittest.TestCase):
 
         self.assertIsNone(pol._find_home_deposit(self._town([spare], [digger])))
 
-    def test_good_non_ego_spare_is_deposited_when_combat_weapon_is_equipped(self):
+    def test_good_non_ego_spare_is_not_deposited_before_loadout_search(self):
         # A spare with a real +to-hit bonus but no ego/artifact/excellent-pseudo
         # sense is "good_weapon" (see _home_deposit_candidate) yet not "high
         # grade" (see _weapon_is_high_grade) -- the gap the OLD unconditional
@@ -11235,9 +11232,7 @@ class WeaponSaleTest(unittest.TestCase):
             name="masterwork spare",
         )
 
-        self.assertEqual(
-            pol._find_home_deposit(self._town([spare], [real_sword])), spare
-        )
+        self.assertIsNone(pol._find_home_deposit(self._town([spare], [real_sword])))
 
     def test_good_non_ego_spare_is_protected_while_digger_is_equipped(self):
         pol = HengbotPolicy()
@@ -11261,7 +11256,7 @@ class WeaponSaleTest(unittest.TestCase):
 
         self.assertIsNone(pol._find_home_deposit(self._town([spare], [])))
 
-    def test_active_recall_is_cancelled_until_high_grade_spare_is_stored(self):
+    def test_active_recall_is_not_cancelled_to_strand_uncompared_weapon(self):
         pol = HengbotPolicy()
         recall = item(
             "r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
@@ -11274,8 +11269,8 @@ class WeaponSaleTest(unittest.TestCase):
         snap = self._town([recall, spare], [self._ego()])
         snap = replace(snap, player=replace(snap.player, recalling=True))
 
-        self.assertEqual(pol.choose_key(snap), "rr")
-        self.assertEqual(pol.last_reason, "town:cancel-unready-recall")
+        self.assertIsNone(pol._find_home_deposit(snap))
+        self.assertIsNone(pol._town_cancel_unsafe_recall_key(snap))
 
     def test_active_recall_is_not_cancelled_only_because_scroll_was_consumed(self):
         pol = HengbotPolicy()
