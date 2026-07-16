@@ -333,6 +333,18 @@ class SurvivalGateTest(unittest.TestCase):
         policy.choose_key(snap)
         self.assertEqual(policy.last_reason, "melee")
 
+    def test_survival_gate_uses_player_fainting_property_near_hostiles(self):
+        snap = self._dungeon(
+            food=1500,
+            inventory=[item("b", FOOD, 35)],
+            monsters=[hostile(1, 10, 11)],
+        )
+        policy = HengbotPolicy()
+
+        self.assertIsNone(
+            policy._survival_gate_key(snap, list(snap.visible_monsters))
+        )
+
     def test_gate_eats_mid_combat_when_fainting(self):
         snap = self._dungeon(
             food=100,  # fainting

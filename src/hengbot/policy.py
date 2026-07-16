@@ -9844,7 +9844,7 @@ class HengbotPolicy:
         if food is not None:
             # Mid-fight, finishing the threat comes first — unless already
             # fainting, where one more fighting turn may be one too many.
-            if near_hostiles and not player.is_fainting:
+            if near_hostiles and not player.fainting:
                 return None
             self.last_reason = "survival:eat"
             return EAT_KEY + food.slot
