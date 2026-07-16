@@ -549,7 +549,7 @@ MOVE_REASONS = frozenset(
 # Consumable use (item command + inventory letter, sent as a macro).
 QUAFF_KEY = "q"
 READ_KEY = "r"
-# Ranged attack: fire (f) / throw (v) + item slot + a plain direction digit.
+# Ranged attack: prefer fire (f) / throw (v) + item slot + a direction digit.
 # get_aim_dir resolves a direction key immediately with no targeting UI, so
 # the bot only shoots RAY-ALIGNED targets (8 directions) it can verify a clear
 # known path to — no target_set cursor session, snapshot-safe as a macro.
@@ -2402,7 +2402,7 @@ class HengbotPolicy:
         hostiles: list[MonsterState],
         adjacent: list[MonsterState],
     ) -> str | None:
-        """Fire at (or throw oil at) a ray-aligned hostile before it closes.
+        """Fire at (or throw oil at) a hostile before it closes.
 
         Adjacency is melee's job; confusion randomizes the aim direction and
         blindness hides the ray, so both bail. Fear deliberately does NOT
@@ -2434,10 +2434,28 @@ class HengbotPolicy:
                 return None
             prefix, slot, reason = THROW_KEY, flask.slot, "ranged:throw-oil"
         target = self._ranged_target(snapshot, hostiles)
-        if target is None:
+        if target is not None:
+            self.last_reason = reason
+            return prefix + slot + self._direction_key(player.position, target.position)
+
+        # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
+        # offers its nearest visible projectable non-pet monster; `t` accepts it.
+        # The trailing Escape safely cancels fire if the game found no target.
+        # Keep throwables on the bot-verified V1 direction path.
+        targetable_hostile = any(
+            2 <= (distance := max(
+                abs(monster.position.y - player.position.y),
+                abs(monster.position.x - player.position.x),
+            )) <= RANGED_MAX_DISTANCE
+            and not (
+                monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE
+            )
+            for monster in hostiles
+        )
+        if ammo is None or not targetable_hostile:
             return None
-        self.last_reason = reason
-        return prefix + slot + self._direction_key(player.position, target.position)
+        self.last_reason = "ranged:fire-target"
+        return FIRE_KEY + ammo.slot + "*t\x1b"
 
     @staticmethod
     def _is_processable_chest(item: InventoryItem) -> bool:

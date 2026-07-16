@@ -12876,17 +12876,17 @@ class RangedAttackTest(unittest.TestCase):
         policy.choose_key(snap)
         self.assertEqual(policy.last_reason, "melee")
 
-    def test_off_axis_hostile_is_not_fired_at(self):
+    def test_off_axis_hostile_uses_game_targeting(self):
         snap = self._snap(
             monsters=[hostile(1, 11, 14, distance=4)],
             inventory=[self._shots()],
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        policy.choose_key(snap)
-        self.assertNotEqual(policy.last_reason, "ranged:fire")
+        self.assertEqual(policy.choose_key(snap), "fs*t\x1b")
+        self.assertEqual(policy.last_reason, "ranged:fire-target")
 
-    def test_blocked_ray_prevents_firing(self):
+    def test_blocked_ray_uses_game_targeting(self):
         snap = self._snap(
             monsters=[hostile(1, 10, 15, distance=5)],
             inventory=[self._shots()],
@@ -12896,8 +12896,31 @@ class RangedAttackTest(unittest.TestCase):
         blocked[Position(10, 12)] = grid(10, 12, passable=False)
         snap = replace(snap, grids=blocked)
         policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "fs*t\x1b")
+        self.assertEqual(policy.last_reason, "ranged:fire-target")
+
+    def test_aligned_hostile_is_preferred_when_off_axis_is_also_visible(self):
+        snap = self._snap(
+            monsters=[
+                hostile(1, 11, 12, distance=2),
+                hostile(2, 10, 15, distance=5),
+            ],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "fs6")
+        self.assertEqual(policy.last_reason, "ranged:fire")
+
+    def test_distant_off_axis_sleeper_is_left_asleep(self):
+        snap = self._snap(
+            monsters=[hostile(1, 12, 18, distance=8, asleep=True)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
         policy.choose_key(snap)
-        self.assertNotEqual(policy.last_reason, "ranged:fire")
+        self.assertNotEqual(policy.last_reason, "ranged:fire-target")
 
     def test_shot_targets_first_body_on_ray(self):
         snap = self._snap(
