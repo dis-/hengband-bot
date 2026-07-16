@@ -857,6 +857,11 @@ RUMOR_GOLD_RESERVE = 300
 # A descent block from one bad landing must not ratchet the bot upward forever:
 # besides clearing on a level-up, it expires after this many decisions.
 DESCENT_BLOCK_DECISIONS = 200
+# A reconnect can begin on the downstairs because the one-shot launcher and
+# long-lived follower hand off at a waiting turn.  It should step away before
+# reusing that stair, but must re-arm well before cli.py's confined-cell loop
+# fail-safe (40 decisions).  Hazardous landings still use the full cooldown.
+RESUME_DESCENT_BLOCK_DECISIONS = 16
 
 # Potion svals that restore HP (cure wounds / healing / life), from sv-potion-types.h.
 HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})
@@ -1351,7 +1356,8 @@ class HengbotPolicy:
             and here.has_down_stairs
             and snapshot.dungeon_level > 0
         ):
-            self._defer_descent(snapshot)
+            self._descent_blocked_at_level = snapshot.player.level
+            self._descent_block_countdown = RESUME_DESCENT_BLOCK_DECISIONS
         if here is None or not here.has_up_stairs:
             return
 

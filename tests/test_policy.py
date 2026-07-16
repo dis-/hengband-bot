@@ -98,6 +98,7 @@ from hengbot.policy import (
     IDENTIFY_FAIL_LIMIT,
     IDENTIFY_PURCHASE_MAX,
     RECALL_MIN_DEPTH,
+    RESUME_DESCENT_BLOCK_DECISIONS,
     DEEP_FUNDRAISING_DEPTH,
     DEEP_FUNDRAISING_DETECTION_RADIUS,
     DEEP_FUNDRAISING_SCROLLS_PER_RUN,
@@ -3175,6 +3176,9 @@ class DescentBlockCooldownTest(unittest.TestCase):
         pol.prime(snap)
 
         self.assertTrue(pol._descent_is_blocked(snap))
+        self.assertEqual(
+            pol._descent_block_countdown, RESUME_DESCENT_BLOCK_DECISIONS
+        )
 
     def test_block_expires_after_the_cooldown_without_a_level_up(self):
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}

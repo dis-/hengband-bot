@@ -15,6 +15,7 @@ from hengbot.cli import LOOP_WINDOW
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
     NAV_NO_PROGRESS_LIMIT,
+    RESUME_DESCENT_BLOCK_DECISIONS,
     WAIT_KEY,
     HengbotPolicy,
 )
@@ -33,6 +34,9 @@ class NavigationLedgerTest(unittest.TestCase):
         # fail-safe.  If this ordering reverses, a two-cell descent oscillation
         # stops the bot before the policy can abandon its stale stair target.
         self.assertLess(NAV_TARGET_STALL_LIMIT, LOOP_WINDOW)
+
+    def test_resume_descent_guard_precedes_process_loop_detector(self):
+        self.assertLess(RESUME_DESCENT_BLOCK_DECISIONS, LOOP_WINDOW)
 
     def test_first_observation_counts_as_improvement(self):
         ledger = NavigationLedger()
