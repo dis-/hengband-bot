@@ -164,7 +164,7 @@ BREATH = {
 }
 
 NO_DAMAGE = frozenset({
-    "SHRIEK", "DISPEL", "SCARE", "BLIND", "CONF", "SLOW", "HOLD",
+    "SHRIEK", "DRAIN_MANA", "DISPEL", "SCARE", "BLIND", "CONF", "SLOW", "HOLD",
     "HASTE", "HEAL", "INVULNER", "BLINK", "TPORT", "WORLD", "SPECIAL",
     "TELE_TO", "TELE_AWAY", "TELE_LEVEL", "DARKNESS", "TRAPS", "FORGET",
     "RAISE_DEAD", "ANIM_DEAD", "S_KIN", "S_CYBER", "S_MONSTER", "S_MONSTERS", "S_ANT",
@@ -194,6 +194,12 @@ ATTACK_ABILITIES = frozenset({
     "BO_METEOR", "BO_LITE", "MISSILE",
     "CAUSE_1", "CAUSE_2", "CAUSE_3", "CAUSE_4", "HAND_DOOM",
     "PSY_SPEAR",
+})
+# Every ability emitted by MonraceDefinitions is either HP-damaging or a
+# utility/status action.  Keep this explicit so newly introduced, genuinely
+# unknown enum values fail loudly instead of being silently treated as safe.
+KNOWN_ABILITIES = NO_DAMAGE | ATTACK_ABILITIES | frozenset({
+    "MIND_BLAST", "BRAIN_SMASH",
 })
 ANNOY_ABILITIES = frozenset({
     "SHRIEK", "DRAIN_MANA", "MIND_BLAST", "BRAIN_SMASH",
@@ -753,6 +759,8 @@ def _ability_base_damage_distribution(
                 1,
                 level * 2 if powerful else level * 3 // 2,
             )
+        elif ability in KNOWN_ABILITIES:
+            return None
         else:
             raise ValueError(f"unsupported monster ability: {ability}")
     return tuple(sorted(result.items()))

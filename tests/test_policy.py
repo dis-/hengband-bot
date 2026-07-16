@@ -75,8 +75,10 @@ from hengbot.model import (
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import TR_TELEPORT
-from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
-from hengbot.quest_knowledge import QuestInfo
+from hengbot.monrace_knowledge import (
+    MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
+)
+from hengbot.quest_knowledge import QuestInfo, load_quest_knowledge
 from hengbot.policy import (
     HengbotPolicy,
     BUY_KEY,
@@ -2520,6 +2522,55 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(state["hp_healing_budget"], 554)
         self.assertTrue(state["hasted"])
         self.assertTrue(state["verdict"])
+
+    def test_fixed_quest_healing_budget_is_limited_to_three_quaffs(self):
+        info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
+        harmless = MonraceKnowledge(1, 110, False, False)
+        policy = HengbotPolicy(
+            self._town_map(), quest_knowledge={18: info}, monrace_knowledge={44: harmless}
+        )
+        snapshot = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(26, 97, level=38, hp=200, max_hp=200,
+                          main_hand_blows=4, main_hand_to_d=20),
+            inventory=[item("h", TVAL_POTION, SV_POTION_HEALING, count=99)],
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                            damage_dice_num=3, damage_dice_sides=6)],
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+
+        self.assertTrue(policy._fixed_quest_ready(snapshot, 18))
+        self.assertEqual(policy.fixed_quest_readiness_state()["hp_healing_budget"], 1100)
+
+    def test_real_lib_fixed_quest_rosters_25_and_28_run_through_readiness(self):
+        edit = Path(r"C:\hengband\lib\edit")
+        quest_path = edit / "QuestDefinitionList.txt"
+        monrace_path = edit / "MonraceDefinitions.jsonc"
+        if not quest_path.is_file() or not monrace_path.is_file():
+            self.skipTest("real Hengband lib/edit is not available")
+        quests = load_quest_knowledge(quest_path)
+        monraces = load_monrace_knowledge(monrace_path)
+        policy = HengbotPolicy(
+            self._town_map(), quest_knowledge=quests, monrace_knowledge=monraces
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+        for quest_id in (25, 28):
+            with self.subTest(quest_id=quest_id):
+                snapshot = replace(
+                    self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+                    player=player(
+                        26, 97, level=quests[quest_id].level + FIXED_QUEST_LEVEL_MARGIN,
+                        hp=100000, max_hp=100000, main_hand_blows=10,
+                        main_hand_to_d=100000,
+                    ),
+                    equipment=[item(
+                        "main_hand", TVAL_SWORD, 1, is_equipment=True,
+                        damage_dice_num=10, damage_dice_sides=10,
+                    )],
+                )
+                self.assertTrue(policy._fixed_quest_ready(snapshot, quest_id))
 
     def test_fixed_quest_quaffs_speed_once_on_first_engagement(self):
         grids = {

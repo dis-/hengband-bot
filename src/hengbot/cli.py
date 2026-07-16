@@ -703,7 +703,9 @@ def _write_decision(
             )
             town_plan = _town_plan_state(policy) if policy is not None else {}
             fixedquest_readiness = (
-                policy.fixed_quest_readiness_state() if policy is not None else {}
+                getattr(policy, "fixed_quest_readiness_state", lambda: {})()
+                if policy is not None
+                else {}
             )
             json.dump(
                 _decision_record(

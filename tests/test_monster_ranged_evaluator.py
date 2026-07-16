@@ -22,6 +22,7 @@ from hengbot.monster_ranged_evaluator import (
     expected_ability_hp_damage,
     evaluate_ability_effect,
     evaluate_warrior_ranged_defense,
+    _ability_base_damage_distribution,
 )
 
 
@@ -31,6 +32,20 @@ def monster(*, level=30, hp=300, powerful=False, shoot=(0, 0)):
         friendly=False, level=level, powerful=powerful,
         shoot_dice_num=shoot[0], shoot_dice_sides=shoot[1],
     )
+
+
+class AbilityDamageClassificationTest(unittest.TestCase):
+    def test_known_non_damage_abilities_have_no_damage_distribution(self):
+        race = monster()
+        for ability in ("DRAIN_MANA", "TELE_TO", "HEAL", "HASTE", "BLINK", "TRAPS"):
+            with self.subTest(ability=ability):
+                self.assertIsNone(
+                    _ability_base_damage_distribution(ability, race, 100)
+                )
+
+    def test_genuinely_unknown_ability_still_raises(self):
+        with self.assertRaisesRegex(ValueError, "unsupported monster ability"):
+            _ability_base_damage_distribution("NOT_A_REAL_ABILITY", monster(), 100)
 
 
 class MonsterRangedEvaluatorTest(unittest.TestCase):

@@ -233,13 +233,13 @@ FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 18, 25, 28})
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
 FIXED_QUEST_LEVEL_MARGIN = 3
-# Fixed quest maps are one-shot commitments.  Model the three most dangerous
-# placed monsters as a simultaneous adjacent engagement (three attackers is a
-# realistic bad doorway/open-room contact, without pretending the whole map can
-# melee at once).  Acceptance requires its operational three-turn damage to be
-# strictly below half max HP, and enough AC-100 melee output to kill the toughest
-# placed monster within ten player turns.
-FIXED_QUEST_SIMULTANEOUS_MONSTERS = 3
+# Fixed quest maps are one-shot commitments.  Quest 25 and 28 are open rooms,
+# so model the eight most dangerous placed monsters occupying every adjacent
+# grid. Acceptance requires operational three-turn damage to be strictly below
+# half the HP available from full health plus the healing that can actually be
+# quaffed during that window, and enough AC-100 melee output to kill the
+# toughest placed monster within ten player turns.
+FIXED_QUEST_SIMULTANEOUS_MONSTERS = 8
 FIXED_QUEST_THREAT_TURNS = 3
 FIXED_QUEST_MAX_DAMAGE_RATIO = 0.50
 FIXED_QUEST_TOUGHEST_KILL_TURNS = 10
@@ -8644,7 +8644,7 @@ class HengbotPolicy:
             "quest_id": quest_id,
             "roster_size": 0,
             "toughest_r_idx": None,
-            "worst3": None,
+            "worst_adjacent": None,
             "hp_healing_budget": snapshot.player.max_hp,
             "hasted": False,
             "verdict": False,
@@ -8676,10 +8676,17 @@ class HengbotPolicy:
         if not info.placed_monsters:
             return reject("empty-roster")
 
-        healing_budget = (
-            self._exact_potion_count(snapshot, SV_POTION_HEALING) * HEALING_POTION_HP
-            + self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
-            * FIXED_QUEST_CURE_CRITICAL_HP
+        # One potion consumes one player action.  Across the three-turn threat
+        # window, no more than THREAT_TURNS doses are realizable; value the best
+        # available doses first instead of crediting the entire carried stock.
+        healing_doses = (
+            [HEALING_POTION_HP]
+            * self._exact_potion_count(snapshot, SV_POTION_HEALING)
+            + [FIXED_QUEST_CURE_CRITICAL_HP]
+            * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
+        )
+        healing_budget = sum(
+            sorted(healing_doses, reverse=True)[:FIXED_QUEST_THREAT_TURNS]
         )
         speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
         hasted = speed_potion is not None
@@ -8690,9 +8697,11 @@ class HengbotPolicy:
         candidates: list[tuple[int, int, MonsterState]] = []
         player_pos = snapshot.player.position
         positions = [
-            Position(player_pos.y - 1, player_pos.x),
-            Position(player_pos.y, player_pos.x + 1),
-            Position(player_pos.y + 1, player_pos.x),
+            Position(player_pos.y + dy, player_pos.x + dx)
+            for dy, dx in (
+                (-1, -1), (-1, 0), (-1, 1), (0, -1),
+                (0, 1), (1, -1), (1, 0), (1, 1),
+            )
         ]
         combat_grids = dict(snapshot.grids)
         combat_grids[player_pos] = GridState(
@@ -8743,11 +8752,11 @@ class HengbotPolicy:
             replace(entry[2], index=-(index + 1), position=positions[index], distance=1)
             for index, entry in enumerate(candidates[:FIXED_QUEST_SIMULTANEOUS_MONSTERS])
         ]
-        worst3 = self.threat_prediction(
+        worst_adjacent = self.threat_prediction(
             combat_snapshot, simultaneous, FIXED_QUEST_THREAT_TURNS
         )["operational_total"]
-        telemetry["worst3"] = worst3
-        if worst3 >= telemetry["hp_healing_budget"] * FIXED_QUEST_MAX_DAMAGE_RATIO:
+        telemetry["worst_adjacent"] = worst_adjacent
+        if worst_adjacent >= telemetry["hp_healing_budget"] * FIXED_QUEST_MAX_DAMAGE_RATIO:
             return reject("three-turn-threat")
         weapon = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None
