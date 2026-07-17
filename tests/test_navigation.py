@@ -165,7 +165,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertLess(max(Counter(visited).values()), 3)
         self.assertNotIn(("3", "7"), zip(keys, keys[1:]))
 
-    def test_0124_live_state_replay_identifies_guardian_veto_and_returns(self):
+    def test_0124_live_state_replays_existing_guardian_return_path(self):
         incident = self._load_jsonl("descend-in-place-2026-07-18-0124.jsonl")
         self.assertEqual(incident[0]["turn"], 885977)
         self.assertEqual(incident[-1]["reason"], "loop-detected")
@@ -181,8 +181,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
             "descend-in-place-2026-07-18-0124-snapshots.jsonl"
         )[0])
         # The live CLI loads static dungeon knowledge.  A bare policy has no
-        # guardian/max-depth facts and descends on both sides of the fix, so it
-        # is not an incident reproduction.  Recreate the runtime knowledge that
+        # guardian/max-depth facts, so recreate the runtime knowledge that
         # made 8F the penultimate Yeek floor in the captured session.
         yeek = DungeonInfo(
             id=2,
@@ -200,8 +199,8 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertFalse(policy._descent_is_blocked(snapshot))
         self.assertFalse(policy._is_descent_target(snapshot, here))
 
-        # Grid-visible vetoed stairs cannot re-enter through the remembered-only
-        # fallback, and the veto owner must replace the descent objective.
+        # Regression coverage for the pre-existing guardian return owner: grid-
+        # visible vetoed stairs cannot re-enter the remembered-only fallback.
         policy._floor_key = snapshot.floor_key
         policy._build_grid_index(snapshot)
         policy._remembered_downstairs.update(

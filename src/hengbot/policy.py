@@ -2087,11 +2087,10 @@ class HengbotPolicy:
                 else DOWN_STAIRS_KEY
             )
 
-        # If the only known way forward is deliberately vetoed, hand navigation
-        # to the policy that owns that veto.  Otherwise the descent router falls
-        # through to generic exploration while the objective still claims that
-        # it is trying to descend.
-        if self._all_known_descents_require_return(snapshot):
+        # If every known way forward fails the next-depth resistance gate,
+        # transfer navigation to the return objective. Otherwise the descent
+        # router falls through to exploration while still claiming descent.
+        if self._all_known_descents_blocked_by_next_depth_requirements(snapshot):
             town_return = self._return_to_town_key(snapshot, hostiles)
             if town_return is not None:
                 return town_return
@@ -12271,9 +12270,24 @@ class HengbotPolicy:
             return False
         return True
 
-    def _all_known_descents_require_return(self, snapshot: Snapshot) -> bool:
-        """Latch the return objective when every known forward stair is vetoed."""
+    def _all_known_descents_blocked_by_next_depth_requirements(
+        self, snapshot: Snapshot
+    ) -> bool:
+        """Latch a return when every known forward stair fails the next-depth gate."""
         if snapshot.in_town or self._returning_to_town:
+            return False
+        if (
+            self._active_fixed_quest_id(snapshot) is not None
+            or self._quest_floor_exit_locked(snapshot)
+            or self._fundraising_mode in {"mine", "scavenge"}
+            or self._guardian_descent_blocked(snapshot)
+        ):
+            # These veto owners must not acquire a resistance-return latch.  In
+            # particular, an incomplete quest may reject the resulting return.
+            return False
+        if not self._missing_required_abilities(
+            snapshot, snapshot.dungeon_level + 1
+        ):
             return False
         visible = {
             grid.position
@@ -12290,16 +12304,10 @@ class HengbotPolicy:
             for position in visible
         ):
             return False
-        if self._guardian_descent_blocked(snapshot):
-            self._last_return_trigger = "guardian-kit-insufficient"
-        elif self._missing_required_abilities(
-            snapshot, snapshot.dungeon_level + 1
-        ):
-            self._last_return_trigger = "next-depth-resist-gap"
-        else:
-            # Quest and fundraising vetoes have their own floor handlers and
-            # must not be converted into an ordinary supply return.
-            return False
+        self._last_return_trigger = "next-depth-resist-gap"
+        # This trigger is intentionally not in _break_town_cycle's preserved-
+        # store set yet.  An unbuyable resistance may ping-pong town and dungeon;
+        # rely on the existing cycle breaker until suppression is designed.
         self._returning_to_town = True
         self._nav_ledger.clear_descent_route()
         self._descent_target_goal = None
