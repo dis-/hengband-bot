@@ -131,6 +131,7 @@ from hengbot.policy import (
     MINING_SWEEP_HARD_LIMIT,
     MINING_SWEEP_NO_PROGRESS_LIMIT,
     MIN_FREE_PACK_SLOTS,
+    HOME_BATCH_RESERVED_SLOTS,
     PACK_CAPACITY,
     REST_MACRO,
     RESTOCK_WAIT_MACRO,
@@ -5103,6 +5104,124 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertIsNone(HengbotPolicy()._find_home_candidate(snap))
+
+    def test_withdrawing_home_inferior_weapon_reopens_weapon_sale_route(self):
+        # Root cause of the town-departure self-stop: a second Home visit that
+        # pulls a fresh spare-weapon batch after the Weapon Smith was already
+        # visited this stay left STORE_WEAPON latched, so no sale trip was
+        # scheduled and the pack clogged. Withdrawing must re-open the route.
+        pol = HengbotPolicy()
+        # Same town stay (matching floor_key) so the fresh-visit reset does not
+        # clear _town_store_attempted for us — the withdrawal itself must evict it.
+        pol._floor_key = (0, 0, 0)
+        pol._town_store_attempted[STORE_WEAPON] = 0
+        ego = item(
+            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
+            is_ego=True, known=True,
+        )
+        spare = store_item(
+            "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=True,
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[ego],
+            store=StoreState(store_type=STORE_HOME, items=[spare]),
+        )
+
+        self.assertIn(STORE_WEAPON, pol._town_store_attempted)
+        pol.choose_key(snap)
+
+        self.assertEqual(pol.last_reason, "home:withdraw-inferior-weapon")
+        self.assertNotIn(STORE_WEAPON, pol._town_store_attempted)
+
+    def test_home_inferior_weapon_pull_stops_at_the_batch_reserve(self):
+        # An unguarded pull filled the pack to zero free every Home visit; a full
+        # pack then blocks town departure. The pull must leave the batch reserve.
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        ego = item(
+            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
+            is_ego=True, known=True,
+        )
+        # Fill the pack with sellable spare weapons down to exactly the reserve.
+        # High-grade-equipped inferior spares are excluded from the deposit pass,
+        # so they are inert filler here — only the withdraw guard can stop a pull.
+        filler = [
+            item(f"p{i}", 23, 1, name="a Dagger", is_equipment=True, known=True)
+            for i in range(PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS)
+        ]
+        spare = store_item(
+            "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=True,
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=filler,
+            equipment=[ego],
+            store=StoreState(store_type=STORE_HOME, items=[spare]),
+        )
+
+        pol.choose_key(snap)
+
+        self.assertNotEqual(pol.last_reason, "home:withdraw-inferior-weapon")
+
+    def test_home_does_not_withdraw_a_spare_the_smith_refused(self):
+        # A spare already refused by the Weapon Smith (unsellable) must not be
+        # pulled again: no sale can clear it, so it would clog the pack.
+        pol = HengbotPolicy()
+        # Same town stay so the fresh-visit reset does not clear _unsellable_items.
+        pol._floor_key = (0, 0, 0)
+        ego = item(
+            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
+            is_ego=True, known=True,
+        )
+        refused = store_item(
+            "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=True,
+        )
+        pol._unsellable_items.add((refused.name, refused.tval, refused.sval))
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[ego],
+            store=StoreState(store_type=STORE_HOME, items=[refused]),
+        )
+
+        pol.choose_key(snap)
+
+        self.assertNotEqual(pol.last_reason, "home:withdraw-inferior-weapon")
+
+    def test_unsellable_inferior_weapon_can_shelve_back_home(self):
+        # Fallback: once the smith has refused a spare, it is no longer held for
+        # sale, so it must become depositable again — otherwise a pack of refused
+        # spares blocks town departure forever.
+        pol = HengbotPolicy()
+        ego = item(
+            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
+            is_ego=True, known=True,
+        )
+        refused = item(
+            "b", 23, 1, name="a Dagger", is_equipment=True, known=True,
+        )
+        pol._unsellable_items.add((refused.name, refused.tval, refused.sval))
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[refused],
+            equipment=[ego],
+        )
+
+        self.assertEqual(pol._find_home_deposit(snap), refused)
 
     def test_withdrawn_home_candidate_is_not_immediately_deposited_again(self):
         withdrawn = item(

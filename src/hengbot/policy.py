@@ -4606,7 +4606,14 @@ class HengbotPolicy:
             )
             and not self._is_wanted_jewelry(snapshot, item)
             and self._item_signature(item) not in self._home_rejected_deposits
-            and not (high_grade and self._weapon_is_inferior(item))
+            and not (
+                high_grade
+                and self._weapon_is_inferior(item)
+                # A spare the smith has refused (unsellable) is no longer held for
+                # sale — let it shelve back to Home so a pack of refused spares
+                # cannot block town departure forever.
+                and (item.name, item.tval, item.sval) not in self._unsellable_items
+            )
             and self._item_signature(item) not in self._home_pending_batch
             and (
                 self._home_withdraw_inflight is None
@@ -7807,15 +7814,34 @@ class HengbotPolicy:
             if deposit is not None:
                 return self._home_deposit_key(snapshot, deposit)
 
-            if self._equipped_weapon_high_grade(snapshot):
+            if (
+                self._equipped_weapon_high_grade(snapshot)
+                # Never pull spares past the batch reserve: an unguarded pull
+                # filled the pack to zero free every Home visit, and a full pack
+                # blocks town departure (MIN_FREE_PACK_SLOTS).
+                and PACK_CAPACITY - len(snapshot.inventory) > HOME_BATCH_RESERVED_SLOTS
+            ):
                 inferior = next(
-                    (it for it in store.items if self._weapon_is_inferior(it)),
+                    (
+                        it
+                        for it in store.items
+                        if self._weapon_is_inferior(it)
+                        # Do not withdraw a spare the Weapon Smith already refused
+                        # (it would clog the pack with something no sale can clear).
+                        and (it.name, it.tval, it.sval) not in self._unsellable_items
+                    ),
                     None,
                 )
                 if inferior is not None:
                     # Pull a stored good/average spare weapon back out (no pending
                     # processing) so it can be sold at the Weapon Smith; the
                     # deposit filter keeps it from being re-stored on the way.
+                    # Re-open the Weapon Smith sale route for this freshly withdrawn
+                    # spare. Without it, a second Home visit that pulls a new batch
+                    # after the smith was already visited leaves the pack clogged
+                    # with unsold weapons (STORE_WEAPON stays latched until
+                    # STORE_RETRY_TURNS) and town departure stalls until self-stop.
+                    self._town_store_attempted.pop(STORE_WEAPON, None)
                     self.last_reason = "home:withdraw-inferior-weapon"
                     return BUY_KEY + inferior.letter + "\r"
 
