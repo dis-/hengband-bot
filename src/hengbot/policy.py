@@ -2169,7 +2169,7 @@ class HengbotPolicy:
                 not snapshot.in_town
                 and not forgetting_maze
                 and self._search_counts[here_key] < SEARCH_LIMIT
-            ):
+        ):
                 self._search_counts[here_key] += 1
                 self.last_reason = "search"
                 return SEARCH_KEY
@@ -12586,6 +12586,11 @@ class HengbotPolicy:
         # seek/approach/breakout handed the same unreachable remembered stair
         # to each other forever (the 2026-07-17 starvation incident).
         expired = self._nav_ledger.expired_targets("descend")
+        visible_descent_positions = {
+            g.position
+            for g in snapshot.grids.values()
+            if g.is_descent
+        }
         visible_targets = {
             g.position
             for g in snapshot.grids.values()
@@ -12602,7 +12607,7 @@ class HengbotPolicy:
             )
         ):
             forgotten_targets = (
-                self._remembered_downstairs - visible_targets - expired
+                self._remembered_downstairs - visible_descent_positions - expired
             )
             targets.update(forgotten_targets)
         origin = snapshot.player.position

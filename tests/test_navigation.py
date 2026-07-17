@@ -13,6 +13,7 @@ import unittest
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from hengbot.model import Position, Snapshot, parse_snapshot
 from hengbot.cli import LOOP_WINDOW, STARVING_STOP_LIMIT, _advance_starving_streak
@@ -158,6 +159,39 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertEqual(keys, ["3", "9"])
         self.assertLess(max(Counter(visited).values()), 3)
         self.assertNotIn(("3", "7"), zip(keys, keys[1:]))
+
+    def test_0124_real_stair_replay_descends_and_has_one_eligibility_source(self):
+        incident = self._load_jsonl("descend-in-place-2026-07-18-0124.jsonl")
+        self.assertEqual(incident[0]["turn"], 885977)
+        self.assertEqual(incident[-1]["reason"], "loop-detected")
+        self.assertGreaterEqual(
+            max(Counter(
+                (row["position"]["y"], row["position"]["x"])
+                for row in incident
+            ).values()),
+            5,
+        )
+
+        snapshot = parse_snapshot(self._load_jsonl(
+            "descend-in-place-2026-07-18-0124-snapshots.jsonl"
+        )[0])
+        policy = HengbotPolicy()
+        here = snapshot.grid_at(snapshot.player.position)
+        self.assertIsNotNone(here)
+        self.assertTrue(here.has_down_stairs)
+        self.assertEqual(policy.choose_key(snapshot), ">")
+        self.assertEqual(policy.last_reason, "descend")
+
+        # A visible stair vetoed by the authoritative in-place eligibility
+        # check must not return through the remembered/"forgotten" target set.
+        # The incident floor has another visible stair, so the old subtraction
+        # routed from one vetoed stair to the other forever.
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+        with patch.object(policy, "_is_descent_target", return_value=False):
+            self.assertIsNone(policy._descent_step(snapshot))
+        self.assertIsNone(policy._nav_ledger.descent_target)
 
 
 class StairRejectionInvalidationTest(unittest.TestCase):
