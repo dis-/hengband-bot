@@ -778,6 +778,10 @@ HOME_BATCH_RESERVED_SLOTS = 3
 FOOD_STOCK_TARGET = 5
 MANA_FOOD_CHARGE_TARGET = 15
 MANA_FOOD_DEVICE_TARGET = 2
+# MANA races may eat their identification workhorse, but ordinary hunger must
+# leave enough charges for the staff to remain functional. Weakness/fainting
+# overrides this reserve because survival is the device's final purpose.
+IDENTIFY_CHARGE_FLOOR = 5
 MIN_FREE_PACK_SLOTS = 5
 TELEPORT_SCROLL_TARGET = 3
 # Deep runs (10F+) escape far more often, so carry a big teleport buffer and only
@@ -3320,11 +3324,22 @@ class HengbotPolicy:
         return needed
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
-        return sum(
+        known_charges = sum(
             it.charges
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
         )
+        if snapshot.player.food_state in {"weak", "fainting"}:
+            return known_charges
+        identify_charges = sum(
+            it.charges
+            for it in snapshot.inventory
+            if it.known
+            and it.tval == TVAL_STAFF
+            and it.sval == SV_STAFF_IDENTIFY
+            and it.charges > 0
+        )
+        return known_charges - min(IDENTIFY_CHARGE_FLOOR, identify_charges)
 
     def _count_mana_food_devices(self, snapshot: Snapshot) -> int:
         return sum(
@@ -6436,8 +6451,30 @@ class HengbotPolicy:
             return None
         food = self._supply_ledger(snapshot, self._planned_depth())["food"]
         shortage = max(1, food.required_departure - food.count)
-        sufficient = [it for it in candidates if it.pval >= shortage]
-        return min(sufficient or candidates, key=lambda it: (it.price, -it.pval, it.letter))
+
+        def utility_rank(item: StoreItem) -> int:
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+                return 0
+            if (
+                item.tval == TVAL_WAND
+                and item.sval in {SV_WAND_STONE_TO_MUD, SV_WAND_TELEPORT_AWAY}
+            ):
+                return 1
+            return 2
+
+        # User directive (2026-07-17): pack slots beat small gold savings.
+        # Minimize devices/slots first (highest charges), prefer a device the
+        # policy can actually use when slot-equivalent, and compare price last.
+        return min(
+            candidates,
+            key=lambda it: (
+                (shortage + it.pval - 1) // it.pval,
+                utility_rank(it),
+                -it.pval,
+                it.price,
+                it.letter,
+            ),
+        )
 
     def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
@@ -9891,11 +9928,37 @@ class HengbotPolicy:
         # empty one is skipped, an unknown one is worth the attempt) — but prefer
         # a device we know still has charges.
         if snapshot.player.food_type == FOOD_TYPE_MANA:
-            charged = self._first_item(
-                snapshot, lambda it: it.is_wand_staff and it.known and it.charges > 0
-            )
-            if charged is not None:
-                return charged
+            charged = [
+                it
+                for it in snapshot.inventory
+                if it.is_wand_staff and it.known and it.charges > 0
+            ]
+            non_utility = [it for it in charged if not self._is_useful_device(it)]
+            if non_utility:
+                return min(non_utility, key=lambda it: (-it.count, -it.charges, it.slot))
+
+            utility = [
+                it
+                for it in charged
+                if not (
+                    it.tval == TVAL_STAFF
+                    and it.sval == SV_STAFF_IDENTIFY
+                )
+            ]
+            if utility:
+                return min(utility, key=lambda it: (-it.count, -it.charges, it.slot))
+
+            identify = [
+                it
+                for it in charged
+                if it.tval == TVAL_STAFF and it.sval == SV_STAFF_IDENTIFY
+            ]
+            identify_total = sum(it.charges for it in identify)
+            if identify and (
+                snapshot.player.food_state in {"weak", "fainting"}
+                or identify_total > IDENTIFY_CHARGE_FLOOR
+            ):
+                return min(identify, key=lambda it: (-it.count, -it.charges, it.slot))
             return self._first_item(
                 snapshot, lambda it: it.is_wand_staff and not it.known
             )

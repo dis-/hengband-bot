@@ -98,6 +98,7 @@ from hengbot.policy import (
     STAFF_IDENTIFY_MAX_COUNT,
     IDENTIFY_PRESSURE_FREE_SLOTS,
     IDENTIFY_FAIL_LIMIT,
+    IDENTIFY_CHARGE_FLOOR,
     IDENTIFY_PURCHASE_MAX,
     RECALL_MIN_DEPTH,
     RESUME_DESCENT_BLOCK_DECISIONS,
@@ -3369,10 +3370,11 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         policy._fundraising_mode = "prepare"
         self.assertEqual(policy._next_required_store_type(snap), STORE_MAGIC)
 
-    def test_mana_food_purchase_chooses_cheapest_sufficient_charges(self):
-        expensive = store_item("a", TVAL_STAFF, 1, price=120, pval=20)
-        cheap = store_item("b", TVAL_WAND, 1, price=80, pval=15)
-        too_small = store_item("c", TVAL_WAND, 2, price=10, pval=4)
+    def test_mana_food_purchase_slots_then_function_then_price(self):
+        identify = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500, pval=20
+        )
+        cheap_fillers = store_item("b", TVAL_WAND, 1, price=100, pval=5, count=4)
         snap = Snapshot(
             player(
                 10, 10, gold=500, food_type=FOOD_TYPE_MANA,
@@ -3380,9 +3382,78 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             ),
             {Position(10, 10): grid(10, 10)},
             [],
-            store=StoreState(STORE_MAGIC, [expensive, cheap, too_small]),
+            store=StoreState(STORE_MAGIC, [identify, cheap_fillers]),
         )
-        self.assertEqual(HengbotPolicy()._next_purchase_unreserved(snap), cheap)
+        policy = HengbotPolicy()
+        self.assertEqual(policy._next_purchase_unreserved(snap), identify)
+
+        functional = store_item(
+            "c", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500, pval=15
+        )
+        filler = store_item("d", TVAL_STAFF, 1, price=100, pval=15)
+        tied = replace(snap, store=StoreState(STORE_MAGIC, [filler, functional]))
+        self.assertEqual(policy._mana_food_purchase(tied), functional)
+
+        expensive = store_item("e", TVAL_STAFF, 1, price=120, pval=15)
+        cheap = store_item("f", TVAL_STAFF, 2, price=80, pval=15)
+        price_tie = replace(snap, store=StoreState(STORE_MAGIC, [expensive, cheap]))
+        self.assertEqual(policy._mana_food_purchase(price_tie), cheap)
+
+    def test_mana_food_eating_preserves_function_then_survival_overrides(self):
+        policy = HengbotPolicy()
+        identify = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=8, name="Identify"
+        )
+        filler = item("f", TVAL_STAFF, 1, charges=12, name="filler")
+
+        hungry = Snapshot(
+            player(10, 10, food=1500, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[identify, filler],
+        )
+        self.assertEqual(policy._find_edible(hungry), filler)
+
+        hungry_identify_only = replace(hungry, inventory=[identify])
+        self.assertEqual(policy._find_edible(hungry_identify_only), identify)
+
+        floor = replace(identify, charges=IDENTIFY_CHARGE_FLOOR)
+        hungry_floor = replace(hungry, inventory=[floor])
+        self.assertIsNone(policy._find_edible(hungry_floor))
+
+        weak_floor = replace(
+            hungry_floor,
+            player=player(10, 10, food=750, food_type=FOOD_TYPE_MANA),
+        )
+        self.assertEqual(policy._find_edible(weak_floor), floor)
+        fainting_floor = replace(
+            hungry_floor,
+            player=player(10, 10, food=400, food_type=FOOD_TYPE_MANA),
+        )
+        self.assertEqual(policy._find_edible(fainting_floor), floor)
+
+    def test_identify_floor_and_hunger_return_use_same_edible_charge_count(self):
+        policy = HengbotPolicy()
+        floor = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            charges=IDENTIFY_CHARGE_FLOOR, name="Identify",
+        )
+        hungry = Snapshot(
+            player(10, 10, food=1500, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0), inventory=[floor],
+        )
+        self.assertEqual(policy._supply_ledger(hungry, 2)["food"].count, 0)
+        self.assertTrue(policy._should_start_town_return(hungry))
+        self.assertEqual(policy._last_return_trigger, "food-hungry")
+
+        weak = replace(
+            hungry,
+            player=player(10, 10, food=750, food_type=FOOD_TYPE_MANA),
+        )
+        self.assertEqual(
+            policy._supply_ledger(weak, 2)["food"].count,
+            IDENTIFY_CHARGE_FLOOR,
+        )
+        self.assertFalse(policy._should_start_town_return(weak))
 
     def test_town_starvation_routes_to_food_store_before_other_errands(self):
         snap = Snapshot(
