@@ -71,9 +71,12 @@ const loadDrafts = () =>
 const fmt = (v) => JSON.stringify(v, null, 0);
 
 if (action === "export") {
+  // --only selects the listed quests REGARDLESS of approval state (approved
+  // drafts render as 確認用 items so the user can review/revoke them in the
+  // same browser format); without --only, every pending draft exports.
   const only = argValue("--only")?.split(",").map(Number);
   const pending = loadDrafts().filter(
-    (d) => d.data.approved === false && (!only || only.includes(d.data.quest_id)),
+    (d) => (only ? only.includes(d.data.quest_id) : d.data.approved === false),
   );
   const items = pending.map((d) => {
     const q = d.data;
@@ -105,13 +108,15 @@ if (action === "export") {
     for (const sentence of (rf.rationale ?? "").split(/(?<=\.)\s+/)) {
       if (sentence.trim()) steps.push(`・${sentence.trim()}`);
     }
+    const approvedTag = q.approved ? "【承認済み・確認用】" : "";
     return {
       id: `strategy-QUEST_${q.quest_id}`,
       category: "クエスト戦略承認",
-      title: `Q${q.quest_id} ${q.name?.ja ?? ""} — ゲート: HP${rf.min_hp}/DPS${rf.min_expected_dps ?? "?"}`,
+      title: `${approvedTag}Q${q.quest_id} ${q.name?.ja ?? ""} — ゲート: HP${rf.min_hp}/DPS${rf.min_expected_dps ?? "?"}`,
       steps,
-      expected:
-        "値が妥当なら合格(=承認)。差し戻すなら失敗にして修正指示をフィードバック欄へ。",
+      expected: q.approved
+        ? "承認済みの内容確認。このままで良ければ合格。修正が必要なら失敗にして指示をフィードバック欄へ(承認は自動では取り消されません)。"
+        : "値が妥当なら合格(=承認)。差し戻すなら失敗にして修正指示をフィードバック欄へ。",
     };
   });
   const payload = {
