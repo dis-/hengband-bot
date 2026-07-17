@@ -292,15 +292,26 @@ class NavigationInvariantTest(unittest.TestCase):
             grids=grids,
             visible_monsters=[louse],
         )
+        recall = item("w", SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        fighting = replace(fighting, inventory=(recall,))
         policy = HengbotPolicy()
         policy._fruitless_disengage_floor = fighting.floor_key
+        # Arm the state exactly as the live fruitless latch does: the combat
+        # verdict also forces the town return. Without this the escape path
+        # never even starts, and the test cannot distinguish guarded from
+        # unguarded code (revert-proof caught it passing on the old policy).
+        policy._returning_to_town = True
 
         decisions = [
             policy.choose_key(fighting)
             for _ in range(FRUITLESS_DISENGAGE_LIMIT + 1)
         ]
 
-        self.assertFalse({"<", ">", "r"}.intersection(decisions))
+        self.assertFalse(
+            {"<", ">"}.intersection(decisions)
+            or any(key.startswith("r") for key in decisions),
+            f"quest floor was abandoned: {sorted(set(decisions))}",
+        )
         self.assertEqual(decisions[-1], "5")
         self.assertEqual(policy.last_reason, "combat:fruitless")
 
