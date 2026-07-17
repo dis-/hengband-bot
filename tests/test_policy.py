@@ -12936,6 +12936,57 @@ class TownCycleDetectorTest(unittest.TestCase):
             steps += 1
         self.assertTrue(pol._town_cycle_pending)
 
+    def test_home_plan_owned_page_cycle_does_not_trip_repetition_guard(self):
+        # 18:41 replay shape: store-loop and main-loop snapshots reported the
+        # bounded Home page owner alternately, without inventory/gold changes.
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        reasons = ("home:seek-processing-page", "home:processing-complete")
+        for step in range(TOWN_NO_PROGRESS_LIMIT * 2):
+            pol.last_reason = reasons[step % len(reasons)]
+            pol._observe(self._town_snap())
+
+        self.assertFalse(pol._town_cycle_pending)
+        self.assertEqual(pol._town_no_progress_count, 0)
+        self.assertEqual(list(pol._town_signature_history), [])
+
+    def test_blocked_home_replay_leaves_then_waits_only_outside(self):
+        # A real store snapshot is followed by one interleaved main-loop town
+        # snapshot on the Home tile. Both must emit ESC; only the subsequent
+        # outside snapshot may emit raw WAIT (key 5).
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        town = self._town_snap()
+        position = town.player.position
+        store_grid = replace(town.grids[position], store_number=STORE_HOME)
+        home = replace(
+            town,
+            grids={position: store_grid},
+            store=StoreState(store_type=STORE_HOME, items=[]),
+            town_flag=False,
+        )
+        interleaved = replace(
+            town,
+            grids={position: store_grid},
+            town_flag=True,
+        )
+
+        keys = [pol.choose_key(home), pol.choose_key(interleaved)]
+        outside = self._town_snap(y=34, x=95)
+        keys.append(pol._town_special_key(outside))
+
+        self.assertEqual(keys, [LEAVE_STORE_KEY, LEAVE_STORE_KEY, WAIT_KEY])
+        self.assertNotIn(WAIT_KEY, keys[:2])
+        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+
+    def test_blocked_latch_outside_store_still_waits(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        self.assertEqual(pol._town_special_key(self._town_snap()), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+
     def test_nine_cell_resupply_carousel_hits_no_progress_limit(self):
         # Exact class of the live failure: unaffordable shopping approaches
         # advance through several town cells, with breakout decisions adding
@@ -15615,7 +15666,9 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
         self.assertEqual(policy._shop(home), " ")
         self.assertEqual(policy.last_reason, "home:seek-processing-page")
-        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        processing_complete_key = policy._shop(home)
+        self.assertTrue(processing_complete_key)
+        self.assertEqual(processing_complete_key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertEqual(policy._next_required_store_type(town), STORE_GENERAL)
 

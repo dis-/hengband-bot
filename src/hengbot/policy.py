@@ -156,6 +156,9 @@ HOME_PAGE_ADVANCE_REASONS = frozenset(
         "home:seek-processing-page",
     }
 )
+HOME_PLAN_OWNED_PROCESSING_REASONS = HOME_PAGE_ADVANCE_REASONS | {
+    "home:processing-complete",
+}
 
 
 @dataclass
@@ -1293,6 +1296,10 @@ class HengbotPolicy:
         self._disposal_stuck_count = 0
         self._destroy_pending = False
         self._destroy_attempts = 0
+        # The emitter can interleave a store-loop snapshot with a main-loop
+        # town snapshot at the same door tile. Retain one decision of store
+        # context so a latched town stop closes that UI before it waits.
+        self._last_snapshot_was_store = False
         # Full-pack disposal verification: signatures of items the game would not
         # destroy (so we stop re-selecting them and forever looping), plus a watch
         # on the last attempt to detect that the pack did not change afterwards.
@@ -1338,6 +1345,7 @@ class HengbotPolicy:
         # The rest counter only survives consecutive rests; anything else clears it.
         if self.last_reason != "rest":
             self._rest_count = 0
+        self._last_snapshot_was_store = snapshot.store is not None
         return key
 
     def prime(self, snapshot: Snapshot) -> None:
@@ -1347,6 +1355,7 @@ class HengbotPolicy:
         Priming lets the long-lived policy retain the safety consequence of that
         decision without sending a duplicate key.
         """
+        self._last_snapshot_was_store = snapshot.store is not None
         self._observe(snapshot)
         self._build_grid_index(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
@@ -1481,6 +1490,14 @@ class HengbotPolicy:
         return key
 
     def _decide(self, snapshot: Snapshot) -> str:
+        # A town-block latch owns the store exit before ordinary Home/shop page
+        # processing. WAIT_KEY is not a valid store command.
+        if (
+            self._town_blocked_reason is not None
+            and self._town_blocked_store_context(snapshot)
+        ):
+            return self._town_blocked_key(snapshot)
+
         # In a store the town map and monsters are irrelevant — only buy/leave.
         if snapshot.store is not None:
             return self._shop(snapshot)
@@ -2168,6 +2185,7 @@ class HengbotPolicy:
             if (
                 self.last_reason
                 and self.last_reason not in TOWN_CYCLE_IGNORED_REASONS
+                and self.last_reason not in HOME_PLAN_OWNED_PROCESSING_REASONS
             ):
                 position = snapshot.player.position
                 self._town_signature_history.append(
@@ -8005,6 +8023,21 @@ class HengbotPolicy:
             else None
         )
 
+    def _town_blocked_store_context(self, snapshot: Snapshot) -> bool:
+        here = snapshot.grid_at(snapshot.player.position)
+        return snapshot.store is not None or (
+            self._last_snapshot_was_store
+            and here is not None
+            and here.is_store
+        )
+
+    def _town_blocked_key(self, snapshot: Snapshot) -> str:
+        """Leave an open/interleaved store UI before waiting in town."""
+        self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        if self._town_blocked_store_context(snapshot):
+            return LEAVE_STORE_KEY
+        return WAIT_KEY
+
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:
             return None
@@ -8019,21 +8052,18 @@ class HengbotPolicy:
             self._town_cycle_breaks += 1
             if self._town_cycle_breaks >= TOWN_CYCLE_BREAK_LIMIT:
                 self._town_blocked_reason = "repetition"
-                self.last_reason = "town:blocked:repetition"
-                return WAIT_KEY
+                return self._town_blocked_key(snapshot)
             self._break_town_cycle(snapshot)
             if (
                 self._fundraising_mode in {"mine", "scavenge"}
                 and not self._fundraising_light_ready(snapshot)
             ):
                 self._town_blocked_reason = "departure-no-light"
-                self.last_reason = "town:blocked:departure-no-light"
-                return WAIT_KEY
+                return self._town_blocked_key(snapshot)
             self.last_reason = "town:cycle-break"
             return WAIT_KEY
         if self._town_blocked_reason is not None:
-            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
-            return WAIT_KEY
+            return self._town_blocked_key(snapshot)
 
         if (
             not self._town_restock_suppressed
