@@ -1,8 +1,8 @@
 # Bot liveness status
 
-- state: **STOPPED**
-- as of: 2026-07-18 02:58 JST
-- dump age: 554s / decision-log age: 271s
-- last decision reason: town:wait-restock
+- state: **DUMP-STALE**
+- as of: 2026-07-18 04:20 JST
+- dump age: 5437s / decision-log age: 0s
+- last decision reason: home:seek-processing-page
 
-Bot decisions have stalled (stopped for maintenance, loop stop, or hang). Game may still be alive.
+Bot decisions are advancing but the dump stopped refreshing (dump path problem).
