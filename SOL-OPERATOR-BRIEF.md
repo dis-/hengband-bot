@@ -14,6 +14,12 @@ RE-CHECK the hold file IMMEDIATELY BEFORE issuing any start/resume command,
 not only at iteration start — on 2026-07-17 a generation that began before
 the hold appeared resumed the bot mid-investigation (a race the
 start-of-iteration check cannot see).
+NEVER start/resume the bot while the repo working tree has UNCOMMITTED
+src/ changes (git status): the Python process imports whatever half-edited
+policy.py is on disk at spawn time — a 2026-07-17 session imported a
+fixer's mid-edit file and produced an unreproducible navigation loop.
+Check `git status --short src/` right before any start/resume; if dirty,
+append a question event and wait.
 The human user directs Fable; escalate open questions through
 the event log, never assume approval.
 
