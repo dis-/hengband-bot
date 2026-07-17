@@ -372,9 +372,14 @@ class OwnedEquipmentCatalog:
         # consumable-only or ammunition-only pages otherwise both collapse to
         # (), falsely completing the scan before later weapon pages are seen.
         page = tuple(_catalog_signature(item) for item in all_page_items)
+        # Hengband displays twelve Home entries per page.  A short page is
+        # therefore both the first and last page; waiting for a page change to
+        # prove wraparound can never complete a one-page (or empty) Home scan.
+        if len(all_page_items) < 12:
+            self.home_scan_complete = True
         if page in self._home_seen_pages:
             if not allow_wrap:
-                return False
+                return self.home_scan_complete
             self.home_scan_complete = True
             return True
         self._home_seen_pages.add(page)
@@ -389,7 +394,7 @@ class OwnedEquipmentCatalog:
                 "home",
                 random_teleport_suppressed=random_teleport_is_suppressed(item),
             )
-        return False
+        return self.home_scan_complete
 
     def invalidate_home(self) -> None:
         self._home.clear()

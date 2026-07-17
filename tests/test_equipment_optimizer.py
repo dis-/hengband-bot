@@ -353,6 +353,12 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
             is_equipment=True,
         )
 
+    def _full_page(self, name):
+        return [
+            self._home_item(chr(ord("a") + index), f"{name}-{index}")
+            for index in range(12)
+        ]
+
     def test_keeps_identical_physical_home_items(self):
         catalog = OwnedEquipmentCatalog()
         catalog.observe_home_page(
@@ -363,16 +369,32 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
 
     def test_home_scan_completes_only_when_a_page_repeats(self):
         catalog = OwnedEquipmentCatalog()
-        first = [self._home_item("a", "sword")]
-        second = [self._home_item("a", "armour")]
+        first = self._full_page("sword")
+        second = self._full_page("armour")
         self.assertFalse(catalog.observe_home_page(first))
         self.assertFalse(catalog.observe_home_page(second))
         self.assertTrue(catalog.observe_home_page(first))
         self.assertTrue(catalog.home_scan_complete)
 
+    def test_single_short_home_page_completes_immediately(self):
+        catalog = OwnedEquipmentCatalog()
+        page = [
+            self._home_item(chr(ord("a") + index), f"item-{index}")
+            for index in range(10)
+        ]
+
+        self.assertTrue(catalog.observe_home_page(page, allow_wrap=False))
+        self.assertTrue(catalog.home_scan_complete)
+
+    def test_empty_home_scan_completes_immediately(self):
+        catalog = OwnedEquipmentCatalog()
+
+        self.assertTrue(catalog.observe_home_page([], allow_wrap=False))
+        self.assertTrue(catalog.home_scan_complete)
+
     def test_repeated_snapshot_does_not_complete_without_page_advance(self):
         catalog = OwnedEquipmentCatalog()
-        page = [self._home_item("a", "sword")]
+        page = self._full_page("sword")
 
         self.assertFalse(catalog.observe_home_page(page, allow_wrap=False))
         self.assertFalse(catalog.observe_home_page(page, allow_wrap=False))
@@ -395,8 +417,8 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
     def test_non_equipment_pages_do_not_hide_later_weapon_pages(self):
         ammunition_page = [
             StoreItem(
-                letter="a",
-                name="arrows",
+                letter=chr(ord("a") + index),
+                name=f"arrows-{index}",
                 count=20,
                 tval=TVAL_ARROW,
                 sval=1,
@@ -404,12 +426,12 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
                 known=True,
                 fully_known=True,
                 is_equipment=True,
-            )
+            ) for index in range(12)
         ]
         consumable_page = [
             StoreItem(
-                letter="a",
-                name="healing potion",
+                letter=chr(ord("a") + index),
+                name=f"healing potion-{index}",
                 count=2,
                 tval=75,
                 sval=1,
@@ -417,9 +439,9 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
                 known=True,
                 fully_known=True,
                 is_equipment=False,
-            )
+            ) for index in range(12)
         ]
-        weapon_page = [self._home_item("a", "extra attacks trident")]
+        weapon_page = self._full_page("extra attacks trident")
         catalog = OwnedEquipmentCatalog()
 
         self.assertFalse(catalog.observe_home_page(ammunition_page))
@@ -430,7 +452,7 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertTrue(catalog.home_scan_complete)
         self.assertEqual(
             [owned.item.name for owned in catalog.items],
-            ["extra attacks trident"],
+            [f"extra attacks trident-{index}" for index in range(12)],
         )
 
     def test_invalidation_discards_stale_home_scan(self):

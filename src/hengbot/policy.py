@@ -219,12 +219,19 @@ class TownErrandPlan:
     index: int = 0
     inserted_this_visit: list[int] | None = None
     skipped_latched: list[int] | None = None
+    completed_this_visit: list[int] | None = None
+    blocked_this_visit: list[int] | None = None
+    current_stop_passes: int = 0
 
     def __post_init__(self) -> None:
         if self.inserted_this_visit is None:
             self.inserted_this_visit = []
         if self.skipped_latched is None:
             self.skipped_latched = []
+        if self.completed_this_visit is None:
+            self.completed_this_visit = []
+        if self.blocked_this_visit is None:
+            self.blocked_this_visit = []
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
@@ -709,6 +716,7 @@ STORE_STUCK_LIMIT = 6
 # bounded visit-local attempt: after that, exclude the failed item and optimize
 # the loadout that is actually achievable this visit so departure cannot stall.
 EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = 3
+TOWN_STOP_PASS_LIMIT = 3
 # Oscillating store-approach turns (while _is_oscillating) tolerated before giving
 # up an unreachable store and diving with what we have. Above STUCK_WINDOW so a
 # reachable store one tile on is still pursued; below the cli loop guard's window
@@ -5857,12 +5865,22 @@ class HengbotPolicy:
         needs = self._enumerate_town_needs(snapshot)
         needed_stores = {need.store_type for need in needs}
         plan = self._town_errand_plan
-        if plan is None or plan.index >= len(plan.stops):
+        if plan is None:
+            plan = self._build_town_errand_plan(snapshot, needs)
+            self._town_errand_plan = plan
+        elif (
+            plan.index >= len(plan.stops)
+            and any(
+                store_type not in self._town_store_attempted
+                for store_type in (*plan.skipped_latched, *plan.blocked_this_visit)
+            )
+        ):
             plan = self._build_town_errand_plan(snapshot, needs)
             self._town_errand_plan = plan
         elif plan.index < len(plan.stops):
             pending = set(plan.stops[plan.index + 1 :])
-            additions = needed_stores - pending - {plan.stops[plan.index]}
+            finished = set(plan.completed_this_visit) | set(plan.blocked_this_visit)
+            additions = needed_stores - pending - finished - {plan.stops[plan.index]}
             if additions:
                 current_store = plan.stops[plan.index]
                 current_position = (
@@ -5888,8 +5906,31 @@ class HengbotPolicy:
                 continue
             return store_type
 
-        self._town_errand_plan = None
         return self._legacy_town_router_terminal(snapshot)
+
+    def _report_town_stop_pass(
+        self, snapshot: Snapshot, store_type: int, *, goal_satisfied: bool
+    ) -> None:
+        """Report one handler pass to the plan that owns this town objective."""
+        plan = self._town_errand_plan
+        if (
+            plan is None
+            or plan.index >= len(plan.stops)
+            or plan.stops[plan.index] != store_type
+        ):
+            return
+        if goal_satisfied:
+            plan.completed_this_visit.append(store_type)
+            plan.current_stop_passes = 0
+            plan.index += 1
+            return
+        plan.current_stop_passes += 1
+        if plan.current_stop_passes < TOWN_STOP_PASS_LIMIT:
+            return
+        plan.blocked_this_visit.append(store_type)
+        plan.current_stop_passes = 0
+        plan.index += 1
+        self._town_store_attempted[store_type] = snapshot.turn
 
     def _legacy_town_router_terminal(self, snapshot: Snapshot) -> int | None:
         if self._town_restock_suppressed:
@@ -7169,6 +7210,11 @@ class HengbotPolicy:
 
             self._home_processing_seen_pages.clear()
             self._home_candidate_waiting = False
+            self._report_town_stop_pass(
+                snapshot,
+                STORE_HOME,
+                goal_satisfied=self._equipment_catalog.home_scan_complete,
+            )
             self.last_reason = (
                 "home:leave-with-batch"
                 if self._home_pending_batch

@@ -139,6 +139,7 @@ from hengbot.policy import (
     TOWN_CYCLE_IGNORED_REASONS,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
+    TOWN_STOP_PASS_LIMIT,
     TownTravelProgress,
     TownNeed,
     TOWN_NO_PROGRESS_LIMIT,
@@ -8543,13 +8544,22 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             "a", 23, 1, name="average sword", known=False,
             fully_known=False, is_equipment=True, pseudo_feeling="average",
         )
+        full_page = [average] + [
+            store_item(
+                chr(ord("a") + index), 23, index,
+                name=f"average sword {index}", known=False,
+                fully_known=False, is_equipment=True,
+                pseudo_feeling="average",
+            )
+            for index in range(1, 12)
+        ]
         home = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
             inventory=self._strict_supplies(recall=1),
             equipment=[self._lantern(), item("main_hand", 23, 2, is_equipment=True)],
-            store=StoreState(store_type=STORE_HOME, items=[average]),
+            store=StoreState(store_type=STORE_HOME, items=full_page),
         )
         policy = HengbotPolicy()
 
@@ -15333,6 +15343,64 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._break_town_cycle(snapshot)
         self.assertIsNone(policy._town_errand_plan)
         self.assertIsNone(policy._next_required_store_type(snapshot))
+
+    def test_completed_stop_is_not_reacquired_from_live_needs(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=True
+        )
+
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        self.assertEqual(policy._town_errand_plan.completed_this_visit, [STORE_HOME])
+
+    def test_unsatisfied_stop_blocks_after_three_completed_passes(self):
+        needs = [
+            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(STORE_GENERAL, "food", "normal"),
+        ]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        for _ in range(TOWN_STOP_PASS_LIMIT):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+        self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
+
+    def test_logged_single_page_home_episode_advances_within_two_decisions(self):
+        needs = [
+            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(STORE_GENERAL, "food", "normal"),
+        ]
+        policy = self._policy(needs)
+        town = self._snapshot(turn=131482)
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
+        page = [
+            store_item(
+                chr(ord("a") + index), TVAL_FOOD, index,
+                name=f"stored item {index}", price=0,
+            )
+            for index in range(10)
+        ]
+        home = replace(
+            town,
+            store=StoreState(store_type=STORE_HOME, items=page),
+            town_flag=False,
+        )
+
+        policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
+        self.assertEqual(policy._shop(home), " ")
+        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertEqual(policy._next_required_store_type(town), STORE_GENERAL)
 
 
 class SupplyLedgerInvariantTest(unittest.TestCase):
