@@ -14684,6 +14684,62 @@ class DeepKitTest(unittest.TestCase):
         self.assertTrue(pol._identify_staff_ready(self._dungeon(11, two)))   # 22 >= 20
         self.assertEqual(pol._total_identify_staff_charges(self._dungeon(11, two)), 22)
 
+class RetentionAuthorityTest(unittest.TestCase):
+    def _town(self, inventory, *, store=None):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=list(inventory),
+            store=store,
+        )
+
+    def test_replay_just_bought_detection_and_planned_shovel_stay_in_pack(self):
+        detection = item(
+            "h", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Treasure Detection",
+        )
+        shovel = item("k", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="Shovel", pval=1)
+        snap = self._town([detection, shovel], store=StoreState(STORE_HOME, []))
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._town_visit_purchases.add(policy._item_signature(detection))
+
+        self.assertEqual(policy._retention_reservation(snap, detection), 1)
+        self.assertEqual(policy._retention_reservation(snap, shovel), 1)
+        self.assertIsNone(policy._find_home_deposit(snap))
+
+    def test_ten_torches_are_reserved_and_real_surplus_deposits_once(self):
+        torches = item(
+            "j", TVAL_LITE, SV_LITE_TORCH,
+            count=14, name="Wooden Torches", fuel=5000,
+        )
+        snap = self._town([torches], store=StoreState(STORE_HOME, []))
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._retention_reservation(snap, torches), 10)
+        self.assertEqual(policy._retention_surplus(snap, torches), 4)
+        self.assertEqual(policy._find_home_deposit(snap), torches)
+        self.assertEqual(policy._home_deposit_key(snap, torches), "dj4\r")
+
+    def test_same_visit_purchase_guard_clears_on_floor_change(self):
+        detection = item(
+            "h", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Treasure Detection",
+        )
+        policy = HengbotPolicy()
+        policy._town_visit_purchases.add(policy._item_signature(detection))
+        town = self._town([detection])
+        policy._floor_key = town.floor_key
+        self.assertEqual(policy._retention_reservation(town, detection), 1)
+
+        dungeon = replace(town, floor_key=(1, 1, 0), town_flag=False)
+        policy._observe(dungeon)
+        self.assertFalse(policy._town_visit_purchases)
+
+
 class HomeFullLatchTest(unittest.TestCase):
     """A full Home must not latch a sticky town block: the deposit just stops for
     the visit and other errands proceed (mirrors the bounty-office fix)."""

@@ -1230,6 +1230,8 @@ class HengbotPolicy:
         self._home_deposit_abandoned = False
         # A command can reject one item even while the Home still has free pages.
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
+        # Store purchases are retained for the rest of the current town visit.
+        self._town_visit_purchases: set[tuple[str, int, int]] = set()
         # Pack-pressure identify verification: items whose identify never lands
         # (device use stalls), plus a watch on the last attempt to detect that
         # the pack's unknown count did not change afterwards.
@@ -1372,6 +1374,18 @@ class HengbotPolicy:
             # Require a fresh complete scan before optimization or departure.
             self._equipment_catalog.invalidate_home()
         self._capture_home_history_intent(snapshot, key)
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type != STORE_HOME
+            and key.startswith(BUY_KEY)
+            and len(key) > 1
+        ):
+            bought = next(
+                (item for item in snapshot.store.items if item.letter == key[1]),
+                None,
+            )
+            if bought is not None:
+                self._town_visit_purchases.add(self._item_signature(bought))
         # The rest counter only survives consecutive rests; anything else clears it.
         if self.last_reason != "rest":
             self._rest_count = 0
@@ -2482,6 +2496,7 @@ class HengbotPolicy:
                 self._yeek_conquest_processed = True
 
         if snapshot.floor_key != self._floor_key:
+            self._town_visit_purchases.clear()
             self._fundraising_pursuit_target = None
             self._visit_counts.clear()
             self._recent.clear()
@@ -3028,6 +3043,7 @@ class HengbotPolicy:
                 self._is_spare_lantern(snapshot, it)
                 or (it.is_torch and it.count > TORCH_THROW_TARGET)
             )
+            and self._retention_surplus(snapshot, it) > 0
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
@@ -3040,20 +3056,21 @@ class HengbotPolicy:
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
-            lambda it: self._is_disposable_item(
-                it, food_type=snapshot.player.food_type
-            )
-            or self._is_spare_lantern(snapshot, it)
-            # Fundraising needs one digging tool, never four. At pack pressure,
-            # discard every tool except the strongest before spending Recall.
-            or self._is_surplus_digging_tool(snapshot, it)
-            # Ammo has no use without a launcher. Keep it whenever any bow is
-            # carried or equipped; otherwise free the slot before town departure.
-            or (
-                it.tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}
-                and not any(
-                    candidate.tval == TVAL_BOW
-                    for candidate in (*snapshot.inventory, *snapshot.equipment)
+            lambda it: self._retention_surplus(snapshot, it) > 0
+            and (
+                self._is_disposable_item(it, food_type=snapshot.player.food_type)
+                or self._is_spare_lantern(snapshot, it)
+                # Fundraising needs one digging tool, never four. At pack pressure,
+                # discard every tool except the strongest before spending Recall.
+                or self._is_surplus_digging_tool(snapshot, it)
+                # Ammo has no use without a launcher. Keep it whenever any bow is
+                # carried or equipped; otherwise free the slot before town departure.
+                or (
+                    it.tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}
+                    and not any(
+                        candidate.tval == TVAL_BOW
+                        for candidate in (*snapshot.inventory, *snapshot.equipment)
+                    )
                 )
             ),
         )
@@ -3682,6 +3699,7 @@ class HengbotPolicy:
             len(snapshot.inventory),
             has_destruction,
             self._fundraising_mode,
+            tuple(sorted(self._town_visit_purchases)),
         )
         if signature == self._equipment_optimization_signature:
             return self._equipment_optimization_preparation
@@ -3696,7 +3714,8 @@ class HengbotPolicy:
             for item in catalog
             if item.origin == "pack"
             and (
-                (
+                self._retention_reservation(snapshot, item.item) > 0
+                or (
                     item.item.is_digging_tool
                     and self._fundraising_mode in {"prepare", "mine", "scavenge"}
                 )
@@ -3860,6 +3879,12 @@ class HengbotPolicy:
                     f"deposit-item-missing:{action.item_id}"
                 )
                 self.last_reason = "equipment-transaction:deposit-missing"
+                return LEAVE_STORE_KEY
+            if self._retention_reservation(snapshot, target) > 0:
+                # A transaction cached before a purchase or plan transition is
+                # stale. Replan without ever dispatching its reserved deposit.
+                self._abandon_blocked_equipment_transaction()
+                self.last_reason = "equipment-transaction:retain-reserved"
                 return LEAVE_STORE_KEY
             if not session.dispatch(action, observation):
                 self._block_equipment_transaction("deposit-dispatch-rejected")
@@ -4073,9 +4098,103 @@ class HengbotPolicy:
             return True
         return any(grid.store_number == STORE_HOME for grid in snapshot.grids.values())
 
+    def _retention_reservation(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> int:
+        """The single authority for how much of a pack stack must remain.
+
+        Every stash, sale, and destruction path asks this view.  Quantities are
+        allocated in pack order so duplicate stacks share one aggregate target.
+        """
+        signature = self._item_signature(item)
+        if signature in self._town_visit_purchases:
+            return item.count
+
+        target = 0
+        matches = lambda candidate: False
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        if item.is_recall_scroll:
+            target = max(
+                ledger["recall"].required_departure,
+                self._recall_required_target(snapshot),
+            )
+            matches = lambda candidate: candidate.is_recall_scroll
+        elif item.is_teleport_scroll:
+            target = ledger["teleport"].required_departure
+            matches = lambda candidate: candidate.is_teleport_scroll
+        elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
+            target = ledger["cure"].required_departure
+            matches = lambda candidate: (
+                candidate.tval == TVAL_POTION
+                and candidate.sval == SV_POTION_CURE_CRITICAL
+            )
+        elif item.is_oil:
+            target = ledger["oil"].required_departure
+            matches = lambda candidate: candidate.is_oil
+        elif (
+            item.is_food
+            and item.aware
+            and item.sval >= FOOD_MIN_SVAL
+            and snapshot.player.food_type != FOOD_TYPE_MANA
+        ):
+            target = ledger["food"].required_departure
+            matches = lambda candidate: (
+                candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
+            )
+        elif item.is_torch:
+            if not item.known or item.fuel <= 0:
+                return 0
+            target = TORCH_THROW_TARGET
+            matches = lambda candidate: (
+                candidate.is_torch and candidate.known and candidate.fuel > 0
+            )
+        elif item.is_treasure_detection_scroll and self._fundraising_mode in {
+            "prepare", "mine", "scavenge"
+        }:
+            target = self._mining_detection_scroll_target(snapshot)
+            matches = lambda candidate: candidate.is_treasure_detection_scroll
+        elif item.is_digging_tool and self._fundraising_mode in {
+            "prepare", "mine", "scavenge"
+        }:
+            # Mining plans own exactly the best carried tool.  Equipment cannot
+            # stack diggers, so this is a one-item reservation.
+            pack_diggers = [it for it in snapshot.inventory if it.is_digging_tool]
+            best = max(
+                pack_diggers,
+                key=lambda it: (it.pval, int(it.is_artifact), int(it.is_ego), it.sval),
+                default=None,
+            )
+            return item.count if best is not None and best.slot == item.slot else 0
+        elif snapshot.player.food_type == FOOD_TYPE_MANA and item.is_wand_staff:
+            # Charged devices are MANA food; Identify charges below the casting
+            # floor are reserved for identification rather than edible surplus.
+            if (
+                item.known
+                and item.charges > 0
+                and item.slot == self._device_food_reserve_slot(snapshot)
+            ):
+                return item.count
+
+        # Phase 5 hook: add allowlisted strategy-draft throwing_items here; all
+        # disposal owners already consume this reservation view.
+        if target <= 0:
+            return 0
+        before = 0
+        for candidate in snapshot.inventory:
+            if candidate.slot == item.slot:
+                break
+            if matches(candidate):
+                before += candidate.count
+        return min(item.count, max(0, target - before))
+
+    def _retention_surplus(self, snapshot: Snapshot, item: InventoryItem) -> int:
+        return max(0, item.count - self._retention_reservation(snapshot, item))
+
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
     ) -> bool:
+        if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
+            return False
         # A GOOD melee weapon — identified ego/artifact or one with real +to-hit/+to-dam/
         # +pval — is protected from Home-shelving ONLY while it might still be needed
         # for re-arm: mining swaps the digger into the main hand, displacing the real
@@ -4126,12 +4245,19 @@ class HengbotPolicy:
         # charge-food left in it — so stash it at once (do not wait out the idle
         # counter). The magic-missile wand (0 回分) the user flagged is exactly this.
         depleted_device = item.is_wand_staff and item.known and item.charges <= 0
+        reserved_stack_surplus = (
+            snapshot is not None
+            and item.is_torch
+            and self._retention_reservation(snapshot, item) > 0
+            and self._retention_surplus(snapshot, item) > 0
+        )
         return (
             spare_equipment
             or protected_unknown_consumable
             or mining_gear_off_duty
             or idle_dead_weight
             or depleted_device
+            or reserved_stack_surplus
         )
 
     def _idle_deposit_protected(self, item: InventoryItem) -> bool:
@@ -4186,7 +4312,8 @@ class HengbotPolicy:
             self.last_reason = "home:deposit-rejected"
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
-        quantity = f"{deposit.count}" if deposit.tval == TVAL_ARROW and deposit.count > 1 else ""
+        deposit_count = self._retention_surplus(snapshot, deposit)
+        quantity = f"{deposit_count}" if deposit_count > 1 else ""
         return SELL_KEY + deposit.slot + quantity + "\r"
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -4352,7 +4479,8 @@ class HengbotPolicy:
             return disposable
         return self._first_item(
             snapshot,
-            lambda item: not self._survival_essential(item)
+            lambda item: self._retention_surplus(snapshot, item) > 0
+            and not self._survival_essential(item)
             and not self._has_town_economic_path(item)
             and self._item_signature(item) not in self._undestroyable_sigs,
         )
@@ -4876,7 +5004,8 @@ class HengbotPolicy:
         )
         return self._first_item(
             snapshot,
-            lambda item: item.known
+            lambda item: self._retention_surplus(snapshot, item) > 0
+            and item.known
             and (
                 item.slot == surplus_slot
                 or
@@ -5397,7 +5526,7 @@ class HengbotPolicy:
         sell_unknown = self._deepest_level < 20 or self._sell_scavenged_consumables
         return self._first_item(
             snapshot,
-            lambda it: (
+            lambda it: self._retention_surplus(snapshot, it) > 0 and (
                 (
                     sell_unknown
                     and (it.is_potion or it.is_scroll)
