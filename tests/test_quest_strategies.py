@@ -54,10 +54,11 @@ class QuestStrategiesTest(unittest.TestCase):
         self.assertTrue(profiles[1].approved)
         self.assertEqual(profiles[1].engagement_plan["hold_position"], [8, 3])
         self.assertIn("西の部屋へ寄らず", profiles[1].engagement_plan["opening"])
-        self.assertEqual(profiles[1].required_force["min_hp"], 76)
-        self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 206)
+        self.assertEqual(profiles[1].required_force["min_hp"], 36)
+        self.assertEqual(profiles[1].required_force["min_expected_dps"], 28)
+        self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 88)
         self.assertFalse(profiles[34].approved)
-        self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 55)
+        self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
 
     def test_shipped_drafts_match_real_quest_data(self):
         edit = Path(r"C:\hengband\lib\edit")

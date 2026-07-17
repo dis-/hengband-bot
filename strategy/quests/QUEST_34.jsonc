@@ -14,15 +14,15 @@
     "speed_potion": "conditional",
     "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "3ターン期待被害が現在HPの半分以上の場合だけ飲む。固定敵を射程外に保つ通常計画では飲まない。"},
     "heal_threshold_ratio": 0.55,
-    "other": "食料と回復薬に加え点火松明55本を計算上は用意する。松明は1本30（0.1 lb単位）なので合計約165 lbとなり、約30 lbではなく実運用上は非現実的である。松明算術を基準にしたうえで、重量を抑える代替としてスリング弾を補助に使う案を再承認時に提示する。破損率100%として回収は見込まない。"
+    "other": "食料と回復薬に加え点火松明20本を用意する。松明は1本30（0.1 lb単位、3 lb）なので 20*3=60 lb であり実用的である。NEVER_MOVE の敵への各斉射後に生き残った松明を回収して次の斉射に使う。"
   },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
-    "throwing_items": {"lit_torch": 55},
+    "throwing_items": {"lit_torch": 20},
     "no_healing_tier": {"min_hp": 54, "min_expected_dps": 8, "heal_potions": 0, "note": "戦術維持下では NEVER_MOVE の r_idx 107 と243を投擲だけで倒し、殺人蜂だけが近接交戦する。遠隔軟化は0、命中率100%、最大ダイス。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 で保守的な交戦窓は3行動、最大被害は 3*9=27。RAW HP の50%に収めるため min_hp=27/0.50=54。dps 8 なら蜂の最大HP 8を1ターンで倒せる。"},
-    "rationale": "配置は殺人蜂 r_idx 174 [3,13]、クローカー r_idx 243 [7,15]、デスソード r_idx 107 [9,11]・[11,9]。後三体は NEVER_MOVE なので距離2以上なら追跡も近接被害もなく、蜂だけが近接露出する。このため通常 min_hp=10 と no_healing_tier.min_hp=54、min_expected_dps=8 は蜂の既存導出から不変。点火松明は throw-execution.cpp で常に基礎 Dice(1,6) を振り、calc_attack_damage_with_slay が付与する TR_BRAND_FIRE は IM_FIRE なら倍率なし、非耐性なら2.5倍。したがって r_idx 107 は平均3.5、r_idx 243 は平均8.75。level_guideline 5 の通常の人間・戦士は skill_tht=人間0+戦士c_thb55+戦士x_thb30*5/10+性格0=70。距離2では chance=70-2=68、実AC 40の閾値は40*3/4=30なので命中率は5%自動命中+90%*(38/68)=55.29%。破損率100%、回収0としてデスソード1体は ceil(36/(3.5*0.5529))=19本、2体で38本。クローカーは ceil(49/(8.75*0.5529))=11本。蜂の軟化1本と安全余裕5本を加え lit_torch=38+11+1+5=55。順序は蜂、クローカー、デスソード二体。55本は約165 lbで非現実的なため、実案はスリング弾補助だが、ここではユーザー指定の松明算術を required_force に保持する。"
+    "rationale": "配置は殺人蜂 r_idx 174 [3,13]、クローカー r_idx 243 [7,15]、デスソード r_idx 107 [9,11]・[11,9]。後三体は NEVER_MOVE なので距離2以上なら追跡も近接被害もなく、蜂だけが近接露出する。このため通常 min_hp=10 と no_healing_tier.min_hp=54、min_expected_dps=8 は蜂の既存導出から不変。点火松明は基礎 Dice(1,6) で、TR_BRAND_FIRE は IM_FIRE の r_idx 107 には倍率なし（平均3.5）、非耐性の r_idx 243 には2.5倍（平均8.75）。level_guideline 5 の通常の人間・戦士は skill_tht=人間0+戦士c_thb55+戦士x_thb30*5/10+性格0=70。throw-execution.cpp の式は chance=skill_tht+(to_h_b+投擲物to_h)*BTH_PLUS_ADJ で、通常能力値・無修正装備・松明では to_h_b=DEX0+STR0+装備0+状態0、投擲物to_h=0、BTH_PLUS_ADJ=3、よって chance=70+(0+0)*3=70。距離2を引いて68、AC 40の閾値は40*3/4=30なので命中率は5%自動命中+90%*((68-30)/68)=55.29%。必要投擲回数はデスソード1体 ceil(36/(3.5*0.5529))=19、二体38、クローカー ceil(49/(8.75*0.5529))=11。object-broken.cpp で LITE の破損率は50%であり、cmd-throw.cpp は命中時だけこの率を渡すため外れは破損0%。各 NEVER_MOVE 標的を倒した後に床の生存松明を回収する反復斉射では、49投の期待永久損失は 49*0.5529*0.50=13.55本。蜂の軟化1投の期待損失 1*0.5529*0.50=0.28本を加えて ceil(13.55+0.28)=14本、破損ぶれの余裕6本を加え lit_torch=14+6=20。順序は蜂、クローカー、デスソード二体。20本は 20*3=60 lb で実用的なので、スリング弾を必須代替とする注意は削除する。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
   "generated_at": "2026-07-17T00:00:00+09:00"
