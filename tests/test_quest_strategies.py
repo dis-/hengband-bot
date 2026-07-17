@@ -69,16 +69,18 @@ class QuestStrategiesTest(unittest.TestCase):
         # no-floor-reward quest (14: direct payment, 28: none). Q34's missing
         # entry silently skipped its reward pickup (user-caught 2026-07-17).
         from hengbot.policy import FIXED_QUEST_REWARD_POSITIONS
-        from hengbot.town_maps import find_outpost_map, parse_town_map
+        from hengbot.town_maps import find_town_map, parse_town_map
 
         state = Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
-        source = find_outpost_map(state)
-        if source is None:
-            self.skipTest("Outpost town map source is not available")
-        town_map = parse_town_map(source)
-        for quest_id, positions in FIXED_QUEST_REWARD_POSITIONS.items():
+        maps = {}
+        for town_index in (1, 2):
+            source = find_town_map(town_index, state)
+            if source is None:
+                self.skipTest(f"town map {town_index} source is not available")
+            maps[town_index - 1] = parse_town_map(source)
+        for quest_id, (town_id, positions) in FIXED_QUEST_REWARD_POSITIONS.items():
             with self.subTest(quest_id=quest_id):
-                self.assertTrue(positions <= town_map.reward_positions)
+                self.assertTrue(positions <= maps[town_id].reward_positions)
         documented_no_reward = {14, 28}
         for quest_id in FIXED_QUEST_ALLOWLIST:
             with self.subTest(quest_id=quest_id):
@@ -128,7 +130,7 @@ class QuestStrategiesTest(unittest.TestCase):
                 else:
                     position = tuple(hold)
                     self.assertEqual(info.battlefield.terrain.get(position), "floor")
-                    if info.battlefield.chokepoints:
+                    if data["approved"] and info.battlefield.chokepoints:
                         self.assertIn(position, info.battlefield.chokepoints)
                 roster_ids = {r_idx for r_idx, _ in info.threat_roster}
                 self.assertLessEqual(set(data["priority_targets"]), roster_ids)

@@ -215,8 +215,8 @@ def parse_town_map(path: Path) -> TownMap:
     )
 
 
-def find_outpost_map(start: Path | None = None) -> Path | None:
-    """Locate ``lib/edit/towns/01_Outpost_Full.txt`` by walking up from ``start``.
+def find_town_map(town_index: int, start: Path | None = None) -> Path | None:
+    """Locate a numbered ``lib/edit/towns`` map by walking up from ``start``.
 
     Mirrors monrace_knowledge.find_monrace_definitions: the town files live beside
     the game data the bot already reads.
@@ -231,7 +231,13 @@ def find_outpost_map(start: Path | None = None) -> Path | None:
             if directory in seen:
                 continue
             seen.add(directory)
-            candidate = directory / "lib" / "edit" / "towns" / "01_Outpost_Full.txt"
-            if candidate.is_file():
-                return candidate
+            towns = directory / "lib" / "edit" / "towns"
+            for candidate in sorted(towns.glob(f"{town_index:02d}_*.txt")):
+                if candidate.is_file():
+                    return candidate
     return None
+
+
+def find_outpost_map(start: Path | None = None) -> Path | None:
+    """Backward-compatible locator for town index 1 (Outpost)."""
+    return find_town_map(1, start)

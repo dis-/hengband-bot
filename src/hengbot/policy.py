@@ -280,7 +280,7 @@ QUEST_STATUS_COMPLETED = 2
 QUEST_STATUS_REWARDED = 3
 QUEST_STATUS_FINISHED = 4
 QUEST_ID_THIEF = 1
-FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 14, 18, 25, 28, 34})
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 25, 28, 34})
 # A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
@@ -296,15 +296,16 @@ FIXED_QUEST_THREAT_TURNS = 3
 FIXED_QUEST_MAX_DAMAGE_RATIO = 0.50
 FIXED_QUEST_TOUGHEST_KILL_TURNS = 10
 FIXED_QUEST_REWARD_POSITIONS = {
-    QUEST_ID_THIEF: frozenset({Position(27, 98)}),
+    QUEST_ID_THIEF: (0, frozenset({Position(27, 98)})),
+    2: (1, frozenset({Position(22, 42)})),
     # Rewarding Outpost castle quests share this `!` floor square. Quest 28
     # explicitly has no floor reward and therefore needs no latch/coordinate.
-    18: frozenset({Position(27, 98)}),
-    25: frozenset({Position(27, 98)}),
+    18: (0, frozenset({Position(27, 98)})),
+    25: (0, frozenset({Position(27, 98)})),
     # Dump Witness: the parsed town map carries a second reward glyph at
     # (36,119), directly beside the quest-34 building at (37,119). Without
     # this entry the reward pickup silently no-ops (user-caught 2026-07-17).
-    34: frozenset({Position(36, 119)}),
+    34: (0, frozenset({Position(36, 119)})),
 }
 # A closed door does not open just by walking into it (that depends on game
 # options and fails on locked doors); explicitly open it with 'o' + direction.
@@ -1041,6 +1042,7 @@ class HengbotPolicy:
     def __init__(
         self,
         town_map: "TownMap | None" = None,
+        town_maps: "dict[int, TownMap] | None" = None,
         dungeon_knowledge: "dict[int, DungeonInfo] | None" = None,
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
@@ -1051,6 +1053,9 @@ class HengbotPolicy:
         # advance, like a returning player — used to route across a dark town to a
         # store without the emitter revealing anything the player cannot see.
         self._town_map = town_map
+        self._town_maps = dict(town_maps or {})
+        if town_map is not None:
+            self._town_maps.setdefault(0, town_map)
         # Static dungeon depth/level facts (lib/edit/DungeonDefinitions), also prior
         # knowledge — used to recall into a level-appropriate dungeon when the main
         # one is too deep to loot. See _pick_alternate_dungeon.
@@ -1277,6 +1282,7 @@ class HengbotPolicy:
         self._fixed_quest_readiness: dict = {}
         self._fixed_quest_speed_floor: tuple[int, int, int] | None = None
         self._fixed_quest_speed_attempted = False
+        self._telmora_q2_errand = False
         # The conquest target latch (see _conquest_target): sticky once chosen, so
         # consumable possession (a Speed potion bought/drunk/stashed) cannot flip
         # the recall destination back and forth.
@@ -10065,6 +10071,10 @@ class HengbotPolicy:
         quest = snapshot.quests.get(quest_id)
         if quest is None:
             return None
+        if quest_id == 2:
+            travel = self._telmora_q2_travel_key(snapshot, quest)
+            if travel is not None:
+                return travel
         info = self._quest_knowledge.get(quest_id)
         if info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}:
             if quest.status == QUEST_STATUS_COMPLETED:
@@ -10097,6 +10107,61 @@ class HengbotPolicy:
                 snapshot, quest_id, "fixedquest:request", set_reward_pending=False
             )
         return None
+
+    def _telmora_q2_travel_key(
+        self, snapshot: Snapshot, quest: QuestState
+    ) -> str | None:
+        """Use the inn service for the approved Q2 errand, never wilderness."""
+        if snapshot.visited_town_ids is None or 1 not in snapshot.visited_town_ids:
+            return None
+        if self.approved_quest_strategy(2) is None:
+            return None
+        if snapshot.town_id == 0 and quest.status in {
+            QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED
+        }:
+            if quest.status == QUEST_STATUS_UNTAKEN and not self._fixed_quest_ready(snapshot, 2):
+                return None
+            if snapshot.player.gold < RUMOR_GOLD_RESERVE + 1000:
+                self._fundraising_mode = "prepare"
+                self.last_reason = "fixedquest:q2-travel-needs-funds"
+                return WAIT_KEY
+            self._telmora_q2_errand = True
+            return self._town_teleport_key(snapshot, 1)
+        if snapshot.town_id == 1 and (
+            self._telmora_q2_errand and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+        ):
+            return self._town_teleport_key(snapshot, 0)
+        return None
+
+    def _town_teleport_key(self, snapshot: Snapshot, destination_town_id: int) -> str | None:
+        inn_type = 0 if snapshot.town_id == 0 else 4 if snapshot.town_id == 1 else -1
+        if inn_type < 0:
+            return None
+        positions = frozenset(
+            grid.position for grid in snapshot.grids.values()
+            if grid.building_type == inn_type
+        )
+        if not positions and self._town_map_active(snapshot):
+            position = self._town_map.building_position(inn_type)
+            positions = frozenset({position}) if position is not None else frozenset()
+        if snapshot.player.position in positions:
+            neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
+            if neighbors:
+                self.last_reason = "fixedquest:q2-teleport-step-off"
+                return self._step_toward(snapshot, neighbors[0])
+            return None
+        step = min(
+            (candidate for candidate in (
+                self._town_map_goal_step(snapshot, position) for position in positions
+            ) if candidate is not None),
+            key=lambda pos: snapshot.player.position.distance_to(pos),
+            default=None,
+        )
+        if step is None:
+            return None
+        self.last_reason = "fixedquest:q2-teleport"
+        suffix = "m" + chr(ord("a") + destination_town_id) if step in positions else ""
+        return self._step_toward(snapshot, step) + suffix
 
     def _active_fixed_quest_id(self, snapshot: Snapshot) -> int | None:
         """Return the allowlisted TAKEN fixed quest whose floor we occupy."""
@@ -10189,7 +10254,9 @@ class HengbotPolicy:
             # TODO(tower): add quests 5/6/7 to the allowlist only with
             # direction-aware QUEST_UP/QUEST_DOWN progression across all three
             # linked floors.  The final floor is not shaped like 5 and 6.
-            return quest_id in FIXED_QUEST_ALLOWLIST
+            return quest_id in FIXED_QUEST_ALLOWLIST and not (
+                quest_id == 2 and snapshot.visited_town_ids is None
+            )
 
         floor_quest = snapshot.floor_key[2]
         if supported(floor_quest):
@@ -10256,7 +10323,8 @@ class HengbotPolicy:
             telemetry["reason"] = reason
             return False
 
-        if snapshot.town_id not in {-1, 0}:
+        allowed_towns = {-1, 0, 1} if quest_id == 2 else {-1, 0}
+        if snapshot.town_id not in allowed_towns:
             return reject("not-in-town")
         info = self._quest_knowledge.get(quest_id)
         if info is None:
@@ -10500,7 +10568,12 @@ class HengbotPolicy:
     def _fixed_quest_reward_positions(
         self, snapshot: Snapshot, quest_id: int
     ) -> frozenset[Position]:
-        expected = FIXED_QUEST_REWARD_POSITIONS.get(quest_id, frozenset())
+        town_reward = FIXED_QUEST_REWARD_POSITIONS.get(quest_id)
+        if town_reward is None:
+            return frozenset()
+        town_id, expected = town_reward
+        if snapshot.town_id not in {-1, town_id}:
+            return frozenset()
         if not self._town_map_active(snapshot):
             return expected
         # Static map metadata is the source of truth, restricted to the
@@ -12954,11 +13027,19 @@ class HengbotPolicy:
     def _town_map_active(self, snapshot: Snapshot) -> bool:
         # The static Outpost layout is loaded AND matches this surface floor,
         # so the whole fixed town is effectively known (walls included).
+        # Legacy/synthetic snapshots use -1 for an unknown town id; preserve
+        # the historical single-map Outpost behavior for them.  Real new
+        # snapshots select strictly by the emitter's town id.
+        selected = self._town_maps.get(snapshot.town_id)
+        if selected is None and snapshot.town_id == -1:
+            selected = self._town_maps.get(0)
+        if selected is not None:
+            self._town_map = selected
         return (
-            self._town_map is not None
+            selected is not None
             and snapshot.in_town
-            and snapshot.width == self._town_map.width
-            and snapshot.height == self._town_map.height
+            and snapshot.width == selected.width
+            and snapshot.height == selected.height
         )
 
     def _is_frontier(self, snapshot: Snapshot, grid: GridState) -> bool:

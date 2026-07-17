@@ -396,6 +396,7 @@ class NewestSnapshotTest(unittest.TestCase):
         snap = parse_snapshot(data, {})
 
         self.assertEqual(snap.town_id, 0)
+        self.assertIsNone(snap.visited_town_ids)
         self.assertEqual(snap.town_index, 1)
         self.assertIn(1, snap.quests)
         self.assertEqual(snap.quests[1].status, 1)
@@ -404,6 +405,10 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertTrue(snap.grids[Position(5, 6)].has_quest_enter)
         self.assertEqual(snap.grids[Position(5, 6)].quest_id, 1)
         self.assertEqual(snap.grids[Position(5, 7)].building_special, 1)
+
+        data["progress"]["visited_town_ids"] = [0, 1]
+        with_towns = parse_snapshot(data, {})
+        self.assertEqual(with_towns.visited_town_ids, (0, 1))
 
     def test_parses_entered_dungeon_ids_for_recall_selection(self):
         data = json.loads(_snap_line(100, 5, 5))

@@ -2502,6 +2502,47 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6q\x1b")
         self.assertEqual(policy.last_reason, "fixedquest:request")
 
+    def test_q2_is_entirely_absent_from_targeting_on_old_emitter_snapshot(self):
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, 0),
+            quests={2: QuestState(2, status=0, fixed=True)},
+            visited_town_ids=None,
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        self.assertIsNone(policy._fixed_quest_target(snapshot))
+
+    def test_q2_telmora_visit_requires_exported_visited_town(self):
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, 0),
+            player=replace(self._town_snapshot(26, 97, {}, 0).player, gold=2000),
+            quests={2: QuestState(2, status=0, fixed=True)},
+            visited_town_ids=(0, 1),
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._town_teleport_key = lambda _snapshot, town_id: f"teleport:{town_id}"
+        self.assertEqual(
+            policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]),
+            "teleport:1",
+        )
+        self.assertTrue(policy._telmora_q2_errand)
+
+    def test_q2_outpost_inn_selects_telmora_with_letter_b(self):
+        inn = Position(26, 98)
+        town_map = self._town_map()
+        town_map = replace(town_map, buildings={0: inn})
+        snapshot = replace(
+            self._town_snapshot(
+                26, 97, {Position(26, 97): grid(26, 97, building_type=-1)}, 0
+            ),
+            visited_town_ids=(0, 1),
+        )
+        policy = HengbotPolicy(town_map)
+        policy._build_grid_index(snapshot)
+        self.assertEqual(policy._town_teleport_key(snapshot, 1), "6mb")
+
     def test_readiness_uses_static_level_plus_safety_margin(self):
         info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
         harmless = MonraceKnowledge(1, 110, False, False)

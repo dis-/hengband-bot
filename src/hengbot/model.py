@@ -602,6 +602,7 @@ class Snapshot:
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
     conquered_dungeon_ids: tuple[int, ...] = ()  # dungeons whose final guardian is dead
+    visited_town_ids: tuple[int, ...] | None = None
     # Deepest level reached in the recall-target dungeon (where Word of Recall
     # lands). Persists in the save across bot restarts, unlike the policy's
     # in-memory watermark; 0 when an older emitter did not send it.
@@ -901,6 +902,11 @@ def parse_snapshot(
         ),
         conquered_dungeon_ids=tuple(
             int(dungeon_id) for dungeon_id in progress.get("conquered_dungeon_ids", [])
+        ),
+        visited_town_ids=(
+            tuple(int(town_id) for town_id in progress["visited_town_ids"])
+            if "visited_town_ids" in progress
+            else None
         ),
         recall_depth=int(progress.get("recall_depth", 0)),
         yeek_cave_conquered=_as_bool(progress.get("yeek_cave_conquered", False)),

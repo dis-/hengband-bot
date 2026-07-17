@@ -15,7 +15,7 @@ from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_kno
 from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_knowledge
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
-from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
+from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.policy import (
     FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
@@ -942,12 +942,21 @@ def main(argv: list[str] | None = None) -> int:
     # (prior knowledge a returning player has). Optional: if it is not found the
     # bot still plays, just without night-town routing help.
     outpost_map: TownMap | None = None
+    town_maps: dict[int, TownMap] = {}
     outpost_path = args.outpost_map or find_outpost_map(args.state_file)
     if outpost_path is not None:
         try:
             outpost_map = parse_town_map(outpost_path)
+            town_maps[0] = outpost_map
         except (OSError, ValueError) as exc:
             print(f"could not load Outpost map ({outpost_path}): {exc}", file=sys.stderr)
+
+    telmora_path = find_town_map(2, args.state_file)
+    if telmora_path is not None:
+        try:
+            town_maps[1] = parse_town_map(telmora_path)
+        except (OSError, ValueError) as exc:
+            print(f"could not load Telmora map ({telmora_path}): {exc}", file=sys.stderr)
 
     # Static dungeon depth/level facts let the bot recall into a level-appropriate
     # dungeon instead of over-extending in one far past its recommended level.
@@ -978,6 +987,7 @@ def main(argv: list[str] | None = None) -> int:
 
     policy = ConservativePolicy(
         town_map=outpost_map,
+        town_maps=town_maps,
         dungeon_knowledge=dungeon_knowledge,
         monrace_knowledge=monrace_knowledge,
         quest_knowledge=quest_knowledge,

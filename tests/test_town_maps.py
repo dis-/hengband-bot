@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.model import Position
-from hengbot.town_maps import find_outpost_map, parse_town_map
+from hengbot.town_maps import find_outpost_map, find_town_map, parse_town_map
 
 
 class TownMapParseTest(unittest.TestCase):
@@ -100,6 +100,17 @@ class RealOutpostMapTest(unittest.TestCase):
                         seen.add(nxt)
                         queue.append(nxt)
         self.assertIn(goal, seen, "no floor route from the entrance to the store")
+
+
+class RealTelmoraMapTest(unittest.TestCase):
+    def test_q2_locations_and_inn_come_from_real_map(self):
+        path = find_town_map(2, Path(__file__).resolve().parent.parent)
+        if path is None:
+            self.skipTest("lib/edit/towns/02_Telmora.txt not found")
+        town = parse_town_map(path)
+        self.assertEqual(town.quest_entrance_positions(2), frozenset({Position(25, 47)}))
+        self.assertIn(Position(22, 42), town.reward_positions)
+        self.assertIsNotNone(town.building_position(4))
 
 
 if __name__ == "__main__":
