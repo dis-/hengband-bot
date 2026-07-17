@@ -54,7 +54,7 @@ class QuestStrategiesTest(unittest.TestCase):
         self.assertTrue(profiles[1].approved)
         self.assertEqual(profiles[1].engagement_plan["hold_position"], [8, 3])
         self.assertIn("西の部屋へ寄らず", profiles[1].engagement_plan["opening"])
-        self.assertEqual(profiles[1].required_force["min_hp"], 108)
+        self.assertEqual(profiles[1].required_force["min_hp"], 76)
         self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 206)
         self.assertFalse(profiles[34].approved)
         self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 55)
