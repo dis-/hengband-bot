@@ -147,6 +147,15 @@ Types:
      is loop-severity.
    - QUEST transitions (accept/enter/complete/claim) logged as "status";
      any quest failure is loop-severity.
+   - MINING RUN OBSERVATION (user-requested 2026-07-17, observe only — do
+     NOT fix yet): some mining runs explore-then-mine as intended, others
+     cut exploration short early. For EVERY Yeek mining run, log a "status"
+     line at run end with: floor, decisions spent in explore vs
+     fundraise:sweep* vs mine reasons, mining detected_total / collected /
+     remaining_known, sweep_done flag, and WHY the run ended (return
+     trigger). The goal is a corpus that separates the intended runs from
+     the early-cutoff runs so the discriminating variable can be found
+     later. Cross-ref SOL-TASK-mining-sweep-premature-cutoff.md.
 7. You are one generation of a durable supervisor loop. Exiting causes a new
    generation to take over, but you must still NEVER decide monitoring is
    finished. If the session is already running and healthy, take over
