@@ -3152,12 +3152,17 @@ class HengbotPolicy:
 
     @staticmethod
     def _supply_threshold(kind: str, phase: str, depth: int) -> int:
-        applicable = (
+        applicable = [
             target
             for minimum_depth, target in SUPPLY_THRESHOLDS[kind][phase]
             if depth >= minimum_depth
-        )
-        return list(applicable)[-1]
+        ]
+        # Town is depth 0, below the first expedition band.  Callers that
+        # evaluate combat or store policy before choosing a planned depth must
+        # still get the shallowest threshold instead of indexing an empty list.
+        if not applicable:
+            return SUPPLY_THRESHOLDS[kind][phase][0][1]
+        return applicable[-1]
 
     @staticmethod
     def _store_item_is_supply(item: StoreItem, kind: str) -> bool:

@@ -13629,6 +13629,14 @@ class RangedAttackTest(unittest.TestCase):
         policy.choose_key(snap)
         self.assertNotEqual(policy.last_reason, "ranged:throw-oil")
 
+    def test_town_depth_uses_shallowest_supply_threshold(self):
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._supply_threshold("oil", "return", 0), 0)
+        self.assertEqual(
+            policy._supply_threshold("oil", "departure", 0), OIL_TARGET
+        )
+
     def test_ammo_purchase_at_weapon_smith(self):
         shots = StoreItem("d", "iron shot", 99, TVAL_SHOT, 1, price=1)
         snap = Snapshot(
