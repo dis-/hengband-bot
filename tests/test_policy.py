@@ -11528,6 +11528,22 @@ class RemoveCurseTest(unittest.TestCase):
         policy._town_store_attempted[STORE_TEMPLE] = temple.turn
         self.assertIsNone(policy._retry_after_store_restock(temple, (STORE_TEMPLE,)))
 
+    def test_heavy_curse_optimizer_blocker_does_not_block_departure(self):
+        cursed = item(
+            "a", 23, 0, is_equipment=True, is_cursed=True,
+            known=True, name="incident cursed ring",
+        )
+        policy = HengbotPolicy()
+        policy._heavy_cursed_items.add(policy._item_signature(cursed))
+        blocked = SimpleNamespace(
+            blockers=("cursed-equipped:equipped:ring:0",),
+            transaction=None,
+            ready=False,
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: blocked
+
+        self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
+
     def test_interrupted_normal_read_does_not_advance_heavy_latch(self):
         cursed = item("a", 23, 0, is_equipment=True, is_cursed=True, name="cursed")
         normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")

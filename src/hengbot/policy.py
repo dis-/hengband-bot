@@ -4315,6 +4315,20 @@ class HengbotPolicy:
             # exclusion here instead of retaining a permanently-false gate.
             self._abandon_blocked_equipment_transaction()
             preparation = self._prepare_equipment_optimization(snapshot)
+        if (
+            preparation is not None
+            and preparation.blockers
+            and all(
+                blocker.startswith("cursed-equipped:")
+                for blocker in preparation.blockers
+            )
+            and self._has_heavy_remove_curse_target(snapshot)
+        ):
+            # A confirmed heavy curse can make the optimizer's preferred swap
+            # impossible until an opportunistic *Remove Curse* appears.  It is
+            # not a departure requirement: keep the current legal loadout and
+            # dive instead of wandering town forever.
+            return True
         return bool(
             preparation is not None
             and preparation.ready
