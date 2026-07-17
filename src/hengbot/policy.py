@@ -1973,14 +1973,14 @@ class HengbotPolicy:
             snapshot.in_town
             and self._town_map_active(snapshot)
             and self._town_map_descent_entrance(snapshot) == player.position
-            and not self._nav_ledger.is_expired("descend", player.position)
+            and not self._is_downstairs_expired(player.position)
         )
         if (
             (
                 here is not None
                 and here.is_descent
                 and self._is_descent_target(snapshot, here)
-                and not self._nav_ledger.is_expired("descend", player.position)
+                and not self._is_downstairs_expired(player.position)
                 or static_entrance_here
             )
             and player.hp_ratio >= DESCEND_MIN_HP_RATIO
@@ -2204,8 +2204,16 @@ class HengbotPolicy:
             )
 
     def _is_upstairs_target(self, grid: GridState) -> bool:
-        return grid.has_up_stairs and not self._nav_ledger.is_expired(
-            "ascend", grid.position
+        return grid.has_up_stairs and (
+            (UP_STAIRS_KEY, grid.position) in self._unverified_stairs
+            or not self._nav_ledger.is_expired("ascend", grid.position)
+        )
+
+    def _is_downstairs_expired(self, position: Position) -> bool:
+        """Let a launch-snapshot stair receive its conclusive command test."""
+        return (
+            (DOWN_STAIRS_KEY, position) not in self._unverified_stairs
+            and self._nav_ledger.is_expired("descend", position)
         )
 
     def _observe_stair_command(self, snapshot: Snapshot) -> None:
@@ -11909,7 +11917,7 @@ class HengbotPolicy:
             key = (pos.y, pos.x)
             if not grid.known:
                 continue
-            if grid.has_down_stairs and not self._nav_ledger.is_expired("descend", pos):
+            if grid.has_down_stairs and not self._is_downstairs_expired(pos):
                 self._remembered_downstairs.add(pos)
             if grid.has_up_stairs and not self._nav_ledger.is_expired("ascend", pos):
                 self._remembered_upstairs.add(pos)
@@ -12115,7 +12123,8 @@ class HengbotPolicy:
         visible_targets = {
             g.position
             for g in snapshot.grids.values()
-            if self._is_descent_target(snapshot, g) and g.position not in expired
+            if self._is_descent_target(snapshot, g)
+            and not self._is_downstairs_expired(g.position)
         }
         targets = set(visible_targets)
         forgotten_targets: set[Position] = set()
