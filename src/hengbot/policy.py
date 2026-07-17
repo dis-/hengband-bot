@@ -1299,7 +1299,11 @@ class HengbotPolicy:
         # Normal Remove Curse can fail against a heavy curse.  Verify each read
         # against the next emitted equipment state and remember the item, rather
         # than treating an unchanged curse as an endlessly renewable town need.
-        self._remove_curse_watch: tuple[str, int, int] | None = None
+        # This evidence is intentionally process-local: a restart may spend two
+        # normal scrolls to re-establish it.  The compact (name, tval, sval)
+        # identity can also merge identical rings; that only suppresses futile
+        # normal-scroll retries and still permits the shared star-scroll remedy.
+        self._remove_curse_watch: tuple[tuple[str, int, int], int, int] | None = None
         self._remove_curse_unchanged: Counter[tuple[str, int, int]] = Counter()
         self._heavy_cursed_items: set[tuple[str, int, int]] = set()
         self._last_sell_sig: tuple | None = None
@@ -6279,6 +6283,12 @@ class HengbotPolicy:
             if STORE_TEMPLE in self._town_store_attempted:
                 return needs
             add(STORE_TEMPLE, "remove-curse")
+        # A latched heavy curse never creates a speculative Temple trip.  Keep
+        # the stop only when the live shelf proves that an affordable *Remove
+        # Curse* is available; this makes the attempt opportunistic and gives
+        # neither departure nor the restock waiter a missing-stock obligation.
+        if self._affordable_star_remove_curse(snapshot) is not None:
+            add(STORE_TEMPLE, "star-remove-curse")
         if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and (
@@ -7192,6 +7202,9 @@ class HengbotPolicy:
                 ),
                 None,
             )
+        star_remove_curse = self._affordable_star_remove_curse(snapshot)
+        if star_remove_curse is not None:
+            return star_remove_curse
         if store.store_type == STORE_BLACK:
             # Buy until neither type is affordable/in stock. Prefer the less-held
             # type so one cheap stack cannot consume all gold before the other
@@ -8331,17 +8344,45 @@ class HengbotPolicy:
             for item in snapshot.equipment
         )
 
-    def _observe_remove_curse(self, snapshot: Snapshot) -> None:
-        star_available = any(
-            item.is_scroll and item.aware and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
-            for item in snapshot.inventory
+    def _has_heavy_remove_curse_target(self, snapshot: Snapshot) -> bool:
+        return any(
+            item.is_cursed
+            and self._item_signature(item) in self._heavy_cursed_items
+            for item in snapshot.equipment
         )
-        if star_available:
-            self._heavy_cursed_items.clear()
-        signature = self._remove_curse_watch
-        if signature is None:
+
+    def _affordable_star_remove_curse(self, snapshot: Snapshot) -> StoreItem | None:
+        store = snapshot.store
+        if (
+            store is None
+            or store.store_type != STORE_TEMPLE
+            or not self._has_heavy_remove_curse_target(snapshot)
+        ):
+            return None
+        return next(
+            (
+                item for item in store.items
+                if item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+                and item.price <= snapshot.player.gold
+            ),
+            None,
+        )
+
+    def _observe_remove_curse(self, snapshot: Snapshot) -> None:
+        watch = self._remove_curse_watch
+        if watch is None:
             return
         self._remove_curse_watch = None
+        signature, scroll_sval, previous_count = watch
+        current_count = sum(
+            item.count for item in snapshot.inventory
+            if item.is_scroll and item.aware and item.sval == scroll_sval
+        )
+        # A disturbance can reject a queued read without consuming anything.
+        # Only a confirmed inventory delta makes it an attempt.
+        if current_count >= previous_count:
+            return
         still_cursed = any(
             item.is_cursed and self._item_signature(item) == signature
             for item in snapshot.equipment
@@ -8350,9 +8391,10 @@ class HengbotPolicy:
             self._remove_curse_unchanged.pop(signature, None)
             self._heavy_cursed_items.discard(signature)
             return
-        self._remove_curse_unchanged[signature] += 1
-        if self._remove_curse_unchanged[signature] >= 2:
-            self._heavy_cursed_items.add(signature)
+        if scroll_sval == SV_SCROLL_REMOVE_CURSE:
+            self._remove_curse_unchanged[signature] += 1
+            if self._remove_curse_unchanged[signature] >= 2:
+                self._heavy_cursed_items.add(signature)
 
     def _find_remove_curse_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
@@ -8398,8 +8440,14 @@ class HengbotPolicy:
             cursed = next((item for item in snapshot.equipment if item.is_cursed), None)
         if cursed is None:
             return None
-        if scroll.sval == SV_SCROLL_REMOVE_CURSE:
-            self._remove_curse_watch = self._item_signature(cursed)
+        self._remove_curse_watch = (
+            self._item_signature(cursed),
+            scroll.sval,
+            sum(
+                item.count for item in snapshot.inventory
+                if item.is_scroll and item.aware and item.sval == scroll.sval
+            ),
+        )
         self.last_reason = "town:remove-curse"
         return READ_KEY + scroll.slot
 
