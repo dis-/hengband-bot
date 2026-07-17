@@ -40,6 +40,25 @@ const dataDir =
 const stripJsonc = (text) =>
   text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1");
 
+// r_idx -> Japanese monster name, scanned once from the game data (regex
+// pass; the 14MB jsonc has trailing commas so a full JSON parse is not worth
+// it for a name lookup).
+const monraceNames = (() => {
+  const path =
+    argValue("--edit") ?? "C:/hengband/lib/edit/MonraceDefinitions.jsonc";
+  const map = new Map();
+  try {
+    const text = readFileSync(path, "utf8");
+    const re = /"id":\s*(\d+),\s*\r?\n\s*"name":\s*\{\s*\r?\n\s*"ja":\s*"([^"]+)"/g;
+    for (const m of text.matchAll(re)) map.set(Number(m[1]), m[2]);
+  } catch {
+    /* names stay numeric when the game data is absent */
+  }
+  return map;
+})();
+const monsterLabel = (rIdx) =>
+  monraceNames.has(rIdx) ? `${monraceNames.get(rIdx)}(${rIdx})` : String(rIdx);
+
 const loadDrafts = () =>
   readdirSync(questsDir)
     .filter((f) => /^QUEST_\d+\.jsonc$/.test(f))
@@ -59,17 +78,38 @@ if (action === "export") {
   const items = pending.map((d) => {
     const q = d.data;
     const rf = q.required_force ?? {};
+    const ep = q.engagement_plan ?? {};
+    const nh = rf.no_healing_tier;
+    const targets = (q.priority_targets ?? []).map(monsterLabel).join(" → ");
+    const hold = ep.hold_position ? `[${ep.hold_position}]` : "なし(ランダム階)";
+    const steps = [
+      `■ ゲート(拘束): HP ${rf.min_hp} 以上 / 期待DPS ${rf.min_expected_dps ?? "未導出"} 以上 ※レベルは目安 Lv${rf.level_guideline}`,
+    ];
+    if (nh) {
+      steps.push(
+        `■ 無保険ティア: HP ${nh.min_hp} + DPS ${nh.min_expected_dps} なら治癒携行 0 で可`,
+      );
+    }
+    steps.push(
+      `■ 携行: 加速の薬 ${rf.speed_potions ?? 0}（条件付き使用）/ 治癒 ${rf.heal_potions ?? 0} / 耐性 ${
+        (rf.resists ?? []).length ? (rf.resists ?? []).join("・") : "不要"
+      }`,
+      `■ 優先ターゲット: ${targets || "なし"}`,
+      `■ 陣取り: hold ${hold} / 撤退 ${q.abort_conditions?.allowed ? `可 (HP ${Math.round((q.abort_conditions?.hp_ratio ?? 0) * 100)}% で中断)` : "不可 (ONCE)"}`,
+      `■ 開幕: ${ep.opening ?? ""}`,
+    );
+    if (ep.formation) steps.push(`■ 隊形: ${ep.formation}`);
+    if (ep.ranged_softening) steps.push(`■ 投擲: ${ep.ranged_softening}`);
+    // The rationale is an audit-trail paragraph; split it into sentence
+    // bullets so a human can scan the arithmetic.
+    for (const sentence of (rf.rationale ?? "").split(/(?<=\.)\s+/)) {
+      if (sentence.trim()) steps.push(`・${sentence.trim()}`);
+    }
     return {
       id: `strategy-QUEST_${q.quest_id}`,
       category: "クエスト戦略承認",
-      title: `Q${q.quest_id} ${q.name?.ja ?? ""} の戦略を承認するか`,
-      steps: [
-        `拘束ゲート: min_hp=${rf.min_hp} / min_expected_dps=${rf.min_expected_dps} (目安Lv ${rf.level_guideline})`,
-        `携行: 加速${rf.speed_potions ?? 0} 治癒${rf.heal_potions ?? 0} 耐性=${fmt(rf.resists ?? [])}`,
-        `交戦計画: ${q.engagement_plan?.opening ?? ""}`,
-        `hold=${fmt(q.engagement_plan?.hold_position ?? null)} / 優先=${fmt(q.priority_targets ?? [])} / 撤退=${q.abort_conditions?.allowed ? "可" : "不可"}(hp<${q.abort_conditions?.hp_ratio})`,
-        `根拠: ${rf.rationale ?? ""}`,
-      ],
+      title: `Q${q.quest_id} ${q.name?.ja ?? ""} — ゲート: HP${rf.min_hp}/DPS${rf.min_expected_dps ?? "?"}`,
+      steps,
       expected:
         "値が妥当なら合格(=承認)。差し戻すなら失敗にして修正指示をフィードバック欄へ。",
     };
