@@ -1296,6 +1296,12 @@ class HengbotPolicy:
         self._town_store_attempted: dict[int, int] = {}
         self._town_restock_wait_until: int | None = None
         self._town_restock_rechecked: set[int] = set()
+        # Normal Remove Curse can fail against a heavy curse.  Verify each read
+        # against the next emitted equipment state and remember the item, rather
+        # than treating an unchanged curse as an endlessly renewable town need.
+        self._remove_curse_watch: tuple[str, int, int] | None = None
+        self._remove_curse_unchanged: Counter[tuple[str, int, int]] = Counter()
+        self._heavy_cursed_items: set[tuple[str, int, int]] = set()
         self._last_sell_sig: tuple | None = None
         self._store_sell_stuck_count = 0
         # Explicit Home-capacity failures may stop deposits for one town visit.
@@ -2355,6 +2361,7 @@ class HengbotPolicy:
         # The threat memo exists only for repeat lookups within ONE decision
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()
+        self._observe_remove_curse(snapshot)
         previous_floor = self._floor_key
         self._observe_stair_command(snapshot)
         if not snapshot.in_town and snapshot.player.recalling:
@@ -3394,6 +3401,20 @@ class HengbotPolicy:
             )
         return None
 
+    def _oil_departure_count(self, snapshot: Snapshot) -> int:
+        """Oil remaining after the refill already implied by this snapshot."""
+        count = self._count_oil(snapshot)
+        equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        if (
+            count > 0
+            and equipped is not None
+            and equipped.known
+            and equipped.is_lantern
+            and equipped.fuel <= LANTERN_REFILL_FUEL
+        ):
+            return count - 1
+        return count
+
     # ------------------------------------------------------------------ shopping
     def _planned_depth(self) -> int:
         return max(1, self._deepest_level + 1)
@@ -3465,7 +3486,7 @@ class HengbotPolicy:
             "recall": self._count_recall_scrolls(snapshot),
             "teleport": self._count_teleport_scrolls(snapshot),
             "cure": self._count_cure_critical_potions(snapshot),
-            "oil": self._count_oil(snapshot),
+            "oil": self._oil_departure_count(snapshot),
             "food": (
                 min(
                     self._count_mana_food_uses(snapshot),
@@ -6251,7 +6272,10 @@ class HengbotPolicy:
             and STORE_GENERAL not in self._town_store_attempted
         ):
             add(STORE_GENERAL, "throwing-torches")
-        if self._has_cursed_equipment(snapshot) and self._find_remove_curse_scroll(snapshot) is None:
+        if (
+            self._has_normal_remove_curse_target(snapshot)
+            and self._find_remove_curse_scroll(snapshot) is None
+        ):
             if STORE_TEMPLE in self._town_store_attempted:
                 return needs
             add(STORE_TEMPLE, "remove-curse")
@@ -6734,17 +6758,6 @@ class HengbotPolicy:
                 return self._next_required_store_type(snapshot)
             return self._retry_after_store_restock(snapshot, (STORE_MAGIC,))
         if (
-            self._has_cursed_equipment(snapshot)
-            and self._find_remove_curse_scroll(snapshot) is None
-        ):
-            # A worn curse needs a Remove Curse scroll (the Temple stocks them)
-            # before the town prep can lift it.
-            if STORE_TEMPLE not in self._town_store_attempted:
-                return STORE_TEMPLE
-            if self._start_fundraising(snapshot):
-                return self._next_required_store_type(snapshot)
-            return self._retry_after_store_restock(snapshot, (STORE_TEMPLE,))
-        if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and (
                 not self._equipment_catalog.home_scan_complete
@@ -7166,7 +7179,7 @@ class HengbotPolicy:
                 None,
             )
         if (
-            self._has_cursed_equipment(snapshot)
+            self._has_normal_remove_curse_target(snapshot)
             and self._find_remove_curse_scroll(snapshot) is None
         ):
             return next(
@@ -8311,6 +8324,36 @@ class HengbotPolicy:
     def _has_cursed_equipment(snapshot: Snapshot) -> bool:
         return any(item.is_cursed for item in snapshot.equipment)
 
+    def _has_normal_remove_curse_target(self, snapshot: Snapshot) -> bool:
+        return any(
+            item.is_cursed
+            and self._item_signature(item) not in self._heavy_cursed_items
+            for item in snapshot.equipment
+        )
+
+    def _observe_remove_curse(self, snapshot: Snapshot) -> None:
+        star_available = any(
+            item.is_scroll and item.aware and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            for item in snapshot.inventory
+        )
+        if star_available:
+            self._heavy_cursed_items.clear()
+        signature = self._remove_curse_watch
+        if signature is None:
+            return
+        self._remove_curse_watch = None
+        still_cursed = any(
+            item.is_cursed and self._item_signature(item) == signature
+            for item in snapshot.equipment
+        )
+        if not still_cursed:
+            self._remove_curse_unchanged.pop(signature, None)
+            self._heavy_cursed_items.discard(signature)
+            return
+        self._remove_curse_unchanged[signature] += 1
+        if self._remove_curse_unchanged[signature] >= 2:
+            self._heavy_cursed_items.add(signature)
+
     def _find_remove_curse_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
@@ -8327,9 +8370,36 @@ class HengbotPolicy:
         player = snapshot.player
         if player.blind or player.confused:
             return None
-        scroll = self._find_remove_curse_scroll(snapshot)
+        cursed = next(
+            (
+                item for item in snapshot.equipment
+                if item.is_cursed
+                and self._item_signature(item) not in self._heavy_cursed_items
+            ),
+            None,
+        )
+        star = self._first_item(
+            snapshot,
+            lambda it: it.is_scroll
+            and it.aware
+            and it.sval == SV_SCROLL_STAR_REMOVE_CURSE,
+        )
+        scroll = star or self._first_item(
+            snapshot,
+            lambda it: it.is_scroll
+            and it.aware
+            and it.sval == SV_SCROLL_REMOVE_CURSE,
+        )
         if scroll is None:
             return None
+        if cursed is None and scroll.sval != SV_SCROLL_STAR_REMOVE_CURSE:
+            return None
+        if cursed is None:
+            cursed = next((item for item in snapshot.equipment if item.is_cursed), None)
+        if cursed is None:
+            return None
+        if scroll.sval == SV_SCROLL_REMOVE_CURSE:
+            self._remove_curse_watch = self._item_signature(cursed)
         self.last_reason = "town:remove-curse"
         return READ_KEY + scroll.slot
 

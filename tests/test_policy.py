@@ -34,6 +34,7 @@ from hengbot.model import (
     SV_ROD_LITE,
     SV_SCROLL_WORD_OF_RECALL,
     SV_SCROLL_REMOVE_CURSE,
+    SV_SCROLL_STAR_REMOVE_CURSE,
     SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_HOLY_CHANT,
     SV_SCROLL_IDENTIFY,
@@ -11413,6 +11414,37 @@ class RemoveCurseTest(unittest.TestCase):
         self.assertIsNotNone(purchase)
         self.assertEqual(purchase.sval, SV_SCROLL_REMOVE_CURSE)
 
+    def test_two_unchanged_normal_reads_latch_heavy_curse_and_prune_temple(self):
+        cursed = item(
+            "a", 23, 0, is_equipment=True, is_cursed=True,
+            known=True, name="incident cursed ring",
+        )
+        normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
+        policy = HengbotPolicy()
+        for _attempt in range(2):
+            snapshot = self._town([cursed], [normal])
+            self.assertEqual(policy._town_remove_curse_key(snapshot), "rs")
+            policy._observe(self._town([cursed], []))
+
+        self.assertIsNone(policy._town_remove_curse_key(self._town([cursed], [normal])))
+        needs = policy._enumerate_town_needs(self._town([cursed], []))
+        self.assertNotIn(TownNeed(STORE_TEMPLE, "remove-curse", "normal"), needs)
+
+    def test_star_remove_curse_loot_releases_heavy_latch(self):
+        cursed = item(
+            "a", 23, 0, is_equipment=True, is_cursed=True,
+            known=True, name="incident cursed ring",
+        )
+        normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
+        star = item("t", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, name="star remove curse")
+        policy = HengbotPolicy()
+        for _attempt in range(2):
+            policy._town_remove_curse_key(self._town([cursed], [normal]))
+            policy._observe(self._town([cursed], []))
+
+        policy._observe(self._town([cursed], [star]))
+        self.assertEqual(policy._town_remove_curse_key(self._town([cursed], [star])), "rt")
+
 class HighValueBookSaleTest(unittest.TestCase):
     def _town(self, inventory, store=None):
         return Snapshot(
@@ -16334,6 +16366,38 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         self.assertEqual(deep["cure"].required_departure, 10)
         self.assertEqual(shallow["recall"].stores, (STORE_TEMPLE, STORE_ALCHEMIST))
         self.assertEqual(shallow["food"].stores, (STORE_GENERAL,))
+
+    def test_incident_refill_is_charged_before_oil_departure_accounting(self):
+        fixture = Path("tests/fixtures/oil_remove_curse_carousel_20260718.jsonl")
+        incident = fixture.read_text(encoding="utf-8")
+        self.assertIn('"reason": "shop:buy-oil"', incident)
+        self.assertIn('"reason": "refill-light"', incident)
+        self.assertIn('"reason": "town:wait-restock"', incident)
+
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        low_lantern = replace(
+            self._snapshot(0, [
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=6, fuel=500),
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+                item("f", TVAL_FOOD, 35, count=5),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            ]),
+            floor_key=(0, 0, 0), town_flag=True,
+            equipment=[item("L", TVAL_LITE, SV_LITE_LANTERN, fuel=1000, known=True)],
+        )
+        status = policy._supply_ledger(low_lantern, policy._planned_depth())["oil"]
+        self.assertEqual(status.count, 5)
+        self.assertNotIn(
+            "Flasks of oil",
+            {entry["item"] for entry in policy.procurement_requirements(low_lantern)},
+        )
+
+        policy._last_return_trigger = "recall-low"
+        policy._break_town_cycle(low_lantern)
+        self.assertTrue(policy._town_restock_suppressed)
+        self.assertIn(STORE_GENERAL, policy._town_store_attempted)
 
     def test_every_departure_threshold_exceeds_return_threshold(self):
         for kind, phases in SUPPLY_THRESHOLDS.items():
