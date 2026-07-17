@@ -10,6 +10,10 @@ bot stopped, resuming it is YOUR duty per this brief — UNLESS
 jsonlog\maintenance.hold exists: that file means a live investigation owns
 the stopped state (the 2026-07-16 auto-resume during an investigation forced
 the user to kill the game); never start/resume anything while it exists.
+RE-CHECK the hold file IMMEDIATELY BEFORE issuing any start/resume command,
+not only at iteration start — on 2026-07-17 a generation that began before
+the hold appeared resumed the bot mid-investigation (a race the
+start-of-iteration check cannot see).
 The human user directs Fable; escalate open questions through
 the event log, never assume approval.
 
