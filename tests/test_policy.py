@@ -1431,6 +1431,16 @@ class ConsumableTest(unittest.TestCase):
         snap = Snapshot(player(10, 10, hp=20, max_hp=100), grids, [], inventory=inv)
         self.assertEqual(HengbotPolicy().choose_key(snap), REST_MACRO)
 
+    def test_does_not_rest_while_fainting_in_town(self):
+        grids = self._open_room()
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=100, food=100),
+            grids,
+            [],
+            floor_key=(0, 0, 0),
+        )
+        self.assertNotEqual(HengbotPolicy().choose_key(snap), REST_MACRO)
+
     def test_ignores_unidentified_potion_when_hurt(self):
         grids = self._open_room()
         inv = [item("c", POTION, 34, aware=False)]  # unknown potion — don't gamble

@@ -9,11 +9,14 @@ last ration and reached food_state "weak" with an empty pack.
 """
 
 import unittest
+from dataclasses import replace
 
 from hengbot.model import Position, Snapshot
-from hengbot.cli import LOOP_WINDOW
+from hengbot.cli import LOOP_WINDOW, STARVING_STOP_LIMIT, _advance_starving_streak
+from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
+    COMBAT_OUTCOME_WINDOW,
     NAV_NO_PROGRESS_LIMIT,
     RESUME_DESCENT_BLOCK_DECISIONS,
     WAIT_KEY,
@@ -229,6 +232,79 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._update_navigation_progress(fighting)
         self.assertEqual(policy._nav_stall_count, 0)
 
+    def test_multiplier_swarm_with_no_outcome_is_marked_fruitless(self):
+        base = self._quiet_room()
+        lice = [
+            hostile(index, 10, 11, can_multiply=True)
+            for index in range(1, 55)
+        ]
+        fighting = replace(base, visible_monsters=lice)
+        policy = HengbotPolicy()
+
+        for _ in range(COMBAT_OUTCOME_WINDOW + 1):
+            policy.last_reason = "melee"
+            policy._update_combat_outcome(fighting)
+
+        self.assertEqual(policy.last_reason, "combat:fruitless")
+        self.assertFalse(policy._combat_fruitful)
+
+    def test_hostile_count_or_experience_progress_prevents_fruitless_stop(self):
+        base = self._quiet_room()
+        policy = HengbotPolicy()
+        many = replace(
+            base,
+            visible_monsters=[hostile(index, 10, 11) for index in range(1, 5)],
+        )
+        fewer = replace(many, visible_monsters=many.visible_monsters[:2])
+        opening_quarter = (COMBAT_OUTCOME_WINDOW + 1) // 4
+        for step in range(COMBAT_OUTCOME_WINDOW + 1):
+            policy.last_reason = "melee"
+            policy._update_combat_outcome(many if step < opening_quarter else fewer)
+        self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+        policy = HengbotPolicy()
+        gained = replace(base, player=replace(base.player, exp=1))
+        for step in range(COMBAT_OUTCOME_WINDOW + 1):
+            policy.last_reason = "melee"
+            policy._update_combat_outcome(gained if step else base)
+        self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+    def test_long_unique_fight_with_falling_hp_is_not_fruitless(self):
+        base = self._quiet_room()
+        unique = replace(hostile(1, 10, 11, hp=100, max_hp=100), race_id=999)
+        policy = HengbotPolicy(
+            monrace_knowledge={
+                999: MonraceKnowledge(100, 110, False, False, flags=frozenset({"UNIQUE"}))
+            }
+        )
+        for step in range(COMBAT_OUTCOME_WINDOW + 1):
+            policy.last_reason = "melee"
+            monster = replace(unique, hp=max(1, 100 - step // 4))
+            policy._update_combat_outcome(replace(base, visible_monsters=[monster]))
+        self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+    def test_fruitless_combat_no_longer_resets_navigation_invariant(self):
+        snapshot = replace(
+            self._quiet_room(), visible_monsters=[hostile(1, 10, 11, can_multiply=True)]
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+        policy._nav_progress_marker = (
+            snapshot.player.gold,
+            len(snapshot.inventory),
+            len(snapshot.equipment),
+        )
+        policy._nav_known_high = len(policy._remembered_known_t)
+        policy._combat_fruitful = False
+        policy.last_reason = "combat:fruitless"
+        policy._nav_stall_count = NAV_NO_PROGRESS_LIMIT - 1
+
+        policy._update_navigation_progress(snapshot)
+
+        self.assertTrue(policy._nav_exhausted)
+
+
     def test_exhausted_floor_reads_a_recall_scroll(self):
         recall = item("w", SCROLL, SV_SCROLL_WORD_OF_RECALL)
         snapshot = self._quiet_room(inventory=[recall])
@@ -268,6 +344,33 @@ class NavigationInvariantTest(unittest.TestCase):
                     break
             self.assertEqual(policy.last_reason, "livelock:exhausted")
             self.assertEqual(key, WAIT_KEY)
+
+
+class StarvationStopTest(unittest.TestCase):
+    def test_town_death_cycle_trips_within_the_budget(self):
+        reasons = ("town:seek-shelter", "town:recover", "shop:leave")
+        streak = 0
+        for decision in range(STARVING_STOP_LIMIT):
+            streak = _advance_starving_streak(
+                streak,
+                food_state="fainting",
+                has_edible=False,
+                reason=reasons[decision % len(reasons)],
+                position_changed=True,
+            )
+        self.assertEqual(streak, STARVING_STOP_LIMIT)
+
+    def test_advancing_survival_return_is_exempt(self):
+        self.assertEqual(
+            _advance_starving_streak(
+                20,
+                food_state="weak",
+                has_edible=False,
+                reason="return:seek-upstairs",
+                position_changed=True,
+            ),
+            0,
+        )
 
 
 class SurvivalGateTest(unittest.TestCase):

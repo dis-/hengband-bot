@@ -375,6 +375,11 @@ NAV_NO_PROGRESS_LIMIT = 400
 # bounded budget so a broken escape cannot itself loop forever: past it, the
 # policy reports livelock:exhausted and the CLI stops the bot visibly.
 NAV_ESCAPE_STEP_LIMIT = 200
+# A fight may legitimately hold one area for a while, but combat is not progress
+# forever merely because attack keys keep being issued.  Retain one extra sample
+# so a full window has both endpoints to compare.
+COMBAT_OUTCOME_WINDOW = 300
+COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of
 # the map, so cli's position-based loop guard never fires on wandering alone — a
 # live logic deadlock (Home identification stuck behind an equipment-optimizer
@@ -1120,6 +1125,9 @@ class HengbotPolicy:
         self._nav_escape_steps = 0
         self._nav_known_high = 0
         self._nav_progress_marker: tuple[int, int, int] | None = None
+        self._combat_outcomes: deque[tuple] = deque(maxlen=COMBAT_OUTCOME_WINDOW + 1)
+        self._combat_outcome_floor: tuple[int, int, int] | None = None
+        self._combat_fruitful = True
         self._town_wander_streak = 0
         self._deepest_level = 0
         self._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -1252,6 +1260,7 @@ class HengbotPolicy:
         self._nav_ledger.begin_decision()
         key = self._decide(snapshot)
         key = self._break_livelock(snapshot, key)
+        self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
         if (
             snapshot.store is not None
@@ -1560,7 +1569,7 @@ class HengbotPolicy:
                 player.hp < player.max_hp
                 or player.mp < player.max_mp
                 or not self._temporary_status_clear(snapshot)
-            ):
+            ) and player.food_state in {"normal", "full", "gorged"}:
                 self.last_reason = "town:recover"
                 return REST_MACRO
 
@@ -7729,7 +7738,7 @@ class HengbotPolicy:
             player.hp < player.max_hp
             or player.mp < player.max_mp
             or not self._temporary_status_clear(snapshot)
-        ):
+        ) and player.food_state in {"normal", "full", "gorged"}:
             self.last_reason = "town:recover"
             return REST_MACRO
 
@@ -10161,9 +10170,14 @@ class HengbotPolicy:
             # fighting decision. A monster merely visible across the floor
             # (unreachable, feared, asleep behind glass) must not reset the
             # counter, or a varied livelock with a spectator never trips.
-            or bool(self._adjacent_hostiles(snapshot))
-            or self.last_reason.startswith(
-                ("melee", "ranged", "flee", "hunt", "emergency", "quest:")
+            or (
+                self._combat_fruitful
+                and (
+                    bool(self._adjacent_hostiles(snapshot))
+                    or self.last_reason.startswith(
+                        ("melee", "ranged", "flee", "hunt", "emergency", "quest:")
+                    )
+                )
             )
         )
         self._nav_known_high = max(self._nav_known_high, coverage)
@@ -10174,6 +10188,69 @@ class HengbotPolicy:
         self._nav_stall_count += 1
         if self._nav_stall_count >= NAV_NO_PROGRESS_LIMIT:
             self._nav_exhausted = True
+
+    def _update_combat_outcome(self, snapshot: Snapshot) -> None:
+        """Mark a combat streak fruitless when its full window has no outcome."""
+        reason = self.last_reason
+        combat = reason == "melee" or reason.startswith(COMBAT_REASON_PREFIXES)
+        if not combat or snapshot.in_town or snapshot.floor_key != self._combat_outcome_floor:
+            self._combat_outcomes.clear()
+            self._combat_fruitful = True
+            self._combat_outcome_floor = snapshot.floor_key
+            if not combat or snapshot.in_town:
+                return
+
+        hostiles = [monster for monster in snapshot.visible_monsters if monster.hostile]
+        hp_by_index = {monster.index: monster.hp for monster in hostiles}
+        unique_ids = {
+            monster.index
+            for monster in hostiles
+            if (
+                (knowledge := self._monrace_knowledge.get(monster.race_id)) is not None
+                and "UNIQUE" in knowledge.flags
+            )
+        }
+        self._combat_outcomes.append(
+            (
+                snapshot.player.exp,
+                snapshot.player.gold,
+                len(hostiles),
+                hp_by_index,
+                unique_ids,
+            )
+        )
+        if len(self._combat_outcomes) <= COMBAT_OUTCOME_WINDOW:
+            self._combat_fruitful = True
+            return
+
+        first = self._combat_outcomes[0]
+        last = self._combat_outcomes[-1]
+        quarter = max(1, len(self._combat_outcomes) // 4)
+        outcomes = list(self._combat_outcomes)
+        # Breeders make the visible count bob up and down.  Treat only a clean,
+        # sustained shift between the opening and closing quarters as kills;
+        # an endpoint dip inside the same 54--64 swarm is not an outcome.
+        hostile_count_progress = max(
+            outcome[2] for outcome in outcomes[-quarter:]
+        ) < min(outcome[2] for outcome in outcomes[:quarter])
+        unique_progress = (
+            len(first[4]) == 1
+            and first[4] == last[4]
+            and next(iter(first[4])) in last[3]
+            and last[3][next(iter(first[4]))] < first[3][next(iter(first[4]))]
+        )
+        self._combat_fruitful = bool(
+            last[0] > first[0]
+            or last[1] > first[1]
+            or hostile_count_progress
+            or unique_progress
+        )
+        if not self._combat_fruitful:
+            self.last_reason = "combat:fruitless"
+
+    def has_edible(self, snapshot: Snapshot) -> bool:
+        """Return whether the current character can eat something in the pack."""
+        return self._find_edible(snapshot) is not None
 
     def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         # Reading needs sight; a full teleport is preferred over a short phase.

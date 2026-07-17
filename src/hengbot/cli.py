@@ -95,6 +95,28 @@ LOOP_MAX_DISTINCT = 4
 # retaining a finite guard for a genuinely unwinnable engagement.
 MULTIPLIER_COMBAT_LOOP_WINDOW = 80
 MULTIPLIER_COMBAT_GRACE = 10
+STARVING_STOP_LIMIT = 60
+
+
+def _advance_starving_streak(
+    streak: int,
+    *,
+    food_state: str,
+    has_edible: bool,
+    reason: str,
+    position_changed: bool,
+) -> int:
+    """Count starvation decisions, sparing only a visibly advancing escape."""
+    starving = food_state in {"weak", "fainting"} and not has_edible
+    advancing_escape = (
+        reason.startswith(("return:", "survival:", "livelock:"))
+        and position_changed
+    )
+    if not starving or advancing_escape:
+        return 0
+    return streak + 1
+
+
 # The emitter can present the exact same command state several times while a
 # posted Windows key is still waiting to be consumed. Sending on every copy
 # builds a large input backlog and makes the loop detector judge stale positions.
@@ -1015,6 +1037,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         blocked_streak = 0
         town_residence_streak = 0
         residence_floor_key = None
+        starving_streak = 0
+        starving_last_position = None
         last_snapshot_floor_key = (
             initial_snapshot.floor_key if initial_snapshot is not None else None
         )
@@ -1114,6 +1138,33 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         policy,
                         economy_ledger,
                     )
+                    starving_position_changed = (
+                        starving_last_position is not None
+                        and snapshot.player.position != starving_last_position
+                    )
+                    starving_last_position = snapshot.player.position
+                    starving_streak = _advance_starving_streak(
+                        starving_streak,
+                        food_state=snapshot.player.food_state,
+                        has_edible=policy.has_edible(snapshot),
+                        reason=policy.last_reason,
+                        position_changed=starving_position_changed,
+                    )
+                    if starving_streak >= STARVING_STOP_LIMIT:
+                        print(
+                            f"<loop-detected> floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn} starvation persisted without "
+                            f"edible food for {starving_streak} decisions; stopping "
+                            "the bot for investigation",
+                            flush=True,
+                        )
+                        print(
+                            f"starvation loop at floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn}; stopping bot (game left running)",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        return 0
                     # The policy's mode-independent navigation invariant found
                     # no coverage/goal/economy progress for hundreds of
                     # decisions AND could not leave the floor. This is the
@@ -1130,6 +1181,22 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         )
                         print(
                             f"navigation exhausted at floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn}; stopping bot (game left running)",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        return 0
+                    if policy.last_reason == "combat:fruitless":
+                        print(
+                            f"<loop-detected> floor={snapshot.floor_key} "
+                            f"turn={snapshot.turn} combat produced no experience, "
+                            "gold, hostile-count reduction, or unique HP progress "
+                            "for the combat outcome window; stopping the bot for "
+                            "investigation",
+                            flush=True,
+                        )
+                        print(
+                            f"fruitless combat at floor={snapshot.floor_key} "
                             f"turn={snapshot.turn}; stopping bot (game left running)",
                             file=sys.stderr,
                             flush=True,
