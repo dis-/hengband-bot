@@ -805,6 +805,9 @@ CURE_CRITICAL_REQUIRED_DEPTH = 2
 CURE_CRITICAL_DEEP_DEPTH = 10
 CURE_CRITICAL_DEEP_TARGET = 10
 CURE_CRITICAL_DEEP_RETURN_THRESHOLD = 1
+# From this depth the loot stream is dense enough that carrying a Staff of
+# Identify pays for itself.  The same 10F boundary selects deep teleport stock.
+STAFF_IDENTIFY_MIN_DEPTH = 10
 # The complete supply policy lives here.  Values are (minimum floor, minimum
 # carried stock); the ledger selects the last applicable band.  Departure uses
 # the expedition target while return uses the reserve.  Supplier assignments
@@ -816,8 +819,8 @@ SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
         "departure": ((1, 1),),
     },
     "teleport": {
-        "return": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (10, TELEPORT_RETURN_THRESHOLD + 1)),
-        "departure": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (10, TELEPORT_SCROLL_DEEP_TARGET)),
+        "return": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_RETURN_THRESHOLD + 1)),
+        "departure": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_SCROLL_DEEP_TARGET)),
     },
     "cure": {
         "return": ((1, 0), (CURE_CRITICAL_REQUIRED_DEPTH, CURE_CRITICAL_TARGET), (CURE_CRITICAL_DEEP_DEPTH, CURE_CRITICAL_DEEP_RETURN_THRESHOLD + 1)),
@@ -847,7 +850,6 @@ FIXED_QUEST_CURE_CRITICAL_HP = 27
 # From this depth the loot stream is dense enough that carrying a Staff of Identify
 # (rechargeable, unlike scrolls) pays for itself: unknowns get resolved in the
 # dungeon so junk can be shed instead of hoarded. Required in the departure kit.
-STAFF_IDENTIFY_MIN_DEPTH = 10
 # ...and carry enough total identify charges (across staves) to last a deep run.
 STAFF_IDENTIFY_MIN_CHARGES = 20
 # Keep a useful reserve without accumulating every charged staff found.
@@ -3167,11 +3169,8 @@ class HengbotPolicy:
             stores = (STORE_MAGIC,) if kind == "food" and mana_food else SUPPLY_STORES[kind]
             candidates = [s for s in stores if s not in self._town_store_attempted]
             obtainable = bool(candidates)
-            if (
-                obtainable
-                and snapshot.store is not None
-                and snapshot.store.store_type in candidates
-            ):
+            if obtainable and snapshot.store is not None and snapshot.store.store_type in candidates:
+                current_supplier = snapshot.store.store_type
                 wares = [
                     item
                     for item in snapshot.store.items
@@ -3181,9 +3180,13 @@ class HengbotPolicy:
                         else self._store_item_is_supply(item, kind)
                     )
                 ]
-                obtainable = any(item.price <= snapshot.player.gold for item in wares)
-            required_return = self._supply_threshold(kind, "return", depth)
-            required_departure = self._supply_threshold(kind, "departure", depth)
+                obtainable = (
+                    any(s != current_supplier for s in candidates)
+                    or any(item.price <= snapshot.player.gold for item in wares)
+                )
+            threshold_depth = max(depth, self._planned_depth()) if kind == "teleport" else depth
+            required_return = self._supply_threshold(kind, "return", threshold_depth)
+            required_departure = self._supply_threshold(kind, "departure", threshold_depth)
             if kind == "recall":
                 required_departure = max(
                     required_departure, self._recall_required_target(snapshot)
@@ -3343,10 +3346,6 @@ class HengbotPolicy:
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         return status.required_departure
 
-    def _recall_return_needed(self, snapshot: Snapshot) -> bool:
-        ledger = self._supply_ledger(snapshot, snapshot.dungeon_level)
-        return bool(self._ledger_return_shortages({"recall": ledger["recall"]}, snapshot.dungeon_level))
-
     def _recall_required_target(self, snapshot: Snapshot) -> int:
         if (
             snapshot.in_town
@@ -3388,8 +3387,8 @@ class HengbotPolicy:
                 # That departure recall is consumed entering the dungeon, so the
                 # arrival snapshot is target-1. Once arrived at RECALL_MIN_DEPTH+
                 # (here to stay: the next depth is always >= RECALL_MIN_DEPTH
-                # too), _recall_return_needed fires at count <= RECALL_RETURN_
-                # THRESHOLD and _next_depth_supply_shortage wants count >=
+                # too), the ledger return invariant fires below its return
+                # threshold and _next_depth_supply_shortage wants count >=
                 # RECALL_RETURN_THRESHOLD + 1 for the next floor -- both must
                 # come out true (safe) on arrival, i.e. target - 1 must EXCEED
                 # RECALL_RETURN_THRESHOLD, else the bot recalls right back to
@@ -3437,10 +3436,6 @@ class HengbotPolicy:
         )
         return self._supply_ledger(snapshot, self._planned_depth())["teleport"].count >= required
 
-    def _teleport_return_needed(self, snapshot: Snapshot) -> bool:
-        ledger = self._supply_ledger(snapshot, snapshot.dungeon_level)
-        return bool(self._ledger_return_shortages({"teleport": ledger["teleport"]}, snapshot.dungeon_level))
-
     def _cure_critical_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["cure"]
         return status.count >= status.required_departure
@@ -3458,10 +3453,6 @@ class HengbotPolicy:
         if depth >= CURE_CRITICAL_DEEP_DEPTH:
             return CURE_CRITICAL_DEEP_TARGET
         return CURE_CRITICAL_TARGET
-
-    def _cure_critical_return_needed(self, snapshot: Snapshot) -> bool:
-        ledger = self._supply_ledger(snapshot, snapshot.dungeon_level)
-        return bool(self._ledger_return_shortages({"cure": ledger["cure"]}, snapshot.dungeon_level))
 
     def _total_identify_staff_charges(self, snapshot: Snapshot) -> int:
         return sum(
@@ -6685,8 +6676,13 @@ class HengbotPolicy:
             and item.tval in {TVAL_WAND, TVAL_STAFF}
         ):
             charge_needed = max(0, ledger["food"].required_departure - ledger["food"].count)
+            device_needed = max(
+                0, MANA_FOOD_DEVICE_TARGET - self._count_mana_food_devices(snapshot)
+            )
             per_device = max(1, item.pval)
-            needed = (charge_needed + per_device - 1) // per_device
+            needed = max(
+                device_needed, (charge_needed + per_device - 1) // per_device
+            )
         elif item.is_oil:
             needed = ledger["oil"].required_departure - ledger["oil"].count
         elif item.is_teleport_scroll:
@@ -10127,8 +10123,6 @@ class HengbotPolicy:
                     "recall": "recall-low",
                     "teleport": "teleport-low",
                     "cure": "cure-low",
-                    "oil": "next-depth-kit",
-                    "food": "next-depth-kit",
                 }[ledger_shortages[0].kind]
                 return True
             if snapshot.dungeon_level >= 1:
@@ -10174,11 +10168,7 @@ class HengbotPolicy:
         next_depth = snapshot.dungeon_level + 1
         ledger = self._supply_ledger(snapshot, next_depth)
         return any(
-            status.count < (
-                status.required_return
-                if status.kind == "recall"
-                else status.required_departure
-            )
+            status.count < status.required_return
             and (status.obtainable or next_depth > WALK_OUT_MAX_DEPTH)
             for status in ledger.values()
         )

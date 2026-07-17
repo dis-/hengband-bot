@@ -93,6 +93,8 @@ from hengbot.policy import (
     TOWN_WANDER_LIMIT,
     STORE_RETRY_TURNS,
     STAFF_IDENTIFY_MIN_DEPTH,
+    TELEPORT_RETURN_THRESHOLD,
+    TELEPORT_SCROLL_DEEP_TARGET,
     STAFF_IDENTIFY_MAX_COUNT,
     IDENTIFY_PRESSURE_FREE_SLOTS,
     IDENTIFY_FAIL_LIMIT,
@@ -4428,7 +4430,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._should_start_town_return(dungeon_snapshot(1)))
         self.assertEqual(policy._last_return_trigger, "cure-low")
 
-    def test_ninth_floor_requires_ten_potions_before_descending_to_ten(self):
+    def test_ninth_floor_uses_deep_cure_return_reserve_for_next_depth(self):
         def floor_nine(critical):
             return Snapshot(
                 player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -4442,8 +4444,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             )
 
         policy = HengbotPolicy()
-        self.assertTrue(policy._next_depth_supply_shortage(floor_nine(9)))
-        self.assertFalse(policy._next_depth_supply_shortage(floor_nine(10)))
+        self.assertTrue(policy._next_depth_supply_shortage(floor_nine(1)))
+        self.assertFalse(policy._next_depth_supply_shortage(floor_nine(2)))
 
     def test_buys_cure_critical_for_depth_two(self):
         snap = Snapshot(
@@ -4501,19 +4503,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(HengbotPolicy()._descent_is_blocked(ready))
 
     def test_returns_after_finding_stairs_when_next_depth_kit_is_short(self):
-        inventory = self._strict_supplies(recall=5, teleport=15, critical=3)
-        inventory = [
-            replace(it, count=4) if it.tval == TVAL_FLASK else it
-            for it in inventory
-        ]
-        inventory.append(
-            item("s", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20, aware=True)
-        )
+        # Recall is optional on 4F but its return reserve starts at 5F, so the
+        # remembered downstairs is the event that makes this shortage actionable.
+        inventory = self._strict_supplies(recall=3, teleport=3, critical=3)
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10, downstairs=True)},
             [],
-            floor_key=(4, 10, 0),
+            floor_key=(4, 4, 0),
             inventory=inventory,
             equipment=[self._lantern()],
         )
@@ -4979,7 +4976,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertFalse(policy._recall_return_needed(snap))
+        ledger = policy._supply_ledger(snap, snap.dungeon_level)
+        self.assertFalse(policy._ledger_return_shortages(ledger, snap.dungeon_level))
         self.assertFalse(policy._should_start_town_return(snap))
 
     def test_missing_recall_still_triggers_deep_return(self):
@@ -8354,10 +8352,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             )
 
         policy = HengbotPolicy()
-        self.assertFalse(policy._recall_return_needed(arrival(4)))
-        self.assertFalse(policy._next_depth_supply_shortage(arrival(4)))
-        self.assertTrue(policy._recall_return_needed(arrival(3)))
-        self.assertTrue(policy._next_depth_supply_shortage(arrival(3)))
+        stocked = arrival(4)
+        low = arrival(3)
+        self.assertFalse(policy._ledger_return_shortages(
+            policy._supply_ledger(stocked, stocked.dungeon_level), stocked.dungeon_level
+        ))
+        self.assertFalse(policy._next_depth_supply_shortage(stocked))
+        self.assertTrue(policy._ledger_return_shortages(
+            policy._supply_ledger(low, low.dungeon_level), low.dungeon_level
+        ))
+        self.assertTrue(policy._next_depth_supply_shortage(low))
 
     def test_home_receives_equipment_before_other_town_work(self):
         gear = item(
@@ -14340,13 +14344,29 @@ class DeepKitTest(unittest.TestCase):
     def test_deep_return_only_at_low_reserve(self):
         pol = self._pol(10)
         # below the 15 target but above the reserve -> keep exploring, do not thrash
-        self.assertFalse(pol._teleport_return_needed(self._dungeon(11, self._tp(10))))
-        self.assertTrue(pol._teleport_return_needed(self._dungeon(11, self._tp(3))))
+        stocked = self._dungeon(11, self._tp(10))
+        low = self._dungeon(11, self._tp(3))
+        stocked_teleport = pol._supply_ledger(stocked, stocked.dungeon_level)["teleport"]
+        low_teleport = pol._supply_ledger(low, low.dungeon_level)["teleport"]
+        self.assertFalse(pol._ledger_return_shortages(
+            {"teleport": stocked_teleport}, stocked.dungeon_level
+        ))
+        self.assertTrue(pol._ledger_return_shortages(
+            {"teleport": low_teleport}, low.dungeon_level
+        ))
 
     def test_shallow_return_uses_plain_below_target(self):
         pol = self._pol(3)  # planned 4, target 3
-        self.assertTrue(pol._teleport_return_needed(self._dungeon(4, self._tp(2))))
-        self.assertFalse(pol._teleport_return_needed(self._dungeon(4, self._tp(3))))
+        low = self._dungeon(4, self._tp(2))
+        stocked = self._dungeon(4, self._tp(3))
+        low_teleport = pol._supply_ledger(low, low.dungeon_level)["teleport"]
+        stocked_teleport = pol._supply_ledger(stocked, stocked.dungeon_level)["teleport"]
+        self.assertTrue(pol._ledger_return_shortages(
+            {"teleport": low_teleport}, low.dungeon_level
+        ))
+        self.assertFalse(pol._ledger_return_shortages(
+            {"teleport": stocked_teleport}, stocked.dungeon_level
+        ))
 
     def test_deep_staff_needs_twenty_total_charges(self):
         pol = self._pol(10)
@@ -15351,6 +15371,24 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
         self.assertFalse(policy._supply_ledger(self._snapshot(4), 4)["teleport"].obtainable)
 
+    def test_empty_current_supplier_keeps_unchecked_alternative_obtainable(self):
+        policy = HengbotPolicy()
+        alchemist = StoreState(store_type=STORE_ALCHEMIST, items=[])
+        snapshot = self._snapshot(4, store=alchemist)
+
+        self.assertTrue(policy._supply_ledger(snapshot, 4)["recall"].obtainable)
+        needs = policy._enumerate_town_needs(replace(snapshot, town_flag=True))
+        self.assertIn(TownNeed(STORE_TEMPLE, "recall", "normal"), needs)
+
+    def test_teleport_uses_planned_depth_at_nine_ten_boundary(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH - 1
+        floor_nine = self._snapshot(STAFF_IDENTIFY_MIN_DEPTH - 1)
+
+        status = policy._supply_ledger(floor_nine, floor_nine.dungeon_level)["teleport"]
+        self.assertEqual(status.required_return, TELEPORT_RETURN_THRESHOLD + 1)
+        self.assertEqual(status.required_departure, TELEPORT_SCROLL_DEEP_TARGET)
+
     def test_unobtainable_shallow_teleport_departs_without_return_bounce(self):
         supplies = [
             item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2),
@@ -15363,7 +15401,8 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         policy._deepest_level = 3
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
         dungeon = self._snapshot(4, supplies)
-        self.assertFalse(policy._teleport_return_needed(dungeon))
+        ledger = policy._supply_ledger(dungeon, dungeon.dungeon_level)
+        self.assertFalse(policy._ledger_return_shortages(ledger, dungeon.dungeon_level))
         self.assertFalse(policy._should_start_town_return(dungeon))
         town = replace(dungeon, floor_key=(0, 0, 0), town_flag=True)
         self.assertTrue(policy._ledger_departure_shortages(policy._supply_ledger(town, 4)) == [])
@@ -15393,7 +15432,40 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
         dungeon = self._snapshot(11, [item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3)])
-        self.assertTrue(policy._teleport_return_needed(dungeon))
+        ledger = policy._supply_ledger(dungeon, dungeon.dungeon_level)
+        self.assertTrue(policy._ledger_return_shortages(ledger, dungeon.dungeon_level))
+
+    def test_next_depth_uses_return_threshold_not_departure_target(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 12
+        policy._town_store_attempted[STORE_ALCHEMIST] = 0
+
+        enough = self._snapshot(12, [
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=5),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=2),
+        ])
+        low = replace(enough, inventory=[
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=2),
+        ])
+
+        self.assertFalse(policy._next_depth_supply_shortage(enough))
+        self.assertTrue(policy._next_depth_supply_shortage(low))
+
+    def test_mana_food_purchase_restores_device_redundancy(self):
+        policy = HengbotPolicy()
+        staff = store_item("s", TVAL_STAFF, 1, price=100, pval=20, count=10)
+        town = replace(
+            self._snapshot(0, gold=1000, store=StoreState(STORE_MAGIC, [staff])),
+            player=replace(
+                self._snapshot(0).player, gold=1000, food_type=FOOD_TYPE_MANA
+            ),
+            town_flag=True,
+        )
+
+        self.assertEqual(policy._purchase_quantity(town, staff), 2)
 
     def test_cycle_break_pins_every_obtainable_supply_supplier(self):
         policy = HengbotPolicy()
