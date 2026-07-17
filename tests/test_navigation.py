@@ -13,10 +13,15 @@ import unittest
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
 
 from hengbot.model import Position, Snapshot, parse_snapshot
-from hengbot.cli import LOOP_WINDOW, STARVING_STOP_LIMIT, _advance_starving_streak
+from hengbot.cli import (
+    LOOP_WINDOW,
+    STARVING_STOP_LIMIT,
+    _advance_starving_streak,
+    _objective_for_reason,
+)
+from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
     COMBAT_OUTCOME_WINDOW,
@@ -160,7 +165,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertLess(max(Counter(visited).values()), 3)
         self.assertNotIn(("3", "7"), zip(keys, keys[1:]))
 
-    def test_0124_real_stair_replay_descends_and_has_one_eligibility_source(self):
+    def test_0124_live_state_replay_identifies_guardian_veto_and_returns(self):
         incident = self._load_jsonl("descend-in-place-2026-07-18-0124.jsonl")
         self.assertEqual(incident[0]["turn"], 885977)
         self.assertEqual(incident[-1]["reason"], "loop-detected")
@@ -175,23 +180,65 @@ class DescentIncidentReplayTest(unittest.TestCase):
         snapshot = parse_snapshot(self._load_jsonl(
             "descend-in-place-2026-07-18-0124-snapshots.jsonl"
         )[0])
-        policy = HengbotPolicy()
+        # The live CLI loads static dungeon knowledge.  A bare policy has no
+        # guardian/max-depth facts and descends on both sides of the fix, so it
+        # is not an incident reproduction.  Recreate the runtime knowledge that
+        # made 8F the penultimate Yeek floor in the captured session.
+        yeek = DungeonInfo(
+            id=2,
+            name="Yeek cave",
+            min_depth=1,
+            max_depth=9,
+            min_player_level=1,
+            guardian_id=237,
+        )
+        policy = HengbotPolicy(dungeon_knowledge={2: yeek})
         here = snapshot.grid_at(snapshot.player.position)
         self.assertIsNotNone(here)
         self.assertTrue(here.has_down_stairs)
-        self.assertEqual(policy.choose_key(snapshot), ">")
-        self.assertEqual(policy.last_reason, "descend")
+        self.assertTrue(policy._guardian_descent_blocked(snapshot))
+        self.assertFalse(policy._descent_is_blocked(snapshot))
+        self.assertFalse(policy._is_descent_target(snapshot, here))
 
-        # A visible stair vetoed by the authoritative in-place eligibility
-        # check must not return through the remembered/"forgotten" target set.
-        # The incident floor has another visible stair, so the old subtraction
-        # routed from one vetoed stair to the other forever.
+        # Grid-visible vetoed stairs cannot re-enter through the remembered-only
+        # fallback, and the veto owner must replace the descent objective.
+        policy._floor_key = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+        policy._remembered_downstairs.update(
+            grid.position for grid in snapshot.grids.values() if grid.is_descent
+        )
+        self.assertIsNone(policy._descent_step(snapshot))
+        self.assertIsNone(policy._nav_ledger.descent_target)
+        key = policy.choose_key(snapshot)
+        self.assertEqual(key, "rg")
+        self.assertEqual(policy.last_reason, "return:recall")
+        self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
+        self.assertEqual(_objective_for_reason(policy.last_reason), "Return to town")
+
+    def test_all_visible_next_depth_vetoes_transfer_to_return_objective(self):
+        snapshot = parse_snapshot(self._load_jsonl(
+            "descend-in-place-2026-07-18-0124-snapshots.jsonl"
+        )[0])
+        snapshot = replace(snapshot, floor_key=(1, 19, 0))
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._build_grid_index(snapshot)
-        with patch.object(policy, "_is_descent_target", return_value=False):
-            self.assertIsNone(policy._descent_step(snapshot))
-        self.assertIsNone(policy._nav_ledger.descent_target)
+        policy._remembered_downstairs.update(
+            grid.position for grid in snapshot.grids.values() if grid.is_descent
+        )
+        # Isolate the prospective-depth owner from unrelated supply returns.
+        policy._should_start_town_return = lambda _snapshot: False
+
+        self.assertTrue(all(
+            not policy._is_descent_target(snapshot, grid)
+            for grid in snapshot.grids.values() if grid.is_descent
+        ))
+        key = policy.choose_key(snapshot)
+
+        self.assertTrue(key.startswith("r"))
+        self.assertEqual(policy.last_reason, "return:recall")
+        self.assertEqual(policy._last_return_trigger, "next-depth-resist-gap")
+        self.assertEqual(_objective_for_reason(policy.last_reason), "Return to town")
 
 
 class StairRejectionInvalidationTest(unittest.TestCase):

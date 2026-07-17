@@ -2087,6 +2087,15 @@ class HengbotPolicy:
                 else DOWN_STAIRS_KEY
             )
 
+        # If the only known way forward is deliberately vetoed, hand navigation
+        # to the policy that owns that veto.  Otherwise the descent router falls
+        # through to generic exploration while the objective still claims that
+        # it is trying to descend.
+        if self._all_known_descents_require_return(snapshot):
+            town_return = self._return_to_town_key(snapshot, hostiles)
+            if town_return is not None:
+                return town_return
+
         # 6. Head for a known downstairs / dungeon entrance: path straight there
         #    if reachable, otherwise explore toward it (the entrance may be known
         #    but its approach still unmapped — e.g. the town's wilderness gate).
@@ -2169,7 +2178,7 @@ class HengbotPolicy:
                 not snapshot.in_town
                 and not forgetting_maze
                 and self._search_counts[here_key] < SEARCH_LIMIT
-        ):
+            ):
                 self._search_counts[here_key] += 1
                 self.last_reason = "search"
                 return SEARCH_KEY
@@ -12260,6 +12269,40 @@ class HengbotPolicy:
         # in-dungeon stairs (the next floor is one deeper).
         if self._missing_required_abilities(snapshot, snapshot.dungeon_level + 1):
             return False
+        return True
+
+    def _all_known_descents_require_return(self, snapshot: Snapshot) -> bool:
+        """Latch the return objective when every known forward stair is vetoed."""
+        if snapshot.in_town or self._returning_to_town:
+            return False
+        visible = {
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.is_descent
+        }
+        if not visible:
+            return False
+        expired = self._nav_ledger.expired_targets("descend")
+        remembered_only = self._remembered_downstairs - visible - expired
+        if remembered_only or any(
+            position not in expired
+            and self._is_descent_target(snapshot, snapshot.grids[position])
+            for position in visible
+        ):
+            return False
+        if self._guardian_descent_blocked(snapshot):
+            self._last_return_trigger = "guardian-kit-insufficient"
+        elif self._missing_required_abilities(
+            snapshot, snapshot.dungeon_level + 1
+        ):
+            self._last_return_trigger = "next-depth-resist-gap"
+        else:
+            # Quest and fundraising vetoes have their own floor handlers and
+            # must not be converted into an ordinary supply return.
+            return False
+        self._returning_to_town = True
+        self._nav_ledger.clear_descent_route()
+        self._descent_target_goal = None
         return True
 
     def _missing_required_abilities(self, snapshot: Snapshot, depth: int) -> frozenset:
