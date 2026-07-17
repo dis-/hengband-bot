@@ -1718,6 +1718,19 @@ class HengbotPolicy:
         if loot is not None:
             return loot
 
+        # Keep a light lit before any town errand can approach a store or the
+        # dungeon entrance: native town travel is rejected at night unless a
+        # light is equipped. Skip equipment changes while confused.
+        if not player.confused:
+            wield = self._light_to_wield(snapshot)
+            if wield is not None:
+                self.last_reason = "wield-light"
+                return WIELD_KEY + wield.slot
+            refill = self._light_refill_item(snapshot)
+            if refill is not None:
+                self.last_reason = "refill-light"
+                return REFILL_KEY + refill.slot
+
         # _observe schedules the town circuit breaker before _decide runs.  It
         # must preempt the shopping approach below: that router otherwise
         # returns on every decision and starves _town_special_key forever,
@@ -1758,22 +1771,6 @@ class HengbotPolicy:
         town_special = self._town_special_key(snapshot)
         if town_special is not None:
             return town_special
-
-        # 2b. Keep a light lit: wield one if none is equipped, and upgrade a torch
-        #     to a lantern once we own one. A fresh warrior carries torches yet the
-        #     game only auto-lights the first; once it burns out the character walks
-        #     in the dark, unable to see monsters — how a Half-Troll bled to death to
-        #     a Draugr it never saw. Do this before idling/exploring; skip mid-melee
-        #     (handled above) and while confused.
-        if not player.confused:
-            wield = self._light_to_wield(snapshot)
-            if wield is not None:
-                self.last_reason = "wield-light"
-                return WIELD_KEY + wield.slot
-            refill = self._light_refill_item(snapshot)
-            if refill is not None:
-                self.last_reason = "refill-light"
-                return REFILL_KEY + refill.slot
 
         here = snapshot.grid_at(player.position)
         # 3b. Losing HP with nothing hostile in view means an attacker we cannot
@@ -7378,6 +7375,8 @@ class HengbotPolicy:
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
+        if not self._has_light_equipped(snapshot):
+            return self._step_toward(snapshot, step)
         clear_traveler = self._town_clear_traveler_key(snapshot)
         if clear_traveler is not None:
             return clear_traveler
@@ -7452,6 +7451,8 @@ class HengbotPolicy:
         if snapshot.dungeon_level != 0 or goal is None:
             return None
         if self.last_reason not in {"seek-downstairs", "approach-descent"}:
+            return None
+        if not self._has_light_equipped(snapshot):
             return None
         clear_traveler = self._town_clear_traveler_key(snapshot)
         if clear_traveler is not None:

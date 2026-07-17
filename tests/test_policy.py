@@ -658,11 +658,38 @@ class ShoppingTest(unittest.TestCase):
         snap = Snapshot(
             player(10, 1, gold=1000), grids, [], floor_key=(0, 0, 0),
             width=20, height=20, town_flag=True,
+            inventory=[item("a", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
         pol = HengbotPolicy(town_map=town_map)
+        self.assertEqual(pol.choose_key(snap), "wa")
+        self.assertEqual(pol.last_reason, "wield-light")
+        snap = replace(
+            snap,
+            inventory=[],
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
+        )
         self.assertEqual(pol.choose_key(snap), "\x1b`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
+
+    def test_distant_store_without_any_light_walks(self):
+        walkable = frozenset(Position(10, x) for x in range(1, 16))
+        goal = Position(10, 15)
+        town_map = TownMap(
+            name="T", width=20, height=20, walkable=walkable,
+            stores={STORE_GENERAL: goal},
+        )
+        grids = {Position(10, x): grid(10, x) for x in range(1, 16)}
+        grids[goal] = replace(grid(10, 15), store_number=STORE_GENERAL)
+        snap = Snapshot(
+            player(10, 1, gold=1000), grids, [], floor_key=(0, 0, 0),
+            width=20, height=20, town_flag=True,
+        )
+
+        pol = HengbotPolicy(town_map=town_map)
+        self.assertEqual(pol.choose_key(snap), "6")
+        self.assertEqual(pol.last_reason, "shop:approach")
+        self.assertIsNone(pol._town_travel_state)
 
     def test_interrupted_town_travel_retries_then_falls_back(self):
         walkable = frozenset(Position(10, x) for x in range(1, 16))
@@ -680,10 +707,12 @@ class ShoppingTest(unittest.TestCase):
         first = Snapshot(
             player(10, 1, gold=1000), grids, [], floor_key=(0, 0, 0),
             width=20, height=20, town_flag=True, turn=1,
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
         interrupted = Snapshot(
             player(10, 5, gold=1000), grids, [], floor_key=(0, 0, 0),
             width=20, height=20, town_flag=True, turn=2,
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
         pol = HengbotPolicy(town_map=town_map)
@@ -5794,6 +5823,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 0),
             town_flag=True,
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
         policy = HengbotPolicy()
         policy._next_required_store_type = lambda snapshot: STORE_HOME
@@ -13094,7 +13124,7 @@ class StoreTravelRetryTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             turn=turn,
             inventory=[],
-            equipment=[],
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
     @staticmethod
@@ -13581,6 +13611,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
             width=width,
             height=height,
             town_flag=True,
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
     def _approach(self, policy, snapshot):
@@ -13687,7 +13718,7 @@ class EntranceTravelTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             turn=turn,
             inventory=[],
-            equipment=[],
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
     def _travel(self, pol, snap, goal=GOAL):
@@ -13699,6 +13730,14 @@ class EntranceTravelTest(unittest.TestCase):
         key = self._travel(pol, self._surface_snap())
         self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
+
+    def test_surface_goal_without_equipped_light_walks_instead(self):
+        pol = HengbotPolicy()
+        snap = replace(self._surface_snap(), equipment=[])
+
+        self.assertIsNone(self._travel(pol, snap))
+        self.assertEqual(pol.last_reason, "seek-downstairs")
+        self.assertIsNone(pol._town_travel_state)
 
     def test_unremembered_entrance_goal_does_not_issue_or_record_travel(self):
         pol = HengbotPolicy()
