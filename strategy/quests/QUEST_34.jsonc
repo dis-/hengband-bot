@@ -21,7 +21,11 @@
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
     "throwing_items": {"lit_torch": 20},
-    "no_healing_tier": {"min_hp": 54, "min_expected_dps": 8, "heal_potions": 0, "note": "戦術維持下では NEVER_MOVE の r_idx 107 と243を投擲だけで倒し、殺人蜂だけが近接交戦する。遠隔軟化は0、命中率100%、最大ダイス。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 で保守的な交戦窓は3行動、最大被害は 3*9=27。RAW HP の50%に収めるため min_hp=27/0.50=54。dps 8 なら蜂の最大HP 8を1ターンで倒せる。"},
+    // 受注条件の2段構造（ユーザー確認 2026-07-17）: 基本ゲートで受注する
+    // 場合は携行品（加速1・治癒2・松明20）の所持が受注条件。
+    // no_healing_tier を満たす戦力なら薬の携行なしで受注できる
+    // （松明20本は投擲キル計画の弾薬なのでティアでも必要）。
+    "no_healing_tier": {"min_hp": 54, "min_expected_dps": 8, "heal_potions": 0, "speed_potions": 0, "note": "戦術維持下では NEVER_MOVE の r_idx 107 と243を投擲だけで倒し、殺人蜂だけが近接交戦する。遠隔軟化は0、命中率100%、最大ダイス。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 で保守的な交戦窓は3行動、最大被害は 3*9=27。RAW HP の50%に収めるため min_hp=27/0.50=54。dps 8 なら蜂の最大HP 8を1ターンで倒せる。"},
     "rationale": "配置は殺人蜂 r_idx 174 [3,13]、クローカー r_idx 243 [7,15]、デスソード r_idx 107 [9,11]・[11,9]。後三体は NEVER_MOVE なので距離2以上なら追跡も近接被害もなく、蜂だけが近接露出する。このため通常 min_hp=10 と no_healing_tier.min_hp=54、min_expected_dps=8 は蜂の既存導出から不変。点火松明は基礎 Dice(1,6) で、TR_BRAND_FIRE は IM_FIRE の r_idx 107 には倍率なし（平均3.5）、非耐性の r_idx 243 には2.5倍（平均8.75）。level_guideline 5 の通常の人間・戦士は skill_tht=人間0+戦士c_thb55+戦士x_thb30*5/10+性格0=70。throw-execution.cpp の式は chance=skill_tht+(to_h_b+投擲物to_h)*BTH_PLUS_ADJ で、通常能力値・無修正装備・松明では to_h_b=DEX0+STR0+装備0+状態0、投擲物to_h=0、BTH_PLUS_ADJ=3、よって chance=70+(0+0)*3=70。距離2を引いて68、AC 40の閾値は40*3/4=30なので命中率は5%自動命中+90%*((68-30)/68)=55.29%。必要投擲回数はデスソード1体 ceil(36/(3.5*0.5529))=19、二体38、クローカー ceil(49/(8.75*0.5529))=11。object-broken.cpp で LITE の破損率は50%であり、cmd-throw.cpp は命中時だけこの率を渡すため外れは破損0%。各 NEVER_MOVE 標的を倒した後に床の生存松明を回収する反復斉射では、49投の期待永久損失は 49*0.5529*0.50=13.55本。蜂の軟化1投の期待損失 1*0.5529*0.50=0.28本を加えて ceil(13.55+0.28)=14本、破損ぶれの余裕6本を加え lit_torch=14+6=20。順序は蜂、クローカー、デスソード二体。20本は 20*3=60 lb で実用的なので、スリング弾を必須代替とする注意は削除する。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
