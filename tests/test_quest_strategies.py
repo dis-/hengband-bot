@@ -23,14 +23,20 @@ class QuestStrategiesTest(unittest.TestCase):
             self.assertTrue(stderr.write.called)
 
     def test_example_round_trip_and_approval_gate(self):
+        # QUEST_1 ships USER-APPROVED (2026-07-17), so the accessor returns
+        # it; flipping the flag back off must hide it again — the gate is the
+        # flag, nothing else.
         directory = Path(__file__).parents[1] / "strategy" / "quests"
         profiles = load_quest_strategies(directory)
-        self.assertIsNone(HengbotPolicy(quest_strategies=profiles).approved_quest_strategy(1))
-        text = (directory / "QUEST_1.jsonc").read_text(encoding="utf-8").replace('"approved": false', '"approved": true')
+        self.assertEqual(
+            HengbotPolicy(quest_strategies=profiles).approved_quest_strategy(1),
+            profiles[1],
+        )
+        text = (directory / "QUEST_1.jsonc").read_text(encoding="utf-8").replace('"approved": true', '"approved": false')
         with tempfile.TemporaryDirectory() as temp:
             Path(temp, "QUEST_1.jsonc").write_text(text, encoding="utf-8")
-            approved = load_quest_strategies(Path(temp))
-        self.assertEqual(HengbotPolicy(quest_strategies=approved).approved_quest_strategy(1), approved[1])
+            unapproved = load_quest_strategies(Path(temp))
+        self.assertIsNone(HengbotPolicy(quest_strategies=unapproved).approved_quest_strategy(1))
 
     def test_locator_walks_up_from_state_file(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -59,12 +65,17 @@ class QuestStrategiesTest(unittest.TestCase):
             {int(path.stem.removeprefix("QUEST_")) for path in paths},
             set(FIXED_QUEST_ALLOWLIST),
         )
+        # approved:true is a USER decision recorded in approved_note — this
+        # pin fails if a generator or fixer flips a profile silently.
+        user_approved = {1, 14}  # approved 2026-07-17 (measured-force gates)
         for path in paths:
             with self.subTest(path=path.name):
                 data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
                 self.assertTrue(required <= data.keys())
-                self.assertFalse(data["approved"])
                 quest_id = int(path.stem.removeprefix("QUEST_"))
+                self.assertEqual(data["approved"], quest_id in user_approved)
+                if data["approved"]:
+                    self.assertTrue(data["approved_note"])
                 self.assertEqual(data["quest_id"], quest_id)
                 info = quests[quest_id]
                 hold = data["engagement_plan"]["hold_position"]
