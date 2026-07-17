@@ -147,6 +147,21 @@ if (action === "export") {
   for (const d of loadDrafts()) {
     const r = results[`strategy-QUEST_${d.data.quest_id}`];
     if (!r) continue;
+    // "pending" with non-empty feedback = the user wrote revision notes
+    // without pressing a verdict button; treat it as revision feedback.
+    if (
+      (r.status === "pending" || r.status === "fail" || r.status === "blocked") &&
+      r.feedback
+    ) {
+      feedback.entries.push({
+        quest_id: d.data.quest_id,
+        status: r.status,
+        feedback: r.feedback,
+        at: r.updatedAt ?? new Date().toISOString(),
+      });
+      console.log(`feedback recorded for Q${d.data.quest_id}: ${r.feedback}`);
+      continue;
+    }
     if (r.status === "pass" && d.data.approved === false) {
       const note = `User approved via manual-test-runner ${r.updatedAt ?? new Date().toISOString()}.` +
         (r.feedback ? ` Feedback: ${r.feedback}` : "");
@@ -158,14 +173,6 @@ if (action === "export") {
       if (!approved.approved.includes(d.data.quest_id)) approved.approved.push(d.data.quest_id);
       applied += 1;
       console.log(`approved Q${d.data.quest_id}`);
-    } else if (r.status === "fail" || r.status === "blocked") {
-      feedback.entries.push({
-        quest_id: d.data.quest_id,
-        status: r.status,
-        feedback: r.feedback ?? "",
-        at: r.updatedAt ?? new Date().toISOString(),
-      });
-      console.log(`feedback recorded for Q${d.data.quest_id}: ${r.feedback ?? "(none)"}`);
     }
   }
   approved.approved.sort((a, b) => a - b);
