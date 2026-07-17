@@ -1073,6 +1073,14 @@ class HengbotPolicy:
         self._remembered_known_t: set[tuple[int, int]] = set()
         self._remembered_downstairs: set[Position] = set()
         self._remembered_upstairs: set[Position] = set()
+        # A stair command is verified by the following snapshot. Hengband rejects
+        # a stair key without spending a turn, which gives stronger evidence than
+        # ordinary navigation stalls that remembered terrain is a phantom.
+        self._pending_stair_command: (
+            tuple[str, tuple[int, int, int], Position, int] | None
+        ) = None
+        self._stair_rejection_strikes: Counter[tuple[str, Position]] = Counter()
+        self._unverified_stairs: set[tuple[str, Position]] = set()
         self._known_treasure: set[Position] = set()
         self._treasure_target: Position | None = None
         # Consecutive stalled (oscillating) turns while mining. Digging toward a
@@ -1367,6 +1375,7 @@ class HengbotPolicy:
                 goal_satisfied=not self._home_owner_goal_pending(snapshot),
             )
         key = self._break_livelock(snapshot, key)
+        self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
         if (
@@ -1406,6 +1415,18 @@ class HengbotPolicy:
         self._last_snapshot_was_store = snapshot.store is not None
         self._observe(snapshot)
         self._build_grid_index(snapshot)
+        # Save-backed remembered terrain in the launch snapshot may describe the
+        # pre-reload layout. Keep it targetable, but label stairs as unverified;
+        # rejected commands below will self-heal them without a startup leash.
+        self._unverified_stairs = {
+            (direction, grid.position)
+            for grid in snapshot.grids.values()
+            for direction, present in (
+                (DOWN_STAIRS_KEY, grid.has_down_stairs),
+                (UP_STAIRS_KEY, grid.has_up_stairs),
+            )
+            if present
+        }
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             # resume uses a one-shot policy to kick the waiting turn before the
             # long-lived policy starts. If that turn withdrew Home equipment,
@@ -1636,7 +1657,7 @@ class HengbotPolicy:
             >= SUMMONER_OPEN_NEIGHBORS
         ):
             current = snapshot.grid_at(player.position)
-            if current is not None and current.has_up_stairs and not self._quest_floor_exit_locked(snapshot):
+            if current is not None and self._is_upstairs_target(current) and not self._quest_floor_exit_locked(snapshot):
                 self._defer_descent(snapshot)
                 self.last_reason = (
                     "summoner:stairs-quest-fail"
@@ -1908,7 +1929,7 @@ class HengbotPolicy:
             and not player.poisoned
             and not player.cut
         ):
-            if here is not None and here.has_up_stairs and not self._quest_floor_exit_locked(snapshot):
+            if here is not None and self._is_upstairs_target(here) and not self._quest_floor_exit_locked(snapshot):
                 self._defer_descent(snapshot)
                 self.last_reason = (
                     "unseen:ascend-quest-fail"
@@ -1916,7 +1937,7 @@ class HengbotPolicy:
                     else "unseen:ascend"
                 )
                 return UP_STAIRS_KEY
-            step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is None:
                 step = self._nearest_goal_step(snapshot, lambda g: g.is_descent)
             if step is not None:
@@ -1952,12 +1973,14 @@ class HengbotPolicy:
             snapshot.in_town
             and self._town_map_active(snapshot)
             and self._town_map_descent_entrance(snapshot) == player.position
+            and not self._nav_ledger.is_expired("descend", player.position)
         )
         if (
             (
                 here is not None
                 and here.is_descent
                 and self._is_descent_target(snapshot, here)
+                and not self._nav_ledger.is_expired("descend", player.position)
                 or static_entrance_here
             )
             and player.hp_ratio >= DESCEND_MIN_HP_RATIO
@@ -2129,14 +2152,14 @@ class HengbotPolicy:
             snapshot,
             lambda g: not floor_exit_locked
             and (
-                g.has_up_stairs
+                self._is_upstairs_target(g)
                 or (allow_descent and self._is_descent_target(snapshot, g))
             ),
         )
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
             return self._step_toward(snapshot, step)
-        if not floor_exit_locked and here is not None and here.has_up_stairs:
+        if not floor_exit_locked and here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
             self.last_reason = "stuck:ascend"
             return UP_STAIRS_KEY
@@ -2154,11 +2177,70 @@ class HengbotPolicy:
         return WAIT_KEY
 
     # -------------------------------------------------------------- observers
+    def _remember_stair_command(self, snapshot: Snapshot, key: str) -> None:
+        """Retain a stair command until its result snapshot can verify it."""
+        if not key:
+            return
+        direction = key[0]
+        position = snapshot.player.position
+        here = snapshot.grids.get(position)
+        believed = (
+            direction == DOWN_STAIRS_KEY
+            and (
+                position in self._remembered_downstairs
+                or (here is not None and here.is_descent)
+                or self._town_map_descent_entrance(snapshot) == position
+            )
+        ) or (
+            direction == UP_STAIRS_KEY
+            and (
+                position in self._remembered_upstairs
+                or (here is not None and here.has_up_stairs)
+            )
+        )
+        if believed:
+            self._pending_stair_command = (
+                direction, snapshot.floor_key, position, snapshot.turn
+            )
+
+    def _is_upstairs_target(self, grid: GridState) -> bool:
+        return grid.has_up_stairs and not self._nav_ledger.is_expired(
+            "ascend", grid.position
+        )
+
+    def _observe_stair_command(self, snapshot: Snapshot) -> None:
+        """Strike a remembered stair only on conclusive command rejection."""
+        pending = self._pending_stair_command
+        self._pending_stair_command = None
+        if pending is None:
+            return
+        direction, floor_key, position, turn = pending
+        if (
+            snapshot.floor_key != floor_key
+            or snapshot.player.position != position
+            or snapshot.turn != turn
+        ):
+            return
+        strike_key = (direction, position)
+        self._stair_rejection_strikes[strike_key] += 1
+        if self._stair_rejection_strikes[strike_key] < 2:
+            return
+        kind = "descend" if direction == DOWN_STAIRS_KEY else "ascend"
+        remembered = (
+            self._remembered_downstairs
+            if direction == DOWN_STAIRS_KEY
+            else self._remembered_upstairs
+        )
+        remembered.discard(position)
+        self._unverified_stairs.discard((direction, position))
+        self._nav_ledger.expire(kind, position)
+
     def _observe(self, snapshot: Snapshot) -> None:
         # The threat memo exists only for repeat lookups within ONE decision
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()
         previous_floor = self._floor_key
+        self._observe_stair_command(snapshot)
         if not snapshot.in_town and snapshot.player.recalling:
             self._saw_dungeon_recall = True
         if (
@@ -2520,6 +2602,9 @@ class HengbotPolicy:
             self._remembered_known_t.clear()
             self._remembered_downstairs.clear()
             self._remembered_upstairs.clear()
+            self._pending_stair_command = None
+            self._stair_rejection_strikes.clear()
+            self._unverified_stairs.clear()
             self._known_treasure.clear()
             self._treasure_target = None
             self._mining_detection_centers.clear()
@@ -8694,7 +8779,7 @@ class HengbotPolicy:
                 self.last_reason = "fundraise:recall"
                 return READ_KEY + recall.slot
         here = snapshot.grid_at(player.position)
-        if here is not None and here.has_up_stairs:
+        if here is not None and self._is_upstairs_target(here):
             self.last_reason = "fundraise:ascend"
             return UP_STAIRS_KEY
         # The remembered route to a distant staircase can change as mining
@@ -8707,7 +8792,7 @@ class HengbotPolicy:
             if step is not None and step not in oscillation_cells:
                 self.last_reason = "fundraise:seek-upstairs"
                 return self._step_toward(snapshot, step)
-        step = self._nearest_goal_step(snapshot, lambda grid: grid.has_up_stairs)
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
             return self._step_toward(snapshot, step)
@@ -8909,7 +8994,7 @@ class HengbotPolicy:
         stairs = [
             grid.position
             for grid in snapshot.grids.values()
-            if grid.has_up_stairs and grid.position != start
+            if self._is_upstairs_target(grid) and grid.position != start
         ]
         if not stairs:
             return None
@@ -10459,11 +10544,11 @@ class HengbotPolicy:
             if self._quest_exit_would_fail(snapshot)
             else "survival:ascend"
         )
-        if here is not None and here.has_up_stairs:
+        if here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
             self.last_reason = exit_reason
             return UP_STAIRS_KEY
-        step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None:
             self.last_reason = "survival:seek-exit"
             return self._step_toward(snapshot, step)
@@ -10627,7 +10712,7 @@ class HengbotPolicy:
             return None
 
         here = snapshot.grid_at(player.position)
-        if here is not None and here.has_up_stairs:
+        if here is not None and self._is_upstairs_target(here):
             self.last_reason = "return:ascend"
             return UP_STAIRS_KEY
 
@@ -10650,7 +10735,7 @@ class HengbotPolicy:
             self.last_reason = "return:recall"
             return READ_KEY + recall.slot
 
-        step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None:
             self.last_reason = "return:seek-upstairs"
             return self._step_toward(snapshot, step)
@@ -10699,11 +10784,11 @@ class HengbotPolicy:
                     self.last_reason = "livelock:recall-escape"
                     return READ_KEY + recall.slot
             here = snapshot.grid_at(player.position)
-            if here is not None and here.has_up_stairs:
+            if here is not None and self._is_upstairs_target(here):
                 self._defer_descent(snapshot)
                 self.last_reason = "livelock:ascend"
                 return UP_STAIRS_KEY
-            step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None:
                 self.last_reason = "livelock:seek-upstairs"
                 return self._step_toward(snapshot, step)
@@ -11141,7 +11226,7 @@ class HengbotPolicy:
                                 else "emergency:recall"
                             )
                             return READ_KEY + recall.slot
-                step = self._nearest_goal_step(snapshot, lambda g: g.has_up_stairs)
+                step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
                 if step is None:
                     step = self._flee_step(snapshot, hostiles)
                 if step is not None:
@@ -11612,7 +11697,7 @@ class HengbotPolicy:
         if self._quest_floor_exit_locked(snapshot):
             return None
         here = snapshot.grid_at(snapshot.player.position)
-        if here is not None and here.has_up_stairs:
+        if here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
             return UP_STAIRS_KEY
         return None
@@ -11824,9 +11909,9 @@ class HengbotPolicy:
             key = (pos.y, pos.x)
             if not grid.known:
                 continue
-            if grid.has_down_stairs:
+            if grid.has_down_stairs and not self._nav_ledger.is_expired("descend", pos):
                 self._remembered_downstairs.add(pos)
-            if grid.has_up_stairs:
+            if grid.has_up_stairs and not self._nav_ledger.is_expired("ascend", pos):
                 self._remembered_upstairs.add(pos)
             remembered_known.add(key)
             remembered_floor.discard(key)
@@ -12051,7 +12136,7 @@ class HengbotPolicy:
             # Route to the town map's remembered entrance instead (only while we
             # would actually walk in — a deep run recalls; see _town_special_key).
             entrance = self._town_map_descent_entrance(snapshot)
-            if entrance is not None:
+            if entrance is not None and entrance not in expired:
                 step = self._town_map_goal_step(snapshot, entrance)
                 if step is not None:
                     self.last_reason = "seek-downstairs"

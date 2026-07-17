@@ -83,6 +83,114 @@ class NavigationLedgerTest(unittest.TestCase):
         ledger.reset()
         self.assertFalse(ledger.is_expired("descend", target))
 
+    def test_external_evidence_can_expire_a_target_immediately(self):
+        ledger = NavigationLedger()
+        target = Position(1, 1)
+        ledger.expire("descend", target)
+        self.assertTrue(ledger.is_expired("descend", target))
+
+
+class StairRejectionInvalidationTest(unittest.TestCase):
+    def _stair_snapshot(self, *, downstairs=False, upstairs=False, turn=100):
+        position = Position(6, 39)
+        return Snapshot(
+            player(position.y, position.x, food=12000),
+            {position: grid(
+                position.y, position.x,
+                downstairs=downstairs, upstairs=upstairs,
+            )},
+            [],
+            floor_key=(2, 5, 0),
+            width=80,
+            height=20,
+            turn=turn,
+        )
+
+    def test_two_rejected_descents_remove_and_expire_phantom(self):
+        snapshot = self._stair_snapshot(downstairs=True)
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snapshot), ">")
+        self.assertEqual(policy.choose_key(snapshot), ">")
+        self.assertIn(snapshot.player.position, policy._remembered_downstairs)
+        key = policy.choose_key(snapshot)
+
+        target = snapshot.player.position
+        self.assertNotEqual(key, ">")
+        self.assertNotIn(target, policy._remembered_downstairs)
+        self.assertTrue(policy._nav_ledger.is_expired("descend", target))
+        self.assertEqual(policy._stair_rejection_strikes[(">", target)], 2)
+
+    def test_real_descent_floor_change_is_never_struck(self):
+        snapshot = self._stair_snapshot(downstairs=True)
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snapshot), ">")
+
+        next_floor = replace(snapshot, floor_key=(2, 6, 0), turn=101)
+        policy.choose_key(next_floor)
+
+        self.assertFalse(policy._stair_rejection_strikes)
+
+    def test_rejection_requires_same_turn_as_well_as_floor_and_position(self):
+        snapshot = self._stair_snapshot(downstairs=True)
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snapshot), ">")
+
+        policy.choose_key(replace(snapshot, turn=101))
+
+        self.assertFalse(policy._stair_rejection_strikes)
+
+    def test_upstairs_rejection_is_symmetric(self):
+        snapshot = self._stair_snapshot(upstairs=True)
+        target = snapshot.player.position
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._remembered_upstairs.add(target)
+
+        for _ in range(2):
+            policy._remember_stair_command(snapshot, "<")
+            policy._observe_stair_command(snapshot)
+
+        self.assertNotIn(target, policy._remembered_upstairs)
+        self.assertTrue(policy._nav_ledger.is_expired("ascend", target))
+
+    def test_prime_marks_first_snapshot_stairs_unverified(self):
+        snapshot = self._stair_snapshot(downstairs=True)
+        policy = HengbotPolicy()
+        policy.prime(snapshot)
+        self.assertIn((">", snapshot.player.position), policy._unverified_stairs)
+
+    def test_2031_replay_removes_both_phantoms_then_explores(self):
+        policy = HengbotPolicy()
+        floor = (2, 5, 0)
+        phantoms = (Position(6, 39), Position(2, 39))
+        policy._floor_key = floor
+        policy._remembered_downstairs.update(phantoms)
+
+        for target in phantoms:
+            snapshot = Snapshot(
+                player(target.y, target.x, food=12000), {}, [],
+                floor_key=floor, width=80, height=20, turn=651966,
+            )
+            for _ in range(2):
+                policy._remember_stair_command(snapshot, ">")
+                policy._observe_stair_command(snapshot)
+
+        self.assertFalse(policy._remembered_downstairs)
+        self.assertEqual(
+            policy._nav_ledger.expired_targets("descend"), set(phantoms)
+        )
+        room = Snapshot(
+            player(6, 39, food=12000),
+            {
+                Position(6, 39): grid(6, 39),
+                Position(6, 40): grid(6, 40),
+            },
+            [], floor_key=floor, width=80, height=20, turn=651966,
+        )
+        self.assertNotEqual(policy.choose_key(room), ">")
+        self.assertNotIn(policy.last_reason, DESCENT_TRIAD_REASONS)
+
 
 class DescentTargetExpiryTest(unittest.TestCase):
     """The incident regression: an unreachable remembered stair must expire."""

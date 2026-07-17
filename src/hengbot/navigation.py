@@ -78,6 +78,10 @@ class NavigationLedger:
     def expired_targets(self, kind: str) -> set[Hashable]:
         return {target for k, target in self._expired if k == kind}
 
+    def expire(self, kind: str, target: Hashable) -> None:
+        """Expire a target immediately from external rejection evidence."""
+        self._expired.add((kind, target))
+
     def reset(self) -> None:
         """Forget everything (called on every floor change)."""
         self._progress.clear()
