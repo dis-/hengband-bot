@@ -119,9 +119,19 @@ if (action === "export") {
         : "値が妥当なら合格(=承認)。差し戻すなら失敗にして修正指示をフィードバック欄へ。",
     };
   });
+  // Sentinel: marking this item pass = "入力完了" — a background watcher
+  // notices it in results.json and Fable collects the batch automatically,
+  // no chat message needed.
+  items.push({
+    id: "approval-batch-complete",
+    category: "送信",
+    title: "【入力完了】全項目の判断を終えたらこれを合格にする",
+    steps: ["上の全項目に 合格/失敗+フィードバック を入力した後で押す"],
+    expected: "これを合格にすると Fable が自動で結果を回収・適用します。",
+  });
   const payload = {
     title: "クエスト戦略プロファイル承認",
-    note: "合格=approved:true を適用。失敗=フィードバックを再導出タスクへ回す。",
+    note: "合格=approved:true を適用。失敗=フィードバックを再導出タスクへ回す。最後に【入力完了】を合格に。",
     generatedAt: new Date().toISOString(),
     items,
   };
