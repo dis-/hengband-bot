@@ -1,8 +1,8 @@
 # Bot liveness status
 
-- state: **RUNNING**
-- as of: 2026-07-18 05:01 JST
-- dump age: 13s / decision-log age: -3s
-- last decision reason: explore
+- state: **STOPPED**
+- as of: 2026-07-18 05:39 JST
+- dump age: 381s / decision-log age: 297s
+- last decision reason: home:retry-batch-withdraw
 
-Bot is playing; the dump above refreshes every ~3 minutes.
+Bot decisions have stalled (stopped for maintenance, loop stop, or hang). Game may still be alive.
