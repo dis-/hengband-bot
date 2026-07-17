@@ -102,6 +102,7 @@ from hengbot.policy import (
     IDENTIFY_CHARGE_FLOOR,
     IDENTIFY_PURCHASE_MAX,
     RECALL_MIN_DEPTH,
+    SUPPLY_THRESHOLDS,
     RESUME_DESCENT_BLOCK_DECISIONS,
     DEEP_FUNDRAISING_DEPTH,
     DEEP_FUNDRAISING_DETECTION_RADIUS,
@@ -3846,7 +3847,7 @@ class SummonerMeleeTest(unittest.TestCase):
 
 
 class TownAndFundraisingPolicyTest(unittest.TestCase):
-    def _strict_supplies(self, *, recall=1, detection=0, teleport=0, critical=0):
+    def _strict_supplies(self, *, recall=1, detection=0, teleport=1, critical=1):
         supplies = [
             item("f", TVAL_FOOD, 35, count=5),
             item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
@@ -4539,7 +4540,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             inventory=self._strict_supplies(recall=1, teleport=3), **base
         )
         complete = Snapshot(
-            inventory=self._strict_supplies(recall=1, teleport=3, critical=3),
+            inventory=self._strict_supplies(recall=1, teleport=4, critical=4),
             **base,
         )
 
@@ -4611,7 +4612,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
-            inventory=self._strict_supplies(recall=1, teleport=3),
+            inventory=self._strict_supplies(recall=1, teleport=4),
             equipment=[self._lantern()],
             store=StoreState(
                 store_type=STORE_TEMPLE,
@@ -5184,13 +5185,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._should_start_town_return(dungeon_snapshot(3)))
         self.assertEqual(policy._last_return_trigger, "recall-low")
 
-    def test_town_prefers_fourth_recall_but_departs_after_shops_are_exhausted(self):
+    def test_town_prefers_fifth_recall_but_departs_after_shops_are_exhausted(self):
         snap = Snapshot(
             player(10, 10, gold=8599, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
             turn=100,
-            inventory=self._strict_supplies(recall=3, teleport=3, critical=3),
+            inventory=self._strict_supplies(recall=3, teleport=4, critical=4),
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
@@ -5204,7 +5205,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             if requirement["item"] == "Word of Recall scrolls"
         )
         self.assertEqual(recall_requirement["current"], 3)
-        self.assertEqual(recall_requirement["target"], 4)
+        self.assertEqual(recall_requirement["target"], 5)
 
         policy._town_store_attempted.update(
             {STORE_TEMPLE: 0, STORE_ALCHEMIST: 0, STORE_BLACK: 0}
@@ -8428,7 +8429,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             # Departure consumes one scroll; five leaves four in the dungeon,
             # safely above the deep-return threshold of three.
-            inventory=self._strict_supplies(recall=5, teleport=3, critical=3),
+            inventory=self._strict_supplies(recall=5, teleport=4, critical=4),
             equipment=[self._lantern()],
             recall_dungeon_id=DUNGEON_YEEK_CAVE,
             entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
@@ -11288,6 +11289,8 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
     def _supplies(self):
         return [
             item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL),
             item("f", TVAL_FOOD, 35, count=5),
             item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
         ]
@@ -15845,6 +15848,38 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         self.assertEqual(shallow["recall"].stores, (STORE_TEMPLE, STORE_ALCHEMIST))
         self.assertEqual(shallow["food"].stores, (STORE_GENERAL,))
 
+    def test_every_departure_threshold_exceeds_return_threshold(self):
+        for kind, phases in SUPPLY_THRESHOLDS.items():
+            band_starts = sorted({
+                depth for bands in phases.values() for depth, _value in bands
+            })
+            for depth in band_starts:
+                with self.subTest(kind=kind, depth=depth):
+                    required_return = HengbotPolicy._supply_threshold(
+                        kind, "return", depth
+                    )
+                    required_departure = HengbotPolicy._supply_threshold(
+                        kind, "departure", depth
+                    )
+                    self.assertGreater(required_departure, required_return)
+
+    def test_corrected_recall_stock_does_not_latch_return_on_5f_arrival(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = RECALL_MIN_DEPTH
+        arrival = self._snapshot(RECALL_MIN_DEPTH, [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            item("f", TVAL_FOOD, 35, count=5),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=5),
+        ])
+
+        ledger = policy._supply_ledger(arrival, arrival.dungeon_level)
+        self.assertEqual(ledger["recall"].required_departure, 5)
+        self.assertFalse(policy._ledger_return_shortages(ledger, arrival.dungeon_level))
+        self.assertFalse(policy._should_start_town_return(arrival))
+        self.assertNotEqual(policy._last_return_trigger, "recall-low")
+
     def test_obtainable_uses_latch_live_stock_and_affordability(self):
         policy = HengbotPolicy()
         shelf = StoreState(
@@ -15880,7 +15915,7 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         supplies = [
             item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2),
             item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=4),
-            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=3),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=4),
             item("f", TVAL_FOOD, 35, count=5),
             item("o", TVAL_FLASK, SV_FLASK_OIL, count=5),
         ]

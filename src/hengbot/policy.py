@@ -835,15 +835,15 @@ STAFF_IDENTIFY_MIN_DEPTH = 10
 SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
     "recall": {
         "return": ((1, 0), (RECALL_MIN_DEPTH, RECALL_RETURN_THRESHOLD + 1)),
-        "departure": ((1, 1),),
+        "departure": ((1, 1), (RECALL_MIN_DEPTH, RECALL_RETURN_THRESHOLD + 2)),
     },
     "teleport": {
         "return": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_RETURN_THRESHOLD + 1)),
-        "departure": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_SCROLL_DEEP_TARGET)),
+        "departure": ((1, 1), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET + 1), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_SCROLL_DEEP_TARGET)),
     },
     "cure": {
         "return": ((1, 0), (CURE_CRITICAL_REQUIRED_DEPTH, CURE_CRITICAL_TARGET), (CURE_CRITICAL_DEEP_DEPTH, CURE_CRITICAL_DEEP_RETURN_THRESHOLD + 1)),
-        "departure": ((1, 0), (CURE_CRITICAL_REQUIRED_DEPTH, CURE_CRITICAL_TARGET), (CURE_CRITICAL_DEEP_DEPTH, CURE_CRITICAL_DEEP_TARGET)),
+        "departure": ((1, 1), (CURE_CRITICAL_REQUIRED_DEPTH, CURE_CRITICAL_TARGET + 1), (CURE_CRITICAL_DEEP_DEPTH, CURE_CRITICAL_DEEP_TARGET)),
     },
     "oil": {"return": ((1, 0),), "departure": ((1, OIL_TARGET),)},
     "food": {"return": ((1, 0),), "departure": ((1, FOOD_STOCK_TARGET),)},
