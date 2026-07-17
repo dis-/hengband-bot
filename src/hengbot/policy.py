@@ -6462,7 +6462,6 @@ class HengbotPolicy:
         candidates = [
             it for it in store.items
             if it.tval in {TVAL_WAND, TVAL_STAFF}
-            and it.pval > 0
             and it.price <= snapshot.player.gold
         ]
         if not candidates:
@@ -6480,15 +6479,22 @@ class HengbotPolicy:
                 return 1
             return 2
 
+        def charge_count(item: StoreItem) -> int:
+            # Full Home/Museum item JSON and older fixtures expose pval; ordinary
+            # store parsing populates both fields from the visible name.
+            return max(1, item.charges, item.pval)
+
         # User directive (2026-07-17): pack slots beat small gold savings.
         # Minimize devices/slots first (highest charges), prefer a device the
         # policy can actually use when slot-equivalent, and compare price last.
+        # Ordinary-store JSON used to omit charges; a name without a parseable
+        # count remains visible and purchasable with a conservative estimate.
         return min(
             candidates,
             key=lambda it: (
-                (shortage + it.pval - 1) // it.pval,
+                (shortage + charge_count(it) - 1) // charge_count(it),
                 utility_rank(it),
-                -it.pval,
+                -charge_count(it),
                 it.price,
                 it.letter,
             ),

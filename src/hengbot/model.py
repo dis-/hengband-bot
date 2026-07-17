@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -408,6 +409,7 @@ class StoreItem:
     damage_dice_num: int = 0
     damage_dice_sides: int = 0
     known_flags: frozenset[int] = frozenset()
+    charges: int = 0
     pval: int = 0
     pseudo_feeling: str = ""
     weight: int = 0
@@ -903,11 +905,14 @@ def _parse_store(store_data: Any) -> "StoreState | None":
     items = []
     for it in store_data.get("items", []):
         dice = it.get("damage_dice", {})
+        name = str(it.get("name", ""))
+        tval = int(it.get("tval", 0))
+        charges = _store_item_charges(it, name=name, tval=tval)
         items.append(StoreItem(
             letter=str(it.get("letter", "")),
-            name=str(it.get("name", "")),
+            name=name,
             count=int(it.get("count", 1)),
-            tval=int(it.get("tval", 0)),
+            tval=tval,
             sval=int(it.get("sval", -1)),
             price=int(it.get("price", 0)),
             aware=_as_bool(it.get("aware", False)),
@@ -925,12 +930,28 @@ def _parse_store(store_data: Any) -> "StoreState | None":
             damage_dice_num=int(dice.get("num", 0)),
             damage_dice_sides=int(dice.get("sides", 0)),
             known_flags=frozenset(int(flag) for flag in it.get("known_flags", [])),
-            pval=int(it.get("pval", 0)),
+            charges=charges,
+            pval=charges if tval in {TVAL_WAND, TVAL_STAFF} else int(it.get("pval", 0)),
             pseudo_feeling=str(it.get("pseudo_feeling", "")),
             weight=int(it.get("weight", 0)),
             weapon_proficiency=int(it.get("weapon_proficiency", 0)),
         ))
     return StoreState(store_type=int(store_data.get("store_type", -1)), items=items)
+
+
+_STORE_CHARGES_RE = re.compile(r"[\(（]\s*(\d+)\s*(?:回分|charges?)\s*[\)）]", re.IGNORECASE)
+
+
+def _store_item_charges(item_data: Any, *, name: str, tval: int) -> int:
+    """Recover player-visible device charges omitted by ordinary store JSON."""
+    if tval not in {TVAL_WAND, TVAL_STAFF}:
+        return int(item_data.get("pval", 0))
+    if "charges" in item_data:
+        return int(item_data["charges"])
+    if "pval" in item_data:
+        return int(item_data["pval"])
+    match = _STORE_CHARGES_RE.search(name)
+    return int(match.group(1)) if match else 0
 
 
 def _parse_items(items_data: Any) -> list[InventoryItem]:

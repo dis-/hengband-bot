@@ -437,6 +437,35 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertFalse(stored.known)
         self.assertFalse(stored.fully_known)
 
+    def test_parses_store_device_charges_from_japanese_names(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["store"] = {
+            "store_type": 5,
+            "items": [
+                {"letter": "a", "name": "鑑定の杖 (12回分)", "count": 1,
+                 "tval": 55, "sval": 5, "price": 500},
+                {"letter": "b", "name": "岩石溶解の魔法棒（27回分）", "count": 3,
+                 "tval": 65, "sval": 6, "price": 100},
+            ],
+        }
+
+        staff, wand = parse_snapshot(data, {}).store.items
+
+        self.assertEqual((staff.charges, staff.pval), (12, 12))
+        self.assertEqual((wand.charges, wand.pval), (27, 27))
+
+    def test_store_device_explicit_pval_remains_authoritative(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["store"] = {
+            "store_type": 7,
+            "items": [{"letter": "a", "name": "鑑定の杖 (12回分)", "count": 1,
+                       "tval": 55, "sval": 5, "pval": 19}],
+        }
+
+        stored = parse_snapshot(data, {}).store.items[0]
+
+        self.assertEqual((stored.charges, stored.pval), (19, 19))
+
     def test_parses_visible_progress_grid_and_known_item_details(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["player"].update(

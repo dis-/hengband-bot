@@ -72,6 +72,7 @@ from hengbot.model import (
     Snapshot,
     StoreItem,
     StoreState,
+    _parse_store,
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import TR_TELEPORT
@@ -3371,10 +3372,15 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snap), STORE_MAGIC)
 
     def test_mana_food_purchase_slots_then_function_then_price(self):
-        identify = store_item(
-            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500, pval=20
-        )
-        cheap_fillers = store_item("b", TVAL_WAND, 1, price=100, pval=5, count=4)
+        identify, cheap_fillers = _parse_store({
+            "store_type": STORE_MAGIC,
+            "items": [
+                {"letter": "a", "name": "鑑定の杖 (20回分)", "count": 1,
+                 "tval": TVAL_STAFF, "sval": SV_STAFF_IDENTIFY, "price": 500},
+                {"letter": "b", "name": "謎の魔法棒 (5回分)", "count": 4,
+                 "tval": TVAL_WAND, "sval": 1, "price": 100},
+            ],
+        }).items
         snap = Snapshot(
             player(
                 10, 10, gold=500, food_type=FOOD_TYPE_MANA,
@@ -3387,17 +3393,38 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy._next_purchase_unreserved(snap), identify)
 
-        functional = store_item(
-            "c", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500, pval=15
-        )
-        filler = store_item("d", TVAL_STAFF, 1, price=100, pval=15)
+        functional, filler, expensive, cheap = _parse_store({
+            "store_type": STORE_MAGIC,
+            "items": [
+                {"letter": "c", "name": "鑑定の杖 (15回分)", "count": 1,
+                 "tval": TVAL_STAFF, "sval": SV_STAFF_IDENTIFY, "price": 500},
+                {"letter": "d", "name": "謎の杖 (15回分)", "count": 1,
+                 "tval": TVAL_STAFF, "sval": 1, "price": 100},
+                {"letter": "e", "name": "謎の杖 (15回分)", "count": 1,
+                 "tval": TVAL_STAFF, "sval": 1, "price": 120},
+                {"letter": "f", "name": "謎の杖 (15回分)", "count": 1,
+                 "tval": TVAL_STAFF, "sval": 2, "price": 80},
+            ],
+        }).items
         tied = replace(snap, store=StoreState(STORE_MAGIC, [filler, functional]))
         self.assertEqual(policy._mana_food_purchase(tied), functional)
 
-        expensive = store_item("e", TVAL_STAFF, 1, price=120, pval=15)
-        cheap = store_item("f", TVAL_STAFF, 2, price=80, pval=15)
         price_tie = replace(snap, store=StoreState(STORE_MAGIC, [expensive, cheap]))
         self.assertEqual(policy._mana_food_purchase(price_tie), cheap)
+
+    def test_mana_food_purchase_accepts_chargeless_store_name_at_nominal_one(self):
+        device = _parse_store({
+            "store_type": STORE_MAGIC,
+            "items": [{"letter": "a", "name": "謎の魔法棒", "count": 1,
+                       "tval": TVAL_WAND, "sval": 1, "price": 80}],
+        }).items[0]
+        snap = Snapshot(
+            player(10, 10, gold=100, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)}, [],
+            store=StoreState(STORE_MAGIC, [device]),
+        )
+
+        self.assertEqual(HengbotPolicy()._mana_food_purchase(snap), device)
 
     def test_mana_food_eating_preserves_function_then_survival_overrides(self):
         policy = HengbotPolicy()
