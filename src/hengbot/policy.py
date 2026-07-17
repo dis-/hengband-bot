@@ -1290,6 +1290,10 @@ class HengbotPolicy:
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_home_pages: set[tuple[str, ...]] = set()
+        # A store-loop Home redraw may be separated from the Space decision by
+        # a main-loop town snapshot.  last_reason is therefore not a reliable
+        # proof that the next Home snapshot is the result of our page advance.
+        self._home_page_advance_pending = False
         self._pending_disposal_slot: str | None = None
         self._pending_disposal_item: tuple[str, int, int] | None = None
         self._disposal_store_attempts: set[int] = set()
@@ -1315,10 +1319,18 @@ class HengbotPolicy:
             snapshot.inventory, snapshot.equipment
         )
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            pending_advance = self._home_page_advance_pending and not (
+                self._last_snapshot_was_store
+                and self.last_reason not in HOME_PAGE_ADVANCE_REASONS
+            )
             self._equipment_catalog.observe_home_page(
                 snapshot.store.items,
-                allow_wrap=self.last_reason in HOME_PAGE_ADVANCE_REASONS,
+                allow_wrap=(
+                    pending_advance
+                    or self.last_reason in HOME_PAGE_ADVANCE_REASONS
+                ),
             )
+            self._home_page_advance_pending = False
         if self._equipment_transaction_session is not None:
             self._equipment_transaction_session.observe(
                 observe_equipment_transactions(snapshot)
@@ -1330,6 +1342,24 @@ class HengbotPolicy:
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
         key = self._decide(snapshot)
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and key == " "
+            and self.last_reason in HOME_PAGE_ADVANCE_REASONS
+        ):
+            self._home_page_advance_pending = True
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and key == LEAVE_STORE_KEY
+            and self.last_reason != "home:processing-complete"
+        ):
+            self._report_town_stop_pass(
+                snapshot,
+                STORE_HOME,
+                goal_satisfied=not self._home_owner_goal_pending(snapshot),
+            )
         key = self._break_livelock(snapshot, key)
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
@@ -5929,14 +5959,14 @@ class HengbotPolicy:
             and self._fundraising_mode is None
         ):
             self._start_fundraising(snapshot)
+        needs = self._enumerate_town_needs(snapshot)
         if (
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.executable
-            and self._equipment_transaction_session.required_context == "home"
+            and self._equipment_transaction_session.required_context is not None
+            and STORE_HOME not in self._town_store_attempted
         ):
-            return STORE_HOME
-
-        needs = self._enumerate_town_needs(snapshot)
+            needs.append(TownNeed(STORE_HOME, "equipment-transaction", "home-first"))
         needed_stores = {need.store_type for need in needs}
         plan = self._town_errand_plan
         if plan is None:
@@ -6005,6 +6035,21 @@ class HengbotPolicy:
         plan.current_stop_passes = 0
         plan.index += 1
         self._town_store_attempted[store_type] = snapshot.turn
+        if (
+            store_type == STORE_HOME
+            and self._equipment_transaction_session is not None
+            and self._equipment_transaction_session.required_context == "home"
+        ):
+            self._abandon_blocked_equipment_transaction()
+
+    def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
+        session = self._equipment_transaction_session
+        if session is not None and session.executable and session.required_context is not None:
+            return True
+        return any(
+            need.store_type == STORE_HOME
+            for need in self._enumerate_town_needs(snapshot)
+        )
 
     def _legacy_town_router_terminal(self, snapshot: Snapshot) -> int | None:
         if self._town_restock_suppressed:
@@ -6013,12 +6058,6 @@ class HengbotPolicy:
             # errand route at once — chasing the individual un-latched branches
             # (sales, retries, sessions) left a new cycle fuel line each time.
             return None
-        if (
-            self._equipment_transaction_session is not None
-            and self._equipment_transaction_session.executable
-            and self._equipment_transaction_session.required_context == "home"
-        ):
-            return STORE_HOME
         if snapshot.player.class_id < 0:
             if self._shopping_abandoned or snapshot.player.gold < LANTERN_MIN_GOLD:
                 return None

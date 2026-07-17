@@ -15699,6 +15699,72 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertEqual(policy._next_required_store_type(town), STORE_GENERAL)
 
+    def test_full_single_page_wrap_survives_interleaved_town_snapshot(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        town = self._snapshot(turn=512170)
+        page = [
+            store_item(
+                chr(ord("a") + index), TVAL_FOOD, index,
+                name=f"stored item {index}", price=0,
+            )
+            for index in range(12)
+        ]
+        home = replace(
+            town,
+            store=StoreState(store_type=STORE_HOME, items=page),
+            town_flag=False,
+        )
+
+        policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
+        self.assertEqual(policy._shop(home), " ")
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+        policy._home_page_advance_pending = True
+        policy.choose_key(town)  # main-loop snapshot interleaved with store redraw
+        self.assertTrue(policy._home_page_advance_pending)
+        policy.choose_key(home)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+
+    def test_transaction_home_override_is_blocked_by_same_three_pass_owner(self):
+        needs = [TownNeed(STORE_GENERAL, "food", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot(turn=512170)
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+        )
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        for _ in range(TOWN_STOP_PASS_LIMIT):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+
+    def test_transaction_deposit_then_withdraw_keeps_home_owner_between_visits(self):
+        policy = self._policy([])
+        snapshot = self._snapshot(turn=512170)
+        session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+        )
+        policy._equipment_transaction_session = session
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        session.required_context = "outside_home"  # deposit confirmed; equip next
+        policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=False)
+        session.required_context = "home"  # later withdrawal in the same transaction
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertEqual(policy._town_errand_plan.current_stop_passes, 1)
+
 
 class SupplyLedgerInvariantTest(unittest.TestCase):
     def _snapshot(self, depth, inventory=(), *, gold=500, store=None):
