@@ -48,6 +48,17 @@ class QuestStrategiesTest(unittest.TestCase):
             with patch.dict("os.environ", {}, clear=True), patch("pathlib.Path.cwd", return_value=state.parent):
                 self.assertEqual(find_quest_strategies(state), strategies)
 
+    def test_reworked_quest_profiles_pin_approved_and_torch_quantities(self):
+        directory = Path(__file__).parents[1] / "strategy" / "quests"
+        profiles = load_quest_strategies(directory)
+        self.assertTrue(profiles[1].approved)
+        self.assertEqual(profiles[1].engagement_plan["hold_position"], [8, 3])
+        self.assertIn("西の部屋へ寄らず", profiles[1].engagement_plan["opening"])
+        self.assertEqual(profiles[1].required_force["min_hp"], 108)
+        self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 206)
+        self.assertFalse(profiles[34].approved)
+        self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 55)
+
     def test_shipped_drafts_match_real_quest_data(self):
         edit = Path(r"C:\hengband\lib\edit")
         definitions = edit / "QuestDefinitionList.txt"

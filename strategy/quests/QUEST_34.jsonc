@@ -6,23 +6,23 @@
   "engagement_plan": {
     "opening": "[1,20] から入り、照明された東通路を南へ進み、扉を開ける前に [10,20] の隘路を確保する。",
     "hold_position": [10, 20],
-    "formation": "[10,20] 西・北の扉を使い、移動する殺人蜂だけを通す。[7,15] のクローカーと [9,11]・[11,9] のデスソードには隣接せず、距離2以上から攻撃する。",
-    "ranged_softening": "殺人蜂とクローカーには距離2の射線から点火した松明を各1本投げる。火炎耐性がないため平均8.75。火炎免疫の r_idx 107 には通常の遠隔攻撃か投擲物を使う。"
+    "formation": "[10,20] 西・北の扉で移動する殺人蜂だけを先に通して倒す。次に [7,15] のクローカーへ通路の射線から、最後に [9,11]・[11,9] のデスソードへ南東側から射線を通し、いずれも距離2以上を保って点火した松明だけで倒し切る。NEVER_MOVE の三体には隣接しない。",
+    "ranged_softening": "殺人蜂へ松明1本を投げてから近接で処理する。クローカーは火炎免疫がないため点火松明1d6*2.5（平均8.75）、デスソードは IM_FIRE でブランド倍率が無効だが基礎1d6（平均3.5）は残る。距離2以上から必要数を投げ、三体を投擲だけで倒し切る。"
   },
   "priority_targets": [107, 243, 174],
   "consumable_plan": {
     "speed_potion": "conditional",
     "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "3ターン期待被害が現在HPの半分以上の場合だけ飲む。固定敵を射程外に保つ通常計画では飲まない。"},
     "heal_threshold_ratio": 0.55,
-    "other": "食料、回復薬、点火用の安価な松明4本を携行する。回収可能な松明は回収し、デスソードには非火炎の遠隔手段を使う。"
+    "other": "食料と回復薬に加え点火松明55本を計算上は用意する。松明は1本30（0.1 lb単位）なので合計約165 lbとなり、約30 lbではなく実運用上は非現実的である。松明算術を基準にしたうえで、重量を抑える代替としてスリング弾を補助に使う案を再承認時に提示する。破損率100%として回収は見込まない。"
   },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
-    "throwing_items": {"lit_torch": 4},
-    "no_healing_tier": {"min_hp": 54, "min_expected_dps": 8, "heal_potions": 0, "note": "戦術維持下では NEVER_MOVE の r_idx 107 と243に隣接せず、殺人蜂だけが交戦する。遠隔軟化は0、命中率100%、最大ダイス。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 で保守的な交戦窓は3行動、最大被害は 3*9=27。RAW HP の50%に収めるため min_hp=27/0.50=54。dps 8 なら蜂の最大HP 8を1ターンで倒せる。"},
-    "rationale": "配置は殺人蜂 r_idx 174 [3,13]、クローカー r_idx 243 [7,15]、デスソード r_idx 107 [9,11]・[11,9]。後三体は NEVER_MOVE なので距離管理中の近接被害は0。蜂の speed 120 は energy 15、プレイヤー speed 110 は energy 10。実AC 30 に対する期待被害から3行動で4.608、退却不能 ONCE の50%予算により min_hp=ceil(4.608/0.50)=10。AC 100 に対する min_expected_dps=8 は蜂の最大HP 8を1ターンで処理する。投擲は蜂とクローカーの2射線へ各1本の2本に、それぞれ外れ余裕1本を加え lit_torch=2+2=4。戦術崩壊は no_healing_tier に含めない。"
+    "throwing_items": {"lit_torch": 55},
+    "no_healing_tier": {"min_hp": 54, "min_expected_dps": 8, "heal_potions": 0, "note": "戦術維持下では NEVER_MOVE の r_idx 107 と243を投擲だけで倒し、殺人蜂だけが近接交戦する。遠隔軟化は0、命中率100%、最大ダイス。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 で保守的な交戦窓は3行動、最大被害は 3*9=27。RAW HP の50%に収めるため min_hp=27/0.50=54。dps 8 なら蜂の最大HP 8を1ターンで倒せる。"},
+    "rationale": "配置は殺人蜂 r_idx 174 [3,13]、クローカー r_idx 243 [7,15]、デスソード r_idx 107 [9,11]・[11,9]。後三体は NEVER_MOVE なので距離2以上なら追跡も近接被害もなく、蜂だけが近接露出する。このため通常 min_hp=10 と no_healing_tier.min_hp=54、min_expected_dps=8 は蜂の既存導出から不変。点火松明は throw-execution.cpp で常に基礎 Dice(1,6) を振り、calc_attack_damage_with_slay が付与する TR_BRAND_FIRE は IM_FIRE なら倍率なし、非耐性なら2.5倍。したがって r_idx 107 は平均3.5、r_idx 243 は平均8.75。level_guideline 5 の通常の人間・戦士は skill_tht=人間0+戦士c_thb55+戦士x_thb30*5/10+性格0=70。距離2では chance=70-2=68、実AC 40の閾値は40*3/4=30なので命中率は5%自動命中+90%*(38/68)=55.29%。破損率100%、回収0としてデスソード1体は ceil(36/(3.5*0.5529))=19本、2体で38本。クローカーは ceil(49/(8.75*0.5529))=11本。蜂の軟化1本と安全余裕5本を加え lit_torch=38+11+1+5=55。順序は蜂、クローカー、デスソード二体。55本は約165 lbで非現実的なため、実案はスリング弾補助だが、ここではユーザー指定の松明算術を required_force に保持する。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
   "generated_at": "2026-07-17T00:00:00+09:00"
