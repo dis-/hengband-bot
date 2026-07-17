@@ -66,8 +66,13 @@ class QuestStrategiesTest(unittest.TestCase):
             set(FIXED_QUEST_ALLOWLIST),
         )
         # approved:true is a USER decision recorded in approved_note — this
-        # pin fails if a generator or fixer flips a profile silently.
-        user_approved = {1, 14}  # approved 2026-07-17 (measured-force gates)
+        # pin fails if a generator or fixer flips a profile silently. The
+        # authoritative list lives in strategy/approved.json, written only by
+        # the Phase 4 approval pipeline (scripts/strategy_approval.mjs).
+        approved_file = json.loads(
+            (directory.parent / "approved.json").read_text(encoding="utf-8")
+        )
+        user_approved = set(approved_file["approved"])
         for path in paths:
             with self.subTest(path=path.name):
                 data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
