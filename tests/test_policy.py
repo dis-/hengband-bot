@@ -3222,20 +3222,18 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "wc")
         self.assertEqual(pol.last_reason, "wield-light")
 
-    def test_mana_race_does_not_restock_rations(self):
-        # MANA races sate hunger from device charges, not rations, so the food
-        # restock must stay off for them (buying rations would just burn gold).
+    def test_chargeless_mana_race_needs_device_food_restock(self):
         snap = Snapshot(
             player(10, 10, food=400, food_type=4),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
         )
-        self.assertFalse(HengbotPolicy()._needs_food_restock(snap))
+        self.assertTrue(HengbotPolicy()._needs_food_restock(snap))
 
     def test_mana_race_fundraising_buys_device_charges_not_biscuits(self):
         biscuit = store_item("a", TVAL_FOOD, 35, price=1, name="biscuit")
-        wand = store_item("b", TVAL_WAND, 1, price=80, name="wand")
+        wand = store_item("b", TVAL_WAND, 1, price=80, name="wand", pval=15)
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
         general = Snapshot(
@@ -3279,6 +3277,47 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
         self.assertEqual(policy._next_required_store_type(snap), STORE_MAGIC)
+
+    def test_mana_food_purchase_chooses_cheapest_sufficient_charges(self):
+        expensive = store_item("a", TVAL_STAFF, 1, price=120, pval=20)
+        cheap = store_item("b", TVAL_WAND, 1, price=80, pval=15)
+        too_small = store_item("c", TVAL_WAND, 2, price=10, pval=4)
+        snap = Snapshot(
+            player(
+                10, 10, gold=500, food_type=FOOD_TYPE_MANA,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            store=StoreState(STORE_MAGIC, [expensive, cheap, too_small]),
+        )
+        self.assertEqual(HengbotPolicy()._next_purchase_unreserved(snap), cheap)
+
+    def test_town_starvation_routes_to_food_store_before_other_errands(self):
+        snap = Snapshot(
+            player(10, 10, food=400, gold=15000, food_type=FOOD_TYPE_MANA),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_MAGIC
+                ),
+            },
+            [],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "6")
+        self.assertEqual(policy.last_reason, "survival:shop-approach")
+
+    def test_normal_race_food_restock_contract_is_unchanged(self):
+        ration = item("a", TVAL_FOOD, 35)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[ration] * 5,
+        )
+        self.assertFalse(HengbotPolicy()._needs_food_restock(snap))
 
 
 class PredictiveEscapeTest(unittest.TestCase):

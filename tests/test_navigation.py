@@ -244,8 +244,46 @@ class NavigationInvariantTest(unittest.TestCase):
             policy.last_reason = "melee"
             policy._update_combat_outcome(fighting)
 
-        self.assertEqual(policy.last_reason, "combat:fruitless")
+        self.assertEqual(policy.last_reason, "combat:disengage-armed")
         self.assertFalse(policy._combat_fruitful)
+        self.assertEqual(policy._fruitless_disengage_floor, fighting.floor_key)
+
+    def test_fruitless_swarm_disengages_then_leaves_floor(self):
+        base = self._quiet_room(upstairs=True)
+        louse = hostile(1, 10, 11, can_multiply=True)
+        grids = dict(base.grids)
+        grids[Position(10, 11)] = replace(grids[Position(10, 11)], has_monster=True)
+        fighting = replace(base, grids=grids, visible_monsters=[louse])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = fighting.floor_key
+
+        key = policy.choose_key(fighting)
+        self.assertNotEqual(key, "6")
+        self.assertTrue(policy.last_reason.startswith("combat:disengage"))
+
+        clear = replace(
+            base,
+            player=replace(base.player, position=Position(10, 12)),
+            visible_monsters=[],
+        )
+        self.assertEqual(policy.choose_key(clear), "<")
+        self.assertEqual(policy.last_reason, "combat:disengage-ascend")
+
+    def test_blocked_fruitless_disengagement_reaches_visible_stop(self):
+        snapshot = self._quiet_room()
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = snapshot.floor_key
+        policy._fruitless_disengage_decisions = 100
+
+        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.last_reason, "combat:fruitless")
+
+    def test_normal_fight_is_unchanged_without_disengage_latch(self):
+        base = self._quiet_room()
+        fighting = replace(base, visible_monsters=[hostile(1, 10, 11)])
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(fighting), "6")
+        self.assertEqual(policy.last_reason, "melee")
 
     def test_hostile_count_or_experience_progress_prevents_fruitless_stop(self):
         base = self._quiet_room()

@@ -379,6 +379,7 @@ NAV_ESCAPE_STEP_LIMIT = 200
 # forever merely because attack keys keep being issued.  Retain one extra sample
 # so a full window has both endpoints to compare.
 COMBAT_OUTCOME_WINDOW = 300
+FRUITLESS_DISENGAGE_LIMIT = 100
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of
 # the map, so cli's position-based loop guard never fires on wandering alone — a
@@ -757,6 +758,8 @@ HOME_BATCH_RESERVED_SLOTS = 3
 # Rations to keep stocked; the General Store sells them, and a town return that
 # restocks nothing just bounces straight back down and returns again.
 FOOD_STOCK_TARGET = 5
+MANA_FOOD_CHARGE_TARGET = 15
+MANA_FOOD_DEVICE_TARGET = 2
 MIN_FREE_PACK_SLOTS = 5
 TELEPORT_SCROLL_TARGET = 3
 # Deep runs (10F+) escape far more often, so carry a big teleport buffer and only
@@ -1128,6 +1131,8 @@ class HengbotPolicy:
         self._combat_outcomes: deque[tuple] = deque(maxlen=COMBAT_OUTCOME_WINDOW + 1)
         self._combat_outcome_floor: tuple[int, int, int] | None = None
         self._combat_fruitful = True
+        self._fruitless_disengage_floor: tuple[int, int, int] | None = None
+        self._fruitless_disengage_decisions = 0
         self._town_wander_streak = 0
         self._deepest_level = 0
         self._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -1453,6 +1458,12 @@ class HengbotPolicy:
         if player.confused and not hostiles:
             self.last_reason = "confused:wait"
             return WAIT_KEY
+
+        # A fruitless breeder engagement latches this floor visit. Keep this
+        # ahead of ordinary combat so the same cluster cannot pull us back in.
+        disengage = self._fruitless_disengage_key(snapshot, hostiles)
+        if disengage is not None:
+            return disengage
 
         # 1. Survival: flee when hurt, swarmed, or too afraid to fight back.
         if self._should_flee(snapshot, hostiles, adjacent):
@@ -2045,6 +2056,8 @@ class HengbotPolicy:
         if snapshot.in_town:
             self._home_disposal.reload_decisions()
         if previous_floor is not None and previous_floor != snapshot.floor_key:
+            self._fruitless_disengage_floor = None
+            self._fruitless_disengage_decisions = 0
             if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
                 self._fixed_quest_speed_floor = snapshot.floor_key
                 self._fixed_quest_speed_attempted = False
@@ -3134,9 +3147,19 @@ class HengbotPolicy:
             if it.known and it.is_wand_staff and it.charges > 0
         )
 
+    def _count_mana_food_devices(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.count
+            for it in snapshot.inventory
+            if it.known and it.is_wand_staff and it.charges > 0
+        )
+
     def _food_ready(self, snapshot: Snapshot) -> bool:
         if snapshot.player.food_type == FOOD_TYPE_MANA:
-            return self._count_mana_food_uses(snapshot) >= FOOD_STOCK_TARGET
+            return (
+                self._count_mana_food_uses(snapshot) >= MANA_FOOD_CHARGE_TARGET
+                and self._count_mana_food_devices(snapshot) >= MANA_FOOD_DEVICE_TARGET
+            )
         return self._count_food(snapshot) >= FOOD_STOCK_TARGET
 
     def _fundraising_food_ready(self, snapshot: Snapshot) -> bool:
@@ -3384,7 +3407,7 @@ class HengbotPolicy:
             require(
                 "Device charges for food",
                 self._count_mana_food_uses(snapshot),
-                FOOD_STOCK_TARGET,
+                MANA_FOOD_CHARGE_TARGET,
             )
         else:
             require("Food rations", self._count_food(snapshot), FOOD_STOCK_TARGET)
@@ -5725,6 +5748,17 @@ class HengbotPolicy:
         return TownErrandPlan(stops) if stops else None
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        if (
+            snapshot.in_town
+            and snapshot.player.hungry
+            and self._find_edible(snapshot) is None
+        ):
+            food_store = (
+                STORE_MAGIC
+                if snapshot.player.food_type == FOOD_TYPE_MANA
+                else STORE_GENERAL
+            )
+            return None if food_store in self._town_store_attempted else food_store
         if self._town_restock_suppressed:
             self._town_errand_plan = None
             return None
@@ -6224,13 +6258,25 @@ class HengbotPolicy:
         )
 
     def _needs_food_restock(self, snapshot: Snapshot) -> bool:
-        # MANA races (undead/constructs) sate hunger by draining wand/staff
-        # charges, not by eating rations, so buying food for them only burns gold
-        # and never satisfies _food_ready. They restock hunger by eating devices
-        # in the dungeon (see _find_edible), not at the General Store.
-        if snapshot.player.food_type == FOOD_TYPE_MANA:
-            return False
+        # MANA races restock charged devices at the Magic shop. WATER/OIL/BLOOD
+        # races (food_type 1/2/3) intentionally retain the normal-food fallback.
         return not self._food_ready(snapshot)
+
+    def _mana_food_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        store = snapshot.store
+        if store is None or store.store_type != STORE_MAGIC:
+            return None
+        candidates = [
+            it for it in store.items
+            if it.tval in {TVAL_WAND, TVAL_STAFF}
+            and it.pval > 0
+            and it.price <= snapshot.player.gold
+        ]
+        if not candidates:
+            return None
+        shortage = max(1, MANA_FOOD_CHARGE_TARGET - self._count_mana_food_uses(snapshot))
+        sufficient = [it for it in candidates if it.pval >= shortage]
+        return min(sufficient or candidates, key=lambda it: (it.price, -it.pval, it.letter))
 
     def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
@@ -6295,17 +6341,7 @@ class HengbotPolicy:
                     return detection
             if not self._food_ready(snapshot):
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
-                    candidates = [
-                        it
-                        for it in store.items
-                        if it.tval in {TVAL_WAND, TVAL_STAFF}
-                        and it.price <= gold
-                    ]
-                    return min(
-                        candidates,
-                        key=lambda it: it.price,
-                        default=None,
-                    )
+                    return self._mana_food_purchase(snapshot)
                 return next(
                     (
                         it
@@ -6395,14 +6431,9 @@ class HengbotPolicy:
             snapshot.player.food_type == FOOD_TYPE_MANA
             and not self._food_ready(snapshot)
         ):
-            candidates = [
-                it
-                for it in store.items
-                if it.tval in {TVAL_WAND, TVAL_STAFF}
-                and it.price <= gold
-            ]
-            if candidates:
-                return min(candidates, key=lambda it: it.price)
+            device = self._mana_food_purchase(snapshot)
+            if device is not None:
+                return device
         if self._needs_food_restock(snapshot):
             return next(
                 (
@@ -6560,6 +6591,21 @@ class HengbotPolicy:
             needed = self._recall_required_target(snapshot) - self._count_recall_scrolls(snapshot)
         elif item.tval == TVAL_FOOD:
             needed = FOOD_STOCK_TARGET - self._count_food(snapshot)
+        elif (
+            snapshot.player.food_type == FOOD_TYPE_MANA
+            and item.tval in {TVAL_WAND, TVAL_STAFF}
+        ):
+            charge_needed = max(
+                0, MANA_FOOD_CHARGE_TARGET - self._count_mana_food_uses(snapshot)
+            )
+            device_needed = max(
+                0, MANA_FOOD_DEVICE_TARGET - self._count_mana_food_devices(snapshot)
+            )
+            per_device = max(1, item.pval)
+            needed = max(
+                device_needed,
+                (charge_needed + per_device - 1) // per_device,
+            )
         elif item.is_oil:
             needed = OIL_TARGET - self._count_oil(snapshot)
         elif item.is_teleport_scroll:
@@ -6689,6 +6735,42 @@ class HengbotPolicy:
         store = snapshot.store
         if store is None:
             self.last_reason = "shop:invalid"
+            return LEAVE_STORE_KEY
+
+        # A hungry character with no edible pack item has exactly one town job.
+        # Do not sell gear or buy optional supplies while starvation advances.
+        if snapshot.player.hungry and self._find_edible(snapshot) is None:
+            food_store = (
+                STORE_MAGIC
+                if snapshot.player.food_type == FOOD_TYPE_MANA
+                else STORE_GENERAL
+            )
+            if store.store_type != food_store:
+                self.last_reason = "survival:leave-wrong-store"
+                return LEAVE_STORE_KEY
+            if snapshot.player.food_type == FOOD_TYPE_MANA:
+                food_item = self._mana_food_purchase(snapshot)
+            else:
+                food_item = next(
+                    (
+                        it for it in store.items
+                        if it.tval == TVAL_FOOD
+                        and it.sval >= FOOD_MIN_SVAL
+                        and it.price <= snapshot.player.gold
+                    ),
+                    None,
+                )
+            if food_item is not None:
+                quantity = self._purchase_quantity(snapshot, food_item)
+                suffix = (
+                    f"\r{quantity}\r\ry"
+                    if food_item.count > 1
+                    else BUY_CONFIRM_SUFFIX
+                )
+                self.last_reason = "survival:buy-food"
+                return BUY_KEY + food_item.letter + suffix
+            self._town_store_attempted[store.store_type] = snapshot.turn
+            self.last_reason = "survival:no-affordable-food"
             return LEAVE_STORE_KEY
 
         suppress_random_teleport = self._town_random_teleport_suppression_key(
@@ -9841,7 +9923,7 @@ class HengbotPolicy:
         exit locks are respected via _return_to_town_key's own guards.
         """
         player = snapshot.player
-        if snapshot.in_town or not player.hungry:
+        if not player.hungry:
             return None
         # Only a NEARBY threat defers the gate: a monster merely visible across
         # the floor may never engage at all, and waiting on it indefinitely is
@@ -9850,6 +9932,17 @@ class HengbotPolicy:
             monster for monster in hostiles if monster.distance <= 4
         ]
         food = self._find_edible(snapshot)
+        if snapshot.in_town:
+            if food is not None:
+                self.last_reason = "town:eat-before-travel"
+                return EAT_KEY + food.slot
+            step = self._shopping_approach_step(snapshot)
+            if step is not None:
+                self.last_reason = "survival:shop-approach"
+                return self._shopping_approach_key(
+                    snapshot, step, "survival:shop-travel"
+                )
+            return None
         if food is not None:
             # Mid-fight, finishing the threat comes first — unless already
             # fainting, where one more fighting turn may be one too many.
@@ -10249,7 +10342,37 @@ class HengbotPolicy:
             or single_target_progress
         )
         if not self._combat_fruitful:
+            self._fruitless_disengage_floor = snapshot.floor_key
+            self._fruitless_disengage_decisions = 0
+            self._returning_to_town = True
+            self.last_reason = "combat:disengage-armed"
+
+    def _fruitless_disengage_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        if self._fruitless_disengage_floor != snapshot.floor_key:
+            return None
+        if self._fruitless_disengage_decisions >= FRUITLESS_DISENGAGE_LIMIT:
             self.last_reason = "combat:fruitless"
+            return WAIT_KEY
+        self._fruitless_disengage_decisions += 1
+        self._returning_to_town = True
+
+        breeders = [monster for monster in hostiles if monster.can_multiply]
+        threats = breeders or hostiles
+        if threats and min(monster.distance for monster in threats) <= 4:
+            step = self._summoner_retreat_step(snapshot, threats, hostiles)
+            if step is not None:
+                self.last_reason = "combat:disengage-step"
+                return self._step_toward(snapshot, step)
+
+        key = self._return_to_town_key(snapshot, hostiles)
+        if key is not None:
+            if self.last_reason.startswith("return:"):
+                self.last_reason = "combat:disengage-" + self.last_reason[7:]
+            return key
+        self.last_reason = "combat:disengage-wait"
+        return WAIT_KEY
 
     def has_edible(self, snapshot: Snapshot) -> bool:
         """Return whether the current character can eat something in the pack."""
