@@ -1079,6 +1079,7 @@ class HengbotPolicy:
         self._dive_used_sigs: set[tuple[str, int, int]] = set()
         self._prev_inv_counts: dict[tuple[str, int, int], int] = {}
         self._char_dump_done_this_visit = False  # wrote a pre-dive character dump?
+        self._periodic_dump_requested = False
         self._shopping_stuck = False  # gave up an unreachable store approach this visit
         self._shop_approach_stuck_count = 0  # oscillating-approach turns without arriving
         # Town stores are fixed landmarks.  Try Hengband's native travel command
@@ -1312,6 +1313,9 @@ class HengbotPolicy:
         # identify never lands is deferred instead of looped on.
         self._device_identify_watch: tuple[tuple[str, int, int], int] | None = None
         self._device_identify_fail_streak = 0
+        # Rejections are only authoritative for the current town visit.  A full
+        # store can reject an otherwise sellable item, so retry it after the next
+        # dungeon trip instead of blacklisting it for the whole bot session.
         self._unsellable_items: set[tuple[str, int, int]] = set()
         self._town_blocked_reason: str | None = None
         self._departure_block: dict[str, object] = {}
@@ -1368,7 +1372,6 @@ class HengbotPolicy:
         self._pending_disposal_slot: str | None = None
         self._pending_disposal_item: tuple[str, int, int] | None = None
         self._disposal_store_attempts: set[int] = set()
-        self._disposal_stuck_count = 0
         self._destroy_pending = False
         self._destroy_attempts = 0
         # The emitter can interleave a store-loop snapshot with a main-loop
@@ -1413,6 +1416,7 @@ class HengbotPolicy:
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
         key = self._decide(snapshot)
+        key = self._periodic_character_dump_key(snapshot, key)
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -1461,6 +1465,30 @@ class HengbotPolicy:
             self._rest_count = 0
         self._last_snapshot_was_store = snapshot.store is not None
         return key
+
+    def request_character_dump(self) -> None:
+        """Latch a CLI timer request until an ordinary quiet filler decision."""
+        self._periodic_dump_requested = True
+
+    def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
+        """Replace only an already-selected quiet exploration filler action."""
+        if not self._periodic_dump_requested:
+            return key
+        safe_filler = self.last_reason in {
+            "explore",
+            "fundraise:deep-explore",
+            "fundraise:sweep-explore",
+        }
+        if (
+            not safe_filler
+            or snapshot.store is not None
+            or snapshot.player.recalling
+            or self._adjacent_hostiles(snapshot)
+        ):
+            return key
+        self._periodic_dump_requested = False
+        self.last_reason = "periodic:character-dump"
+        return CHARACTER_DUMP_MACRO
 
     def prime(self, snapshot: Snapshot) -> None:
         """Remember a dangerous landing before follow mode begins tailing.
@@ -2647,6 +2675,7 @@ class HengbotPolicy:
                 # return trip is for. The in-store bail-outs re-bound any retry.
                 self._shopping_abandoned = False
                 self._town_store_attempted.clear()
+                self._unsellable_items.clear()
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
                 self._deferred_device_items.clear()
@@ -5677,7 +5706,6 @@ class HengbotPolicy:
         self._pending_disposal_slot = None
         self._pending_disposal_item = None
         self._disposal_store_attempts.clear()
-        self._disposal_stuck_count = 0
         self._destroy_pending = False
         self._destroy_attempts = 0
 
@@ -5721,10 +5749,6 @@ class HengbotPolicy:
                 or (it.is_potion and it.aware and it.sval in DISPOSABLE_POTION_SVALS)
                 or (it.is_scroll and it.aware and it.sval in DISPOSABLE_SCROLL_SVALS)
                 or (it.known and it.is_ego and it.is_cursed and not it.is_artifact)
-                or (
-                    snapshot.player.food_type == FOOD_TYPE_MANA
-                    and it.tval == TVAL_FOOD
-                )
             )
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
@@ -6047,8 +6071,20 @@ class HengbotPolicy:
             add(STORE_HOME, "deposit", "home-first")
         if self._needs_stat_restore(snapshot) and STORE_ALCHEMIST not in self._town_store_attempted:
             add(STORE_ALCHEMIST, "stat-restore")
-        if self._find_low_level_sale(snapshot) is not None:
+        low_level_sale = self._find_low_level_sale(snapshot)
+        if low_level_sale is not None:
             add(STORE_ALCHEMIST, "low-level-sale")
+        elif (
+            snapshot.player.food_type == FOOD_TYPE_MANA
+            and self._first_item(
+                snapshot,
+                lambda item: item.tval == TVAL_FOOD
+                and self._retention_surplus(snapshot, item) > 0
+                and self._item_signature(item) not in self._unsellable_items,
+            )
+            is not None
+        ):
+            add(STORE_GENERAL, "mana-food-sale")
         unknown_device = self._first_item(
             snapshot,
             lambda item: item.tval in {TVAL_WAND, TVAL_STAFF}
@@ -7815,6 +7851,17 @@ class HengbotPolicy:
                 )
 
         if store.store_type == STORE_GENERAL:
+            if snapshot.player.food_type == FOOD_TYPE_MANA:
+                sale = self._first_item(
+                    snapshot,
+                    lambda item: item.tval == TVAL_FOOD
+                    and self._retention_surplus(snapshot, item) > 0
+                    and self._item_signature(item) not in self._unsellable_items,
+                )
+                if sale is not None:
+                    return self._store_sell_key(
+                        snapshot, sale, "shop:sell-mana-race-food"
+                    )
             sale = self._find_light_sale(snapshot)
             if sale is not None:
                 quantity = self._light_sale_quantity(sale)

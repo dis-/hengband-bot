@@ -8,6 +8,7 @@ from unittest.mock import patch
 from hengbot.cli import (
     COMMAND_RESPONSE_GRACE,
     DECISION_WATCHDOG_SECONDS,
+    DUMP_INTERVAL_SECONDS,
     EconomyLedger,
     LOOP_WINDOW,
     MINING_DIG_REASONS,
@@ -35,6 +36,7 @@ from hengbot.cli import (
     _is_looping,
     _newest_snapshot,
     _read_last_line,
+    _request_due_dump,
     _rewind_if_truncated,
     _last_activity_after_read,
     _stall_recovery_key,
@@ -62,6 +64,18 @@ class DecisionWatchdogTest(unittest.TestCase):
             self.assertGreater(DECISION_WATCHDOG_SECONDS, 60)
             self.assertTrue(call.kwargs["repeat"])
             self.assertIsNotNone(call.kwargs["file"])
+
+
+class PeriodicDumpTimerTest(unittest.TestCase):
+    def test_elapsed_timer_latches_once_and_moves_deadline(self):
+        policy = unittest.mock.Mock()
+
+        deadline = _request_due_dump(policy, 100.0, 99.0)
+
+        policy.request_character_dump.assert_called_once_with()
+        self.assertEqual(deadline, 100.0 + DUMP_INTERVAL_SECONDS)
+        self.assertEqual(_request_due_dump(policy, 101.0, deadline), deadline)
+        policy.request_character_dump.assert_called_once_with()
 
 
 def _snap_line(turn, y, x):

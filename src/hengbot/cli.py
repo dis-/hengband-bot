@@ -44,6 +44,18 @@ REST_STALL_GRACE = 20.0
 # dump; truly stuck work still emits a diagnostic shortly afterwards.
 DECISION_WATCHDOG_SECONDS = 90
 
+# The dump is the bot's external liveness signal.  The CLI owns wall-clock time;
+# policy only receives a deterministic request and waits for a safe filler turn.
+DUMP_INTERVAL_SECONDS = 180
+
+
+def _request_due_dump(policy, now: float, next_dump_at: float) -> float:
+    """Deliver one elapsed wall-clock request and return its next deadline."""
+    if now >= next_dump_at:
+        policy.request_character_dump()
+        return now + DUMP_INTERVAL_SECONDS
+    return next_dump_at
+
 
 def _arm_decision_watchdog() -> None:
     faulthandler.cancel_dump_traceback_later()
@@ -1045,6 +1057,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
             initial_snapshot.floor_key if initial_snapshot is not None else None
         )
         last_command_signature: tuple | None = None
+        next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
             _arm_decision_watchdog()
             chunk = file.read()
@@ -1097,6 +1110,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         continue
                     last_decision_line = snapshot_line
                     last_decision_at = now
+                    next_dump_at = _request_due_dump(policy, now, next_dump_at)
                     key = policy.choose_key(snapshot)
                     command_signature = _command_state_signature(
                         snapshot,

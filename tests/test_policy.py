@@ -3565,7 +3565,9 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         self.assertTrue(
             policy._is_disposable_item(jerky, food_type=FOOD_TYPE_MANA)
         )
-        self.assertEqual(policy._find_low_level_sale(snap), jerky)
+        # Food is disposable for this race, but is not an Alchemist sale;
+        # the town planner/shop path routes it to the General Store.
+        self.assertIsNone(policy._find_low_level_sale(snap))
 
     def test_mana_race_fundraising_buys_device_charges_not_biscuits(self):
         biscuit = store_item("a", TVAL_FOOD, 35, price=1, name="biscuit")
@@ -10305,6 +10307,45 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
+    def test_periodic_dump_waits_for_quiet_exploration_and_emits_once(self):
+        pol = HengbotPolicy()
+        quiet = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(1, 5, 0),
+        )
+        pol.request_character_dump()
+        pol.last_reason = "melee"
+        self.assertEqual(pol._periodic_character_dump_key(quiet, "6"), "6")
+        pol.last_reason = "explore"
+        self.assertEqual(
+            pol._periodic_character_dump_key(quiet, "6"), CHARACTER_DUMP_MACRO
+        )
+        pol.last_reason = "explore"
+        self.assertEqual(pol._periodic_character_dump_key(quiet, "6"), "6")
+
+    def test_periodic_dump_never_emits_in_store_or_adjacent_combat(self):
+        enemy = hostile(1, 10, 11)
+        combat = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            [enemy],
+            floor_key=(1, 5, 0),
+        )
+        town = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )[1]
+        store = replace(town, store=StoreState(STORE_GENERAL, []))
+        for snapshot in (combat, store):
+            pol = HengbotPolicy()
+            pol.request_character_dump()
+            pol.last_reason = "explore"
+            self.assertEqual(pol._periodic_character_dump_key(snapshot, "6"), "6")
+
     def test_recall_depth_seeds_deepest_after_restart(self):
         # A restart zeroes the in-memory watermark. The save-backed recall depth
         # (emitted every snapshot) must restore it, or the resumed bot forgets it
@@ -15031,7 +15072,27 @@ class StoreSellGateTest(unittest.TestCase):
 
         self.assertEqual(keys, [LEAVE_STORE_KEY] * 3)
         self.assertTrue(all("d" not in key and "\r" not in key and "y" not in key for key in keys))
-        self.assertIn(policy._item_signature(mana_food), policy._unsellable_items)
+        self.assertNotIn(policy._item_signature(mana_food), policy._unsellable_items)
+
+    def test_mana_race_food_is_sold_at_general_store(self):
+        mana_food = item("a", TVAL_FOOD, 1, name="Ration of Food", known=True)
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            policy._shop(self._store([mana_food], STORE_GENERAL)),
+            "da\r\ry",
+        )
+        self.assertEqual(policy.last_reason, "shop:sell-mana-race-food")
+
+    def test_unsellable_latch_clears_on_next_town_visit(self):
+        potion = item("a", TVAL_POTION, SV_POTION_RESIST_COLD)
+        policy = HengbotPolicy()
+        policy._unsellable_items.add(policy._item_signature(potion))
+        policy._floor_key = (1, 5, 0)
+
+        policy._observe(self._store([potion], STORE_ALCHEMIST))
+
+        self.assertNotIn(policy._item_signature(potion), policy._unsellable_items)
 
     def test_same_turn_unchanged_sale_latches_after_two_emitted_attempts(self):
         potion = item("a", TVAL_POTION, SV_POTION_RESIST_COLD)
