@@ -14,6 +14,7 @@
   "abort_conditions": {"hp_ratio": 0.30, "allowed": true},
   "required_force": {
     "min_hp": 120, "min_expected_dps": 13, "level_guideline": 8,
+    "reference_ac": 20,
     "resists": [], "speed_potions": 1, "heal_potions": 2, "throwing_items": {},
     "rationale": "r_idx 257 のワーグ16体。speed 120 の energy 15 とプレイヤー speed 110 の energy 10 から1.5行動/ターン。通路で平均1.5体が接敵し、命中率約55%、4体の波を min_expected_dps=13 で処理すると期待被害約82。退却可能なので70%予算を使い min_hp=ceil(82/0.70)=120。固定地形がなく単列維持を保証できないため、戦術維持下の一意な最大接敵数を定義できず no_healing_tier は設けない。戦術が崩れた場合は hp_ratio=0.30 で中止する。"
   },
