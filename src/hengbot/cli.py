@@ -106,12 +106,9 @@ def _advance_starving_streak(
     reason: str,
     position_changed: bool,
 ) -> int:
-    """Count starvation decisions, sparing only a visibly advancing escape."""
+    """Count starvation decisions, sparing active escape/recall workflows."""
     starving = food_state in {"weak", "fainting"} and not has_edible
-    advancing_escape = (
-        reason.startswith(("return:", "survival:", "livelock:"))
-        and position_changed
-    )
+    advancing_escape = reason.startswith(("return:", "survival:", "livelock:"))
     if not starving or advancing_escape:
         return 0
     return streak + 1

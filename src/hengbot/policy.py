@@ -10193,6 +10193,17 @@ class HengbotPolicy:
         """Mark a combat streak fruitless when its full window has no outcome."""
         reason = self.last_reason
         combat = reason == "melee" or reason.startswith(COMBAT_REASON_PREFIXES)
+        combat_adjacent = reason in {
+            "fundraise:eliminate-multiplier",
+            "fundraise:clear-hostile",
+        } or reason == "pickup" or reason.endswith(":pickup")
+        if (
+            combat_adjacent
+            and self._combat_outcomes
+            and not snapshot.in_town
+            and snapshot.floor_key == self._combat_outcome_floor
+        ):
+            return
         if not combat or snapshot.in_town or snapshot.floor_key != self._combat_outcome_floor:
             self._combat_outcomes.clear()
             self._combat_fruitful = True
@@ -10202,21 +10213,12 @@ class HengbotPolicy:
 
         hostiles = [monster for monster in snapshot.visible_monsters if monster.hostile]
         hp_by_index = {monster.index: monster.hp for monster in hostiles}
-        unique_ids = {
-            monster.index
-            for monster in hostiles
-            if (
-                (knowledge := self._monrace_knowledge.get(monster.race_id)) is not None
-                and "UNIQUE" in knowledge.flags
-            )
-        }
         self._combat_outcomes.append(
             (
                 snapshot.player.exp,
                 snapshot.player.gold,
                 len(hostiles),
                 hp_by_index,
-                unique_ids,
             )
         )
         if len(self._combat_outcomes) <= COMBAT_OUTCOME_WINDOW:
@@ -10233,17 +10235,18 @@ class HengbotPolicy:
         hostile_count_progress = max(
             outcome[2] for outcome in outcomes[-quarter:]
         ) < min(outcome[2] for outcome in outcomes[:quarter])
-        unique_progress = (
-            len(first[4]) == 1
-            and first[4] == last[4]
-            and next(iter(first[4])) in last[3]
-            and last[3][next(iter(first[4]))] < first[3][next(iter(first[4]))]
+        single_target_index = next(iter(first[3])) if first[2] == 1 else None
+        single_target_progress = (
+            single_target_index is not None
+            and all(outcome[2] == 1 for outcome in outcomes)
+            and all(single_target_index in outcome[3] for outcome in outcomes)
+            and last[3][single_target_index] < first[3][single_target_index]
         )
         self._combat_fruitful = bool(
             last[0] > first[0]
             or last[1] > first[1]
             or hostile_count_progress
-            or unique_progress
+            or single_target_progress
         )
         if not self._combat_fruitful:
             self.last_reason = "combat:fruitless"

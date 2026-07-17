@@ -13,7 +13,6 @@ from dataclasses import replace
 
 from hengbot.model import Position, Snapshot
 from hengbot.cli import LOOP_WINDOW, STARVING_STOP_LIMIT, _advance_starving_streak
-from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
     COMBAT_OUTCOME_WINDOW,
@@ -269,19 +268,37 @@ class NavigationInvariantTest(unittest.TestCase):
             policy._update_combat_outcome(gained if step else base)
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
 
-    def test_long_unique_fight_with_falling_hp_is_not_fruitless(self):
+    def test_long_non_unique_fight_with_falling_hp_is_not_fruitless(self):
         base = self._quiet_room()
-        unique = replace(hostile(1, 10, 11, hp=100, max_hp=100), race_id=999)
-        policy = HengbotPolicy(
-            monrace_knowledge={
-                999: MonraceKnowledge(100, 110, False, False, flags=frozenset({"UNIQUE"}))
-            }
-        )
+        tank = hostile(1, 10, 11, hp=100, max_hp=100)
+        policy = HengbotPolicy()
         for step in range(COMBAT_OUTCOME_WINDOW + 1):
             policy.last_reason = "melee"
-            monster = replace(unique, hp=max(1, 100 - step // 4))
+            monster = replace(tank, hp=max(1, 100 - step // 4))
             policy._update_combat_outcome(replace(base, visible_monsters=[monster]))
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+    def test_combat_adjacent_reasons_do_not_reset_or_extend_window(self):
+        fighting = replace(
+            self._quiet_room(), visible_monsters=[hostile(1, 10, 11)]
+        )
+        policy = HengbotPolicy()
+        policy.last_reason = "melee"
+        policy._update_combat_outcome(fighting)
+        recorded = len(policy._combat_outcomes)
+
+        for reason in (
+            "fundraise:eliminate-multiplier",
+            "fundraise:clear-hostile",
+            "fundraise:pickup",
+        ):
+            policy.last_reason = reason
+            policy._update_combat_outcome(fighting)
+            self.assertEqual(len(policy._combat_outcomes), recorded)
+
+        policy.last_reason = "melee"
+        policy._update_combat_outcome(fighting)
+        self.assertEqual(len(policy._combat_outcomes), recorded + 1)
 
     def test_fruitless_combat_no_longer_resets_navigation_invariant(self):
         snapshot = replace(
@@ -368,6 +385,18 @@ class StarvationStopTest(unittest.TestCase):
                 has_edible=False,
                 reason="return:seek-upstairs",
                 position_changed=True,
+            ),
+            0,
+        )
+
+    def test_stationary_recall_wait_while_weak_is_exempt(self):
+        self.assertEqual(
+            _advance_starving_streak(
+                20,
+                food_state="weak",
+                has_edible=False,
+                reason="return:wait-recall",
+                position_changed=False,
             ),
             0,
         )
