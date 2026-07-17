@@ -80,6 +80,7 @@ from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
 from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QuestInfo, load_quest_knowledge
+from hengbot.quest_strategies import load_quest_strategies
 from hengbot.policy import (
     HengbotPolicy,
     BUY_KEY,
@@ -2960,6 +2961,162 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(key, "<")
         self.assertEqual(policy.last_reason, "emergency:stairs-quest-fail")
+
+
+class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
+    QUEST_ID = 1
+
+    @classmethod
+    def setUpClass(cls):
+        cls.profiles = load_quest_strategies(Path("strategy/quests"))
+
+    def _policy(self):
+        return HengbotPolicy(quest_strategies=self.profiles)
+
+    def _quest(self, status):
+        return QuestState(id=1, status=status, type=6, level=5, flags=6, fixed=True)
+
+    def _force_snapshot(self, quest_id, *, hp, torches, speed=1, healing=2,
+                        abilities=frozenset()):
+        inventory = [
+            item("t", TVAL_LITE, SV_LITE_TORCH, count=torches, fuel=5000),
+            item("s", TVAL_POTION, SV_POTION_SPEED, count=speed),
+            item("h", TVAL_POTION, SV_POTION_HEALING, count=healing),
+        ]
+        return Snapshot(
+            player(1, 1, hp=hp, max_hp=hp, abilities=abilities),
+            {Position(1, 1): grid(1, 1)}, [], inventory=inventory,
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True)],
+            floor_key=(0, 0, quest_id),
+        )
+
+    def test_acceptance_base_tier_revert_proofs_each_component(self):
+        policy = self._policy()
+        profile = policy.approved_quest_strategy(1)
+        self.assertIsNotNone(profile)
+        base = self._force_snapshot(1, hp=36, torches=5)
+        with patch("hengbot.policy.weapon_expected_dps", return_value=28):
+            self.assertTrue(policy._approved_strategy_force_ready(base, profile))
+            for changed in (
+                replace(base, player=replace(base.player, hp=35, max_hp=35)),
+                replace(base, inventory=[*base.inventory[:1], base.inventory[2]]),
+                replace(base, inventory=[base.inventory[0], base.inventory[1],
+                                         replace(base.inventory[2], count=1)]),
+                replace(base, inventory=[replace(base.inventory[0], count=4),
+                                         *base.inventory[1:]]),
+            ):
+                with self.subTest(changed=changed):
+                    self.assertFalse(policy._approved_strategy_force_ready(changed, profile))
+        with patch("hengbot.policy.weapon_expected_dps", return_value=27.99):
+            self.assertFalse(policy._approved_strategy_force_ready(base, profile))
+        resisted_profile = replace(
+            profile, required_force={**profile.required_force, "resists": ["fire"]}
+        )
+        with patch("hengbot.policy.weapon_expected_dps", return_value=28):
+            self.assertFalse(policy._approved_strategy_force_ready(base, resisted_profile))
+            fire_ready = replace(
+                base, player=replace(base.player, abilities=frozenset({"resist_fire"}))
+            )
+            self.assertTrue(policy._approved_strategy_force_ready(fire_ready, resisted_profile))
+
+    def test_no_healing_tier_waives_potions_not_torches(self):
+        policy = self._policy()
+        profile = policy.approved_quest_strategy(1)
+        no_potions = self._force_snapshot(1, hp=88, torches=5, speed=0, healing=0)
+        no_potions = replace(no_potions, inventory=no_potions.inventory[:1])
+        with patch("hengbot.policy.weapon_expected_dps", return_value=28):
+            self.assertTrue(policy._approved_strategy_force_ready(no_potions, profile))
+            short_ammo = replace(
+                no_potions, inventory=[replace(no_potions.inventory[0], count=4)]
+            )
+            self.assertFalse(policy._approved_strategy_force_ready(short_ammo, profile))
+
+    def test_acceptance_errand_reserves_and_routes_q34_torches(self):
+        policy = self._policy()
+        torches = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+        quest = QuestState(id=34, status=0, fixed=True, level=5)
+        snap = Snapshot(player(10, 10, class_id=PLAYER_CLASS_WARRIOR), {Position(10, 10): grid(10, 10)}, [],
+                        floor_key=(0, 0, 0), town_flag=True, quests={34: quest},
+                        inventory=[torches])
+        self.assertEqual(policy._retention_reservation(snap, torches), 20)
+        short = replace(snap, inventory=[replace(torches, count=19)])
+        needs = policy._enumerate_town_needs(short)
+        self.assertTrue(any(
+            need.store_type == STORE_GENERAL and need.category == "quest-throwing-items"
+            for need in needs
+        ))
+
+    def test_q34_hold_priority_and_bee_last(self):
+        policy = self._policy()
+        grids = {Position(10, x): grid(10, x) for x in range(15, 21)}
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+        cloaker = replace(hostile(1, 10, 18, distance=2), race_id=243)
+        sword = replace(hostile(2, 10, 16, distance=4), race_id=107)
+        bee = replace(hostile(3, 10, 15, distance=5), race_id=174)
+        snap = Snapshot(player(10, 20, hp=100, max_hp=100), grids,
+                        [bee, sword, cloaker], inventory=[torch], floor_key=(0, 1, 34))
+        policy._fixed_quest_speed_attempted = True
+        self.assertEqual(policy._approved_quest_strategy_key(snap, snap.visible_monsters, []), "vt4")
+        self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")
+        # Once the cloaker is gone, the death sword owns the volley; the bee is last.
+        self.assertEqual(policy._approved_quest_strategy_key(
+            replace(snap, visible_monsters=[bee, sword]), [bee, sword], []
+        ), "vt4")
+        self.assertEqual(policy._approved_quest_strategy_key(
+            replace(snap, visible_monsters=[bee]), [bee], []
+        ), "vt4")
+        blocked_grids = {
+            Position(10, 19): grid(10, 19), Position(10, 20): grid(10, 20),
+            Position(9, 20): grid(9, 20, monster=True),
+        }
+        never_move = replace(cloaker, position=Position(9, 20), distance=1)
+        displaced = replace(
+            snap, player=player(10, 19), grids=blocked_grids,
+            visible_monsters=[never_move],
+        )
+        policy._build_grid_index(displaced)
+        self.assertEqual(
+            policy._approved_quest_strategy_key(displaced, [never_move], []), "5"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:avoid-never-move")
+
+    def test_q1_retakes_hold_and_throws_at_distance_two(self):
+        policy = self._policy()
+        grids = {Position(8, x): grid(8, x) for x in range(1, 6)}
+        displaced = Snapshot(player(8, 2), grids, [], floor_key=(0, 1, 1))
+        policy._build_grid_index(displaced)
+        self.assertEqual(policy._approved_quest_strategy_key(displaced, [], []), "6")
+        thief = replace(hostile(1, 8, 5, distance=2), race_id=150)
+        at_hold = replace(displaced, player=player(8, 3), visible_monsters=[thief],
+                          inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)])
+        policy._fixed_quest_speed_attempted = True
+        self.assertEqual(policy._approved_quest_strategy_key(at_hold, [thief], []), "vt6")
+
+    def test_conditional_speed_uses_live_three_turn_projection(self):
+        policy = self._policy()
+        monster = replace(hostile(1, 8, 5), race_id=150)
+        snap = Snapshot(player(8, 3, hp=100, max_hp=100),
+                        {Position(8, x): grid(8, x) for x in range(3, 6)}, [monster],
+                        inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
+                        floor_key=(0, 1, 1))
+        with patch.object(policy, "threat_prediction", return_value={"operational_total": 49}):
+            self.assertNotEqual(policy._approved_quest_strategy_key(snap, [monster], []), "qs")
+        with patch.object(policy, "threat_prediction", return_value={"operational_total": 50}):
+            self.assertEqual(policy._approved_quest_strategy_key(snap, [monster], []), "qs")
+
+    def test_abort_allowed_leaves_at_threshold_but_once_profiles_do_not(self):
+        upstairs = {Position(10, 10): grid(10, 10, upstairs=True)}
+        q14 = Snapshot(player(10, 10, hp=30, max_hp=100), upstairs, [],
+                       floor_key=(0, 5, 14))
+        policy = self._policy()
+        self.assertEqual(policy._approved_quest_strategy_key(q14, [], []), "<")
+        self.assertEqual(policy.last_reason, "quest-strategy:abort")
+        for quest_id in (1, 34):
+            with self.subTest(quest_id=quest_id):
+                snap = replace(q14, floor_key=(0, 1, quest_id))
+                self.assertNotEqual(
+                    self._policy()._approved_quest_strategy_key(snap, [], []), "<"
+                )
 
     def test_flee_upstairs_reason_records_quest_failure(self):
         grids = {

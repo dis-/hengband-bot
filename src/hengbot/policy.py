@@ -1581,11 +1581,20 @@ class HengbotPolicy:
         if emergency is not None:
             return emergency
 
+        strategy_action = self._approved_quest_strategy_key(snapshot, hostiles, adjacent)
+        if strategy_action is not None:
+            return strategy_action
+
         # A reviewed one-shot quest is entered on the assumption that its carried
         # Speed dose is part of the action-economy budget.  Spend it on first
         # contact, once for this floor entry (a rejected command is not looped).
         active_quest = self._active_fixed_quest_id(snapshot) or self._active_kill_quest_id(snapshot)
-        if active_quest is not None and hostiles and not self._fixed_quest_speed_attempted:
+        if (
+            active_quest is not None
+            and self.approved_quest_strategy(active_quest) is None
+            and hostiles
+            and not self._fixed_quest_speed_attempted
+        ):
             self._fixed_quest_speed_attempted = True
             speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
             if speed is not None:
@@ -4272,8 +4281,27 @@ class HengbotPolicy:
             ):
                 return item.count
 
-        # Phase 5 hook: add allowlisted strategy-draft throwing_items here; all
-        # disposal owners already consume this reservation view.
+        strategy = self._quest_strategy_for_errand_or_floor(snapshot)
+        if strategy is not None:
+            force = strategy.required_force
+            if item.is_torch and item.known and item.fuel > 0:
+                target = max(target, int(force.get("throwing_items", {}).get("lit_torch", 0)))
+                matches = lambda candidate: (
+                    candidate.is_torch and candidate.known and candidate.fuel > 0
+                )
+            elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
+                target = max(target, int(force.get("speed_potions", 0)))
+                matches = lambda candidate: (
+                    candidate.tval == TVAL_POTION and candidate.sval == SV_POTION_SPEED
+                )
+            elif item.tval == TVAL_POTION and item.sval in {
+                SV_POTION_HEALING, SV_POTION_CURE_CRITICAL,
+            }:
+                target = max(target, int(force.get("heal_potions", 0)))
+                matches = lambda candidate: (
+                    candidate.tval == TVAL_POTION
+                    and candidate.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+                )
         if target <= 0:
             return 0
         before = 0
@@ -6060,6 +6088,31 @@ class HengbotPolicy:
             for store_type in status.stores:
                 if store_type not in self._town_store_attempted:
                     add(store_type, supply_categories[status.kind])
+        quest_strategy = self._quest_strategy_for_errand_or_floor(snapshot)
+        if quest_strategy is not None:
+            force = quest_strategy.required_force
+            if (
+                self._count_throwing_torches(snapshot)
+                < int(force.get("throwing_items", {}).get("lit_torch", 0))
+                and STORE_GENERAL not in self._town_store_attempted
+            ):
+                add(STORE_GENERAL, "quest-throwing-items")
+            if (
+                self._exact_potion_count(snapshot, SV_POTION_SPEED)
+                < int(force.get("speed_potions", 0))
+                and STORE_BLACK not in self._town_store_attempted
+            ):
+                add(STORE_BLACK, "quest-speed")
+            healing = sum(
+                it.count for it in snapshot.inventory
+                if it.tval == TVAL_POTION
+                and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+            )
+            if healing < int(force.get("heal_potions", 0)):
+                if STORE_TEMPLE not in self._town_store_attempted:
+                    add(STORE_TEMPLE, "quest-healing")
+                if STORE_BLACK not in self._town_store_attempted:
+                    add(STORE_BLACK, "quest-healing")
         if not self._light_ready(snapshot):
             if STORE_GENERAL in self._town_store_attempted:
                 return needs
@@ -7110,7 +7163,13 @@ class HengbotPolicy:
         elif item.is_ammo:
             needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
-            needed = TORCH_THROW_TARGET - self._count_throwing_torches(snapshot)
+            strategy = self._quest_strategy_for_errand_or_floor(snapshot)
+            target = TORCH_THROW_TARGET
+            if strategy is not None:
+                target = max(target, int(
+                    strategy.required_force.get("throwing_items", {}).get("lit_torch", 0)
+                ))
+            needed = target - self._count_throwing_torches(snapshot)
         elif item.tval == TVAL_SCROLL and item.sval in {
             SV_SCROLL_IDENTIFY,
             SV_SCROLL_STAR_IDENTIFY,
@@ -9583,9 +9642,192 @@ class HengbotPolicy:
         return key
 
     def approved_quest_strategy(self, quest_id: int) -> StrategyProfile | None:
-        """Return only a user-approved profile; Phase 2 does not execute it."""
+        """Return only a user-approved, executable profile."""
         profile = self._quest_strategies.get(quest_id)
         return profile if profile is not None and profile.execution_eligible else None
+
+    def _approved_quest_strategy_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        """Execute an approved profile only on its own quest floor."""
+        profile = self.approved_quest_strategy(snapshot.floor_key[2])
+        if profile is None:
+            return None
+
+        abort = profile.abort_conditions
+        if (
+            bool(abort.get("allowed", False))
+            and snapshot.player.hp_ratio <= float(abort.get("hp_ratio", 0))
+        ):
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and here.has_up_stairs:
+                self.last_reason = "quest-strategy:abort"
+                return UP_STAIRS_KEY
+            escape = self._escape_by_stairs(snapshot)
+            if escape is not None:
+                self.last_reason = "quest-strategy:abort"
+                return escape
+            if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
+                exit_key = self._fixed_quest_exit_key(snapshot, snapshot.floor_key[2])
+                if exit_key is not None:
+                    self.last_reason = "quest-strategy:abort"
+                    return exit_key
+
+        if hostiles and not self._fixed_quest_speed_attempted:
+            threshold = float(
+                profile.consumable_plan.get("speed_potion_use_when", {}).get(
+                    "expected_damage_hp_ratio_min", 1.0
+                )
+            )
+            projected = self.threat_prediction(snapshot, hostiles, turns=3)[
+                "operational_total"
+            ]
+            if projected >= threshold * snapshot.player.hp:
+                self._fixed_quest_speed_attempted = True
+                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                if speed is not None:
+                    self.last_reason = "quest-strategy:quaff-speed"
+                    return QUAFF_KEY + speed.slot
+
+        hold_value = profile.engagement_plan.get("hold_position")
+        hold = Position(*hold_value) if hold_value is not None else None
+        if adjacent and not snapshot.player.afraid:
+            ranked = sorted(
+                adjacent,
+                key=lambda monster: (
+                    profile.priority_targets.index(monster.race_id)
+                    if monster.race_id in profile.priority_targets else len(profile.priority_targets),
+                    monster.hp,
+                ),
+            )
+            self.last_reason = "quest-strategy:melee"
+            return self._direction_key(snapshot.player.position, ranked[0].position)
+
+        if hold is not None and snapshot.player.position != hold:
+            step = self._town_map_goal_step(snapshot, hold)
+            if step is not None:
+                never_move_races = {243, 107} if profile.quest_id == 34 else set()
+                if any(
+                    monster.race_id in never_move_races
+                    and step.distance_to(monster.position) <= 1
+                    for monster in hostiles
+                ):
+                    self.last_reason = "quest-strategy:avoid-never-move"
+                    return WAIT_KEY
+                self.last_reason = "quest-strategy:retake-hold"
+                return self._step_toward(snapshot, step)
+            self.last_reason = "quest-strategy:hold-unreachable"
+            return WAIT_KEY
+
+        if hostiles:
+            present = {monster.race_id for monster in hostiles}
+            active_race = next(
+                (race_id for race_id in profile.priority_targets if race_id in present), None
+            )
+            targets = [monster for monster in hostiles if monster.race_id == active_race]
+            torch = self._first_item(snapshot, lambda item: item.is_torch)
+            if torch is not None and targets:
+                target = self._ranged_target(snapshot, targets)
+                if target is not None:
+                    self.last_reason = "quest-strategy:throw-torch"
+                    return (
+                        THROW_KEY + torch.slot
+                        + self._direction_key(snapshot.player.position, target.position)
+                    )
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and here.object_count > 0:
+                self.last_reason = "quest-strategy:recover-torch"
+                return PICKUP_KEY
+            pickup_step = self._nearest_goal_step(
+                snapshot, lambda candidate: candidate.object_count > 0
+            )
+            if pickup_step is not None and not any(
+                monster.race_id in ({243, 107} if profile.quest_id == 34 else set())
+                and pickup_step.distance_to(monster.position) <= 1
+                for monster in hostiles
+            ):
+                self.last_reason = "quest-strategy:recover-torch"
+                return self._step_toward(snapshot, pickup_step)
+            # Fixed-position profiles never chase. This also keeps Q34 away
+            # from its NEVER_MOVE targets and the bee alcove until its turn.
+            if hold is not None:
+                self.last_reason = "quest-strategy:hold"
+                return WAIT_KEY
+        return None
+
+    def _quest_strategy_for_errand_or_floor(
+        self, snapshot: Snapshot
+    ) -> StrategyProfile | None:
+        floor_profile = self.approved_quest_strategy(snapshot.floor_key[2])
+        if floor_profile is not None:
+            return floor_profile
+        if not snapshot.in_town:
+            return None
+        quest_id = self._fixed_quest_target(snapshot)
+        if quest_id is None:
+            candidates = [
+                quest for quest in snapshot.quests.values()
+                if quest.id in FIXED_QUEST_ALLOWLIST
+                and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
+                and self.approved_quest_strategy(quest.id) is not None
+            ]
+            if candidates:
+                quest_id = min(candidates, key=self._fixed_quest_order).id
+        if quest_id is None:
+            return None
+        quest = snapshot.quests.get(quest_id)
+        if quest is None or quest.status not in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}:
+            return None
+        return self.approved_quest_strategy(quest_id)
+
+    @staticmethod
+    def _profile_resistance_name(name: str) -> str:
+        aliases = {
+            "acid": "resist_acid", "electricity": "resist_elec",
+            "fire": "resist_fire", "cold": "resist_cold",
+            "poison": "resist_pois", "confusion": "resist_conf",
+            "blindness": "resist_blind", "fear": "resist_fear",
+            "nether": "resist_neth", "chaos": "resist_chaos",
+        }
+        return aliases.get(name, name)
+
+    def _approved_strategy_force_ready(
+        self, snapshot: Snapshot, profile: StrategyProfile
+    ) -> bool:
+        force = profile.required_force
+        weapon = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
+        dps = weapon_expected_dps(snapshot, weapon) if weapon is not None else 0.0
+        dps = float(dps or 0.0)
+        throwing_ready = self._count_throwing_torches(snapshot) >= int(
+            force.get("throwing_items", {}).get("lit_torch", 0)
+        )
+        resists_ready = all(
+            self._profile_resistance_name(str(name)) in snapshot.player.abilities
+            for name in force.get("resists", ())
+        )
+        if not throwing_ready or not resists_ready:
+            return False
+        no_heal = force.get("no_healing_tier")
+        if isinstance(no_heal, dict) and (
+            snapshot.player.max_hp >= int(no_heal.get("min_hp", 0))
+            and dps >= float(no_heal.get("min_expected_dps", 0) or 0)
+        ):
+            return True
+        healing = sum(
+            it.count for it in snapshot.inventory
+            if it.tval == TVAL_POTION
+            and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+        )
+        return (
+            snapshot.player.max_hp >= int(force.get("min_hp", 0))
+            and dps >= float(force.get("min_expected_dps", 0) or 0)
+            and self._exact_potion_count(snapshot, SV_POTION_SPEED)
+                >= int(force.get("speed_potions", 0))
+            and healing >= int(force.get("heal_potions", 0))
+        )
 
     def _fixed_quest_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -9795,7 +10037,10 @@ class HengbotPolicy:
         if info is None:
             return reject("unknown-quest")
         telemetry["roster_size"] = info.threat_roster_count
-        if snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
+        profile = self.approved_quest_strategy(quest_id)
+        if profile is not None and not self._approved_strategy_force_ready(snapshot, profile):
+            return reject("strategy-force")
+        if profile is None and snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
             return reject("level-floor")
         if snapshot.player.hp < snapshot.player.max_hp:
             return reject("not-full-hp")
