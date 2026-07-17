@@ -20,7 +20,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_HAND,
     SLOT_SUB_RING,
 )
-from hengbot.equipment_encounters import EncounterTarget, melee_multiplier
+from hengbot.equipment_encounters import BRANDS, EncounterTarget, melee_multiplier
 
 
 TR_STR = 0
@@ -336,8 +336,10 @@ def evaluate_warrior_melee(
         str, tuple[tuple[int, float], ...]
     ] | None = None,
     average_target_hp: float | None = None,
+    target_ac: int = AC_REFERENCE,
+    neutral_target_brands: bool = False,
 ) -> WarriorMeleeResult:
-    """Evaluate source-compatible neutral-target melee damage at AC 100."""
+    """Evaluate source-compatible melee damage against the requested AC."""
     strength = modify_stat_value(inputs.natural_str, _pval_total(loadout, TR_STR))
     dexterity = modify_stat_value(inputs.natural_dex, _pval_total(loadout, TR_DEX))
     str_idx = stat_index(strength)
@@ -373,7 +375,7 @@ def evaluate_warrior_melee(
             + (to_hit + weapon.item.to_h) * 3
             + inputs.valour_hit_bonus
         )
-        chance = hit_chance(reliability, lazy=inputs.lazy_personality)
+        chance = hit_chance(reliability, target_ac, lazy=inputs.lazy_personality)
         damage_arguments = {
             "number": weapon.item.damage_dice_num,
             "sides": weapon.item.damage_dice_sides,
@@ -408,7 +410,15 @@ def evaluate_warrior_melee(
                 for multiplier, weight in weighted_multipliers
             )
         else:
-            damage = expected_weapon_dice_damage(**damage_arguments)
+            neutral_multiplier = (
+                25
+                if neutral_target_brands
+                and any(flag in weapon.flags for flag, _, _ in BRANDS)
+                else 10
+            )
+            damage = expected_weapon_dice_damage(
+                **damage_arguments, slay_multiplier=neutral_multiplier
+            )
         damage += weapon.item.to_d + to_damage
         hands.append(
             HandMeleeResult(

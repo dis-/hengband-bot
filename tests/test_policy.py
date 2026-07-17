@@ -3107,6 +3107,31 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             for need in needs
         ))
 
+    def test_q34_carry_purchase_stops_at_existing_gold_reserve(self):
+        policy = self._policy()
+        torch = StoreItem(
+            letter="a", name="Torch", count=20, tval=TVAL_LITE,
+            sval=SV_LITE_TORCH, price=10, aware=True, known=True,
+        )
+        quest = QuestState(id=34, status=0, fixed=True, level=5)
+        base = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=1000),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True, quests={34: quest},
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=12, fuel=5000)],
+            store=StoreState(STORE_GENERAL, [torch]),
+        )
+        reserve = policy._fundraising_kit_reserve(base)
+        blocked = replace(
+            base, player=replace(base.player, gold=reserve + torch.price - 1)
+        )
+
+        self.assertIsNone(policy._next_purchase(blocked))
+        affordable = replace(
+            base, player=replace(base.player, gold=reserve + torch.price * 8)
+        )
+        self.assertEqual(policy._next_purchase(affordable), torch)
+
     def test_q34_hold_priority_and_bee_last(self):
         policy = self._policy()
         grids = {Position(10, x): grid(10, x) for x in range(15, 21)}

@@ -82,8 +82,8 @@ class WarriorOptimizationPreparation:
         return not self.blockers and self.transaction is not None
 
 
-def weapon_expected_dps(snapshot: Snapshot, weapon) -> float | None:
-    """Score a main-hand replacement with the optimizer's AC-100 formula."""
+def weapon_expected_dps(snapshot: Snapshot, weapon, reference_ac: int) -> float | None:
+    """Score both wielded hands against a visible, non-immune neutral target."""
     equipped = tuple(
         OwnedEquipment(
             f"equipped:{index}", item, "equipped", equipped_slot=item.slot
@@ -118,7 +118,13 @@ def weapon_expected_dps(snapshot: Snapshot, weapon) -> float | None:
         if sub is not None
         else "two_handed" if weapon.tval == 22 or weapon.weight > 99 else "one_handed"
     )
-    return evaluate_warrior_melee(Loadout(tuple(sorted(slots)), hand_mode), inputs).expected_dps_ac100
+    melee = evaluate_warrior_melee(
+        Loadout(tuple(sorted(slots)), hand_mode),
+        inputs,
+        target_ac=reference_ac,
+        neutral_target_brands=True,
+    )
+    return sum(hand.expected_damage_per_round for hand in melee.hands)
 
 
 def _intrinsic_flags(abilities: frozenset[str]) -> frozenset[int]:

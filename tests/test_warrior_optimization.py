@@ -33,25 +33,67 @@ from hengbot.warrior_optimization import (
     _base_stat_without_current_gear,
     _conservative_intrinsic_abilities,
     prepare_warrior_optimization,
+    weapon_expected_dps,
 )
 from hengbot.warrior_equipment_evaluator import TR_DEX, TR_STR
 
 
 def gear(
     item_id, origin, *, slot=None, tval=23, ac=0, to_a=0, to_d=0,
-    to_h=0, pval=0, flags=(), dice=(1, 4), weight=30,
+    to_h=0, pval=0, flags=(), dice=(1, 4), weight=30, proficiency=0,
 ):
     item = InventoryItem(
         slot=slot or item_id, name=item_id, count=1, tval=tval, sval=1,
         aware=True, known=True, fully_known=True, is_equipment=True,
         ac=ac, to_a=to_a, to_h=to_h, to_d=to_d, pval=pval, weight=weight,
         damage_dice_num=dice[0], damage_dice_sides=dice[1],
-        known_flags=frozenset(flags),
+        known_flags=frozenset(flags), weapon_proficiency=proficiency,
     )
     return OwnedEquipment(item_id, item, origin, equipped_slot=slot)
 
 
 class WarriorOptimizationTest(unittest.TestCase):
+    def test_reference_ac_dual_wield_brand_dps_crosses_q1_gate(self):
+        main = gear(
+            "main", "equipped", slot="main_hand", to_h=3, to_d=2,
+            dice=(2, 4), weight=100, proficiency=6000,
+        ).item
+        branded_sub = gear(
+            "sub", "equipped", slot="sub_hand", to_h=6, to_d=7,
+            dice=(1, 5), weight=30, flags=(29,), proficiency=6000,
+        ).item
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR,
+            stat_cur=(43, 12, 16, 17), stat_use=(123, 3, 7, 38),
+            level=14, melee_skill=136, two_weapon_skill=6000,
+        )
+        snapshot = SimpleNamespace(player=player, equipment=(main, branded_sub))
+
+        self.assertGreaterEqual(weapon_expected_dps(snapshot, main, 24), 28)
+        self.assertLess(weapon_expected_dps(snapshot, main, 100), 28)
+
+    def test_weapon_dps_includes_branded_off_hand(self):
+        main = gear(
+            "main", "equipped", slot="main_hand", to_h=3, to_d=2,
+            dice=(2, 4), weight=100, proficiency=6000,
+        ).item
+        branded_sub = gear(
+            "sub", "equipped", slot="sub_hand", to_h=6, to_d=7,
+            dice=(1, 5), weight=30, flags=(29,), proficiency=6000,
+        ).item
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR,
+            stat_cur=(43, 12, 16, 17), stat_use=(123, 3, 7, 38),
+            level=14, melee_skill=136, two_weapon_skill=6000,
+        )
+        dual = SimpleNamespace(player=player, equipment=(main, branded_sub))
+        single = SimpleNamespace(player=player, equipment=(main,))
+
+        self.assertGreater(
+            weapon_expected_dps(dual, main, 24),
+            weapon_expected_dps(single, main, 24),
+        )
+
     def test_removes_only_current_equipment_pval_from_displayed_stats(self):
         ring = gear(
             "strength-ring", "equipped", slot="main_ring", tval=45,

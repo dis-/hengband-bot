@@ -5191,11 +5191,11 @@ class HengbotPolicy:
             None,
         )
         wielded_dps = (
-            weapon_expected_dps(snapshot, wielded) if wielded is not None else 0.0
+            weapon_expected_dps(snapshot, wielded, 100) if wielded is not None else 0.0
         )
 
         def sale_quality_allows(item: InventoryItem) -> bool:
-            candidate_dps = weapon_expected_dps(snapshot, item)
+            candidate_dps = weapon_expected_dps(snapshot, item, 100)
             return (
                 candidate_dps is not None
                 and wielded_dps is not None
@@ -6224,7 +6224,7 @@ class HengbotPolicy:
             for store_type in status.stores:
                 if store_type not in self._town_store_attempted:
                     add(store_type, supply_categories[status.kind])
-        quest_strategy = self._quest_strategy_for_errand_or_floor(snapshot)
+        quest_strategy = self._carry_procurement_strategy(snapshot)
         if quest_strategy is not None:
             force = quest_strategy.required_force
             if (
@@ -7098,6 +7098,28 @@ class HengbotPolicy:
         restore = self._restore_potion_purchase(snapshot)
         if restore is not None:
             return restore
+        strategy = self._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            force = strategy.required_force
+            torch_needed = int(force.get("throwing_items", {}).get("lit_torch", 0))
+            if self._count_throwing_torches(snapshot) < torch_needed:
+                torch = next((it for it in store.items if it.tval == TVAL_LITE
+                              and it.sval == SV_LITE_TORCH and it.price <= gold), None)
+                if torch is not None:
+                    return torch
+            if self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)):
+                speed = next((it for it in store.items if it.tval == TVAL_POTION
+                              and it.sval == SV_POTION_SPEED and it.price <= gold), None)
+                if speed is not None:
+                    return speed
+            healing = sum(it.count for it in snapshot.inventory if it.tval == TVAL_POTION
+                          and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL})
+            if healing < int(force.get("heal_potions", 0)):
+                heal = next((it for it in store.items if it.tval == TVAL_POTION
+                             and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+                             and it.price <= gold), None)
+                if heal is not None:
+                    return heal
         if not self._recall_ready(snapshot):
             item = next(
                 (it for it in store.items if it.is_recall_scroll and it.price <= gold),
@@ -10132,6 +10154,11 @@ class HengbotPolicy:
             return None
         return self.approved_quest_strategy(quest_id)
 
+    def _carry_procurement_strategy(self, snapshot: Snapshot) -> StrategyProfile | None:
+        """Return the approved Q1/Q34 profile whose Outpost carries we may buy."""
+        profile = self._quest_strategy_for_errand_or_floor(snapshot)
+        return profile if profile is not None and profile.quest_id in {1, 34} else None
+
     @staticmethod
     def _profile_resistance_name(name: str) -> str:
         aliases = {
@@ -10148,33 +10175,63 @@ class HengbotPolicy:
     ) -> bool:
         force = profile.required_force
         weapon = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
-        dps = weapon_expected_dps(snapshot, weapon) if weapon is not None else 0.0
-        dps = float(dps or 0.0)
-        throwing_ready = self._count_throwing_torches(snapshot) >= int(
-            force.get("throwing_items", {}).get("lit_torch", 0)
+        # New strategy profiles must declare their target scale.  The fallback
+        # preserves old third-party profiles without silently changing them.
+        reference_ac = int(force.get("reference_ac", 100))
+        dps = (
+            weapon_expected_dps(snapshot, weapon, reference_ac)
+            if weapon is not None else 0.0
         )
+        dps = float(dps or 0.0)
+        torch_count = self._count_throwing_torches(snapshot)
+        torch_required = int(force.get("throwing_items", {}).get("lit_torch", 0))
+        throwing_ready = torch_count >= torch_required
         resists_ready = all(
             self._profile_resistance_name(str(name)) in snapshot.player.abilities
             for name in force.get("resists", ())
         )
+        speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
+        healing = sum(
+            it.count for it in snapshot.inventory
+            if it.tval == TVAL_POTION
+            and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+        )
+        details = {
+            "reference_ac": reference_ac,
+            "dps": {"measured": dps, "required": float(force.get("min_expected_dps", 0) or 0)},
+            "hp": {"measured": snapshot.player.max_hp, "required": int(force.get("min_hp", 0))},
+            "lit_torch": {"measured": torch_count, "required": torch_required},
+            "speed_potions": {"measured": speed_count, "required": int(force.get("speed_potions", 0))},
+            "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
+            "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
+        }
+        self._fixed_quest_readiness["strategy_force"] = details
         if not throwing_ready or not resists_ready:
+            details["failed"] = [
+                name for name, ready in (
+                    ("lit_torch", throwing_ready), ("resists", resists_ready)
+                ) if not ready
+            ]
             return False
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (
             snapshot.player.max_hp >= int(no_heal.get("min_hp", 0))
             and dps >= float(no_heal.get("min_expected_dps", 0) or 0)
         ):
+            details["failed"] = []
             return True
-        healing = sum(
-            it.count for it in snapshot.inventory
-            if it.tval == TVAL_POTION
-            and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
-        )
+        details["failed"] = [
+            name for name, ready in (
+                ("hp", snapshot.player.max_hp >= int(force.get("min_hp", 0))),
+                ("dps", dps >= float(force.get("min_expected_dps", 0) or 0)),
+                ("speed_potions", speed_count >= int(force.get("speed_potions", 0))),
+                ("heal_potions", healing >= int(force.get("heal_potions", 0))),
+            ) if not ready
+        ]
         return (
             snapshot.player.max_hp >= int(force.get("min_hp", 0))
             and dps >= float(force.get("min_expected_dps", 0) or 0)
-            and self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                >= int(force.get("speed_potions", 0))
+            and speed_count >= int(force.get("speed_potions", 0))
             and healing >= int(force.get("heal_potions", 0))
         )
 
