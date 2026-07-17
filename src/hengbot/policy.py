@@ -249,7 +249,7 @@ QUEST_STATUS_COMPLETED = 2
 QUEST_STATUS_REWARDED = 3
 QUEST_STATUS_FINISHED = 4
 QUEST_ID_THIEF = 1
-FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 14, 18, 25, 28})
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 14, 18, 25, 28, 34})
 # A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
