@@ -10,7 +10,19 @@
     "formation": "Use the narrowest locally observed corridor; this random dungeon-level quest has no preset battlefield coordinate in quest_knowledge."
   },
   "priority_targets": [257],
-  "consumable_plan": {"speed_potion": "Use before engaging the first Warg pack.", "heal_threshold_ratio": 0.55, "other": "Carry food, light, and two Healing potions."},
+  "consumable_plan": {
+    // User directive (2026-07-17): default is NO consumption — even a level-1
+    // warrior has enough force to annihilate this roster without supplies.
+    // Wargs are speed 120, so the ratio can genuinely trip when a pack
+    // corners the character in the open; that is the only quaff case.
+    "speed_potion": "conditional",
+    "speed_potion_use_when": {
+      "expected_damage_hp_ratio_min": 0.5,
+      "note": "Quaff only if the live threat projection (expected 3-turn damage from the threat_prediction machinery) reaches half of CURRENT hp during the engagement — e.g. multiple Wargs simultaneously adjacent in open terrain. Corridor fights consume nothing."
+    },
+    "heal_threshold_ratio": 0.55,
+    "other": "Carry food, light, and two Healing potions; consume only per the criteria above."
+  },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": true},
   "required_force": {
     "min_level": 8, "min_hp": 1, "resists": [], "speed_potions": 1, "heal_potions": 2,

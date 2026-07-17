@@ -10,7 +10,18 @@
     "formation": "Fight from the one-tile corridor; do not advance through the door into multiple adjacent thieves."
   },
   "priority_targets": [150, 44],
-  "consumable_plan": {"speed_potion": "Use before opening the eastern room if not already fast.", "heal_threshold_ratio": 0.55, "other": "Carry food and healing."},
+  "consumable_plan": {
+    // User directive (2026-07-17): default is NO consumption — even a level-1
+    // warrior has enough force to annihilate this roster without supplies.
+    // The potion is carried as insurance and quaffed only per use_when.
+    "speed_potion": "conditional",
+    "speed_potion_use_when": {
+      "expected_damage_hp_ratio_min": 0.5,
+      "note": "Quaff only if the live threat projection (expected 3-turn damage from the threat_prediction machinery) reaches half of CURRENT hp during the engagement. The static worst-case (88) never satisfies this for a healthy warrior, so the normal run consumes nothing."
+    },
+    "heal_threshold_ratio": 0.55,
+    "other": "Carry food and healing; consume only per the criteria above."
+  },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
     "min_level": 8, "min_hp": 1, "resists": [], "speed_potions": 1, "heal_potions": 2,
