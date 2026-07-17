@@ -16,6 +16,7 @@ from hengbot.cli import LOOP_WINDOW, STARVING_STOP_LIMIT, _advance_starving_stre
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
     COMBAT_OUTCOME_WINDOW,
+    FRUITLESS_DISENGAGE_LIMIT,
     NAV_NO_PROGRESS_LIMIT,
     RESUME_DESCENT_BLOCK_DECISIONS,
     WAIT_KEY,
@@ -276,6 +277,31 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._fruitless_disengage_decisions = 100
 
         self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.last_reason, "combat:fruitless")
+
+    def test_fruitless_swarm_never_abandons_random_quest_floor(self):
+        base = self._quiet_room(upstairs=True)
+        louse = hostile(1, 10, 11, can_multiply=True)
+        grids = dict(base.grids)
+        grids[Position(10, 11)] = replace(
+            grids[Position(10, 11)], has_monster=True
+        )
+        fighting = replace(
+            base,
+            floor_key=(1, 6, 40),
+            grids=grids,
+            visible_monsters=[louse],
+        )
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = fighting.floor_key
+
+        decisions = [
+            policy.choose_key(fighting)
+            for _ in range(FRUITLESS_DISENGAGE_LIMIT + 1)
+        ]
+
+        self.assertFalse({"<", ">", "r"}.intersection(decisions))
+        self.assertEqual(decisions[-1], "5")
         self.assertEqual(policy.last_reason, "combat:fruitless")
 
     def test_normal_fight_is_unchanged_without_disengage_latch(self):

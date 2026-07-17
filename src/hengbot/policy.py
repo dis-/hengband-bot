@@ -10367,11 +10367,15 @@ class HengbotPolicy:
                 self.last_reason = "combat:disengage-step"
                 return self._step_toward(snapshot, step)
 
-        key = self._return_to_town_key(snapshot, hostiles)
-        if key is not None:
-            if self.last_reason.startswith("return:"):
-                self.last_reason = "combat:disengage-" + self.last_reason[7:]
-            return key
+        # Quest floors must never be abandoned by the fruitless-combat escape
+        # path.  Keep attempting local retreat until the visible stop lets an
+        # operator resolve the encounter without silently failing the quest.
+        if snapshot.floor_key[2] == 0:
+            key = self._return_to_town_key(snapshot, hostiles)
+            if key is not None:
+                if self.last_reason.startswith("return:"):
+                    self.last_reason = "combat:disengage-" + self.last_reason[7:]
+                return key
         self.last_reason = "combat:disengage-wait"
         return WAIT_KEY
 
