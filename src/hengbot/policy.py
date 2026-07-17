@@ -710,7 +710,7 @@ LANTERN_MIN_GOLD = 1
 # unchanged, item still on the shelf — a buy that never registers), give up and
 # leave the store. The store re-emits a snapshot every loop with no loop-detector
 # or stall exit, so without this the bot would hammer the buy macro forever.
-STORE_STUCK_LIMIT = 6
+STORE_STUCK_LIMIT = 8
 # Equipment commands can be separated from their resulting JSON snapshot by
 # prompt/animation frames.  Three unchanged observations are nevertheless a
 # bounded visit-local attempt: after that, exclude the failed item and optimize
@@ -1151,6 +1151,10 @@ class HengbotPolicy:
         # re-tried it unchanged — to bail out of a purchase that never registers.
         self._last_buy_sig: tuple[str, int] | None = None
         self._store_stuck_count = 0
+        # Same target and shortage after a registered, money-spending buy is a
+        # distinct defect from a transport failure at unchanged gold.
+        self._last_buy_progress_sig: tuple[str, int, int] | None = None
+        self._store_buy_no_progress_count = 0
         self._descent_blocked_at_level: int | None = None
         self._descent_block_countdown = 0
         self._returning_to_town = False
@@ -2561,10 +2565,13 @@ class HengbotPolicy:
         )
 
     def _count_throwing_torches(self, snapshot: Snapshot) -> int:
+        # ``is_equipment`` describes a wearable kind, not its current location.
+        # Inventory/equipment are already separate emitter arrays; live pack
+        # torch stacks therefore legitimately carry is_equipment=True.
         return sum(
             it.count
             for it in snapshot.inventory
-            if it.is_torch and not it.is_equipment
+            if it.is_torch
         )
 
     def _count_matching_ammo(self, snapshot: Snapshot) -> int:
@@ -2965,9 +2972,18 @@ class HengbotPolicy:
     def _find_light_sale(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
-            lambda it: self._is_spare_lantern(snapshot, it)
+            lambda it: (
+                self._is_spare_lantern(snapshot, it)
+                or (it.is_torch and it.count > TORCH_THROW_TARGET)
+            )
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
+
+    @staticmethod
+    def _light_sale_quantity(item: InventoryItem) -> int:
+        if item.is_torch:
+            return item.count - TORCH_THROW_TARGET
+        return item.count
 
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
@@ -7340,8 +7356,18 @@ class HengbotPolicy:
                     self._store_sell_stuck_count = 0
                     self.last_reason = "shop:unsellable-light-leave"
                     return LEAVE_STORE_KEY
-                self.last_reason = "shop:sell-spare-lantern"
-                return SELL_KEY + sale.slot + SELL_CONFIRM_SUFFIX
+                quantity = self._light_sale_quantity(sale)
+                self.last_reason = (
+                    "shop:sell-surplus-torches"
+                    if sale.is_torch
+                    else "shop:sell-spare-lantern"
+                )
+                suffix = (
+                    f"{quantity}\r\ry"
+                    if quantity < sale.count
+                    else SELL_CONFIRM_SUFFIX
+                )
+                return SELL_KEY + sale.slot + suffix
 
         item = self._next_purchase(snapshot)
         if item is not None:
@@ -7362,6 +7388,26 @@ class HengbotPolicy:
                 self._store_stuck_count = 0
                 self._last_buy_sig = None
                 self.last_reason = "shop:stuck-leave"
+                return LEAVE_STORE_KEY
+            remaining = self._purchase_quantity(snapshot, item)
+            progress_sig = (item.letter, remaining, snapshot.player.gold)
+            if self._last_buy_progress_sig is not None:
+                old_letter, old_remaining, old_gold = self._last_buy_progress_sig
+                if (
+                    item.letter == old_letter
+                    and remaining == old_remaining
+                    and snapshot.player.gold < old_gold
+                ):
+                    self._store_buy_no_progress_count += 1
+                elif item.letter != old_letter or remaining != old_remaining:
+                    self._store_buy_no_progress_count = 0
+            self._last_buy_progress_sig = progress_sig
+            if self._store_buy_no_progress_count >= STORE_STUCK_LIMIT:
+                self._shopping_abandoned = True
+                self._town_store_attempted[store.store_type] = snapshot.turn
+                self._store_buy_no_progress_count = 0
+                self._last_buy_progress_sig = None
+                self.last_reason = "shop:defective-target-leave"
                 return LEAVE_STORE_KEY
             if item.is_lantern:
                 self.last_reason = "shop:buy-lantern"
@@ -7396,11 +7442,13 @@ class HengbotPolicy:
                 self.last_reason = "shop:buy-device-food"
             else:
                 self.last_reason = "shop:buy-food"
-            quantity = self._purchase_quantity(snapshot, item)
+            quantity = remaining
             suffix = f"\r{quantity}\r\ry" if item.count > 1 else BUY_CONFIRM_SUFFIX
             return BUY_KEY + item.letter + suffix
 
         self._last_buy_sig = None
+        self._last_buy_progress_sig = None
+        self._store_buy_no_progress_count = 0
         self._last_sell_sig = None
         self._store_stuck_count = 0
         self._store_sell_stuck_count = 0

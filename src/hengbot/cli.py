@@ -143,6 +143,9 @@ MULTI_KEY_DELAY_SECONDS = 0.25
 # the inventory letter after ``d``; 300 ms succeeded in the preserved game.
 # Leave margin for busier redraws instead of relying on that narrow boundary.
 STORE_ITEM_PROMPT_DELAY_SECONDS = 0.5
+# The live torch macro accepted the first digit of ``10`` but lost the second
+# at the generic cadence. Multi-digit store quantities get the proven margin.
+STORE_QUANTITY_DIGIT_DELAY_SECONDS = 0.5
 # Tunnelling raises a direction prompt more slowly than ordinary item prompts on
 # the live Windows Release build. Posting the direction at the generic 250 ms
 # interval leaves the game blocked at that prompt; two seconds is verified to
@@ -383,6 +386,8 @@ def _delay_after_macro_key(key: str, index: int) -> float:
     # settle shape as store drop/get.
     if key[0] in {"d", "g", "f", "v"} and index == 0:
         return STORE_ITEM_PROMPT_DELAY_SECONDS
+    if key[0] in {"p", "d"} and key[index].isdigit() and key[index + 1].isdigit():
+        return STORE_QUANTITY_DIGIT_DELAY_SECONDS
     return MULTI_KEY_DELAY_SECONDS
 
 

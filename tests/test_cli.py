@@ -15,6 +15,7 @@ from hengbot.cli import (
     MULTIPLIER_COMBAT_LOOP_WINDOW,
     REST_STALL_GRACE,
     STORE_ITEM_PROMPT_DELAY_SECONDS,
+    STORE_QUANTITY_DIGIT_DELAY_SECONDS,
     STATIONARY_REASONS,
     STALLED_COMMAND_STATE_LIMIT,
     TUNNEL_PROMPT_DELAY_SECONDS,
@@ -836,6 +837,12 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertEqual(
             _delay_after_macro_key("ga\r", 0),
             STORE_ITEM_PROMPT_DELAY_SECONDS,
+        )
+
+    def test_store_macro_waits_between_quantity_digits(self):
+        self.assertEqual(
+            _delay_after_macro_key("pf\r10\r\ry", 3),
+            STORE_QUANTITY_DIGIT_DELAY_SECONDS,
         )
 
     def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):

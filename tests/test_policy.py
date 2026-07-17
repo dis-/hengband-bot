@@ -13540,6 +13540,85 @@ class RangedAttackTest(unittest.TestCase):
             policy._purchase_quantity(snap, selected), TORCH_THROW_TARGET
         )
 
+    def test_pack_equipment_kind_torches_count_and_buy_as_one_batch(self):
+        torch_ware = StoreItem("f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=3)
+        carried = item(
+            "f", TVAL_LITE, SV_LITE_TORCH, name="inscribed torches",
+            count=4, fuel=2500, is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[carried, *self._strict_supplies_for_ammo()],
+            equipment=[self._lantern()],
+            store=StoreState(STORE_GENERAL, [torch_ware]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        self.assertEqual(policy._count_throwing_torches(snap), 4)
+        self.assertEqual(policy._shop(snap), "pf\r6\r\ry")
+
+    def test_money_spent_without_torch_progress_leaves_within_bound(self):
+        torch_ware = StoreItem("f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=3)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        keys = []
+        for attempt in range(STORE_STUCK_LIMIT + 1):
+            snap = Snapshot(
+                player(10, 10, gold=500 - 3 * attempt, class_id=PLAYER_CLASS_WARRIOR),
+                {Position(10, 10): grid(10, 10)}, [],
+                floor_key=(0, 0, 0), town_flag=True,
+                inventory=[*self._strict_supplies_for_ammo()],
+                equipment=[self._lantern()],
+                store=StoreState(STORE_GENERAL, [torch_ware]),
+            )
+            keys.append(policy._shop(snap))
+        self.assertEqual(keys[-1], LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:defective-target-leave")
+
+    def test_normal_torch_restock_progress_stops_at_target(self):
+        torch_ware = StoreItem("f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=3)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        for count in range(TORCH_THROW_TARGET):
+            carried = item(
+                "f", TVAL_LITE, SV_LITE_TORCH, count=count + 1,
+                fuel=2500, is_equipment=True,
+            )
+            snap = Snapshot(
+                player(10, 10, gold=500 - 3 * count, class_id=PLAYER_CLASS_WARRIOR),
+                {Position(10, 10): grid(10, 10)}, [],
+                floor_key=(0, 0, 0), town_flag=True,
+                inventory=[carried, *self._strict_supplies_for_ammo()],
+                equipment=[self._lantern()],
+                store=StoreState(STORE_GENERAL, [torch_ware]),
+            )
+            key = policy._shop(snap)
+        self.assertNotEqual(policy.last_reason, "shop:defective-target-leave")
+        self.assertNotEqual(policy.last_reason, "shop:buy-torch")
+
+    def test_sells_48_inscribed_torches_down_to_target(self):
+        torches = item(
+            "f", TVAL_LITE, SV_LITE_TORCH,
+            name="torches {@v0=g}", count=48, fuel=2500, is_equipment=True,
+        )
+        lantern = item("g", TVAL_LITE, SV_LITE_LANTERN, name="lantern", fuel=7500)
+        equipped_torch = item(
+            "light", TVAL_LITE, SV_LITE_TORCH,
+            name="wield backup torch", fuel=2384, is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[torches, lantern], equipment=[equipped_torch],
+            store=StoreState(STORE_GENERAL, []),
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy._shop(snap), "df38\r\ry")
+        self.assertEqual(policy.last_reason, "shop:sell-surplus-torches")
+
     def test_oil_reserve_is_never_thrown(self):
         oil = item("o", TVAL_FLASK, 0, name="flask of oil", count=OIL_TARGET)
         snap = self._snap(
