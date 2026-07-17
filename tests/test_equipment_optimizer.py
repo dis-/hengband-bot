@@ -7,6 +7,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipmentCatalog,
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
+    SLOT_SUB_RING,
     SLOT_BODY,
     SLOT_SUB_HAND,
     TR_NO_TELE,
@@ -307,10 +308,18 @@ class EquipmentOptimizerTest(unittest.TestCase):
         )
         old_body = gear("old-body", 36, equipped_slot=SLOT_BODY)
         better_body = gear("better-body", 36, flags={50})
+        # A strictly better free ring: without pinning, the optimizer would
+        # prefer it in the *main* ring slot and drop the cursed ring, so the
+        # "main ring stays cursed" assertion below genuinely fails if the pin
+        # short-circuit in _slot_choices is removed (revert-proof, not a
+        # coverage illusion from cursed_ring being the only ring candidate).
+        # Its beneficial flag differs from better_body's so the two upgrades do
+        # not collapse into one gear-state representative during compression.
+        better_ring = gear("better-ring", 45, flags={51})
 
         loadouts = list(
             enumerate_warrior_loadouts(
-                [self.light, cursed_ring, old_body, better_body],
+                [self.light, cursed_ring, old_body, better_body, better_ring],
                 current_item_ids=frozenset(
                     {self.light.id, cursed_ring.id, old_body.id}
                 ),
@@ -324,6 +333,11 @@ class EquipmentOptimizerTest(unittest.TestCase):
         )
         self.assertTrue(
             any(loadout.item_at(SLOT_BODY) == better_body for loadout in loadouts)
+        )
+        # The strictly better ring is not discarded: it is optimized into the
+        # remaining free sub-ring slot instead of the pinned main-ring slot.
+        self.assertTrue(
+            any(loadout.item_at(SLOT_SUB_RING) == better_ring for loadout in loadouts)
         )
 
     def test_pinned_sub_hand_weapon_is_valid_without_main_hand_weapon(self):

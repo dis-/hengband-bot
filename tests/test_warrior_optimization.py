@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from hengbot.equipment_optimizer import (
     Loadout,
     OwnedEquipment,
+    SLOT_MAIN_RING,
     current_loadout,
     equipment_identity,
 )
@@ -41,6 +42,7 @@ from hengbot.warrior_equipment_evaluator import TR_DEX, TR_STR
 def gear(
     item_id, origin, *, slot=None, tval=23, ac=0, to_a=0, to_d=0,
     to_h=0, pval=0, flags=(), dice=(1, 4), weight=30, proficiency=0,
+    cursed=False,
 ):
     item = InventoryItem(
         slot=slot or item_id, name=item_id, count=1, tval=tval, sval=1,
@@ -48,6 +50,7 @@ def gear(
         ac=ac, to_a=to_a, to_h=to_h, to_d=to_d, pval=pval, weight=weight,
         damage_dice_num=dice[0], damage_dice_sides=dice[1],
         known_flags=frozenset(flags), weapon_proficiency=proficiency,
+        is_cursed=cursed,
     )
     return OwnedEquipment(item_id, item, origin, equipped_slot=slot)
 
@@ -179,6 +182,66 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertTrue(
             any(
                 action.kind == "withdraw" and action.item_id == "better"
+                for action in prepared.transaction.actions
+            )
+        )
+
+    def test_cursed_equipped_ring_is_pinned_through_production_entry(self):
+        # Guards the pin comprehension in prepare_warrior_optimization itself
+        # (warrior_optimization.py), which is a separate copy from the one in
+        # equipment_optimizer.py and is the real Warrior production path. Because
+        # this entry supplies candidate_loadouts, optimize_loadout never
+        # recomputes the pin, so a typo isolated to this copy would otherwise be
+        # invisible to the unit tests. Revert proof: emptying that comprehension
+        # drops the (non-exploration-legal) cursed ring from the candidates, the
+        # planner then tries to remove it, and prepared.ready flips to False.
+        light = gear("light", "equipped", slot="light", tval=39)
+        cursed_ring = gear(
+            "cursed-ring", "equipped", slot="main_ring", tval=45, cursed=True,
+        )
+        old_weapon = gear("old-weapon", "equipped", slot="main_hand")
+        better_weapon = gear("better-weapon", "home", to_d=20)
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR,
+            stat_cur=(18, 10, 10, 18),
+            level=10,
+            shield_skill=0,
+            speed=110,
+            saving_skill=30,
+            abilities=frozenset(),
+            ac=0,
+            melee_skill=60,
+            two_weapon_skill=0,
+            max_hp=100,
+            max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )
+
+        prepared = prepare_warrior_optimization(
+            snapshot, (light, cursed_ring, old_weapon, better_weapon),
+            {1: monster}, depth=1, home_scan_complete=True,
+        )
+
+        self.assertTrue(prepared.ready, prepared.blockers)
+        self.assertEqual(
+            prepared.result.best.loadout.item_at(SLOT_MAIN_RING), cursed_ring
+        )
+        self.assertFalse(
+            any(
+                blocker.startswith("cursed-equipped:")
+                for blocker in prepared.blockers
+            )
+        )
+        # The free weapon slot is still optimized around the pinned cursed ring.
+        self.assertIn("better-weapon", prepared.result.best.loadout.item_ids)
+        self.assertTrue(
+            any(
+                action.kind == "withdraw" and action.item_id == "better-weapon"
                 for action in prepared.transaction.actions
             )
         )
