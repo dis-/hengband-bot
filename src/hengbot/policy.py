@@ -280,6 +280,10 @@ FIXED_QUEST_REWARD_POSITIONS = {
     # explicitly has no floor reward and therefore needs no latch/coordinate.
     18: frozenset({Position(27, 98)}),
     25: frozenset({Position(27, 98)}),
+    # Dump Witness: the parsed town map carries a second reward glyph at
+    # (36,119), directly beside the quest-34 building at (37,119). Without
+    # this entry the reward pickup silently no-ops (user-caught 2026-07-17).
+    34: frozenset({Position(36, 119)}),
 }
 # A closed door does not open just by walking into it (that depends on game
 # options and fails on locked doors); explicitly open it with 'o' + direction.

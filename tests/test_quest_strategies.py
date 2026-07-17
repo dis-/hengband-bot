@@ -62,6 +62,31 @@ class QuestStrategiesTest(unittest.TestCase):
         # here (Q34 was user-approved via the Phase 4 pipeline on 2026-07-17).
         self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
 
+    def test_reward_routing_covers_every_rewarded_allowlisted_quest(self):
+        # The reward latch coordinates are a reviewed hard-code; every entry
+        # must exist among the town map's parsed reward glyphs, and every
+        # allowlisted quest must either have an entry or be a documented
+        # no-floor-reward quest (14: direct payment, 28: none). Q34's missing
+        # entry silently skipped its reward pickup (user-caught 2026-07-17).
+        from hengbot.policy import FIXED_QUEST_REWARD_POSITIONS
+        from hengbot.town_maps import find_outpost_map, parse_town_map
+
+        state = Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        source = find_outpost_map(state)
+        if source is None:
+            self.skipTest("Outpost town map source is not available")
+        town_map = parse_town_map(source)
+        for quest_id, positions in FIXED_QUEST_REWARD_POSITIONS.items():
+            with self.subTest(quest_id=quest_id):
+                self.assertTrue(positions <= town_map.reward_positions)
+        documented_no_reward = {14, 28}
+        for quest_id in FIXED_QUEST_ALLOWLIST:
+            with self.subTest(quest_id=quest_id):
+                self.assertTrue(
+                    quest_id in FIXED_QUEST_REWARD_POSITIONS
+                    or quest_id in documented_no_reward
+                )
+
     def test_shipped_drafts_match_real_quest_data(self):
         edit = Path(r"C:\hengband\lib\edit")
         definitions = edit / "QuestDefinitionList.txt"
