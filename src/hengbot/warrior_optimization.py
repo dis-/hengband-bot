@@ -261,8 +261,15 @@ def prepare_warrior_optimization(
         ),
     )
     evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
+    pinned = {
+        item.equipped_slot: item
+        for item in items
+        if item.id in current.item_ids
+        and item.equipped_slot is not None
+        and item.item.is_cursed
+    }
     candidate_loadouts = enumerate_warrior_loadouts(
-        items, current_item_ids=current.item_ids
+        items, current_item_ids=current.item_ids, pinned=pinned
     )
     result = optimize_loadout(
         items,

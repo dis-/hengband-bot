@@ -2,9 +2,12 @@ import unittest
 
 from hengbot.equipment_optimizer import (
     LoadoutMetrics,
+    Loadout,
     OwnedEquipment,
     OwnedEquipmentCatalog,
     SLOT_MAIN_HAND,
+    SLOT_MAIN_RING,
+    SLOT_BODY,
     SLOT_SUB_HAND,
     TR_NO_TELE,
     TR_TELEPORT,
@@ -12,6 +15,7 @@ from hengbot.equipment_optimizer import (
     optimize_loadout,
     random_teleport_is_suppressed,
 )
+from hengbot.equipment_transaction_planner import plan_equipment_transactions
 from hengbot.model import (
     SV_DRAGON_HELM,
     SV_LITE_LANTERN,
@@ -225,6 +229,113 @@ class EquipmentOptimizerTest(unittest.TestCase):
         broken = gear("broken", 23, broken=True)
         loadouts = list(enumerate_loadouts([self.light, cursed, broken]))
         self.assertTrue(all(not ({"cursed", "broken"} & loadout.item_ids) for loadout in loadouts))
+
+    def test_pinned_cursed_slots_never_move_or_become_empty(self):
+        cursed_ring = gear(
+            "cursed-ring", 45, cursed=True, equipped_slot=SLOT_MAIN_RING
+        )
+        cursed_weapon = gear(
+            "cursed-weapon", 23, cursed=True, equipped_slot=SLOT_MAIN_HAND
+        )
+        cursed_body = gear(
+            "cursed-body", 36, cursed=True, equipped_slot=SLOT_BODY
+        )
+        alternatives = [gear("ring", 45), gear("weapon", 23), gear("body", 36)]
+        pinned = {
+            SLOT_MAIN_RING: cursed_ring,
+            SLOT_MAIN_HAND: cursed_weapon,
+            SLOT_BODY: cursed_body,
+        }
+
+        loadouts = list(
+            enumerate_loadouts(
+                [self.light, cursed_ring, cursed_weapon, cursed_body, *alternatives],
+                pinned,
+            )
+        )
+
+        self.assertTrue(loadouts)
+        self.assertTrue(
+            all(
+                loadout.item_at(slot) == item
+                for loadout in loadouts
+                for slot, item in pinned.items()
+            )
+        )
+
+    def test_cursed_ring_is_pinned_while_free_body_slot_is_optimized(self):
+        light = gear("light", 39, equipped_slot="light")
+        cursed_ring = gear(
+            "cursed-ring", 45, cursed=True, equipped_slot=SLOT_MAIN_RING
+        )
+        old_body = gear("old-body", 36, equipped_slot=SLOT_BODY)
+        better_ring = gear("better-ring", 45)
+        better_body = gear("better-body", 36)
+        items = [light, cursed_ring, old_body, better_ring, better_body]
+        current = Loadout(
+            (("light", light), (SLOT_MAIN_RING, cursed_ring), (SLOT_BODY, old_body)),
+            "empty",
+        )
+
+        result = optimize_loadout(
+            items,
+            lambda loadout: metrics(
+                (100 if "better-ring" in loadout.item_ids else 0)
+                + (10 if "better-body" in loadout.item_ids else 0)
+            ),
+            depth=1,
+            current_item_ids=current.item_ids,
+        )
+        plan = plan_equipment_transactions(
+            items,
+            current,
+            result.best.loadout,
+            current_pack_items=0,
+            home_scan_complete=True,
+        )
+
+        self.assertEqual(result.best.loadout.item_at(SLOT_MAIN_RING), cursed_ring)
+        self.assertEqual(result.best.loadout.item_at(SLOT_BODY), better_body)
+        self.assertTrue(plan.executable)
+        self.assertTrue(plan.actions)
+        self.assertFalse(any(blocker.startswith("cursed-equipped:") for blocker in plan.blockers))
+
+    def test_cursed_ring_with_no_free_upgrade_produces_ready_noop(self):
+        light = gear("light", 39, equipped_slot="light")
+        cursed_ring = gear(
+            "cursed-ring", 45, cursed=True, equipped_slot=SLOT_MAIN_RING
+        )
+        sub_ring = gear("sub-ring", 45, equipped_slot="sub_ring")
+        items = [light, cursed_ring, sub_ring, gear("better-ring", 45)]
+        current = Loadout(
+            (
+                ("light", light),
+                (SLOT_MAIN_RING, cursed_ring),
+                ("sub_ring", sub_ring),
+            ),
+            "empty",
+        )
+
+        result = optimize_loadout(
+            items,
+            lambda loadout: metrics(
+                (200 if "sub-ring" in loadout.item_ids else 0)
+                + (100 if "better-ring" in loadout.item_ids else 0)
+            ),
+            depth=1,
+            current_item_ids=current.item_ids,
+        )
+        plan = plan_equipment_transactions(
+            items,
+            current,
+            result.best.loadout,
+            current_pack_items=0,
+            home_scan_complete=True,
+        )
+
+        self.assertEqual(result.best.loadout, current)
+        self.assertTrue(plan.executable)
+        self.assertEqual(plan.actions, ())
 
     def test_destruction_is_required_from_fifty(self):
         chaos = gear("chaos", 45, flags={62})

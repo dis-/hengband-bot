@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Mapping
 
 from hengbot.equipment_optimizer import (
     FIXED_SLOTS,
@@ -245,8 +245,12 @@ def _diverse_state_beam(
 
 
 def _slot_choices(
-    slot: str, legal: tuple[OwnedEquipment, ...]
+    slot: str,
+    legal: tuple[OwnedEquipment, ...],
+    pinned: Mapping[str, OwnedEquipment],
 ) -> tuple[OwnedEquipment | None, ...]:
+    if slot in pinned:
+        return (pinned[slot],)
     if slot in {SLOT_MAIN_RING, SLOT_SUB_RING}:
         candidates = tuple(item for item in legal if item.item.tval == 45)
     else:
@@ -260,6 +264,7 @@ def _gear_states(
     hand_mode: str,
     current_by_slot: dict[str, str],
     current_item_ids: frozenset[str],
+    pinned: Mapping[str, OwnedEquipment],
     exact_limit: int = EXACT_PARTIAL_STATE_LIMIT,
     beam_width: int = PARTIAL_BEAM_WIDTH,
 ) -> tuple[tuple[Loadout, ...], bool]:
@@ -270,7 +275,7 @@ def _gear_states(
         expanded: list[Loadout] = []
         for state in states:
             main_ring = state.item_at(SLOT_MAIN_RING)
-            for candidate in _slot_choices(slot, legal):
+            for candidate in _slot_choices(slot, legal, pinned):
                 if (
                     slot == SLOT_SUB_RING
                     and candidate is not None
@@ -348,10 +353,14 @@ def _limit_hand_configurations(
 class WarriorLoadoutSearch:
     items: tuple[OwnedEquipment, ...]
     current_item_ids: frozenset[str] = frozenset()
+    pinned: Mapping[str, OwnedEquipment] = field(default_factory=dict)
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
-        legal = tuple(item for item in self.items if item.exploration_legal)
+        legal_items = [item for item in self.items if item.exploration_legal]
+        legal = tuple(
+            [*legal_items, *(item for item in self.pinned.values() if item not in legal_items)]
+        )
         current_by_slot = {
             item.equipped_slot: item.id
             for item in legal
@@ -379,7 +388,7 @@ class WarriorLoadoutSearch:
         )
         hand_beam_width = LARGE_HAND_BEAM_WIDTH if large else HAND_BEAM_WIDTH
         configurations_by_mode = defaultdict(list)
-        for hands in hand_configurations(legal):
+        for hands in hand_configurations(legal, self.pinned):
             configurations_by_mode[hands.mode].append(hands)
 
         gear_by_profile: dict[str, tuple[tuple[Loadout, ...], bool]] = {}
@@ -402,6 +411,7 @@ class WarriorLoadoutSearch:
                     hand_mode=profile,
                     current_by_slot=current_by_slot,
                     current_item_ids=self.current_item_ids,
+                    pinned=self.pinned,
                     exact_limit=partial_exact_limit,
                     beam_width=partial_beam_width,
                 )
@@ -422,6 +432,7 @@ def enumerate_warrior_loadouts(
     items: Iterable[OwnedEquipment],
     *,
     current_item_ids: frozenset[str] = frozenset(),
+    pinned: Mapping[str, OwnedEquipment] | None = None,
 ) -> WarriorLoadoutSearch:
     """Yield exact representatives, with a bounded fallback for large catalogs."""
-    return WarriorLoadoutSearch(tuple(items), current_item_ids)
+    return WarriorLoadoutSearch(tuple(items), current_item_ids, pinned or {})

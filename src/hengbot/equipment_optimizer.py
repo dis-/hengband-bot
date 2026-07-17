@@ -16,7 +16,7 @@ from itertools import combinations, product
 import re
 from math import isfinite
 from time import monotonic
-from typing import Callable, Iterable, Iterator
+from typing import Callable, Iterable, Iterator, Mapping
 
 from hengbot.model import (
     TVAL_ARROW,
@@ -466,43 +466,77 @@ def _is_ring(item: EquipmentItem) -> bool:
     return item.tval == 45
 
 
-def hand_configurations(items: Iterable[OwnedEquipment]) -> Iterator[HandConfiguration]:
+def hand_configurations(
+    items: Iterable[OwnedEquipment],
+    pinned: Mapping[str, OwnedEquipment] | None = None,
+) -> Iterator[HandConfiguration]:
+    pinned = pinned or {}
     weapons = [item for item in items if _is_weapon(item.item)]
     shields = [item for item in items if _is_shield(item.item)]
 
-    yield HandConfiguration(None, None)
+    configurations = [HandConfiguration(None, None)]
     for weapon in weapons:
         # Hengband automatically uses both free hands for polearms and weapons
         # over 9.9 lb.  Lighter non-polearms remain genuinely one-handed.
         if weapon.item.tval == 22 or weapon.item.weight > 99:
-            yield HandConfiguration(weapon, None, True)
+            configurations.append(HandConfiguration(weapon, None, True))
         else:
-            yield HandConfiguration(weapon, None, False)
+            configurations.append(HandConfiguration(weapon, None, False))
         for shield in shields:
-            yield HandConfiguration(weapon, shield)
+            configurations.append(HandConfiguration(weapon, shield))
     for main, sub in combinations(weapons, 2):
-        yield HandConfiguration(main, sub)
-        yield HandConfiguration(sub, main)
+        configurations.append(HandConfiguration(main, sub))
+        configurations.append(HandConfiguration(sub, main))
+    for configuration in configurations:
+        if (
+            (SLOT_MAIN_HAND not in pinned or configuration.main == pinned[SLOT_MAIN_HAND])
+            and (SLOT_SUB_HAND not in pinned or configuration.sub == pinned[SLOT_SUB_HAND])
+        ):
+            yield configuration
 
 
-def _ring_configurations(items: Iterable[OwnedEquipment]) -> Iterator[tuple[OwnedEquipment, ...]]:
+def _ring_configurations(
+    items: Iterable[OwnedEquipment],
+    pinned: Mapping[str, OwnedEquipment] | None = None,
+) -> Iterator[tuple[OwnedEquipment | None, ...]]:
+    pinned = pinned or {}
     rings = [item for item in items if _is_ring(item.item)]
+    if SLOT_MAIN_RING in pinned or SLOT_SUB_RING in pinned:
+        choices = (None, *rings)
+        for main, sub in product(choices, repeat=2):
+            if main is not None and sub is not None and main.id == sub.id:
+                continue
+            if SLOT_MAIN_RING in pinned and main != pinned[SLOT_MAIN_RING]:
+                continue
+            if SLOT_SUB_RING in pinned and sub != pinned[SLOT_SUB_RING]:
+                continue
+            yield (main, sub)
+        return
     yield ()
     for ring in rings:
         yield (ring,)
     yield from combinations(rings, 2)
 
 
-def enumerate_loadouts(items: Iterable[OwnedEquipment]) -> Iterator[Loadout]:
+def enumerate_loadouts(
+    items: Iterable[OwnedEquipment],
+    pinned: Mapping[str, OwnedEquipment] | None = None,
+) -> Iterator[Loadout]:
     """Enumerate every legal slot/hand assignment without quality pruning."""
+    pinned = pinned or {}
     legal = [item for item in items if item.exploration_legal]
+    candidates = [*legal, *(item for item in pinned.values() if item not in legal)]
     pools: list[tuple[OwnedEquipment | None, ...]] = []
     for slot in FIXED_SLOTS:
-        candidates = tuple(item for item in legal if slot_for(item.item) == slot)
-        pools.append((None, *candidates))
+        if slot in pinned:
+            pools.append((pinned[slot],))
+        else:
+            slot_candidates = tuple(item for item in legal if slot_for(item.item) == slot)
+            pools.append((None, *slot_candidates))
 
     for fixed, hands, rings in product(
-        product(*pools), hand_configurations(legal), _ring_configurations(legal)
+        product(*pools), hand_configurations(candidates, pinned),
+        _ring_configurations(candidates, pinned)
     ):
         assigned: list[tuple[str, OwnedEquipment]] = [
             (slot, item)
@@ -513,9 +547,9 @@ def enumerate_loadouts(items: Iterable[OwnedEquipment]) -> Iterator[Loadout]:
             assigned.append((SLOT_MAIN_HAND, hands.main))
         if hands.sub is not None:
             assigned.append((SLOT_SUB_HAND, hands.sub))
-        if rings:
+        if rings and rings[0] is not None:
             assigned.append((SLOT_MAIN_RING, rings[0]))
-        if len(rings) == 2:
+        if len(rings) == 2 and rings[1] is not None:
             assigned.append((SLOT_SUB_RING, rings[1]))
         yield Loadout(tuple(assigned), hands.mode)
 
@@ -640,6 +674,13 @@ def optimize_loadout(
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
+    pinned = {
+        item.equipped_slot: item
+        for item in catalog
+        if item.id in current_item_ids
+        and item.equipped_slot is not None
+        and item.item.is_cursed
+    }
     incomplete = frozenset(
         item.id for item in catalog if item.identification_incomplete
     )
@@ -666,7 +707,11 @@ def optimize_loadout(
     frontier: list[EvaluatedLoadout] = []
     timed_out = False
 
-    loadouts = enumerate_loadouts(catalog) if candidate_loadouts is None else candidate_loadouts
+    loadouts = (
+        enumerate_loadouts(catalog, pinned)
+        if candidate_loadouts is None
+        else candidate_loadouts
+    )
     for loadout in loadouts:
         if timeout_seconds <= 0 or monotonic() - started > timeout_seconds:
             timed_out = True

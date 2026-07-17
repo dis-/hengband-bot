@@ -84,8 +84,13 @@ def plan_equipment_transactions(
 
     missing = sorted(target_ids.difference(catalog))
     blockers.extend(f"missing-item:{item_id}" for item_id in missing)
+    retained_in_place = {
+        item.id
+        for slot, item in current_slots.items()
+        if target_slots.get(slot) is not None and target_slots[slot].id == item.id
+    }
     for item_id in sorted(target_ids.intersection(catalog)):
-        if not catalog[item_id].exploration_legal:
+        if item_id not in retained_in_place and not catalog[item_id].exploration_legal:
             blockers.append(f"illegal-target:{item_id}")
 
     target_home = sorted(
