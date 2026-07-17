@@ -244,6 +244,13 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
     )
 
 
+def _uses_multiplier_combat_grace(reason: str) -> bool:
+    """Recognize both the legacy and current deep-fundraising combat labels."""
+    return reason.startswith(
+        ("fundraise:eliminate-multiplier", "fundraise:clear-hostile")
+    )
+
+
 def _advance_town_blocked_streak(streak: int, reason: str) -> int:
     """Count consecutive latched-town-block decisions. In-store leaves do not
     break the streak: standing blocked on a store door alternates blocked WAITs
@@ -1192,9 +1199,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         if policy.last_reason == "melee" and multiplier_combat_grace:
                             multiplier_combat_grace = MULTIPLIER_COMBAT_GRACE
                         continue
-                    if policy.last_reason.startswith(
-                        "fundraise:eliminate-multiplier"
-                    ):
+                    if _uses_multiplier_combat_grace(policy.last_reason):
                         multiplier_combat_grace = MULTIPLIER_COMBAT_GRACE
                     elif multiplier_combat_grace:
                         multiplier_combat_grace -= 1

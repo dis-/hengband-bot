@@ -24,6 +24,7 @@ from hengbot.cli import (
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
+    _uses_multiplier_combat_grace,
     _delay_after_macro_key,
     _decision_record,
     _duplicate_snapshot_ready,
@@ -893,6 +894,17 @@ class StationaryReasonsTest(unittest.TestCase):
         # two-phase design never tunnels toward far veins, so the old
         # tunnel-to-treasure reason no longer exists at all.
         self.assertNotIn("fundraise:seek-treasure", MINING_DIG_REASONS)
+
+    def test_deep_fundraising_combat_uses_multiplier_grace_reason(self):
+        """The live deep-mining policy calls multiplier/summoner combat
+        ``fundraise:clear-hostile``.  Keep that current reason tied to the
+        extended combat window instead of stopping at the generic 40 turns.
+        """
+        self.assertTrue(_uses_multiplier_combat_grace("fundraise:clear-hostile"))
+        self.assertTrue(
+            _uses_multiplier_combat_grace("fundraise:eliminate-multiplier")
+        )
+        self.assertFalse(_uses_multiplier_combat_grace("fundraise:sweep-explore"))
         self.assertNotIn("fundraise:tunnel-to-treasure", MINING_DIG_REASONS)
 
 
