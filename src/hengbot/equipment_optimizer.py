@@ -475,6 +475,10 @@ def hand_configurations(
     shields = [item for item in items if _is_shield(item.item)]
 
     configurations = [HandConfiguration(None, None)]
+    # Preserve the valid but degenerate state where a cursed weapon occupies
+    # only the sub hand; otherwise pinning would make the search empty.
+    if SLOT_SUB_HAND in pinned and SLOT_MAIN_HAND not in pinned:
+        configurations.append(HandConfiguration(None, pinned[SLOT_SUB_HAND]))
     for weapon in weapons:
         # Hengband automatically uses both free hands for polearms and weapons
         # over 9.9 lb.  Lighter non-polearms remain genuinely one-handed.
@@ -674,13 +678,6 @@ def optimize_loadout(
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
-    pinned = {
-        item.equipped_slot: item
-        for item in catalog
-        if item.id in current_item_ids
-        and item.equipped_slot is not None
-        and item.item.is_cursed
-    }
     incomplete = frozenset(
         item.id for item in catalog if item.identification_incomplete
     )
@@ -707,11 +704,17 @@ def optimize_loadout(
     frontier: list[EvaluatedLoadout] = []
     timed_out = False
 
-    loadouts = (
-        enumerate_loadouts(catalog, pinned)
-        if candidate_loadouts is None
-        else candidate_loadouts
-    )
+    if candidate_loadouts is None:
+        pinned = {
+            item.equipped_slot: item
+            for item in catalog
+            if item.id in current_item_ids
+            and item.equipped_slot is not None
+            and item.item.is_cursed
+        }
+        loadouts = enumerate_loadouts(catalog, pinned)
+    else:
+        loadouts = candidate_loadouts
     for loadout in loadouts:
         if timeout_seconds <= 0 or monotonic() - started > timeout_seconds:
             timed_out = True

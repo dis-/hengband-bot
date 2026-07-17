@@ -16,6 +16,7 @@ from hengbot.equipment_optimizer import (
     random_teleport_is_suppressed,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
+from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
 from hengbot.model import (
     SV_DRAGON_HELM,
     SV_LITE_LANTERN,
@@ -299,6 +300,52 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertTrue(plan.executable)
         self.assertTrue(plan.actions)
         self.assertFalse(any(blocker.startswith("cursed-equipped:") for blocker in plan.blockers))
+
+    def test_warrior_search_pins_cursed_ring_but_still_upgrades_body(self):
+        cursed_ring = gear(
+            "cursed-ring", 45, cursed=True, equipped_slot=SLOT_MAIN_RING
+        )
+        old_body = gear("old-body", 36, equipped_slot=SLOT_BODY)
+        better_body = gear("better-body", 36, flags={50})
+
+        loadouts = list(
+            enumerate_warrior_loadouts(
+                [self.light, cursed_ring, old_body, better_body],
+                current_item_ids=frozenset(
+                    {self.light.id, cursed_ring.id, old_body.id}
+                ),
+                pinned={SLOT_MAIN_RING: cursed_ring},
+            )
+        )
+
+        self.assertTrue(loadouts)
+        self.assertTrue(
+            all(loadout.item_at(SLOT_MAIN_RING) == cursed_ring for loadout in loadouts)
+        )
+        self.assertTrue(
+            any(loadout.item_at(SLOT_BODY) == better_body for loadout in loadouts)
+        )
+
+    def test_pinned_sub_hand_weapon_is_valid_without_main_hand_weapon(self):
+        cursed_weapon = gear(
+            "cursed-sub-weapon", 23, cursed=True, equipped_slot=SLOT_SUB_HAND
+        )
+
+        loadouts = list(
+            enumerate_warrior_loadouts(
+                [self.light, cursed_weapon],
+                current_item_ids=frozenset({self.light.id, cursed_weapon.id}),
+                pinned={SLOT_SUB_HAND: cursed_weapon},
+            )
+        )
+
+        self.assertTrue(loadouts)
+        self.assertTrue(
+            all(loadout.item_at(SLOT_MAIN_HAND) is None for loadout in loadouts)
+        )
+        self.assertTrue(
+            all(loadout.item_at(SLOT_SUB_HAND) == cursed_weapon for loadout in loadouts)
+        )
 
     def test_cursed_ring_with_no_free_upgrade_produces_ready_noop(self):
         light = gear("light", 39, equipped_slot="light")
