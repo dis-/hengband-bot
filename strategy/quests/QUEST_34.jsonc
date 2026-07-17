@@ -19,6 +19,9 @@
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
+    // reference_ac: DPS実測の基準AC（①案 2026-07-18）。デスソード/
+    // クローカー（r_idx 107/243）の実AC。
+    "reference_ac": 40,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
     "throwing_items": {"lit_torch": 20},
     // 受注条件の2段構造（ユーザー確認 2026-07-17）: 基本ゲートで受注する
