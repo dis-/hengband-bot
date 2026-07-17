@@ -3090,10 +3090,15 @@ class ProbeTest(unittest.TestCase):
 
 
 class TownRestockTest(unittest.TestCase):
-    def _in_general_store(self, items, *, gold=500, inv=None):
+    def _in_general_store(
+        self, items, *, gold=500, inv=None, food_type=0, level=1, class_id=-1
+    ):
         grids = {Position(10, 10): grid(10, 10)}
         return Snapshot(
-            player(10, 10, gold=gold),
+            player(
+                10, 10, gold=gold, food_type=food_type,
+                level=level, class_id=class_id,
+            ),
             grids,
             [],
             floor_key=(0, 0, 0),
@@ -3111,6 +3116,40 @@ class TownRestockTest(unittest.TestCase):
         pol = HengbotPolicy()
         self.assertEqual(pol.choose_key(self._in_general_store(wares, inv=inv)), "pb\r5\r\ry")
         self.assertEqual(pol.last_reason, "shop:buy-food")
+
+    def test_mana_race_does_not_buy_rations_as_food(self):
+        wares = [store_item("b", TVAL_FOOD, 35, price=3, count=60)]
+        snap = self._in_general_store(
+            wares, inv=[], food_type=FOOD_TYPE_MANA,
+            level=4, class_id=PLAYER_CLASS_WARRIOR,
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "shop:leave")
+
+        # The same shortage is owned by the race-aware ledger and routes to the
+        # Magic store, where charged devices are the only valid food purchase.
+        town = replace(snap, store=None, town_flag=True)
+        self.assertEqual(pol._supply_ledger(town, 1)["food"].stores, (STORE_MAGIC,))
+        self.assertIn(
+            TownNeed(STORE_MAGIC, "food", "normal"),
+            pol._enumerate_town_needs(town),
+        )
+
+    def test_legacy_mana_character_does_not_buy_rations(self):
+        wares = [store_item("b", TVAL_FOOD, 35, price=3, count=60)]
+        snap = self._in_general_store(
+            wares, inv=[], food_type=FOOD_TYPE_MANA, class_id=-1
+        )
+
+        policy = HengbotPolicy()
+        self.assertIsNone(policy._next_purchase_unreserved(snap))
+        town = replace(snap, store=None, town_flag=True)
+        self.assertIn(
+            STORE_MAGIC,
+            [need.store_type for need in policy._enumerate_town_needs(town)],
+        )
 
     def test_walks_to_the_store_for_a_food_restock(self):
         grids = {
@@ -3262,6 +3301,26 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             floor_key=(0, 0, 0),
         )
         self.assertTrue(HengbotPolicy()._needs_food_restock(snap))
+
+    def test_mana_race_jerky_is_zero_food_and_does_not_suppress_return(self):
+        jerky = item("a", TVAL_FOOD, 35, count=10, name="jerky")
+        snap = Snapshot(
+            player(10, 10, food=1500, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
+            inventory=[jerky],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._supply_ledger(snap, 2)["food"].count, 0)
+        self.assertIsNone(policy._find_edible(snap))
+        self.assertTrue(policy._should_start_town_return(snap))
+        self.assertEqual(policy._last_return_trigger, "food-hungry")
+        self.assertTrue(
+            policy._is_disposable_item(jerky, food_type=FOOD_TYPE_MANA)
+        )
+        self.assertEqual(policy._find_low_level_sale(snap), jerky)
 
     def test_mana_race_fundraising_buys_device_charges_not_biscuits(self):
         biscuit = store_item("a", TVAL_FOOD, 35, price=1, name="biscuit")

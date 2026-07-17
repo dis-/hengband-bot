@@ -2849,14 +2849,21 @@ class HengbotPolicy:
             and it.sval in LOW_VALUE_POTION_SVALS,
         )
 
-    def _is_disposable_item(self, item: InventoryItem) -> bool:
+    def _is_disposable_item(
+        self, item: InventoryItem, *, food_type: int = 0
+    ) -> bool:
         # A bounty target (wanted monster's corpse) is worth gold at the Hunter's
         # Office, and an item the game already refused to destroy this expedition
         # must not be re-selected, or the full-pack disposal loops forever.
         if item.is_bounty or self._item_signature(item) in self._undestroyable_sigs:
             return False
         return (
-            (item.is_potion and item.aware and item.sval in DISPOSABLE_POTION_SVALS)
+            # MANA races cannot digest ordinary food.  Treat it as junk so a
+            # mistaken/live legacy purchase can be sold or dropped instead of
+            # occupying a pack slot forever. WATER/OIL/BLOOD retain the normal
+            # food fallback intentionally.
+            (food_type == FOOD_TYPE_MANA and item.tval == TVAL_FOOD)
+            or (item.is_potion and item.aware and item.sval in DISPOSABLE_POTION_SVALS)
             or (item.is_scroll and item.aware and item.sval in DISPOSABLE_SCROLL_SVALS)
             # A brass lantern already lights radius 2, so a Rod of Light is dead
             # weight — shed it like any other junk device.
@@ -2965,7 +2972,9 @@ class HengbotPolicy:
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
-            lambda it: self._is_disposable_item(it)
+            lambda it: self._is_disposable_item(
+                it, food_type=snapshot.player.food_type
+            )
             or self._is_spare_lantern(snapshot, it)
             # Fundraising needs one digging tool, never four. At pack pressure,
             # discard every tool except the strongest before spending Recall.
@@ -5312,6 +5321,10 @@ class HengbotPolicy:
                 )
                 or (it.is_potion and it.aware and it.sval in DISPOSABLE_POTION_SVALS)
                 or (it.is_scroll and it.aware and it.sval in DISPOSABLE_SCROLL_SVALS)
+                or (
+                    snapshot.player.food_type == FOOD_TYPE_MANA
+                    and it.tval == TVAL_FOOD
+                )
             )
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
@@ -5564,8 +5577,15 @@ class HengbotPolicy:
 
         if snapshot.player.class_id < 0:
             if not self._shopping_abandoned and snapshot.player.gold >= LANTERN_MIN_GOLD:
-                if not self._owns_lantern(snapshot) or self._needs_food_restock(snapshot):
+                if not self._owns_lantern(snapshot):
                     add(STORE_GENERAL, "birth-supplies")
+                if self._needs_food_restock(snapshot):
+                    add(
+                        STORE_MAGIC
+                        if snapshot.player.food_type == FOOD_TYPE_MANA
+                        else STORE_GENERAL,
+                        "birth-supplies",
+                    )
             return needs
 
         if (
@@ -6428,7 +6448,10 @@ class HengbotPolicy:
                     (it for it in store.items if it.is_oil and it.price <= gold),
                     None,
                 )
-            if self._needs_food_restock(snapshot):
+            if (
+                snapshot.player.food_type != FOOD_TYPE_MANA
+                and self._needs_food_restock(snapshot)
+            ):
                 return next(
                     (
                         it
@@ -6554,7 +6577,10 @@ class HengbotPolicy:
             device = self._mana_food_purchase(snapshot)
             if device is not None:
                 return device
-        if self._needs_food_restock(snapshot):
+        if (
+            snapshot.player.food_type != FOOD_TYPE_MANA
+            and self._needs_food_restock(snapshot)
+        ):
             return next(
                 (
                     it
