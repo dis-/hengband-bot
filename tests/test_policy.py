@@ -15006,10 +15006,58 @@ class DeepKitTest(unittest.TestCase):
         self.assertTrue(pol._identify_staff_ready(self._dungeon(11, two)))   # 22 >= 20
         self.assertEqual(pol._total_identify_staff_charges(self._dungeon(11, two)), 22)
 
-class RetentionAuthorityTest(unittest.TestCase):
-    def _town(self, inventory, *, store=None):
+class StoreSellGateTest(unittest.TestCase):
+    def _store(self, inventory, store_type, *, turn=758358):
         return Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10, 10, class_id=PLAYER_CLASS_WARRIOR,
+                food_type=4, gold=1000,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=turn,
+            inventory=list(inventory),
+            store=StoreState(store_type, []),
+        )
+
+    def test_2139_replay_unaccepted_alchemist_food_emits_no_sell_or_tail(self):
+        mana_food = item("a", TVAL_FOOD, 1, name="Ration of Food", known=True)
+        snap = self._store([mana_food], STORE_ALCHEMIST)
+        policy = HengbotPolicy()
+
+        keys = [policy._shop(snap) for _ in range(3)]
+
+        self.assertEqual(keys, [LEAVE_STORE_KEY] * 3)
+        self.assertTrue(all("d" not in key and "\r" not in key and "y" not in key for key in keys))
+        self.assertIn(policy._item_signature(mana_food), policy._unsellable_items)
+
+    def test_same_turn_unchanged_sale_latches_after_two_emitted_attempts(self):
+        potion = item("a", TVAL_POTION, SV_POTION_RESIST_COLD)
+        snap = self._store([potion], STORE_ALCHEMIST)
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._shop(snap), "da\r\ry")
+        self.assertEqual(policy._shop(snap), "da\r\ry")
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertIn(policy._item_signature(potion), policy._unsellable_items)
+
+    def test_changed_turn_does_not_trigger_fast_rejection_latch(self):
+        potion = item("a", TVAL_POTION, SV_POTION_RESIST_COLD)
+        policy = HengbotPolicy()
+
+        for turn in range(3):
+            self.assertEqual(
+                policy._shop(self._store([potion], STORE_ALCHEMIST, turn=turn)),
+                "da\r\ry",
+            )
+
+
+class RetentionAuthorityTest(unittest.TestCase):
+    def _town(self, inventory, *, store=None, gold=FUNDRAISING_START_GOLD):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=gold),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
@@ -15032,6 +15080,23 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._retention_reservation(snap, detection), 1)
         self.assertEqual(policy._retention_reservation(snap, shovel), 1)
         self.assertIsNone(policy._find_home_deposit(snap))
+
+    def test_town_cycle_planned_yeek_mining_keeps_last_detection_scroll(self):
+        """21:38 replay: Home runs before the low-gold errand starts mining."""
+        detection = item(
+            "h", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Treasure Detection",
+        )
+        snap = self._town(
+            [detection], store=StoreState(STORE_HOME, []), gold=2999
+        )
+        policy = HengbotPolicy()
+        self.assertIsNone(policy._fundraising_mode)
+
+        self.assertEqual(policy._retention_reservation(snap, detection), 1)
+        self.assertIsNone(policy._find_home_deposit(snap))
+        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        self.assertEqual(policy._fundraising_mode, "prepare")
 
     def test_ten_torches_are_reserved_and_real_surplus_deposits_once(self):
         torches = item(

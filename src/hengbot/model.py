@@ -23,12 +23,18 @@ class Position:
 # Item categories (tval), from src/object/tval-types.h.
 TVAL_BOTTLE = 2  # empty bottles ('!'), left behind by quaffed potions — pure junk
 TVAL_CHEST = 7  # chests ('&') — trapped/locked loot containers
+TVAL_WHISTLE = 4
+TVAL_SPIKE = 5
+TVAL_FIGURINE = 8
+TVAL_STATUE = 9
+TVAL_CAPTURE = 11
 TVAL_SHOT = 16
 TVAL_ARROW = 17
 TVAL_BOLT = 18
 TVAL_BOW = 19
 TVAL_DIGGING = 20
 TVAL_HAFTED = 21  # maces/hammers ('\')
+SV_HAFTED_WIZSTAFF = 21
 TVAL_POLEARM = 22  # spears/axes ('/')
 TVAL_SWORD = 23  # edged weapons ('|')
 # sv-bow-types.h launcher subtypes (ammo matching)
@@ -40,10 +46,16 @@ SV_BOW_HEAVY_XBOW = 24
 TVAL_BOOTS = 30
 TVAL_GLOVES = 31
 TVAL_HELM = 32
+TVAL_CROWN = 33
 TVAL_SHIELD = 34
+TVAL_CLOAK = 35
+TVAL_SOFT_ARMOR = 36
+TVAL_HARD_ARMOR = 37
+TVAL_DRAG_ARMOR = 38
 TVAL_LITE = 39
 TVAL_AMULET = 40
 TVAL_RING = 45
+TVAL_CARD = 50
 TVAL_STAFF = 55
 TVAL_WAND = 65
 TVAL_ROD = 66

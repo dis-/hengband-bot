@@ -84,11 +84,22 @@ from hengbot.model import (
     SV_STAFF_IDENTIFY,
     SV_WAND_STONE_TO_MUD,
     SV_WAND_TELEPORT_AWAY,
+    SV_HAFTED_WIZSTAFF,
     SPELLBOOK_TVALS,
     TVAL_AMULET,
     TVAL_ARROW,
     TVAL_BOLT,
     TVAL_BOW,
+    TVAL_BOOTS,
+    TVAL_CROWN,
+    TVAL_CLOAK,
+    TVAL_SOFT_ARMOR,
+    TVAL_HARD_ARMOR,
+    TVAL_DRAG_ARMOR,
+    TVAL_GLOVES,
+    TVAL_HELM,
+    TVAL_SHIELD,
+    TVAL_DIGGING,
     TVAL_FLASK,
     TVAL_FOOD,
     TVAL_LITE,
@@ -102,6 +113,16 @@ from hengbot.model import (
     TVAL_SHOT,
     TVAL_STAFF,
     TVAL_WAND,
+    TVAL_HAFTED,
+    TVAL_POLEARM,
+    TVAL_SWORD,
+    TVAL_WHISTLE,
+    TVAL_SPIKE,
+    TVAL_FIGURINE,
+    TVAL_STATUE,
+    TVAL_CAPTURE,
+    TVAL_CARD,
+    TVAL_BOTTLE,
     GridState,
     InventoryItem,
     MonsterState,
@@ -708,6 +729,40 @@ STACKED_BUY_CONFIRM_SUFFIX = "\r1\r\ry"
 LEAVE_STORE_KEY = "\x1b"
 SELL_KEY = "d"
 SELL_CONFIRM_SUFFIX = "\r\ry"
+# Mirrors store/service-checker.cpp's per-store tval switches.  The policy's
+# sale paths only need these ordinary, unconditional cases; the Temple's
+# blessed-weapon/figurine exceptions and the General/Magic special svals are
+# deliberately not claimed from tval alone.
+STORE_ACCEPTED_TVALS = {
+    STORE_GENERAL: frozenset(
+        {
+            TVAL_WHISTLE, TVAL_FOOD, TVAL_LITE, TVAL_FLASK, TVAL_SPIKE,
+            TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_DIGGING, TVAL_CLOAK,
+            TVAL_BOTTLE, TVAL_FIGURINE, TVAL_STATUE, TVAL_CAPTURE, TVAL_CARD,
+        }
+    ),
+    STORE_ARMOURY: frozenset(
+        {
+            TVAL_BOOTS, TVAL_GLOVES, TVAL_CROWN, TVAL_HELM, TVAL_SHIELD,
+            TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR,
+        }
+    ),
+    STORE_WEAPON: frozenset(
+        {
+            TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING,
+            TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD, TVAL_HISSATSU_BOOK,
+        }
+    ),
+    STORE_TEMPLE: frozenset(
+        {TVAL_LIFE_BOOK, TVAL_CRUSADE_BOOK, TVAL_SCROLL, TVAL_POTION, TVAL_HAFTED}
+    ),
+    STORE_ALCHEMIST: frozenset({TVAL_SCROLL, TVAL_POTION}),
+    STORE_MAGIC: frozenset(
+        (SPELLBOOK_TVALS - {TVAL_LIFE_BOOK, TVAL_CRUSADE_BOOK, TVAL_HISSATSU_BOOK})
+        | {TVAL_AMULET, TVAL_RING, TVAL_STAFF, TVAL_WAND, TVAL_ROD,
+           TVAL_SCROLL, TVAL_POTION, TVAL_FIGURINE}
+    ),
+}
 # Fuel flasks to stock for the lantern. We only walk to the shop if we have at
 # least a little gold; true affordability is re-checked against the live price in
 # the store (and if we can't afford it there we give up rather than loop).
@@ -1234,7 +1289,7 @@ class HengbotPolicy:
         self._town_store_attempted: dict[int, int] = {}
         self._town_restock_wait_until: int | None = None
         self._town_restock_rechecked: set[int] = set()
-        self._last_sell_sig: tuple[str, int, int] | None = None
+        self._last_sell_sig: tuple | None = None
         self._store_sell_stuck_count = 0
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
@@ -4221,6 +4276,11 @@ class HengbotPolicy:
         target = 0
         matches = lambda candidate: False
         ledger = self._supply_ledger(snapshot, self._planned_depth())
+        mining_planned = self._fundraising_mode in {"prepare", "mine", "scavenge"} or (
+            snapshot.in_town
+            and snapshot.player.class_id >= 0
+            and snapshot.player.gold < FUNDRAISING_START_GOLD
+        )
         if item.is_recall_scroll:
             target = max(
                 ledger["recall"].required_departure,
@@ -4256,14 +4316,13 @@ class HengbotPolicy:
             matches = lambda candidate: (
                 candidate.is_torch and candidate.known and candidate.fuel > 0
             )
-        elif item.is_treasure_detection_scroll and self._fundraising_mode in {
-            "prepare", "mine", "scavenge"
-        }:
+        # Keep this predicate identical to _next_required_store_type's town-cycle
+        # trigger.  That router can activate fundraising later in the same visit,
+        # after Home has already asked this retention authority what may be stashed.
+        elif item.is_treasure_detection_scroll and mining_planned:
             target = self._mining_detection_scroll_target(snapshot)
             matches = lambda candidate: candidate.is_treasure_detection_scroll
-        elif item.is_digging_tool and self._fundraising_mode in {
-            "prepare", "mine", "scavenge"
-        }:
+        elif item.is_digging_tool and mining_planned:
             # Mining plans own exactly the best carried tool.  Equipment cannot
             # stack diggers, so this is a one-item reservation.
             pack_diggers = [it for it in snapshot.inventory if it.is_digging_tool]
@@ -7282,6 +7341,74 @@ class HengbotPolicy:
             if self._item_signature(item) == signature
         )
 
+    @staticmethod
+    def _store_accepts_sale(store_type: int, item: InventoryItem) -> bool:
+        """Conservative tval gate mirroring Hengband's store_will_buy switch."""
+        if store_type in {STORE_HOME, STORE_BLACK}:
+            return True
+        if (
+            store_type == STORE_WEAPON
+            and item.tval == TVAL_HAFTED
+            and item.sval == SV_HAFTED_WIZSTAFF
+        ):
+            return False
+        return item.tval in STORE_ACCEPTED_TVALS.get(store_type, frozenset())
+
+    def _store_sell_key(
+        self,
+        snapshot: Snapshot,
+        item: InventoryItem,
+        reason: str,
+        *,
+        suffix: str = SELL_CONFIRM_SUFFIX,
+        rejected_reason: str = "shop:unsellable-leave",
+    ) -> str:
+        store = snapshot.store
+        if store is None or not self._store_accepts_sale(store.store_type, item):
+            # 'd' can be rejected before opening an item prompt.  Never attach
+            # Return/yes tail keys unless the C++ store tval gate says the prompt
+            # exists; otherwise those keys execute raw in the store command loop.
+            self._unsellable_items.add(self._item_signature(item))
+            if store is not None:
+                self._town_store_attempted[store.store_type] = snapshot.turn
+            self._last_sell_sig = None
+            self._store_sell_stuck_count = 0
+            self.last_reason = rejected_reason
+            return LEAVE_STORE_KEY
+
+        pack_state = tuple(
+            (it.slot, self._item_signature(it), it.count, it.charges)
+            for it in snapshot.inventory
+        )
+        store_state = tuple(
+            (it.letter, it.name, it.tval, it.sval, it.count, it.price)
+            for it in store.items
+        )
+        sig = (
+            snapshot.turn,
+            store.store_type,
+            pack_state,
+            store_state,
+            snapshot.player.gold,
+        )
+        if sig == self._last_sell_sig:
+            self._store_sell_stuck_count += 1
+        else:
+            self._last_sell_sig = sig
+            self._store_sell_stuck_count = 0
+        # Two already-emitted attempts with the same-turn store/pack snapshot
+        # prove that the first key or its selection was rejected.  Reuse the
+        # existing sell latch and abandon this item before an eight-nudge wait.
+        if self._store_sell_stuck_count >= 2:
+            self._unsellable_items.add(self._item_signature(item))
+            self._town_store_attempted[store.store_type] = snapshot.turn
+            self._last_sell_sig = None
+            self._store_sell_stuck_count = 0
+            self.last_reason = rejected_reason
+            return LEAVE_STORE_KEY
+        self.last_reason = reason
+        return SELL_KEY + item.slot + suffix
+
     def _shop(self, snapshot: Snapshot) -> str:
         store = snapshot.store
         if store is None:
@@ -7358,20 +7485,13 @@ class HengbotPolicy:
                 self._clear_pending_disposal()
                 self.last_reason = "equipment:sale-complete"
                 return LEAVE_STORE_KEY
-            sig = (target.slot, len(snapshot.inventory), snapshot.player.gold)
-            if sig == self._last_sell_sig:
-                self._disposal_stuck_count += 1
-            else:
-                self._last_sell_sig = sig
-                self._disposal_stuck_count = 0
-            if self._disposal_stuck_count >= STORE_STUCK_LIMIT:
+            key = self._store_sell_key(
+                snapshot, target, "equipment:sell-dominated",
+                rejected_reason="equipment:sale-refused",
+            )
+            if key == LEAVE_STORE_KEY:
                 self._disposal_store_attempts.add(store.store_type)
-                self._disposal_stuck_count = 0
-                self._last_sell_sig = None
-                self.last_reason = "equipment:sale-refused"
-                return LEAVE_STORE_KEY
-            self.last_reason = "equipment:sell-dominated"
-            return SELL_KEY + target.slot + SELL_CONFIRM_SUFFIX
+            return key
 
         if self._home_disposal_pending is not None:
             signature, decision = self._home_disposal_pending
@@ -7382,9 +7502,11 @@ class HengbotPolicy:
                 and target.known
                 and store.store_type == self._home_disposal_store(signature)
             ):
-                self.last_reason = "home-disposal:sell-approved"
                 self._home_disposal_pending = None
-                return SELL_KEY + target.slot + SELL_CONFIRM_SUFFIX
+                return self._store_sell_key(
+                    snapshot, target, "home-disposal:sell-approved",
+                    rejected_reason="home-disposal:sale-refused",
+                )
 
         if store.store_type == STORE_HOME:
             mandatory_deposit = self._first_item(
@@ -7659,98 +7781,44 @@ class HengbotPolicy:
 
         book_sale = self._find_book_sale(snapshot, store.store_type)
         if book_sale is not None:
-            sig = (book_sale.slot, len(snapshot.inventory), snapshot.player.gold)
-            if sig == self._last_sell_sig:
-                self._store_sell_stuck_count += 1
-            else:
-                self._last_sell_sig = sig
-                self._store_sell_stuck_count = 0
-            if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
-                self._unsellable_items.add(
-                    (book_sale.name, book_sale.tval, book_sale.sval)
-                )
-                self._last_sell_sig = None
-                self._store_sell_stuck_count = 0
-                self.last_reason = "shop:unsellable-book-leave"
-                return LEAVE_STORE_KEY
-            self.last_reason = "shop:sell-high-value-book"
-            return SELL_KEY + book_sale.slot + SELL_CONFIRM_SUFFIX
+            return self._store_sell_key(
+                snapshot, book_sale, "shop:sell-high-value-book",
+                rejected_reason="shop:unsellable-book-leave",
+            )
 
         if store.store_type == STORE_ALCHEMIST:
             sale = self._find_low_level_sale(snapshot)
             if sale is not None:
-                sig = (sale.slot, len(snapshot.inventory), snapshot.player.gold)
-                if sig == self._last_sell_sig:
-                    self._store_sell_stuck_count += 1
-                else:
-                    self._last_sell_sig = sig
-                    self._store_sell_stuck_count = 0
-                if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
-                    self._unsellable_items.add((sale.name, sale.tval, sale.sval))
-                    self._last_sell_sig = None
-                    self._store_sell_stuck_count = 0
-                    self.last_reason = "shop:unsellable-leave"
-                    return LEAVE_STORE_KEY
-                self.last_reason = "shop:sell-low-value-consumable"
-                return SELL_KEY + sale.slot + SELL_CONFIRM_SUFFIX
+                return self._store_sell_key(
+                    snapshot, sale, "shop:sell-low-value-consumable"
+                )
 
         if store.store_type == STORE_MAGIC:
             sale = self._find_device_sale(snapshot)
             if sale is not None:
-                sig = (sale.slot, len(snapshot.inventory), snapshot.player.gold)
-                if sig == self._last_sell_sig:
-                    self._store_sell_stuck_count += 1
-                else:
-                    self._last_sell_sig = sig
-                    self._store_sell_stuck_count = 0
-                if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
-                    self._unsellable_items.add((sale.name, sale.tval, sale.sval))
-                    self._last_sell_sig = None
-                    self._store_sell_stuck_count = 0
-                    self.last_reason = "shop:unsellable-device-leave"
-                    return LEAVE_STORE_KEY
-                self.last_reason = "shop:sell-device"
-                return SELL_KEY + sale.slot + SELL_CONFIRM_SUFFIX
+                return self._store_sell_key(
+                    snapshot, sale, "shop:sell-device",
+                    rejected_reason="shop:unsellable-device-leave",
+                )
 
         if store.store_type == STORE_WEAPON:
             sale = self._find_weapon_sale(snapshot)
             if sale is not None:
-                sig = (sale.slot, len(snapshot.inventory), snapshot.player.gold)
-                if sig == self._last_sell_sig:
-                    self._store_sell_stuck_count += 1
-                else:
-                    self._last_sell_sig = sig
-                    self._store_sell_stuck_count = 0
-                if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
-                    self._unsellable_items.add((sale.name, sale.tval, sale.sval))
-                    self._last_sell_sig = None
-                    self._store_sell_stuck_count = 0
-                    self.last_reason = "shop:unsellable-weapon-leave"
-                    return LEAVE_STORE_KEY
-                self.last_reason = (
+                reason = (
                     "shop:sell-no-teleport-weapon"
                     if self._blocks_teleport(sale)
                     else "shop:sell-inferior-weapon"
                 )
-                return SELL_KEY + sale.slot + SELL_CONFIRM_SUFFIX
+                return self._store_sell_key(
+                    snapshot, sale, reason,
+                    rejected_reason="shop:unsellable-weapon-leave",
+                )
 
         if store.store_type == STORE_GENERAL:
             sale = self._find_light_sale(snapshot)
             if sale is not None:
-                sig = (sale.slot, len(snapshot.inventory), snapshot.player.gold)
-                if sig == self._last_sell_sig:
-                    self._store_sell_stuck_count += 1
-                else:
-                    self._last_sell_sig = sig
-                    self._store_sell_stuck_count = 0
-                if self._store_sell_stuck_count >= STORE_STUCK_LIMIT:
-                    self._unsellable_items.add((sale.name, sale.tval, sale.sval))
-                    self._last_sell_sig = None
-                    self._store_sell_stuck_count = 0
-                    self.last_reason = "shop:unsellable-light-leave"
-                    return LEAVE_STORE_KEY
                 quantity = self._light_sale_quantity(sale)
-                self.last_reason = (
+                reason = (
                     "shop:sell-surplus-torches"
                     if sale.is_torch
                     else "shop:sell-spare-lantern"
@@ -7760,7 +7828,10 @@ class HengbotPolicy:
                     if quantity < sale.count
                     else SELL_CONFIRM_SUFFIX
                 )
-                return SELL_KEY + sale.slot + suffix
+                return self._store_sell_key(
+                    snapshot, sale, reason, suffix=suffix,
+                    rejected_reason="shop:unsellable-light-leave",
+                )
 
         item = self._next_purchase(snapshot)
         if item is not None:
@@ -7836,6 +7907,11 @@ class HengbotPolicy:
             else:
                 self.last_reason = "shop:buy-food"
             quantity = remaining
+            # Unlike a speculative sell, this purchase names a ware from the
+            # current emitted store page and _next_purchase has rechecked its
+            # price/quantity.  Thus 'p' has a live selectable precondition; the
+            # remaining Returns are prompt defaults and a final confirmation,
+            # not an unchecked tail after a possibly unsupported command.
             suffix = f"\r{quantity}\r\ry" if item.count > 1 else BUY_CONFIRM_SUFFIX
             return BUY_KEY + item.letter + suffix
 
