@@ -1003,6 +1003,8 @@ class HengbotPolicy:
         self._monrace_knowledge = monrace_knowledge or {}
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
+        self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
+        self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
@@ -9646,6 +9648,36 @@ class HengbotPolicy:
         profile = self._quest_strategies.get(quest_id)
         return profile if profile is not None and profile.execution_eligible else None
 
+    def _quest_never_move_races(self, profile: StrategyProfile) -> set[int]:
+        return {
+            race_id for race_id in profile.priority_targets
+            if (
+                (knowledge := self._monrace_knowledge.get(race_id)) is not None
+                and "NEVER_MOVE" in knowledge.flags
+            )
+        }
+
+    def _quest_final_target_position(
+        self, profile: StrategyProfile, never_move_races: set[int]
+    ) -> Position | None:
+        info = self._quest_knowledge.get(profile.quest_id)
+        battlefield = info.battlefield if info is not None else None
+        if battlefield is None:
+            return None
+        mobile_priorities = [
+            race_id for race_id in profile.priority_targets
+            if race_id not in never_move_races
+        ]
+        for race_id in mobile_priorities:
+            placement = next(
+                (position for position, placed_race in battlefield.monster_placements
+                 if placed_race == race_id),
+                None,
+            )
+            if placement is not None:
+                return Position(*placement)
+        return None
+
     def _approved_quest_strategy_key(
         self,
         snapshot: Snapshot,
@@ -9694,9 +9726,44 @@ class HengbotPolicy:
 
         hold_value = profile.engagement_plan.get("hold_position")
         hold = Position(*hold_value) if hold_value is not None else None
-        if adjacent and not snapshot.player.afraid:
+        never_move_races = self._quest_never_move_races(profile)
+        current_never_move = {
+            monster.index for monster in hostiles
+            if monster.race_id in never_move_races
+        }
+        previous_never_move = self._quest_strategy_visible_never_move.get(
+            profile.quest_id, set()
+        )
+        defeated_never_move = self._quest_strategy_defeated_never_move.setdefault(
+            profile.quest_id, set()
+        )
+        defeated_never_move.update(previous_never_move - current_never_move)
+        self._quest_strategy_visible_never_move[profile.quest_id] = current_never_move
+        info = self._quest_knowledge.get(profile.quest_id)
+        battlefield = info.battlefield if info is not None else None
+        expected_never_move = sum(
+            placed_race in never_move_races
+            for _, placed_race in (
+                battlefield.monster_placements if battlefield is not None else ()
+            )
+        )
+        final_target_phase = (
+            expected_never_move > 0
+            and len(defeated_never_move) >= expected_never_move
+            and not current_never_move
+        )
+        if final_target_phase:
+            survival = self._survival_gate_key(snapshot, hostiles)
+            if survival is not None:
+                return survival
+
+        mobile_adjacent = [
+            monster for monster in adjacent
+            if monster.race_id not in never_move_races
+        ]
+        if mobile_adjacent and not snapshot.player.afraid:
             ranked = sorted(
-                adjacent,
+                mobile_adjacent,
                 key=lambda monster: (
                     profile.priority_targets.index(monster.race_id)
                     if monster.race_id in profile.priority_targets else len(profile.priority_targets),
@@ -9705,22 +9772,6 @@ class HengbotPolicy:
             )
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
-
-        if hold is not None and snapshot.player.position != hold:
-            step = self._town_map_goal_step(snapshot, hold)
-            if step is not None:
-                never_move_races = {243, 107} if profile.quest_id == 34 else set()
-                if any(
-                    monster.race_id in never_move_races
-                    and step.distance_to(monster.position) <= 1
-                    for monster in hostiles
-                ):
-                    self.last_reason = "quest-strategy:avoid-never-move"
-                    return WAIT_KEY
-                self.last_reason = "quest-strategy:retake-hold"
-                return self._step_toward(snapshot, step)
-            self.last_reason = "quest-strategy:hold-unreachable"
-            return WAIT_KEY
 
         if hostiles:
             present = {monster.race_id for monster in hostiles}
@@ -9737,6 +9788,49 @@ class HengbotPolicy:
                         THROW_KEY + torch.slot
                         + self._direction_key(snapshot.player.position, target.position)
                     )
+
+        if final_target_phase:
+            mobile_targets = [
+                monster for monster in hostiles
+                if monster.race_id not in never_move_races
+            ]
+            target_position = (
+                mobile_targets[0].position if mobile_targets
+                else self._quest_final_target_position(profile, never_move_races)
+            )
+            if target_position is not None:
+                step = self._nearest_goal_step(
+                    snapshot,
+                    lambda candidate: candidate.position.distance_to(target_position) <= 1,
+                )
+                if step is not None:
+                    self.last_reason = "quest-strategy:approach-final-target"
+                    return self._step_toward(snapshot, step)
+
+        if hold is not None and snapshot.player.position != hold:
+            step = self._town_map_goal_step(snapshot, hold)
+            if step is not None:
+                blocker = next((
+                    monster for monster in hostiles
+                    if monster.race_id in never_move_races
+                    and step.distance_to(monster.position) <= 1
+                ), None)
+                if blocker is not None:
+                    torch = self._first_item(snapshot, lambda item: item.is_torch)
+                    if torch is not None:
+                        self.last_reason = "quest-strategy:throw-never-move-blocker"
+                        return (
+                            THROW_KEY + torch.slot
+                            + self._direction_key(snapshot.player.position, blocker.position)
+                        )
+                    self.last_reason = "quest-strategy:avoid-never-move"
+                    return WAIT_KEY
+                self.last_reason = "quest-strategy:retake-hold"
+                return self._step_toward(snapshot, step)
+            self.last_reason = "quest-strategy:hold-unreachable"
+            return WAIT_KEY
+
+        if hostiles:
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.object_count > 0:
                 self.last_reason = "quest-strategy:recover-torch"
@@ -9745,7 +9839,7 @@ class HengbotPolicy:
                 snapshot, lambda candidate: candidate.object_count > 0
             )
             if pickup_step is not None and not any(
-                monster.race_id in ({243, 107} if profile.quest_id == 34 else set())
+                monster.race_id in never_move_races
                 and pickup_step.distance_to(monster.position) <= 1
                 for monster in hostiles
             ):
@@ -11509,7 +11603,9 @@ class HengbotPolicy:
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         heal_ratio = (
-            FIXED_QUEST_HEAL_HP_RATIO
+            float(profile.consumable_plan.get("heal_threshold_ratio", FIXED_QUEST_HEAL_HP_RATIO))
+            if (profile := self.approved_quest_strategy(snapshot.floor_key[2])) is not None
+            else FIXED_QUEST_HEAL_HP_RATIO
             if self._active_fixed_quest_id(snapshot) is not None
             or self._active_kill_quest_id(snapshot) is not None
             else HEAL_HP_RATIO

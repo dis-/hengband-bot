@@ -79,7 +79,9 @@ from hengbot.equipment_optimizer import TR_TELEPORT
 from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
-from hengbot.quest_knowledge import QUEST_FLAG_ONCE, QuestInfo, load_quest_knowledge
+from hengbot.quest_knowledge import (
+    QUEST_FLAG_ONCE, QuestBattlefield, QuestInfo, load_quest_knowledge,
+)
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.policy import (
     HengbotPolicy,
@@ -2969,9 +2971,25 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.profiles = load_quest_strategies(Path("strategy/quests"))
+        cls.q34_battlefield = QuestBattlefield(monster_placements=(
+            ((3, 13), 174), ((7, 15), 243), ((9, 11), 107), ((11, 9), 107),
+        ))
 
     def _policy(self):
-        return HengbotPolicy(quest_strategies=self.profiles)
+        stationary = MonraceKnowledge(
+            10, 110, False, False, flags=frozenset({"NEVER_MOVE"})
+        )
+        mobile = MonraceKnowledge(10, 110, False, False)
+        return HengbotPolicy(
+            quest_strategies=self.profiles,
+            quest_knowledge={
+                34: QuestInfo(
+                    34, "Dump Witness", 6, 5, 6,
+                    battlefield=self.q34_battlefield,
+                )
+            },
+            monrace_knowledge={107: stationary, 243: stationary, 174: mobile},
+        )
 
     def _quest(self, status):
         return QuestState(id=1, status=status, type=6, level=5, flags=6, fixed=True)
@@ -3052,33 +3070,100 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         torch = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
         cloaker = replace(hostile(1, 10, 18, distance=2), race_id=243)
         sword = replace(hostile(2, 10, 16, distance=4), race_id=107)
-        bee = replace(hostile(3, 10, 15, distance=5), race_id=174)
+        sword2 = replace(hostile(4, 10, 17, distance=3), race_id=107)
+        bee = replace(hostile(3, 3, 13, distance=14), race_id=174)
         snap = Snapshot(player(10, 20, hp=100, max_hp=100), grids,
-                        [bee, sword, cloaker], inventory=[torch], floor_key=(0, 1, 34))
+                        [bee, sword, sword2, cloaker], inventory=[torch],
+                        floor_key=(0, 1, 34))
         policy._fixed_quest_speed_attempted = True
         self.assertEqual(policy._approved_quest_strategy_key(snap, snap.visible_monsters, []), "vt4")
         self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")
         # Once the cloaker is gone, the death sword owns the volley; the bee is last.
         self.assertEqual(policy._approved_quest_strategy_key(
-            replace(snap, visible_monsters=[bee, sword]), [bee, sword], []
+            replace(snap, visible_monsters=[bee, sword, sword2]), [bee, sword, sword2], []
         ), "vt4")
         self.assertEqual(policy._approved_quest_strategy_key(
-            replace(snap, visible_monsters=[bee]), [bee], []
+            replace(snap, visible_monsters=[bee, sword2]), [bee, sword2], []
         ), "vt4")
-        blocked_grids = {
+
+        # The real final target is at [3,13], behind the [2,13] door.  There is
+        # no ray from the [10,20] hold, so the final phase must release the hold
+        # and traverse the doorway instead of relying on a fake visible bee.
+        approach_grids = {
+            **{Position(y, 20): grid(y, 20) for y in range(1, 11)},
+            **{Position(1, x): grid(1, x) for x in range(13, 21)},
+            Position(2, 13): grid(2, 13, closed_door=True),
+            Position(3, 13): grid(3, 13),
+        }
+        final_hidden = replace(snap, grids=approach_grids, visible_monsters=[])
+        policy._build_grid_index(final_hidden)
+        self.assertFalse(policy._has_line_of_fire(
+            final_hidden, Position(10, 20), Position(3, 13)
+        ))
+        self.assertEqual(
+            policy._approved_quest_strategy_key(final_hidden, [], []), "8"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+
+    def test_q34_never_move_blocker_is_thrown_at_and_never_meleed(self):
+        policy = self._policy()
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)
+        blocker = replace(hostile(1, 9, 20, distance=1), race_id=243)
+        grids = {
             Position(10, 19): grid(10, 19), Position(10, 20): grid(10, 20),
             Position(9, 20): grid(9, 20, monster=True),
         }
-        never_move = replace(cloaker, position=Position(9, 20), distance=1)
-        displaced = replace(
-            snap, player=player(10, 19), grids=blocked_grids,
-            visible_monsters=[never_move],
+        snap = Snapshot(
+            player(10, 19), grids, [blocker], inventory=[torch], floor_key=(0, 1, 34)
         )
-        policy._build_grid_index(displaced)
-        self.assertEqual(
-            policy._approved_quest_strategy_key(displaced, [never_move], []), "5"
+        policy._fixed_quest_speed_attempted = True
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._approved_quest_strategy_key(snap, [blocker], [blocker]), "vt9")
+        self.assertEqual(policy.last_reason, "quest-strategy:throw-never-move-blocker")
+
+    def test_never_move_races_come_from_monrace_flags_not_quest_ids(self):
+        profile = replace(self.profiles[1], priority_targets=(900, 901))
+        stationary = MonraceKnowledge(
+            10, 110, False, False, flags=frozenset({"NEVER_MOVE"})
         )
-        self.assertEqual(policy.last_reason, "quest-strategy:avoid-never-move")
+        mobile = MonraceKnowledge(10, 110, False, False)
+        policy = HengbotPolicy(monrace_knowledge={900: stationary, 901: mobile})
+
+        self.assertEqual(policy._quest_never_move_races(profile), {900})
+
+    def test_q34_final_approach_keeps_starvation_gate_reachable(self):
+        policy = self._policy()
+        fixed = [
+            replace(hostile(1, 7, 15), race_id=243),
+            replace(hostile(2, 9, 11), race_id=107),
+            replace(hostile(3, 11, 9), race_id=107),
+        ]
+        base = Snapshot(player(10, 20), {Position(10, 20): grid(10, 20)}, fixed,
+                        floor_key=(0, 1, 34))
+        policy._fixed_quest_speed_attempted = True
+        policy._approved_quest_strategy_key(base, fixed, [])
+        hungry = replace(
+            base, player=player(10, 20, food=1500), visible_monsters=[],
+            inventory=[item("f", TVAL_FOOD, FOOD)],
+        )
+
+        self.assertEqual(policy._approved_quest_strategy_key(hungry, [], []), "Ef")
+        self.assertEqual(policy.last_reason, "survival:eat")
+
+    def test_approved_quest_uses_profile_heal_threshold(self):
+        policy = self._policy()
+        threat = replace(hostile(1, 10, 21, distance=1), race_id=174)
+        snap = Snapshot(
+            player(10, 20, hp=54, max_hp=100),
+            {Position(10, 20): grid(10, 20), Position(10, 21): grid(10, 21, monster=True)},
+            [threat], inventory=[item("h", TVAL_POTION, SV_POTION_HEALING)],
+            floor_key=(0, 1, 34),
+        )
+        policy._fixed_quest_speed_attempted = True
+
+        self.assertEqual(policy.choose_key(snap), "qh")
+        self.assertEqual(policy.last_reason, "item:heal")
 
     def test_q1_retakes_hold_and_throws_at_distance_two(self):
         policy = self._policy()
