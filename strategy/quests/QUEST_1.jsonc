@@ -3,7 +3,7 @@
   "quest_id": 1,
   "name": {"ja": "盗賊の隠れ家", "en": "Thieves Hideout"},
   "approved": true,
-  "approved_note": "User approved 2026-07-17 with: conditional speed potion (expected_damage_hp_ratio_min 0.5), lit-torch ranged softening at distance-2 sighting, and the measured-force gate (min_hp 68 / min_expected_dps 11; level is a guideline only). Execution remains gated on Phase 5.",
+  "approved_note": "User approved 2026-07-17 with: conditional speed potion (expected_damage_hp_ratio_min 0.5), lit-torch ranged softening at distance-2 sighting, and the measured-force gate (min_hp 68 / min_expected_dps 11; level is a guideline only). User-requested no-healing tier added same day: min_hp 134 / min_expected_dps 18 waives the healing-potion carry requirement. Execution remains gated on Phase 5.",
   "engagement_plan": {
     "opening": "Enter at [8,1], clear the west room, then hold the corridor floor at [8,3] before the door.",
     "hold_position": [8, 3],
@@ -31,6 +31,13 @@
     // level_guideline is advisory only.
     "min_hp": 68, "min_expected_dps": 11, "level_guideline": 5,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
+    // Second tier (user-requested): at this measured force the quest is safe
+    // with ZERO healing potions carried — the insurance term drops out of
+    // the survivability formula entirely.
+    "no_healing_tier": {
+      "min_hp": 134, "min_expected_dps": 18, "heal_potions": 0,
+      "note": "Worst-model incoming with softening (67, already pessimistic: speed-120 double actions, max damage) must fit HALF the raw HP pool with no potion term: min_hp = 67/0.50 ~= 134. dps >= 18 kills an average robber (36 HP) in 2 rounds even when its torch misses, so no enemy exceeds the modeled 2-action window, and one-shots an apprentice after the torch chip."
+    },
     "rationale": "Threat-gate arithmetic from the real roster: at modeled speed 120, two r_idx 150 each act twice for 2*12 damage and two r_idx 44 each act twice for 2*10, so the three-turn worst-adjacent total is 88 WITHOUT ranged softening. WITH the torch plan (user-directed recalculation, distance-2 sighting assumption): each approaching thief eats one lit-torch throw of 1d6*2.5 fire-brand = 8.75 average (game source throw-execution.cpp:499, brand via torch_flags; thieves carry no fire resistance). Assumed throw hit rates ~75% vs AC12 (r44) and ~60% vs AC24 (r150), and ~12/round warrior melee: a hit drops an average r44 (8d4, avg 20 HP) from a 2-round to a 1-round kill (expected -7.5 incoming each, -15 total); an average r150 (8d8, avg 36 HP, AC24) loses ~0.25 round expected (-3 each, -6 total). Revised worst-adjacent total ~= 88-21 = 67 (best case with all four torches landing: ~56). Torch cost ~4-8 gold total, so the softening is consistent with the no-consumable default. Two Healing potions provide 600 HP; requiring 67 < 0.50*(min_hp+600) still gives min_hp >= 1 after integer rounding. The BINDING gate is measured force, not level (user-directed): real blows are r150 = one 2d6 hit (avg 7, monster level 8) and r44 = two 1d5 hits (avg 6, monster level 2); at ~55% monster hit rate the corridored single-file exchange with torch softening costs an expected ~34 HP to clear all four when the character deals >= 11 damage/round. This ONCE quest allows no retreat, so the exchange must fit a 50% HP budget: min_hp = 34/0.50 = 68, min_expected_dps = 11. A typical warrior reaches both around level 5-6 (level_guideline 5), but a high-CON or well-armed character qualifies earlier and a frail one correctly does not. The verified floor chokepoint [8,3] limits melee exposure before the [8,4] door. This ONCE quest cannot be aborted."
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
