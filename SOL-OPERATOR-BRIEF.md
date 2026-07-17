@@ -82,6 +82,23 @@ Types:
    C:\hengband\bot-client with a regression test, run the FULL suite, commit
    locally (imperative English message explaining root cause), log "fix",
    then `resume`.
+3a. ANTI-ENBUG RULES (2026-07-17, after fixes themselves caused incidents):
+   - REVERT PROOF: before committing, temporarily revert the fix hunk and
+     confirm the new regression test FAILS, then restore. A test that stays
+     green without the fix proves nothing (a gate bug shipped because the
+     test's adjacent hostile made an earlier step return first).
+   - NO NEW GUARD CONSTANTS: do not add another *_LIMIT/*_WINDOW/leash
+     counter unless the NavigationLedger / no-progress invariant / existing
+     detector genuinely cannot express the bound — say WHY in the commit
+     message if you must.
+   - REPLAY BEFORE RESUME: when logged snapshots of the incident exist,
+     replay them through the fixed policy and state the observed decision
+     change in the fix event.
+   - FIX-LOOP CIRCUIT BREAKER: if this is the THIRD fix touching the same
+     function/subsystem in one session, STOP patching — append a "question"
+     event proposing a structural rework instead (the R1 navigation redesign
+     is the precedent; five travel-leash iterations in one evening was the
+     anti-pattern).
 4. NEVER: push to any remote; commit in C:\hengband; modify the game/emitter
    source; reveal hidden game info to the bot (fair-play: the bot may only use
    what a player could see, plus static lib/edit data files); force-kill the
@@ -94,28 +111,47 @@ Types:
    cli blocked-streak stop, `_game_process_alive` death check, native travel
    progress gates (`_town_travel_key`). Read their comments before touching
    related code.
-6. Watch items for this run (log what you observe as "status"):
-   - RESUPPLY CAROUSEL live verification (the character starts in the exact
-     incident state: town, ~102 gold, unaffordable recall/cure): the
-     no-progress breaker must reach `town:cycle-break` promptly (log HOW MANY
-     decisions it took — wait rows are excluded from the count, so expect
-     somewhat more decisions than the configured no-progress bound) and the
-     bot must then LEAVE town (scavenge departure) or stop visibly.
-   - Partial mining: with 1-4 detection scrolls the campaign must size itself
-     to the carried count (no scroll shopping).
-   - Two-phase mining coverage telemetry (`mining` block) at end of Yeek runs.
-   - `town:travel-entrance` / `town:clear-traveler` first live passes.
-   - FIXED QUEST 1 (Thieves' Hideout): only when its strict readiness gate
-     passes (level>=8, full HP, weapon, pack space). Log every quest state
-     transition (accept / enter / complete / claim / reward pickup) as
-     "status" events; a quest FAILURE of any kind is a "loop"-severity event
-     (stop the bot, diagnose, fix).
+6. STANDING WATCH ITEMS (2026-07-17 rev., derived from the starvation death
+   and the 90-minute louse-swarm melee; evaluate EVERY monitoring pass from
+   the raw decision-log tail + latest snapshot, never from your own previous
+   status lines):
+   - SURVIVAL VITALS (highest priority): read player.food_state and the
+     race-appropriate edible stock (food_type=4 MANA races eat CHARGED
+     wands/staves — count charges>0 devices, NOT tval-80 food) from the
+     newest snapshot. hungry-or-worse WITH zero edibles = "loop"-severity
+     (stop the bot, diagnose). fainting at ANY time = same. Also count
+     food_state oscillations (re-entries into hungry-or-worse) per pass:
+     3+ oscillations within one pass window is pathological — report and
+     treat as loop-severity (the death spiral oscillated 36 times unseen).
+   - HP DECAY WITH NO VISIBLE ENEMY: hp falling across the tail while
+     visible_hostiles=0 (starvation/poison/unseen) — report immediately;
+     if the trend continues a second pass, loop-severity.
+   - COMBAT OUTCOME: if combat reasons (melee/ranged/flee/hunt) exceed ~80%
+     of the tail, evaluate whether the fight is FRUITFUL: visible hostile
+     count trending down, or exp/gold increasing. A fight with flat enemy
+     count + flat exp + flat gold (especially with can_multiply monsters in
+     threat_prediction) is a breeder livelock — loop-severity even though
+     every aggregate metric looks "advancing".
+   - OBJECTIVE PROGRESS: economy g/min = 0 AND mining collected/remaining
+     unchanged AND same dungeon floor across 2+ consecutive passes (~20+
+     minutes) = no objective progress; report it explicitly and investigate
+     on the 3rd pass. "turns advancing + HP full" is NOT health evidence.
+   - RETURN-CYCLE CLOSURE: after any return-to-town trigger fires, confirm
+     the full cycle closes: reached town -> restocked (race-appropriate food
+     stock replenished, oil/potions bought) -> departed. A return that
+     stalls mid-cycle (e.g. leaving stores without buying while starving)
+     is loop-severity.
+   - QUEST transitions (accept/enter/complete/claim) logged as "status";
+     any quest failure is loop-severity.
 7. You are one generation of a durable supervisor loop. Exiting causes a new
    generation to take over, but you must still NEVER decide monitoring is
    finished. If the session is already running and healthy, take over
    monitoring without restarting the game or bot.
 8. If the character dies for real (game process actually exits), log "fatal"
-   with the death context and stop.
+   with the death context and stop. Emit the FULL fatal report once, in the
+   generation that discovers it; later generations must reference the
+   existing fatal event in a brief "status" instead of re-emitting "fatal"
+   every iteration.
 
 Work continuously. The task is never "complete" — keep monitoring until a
 "stop" instruction arrives via a follow-up task, or a fatal condition ends it.
