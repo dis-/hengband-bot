@@ -57,7 +57,9 @@ class QuestStrategiesTest(unittest.TestCase):
         self.assertEqual(profiles[1].required_force["min_hp"], 36)
         self.assertEqual(profiles[1].required_force["min_expected_dps"], 28)
         self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 88)
-        self.assertFalse(profiles[34].approved)
+        # Approval state is pinned against strategy/approved.json by
+        # test_shipped_drafts_match_real_quest_data — no hardcoded duplicate
+        # here (Q34 was user-approved via the Phase 4 pipeline on 2026-07-17).
         self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
 
     def test_shipped_drafts_match_real_quest_data(self):
