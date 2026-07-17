@@ -1,8 +1,8 @@
 # Bot liveness status
 
-- state: **RUNNING**
-- as of: 2026-07-18 02:29 JST
-- dump age: 49s / decision-log age: -3s
-- last decision reason: explore
+- state: **DUMP-STALE**
+- as of: 2026-07-18 02:56 JST
+- dump age: 431s / decision-log age: 148s
+- last decision reason: town:wait-restock
 
-Bot is playing; the dump above refreshes every ~3 minutes.
+Bot decisions are advancing but the dump stopped refreshing (dump path problem).
