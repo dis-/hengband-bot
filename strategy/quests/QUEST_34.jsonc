@@ -1,8 +1,8 @@
 {
   "quest_id": 34,
   "name": {"ja": "もの言えぬ証人", "en": "Dump Witness"},
-  "approved": false,
-  "approved_note": "",
+  "approved": true,
+  "approved_note": "User approved via manual-test-runner 2026-07-17T10:46:07.516Z. Feedback: 殺人蜂は上部小部屋から自力で出てくることがないので、先にクローカーデスソードを投擲で処理してレベルアップすることでさらに安全にクリアできる",
   "engagement_plan": {
     "opening": "[1,20] から入り、照明された東通路を南へ進み、扉を開ける前に [10,20] の隘路を確保する。",
     "hold_position": [10, 20],

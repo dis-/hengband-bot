@@ -88,15 +88,20 @@ if (action === "export") {
     const steps = [
       `■ ゲート(拘束): HP ${rf.min_hp} 以上 / 期待DPS ${rf.min_expected_dps ?? "未導出"} 以上 ※レベルは目安 Lv${rf.level_guideline}`,
     ];
+    const throwing = Object.entries(rf.throwing_items ?? {})
+      .map(([k, v]) => `${k === "lit_torch" ? "点火松明" : k} ${v}`)
+      .join("・");
+    steps.push(
+      `■ 基本ゲート受注時の携行(必須): 加速 ${rf.speed_potions ?? 0}（条件付き使用）/ 治癒 ${rf.heal_potions ?? 0}${throwing ? ` / ${throwing}` : ""} / 耐性 ${
+        (rf.resists ?? []).length ? (rf.resists ?? []).join("・") : "不要"
+      }`,
+    );
     if (nh) {
       steps.push(
-        `■ 無保険ティア: HP ${nh.min_hp} + DPS ${nh.min_expected_dps} なら治癒携行 0 で可`,
+        `■ 無保険ティア受注時 (HP ${nh.min_hp} + DPS ${nh.min_expected_dps}): 携行は 加速 ${nh.speed_potions ?? 0} / 治癒 ${nh.heal_potions ?? 0}${throwing ? ` / ${throwing}（弾薬は免除されない）` : ""}`,
       );
     }
     steps.push(
-      `■ 携行: 加速の薬 ${rf.speed_potions ?? 0}（条件付き使用）/ 治癒 ${rf.heal_potions ?? 0} / 耐性 ${
-        (rf.resists ?? []).length ? (rf.resists ?? []).join("・") : "不要"
-      }`,
       `■ 優先ターゲット: ${targets || "なし"}`,
       `■ 陣取り: hold ${hold} / 撤退 ${q.abort_conditions?.allowed ? `可 (HP ${Math.round((q.abort_conditions?.hp_ratio ?? 0) * 100)}% で中断)` : "不可 (ONCE)"}`,
       `■ 開幕: ${ep.opening ?? ""}`,

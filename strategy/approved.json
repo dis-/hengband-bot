@@ -2,6 +2,7 @@
   "note": "User-approved quest strategy ids. Written ONLY by scripts/strategy_approval.mjs apply (the Phase 4 pipeline) or by hand on explicit user instruction. The validation test pins profile approved flags to this list, so a generator/fixer silently flipping a flag fails the suite.",
   "approved": [
     1,
-    14
+    14,
+    34
   ]
 }
