@@ -1425,7 +1425,7 @@ class HengbotPolicy:
                 (DOWN_STAIRS_KEY, grid.has_down_stairs),
                 (UP_STAIRS_KEY, grid.has_up_stairs),
             )
-            if present
+            if present and grid.position.distance_to(snapshot.player.position) <= 1
         }
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             # resume uses a one-shot policy to kick the waiting turn before the

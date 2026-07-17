@@ -160,6 +160,31 @@ class StairRejectionInvalidationTest(unittest.TestCase):
         policy.prime(snapshot)
         self.assertIn((">", snapshot.player.position), policy._unverified_stairs)
 
+    def test_distant_launch_stair_stall_expires_normally(self):
+        player_position = Position(6, 35)
+        target = Position(6, 39)
+        grids = {
+            Position(6, x): grid(6, x, downstairs=x == target.x)
+            for x in range(player_position.x, target.x + 1)
+        }
+        snapshot = Snapshot(
+            player(player_position.y, player_position.x, food=12000),
+            grids,
+            [],
+            floor_key=(2, 5, 0),
+            width=80,
+            height=20,
+        )
+        policy = HengbotPolicy()
+        policy.prime(snapshot)
+
+        self.assertNotIn((">", target), policy._unverified_stairs)
+        for _ in range(NAV_TARGET_STALL_LIMIT + 1):
+            policy._descent_step(snapshot)
+
+        self.assertTrue(policy._nav_ledger.is_expired("descend", target))
+        self.assertIsNone(policy._descent_step(snapshot))
+
     def test_unverified_launch_stair_overrides_old_navigation_expiry(self):
         snapshot = self._stair_snapshot(downstairs=True)
         policy = HengbotPolicy()
