@@ -455,7 +455,7 @@ class StoreItem:
 def item_requires_full_identification(item: InventoryItem | StoreItem) -> bool:
     """Return whether normal identification can leave combat traits hidden."""
     return (
-        item.is_ego
+        (item.is_ego and not (item.known and item.is_cursed))
         or item.is_artifact
         or (item.tval, item.sval) in RANDOM_RESIST_DRAGON_PROTECTORS
     )

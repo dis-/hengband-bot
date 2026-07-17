@@ -5538,6 +5538,7 @@ class HengbotPolicy:
                 )
                 or (it.is_potion and it.aware and it.sval in DISPOSABLE_POTION_SVALS)
                 or (it.is_scroll and it.aware and it.sval in DISPOSABLE_SCROLL_SVALS)
+                or (it.known and it.is_ego and it.is_cursed and not it.is_artifact)
                 or (
                     snapshot.player.food_type == FOOD_TYPE_MANA
                     and it.tval == TVAL_FOOD

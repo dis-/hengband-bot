@@ -9378,6 +9378,83 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "rsa")
         self.assertEqual(policy.last_reason, "identify:full")
 
+    def test_known_cursed_ego_skips_star_identify(self):
+        target = item(
+            "a", 23, 1, name="cursed ego sword", known=True,
+            fully_known=False, is_equipment=True, is_ego=True, is_cursed=True,
+        )
+        star_scroll = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, name="star identify"
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[target, star_scroll],
+            equipment=[self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+
+        self.assertIsNone(policy._town_item_processing_key(snap))
+
+    def test_known_cursed_ego_is_selected_for_sale(self):
+        target = item(
+            "a", 23, 1, name="cursed ego sword", known=True,
+            fully_known=False, is_equipment=True, is_ego=True, is_cursed=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[target],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._find_low_level_sale(snap), target)
+
+    def test_cursed_artifact_still_requires_star_identify(self):
+        target = item(
+            "a", 23, 1, name="cursed artifact sword", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True, is_cursed=True,
+        )
+        star_scroll = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, name="star identify"
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[target, star_scroll],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+
+        self.assertEqual(policy.choose_key(snap), "rsa")
+        self.assertEqual(policy.last_reason, "identify:full")
+
+    def test_pseudo_cursed_unknown_item_still_gets_basic_identify(self):
+        target = item(
+            "a", 23, 1, name="cursed-feeling sword", known=False,
+            fully_known=False, is_equipment=True, pseudo_feeling="cursed",
+        )
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="identify")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[target, scroll],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+
+        self.assertEqual(policy.choose_key(snap), "rsa")
+        self.assertEqual(policy.last_reason, "identify:normal")
+
     def test_dragon_helm_requires_star_identify_for_random_resistance(self):
         target = item(
             "a",
