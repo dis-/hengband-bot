@@ -1,37 +1,28 @@
 {
-  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
   "quest_id": 34,
   "name": {"ja": "もの言えぬ証人", "en": "Dump Witness"},
   "approved": false,
   "approved_note": "",
   "engagement_plan": {
-    "opening": "Enter at [1,20], follow the lit east passage south, and establish the verified east-side floor choke at [10,20] before opening the room doors.",
+    "opening": "[1,20] から入り、照明された東通路を南へ進み、扉を開ける前に [10,20] の隘路を確保する。",
     "hold_position": [10, 20],
-    "formation": "Use the locked door line west/north of [10,20] to admit only the mobile killer bee. Never step adjacent to the stationary cloaker at [7,15] or death swords at [9,11] and [11,9]; attack those NEVER_MOVE monsters from distance 2 or greater.",
-    "ranged_softening": "The map provides pre-adjacency sight lines: the bee at [3,13] can be seen at distance 2 from [1,13] through the [2,13] door once opened, and the open central room gives distance-2 lines to the cloaker at [7,15]. Throw a LIT torch before either closes/is approached: 1d6 * 2.5 fire brand averages 8.75 because r_idx 174 and 243 have no fire resistance. Do not claim the multiplier against r_idx 107: both death swords have IM_FIRE; use ordinary ranged attacks or thrown junk and exploit NEVER_MOVE instead."
+    "formation": "[10,20] 西・北の扉を使い、移動する殺人蜂だけを通す。[7,15] のクローカーと [9,11]・[11,9] のデスソードには隣接せず、距離2以上から攻撃する。",
+    "ranged_softening": "殺人蜂とクローカーには距離2の射線から点火した松明を各1本投げる。火炎耐性がないため平均8.75。火炎免疫の r_idx 107 には通常の遠隔攻撃か投擲物を使う。"
   },
   "priority_targets": [107, 243, 174],
   "consumable_plan": {
-    // Default is NO consumption: the door choke and NEVER_MOVE roster make
-    // this a geometry problem, not a supply check, for a level-appropriate warrior.
     "speed_potion": "conditional",
-    "speed_potion_use_when": {
-      "expected_damage_hp_ratio_min": 0.5,
-      "note": "Quaff only when the live three-turn threat projection reaches half of CURRENT hp. With the stationary monsters kept at range, the normal plan exposes only the bee and does not meet this threshold."
-    },
+    "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "3ターン期待被害が現在HPの半分以上の場合だけ飲む。固定敵を射程外に保つ通常計画では飲まない。"},
     "heal_threshold_ratio": 0.55,
-    "other": "Carry food, healing insurance, and about 5 cheap lit torches, but normally consume nothing; re-collect surviving torches and use non-fire ranged damage against the fire-immune death swords."
+    "other": "食料、回復薬、点火用の安価な松明4本を携行する。回収可能な松明は回収し、デスソードには非火炎の遠隔手段を使う。"
   },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
-    // min_hp and min_expected_dps are BINDING; level_guideline is advisory.
     "min_hp": 10, "min_expected_dps": 8, "level_guideline": 5,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
-    "no_healing_tier": {
-      "min_hp": 1894, "min_expected_dps": 49, "heal_potions": 0,
-      "note": "Forced-melee worst model, with no geometry credit: dps 49 kills every real enemy within one player-turn window (max HP: death sword 36, cloaker 49, bee 8). Hengband energy is 30 at speed 130, 15 at speed 120, and 10 at player speed 110, so the policy's unknown-phase ceiling is 4 actions for each speed-130 monster and 3 for the speed-120 bee. Raw maximum incoming is 2*90*4 + 50*4 + 9*3 = 947; fitting that inside 50% of raw HP requires 947/0.50 = 1894."
-    },
-    "rationale": "Battlefield grounding from quest_knowledge: player start/entrance [1,20]; real placements are r_idx 174 killer bee [3,13], r_idx 243 cloaker [7,15], and r_idx 107 death swords [9,11] and [11,9]. The selected hold [10,20] is a parsed floor chokepoint on the east-side door approach. Real roster: two r_idx 107 (36 HP, AC 40, speed 130, blows 5d5 HURT + 5d5 HURT + 20d1 TERRIFY + 20d1 POISON, raw max 90), one r_idx 243 (49 HP, AC 40, speed 130, blows 5d5 PARALYZE + 5d5 TERRIFY, raw max 50), and one r_idx 174 (8 max/5 average HP, AC 34, speed 120, blows 1d5 POISON + 1d4 LOSE_STR, raw max 9). Crucially, r_idx 107 and 243 are NEVER_MOVE, so correct distance-2 play gives them 0 melee actions; only the bee enters the exchange. At an explicit level-appropriate warrior AC 30, Hengband hit arithmetic gives the bee's POISON blow power 5 + 3*level 9 = 32 and LOSE_STR power 0 + 3*9 = 27; after the 5% auto-hit/5% auto-miss rule and AC threshold floor(30*3/4)=22, hit chances are 0.05 + 0.90*(32-22)/32 = 0.331 and 0.05 + 0.90*(27-22)/27 = 0.217. Its expected damage per action is 3.0*0.331 + 2.5*0.217 = 1.536. Use the REAL speed-120 coefficient: energy 15 versus player-speed-110 energy 10, or 1.5 actions per player turn (not a fictitious speed-120 model for the speed-130 monsters). min_expected_dps 8, evaluated against AC 100 by the bot, caps the bee's 8 max HP inside one player turn; the unknown-phase conservative window is 3 bee actions, for 3*1.536 = 4.608 expected incoming. This ONCE quest permits no retreat, so a 50% raw-HP budget gives min_hp = ceil(4.608/0.50) = 10. Two Healing potions are carried as insurance but add nothing to this binding calculation, and normal execution consumes none. A typical level-5 warrior should satisfy 10 HP and 8 expected DPS; level_guideline 5 is advisory only. Lit-torch softening averages 1d6*2.5 = 8.75 against fire-unresistant r_idx 174/243, while fire-immune r_idx 107 receives no claimed brand multiplier."
+    "throwing_items": {"lit_torch": 4},
+    "no_healing_tier": {"min_hp": 54, "min_expected_dps": 8, "heal_potions": 0, "note": "戦術維持下では NEVER_MOVE の r_idx 107 と243に隣接せず、殺人蜂だけが交戦する。遠隔軟化は0、命中率100%、最大ダイス。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 で保守的な交戦窓は3行動、最大被害は 3*9=27。RAW HP の50%に収めるため min_hp=27/0.50=54。dps 8 なら蜂の最大HP 8を1ターンで倒せる。"},
+    "rationale": "配置は殺人蜂 r_idx 174 [3,13]、クローカー r_idx 243 [7,15]、デスソード r_idx 107 [9,11]・[11,9]。後三体は NEVER_MOVE なので距離管理中の近接被害は0。蜂の speed 120 は energy 15、プレイヤー speed 110 は energy 10。実AC 30 に対する期待被害から3行動で4.608、退却不能 ONCE の50%予算により min_hp=ceil(4.608/0.50)=10。AC 100 に対する min_expected_dps=8 は蜂の最大HP 8を1ターンで処理する。投擲は蜂とクローカーの2射線へ各1本の2本に、それぞれ外れ余裕1本を加え lit_torch=2+2=4。戦術崩壊は no_healing_tier に含めない。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
   "generated_at": "2026-07-17T00:00:00+09:00"

@@ -1,44 +1,31 @@
 {
-  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
   "quest_id": 1,
   "name": {"ja": "盗賊の隠れ家", "en": "Thieves Hideout"},
   "approved": true,
-  "approved_note": "User approved 2026-07-17 with: conditional speed potion (expected_damage_hp_ratio_min 0.5), lit-torch ranged softening at distance-2 sighting, and the measured-force gate (min_hp 68 / min_expected_dps 11; level is a guideline only). User-requested no-healing tier added same day: min_hp 134 / min_expected_dps 18 waives the healing-potion carry requirement. Execution remains gated on Phase 5.",
+  "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬、距離2での松明投擲、実測戦力ゲートを使用する。実行は Phase 5 まで禁止。",
   "engagement_plan": {
-    "opening": "Enter at [8,1], clear the west room, then hold the corridor floor at [8,3] before the door.",
+    "opening": "[8,1] から入り、西の部屋を掃討してから扉の手前 [8,3] を確保する。",
     "hold_position": [8, 3],
-    "formation": "Fight from the one-tile corridor; do not advance through the door into multiple adjacent thieves.",
-    "ranged_softening": "When a thief becomes visible at distance 2 through the door (one step before adjacency — matches lantern light radius 2), throw a LIT torch at it before it closes, then melee at distance 1. A lit torch throws as 1d6 with the fire brand (throw-execution.cpp:499/:450), ~8.75 average against these unresistant humans, at ~1-2 gold per torch (50% survive to re-collect)."
+    "formation": "幅1の通路で一体ずつ戦い、扉を越えて複数の盗賊に隣接しない。",
+    "ranged_softening": "扉越しの距離2で盗賊を発見したら、接敵前に点火した松明を1本投げる。松明は 1d6、火炎ブランド込みで平均 8.75。"
   },
   "priority_targets": [150, 44],
   "consumable_plan": {
-    // User directive (2026-07-17): default is NO consumption — even a level-1
-    // warrior has enough force to annihilate this roster without supplies.
-    // The potion is carried as insurance and quaffed only per use_when.
     "speed_potion": "conditional",
-    "speed_potion_use_when": {
-      "expected_damage_hp_ratio_min": 0.5,
-      "note": "Quaff only if the live threat projection (expected 3-turn damage from the threat_prediction machinery) reaches half of CURRENT hp during the engagement. The static worst-case (88) never satisfies this for a healthy warrior, so the normal run consumes nothing."
-    },
+    "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "生存中の脅威予測による3ターン期待被害が現在HPの半分以上になった場合だけ飲む。"},
     "heal_threshold_ratio": 0.55,
-    "other": "Carry food, healing, and ~5 cheap torches (lit) for the ranged softening; consume potions only per the criteria above."
+    "other": "食料、回復薬、点火用の安価な松明5本を携行する。薬は条件を満たす場合だけ使う。"
   },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": false},
   "required_force": {
-    // User directive (2026-07-17): gate on measured quantities, not level.
-    // min_hp and min_expected_dps are BINDING (the bot can evaluate both:
-    // max_hp from the snapshot, expected DPS from weapon_expected_dps);
-    // level_guideline is advisory only.
     "min_hp": 68, "min_expected_dps": 11, "level_guideline": 5,
     "resists": [], "speed_potions": 1, "heal_potions": 2,
-    // Second tier (user-requested): at this measured force the quest is safe
-    // with ZERO healing potions carried — the insurance term drops out of
-    // the survivability formula entirely.
+    "throwing_items": {"lit_torch": 5},
     "no_healing_tier": {
-      "min_hp": 134, "min_expected_dps": 18, "heal_potions": 0,
-      "note": "Worst-model incoming with softening (67, already pessimistic: speed-120 double actions, max damage) must fit HALF the raw HP pool with no potion term: min_hp = 67/0.50 ~= 134. dps >= 18 kills an average robber (36 HP) in 2 rounds even when its torch misses, so no enemy exceeds the modeled 2-action window, and one-shots an apprentice after the torch chip."
+      "min_hp": 272, "min_expected_dps": 18, "heal_potions": 0,
+      "note": "戦術維持下の最悪値。単列を保ち、松明4投がすべて外れる。双方 speed 110（energy 10）のため敵はプレイヤー1ターンに1行動。r_idx 150 は最大HP 64、dps 18 では ceil(64/18)=4 ターン、最大12被害なので2体で 2*4*12=96。r_idx 44 は最大HP 32、ceil(32/18)=2 ターン、最大10被害なので2体で 2*2*10=40。合計136を RAW HP の50%に収め、min_hp=136/0.50=272。"
     },
-    "rationale": "Threat-gate arithmetic from the real roster: at modeled speed 120, two r_idx 150 each act twice for 2*12 damage and two r_idx 44 each act twice for 2*10, so the three-turn worst-adjacent total is 88 WITHOUT ranged softening. WITH the torch plan (user-directed recalculation, distance-2 sighting assumption): each approaching thief eats one lit-torch throw of 1d6*2.5 fire-brand = 8.75 average (game source throw-execution.cpp:499, brand via torch_flags; thieves carry no fire resistance). Assumed throw hit rates ~75% vs AC12 (r44) and ~60% vs AC24 (r150), and ~12/round warrior melee: a hit drops an average r44 (8d4, avg 20 HP) from a 2-round to a 1-round kill (expected -7.5 incoming each, -15 total); an average r150 (8d8, avg 36 HP, AC24) loses ~0.25 round expected (-3 each, -6 total). Revised worst-adjacent total ~= 88-21 = 67 (best case with all four torches landing: ~56). Torch cost ~4-8 gold total, so the softening is consistent with the no-consumable default. Two Healing potions provide 600 HP; requiring 67 < 0.50*(min_hp+600) still gives min_hp >= 1 after integer rounding. The BINDING gate is measured force, not level (user-directed): real blows are r150 = one 2d6 hit (avg 7, monster level 8) and r44 = two 1d5 hits (avg 6, monster level 2); at ~55% monster hit rate the corridored single-file exchange with torch softening costs an expected ~34 HP to clear all four when the character deals >= 11 damage/round. This ONCE quest allows no retreat, so the exchange must fit a 50% HP budget: min_hp = 34/0.50 = 68, min_expected_dps = 11. A typical warrior reaches both around level 5-6 (level_guideline 5), but a high-CON or well-armed character qualifies earlier and a frail one correctly does not. The verified floor chokepoint [8,3] limits melee exposure before the [8,4] door. This ONCE quest cannot be aborted."
+    "rationale": "実ロスターは r_idx 150 が2体、r_idx 44 が2体。[8,3] の隘路で単列を維持する。通常ゲートは松明軟化込みの期待交戦被害約34を、退却不能 ONCE の50%予算に収めるため min_hp=34/0.50=68、AC 100 に対する実期待火力 min_expected_dps=11。投擲は接近する4体へ各1本の4本に、外れ・未回収の余裕1本を足して lit_torch=4+1=5。速度薬は expected_damage_hp_ratio_min=0.5 の場合だけ使う。level_guideline は参考値であり拘束条件ではない。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
   "generated_at": "2026-07-16T00:00:00+09:00"

@@ -93,6 +93,16 @@ class QuestStrategiesTest(unittest.TestCase):
                         self.assertIn(position, info.battlefield.chokepoints)
                 roster_ids = {r_idx for r_idx, _ in info.threat_roster}
                 self.assertLessEqual(set(data["priority_targets"]), roster_ids)
+                force = data["required_force"]
+                throwing_items = force.get("throwing_items", {})
+                self.assertIsInstance(throwing_items, dict)
+                for quantity in throwing_items.values():
+                    self.assertIsInstance(quantity, int)
+                    self.assertNotIsInstance(quantity, bool)
+                    self.assertGreaterEqual(quantity, 0)
+                no_healing = force.get("no_healing_tier")
+                if no_healing is not None:
+                    self.assertGreaterEqual(no_healing["min_hp"], force["min_hp"])
 
 
 if __name__ == "__main__":

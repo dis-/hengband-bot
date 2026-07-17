@@ -1,35 +1,21 @@
 {
-  // FORMAT DRAFT: this profile cannot be executed until a user approves it.
   "quest_id": 14,
-  "name": {"ja": "ワーグを殱滅せよ", "en": "Warg problem"},
+  "name": {"ja": "ワーグを殲滅せよ", "en": "Warg problem"},
   "approved": true,
-  "approved_note": "User approved 2026-07-17 with: conditional speed potion (expected_damage_hp_ratio_min 0.5) and the measured-force gate (min_hp 120 / min_expected_dps 13; level is a guideline only). Retreat allowed (non-ONCE). Execution remains gated on Phase 5.",
-  "engagement_plan": {
-    "opening": "On dungeon level 5, scout from the arrival area and draw Wargs back one at a time.",
-    "hold_position": null,
-    "formation": "Use the narrowest locally observed corridor; this random dungeon-level quest has no preset battlefield coordinate in quest_knowledge."
-  },
+  "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬と実測戦力ゲートを使用し、退却を許可する。実行は Phase 5 まで禁止。",
+  "engagement_plan": {"opening": "地下5階の到着地点から偵察し、ワーグを一体ずつ引き寄せる。", "hold_position": null, "formation": "現地で確認した最も狭い通路を使う。ランダム階のため固定座標はない。"},
   "priority_targets": [257],
   "consumable_plan": {
-    // User directive (2026-07-17): default is NO consumption — even a level-1
-    // warrior has enough force to annihilate this roster without supplies.
-    // Wargs are speed 120, so the ratio can genuinely trip when a pack
-    // corners the character in the open; that is the only quaff case.
     "speed_potion": "conditional",
-    "speed_potion_use_when": {
-      "expected_damage_hp_ratio_min": 0.5,
-      "note": "Quaff only if the live threat projection (expected 3-turn damage from the threat_prediction machinery) reaches half of CURRENT hp during the engagement — e.g. multiple Wargs simultaneously adjacent in open terrain. Corridor fights consume nothing."
-    },
+    "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "3ターン期待被害が現在HPの半分以上の場合だけ飲む。通路での通常戦闘では消費しない。"},
     "heal_threshold_ratio": 0.55,
-    "other": "Carry food, light, and two Healing potions; consume only per the criteria above."
+    "other": "食料、光源、回復薬2本を携行し、条件を満たす場合だけ使う。"
   },
   "abort_conditions": {"hp_ratio": 0.30, "allowed": true},
   "required_force": {
-    // User directive (2026-07-17): gate on measured quantities, not level.
-    // min_hp and min_expected_dps are BINDING; level_guideline is advisory.
     "min_hp": 120, "min_expected_dps": 13, "level_guideline": 8,
-    "resists": [], "speed_potions": 1, "heal_potions": 2,
-    "rationale": "Threat-gate arithmetic from the real roster of sixteen r_idx 257: the eight-monster simultaneous cap, max melee 10 (one 1d10 bite), speed 120, and three actions in three modeled turns gives 8*10*3=240 incoming worst-case. Two Healing potions provide 600 HP; requiring 240 < 0.50*(min_hp+600) gives min_hp >= 1 after integer rounding. The BINDING gate is measured force, not level (user-directed; the wargs are monster LEVEL 14, so any quest-level-based figure would mislead): corridored, ~1.5 adjacent wargs averaging ~1.5 actions each (speed 120 vs 110) at ~55% hit = ~6.8 expected incoming per round; a four-warg wave lasts ~12 rounds when the character deals >= 13 damage/round (3 kill-rounds per average 36-HP warg), costing an expected ~82 HP. Retreat IS allowed (abort at 0.30), so the wave must fit the usable 70% of the pool: min_hp = 82/0.70 ~= 120, min_expected_dps = 13. A typical warrior reaches ~120 HP around level 10 (level_guideline 8 with above-average CON or gear; the HP gate, not the level, decides). Rest between waves restores the pool; abort resets the attempt at no quest cost. Retreat is allowed (non-ONCE): abort resets the attempt at no quest cost. No static hold coordinate exists because quest_knowledge correctly reports no preset battlefield; choose a defensible observed corridor at runtime."
+    "resists": [], "speed_potions": 1, "heal_potions": 2, "throwing_items": {},
+    "rationale": "r_idx 257 のワーグ16体。speed 120 の energy 15 とプレイヤー speed 110 の energy 10 から1.5行動/ターン。通路で平均1.5体が接敵し、命中率約55%、4体の波を min_expected_dps=13 で処理すると期待被害約82。退却可能なので70%予算を使い min_hp=ceil(82/0.70)=120。固定地形がなく単列維持を保証できないため、戦術維持下の一意な最大接敵数を定義できず no_healing_tier は設けない。戦術が崩れた場合は hp_ratio=0.30 で中止する。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
   "generated_at": "2026-07-16T00:00:00+09:00"
