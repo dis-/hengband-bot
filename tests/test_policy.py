@@ -4950,6 +4950,52 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "pa\r\r\ry")
         self.assertEqual(policy.last_reason, "shop:buy-recall")
 
+    def test_cycle_break_preserves_shallow_recall_purchase_errand(self):
+        snap = Snapshot(
+            player(10, 10, gold=3616, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=self._strict_supplies(recall=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._last_return_trigger = "recall-low"
+
+        policy._break_town_cycle(snap)
+
+        self.assertFalse(policy._town_restock_suppressed)
+        self.assertEqual(policy._next_required_store_type(snap), STORE_TEMPLE)
+        self.assertNotIn(STORE_TEMPLE, policy._town_store_attempted)
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+    def test_unbuyable_recall_does_not_bounce_shallow_dive(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=self._strict_supplies(recall=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+
+        self.assertFalse(policy._recall_return_needed(snap))
+        self.assertFalse(policy._should_start_town_return(snap))
+
+    def test_missing_recall_still_triggers_deep_return(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, RECALL_MIN_DEPTH, 0),
+            inventory=self._strict_supplies(recall=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+
+        self.assertTrue(policy._should_start_town_return(snap))
+        self.assertEqual(policy._last_return_trigger, "recall-low")
+
     def test_returns_when_recall_stock_falls_below_depth_target(self):
         grids = {Position(10, 10): grid(10, 10, upstairs=True)}
         snap = Snapshot(

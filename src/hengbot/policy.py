@@ -3204,7 +3204,15 @@ class HengbotPolicy:
     def _recall_departure_minimum(self, snapshot: Snapshot) -> int:
         """Hard minimum that must remain available when leaving town."""
         if self._planned_depth() < RECALL_MIN_DEPTH:
-            return self._recall_required_target(snapshot)
+            # Recall remains a preferred purchase for a shallow expedition,
+            # but after both suppliers are exhausted the entrance is still a
+            # realistic way home.  Do not turn an unavailable convenience
+            # item into a town/depth-1 carousel.
+            suppliers_exhausted = all(
+                store in self._town_store_attempted
+                for store in (STORE_TEMPLE, STORE_ALCHEMIST)
+            )
+            return 0 if suppliers_exhausted else self._recall_required_target(snapshot)
         if (
             snapshot.in_town
             and self._target_dungeon_id == DUNGEON_YEEK_CAVE
@@ -3228,7 +3236,7 @@ class HengbotPolicy:
         count = self._count_recall_scrolls(snapshot)
         if snapshot.dungeon_level >= RECALL_MIN_DEPTH:
             return count <= RECALL_RETURN_THRESHOLD
-        return count < self._recall_target(max(1, snapshot.dungeon_level))
+        return False
 
     def _recall_required_target(self, snapshot: Snapshot) -> int:
         if (
@@ -7716,8 +7724,20 @@ class HengbotPolicy:
         gates take over); the session/disposal/travel resets kill the other
         observed drivers. The latches expire on the normal STORE_RETRY_TURNS
         schedule, so a later town visit shops normally again."""
+        # Do not let a Home/approach cycle cancel an affordable missing recall
+        # errand.  Leave its two suppliers eligible and pin them as the next
+        # circuit; if neither has stock, their normal attempted latches make
+        # shallow recall optional and allow departure on foot.
+        preserve_recall = (
+            self._last_return_trigger == "recall-low"
+            and not self._recall_ready(snapshot)
+        )
+        recall_stores = {STORE_TEMPLE, STORE_ALCHEMIST}
         for store_type in range(len(TOWN_TRAVEL_STORE_SYMBOLS) + 1):
-            self._town_store_attempted.setdefault(store_type, snapshot.turn)
+            if preserve_recall and store_type in recall_stores:
+                self._town_store_attempted.pop(store_type, None)
+            else:
+                self._town_store_attempted.setdefault(store_type, snapshot.turn)
         self._abandon_blocked_equipment_transaction()
         self._clear_pending_disposal()
         self._shopping_approach_goal = None
@@ -7746,8 +7766,12 @@ class HengbotPolicy:
         # After a cycle the goal is DEPARTURE, not errands: without this, a
         # restock-retry path starts a fresh in-town wait, un-latches the very
         # stores above when it expires, and the cycle resumes.
-        self._town_restock_suppressed = True
-        self._town_errand_plan = None
+        self._town_restock_suppressed = not preserve_recall
+        self._town_errand_plan = (
+            TownErrandPlan([STORE_TEMPLE, STORE_ALCHEMIST])
+            if preserve_recall
+            else None
+        )
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:
