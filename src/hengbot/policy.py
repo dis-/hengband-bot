@@ -1296,16 +1296,14 @@ class HengbotPolicy:
         self._town_store_attempted: dict[int, int] = {}
         self._town_restock_wait_until: int | None = None
         self._town_restock_rechecked: set[int] = set()
-        # Normal Remove Curse can fail against a heavy curse.  Verify each read
-        # against the next emitted equipment state and remember the item, rather
-        # than treating an unchanged curse as an endlessly renewable town need.
-        # This evidence is intentionally process-local: a restart may spend two
-        # normal scrolls to re-establish it.  The compact (name, tval, sval)
-        # identity can also merge identical rings; that only suppresses futile
-        # normal-scroll retries and still permits the shared star-scroll remedy.
+        # Normal Remove Curse can fail against a heavy curse.  A confirmed
+        # unchanged read records that fact both in the runtime latch and in a
+        # player-visible, savefile-persistent inscription.  All curse consumers
+        # consult _curse_unremovable(), never either backing store directly.
         self._remove_curse_watch: tuple[tuple[str, int, int], int, int] | None = None
         self._remove_curse_unchanged: Counter[tuple[str, int, int]] = Counter()
         self._heavy_cursed_items: set[tuple[str, int, int]] = set()
+        self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
         self._last_sell_sig: tuple | None = None
         self._store_sell_stuck_count = 0
         # Explicit Home-capacity failures may stop deposits for one town visit.
@@ -1950,6 +1948,10 @@ class HengbotPolicy:
         restore_weapon = self._town_restore_weapon_key(snapshot)
         if restore_weapon is not None:
             return restore_weapon
+
+        mark_heavy_curse = self._heavy_curse_inscription_key(snapshot)
+        if mark_heavy_curse is not None:
+            return mark_heavy_curse
 
         remove_curse = self._town_remove_curse_key(snapshot)
         if remove_curse is not None:
@@ -4322,12 +4324,17 @@ class HengbotPolicy:
                 blocker.startswith("cursed-equipped:")
                 for blocker in preparation.blockers
             )
-            and self._has_heavy_remove_curse_target(snapshot)
+            and (
+                any(
+                    item.is_cursed and self._curse_unremovable(item)
+                    for item in snapshot.equipment
+                )
+                or not self._normal_remove_curse_actionable_this_visit(snapshot)
+            )
         ):
-            # A confirmed heavy curse can make the optimizer's preferred swap
-            # impossible until an opportunistic *Remove Curse* appears.  It is
-            # not a departure requirement: keep the current legal loadout and
-            # dive instead of wandering town forever.
+            # A confirmed heavy curse, or a curse with no normal remedy left
+            # this visit, can make the optimizer's preferred swap impossible.
+            # Keep the current legal loadout and dive instead of wandering town.
             return True
         return bool(
             preparation is not None
@@ -8376,23 +8383,47 @@ class HengbotPolicy:
     def _has_normal_remove_curse_target(self, snapshot: Snapshot) -> bool:
         return any(
             item.is_cursed
-            and self._item_signature(item) not in self._heavy_cursed_items
+            and not self._curse_unremovable(item)
             for item in snapshot.equipment
         )
 
-    def _has_heavy_remove_curse_target(self, snapshot: Snapshot) -> bool:
+    def _curse_unremovable(self, item: InventoryItem | StoreItem) -> bool:
+        """Single authority for confirmed heavy/permanent curse status."""
+        return (
+            "HEAVY_CURSE" in item.inscription
+            or self._item_signature(item) in self._heavy_cursed_items
+        )
+
+    def _has_unremovable_curse_target(self, snapshot: Snapshot) -> bool:
         return any(
-            item.is_cursed
-            and self._item_signature(item) in self._heavy_cursed_items
+            item.is_cursed and self._curse_unremovable(item)
             for item in snapshot.equipment
         )
+
+    def _normal_remove_curse_actionable_this_visit(self, snapshot: Snapshot) -> bool:
+        if not self._has_normal_remove_curse_target(snapshot):
+            return False
+        if any(
+            item.is_scroll and item.aware and item.sval == SV_SCROLL_REMOVE_CURSE
+            for item in snapshot.inventory
+        ):
+            return True
+        store = snapshot.store
+        if store is not None and store.store_type == STORE_TEMPLE:
+            return any(
+                item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_REMOVE_CURSE
+                and item.price <= snapshot.player.gold
+                for item in store.items
+            )
+        return STORE_TEMPLE not in self._town_store_attempted
 
     def _affordable_star_remove_curse(self, snapshot: Snapshot) -> StoreItem | None:
         store = snapshot.store
         if (
             store is None
             or store.store_type != STORE_TEMPLE
-            or not self._has_heavy_remove_curse_target(snapshot)
+            or not self._has_unremovable_curse_target(snapshot)
         ):
             return None
         return next(
@@ -8429,8 +8460,35 @@ class HengbotPolicy:
             return
         if scroll_sval == SV_SCROLL_REMOVE_CURSE:
             self._remove_curse_unchanged[signature] += 1
-            if self._remove_curse_unchanged[signature] >= 2:
-                self._heavy_cursed_items.add(signature)
+            self._heavy_cursed_items.add(signature)
+            self._heavy_curse_inscription_pending = signature
+
+    def _heavy_curse_inscription_key(self, snapshot: Snapshot) -> str | None:
+        signature = self._heavy_curse_inscription_pending
+        if signature is None or not snapshot.in_town:
+            return None
+        target = next(
+            (
+                item for item in snapshot.equipment
+                if item.is_cursed and self._item_signature(item) == signature
+            ),
+            None,
+        )
+        if target is None or "HEAVY_CURSE" in target.inscription:
+            self._heavy_curse_inscription_pending = None
+            return None
+        if snapshot.store is not None:
+            self.last_reason = "equipment:leave-store-to-mark-heavy-curse"
+            return LEAVE_STORE_KEY
+        slot_key = EQUIPMENT_SLOT_KEY.get(target.slot)
+        if slot_key is None:
+            return None
+        self._heavy_curse_inscription_pending = None
+        # Hengband pre-fills the input with the existing inscription.  Prefixing
+        # a space appends without clobbering it and is also harmless when empty.
+        suffix = " HEAVY_CURSE"
+        self.last_reason = "equipment:mark-heavy-curse"
+        return INSCRIBE_KEY + "/" + slot_key + suffix + "\r"
 
     def _find_remove_curse_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
@@ -8452,7 +8510,7 @@ class HengbotPolicy:
             (
                 item for item in snapshot.equipment
                 if item.is_cursed
-                and self._item_signature(item) not in self._heavy_cursed_items
+                and not self._curse_unremovable(item)
             ),
             None,
         )

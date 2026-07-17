@@ -323,6 +323,7 @@ class NewestSnapshotTest(unittest.TestCase):
                 "aware": False,
                 "known": False,
                 "pseudo_feeling": "average",
+                "inscription": "keep HEAVY_CURSE",
             }
         ]
 
@@ -335,6 +336,7 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertFalse(item.known)
         self.assertFalse(item.fully_known)
         self.assertEqual(item.pseudo_feeling, "average")
+        self.assertEqual(item.inscription, "keep HEAVY_CURSE")
 
     def test_parses_the_in_town_flag(self):
         data = json.loads(_snap_line(100, 5, 5))

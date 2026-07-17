@@ -273,6 +273,7 @@ def item(
     is_ego=False,
     is_artifact=False,
     is_cursed=False,
+    inscription="",
     is_broken=False,
     is_bounty=False,
     to_h=0,
@@ -291,7 +292,8 @@ def item(
         slot=slot, name=name, count=count, tval=tval, sval=sval, aware=aware,
         known=known, fully_known=fully_known, charges=charges, fuel=fuel,
         is_equipment=is_equipment, is_ego=is_ego, is_artifact=is_artifact,
-        is_cursed=is_cursed, is_broken=is_broken, to_h=to_h, to_d=to_d,
+        is_cursed=is_cursed, inscription=inscription, is_broken=is_broken,
+        to_h=to_h, to_d=to_d,
         is_bounty=is_bounty,
         to_a=to_a, ac=ac, pval=pval, known_flags=known_flags,
         damage_dice_num=damage_dice_num,
@@ -11439,21 +11441,36 @@ class RemoveCurseTest(unittest.TestCase):
         self.assertIsNotNone(purchase)
         self.assertEqual(purchase.sval, SV_SCROLL_REMOVE_CURSE)
 
-    def test_two_unchanged_normal_reads_latch_heavy_curse_and_prune_temple(self):
+    def test_unchanged_normal_read_latches_and_marks_heavy_curse(self):
         cursed = item(
-            "a", 23, 0, is_equipment=True, is_cursed=True,
-            known=True, name="incident cursed ring",
+            "main_ring", 23, 0, is_equipment=True, is_cursed=True,
+            known=True, name="incident cursed ring", inscription="keep",
         )
         normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
         policy = HengbotPolicy()
-        for _attempt in range(2):
-            snapshot = self._town([cursed], [normal])
-            self.assertEqual(policy._town_remove_curse_key(snapshot), "rs")
-            policy._observe(self._town([cursed], []))
+        snapshot = self._town([cursed], [normal])
+        self.assertEqual(policy._town_remove_curse_key(snapshot), "rs")
+        policy._observe(self._town([cursed], []))
 
         self.assertIsNone(policy._town_remove_curse_key(self._town([cursed], [normal])))
+        self.assertEqual(
+            policy._heavy_curse_inscription_key(self._town([cursed])),
+            "{/d HEAVY_CURSE\r",
+        )
+        self.assertIsNone(policy._heavy_curse_inscription_key(self._town([cursed])))
         needs = policy._enumerate_town_needs(self._town([cursed], []))
         self.assertNotIn(TownNeed(STORE_TEMPLE, "remove-curse", "normal"), needs)
+
+    def test_inscription_authority_survives_restart_without_normal_read(self):
+        cursed = item(
+            "main_ring", 23, 0, is_equipment=True, is_cursed=True,
+            inscription="keep HEAVY_CURSE", name="incident cursed ring",
+        )
+        normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+        policy = HengbotPolicy()
+        self.assertTrue(policy._curse_unremovable(cursed))
+        self.assertIsNone(policy._town_remove_curse_key(self._town([cursed], [normal])))
+        self.assertFalse(policy._remove_curse_unchanged)
 
     def test_star_remove_curse_loot_is_used_for_heavy_latch(self):
         cursed = item(
@@ -11543,6 +11560,32 @@ class RemoveCurseTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
 
         self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
+
+    def test_unactionable_curse_optimizer_blocker_does_not_block_departure(self):
+        cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_TEMPLE] = 0
+        blocked = SimpleNamespace(
+            blockers=("cursed-equipped:equipped:ring:0",),
+            transaction=None,
+            ready=False,
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: blocked
+        self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
+
+    def test_actionable_normal_scroll_keeps_departure_blocked(self):
+        cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
+        normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+        policy = HengbotPolicy()
+        blocked = SimpleNamespace(
+            blockers=("cursed-equipped:equipped:ring:0",),
+            transaction=None,
+            ready=False,
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: blocked
+        self.assertFalse(
+            policy._equipment_departure_ready(self._town([cursed], [normal]))
+        )
 
     def test_interrupted_normal_read_does_not_advance_heavy_latch(self):
         cursed = item("a", 23, 0, is_equipment=True, is_cursed=True, name="cursed")

@@ -270,6 +270,7 @@ class InventoryItem:
     is_ego: bool = False
     is_artifact: bool = False
     is_cursed: bool = False
+    inscription: str = ""
     is_broken: bool = False
     is_bounty: bool = False
     to_h: int = 0
@@ -413,6 +414,7 @@ class StoreItem:
     is_ego: bool = False
     is_artifact: bool = False
     is_cursed: bool = False
+    inscription: str = ""
     is_broken: bool = False
     to_h: int = 0
     to_d: int = 0
@@ -940,6 +942,7 @@ def _parse_store(store_data: Any) -> "StoreState | None":
             is_ego=_as_bool(it.get("is_ego", False)),
             is_artifact=_as_bool(it.get("is_artifact", False)),
             is_cursed=_as_bool(it.get("is_cursed", False)),
+            inscription=str(it.get("inscription", "")),
             is_broken=_as_bool(it.get("is_broken", False)),
             to_h=int(it.get("to_h", 0)),
             to_d=int(it.get("to_d", 0)),
@@ -994,6 +997,7 @@ def _parse_items(items_data: Any) -> list[InventoryItem]:
                 is_ego=_as_bool(item_data.get("is_ego", False)),
                 is_artifact=_as_bool(item_data.get("is_artifact", False)),
                 is_cursed=_as_bool(item_data.get("is_cursed", False)),
+                inscription=str(item_data.get("inscription", "")),
                 is_broken=_as_bool(item_data.get("is_broken", False)),
                 is_bounty=_as_bool(item_data.get("is_bounty", False)),
                 to_h=int(item_data.get("to_h", 0)),
