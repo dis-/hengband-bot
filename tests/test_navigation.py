@@ -8,10 +8,13 @@ doomed goal to each other for 1600+ decisions while the character ate its
 last ration and reached food_state "weak" with an empty pack.
 """
 
+import json
 import unittest
+from collections import Counter
 from dataclasses import replace
+from pathlib import Path
 
-from hengbot.model import Position, Snapshot
+from hengbot.model import Position, Snapshot, parse_snapshot
 from hengbot.cli import LOOP_WINDOW, STARVING_STOP_LIMIT, _advance_starving_streak
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
@@ -88,6 +91,73 @@ class NavigationLedgerTest(unittest.TestCase):
         target = Position(1, 1)
         ledger.expire("descend", target)
         self.assertTrue(ledger.is_expired("descend", target))
+
+    def test_ledger_owns_committed_descent_route(self):
+        ledger = NavigationLedger()
+        target = Position(3, 3)
+        path = [Position(2, 2), target]
+        ledger.commit_descent_route(target, path)
+        ledger.advance_descent_route(path[0])
+        self.assertEqual(ledger.descent_target, target)
+        self.assertEqual(ledger.descent_path, (target,))
+        ledger.expire("descend", target)
+        self.assertIsNone(ledger.descent_target)
+        self.assertEqual(ledger.descent_path, ())
+
+
+class DescentIncidentReplayTest(unittest.TestCase):
+    """Reusable JSONL incident replay harness for committed descent routes."""
+
+    FIXTURES = Path(__file__).with_name("fixtures")
+
+    @classmethod
+    def _load_jsonl(cls, name):
+        with (cls.FIXTURES / name).open(encoding="utf-8-sig") as stream:
+            return [json.loads(line) for line in stream if line.strip()]
+
+    def test_2256_window_commits_one_stair_and_makes_monotonic_progress(self):
+        incident = self._load_jsonl("descent-routing-2026-07-17-2256.jsonl")
+        original_positions = [
+            (row["position"]["y"], row["position"]["x"]) for row in incident
+        ]
+        self.assertGreaterEqual(max(Counter(original_positions).values()), 3)
+        self.assertIn(("3", "7"), zip(
+            (row["key"] for row in incident),
+            (row["key"] for row in incident[1:]),
+        ))
+
+        snapshots = [
+            parse_snapshot(row)
+            for row in self._load_jsonl(
+                "descent-routing-2026-07-17-2256-snapshots.jsonl"
+            )
+        ]
+        self.assertEqual([snapshot.turn for snapshot in snapshots], [885296, 885302])
+
+        policy = HengbotPolicy()
+        policy._floor_key = snapshots[0].floor_key
+        policy._remembered_downstairs.update(
+            grid.position
+            for grid in snapshots[0].grids.values()
+            if grid.has_down_stairs
+        )
+        visited = [snapshots[0].player.position]
+        keys = []
+        targets = []
+        for snapshot in snapshots:
+            self.assertEqual(snapshot.player.position, visited[-1])
+            policy._build_grid_index(snapshot)
+            step = policy._descent_step(snapshot)
+            self.assertIsNotNone(step)
+            targets.append(policy._nav_ledger.descent_target)
+            keys.append(policy._direction_key(snapshot.player.position, step))
+            visited.append(step)
+
+        self.assertEqual(visited, [Position(15, 58), Position(16, 59), Position(15, 60)])
+        self.assertEqual(targets, [Position(15, 60), Position(15, 60)])
+        self.assertEqual(keys, ["3", "9"])
+        self.assertLess(max(Counter(visited).values()), 3)
+        self.assertNotIn(("3", "7"), zip(keys, keys[1:]))
 
 
 class StairRejectionInvalidationTest(unittest.TestCase):

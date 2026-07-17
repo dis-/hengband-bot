@@ -1077,7 +1077,7 @@ class DescendTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "2")
         self.assertEqual(policy.last_reason, "approach-descent")
 
-    def test_breaks_out_of_an_unreachable_stair_approach_cycle(self):
+    def test_unreachable_stair_cycle_keeps_one_committed_target(self):
         grids = {
             Position(y, x): grid(y, x, passable=False)
             for y in range(7, 13)
@@ -1108,8 +1108,9 @@ class DescendTest(unittest.TestCase):
             width=30,
             height=30,
         )
-        self.assertEqual(policy.choose_key(snapshot), "4")
-        self.assertEqual(policy.last_reason, "breakout:descent")
+        policy.choose_key(snapshot)
+        self.assertEqual(policy._nav_ledger.descent_target, Position(8, 12))
+        self.assertNotEqual(policy.last_reason, "breakout:descent")
 
     def test_descends_when_standing_on_downstairs_and_healthy(self):
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}

@@ -12572,10 +12572,12 @@ class HengbotPolicy:
         return None
 
     def _descent_step(self, snapshot: Snapshot) -> Position | None:
-        """One BFS that either paths to a reachable downstairs/entrance, or, when
-        the nearest known one is walled off (its approach unmapped), steps toward
-        the reachable frontier closest to it. Sets ``last_reason`` accordingly and
-        records the chosen goal in ``_descent_target_goal`` (for native travel)."""
+        """Follow the ledger-owned route to one committed descent target.
+
+        Target selection happens only when no commitment is live.  A blocked
+        step or an interrupt that moved the player off-route re-paths to the
+        same stair; rejection, expiry, arrival, and floor change invalidate it.
+        """
         self._descent_target_goal = None
         if self._descent_is_blocked(snapshot):
             return None
@@ -12603,37 +12605,64 @@ class HengbotPolicy:
                 self._remembered_downstairs - visible_targets - expired
             )
             targets.update(forgotten_targets)
+        origin = snapshot.player.position
+        # Reaching a route target ends that commitment.  If descent handling
+        # deliberately falls through to routing while standing on a stair,
+        # choose another stair rather than path away and then back to this one.
+        targets.discard(origin)
+        if self._nav_ledger.descent_target == origin:
+            self._nav_ledger.clear_descent_route()
         if not targets:
             # Night in a static town: the '>' entrance is unlit and absent from
             # the emitted grids, so the emitted-target scan above finds nothing.
-            # Route to the town map's remembered entrance instead (only while we
-            # would actually walk in — a deep run recalls; see _town_special_key).
+            # Commit to the town map's remembered entrance instead (only while
+            # we would actually walk in — a deep run recalls).
             entrance = self._town_map_descent_entrance(snapshot)
             if entrance is not None and entrance not in expired:
-                step = self._town_map_goal_step(snapshot, entrance)
-                if step is not None:
-                    self.last_reason = "seek-downstairs"
-                    # The entrance is REMEMBER terrain, so the game itself still
-                    # knows it in the dark — native travel can take this leg too.
-                    self._descent_target_goal = entrance
-                    return step
-            return None
-        if self._is_oscillating() and not forgotten_targets:
-            breakout = self._least_visited_neighbor(snapshot)
-            if breakout is not None:
-                self.last_reason = "breakout:descent"
-                return breakout
-        origin = snapshot.player.position
-        target = min(targets, key=lambda t: origin.distance_to(t))
+                targets.add(entrance)
+            else:
+                self._nav_ledger.clear_descent_route()
+                return None
+        committed = self._nav_ledger.descent_target
+        if committed is not None and committed not in targets:
+            self._nav_ledger.clear_descent_route()
+            committed = None
+        if committed is None:
+            # Distance chooses the useful stair; coordinates make every tie
+            # deterministic instead of inheriting set/BFS iteration order.
+            target = min(targets, key=lambda t: (origin.distance_to(t), t.y, t.x))
+            self._nav_ledger.commit_descent_route(target, ())
+        else:
+            target = committed
         self._descent_target_goal = target
+        if origin == target:
+            self._nav_ledger.clear_descent_route()
+            return None
+
+        self._nav_ledger.advance_descent_route(origin)
+        route = self._nav_ledger.descent_path
+        if route:
+            nxt = route[0]
+            if origin.distance_to(nxt) == 1 and self._is_step_open(snapshot, origin, nxt):
+                self._nav_ledger.observe("descend", target, len(route))
+                if self._nav_ledger.is_expired("descend", target):
+                    self._descent_target_goal = None
+                    return None
+                self.last_reason = "seek-downstairs"
+                return nxt
+            # A wall/monster or an off-path survival/combat move invalidates
+            # only the path.  The target remains owned by the ledger.
+            self._nav_ledger.replace_descent_path(())
 
         seen = {origin}
         queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])
+        parent: dict[Position, Position | None] = {origin: None}
         best_first: Position | None = None
+        best_frontier: Position | None = None
         best_score: tuple[int, int, int] | None = None
         while queue:
             pos, first, path_distance = queue.popleft()
-            if pos != origin and pos in targets:
+            if pos != origin and pos == target:
                 # Reachable target: record true path length. It shrinks every
                 # real step, so a legitimate walk never expires — only a step
                 # the game keeps rejecting accumulates stall here.
@@ -12641,17 +12670,17 @@ class HengbotPolicy:
                 if self._nav_ledger.is_expired("descend", pos):
                     self._descent_target_goal = None
                     return None
+                path: list[Position] = []
+                cursor: Position | None = pos
+                while cursor is not None and cursor != origin:
+                    path.append(cursor)
+                    cursor = parent[cursor]
+                path.reverse()
+                self._nav_ledger.commit_descent_route(target, path)
                 self.last_reason = "seek-downstairs"
                 return first
             grid = snapshot.grids.get(pos)
             if pos != origin and grid is not None:
-                if self._is_descent_target(snapshot, grid):
-                    self._nav_ledger.observe("descend", pos, path_distance)
-                    if self._nav_ledger.is_expired("descend", pos):
-                        self._descent_target_goal = None
-                        return None
-                    self.last_reason = "seek-downstairs"
-                    return first
                 if self._is_frontier(snapshot, grid):
                     visits = self._visit_counts[pos]
                     target_distance = pos.distance_to(target)
@@ -12663,10 +12692,12 @@ class HengbotPolicy:
                     if best_score is None or score < best_score:
                         best_score = score
                         best_first = first
+                        best_frontier = pos
             for neighbor in self._walkable_neighbors(snapshot, pos):
                 if neighbor in seen:
                     continue
                 seen.add(neighbor)
+                parent[neighbor] = pos
                 queue.append(
                     (
                         neighbor,
@@ -12687,6 +12718,13 @@ class HengbotPolicy:
             if self._nav_ledger.is_expired("descend", target):
                 self._descent_target_goal = None
                 return None
+            path = []
+            cursor = best_frontier
+            while cursor is not None and cursor != origin:
+                path.append(cursor)
+                cursor = parent[cursor]
+            path.reverse()
+            self._nav_ledger.commit_descent_route(target, path)
             self.last_reason = "approach-descent"
         return best_first
 

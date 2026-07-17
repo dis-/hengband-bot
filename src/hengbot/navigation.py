@@ -19,7 +19,7 @@ well inside the budget) so they never expire mid-route.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Hashable
+from typing import Hashable, Sequence
 
 # Decisions a committed target may go without improving its best achieved
 # distance before it expires for the floor visit. The known-legitimate worst
@@ -44,6 +44,8 @@ class NavigationLedger:
         self._stall_limit = stall_limit
         self._progress: dict[tuple[str, Hashable], _TargetProgress] = {}
         self._expired: set[tuple[str, Hashable]] = set()
+        self._descent_target: Hashable | None = None
+        self._descent_path: list[Hashable] = []
         self.improved_this_decision = False
 
     def begin_decision(self) -> None:
@@ -81,9 +83,41 @@ class NavigationLedger:
     def expire(self, kind: str, target: Hashable) -> None:
         """Expire a target immediately from external rejection evidence."""
         self._expired.add((kind, target))
+        if kind == "descend" and target == self._descent_target:
+            self.clear_descent_route()
+
+    @property
+    def descent_target(self) -> Hashable | None:
+        return self._descent_target
+
+    @property
+    def descent_path(self) -> tuple[Hashable, ...]:
+        return tuple(self._descent_path)
+
+    def commit_descent_route(
+        self, target: Hashable, path: Sequence[Hashable]
+    ) -> None:
+        """Own the selected stair and the remaining step-by-step route to it."""
+        self._descent_target = target
+        self._descent_path = list(path)
+
+    def replace_descent_path(self, path: Sequence[Hashable]) -> None:
+        """Re-path to the committed stair after a block or interruption."""
+        if self._descent_target is not None:
+            self._descent_path = list(path)
+
+    def advance_descent_route(self, position: Hashable) -> None:
+        """Discard route steps already reached by the player."""
+        while self._descent_path and self._descent_path[0] == position:
+            self._descent_path.pop(0)
+
+    def clear_descent_route(self) -> None:
+        self._descent_target = None
+        self._descent_path.clear()
 
     def reset(self) -> None:
         """Forget everything (called on every floor change)."""
         self._progress.clear()
         self._expired.clear()
+        self.clear_descent_route()
         self.improved_this_decision = False
