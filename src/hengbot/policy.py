@@ -1126,6 +1126,11 @@ class HengbotPolicy:
         ] = set()
         self._visit_counts: Counter[Position] = Counter()
         self._floor_key: tuple[int, int, int] | None = None
+        # Hengband does not mark dark floor permanently, so walked corridors can
+        # disappear from later nearby_grids snapshots. Retain the last terrain
+        # observation for this floor visit; dynamic occupancy is stripped below.
+        self._grid_memory_floor: tuple[int, int, int] | None = None
+        self._grid_memory: dict[Position, GridState] = {}
         self._last_position: Position | None = None
         self._recent: deque[Position] = deque(maxlen=STUCK_WINDOW)
         self._explore_path: list[Position] = []
@@ -1416,7 +1421,27 @@ class HengbotPolicy:
         self.last_reason = ""
 
     # ------------------------------------------------------------------ core
+    def _with_grid_memory(self, snapshot: Snapshot) -> Snapshot:
+        """Merge this observation with terrain seen earlier in the floor visit.
+
+        Missing grids are normally dark, unmarked floor rather than unknown
+        terrain. Monster occupancy is different: it is authoritative only in the
+        current snapshot and must never survive after its grid leaves view.
+        """
+        if self._grid_memory_floor != snapshot.floor_key:
+            self._grid_memory_floor = snapshot.floor_key
+            self._grid_memory = {}
+
+        remembered = {
+            position: replace(grid, has_monster=False, monster_index=0)
+            for position, grid in self._grid_memory.items()
+        }
+        remembered.update(snapshot.grids)
+        self._grid_memory = remembered
+        return replace(snapshot, grids=dict(remembered))
+
     def choose_key(self, snapshot: Snapshot) -> str:
+        snapshot = self._with_grid_memory(snapshot)
         self._observe_home_history(snapshot)
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
@@ -1526,6 +1551,7 @@ class HengbotPolicy:
         Priming lets the long-lived policy retain the safety consequence of that
         decision without sending a duplicate key.
         """
+        snapshot = self._with_grid_memory(snapshot)
         self._last_snapshot_was_store = snapshot.store is not None
         self._observe(snapshot)
         self._build_grid_index(snapshot)
