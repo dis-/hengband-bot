@@ -3452,6 +3452,78 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             for need in needs
         ))
 
+    def test_completed_mining_rearms_normal_maintenance_restock(self):
+        policy = self._policy()
+        policy._deepest_level = 5
+        policy._fundraising_mode = "mine"
+        policy._mining_runs_completed = 1
+        policy._planned_mining_runs = 1
+        policy._town_restock_suppressed = True
+        policy._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=14000),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            quests={1: self._quest(QUEST_STATUS_UNTAKEN)},
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=4),
+                item("f", TVAL_FOOD, 35, count=5),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=4),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            ],
+            equipment=[
+                item("L", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, known=True),
+                item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+            ],
+        )
+
+        with patch.object(policy, "_effective_mining_run_target", return_value=1):
+            self.assertIsNone(policy._town_special_key(snapshot))
+
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertFalse(policy._town_restock_suppressed)
+        self.assertIsNone(policy._town_errand_plan)
+        requirements = {
+            entry["item"]: entry for entry in policy.procurement_requirements(snapshot)
+        }
+        self.assertEqual(requirements["Word of Recall scrolls"]["missing"], 1)
+        self.assertEqual(requirements["Flasks of oil"]["missing"], 1)
+        needs = policy._enumerate_town_needs(snapshot)
+        self.assertIn(policy_module.TownNeed(STORE_GENERAL, "oil", "normal"), needs)
+        self.assertIn(
+            policy_module.TownNeed(STORE_ALCHEMIST, "quest-speed", "normal"),
+            needs,
+        )
+        self.assertIn(
+            policy_module.TownNeed(STORE_BLACK, "quest-speed", "normal"), needs
+        )
+        self.assertIsNotNone(policy._next_required_store_type(snapshot))
+
+    def test_missing_quest_speed_falls_back_after_empty_alchemist(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=14000),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            quests={1: self._quest(QUEST_STATUS_UNTAKEN)},
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+
+        needs = policy._enumerate_town_needs(snapshot)
+
+        self.assertNotIn(
+            policy_module.TownNeed(STORE_ALCHEMIST, "quest-speed", "normal"),
+            needs,
+        )
+        self.assertIn(
+            policy_module.TownNeed(STORE_BLACK, "quest-speed", "normal"), needs
+        )
+
     def test_force_ready_q34_retention_does_not_recurse_through_departure(self):
         policy = self._policy()
         snap = self._force_snapshot(34, hp=605, torches=20, speed=1, healing=25)

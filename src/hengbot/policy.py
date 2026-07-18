@@ -6375,6 +6375,12 @@ class HengbotPolicy:
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
                 < int(force.get("speed_potions", 0))
+                and STORE_ALCHEMIST not in self._town_store_attempted
+            ):
+                add(STORE_ALCHEMIST, "quest-speed")
+            if (
+                self._exact_potion_count(snapshot, SV_POTION_SPEED)
+                < int(force.get("speed_potions", 0))
                 and STORE_BLACK not in self._town_store_attempted
             ):
                 add(STORE_BLACK, "quest-speed")
@@ -8944,6 +8950,8 @@ class HengbotPolicy:
             self._planned_mining_runs = None
             self._shallow_fundraising_trip = False
             self._town_store_attempted.clear()
+            self._town_restock_suppressed = False
+            self._town_errand_plan = None
             return None
 
         deep_fundraising = (
