@@ -3493,6 +3493,15 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.profiles = load_quest_strategies(Path("strategy/quests"))
+        q1_terrain = {
+            (y, x): ("wall" if y in {4, 9} or x in {0, 14} else "floor")
+            for y in range(4, 10) for x in range(15)
+        }
+        q1_terrain.update({(5, 4): "door", (8, 4): "door", (8, 1): "exit"})
+        cls.q1_battlefield = QuestBattlefield(
+            terrain=q1_terrain, player_start=(8, 1), entrance=(8, 1), exit=(8, 1),
+            searchable=((5, 4), (8, 4)),
+        )
         cls.q34_battlefield = QuestBattlefield(monster_placements=(
             ((3, 13), 174), ((7, 15), 243), ((9, 11), 107), ((11, 9), 107),
         ))
@@ -3505,6 +3514,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         return HengbotPolicy(
             quest_strategies=self.profiles,
             quest_knowledge={
+                1: QuestInfo(
+                    1, "Thieves Hideout", 6, 5, 6,
+                    battlefield=self.q1_battlefield,
+                ),
                 34: QuestInfo(
                     34, "Dump Witness", 6, 5, 6,
                     battlefield=self.q34_battlefield,
@@ -3864,8 +3877,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             quests={1: QuestState(id=1, status=QUEST_STATUS_COMPLETED, fixed=True)},
         )
 
-        self.assertEqual(policy.choose_key(completed), "6")
-        self.assertEqual(policy.last_reason, "fixedquest:seek-exit")
+        self.assertEqual(policy.choose_key(completed), "4")
+        self.assertEqual(policy.last_reason, "quest:exit:route")
 
     def test_conditional_speed_uses_live_three_turn_projection(self):
         policy = self._policy()

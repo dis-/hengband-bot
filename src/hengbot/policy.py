@@ -31,6 +31,7 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import StrategyProfile
+from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -1071,6 +1072,7 @@ class HengbotPolicy:
         self._monrace_knowledge = monrace_knowledge or {}
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
+        self._quest_navigators: dict[int, QuestFloorNavigator] = {}
         self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
@@ -1732,9 +1734,23 @@ class HengbotPolicy:
             if restore is not None:
                 return restore
 
-        strategy_action = self._approved_quest_strategy_key(snapshot, hostiles, adjacent)
-        if strategy_action is not None:
-            return strategy_action
+        profile = self.approved_quest_strategy(snapshot.floor_key[2])
+        if profile is not None:
+            # Approved-floor survival remains above the navigator. Keeping this
+            # scoped to the quest branch preserves byte-for-byte dispatch order
+            # on every non-quest floor.
+            survival = self._survival_gate_key(snapshot, hostiles)
+            if survival is not None:
+                return survival
+            info = self._quest_knowledge.get(profile.quest_id)
+            if info is None or info.battlefield is None:
+                self.last_reason = "quest:blocked:enter"
+                return WAIT_KEY
+            navigator = self._quest_navigators.setdefault(
+                profile.quest_id,
+                QuestFloorNavigator(profile.quest_id, info.battlefield),
+            )
+            return navigator.decide(self, snapshot, hostiles, adjacent)
 
         # A reviewed one-shot quest is entered on the assumption that its carried
         # Speed dose is part of the action-economy budget.  Spend it on first
@@ -10329,7 +10345,7 @@ class HengbotPolicy:
                 return Position(*placement)
         return None
 
-    def _approved_quest_strategy_key(
+    def _quest_execute_key(
         self,
         snapshot: Snapshot,
         hostiles: list[MonsterState],
@@ -10339,13 +10355,6 @@ class HengbotPolicy:
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if profile is None:
             return None
-
-        # Completion owns the floor before the profile's deliberate between-wave
-        # hold. Otherwise a completed fixed-position quest can wait forever at
-        # its post and never reach fixedquest:exit routing.
-        quest = snapshot.quests.get(profile.quest_id)
-        if quest is not None and quest.status == QUEST_STATUS_COMPLETED:
-            return self._fixed_quest_exit_key(snapshot, profile.quest_id)
 
         abort = profile.abort_conditions
         if (
@@ -10515,6 +10524,16 @@ class HengbotPolicy:
             self.last_reason = "quest-strategy:hold"
             return WAIT_KEY
         return None
+
+    # Kept as a narrow tactical probe for downstream policy integrations. Floor
+    # dispatch never calls it: QuestFloorNavigator is the sole on-floor owner.
+    def _approved_quest_strategy_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        return self._quest_execute_key(snapshot, hostiles, adjacent)
 
     def _quest_strategy_for_errand_or_floor(
         self, snapshot: Snapshot
@@ -10734,6 +10753,12 @@ class HengbotPolicy:
                 set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
             )
         if quest.status == QUEST_STATUS_TAKEN:
+            info = self._quest_knowledge.get(quest_id)
+            if self.approved_quest_strategy(quest_id) is not None and info is not None and info.battlefield is not None:
+                navigator = self._quest_navigators.setdefault(
+                    quest_id, QuestFloorNavigator(quest_id, info.battlefield)
+                )
+                return navigator.enter_from_town(self, snapshot, quest_id)
             return self._fixed_quest_enter_key(snapshot, quest_id)
         if (
             quest.status == QUEST_STATUS_UNTAKEN

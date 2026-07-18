@@ -40,6 +40,8 @@ class QuestBattlefield:
     monster_placements: tuple[tuple[tuple[int, int], int], ...] = ()
     player_start: tuple[int, int] | None = None
     entrance: tuple[int, int] | None = None
+    exit: tuple[int, int] | None = None
+    searchable: tuple[tuple[int, int], ...] = ()
     reward_tile: tuple[int, int] | None = None
     chokepoints: tuple[tuple[int, int], ...] = ()
 
@@ -213,6 +215,8 @@ def _legacy_quest_file(path: Path) -> dict[int, QuestInfo]:
 
 def _terrain_class(feature: str) -> str:
     upper = feature.upper()
+    if "QUEST_EXIT" in upper:
+        return "exit"
     if "RUBBLE" in upper:
         return "rubble"
     if "DOOR" in upper:
@@ -221,7 +225,7 @@ def _terrain_class(feature: str) -> str:
         return "passage"
     if any(word in upper for word in ("PERMANENT", "WALL", "GRANITE", "MAGMA", "QUARTZ")):
         return "wall"
-    if any(word in upper for word in ("FLOOR", "STAIR", "WATER", "QUEST_EXIT")):
+    if any(word in upper for word in ("FLOOR", "STAIR", "WATER")):
         return "floor"
     return "wall"
 
@@ -236,8 +240,13 @@ def _legacy_battlefield(
         for y, row in enumerate(rows) for x, ch in enumerate(row)
     }
     entrance = next(((y, x) for y, row in enumerate(rows) for x, ch in enumerate(row) if ch == "<"), None)
+    exits = [
+        (y, x) for y, row in enumerate(rows) for x, ch in enumerate(row)
+        if "QUEST_EXIT" in features.get(ch, "").upper() or ch == "<"
+    ]
+    exit_position = exits[0] if exits else entrance
     reward = next(((y, x) for y, row in enumerate(rows) for x, ch in enumerate(row) if ch in reward_glyphs), None)
-    walkable = {pos for pos, kind in terrain.items() if kind in {"floor", "door", "passage"}}
+    walkable = {pos for pos, kind in terrain.items() if kind in {"floor", "exit", "door", "passage"}}
     neighbours = lambda pos: {
         (pos[0] + dy, pos[1] + dx) for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
         if (pos[0] + dy, pos[1] + dx) in walkable
@@ -259,7 +268,9 @@ def _legacy_battlefield(
             chokepoints.append(pos)
     return QuestBattlefield(
         terrain=terrain, monster_placements=tuple(placements),
-        player_start=player_start, entrance=entrance, reward_tile=reward,
+        player_start=player_start, entrance=entrance, exit=exit_position,
+        searchable=tuple(sorted(pos for pos, kind in terrain.items() if kind == "door")),
+        reward_tile=reward,
         chokepoints=tuple(chokepoints),
     )
 

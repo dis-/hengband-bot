@@ -120,7 +120,12 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertIsNotNone(battlefield)
         self.assertEqual(len(battlefield.monster_placements), info.threat_roster_count)
         self.assertEqual(len(battlefield.terrain), 21 * 28)
-        self.assertTrue(set(battlefield.terrain.values()) <= {"floor", "wall", "door", "passage", "rubble"})
+        self.assertTrue(set(battlefield.terrain.values()) <= {"floor", "exit", "wall", "door", "passage", "rubble"})
+        self.assertEqual(battlefield.exit, battlefield.entrance)
+        self.assertEqual(
+            set(battlefield.searchable),
+            {pos for pos, kind in battlefield.terrain.items() if kind == "door"},
+        )
         self.assertTrue(battlefield.chokepoints)
 
     def test_locator_prefers_legacy_then_falls_back_to_jsonc(self):
