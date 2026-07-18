@@ -171,6 +171,78 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         self.assertIn(("ring-hit", "ring-damage"), assignments)
         self.assertIn(("ring-damage", "ring-hit"), assignments)
 
+    def test_exact_copy_pruning_preserves_exhaustive_dual_wield_optimum(self):
+        items = (
+            owned("strong-sword", 23, to_h=5, to_d=7),
+            owned("plain-whip-a", 21),
+            owned("plain-whip-b", 21),
+            owned("plain-whip-c", 21),
+            owned("ring-a", 45, to_d=2),
+            owned("ring-b", 45, to_d=2),
+            owned("ring-c", 45, to_d=2),
+            owned("light-a", 39),
+            owned("light-b", 39),
+        )
+        exhaustive_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        pruned_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        exhaustive = optimize_loadout(
+            items,
+            lambda loadout: exhaustive_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(items),
+        )
+        pruned = optimize_loadout(
+            items,
+            lambda loadout: pruned_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=enumerate_warrior_loadouts(items),
+        )
+
+        self.assertFalse(pruned.timed_out)
+        self.assertEqual(pruned.best.metrics, exhaustive.best.metrics)
+        self.assertLess(
+            pruned.combinations_considered,
+            exhaustive.combinations_considered,
+        )
+
+    def test_live_shaped_duplicate_supplies_never_enter_search(self):
+        launchers = tuple(owned(f"bow-{index}", 19) for index in range(10))
+        torches = tuple(owned(f"torch-{index}", 39) for index in range(13))
+        melee = tuple(owned(f"whip-{index}", 21) for index in range(25))
+        armour = (
+            owned("body", 36, ac=8, to_a=5),
+            owned("outer", 35, ac=3, to_a=2),
+            owned("head", 33, ac=2, to_a=2),
+            owned("arms", 31, ac=1, to_a=1),
+            owned("feet", 30, ac=2, to_a=1),
+        )
+        items = (*launchers, *torches, *melee, *armour)
+        excluded = frozenset(item.id for item in torches)
+        loadouts = enumerate_warrior_loadouts(
+            items, excluded_item_ids=excluded
+        )
+        considered = 0
+        seen_ids = set()
+        for loadout in loadouts:
+            considered += 1
+            seen_ids.update(loadout.item_ids)
+
+        self.assertTrue(excluded.isdisjoint(seen_ids))
+        self.assertTrue(
+            {item.id for item in launchers[1:]}.isdisjoint(seen_ids)
+        )
+        self.assertTrue(
+            {item.id for item in melee[2:]}.isdisjoint(seen_ids)
+        )
+        self.assertLess(considered, 1_000)
+        self.assertFalse(loadouts.truncated)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4068,6 +4068,17 @@ class HengbotPolicy:
                 )
             )
         )
+        # Quest replenishment is a pack-supply count target, not equipment
+        # search input. Lit throwing torches happen to have an equipment tval;
+        # exclude their reserved physical stacks from loadout candidacy while
+        # retaining them in the catalog for transaction preservation.
+        search_excluded = frozenset(
+            item.id
+            for item in catalog
+            if item.origin == "pack"
+            and item.item.is_torch
+            and self._retention_reservation(snapshot, item.item) > 0
+        )
         preparation = prepare_warrior_optimization(
             snapshot,
             catalog,
@@ -4080,6 +4091,7 @@ class HengbotPolicy:
             # departure even when the character already carried the scroll.
             has_destruction=has_destruction,
             preserve_pack_item_ids=preserve,
+            search_excluded_item_ids=search_excluded,
             loadout_report_path=self._loadout_report_path,
         )
         self._equipment_optimization_signature = signature

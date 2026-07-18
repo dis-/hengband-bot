@@ -181,6 +181,7 @@ def prepare_warrior_optimization(
     home_scan_complete: bool,
     has_destruction: bool = False,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
+    search_excluded_item_ids: frozenset[str] = frozenset(),
     timeout_seconds: float = 60.0,
     loadout_report_path: Path | None = None,
 ) -> WarriorOptimizationPreparation:
@@ -269,7 +270,10 @@ def prepare_warrior_optimization(
         and item.item.is_cursed
     }
     candidate_loadouts = enumerate_warrior_loadouts(
-        items, current_item_ids=current.item_ids, pinned=pinned
+        items,
+        current_item_ids=current.item_ids,
+        pinned=pinned,
+        excluded_item_ids=search_excluded_item_ids,
     )
     result = optimize_loadout(
         items,

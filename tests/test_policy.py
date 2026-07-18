@@ -15970,6 +15970,30 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
         snap = self._town_snapshot([])
         self.assertFalse(self._captured_has_destruction(snap))
 
+    def test_reserved_throwing_torch_is_not_a_loadout_candidate(self):
+        from unittest import mock
+
+        torch = item(
+            "a", TVAL_LITE, SV_LITE_TORCH, name="lit torch",
+            known=True, fully_known=True, is_equipment=True, fuel=5000,
+        )
+        snap = self._town_snapshot([torch])
+        pol = HengbotPolicy()
+        pol._equipment_catalog.refresh_carried(snap.inventory, snap.equipment)
+        with mock.patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            return_value=mock.Mock(ready=False),
+        ) as prepare:
+            pol._prepare_equipment_optimization(snap)
+
+        torch_id = next(
+            owned.id for owned in pol._equipment_catalog.items
+            if owned.item.is_torch
+        )
+        self.assertIn(
+            torch_id, prepare.call_args.kwargs["search_excluded_item_ids"]
+        )
+
 
 class ResistanceGapReturnTest(unittest.TestCase):
     """_is_descent_target only ever gates the NEXT floor (dungeon_level + 1); nothing

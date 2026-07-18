@@ -53,6 +53,65 @@ LARGE_EXACT_HAND_CONFIGURATION_LIMIT = 500
 LARGE_HAND_BEAM_WIDTH = 32
 
 
+def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
+    """Return every item field observed by the Warrior loadout evaluator.
+
+    Physical copies with this exact signature are interchangeable in a loadout.
+    Names, origin, stack count, and light fuel deliberately do not participate:
+    none changes combat, defense, requirements, or transaction feasibility.
+    """
+    obj = item.item
+    return (
+        slot_for(obj),
+        obj.tval,
+        obj.sval,
+        obj.to_h,
+        obj.to_d,
+        obj.to_a,
+        obj.ac,
+        obj.damage_dice_num,
+        obj.damage_dice_sides,
+        obj.pval,
+        obj.weight,
+        obj.weapon_proficiency,
+        item.flags,
+        item.exploration_legal,
+    )
+
+
+def _deduplicate_slot_copies(
+    items: tuple[OwnedEquipment, ...],
+    current_item_ids: frozenset[str],
+    pinned: Mapping[str, OwnedEquipment],
+) -> tuple[OwnedEquipment, ...]:
+    """Keep only the physical copies that a single loadout can consume.
+
+    Fixed slots consume one copy. Rings and melee weapons can consume two, so
+    two exact-stat representatives remain. This is lossless state compression,
+    not a quality cap: every removed item has an interchangeable kept copy.
+    """
+    groups: dict[tuple[object, ...], list[OwnedEquipment]] = defaultdict(list)
+    for item in items:
+        groups[_loadout_value_signature(item)].append(item)
+
+    kept: list[OwnedEquipment] = []
+    pinned_ids = frozenset(item.id for item in pinned.values())
+    for copies in groups.values():
+        order = {item.id: index for index, item in enumerate(copies)}
+        copies.sort(
+            key=lambda item: (
+                item.id not in pinned_ids,
+                item.id not in current_item_ids,
+                item.origin == "home",
+                order[item.id],
+            )
+        )
+        slot = slot_for(copies[0].item)
+        capacity = 2 if slot in {SLOT_MAIN_HAND, SLOT_MAIN_RING} else 1
+        kept.extend(copies[:capacity])
+    return tuple(kept)
+
+
 def _pval_total(loadout: Loadout, flag: int) -> int:
     return sum(item.item.pval for _, item in loadout.slots if flag in item.flags)
 
@@ -354,12 +413,27 @@ class WarriorLoadoutSearch:
     items: tuple[OwnedEquipment, ...]
     current_item_ids: frozenset[str] = frozenset()
     pinned: Mapping[str, OwnedEquipment] = field(default_factory=dict)
+    excluded_item_ids: frozenset[str] = frozenset()
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
-        legal_items = [item for item in self.items if item.exploration_legal]
-        legal = tuple(
-            [*legal_items, *(item for item in self.pinned.values() if item not in legal_items)]
+        legal_items = [
+            item for item in self.items
+            if item.exploration_legal and item.id not in self.excluded_item_ids
+        ]
+        legal = _deduplicate_slot_copies(
+            tuple(
+                [
+                    *legal_items,
+                    *(
+                        item
+                        for item in self.pinned.values()
+                        if item not in legal_items
+                    ),
+                ]
+            ),
+            self.current_item_ids,
+            self.pinned,
         )
         current_by_slot = {
             item.equipped_slot: item.id
@@ -433,6 +507,9 @@ def enumerate_warrior_loadouts(
     *,
     current_item_ids: frozenset[str] = frozenset(),
     pinned: Mapping[str, OwnedEquipment] | None = None,
+    excluded_item_ids: frozenset[str] = frozenset(),
 ) -> WarriorLoadoutSearch:
     """Yield exact representatives, with a bounded fallback for large catalogs."""
-    return WarriorLoadoutSearch(tuple(items), current_item_ids, pinned or {})
+    return WarriorLoadoutSearch(
+        tuple(items), current_item_ids, pinned or {}, excluded_item_ids
+    )
