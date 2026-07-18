@@ -3828,6 +3828,21 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
         self.assertEqual(policy._approved_quest_strategy_key(at_hold, [thief], []), "vt6")
 
+    def test_q1_recovers_thrown_torch_before_retaking_hold(self):
+        policy = self._policy()
+        grids = {
+            Position(8, 3): grid(8, 3),
+            Position(8, 4): grid(8, 4),
+            Position(8, 5): grid(8, 5, objects=1),
+        }
+        displaced = Snapshot(player(8, 4), grids, [], floor_key=(0, 5, 1))
+        policy._build_grid_index(displaced)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(displaced, [], []), "6"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:recover-torch")
+
     def test_conditional_speed_uses_live_three_turn_projection(self):
         policy = self._policy()
         monster = replace(hostile(1, 8, 5), race_id=150)

@@ -10458,6 +10458,25 @@ class HengbotPolicy:
                     self.last_reason = "quest-strategy:approach-final-target"
                     return self._step_toward(snapshot, step)
 
+        # Thrown quest supplies can land between the player and the fixed hold.
+        # Recover them before retaking the hold; otherwise normal loot routing
+        # advances toward the object on one turn and this strategy immediately
+        # walks back toward the hold on the next.
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.object_count > 0:
+            self.last_reason = "quest-strategy:recover-torch"
+            return PICKUP_KEY
+        pickup_step = self._nearest_goal_step(
+            snapshot, lambda candidate: candidate.object_count > 0
+        )
+        if pickup_step is not None and not any(
+            monster.race_id in never_move_races
+            and pickup_step.distance_to(monster.position) <= 1
+            for monster in hostiles
+        ):
+            self.last_reason = "quest-strategy:recover-torch"
+            return self._step_toward(snapshot, pickup_step)
+
         if hold is not None and snapshot.player.position != hold:
             step = self._town_map_goal_step(snapshot, hold)
             if step is not None:
@@ -10482,20 +10501,6 @@ class HengbotPolicy:
             return WAIT_KEY
 
         if hostiles:
-            here = snapshot.grid_at(snapshot.player.position)
-            if here is not None and here.object_count > 0:
-                self.last_reason = "quest-strategy:recover-torch"
-                return PICKUP_KEY
-            pickup_step = self._nearest_goal_step(
-                snapshot, lambda candidate: candidate.object_count > 0
-            )
-            if pickup_step is not None and not any(
-                monster.race_id in never_move_races
-                and pickup_step.distance_to(monster.position) <= 1
-                for monster in hostiles
-            ):
-                self.last_reason = "quest-strategy:recover-torch"
-                return self._step_toward(snapshot, pickup_step)
             # Fixed-position profiles never chase. This also keeps Q34 away
             # from its NEVER_MOVE targets and the bee alcove until its turn.
             if hold is not None:
