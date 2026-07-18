@@ -6375,12 +6375,6 @@ class HengbotPolicy:
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
                 < int(force.get("speed_potions", 0))
-                and STORE_ALCHEMIST not in self._town_store_attempted
-            ):
-                add(STORE_ALCHEMIST, "quest-speed")
-            if (
-                self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                < int(force.get("speed_potions", 0))
                 and STORE_BLACK not in self._town_store_attempted
             ):
                 add(STORE_BLACK, "quest-speed")

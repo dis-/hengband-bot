@@ -3494,35 +3494,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         needs = policy._enumerate_town_needs(snapshot)
         self.assertIn(policy_module.TownNeed(STORE_GENERAL, "oil", "normal"), needs)
         self.assertIn(
-            policy_module.TownNeed(STORE_ALCHEMIST, "quest-speed", "normal"),
-            needs,
-        )
-        self.assertIn(
             policy_module.TownNeed(STORE_BLACK, "quest-speed", "normal"), needs
         )
         self.assertIsNotNone(policy._next_required_store_type(snapshot))
-
-    def test_missing_quest_speed_falls_back_after_empty_alchemist(self):
-        policy = self._policy()
-        snapshot = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=14000),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            quests={1: self._quest(QUEST_STATUS_UNTAKEN)},
-        )
-        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
-
-        needs = policy._enumerate_town_needs(snapshot)
-
-        self.assertNotIn(
-            policy_module.TownNeed(STORE_ALCHEMIST, "quest-speed", "normal"),
-            needs,
-        )
-        self.assertIn(
-            policy_module.TownNeed(STORE_BLACK, "quest-speed", "normal"), needs
-        )
 
     def test_force_ready_q34_retention_does_not_recurse_through_departure(self):
         policy = self._policy()
