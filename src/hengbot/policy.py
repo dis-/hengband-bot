@@ -11207,12 +11207,27 @@ class HengbotPolicy:
                 or (goal.x - origin.x) * (step.x - origin.x) < 0
             )
             if moving_away:
+                def has_onward_route(start: Position) -> bool:
+                    seen = {origin, start}
+                    queue = deque([start])
+                    while queue:
+                        pos = queue.popleft()
+                        if pos == goal:
+                            return True
+                        for neighbor in self._walkable_neighbors(snapshot, pos):
+                            if neighbor not in seen:
+                                seen.add(neighbor)
+                                queue.append(neighbor)
+                    return False
+
                 monotonic = [
                     neighbor
                     for neighbor in self._walkable_neighbors(snapshot, origin)
                     if neighbor.distance_to(goal) < origin.distance_to(goal)
+                    and self._visit_counts[neighbor] == 0
                     and (goal.y - origin.y) * (neighbor.y - origin.y) >= 0
                     and (goal.x - origin.x) * (neighbor.x - origin.x) >= 0
+                    and has_onward_route(neighbor)
                 ]
                 if monotonic:
                     step = min(

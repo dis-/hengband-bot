@@ -3266,7 +3266,7 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6y")
         self.assertEqual(policy.last_reason, "fixedquest:enter")
 
-    def test_taken_q1_approach_does_not_start_northeast_town_loop(self):
+    def test_taken_q1_approach_does_not_enter_dead_end_town_loop(self):
         origin = Position(26, 109)
         entrance = Position(35, 177)
         northeast_detour = {
@@ -3281,6 +3281,64 @@ class FixedQuestTest(unittest.TestCase):
         grids = {
             origin: grid(origin.y, origin.x),
             Position(27, 110): grid(27, 110),
+            entrance: grid(
+                entrance.y,
+                entrance.x,
+                has_quest_enter=True,
+                quest_id=self.QUEST_ID,
+            ),
+        }
+        policy = HengbotPolicy(town_map)
+
+        position = origin
+        visited = {position}
+        offsets = {
+            "7": (-1, -1),
+            "8": (-1, 0),
+            "9": (-1, 1),
+            "4": (0, -1),
+            "6": (0, 1),
+            "1": (1, -1),
+            "2": (1, 0),
+            "3": (1, 1),
+        }
+        for _ in range(120):
+            key = policy.choose_key(
+                self._town_snapshot(
+                    position.y, position.x, grids, QUEST_STATUS_TAKEN
+                )
+            )
+            if position == entrance:
+                self.assertEqual(key, ">y")
+                break
+            dy, dx = offsets[key[0]]
+            position = Position(position.y + dy, position.x + dx)
+            self.assertNotIn(position, visited)
+            visited.add(position)
+        else:
+            self.fail("quest entrance was not reached")
+
+        self.assertEqual(position, entrance)
+
+    def test_taken_q1_approach_prefers_viable_southeast_route(self):
+        origin = Position(26, 109)
+        entrance = Position(35, 177)
+        northeast_detour = {
+            Position(25, x) for x in range(110, entrance.x + 1)
+        } | {
+            Position(y, entrance.x) for y in range(25, entrance.y + 1)
+        }
+        southeast_route = {
+            Position(y, 110) for y in range(27, entrance.y + 1)
+        } | {
+            Position(entrance.y, x) for x in range(110, entrance.x + 1)
+        }
+        town_map = replace(
+            self._town_map(),
+            walkable=frozenset(northeast_detour | southeast_route),
+        )
+        grids = {
+            origin: grid(origin.y, origin.x),
             entrance: grid(
                 entrance.y,
                 entrance.x,
