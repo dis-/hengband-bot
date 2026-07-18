@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import hengbot.policy as policy_module
+
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.model import (
     DUNGEON_ANGBAND,
@@ -2552,11 +2554,92 @@ class FixedQuestTest(unittest.TestCase):
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
         policy._town_teleport_key = lambda _snapshot, town_id: f"teleport:{town_id}"
-        self.assertEqual(
-            policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]),
-            "teleport:1",
-        )
+        with patch.object(
+            policy_module, "EXECUTABLE_QUEST_STRATEGY_IDS", frozenset({1, 2, 14, 34})
+        ):
+            self.assertEqual(
+                policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]),
+                "teleport:1",
+            )
         self.assertTrue(policy._telmora_q2_errand)
+
+    def test_q2_acceptance_is_blocked_until_executor_exists(self):
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
+            quests={2: QuestState(2, status=QUEST_STATUS_UNTAKEN, fixed=True)},
+            visited_town_ids=(0, 1),
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy._fixed_quest_target = lambda _snapshot: 2
+        policy._telmora_q2_travel_key = lambda _snapshot, _quest: None
+        policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_building_key = (
+            lambda *_args, **_kwargs: "fixedquest:request"
+        )
+
+        self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+
+    def test_q2_outbound_travel_is_blocked_until_executor_exists(self):
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
+            player=replace(self._town_snapshot(26, 97, {}, 0).player, gold=2000),
+            quests={2: QuestState(2, status=QUEST_STATUS_UNTAKEN, fixed=True)},
+            visited_town_ids=(0, 1),
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._town_teleport_key = lambda _snapshot, town_id: f"teleport:{town_id}"
+
+        self.assertIsNone(policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]))
+        self.assertFalse(policy._telmora_q2_errand)
+
+    def test_telmora_stranding_recovery_stays_ungated(self):
+        snapshot = replace(self._telmora_q2_snapshot(QUEST_STATUS_UNTAKEN), quests={})
+        policy = HengbotPolicy(self._town_map())
+        policy._town_teleport_key = (
+            lambda _snapshot, town_id: "home" if town_id == 0 else None
+        )
+
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "home")
+
+    def test_other_executable_quest_acceptance_stays_unchanged(self):
+        for quest_id in (1, 14):
+            with self.subTest(quest_id=quest_id):
+                snapshot = replace(
+                    self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
+                    quests={
+                        quest_id: QuestState(
+                            quest_id, status=QUEST_STATUS_UNTAKEN, fixed=True
+                        )
+                    },
+                )
+                policy = HengbotPolicy(self._town_map())
+                policy._fixed_quest_target = lambda _snapshot, value=quest_id: value
+                policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+                policy._fixed_quest_building_key = (
+                    lambda *_args, **_kwargs: "fixedquest:request"
+                )
+
+                self.assertEqual(policy._fixed_quest_key(snapshot, []), "fixedquest:request")
+
+    def test_enabling_q2_executor_restores_acceptance(self):
+        snapshot = replace(
+            self._telmora_q2_snapshot(QUEST_STATUS_UNTAKEN),
+            visited_town_ids=(0, 1),
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_building_key = (
+            lambda *_args, **_kwargs: "fixedquest:request"
+        )
+
+        with patch.object(
+            policy_module, "EXECUTABLE_QUEST_STRATEGY_IDS", frozenset({1, 2, 14, 34})
+        ):
+            self.assertEqual(policy._fixed_quest_key(snapshot, []), "fixedquest:request")
 
     def _telmora_q2_snapshot(self, status, *, gold=500):
         return replace(

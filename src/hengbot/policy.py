@@ -281,6 +281,9 @@ QUEST_STATUS_REWARDED = 3
 QUEST_STATUS_FINISHED = 4
 QUEST_ID_THIEF = 1
 FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 25, 28, 34})
+# This is executor capability, not strategy approval or a tuning threshold.
+# Fixers 72/73/74 must add Q2 here as their final step when its executor lands.
+EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 14, 34})
 # A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
@@ -10443,6 +10446,7 @@ class HengbotPolicy:
         if (
             quest.status == QUEST_STATUS_UNTAKEN
             and (quest_id != 2 or self.approved_quest_strategy(2) is not None)
+            and quest_id in EXECUTABLE_QUEST_STRATEGY_IDS
             and self._fixed_quest_ready(snapshot, quest_id)
         ):
             return self._fixed_quest_building_key(
@@ -10469,6 +10473,8 @@ class HengbotPolicy:
         if snapshot.town_id == 0 and quest.status in {
             QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED
         }:
+            if 2 not in EXECUTABLE_QUEST_STRATEGY_IDS:
+                return None
             if quest.status == QUEST_STATUS_UNTAKEN and not self._fixed_quest_ready(snapshot, 2):
                 return None
             if snapshot.player.gold < RUMOR_GOLD_RESERVE + 1000:
