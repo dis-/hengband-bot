@@ -1168,7 +1168,9 @@ class DescendTest(unittest.TestCase):
         # A town/wilderness dungeon entrance first msg_print()s an entrance line
         # (a -more- prompt) then a [y/n] confirmation, so descent is the macro
         # ">\ry" (Return dismisses the -more-, y confirms), not a bare ">".
-        grids = {Position(10, 10): grid(10, 10, entrance=True)}
+        grids = {Position(10, 10): grid(
+            10, 10, entrance=True, entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+        )}
         self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [])), ">\ry")
 
     def test_bare_downstairs_needs_no_confirmation(self):
@@ -1179,7 +1181,10 @@ class DescendTest(unittest.TestCase):
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 11): grid(10, 11),
-            Position(10, 12): grid(10, 12, entrance=True),
+            Position(10, 12): grid(
+                10, 12, entrance=True,
+                entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+            ),
         }
         self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [])), "6")
 
@@ -14987,12 +14992,29 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._town_map = SimpleNamespace(entrance=entrance, walkable=frozenset({entrance}))
         pol._town_map_active = lambda _snapshot: True
         pol._descent_is_blocked = lambda _snapshot: False
+        # Live 05:13 shape: the untaken town-based kill quest made the old
+        # quest-depth early return accept every descent before entrance ID was
+        # checked.  Since the entrance is also down_stairs, the router committed
+        # Yeek while over-extension still targeted Angband.
+        pol._quest_knowledge = {
+            34: QuestInfo(
+                34, "Arena kill", QUEST_TYPE_KILL_LEVEL, 34, 0,
+                dungeon=0, max_num=1, monrace_id=1,
+            )
+        }
         snap = replace(
             self._town_snap(),
+            quests={
+                34: QuestState(
+                    34, status=QUEST_STATUS_UNTAKEN,
+                    type=QUEST_TYPE_KILL_LEVEL, level=34,
+                    dungeon_id=0, fixed=True,
+                )
+            },
             grids={
                 Position(34, 94): grid(34, 94),
                 entrance: grid(
-                    34, 120, entrance=True,
+                    34, 120, downstairs=True, entrance=True,
                     entrance_dungeon_id=DUNGEON_YEEK_CAVE,
                 ),
             },
@@ -15020,10 +15042,23 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._town_map_active = lambda _snapshot: True
         pol._town_map_descent_entrance = lambda _snapshot: entrance
         pol._descent_is_blocked = lambda _snapshot: False
+        pol._quest_knowledge = {
+            34: QuestInfo(
+                34, "Arena kill", QUEST_TYPE_KILL_LEVEL, 34, 0,
+                dungeon=0, max_num=1, monrace_id=1,
+            )
+        }
         snap = replace(
             self._town_snap(y=entrance.y, x=entrance.x),
+            quests={
+                34: QuestState(
+                    34, status=QUEST_STATUS_UNTAKEN,
+                    type=QUEST_TYPE_KILL_LEVEL, level=34,
+                    dungeon_id=0, fixed=True,
+                )
+            },
             grids={entrance: grid(
-                entrance.y, entrance.x, entrance=True,
+                entrance.y, entrance.x, downstairs=True, entrance=True,
                 entrance_dungeon_id=DUNGEON_YEEK_CAVE,
             )},
         )
@@ -15032,6 +15067,34 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertNotEqual(key, ">\ry")
         self.assertNotEqual(pol.last_reason, "descend")
+
+    def test_kill_quest_still_allows_matching_mining_entrance(self):
+        entrance = Position(31, 150)
+        pol = HengbotPolicy()
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        pol._fundraising_mode = "mine"
+        pol._quest_knowledge = {
+            34: QuestInfo(
+                34, "Arena kill", QUEST_TYPE_KILL_LEVEL, 34, 0,
+                dungeon=0, max_num=1, monrace_id=1,
+            )
+        }
+        snap = replace(
+            self._town_snap(y=entrance.y, x=entrance.x),
+            quests={
+                34: QuestState(
+                    34, status=QUEST_STATUS_UNTAKEN,
+                    type=QUEST_TYPE_KILL_LEVEL, level=34,
+                    dungeon_id=0, fixed=True,
+                )
+            },
+            grids={entrance: grid(
+                entrance.y, entrance.x, downstairs=True, entrance=True,
+                entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+            )},
+        )
+
+        self.assertTrue(pol._is_descent_target(snap, snap.grids[entrance]))
 
     def test_sale_routes_honor_the_store_latches(self):
         # An unsellable candidate re-routed the bot to the sale store forever,

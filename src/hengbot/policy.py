@@ -12959,6 +12959,16 @@ class HengbotPolicy:
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
             return False
+        # Town entrances are also emitted as downstairs.  Reject an entrance
+        # for another dungeon before quest-depth steering: that steering may
+        # decide whether to go deeper on the current quest route, but it must
+        # never turn an unrelated town entrance into that route.
+        if (
+            snapshot.in_town
+            and grid.has_entrance
+            and not self._is_active_dungeon_entrance(grid)
+        ):
+            return False
         if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
             return False
         kill_quest = next(
