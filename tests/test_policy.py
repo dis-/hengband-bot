@@ -2542,6 +2542,35 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6q\x1b")
         self.assertEqual(policy.last_reason, "fixedquest:request")
 
+    def test_ready_unoffered_q14_does_not_shadow_offered_q34(self):
+        quests = {
+            14: replace(self._quest(QUEST_STATUS_UNTAKEN), id=14, level=5),
+            34: replace(self._quest(QUEST_STATUS_UNTAKEN), id=34, level=5),
+        }
+        snapshot = replace(
+            self._town_snapshot(26, 97, {
+                Position(26, 98): grid(
+                    26, 98, building_type=1, building_special=1
+                ),
+                Position(30, 40): grid(
+                    30, 40, building_type=1, building_special=34
+                ),
+            }, QUEST_STATUS_UNTAKEN),
+            quests=quests,
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+
+        self.assertEqual(policy._fixed_quest_target(snapshot), 34)
+
+    def test_q14_becomes_eligible_and_routes_when_castle_offers_it(self):
+        policy, snapshot = self._q14_town_fixture(QUEST_STATUS_UNTAKEN)
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+
+        self.assertEqual(policy._fixed_quest_target(snapshot), 14)
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "6q\x1b")
+        self.assertEqual(policy.last_reason, "fixedquest:request")
+
     def _win_quest_acceptance_fixture(self, extra_quests=()):
         knowledge = {
             1: QuestInfo(1, "Thieves Hideout", 6, 5, 6,
@@ -2813,6 +2842,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_is_offered = lambda _snapshot, _quest_id: True
         policy._fixed_quest_building_key = (
             lambda *_args, **_kwargs: "fixedquest:request"
         )
@@ -3130,7 +3160,9 @@ class FixedQuestTest(unittest.TestCase):
         not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 2)
         policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
-        original = self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0)
+        original = self._town_snapshot(
+            26, 97, {Position(26, 97): grid(26, 97, building_special=1)}, 0
+        )
         self.assertEqual(policy._fixed_quest_target(original), 1)
 
     def test_non_once_fixed_quest_allows_recoverable_floor_exit(self):
@@ -3158,7 +3190,14 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map(), quest_knowledge=knowledge)
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
         snapshot = replace(
-            self._town_snapshot(26, 97, {}, 0),
+            self._town_snapshot(
+                26, 97,
+                {
+                    Position(26, 98): grid(26, 98, building_special=18),
+                    Position(30, 40): grid(30, 40, building_special=25),
+                },
+                0,
+            ),
             quests={25: quest25, 18: quest18},
         )
 
@@ -3441,7 +3480,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy = self._policy()
         torches = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
         quest = QuestState(id=34, status=0, fixed=True, level=5)
-        snap = Snapshot(player(10, 10, class_id=PLAYER_CLASS_WARRIOR), {Position(10, 10): grid(10, 10)}, [],
+        snap = Snapshot(player(10, 10, class_id=PLAYER_CLASS_WARRIOR), {Position(10, 10): grid(10, 10, building_special=34)}, [],
                         floor_key=(0, 0, 0), town_flag=True, quests={34: quest},
                         inventory=[torches])
         self.assertEqual(policy._retention_reservation(snap, torches), 20)
@@ -3451,6 +3490,38 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             need.store_type == STORE_GENERAL and need.category == "quest-throwing-items"
             for need in needs
         ))
+
+    def test_procurement_unions_carries_for_all_currently_offered_quests(self):
+        policy = self._policy()
+        quests = {
+            quest_id: QuestState(
+                id=quest_id, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+            )
+            for quest_id in (1, 34)
+        }
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10, building_special=1),
+                Position(10, 11): grid(10, 11, building_special=34),
+            },
+            [], floor_key=(0, 0, 0), town_flag=True, quests=quests,
+        )
+
+        strategy = policy._carry_procurement_strategy(snapshot)
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.required_force["throwing_items"]["lit_torch"], 20)
+        self.assertEqual(strategy.required_force["speed_potions"], 1)
+        self.assertEqual(strategy.required_force["heal_potions"], 2)
+        needs = policy._enumerate_town_needs(snapshot)
+        self.assertIn(
+            policy_module.TownNeed(STORE_GENERAL, "quest-throwing-items", "normal"),
+            needs,
+        )
+        self.assertIn(
+            policy_module.TownNeed(STORE_BLACK, "quest-speed", "normal"), needs
+        )
 
     def test_completed_mining_rearms_normal_maintenance_restock(self):
         policy = self._policy()
@@ -3462,7 +3533,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
         snapshot = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=14000),
-            {Position(10, 10): grid(10, 10)},
+            {Position(10, 10): grid(10, 10, building_special=1)},
             [],
             floor_key=(0, 0, 0),
             town_flag=True,
@@ -3528,7 +3599,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         quest = QuestState(id=34, status=0, fixed=True, level=5)
         base = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=1000),
-            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            {Position(10, 10): grid(10, 10, building_special=34)}, [], floor_key=(0, 0, 0),
             town_flag=True, quests={34: quest},
             inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=12, fuel=5000)],
             store=StoreState(STORE_GENERAL, [torch]),

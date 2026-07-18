@@ -4539,7 +4539,10 @@ class HengbotPolicy:
             ):
                 return item.count
 
-        strategy = self._quest_strategy_for_errand_or_floor(snapshot)
+        strategy = (
+            self._carry_procurement_strategy(snapshot)
+            or self._quest_strategy_for_errand_or_floor(snapshot)
+        )
         if strategy is not None:
             force = strategy.required_force
             if item.is_torch and item.known and item.fuel > 0:
@@ -10490,9 +10493,41 @@ class HengbotPolicy:
         return self.approved_quest_strategy(quest_id)
 
     def _carry_procurement_strategy(self, snapshot: Snapshot) -> StrategyProfile | None:
-        """Return the approved Q1/Q34 profile whose Outpost carries we may buy."""
-        profile = self._quest_strategy_for_errand_or_floor(snapshot)
-        return profile if profile is not None and profile.quest_id in {1, 34} else None
+        """Return union carry requirements for all offered, approved quests."""
+        if not snapshot.in_town:
+            return None
+        profiles = [
+            profile
+            for quest in snapshot.quests.values()
+            if quest.id in FIXED_QUEST_ALLOWLIST
+            and quest.status == QUEST_STATUS_UNTAKEN
+            and self._fixed_quest_is_offered(snapshot, quest.id)
+            and (profile := self.approved_quest_strategy(quest.id)) is not None
+        ]
+        if not profiles:
+            return None
+        base = min(profiles, key=lambda profile: self._fixed_quest_order(
+            snapshot.quests[profile.quest_id]
+        ))
+        throwing_items: dict[str, int] = {}
+        for profile in profiles:
+            for name, required in profile.required_force.get("throwing_items", {}).items():
+                throwing_items[str(name)] = max(
+                    throwing_items.get(str(name), 0), int(required)
+                )
+        force = {
+            **base.required_force,
+            "throwing_items": throwing_items,
+            "speed_potions": max(
+                int(profile.required_force.get("speed_potions", 0))
+                for profile in profiles
+            ),
+            "heal_potions": max(
+                int(profile.required_force.get("heal_potions", 0))
+                for profile in profiles
+            ),
+        }
+        return replace(base, required_force=force)
 
     @staticmethod
     def _profile_resistance_name(name: str) -> str:
@@ -10857,6 +10892,7 @@ class HengbotPolicy:
             for quest in snapshot.quests.values()
             if supported(quest.id)
             and quest.status == QUEST_STATUS_UNTAKEN
+            and self._fixed_quest_is_offered(snapshot, quest.id)
             and self._fixed_quest_ready(snapshot, quest.id)
         ]
         if eligible:
@@ -11030,6 +11066,22 @@ class HengbotPolicy:
         if self._town_map_active(snapshot):
             return self._town_map.quest_building_positions(quest_id)
         return frozenset()
+
+    def _fixed_quest_is_offered(self, snapshot: Snapshot, quest_id: int) -> bool:
+        """Whether an in-town building currently offers this untaken quest."""
+        if not snapshot.in_town:
+            return False
+        # In-town emitter snapshots include the full memorized town map.  Once
+        # it contains building specials, that live data is authoritative for
+        # conditional offer chains (1 -> 14 -> 18, etc.).
+        specials = {
+            grid.building_special
+            for grid in snapshot.grids.values()
+            if grid.building_special
+        }
+        if specials:
+            return quest_id in specials
+        return bool(self._fixed_quest_building_positions(snapshot, quest_id))
 
     def _fixed_quest_entrance_positions(
         self, snapshot: Snapshot, quest_id: int
