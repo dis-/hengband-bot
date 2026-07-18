@@ -38,7 +38,10 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
         self.assertEqual(
             [(action.kind, action.item_id, action.target_slot)
              for action in plan.phase(PHASE_EQUIP)],
-            [("equip", "best", "main_hand")],
+            [
+                ("takeoff", "old", "main_hand"),
+                ("equip", "best", "main_hand"),
+            ],
         )
         self.assertEqual(
             [(action.kind, action.item_id) for action in plan.phase(PHASE_HOME_FINALIZE)],
@@ -135,7 +138,30 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
              for action in plan.phase(PHASE_EQUIP)],
             [
                 ("takeoff", "shield", "sub_hand"),
+                ("takeoff", "old", "main_hand"),
                 ("equip", "two-handed", "main_hand"),
+            ],
+        )
+
+    def test_takes_off_occupied_sub_hand_before_home_shield_swap(self):
+        weapon = gear("off-hand-weapon", "equipped")
+        shield = gear("home-shield", "home", tval=34)
+        plan = plan_equipment_transactions(
+            (weapon, shield),
+            Loadout((("sub_hand", weapon),), "dual_wield"),
+            Loadout((("sub_hand", shield),), "weapon_shield"),
+            current_pack_items=0,
+            home_scan_complete=True,
+        )
+
+        self.assertEqual(
+            [(action.kind, action.item_id, action.target_slot)
+             for action in plan.actions],
+            [
+                ("withdraw", "home-shield", None),
+                ("takeoff", "off-hand-weapon", "sub_hand"),
+                ("equip", "home-shield", "sub_hand"),
+                ("deposit", "off-hand-weapon", None),
             ],
         )
 

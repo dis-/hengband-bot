@@ -13260,7 +13260,14 @@ class HengbotPolicy:
             # A deep character with no recall scroll loses its saved depth here,
             # but an L1 walk-in is the only remaining departure; do not turn it
             # into an unsupplied deep recall.
-            return self._town_map.entrance
+            entrance = snapshot.grids.get(self._town_map.entrance)
+            if (
+                entrance is not None
+                and entrance.has_entrance
+                and entrance.entrance_dungeon_id == self._active_dungeon_target()
+            ):
+                return self._town_map.entrance
+            return None
         if (
             self._fundraising_mode in {"mine", "scavenge"}
             or self._deepest_level < RECALL_MIN_DEPTH

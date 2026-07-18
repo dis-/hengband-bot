@@ -150,13 +150,8 @@ def plan_equipment_transactions(
         (
             (slot, item)
             for slot, item in current_slots.items()
-            if (
-                target_slots.get(slot) is None
-                or (
-                    item.id in target_ids
-                    and target_slots[slot].id != item.id
-                )
-            )
+            if target_slots.get(slot) is None
+            or target_slots[slot].id != item.id
         ),
         key=lambda entry: (_EQUIP_ORDER.get(entry[0], 1_000), entry[1].id),
         reverse=True,

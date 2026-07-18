@@ -309,6 +309,32 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         self.assertEqual(policy._equipment_transaction_town_key(snapshot), "tb")
 
+    def test_policy_equips_withdrawn_shield_after_off_hand_takeoff(self):
+        shield = gear("shield", "pack", slot="a", tval=34)
+        action = EquipmentTransaction(
+            PHASE_EQUIP, "equip", "shield", "sub_hand",
+            item_identity=equipment_identity(shield.item),
+        )
+        policy = HengbotPolicy()
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1),
+            max_unconfirmed_observations=1,
+        )
+        policy._equipment_transaction_session = session
+        before = SimpleNamespace(
+            in_town=True, store=None, inventory=(shield.item,), equipment=(),
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+        )
+
+        self.assertEqual(policy._equipment_transaction_town_key(before), "wa")
+        equipped = SimpleNamespace(
+            in_town=True, store=None, inventory=(),
+            equipment=(gear("shield", "equipped", slot="sub_hand", tval=34).item,),
+            player=before.player,
+        )
+        session.observe(observe_equipment_transactions(equipped))
+        self.assertTrue(session.complete)
+
     def test_policy_dispatches_home_withdraw_from_visible_page(self):
         store_item = StoreItem(
             letter="c", name="stored", count=1, tval=23, sval=1,

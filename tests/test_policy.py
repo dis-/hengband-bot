@@ -14846,11 +14846,47 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._town_special_key(snap)
         pol._town_map = SimpleNamespace(entrance=Position(34, 120))
         pol._town_map_active = lambda _snapshot: True
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+        snap = replace(
+            snap,
+            grids={
+                **snap.grids,
+                Position(34, 120): grid(
+                    34, 120, entrance=True,
+                    entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+                ),
+            },
+        )
 
         self.assertFalse(pol._descent_is_blocked(snap))
         self.assertEqual(
             pol._town_map_descent_entrance(snap), Position(34, 120)
         )
+
+    def test_cycle_break_does_not_commit_non_target_foot_entrance(self):
+        from types import SimpleNamespace
+
+        entrance = Position(34, 120)
+        pol = HengbotPolicy()
+        pol._town_restock_suppressed = True
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        pol._town_map = SimpleNamespace(entrance=entrance)
+        pol._town_map_active = lambda _snapshot: True
+        pol._descent_is_blocked = lambda _snapshot: False
+        snap = replace(
+            self._town_snap(),
+            grids={
+                Position(34, 94): grid(34, 94),
+                entrance: grid(
+                    34, 120, entrance=True,
+                    entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+                ),
+            },
+        )
+
+        self.assertIsNone(pol._town_map_descent_entrance(snap))
+        self.assertIsNone(pol._descent_step(snap))
+        self.assertIsNone(pol._nav_ledger.descent_target)
 
     def test_sale_routes_honor_the_store_latches(self):
         # An unsellable candidate re-routed the bot to the sale store forever,
