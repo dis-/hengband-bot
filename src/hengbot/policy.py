@@ -1356,6 +1356,7 @@ class HengbotPolicy:
         self._fundraising_pursuit_target: Position | None = None
         self._sell_scavenged_consumables = False
         self._normal_weapon_name: str | None = None
+        self._breakout_dig_floor: tuple[int, int, int] | None = None
         self._no_teleport_rearm_pending = False
         self._yeek_conquest_processed = False
         self._home_pending_item: tuple[str, int, int] | None = None
@@ -1688,6 +1689,17 @@ class HengbotPolicy:
         emergency = self._emergency_item(snapshot, hostiles)
         if emergency is not None:
             return emergency
+
+        if (
+            self._breakout_dig_floor is not None
+            and (
+                snapshot.floor_key != self._breakout_dig_floor
+                or self._dig_to_known_downstairs_key(snapshot) is None
+            )
+        ):
+            restore = self._breakout_restore_weapon_key(snapshot)
+            if restore is not None:
+                return restore
 
         strategy_action = self._approved_quest_strategy_key(snapshot, hostiles, adjacent)
         if strategy_action is not None:
@@ -2170,7 +2182,10 @@ class HengbotPolicy:
         forgetting_maze = self._is_forgetting_maze(snapshot)
         if (
             not snapshot.in_town
-            and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+            and (
+                self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+                or self._breakout_dig_floor == snapshot.floor_key
+            )
             and not forgetting_maze
             # Leaving an active quest floor can permanently fail a random quest.
             # Keep searching for its target instead of treating the floor as a
@@ -2188,8 +2203,18 @@ class HengbotPolicy:
             if self._has_digging_tool(snapshot) and not self._nav_exhausted:
                 dig = self._dig_to_known_downstairs_key(snapshot)
                 if dig is not None:
+                    if self._equipped_digging_tool(snapshot) is None:
+                        wield = self._wield_digging_tool_key(
+                            snapshot, "breakout:wield-digging-tool"
+                        )
+                        if wield is not None:
+                            self._breakout_dig_floor = snapshot.floor_key
+                            return wield
                     self.last_reason = "breakout:dig-to-stairs"
                     return dig
+                restore = self._breakout_restore_weapon_key(snapshot)
+                if restore is not None:
+                    return restore
             recall = self._find_recall_scroll(snapshot)
             if recall is not None:
                 self._stuck_escape_streak = 0
@@ -9183,6 +9208,49 @@ class HengbotPolicy:
         """Wield a weapon in the main hand, preserving an occupied off hand."""
         return WIELD_KEY + weapon.slot + self._wield_hand_suffix(snapshot)
 
+    def _wield_digging_tool_key(
+        self, snapshot: Snapshot, reason: str
+    ) -> str | None:
+        """Use the shared, bounded main-hand digger wield transaction."""
+        tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
+        if tool is None:
+            return None
+        self._digger_wield_attempts += 1
+        if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
+            self._digger_wield_attempts = 0
+            return None
+        main_hand = next(
+            (it for it in snapshot.equipment if it.slot == "main_hand"), None
+        )
+        if main_hand is not None and not main_hand.is_digging_tool:
+            self._normal_weapon_name = main_hand.name
+        self.last_reason = reason
+        return self._wield_weapon_key(snapshot, tool)
+
+    def _breakout_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
+        """Re-arm the weapon displaced solely for a dig-to-stairs breakout."""
+        if self._breakout_dig_floor is None:
+            return None
+        if self._equipped_digging_tool(snapshot) is None:
+            self._breakout_dig_floor = None
+            return None
+        weapon = self._first_item(
+            snapshot,
+            lambda it: it.is_equipment
+            and it.is_melee_weapon
+            and not it.is_digging_tool
+            and not self._blocks_teleport(it)
+            and (
+                self._normal_weapon_name is None
+                or it.name == self._normal_weapon_name
+            ),
+        )
+        if weapon is None:
+            return None
+        self._breakout_dig_floor = None
+        self.last_reason = "breakout:restore-combat-weapon"
+        return self._wield_weapon_key(snapshot, weapon)
+
     def _fundraising_combat_equipment_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -9759,8 +9827,7 @@ class HengbotPolicy:
             return self._leave_fundraising_floor(snapshot)
 
         if self._equipped_digging_tool(snapshot) is None:
-            tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
-            if tool is None:
+            if not self._has_digging_tool(snapshot):
                 self._town_blocked_reason = "digging-tool-lost"
                 self.last_reason = "fundraise:digging-tool-lost"
                 return WAIT_KEY
@@ -9769,24 +9836,13 @@ class HengbotPolicy:
             # or cursed main weapon that cannot be removed — mining is impossible, so
             # abandon the run and leave rather than re-issuing the wield until the loop
             # guard stops the bot.
-            self._digger_wield_attempts += 1
-            if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
-                self._digger_wield_attempts = 0
+            wield = self._wield_digging_tool_key(
+                snapshot, "fundraise:wield-digging-tool"
+            )
+            if wield is None:
                 self._fundraising_mode = None
                 return self._leave_fundraising_floor(snapshot)
-            main_hand = next(
-                (it for it in snapshot.equipment if it.slot == "main_hand"), None
-            )
-            if main_hand is not None and not main_hand.is_digging_tool:
-                # Remember the combat weapon we are swapping out so we can re-arm it in
-                # town after mining (see _town_restore_weapon_key).
-                self._normal_weapon_name = main_hand.name
-            # With BOTH hands full (e.g. weapon + shield), wielding a digging tool opens an
-            # "Equip which hand?" prompt (cmd-equipment.cpp) — the same slot prompt rings
-            # raise. Answer 'a' (main hand) so the wield actually takes, instead of the bare
-            # `w`+slot leaving the prompt open and looping. One free hand needs no answer.
-            self.last_reason = "fundraise:wield-digging-tool"
-            return self._wield_weapon_key(snapshot, tool)
+            return wield
         self._digger_wield_attempts = 0
 
         needs_initial_detection = self._mining_scroll_used_floor != snapshot.floor_key

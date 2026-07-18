@@ -12922,6 +12922,7 @@ class StuckEscapeTest(unittest.TestCase):
     def test_stuck_digs_through_known_vein_to_downstairs_before_recall(self):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
         digger = item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)
+        sword = item("main_hand", 23, 1, name="Broad Sword", is_equipment=True)
         snap = Snapshot(
             player(10, 10),
             {
@@ -12931,14 +12932,34 @@ class StuckEscapeTest(unittest.TestCase):
             },
             [],
             inventory=[recall, digger],
+            equipment=[sword],
             floor_key=(2, 8, 0),
         )
         pol = HengbotPolicy()
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), TUNNEL_KEY + "6")
+        self.assertEqual(pol.choose_key(snap), "wdn")
+        self.assertEqual(pol.last_reason, "breakout:wield-digging-tool")
+
+        digging = replace(
+            snap,
+            inventory=[recall, replace(sword, slot="a")],
+            equipment=[replace(digger, slot="main_hand")],
+        )
+        self.assertEqual(pol.choose_key(digging), TUNNEL_KEY + "6")
         self.assertEqual(pol.last_reason, "breakout:dig-to-stairs")
+
+        opened = replace(
+            digging,
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12, downstairs=True),
+            },
+        )
+        self.assertEqual(pol.choose_key(opened), "wan")
+        self.assertEqual(pol.last_reason, "breakout:restore-combat-weapon")
 
     def test_stuck_recall_escape_without_digging_tool(self):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)

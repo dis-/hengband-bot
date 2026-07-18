@@ -945,8 +945,12 @@ class StationaryReasonsTest(unittest.TestCase):
         # position-based loop guard would read as a confined oscillation. Mining digs
         # must be exempt (the policy's MINING_STALL_LIMIT leash bounds them instead), so
         # a long tunnel-to-a-vein or dig-out is never mistaken for a stuck loop.
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
         self.assertIn("fundraise:mine-treasure", MINING_DIG_REASONS)
         self.assertIn("fundraise:tunnel-out", MINING_DIG_REASONS)
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "breakout:dig-to-stairs")
+        )
         # Walking reasons stay guardable — only in-place digging is exempt. The
         # two-phase design never tunnels toward far veins, so the old
         # tunnel-to-treasure reason no longer exists at all.

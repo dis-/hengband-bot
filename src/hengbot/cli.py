@@ -239,6 +239,7 @@ STATIONARY_REASONS = frozenset(
 # leaving it guardable keeps a genuine non-digging loop catchable.
 MINING_DIG_REASONS = frozenset(
     {
+        "breakout:dig-to-stairs",
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
     }
