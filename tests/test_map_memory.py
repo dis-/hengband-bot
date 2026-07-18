@@ -23,6 +23,26 @@ def snapshot(x, grids, *, floor=FLOOR, turn=1):
 
 
 class PerFloorGridMemoryTest(unittest.TestCase):
+    def test_choose_key_explores_into_corridor_missing_from_wire_snapshot(self):
+        policy = HengbotPolicy()
+        corridor = [grid(10, x) for x in range(5, 11)]
+
+        # Walk the emitted corridor so that its final tile is the only unvisited
+        # exploration target when the dark floor vanishes from the wire snapshot.
+        for turn, x in enumerate(range(5, 10), start=1):
+            self.assertEqual(policy.choose_key(snapshot(x, corridor, turn=turn)), "6")
+            self.assertEqual(policy.last_reason, "explore")
+
+        # The bot has committed to backtracking through that corridor. Snapshot B
+        # emits only its current tile and a newly seen northern pocket; the next
+        # corridor tile has vanished because it is no longer marked or in view.
+        policy._explore_path = [Position(10, 8), Position(10, 7)]
+        dark = snapshot(9, [grid(10, 9), grid(9, 9)], turn=6)
+        key = policy.choose_key(dark)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "explore")
+
     def test_vanished_corridor_remains_walkable(self):
         policy = HengbotPolicy()
         corridor = [grid(10, x) for x in range(5, 10)]
