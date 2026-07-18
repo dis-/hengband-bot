@@ -280,6 +280,9 @@ QUEST_STATUS_COMPLETED = 2
 QUEST_STATUS_REWARDED = 3
 QUEST_STATUS_FINISHED = 4
 QUEST_ID_THIEF = 1
+# Oberon and the Serpent are factual game constants: fixed WIN quests that are
+# TAKEN from birth and are never completable by the bot's fixed-quest machinery.
+WIN_QUEST_IDS = frozenset({8, 9})
 FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 25, 28, 34})
 # This is executor capability, not strategy approval or a tuning threshold.
 # Fixers 72/73/74 must add Q2 here as their final step when its executor lands.
@@ -10801,7 +10804,11 @@ class HengbotPolicy:
         taken = [
             quest
             for quest in snapshot.quests.values()
-            if quest.fixed and quest.status == QUEST_STATUS_TAKEN
+            if (
+                quest.fixed
+                and quest.status == QUEST_STATUS_TAKEN
+                and quest.id not in WIN_QUEST_IDS
+            )
         ]
         supported_taken = [quest for quest in taken if supported(quest.id)]
         if supported_taken:

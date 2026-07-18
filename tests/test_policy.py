@@ -2540,6 +2540,76 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6q\x1b")
         self.assertEqual(policy.last_reason, "fixedquest:request")
 
+    def _win_quest_acceptance_fixture(self, extra_quests=()):
+        knowledge = {
+            1: QuestInfo(1, "Thieves Hideout", 6, 5, 6,
+                         placed_monsters=((44, 1),)),
+            8: QuestInfo(8, "Oberon", 1, 99, 0, dungeon=1,
+                         max_num=1, monrace_id=860),
+            9: QuestInfo(9, "Serpent of Chaos", 1, 100, 0, dungeon=1,
+                         max_num=1, monrace_id=862),
+            14: QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0,
+                          num_mon=16, monrace_id=257),
+        }
+        quests = {
+            1: self._quest(QUEST_STATUS_UNTAKEN),
+            8: QuestState(8, status=QUEST_STATUS_TAKEN, fixed=True),
+            9: QuestState(9, status=QUEST_STATUS_TAKEN, fixed=True),
+            **dict(extra_quests),
+        }
+        grids = {
+            Position(26, 97): grid(26, 97),
+            Position(26, 98): grid(
+                26, 98, building_type=1, building_special=1
+            ),
+        }
+        base = self._town_snapshot(26, 97, grids, QUEST_STATUS_UNTAKEN)
+        snapshot = replace(
+            base,
+            player=replace(
+                base.player, level=8, hp=1000, max_hp=1000,
+                main_hand_blows=10, main_hand_to_d=100,
+            ),
+            equipment=[item(
+                "main_hand", TVAL_SWORD, 1, is_equipment=True,
+                damage_dice_num=10, damage_dice_sides=10,
+            )],
+            quests=quests,
+        )
+        policy = HengbotPolicy(
+            self._town_map(), quest_knowledge=knowledge,
+            monrace_knowledge={44: MonraceKnowledge(1, 110, False, False)},
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+        return policy, snapshot
+
+    def test_birth_taken_win_quests_do_not_block_ready_q1_acceptance(self):
+        policy, snapshot = self._win_quest_acceptance_fixture()
+
+        self.assertEqual(policy._fixed_quest_target(snapshot), 1)
+        self.assertTrue(policy.fixed_quest_readiness_state()["verdict"])
+        policy._fixed_quest_building_key = (
+            lambda _snapshot, _quest_id, reason, **_kwargs: reason
+        )
+        self.assertEqual(
+            policy._fixed_quest_key(snapshot, []), "fixedquest:request"
+        )
+
+    def test_real_taken_allowlist_quest_still_serializes_acceptance(self):
+        q14 = QuestState(14, status=QUEST_STATUS_TAKEN, fixed=True)
+        policy, snapshot = self._win_quest_acceptance_fixture({14: q14})
+
+        self.assertEqual(policy._fixed_quest_target(snapshot), 14)
+        self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+
+    def test_unsupported_taken_fixed_quest_still_blocks_acceptance(self):
+        unsupported = QuestState(3, status=QUEST_STATUS_TAKEN, fixed=True)
+        policy, snapshot = self._win_quest_acceptance_fixture({3: unsupported})
+
+        self.assertIsNone(policy._fixed_quest_target(snapshot))
+        self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+
     def test_q2_is_entirely_absent_from_targeting_on_old_emitter_snapshot(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, 0),
