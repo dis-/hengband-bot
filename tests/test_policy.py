@@ -3843,6 +3843,16 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:recover-torch")
 
+    def test_q1_holds_position_between_visible_waves(self):
+        policy = self._policy()
+        at_hold = Snapshot(
+            player(8, 3), {Position(8, 3): grid(8, 3)}, [], floor_key=(0, 5, 1)
+        )
+        policy._build_grid_index(at_hold)
+
+        self.assertEqual(policy._approved_quest_strategy_key(at_hold, [], []), "5")
+        self.assertEqual(policy.last_reason, "quest-strategy:hold")
+
     def test_conditional_speed_uses_live_three_turn_projection(self):
         policy = self._policy()
         monster = replace(hostile(1, 8, 5), race_id=150)

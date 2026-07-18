@@ -10500,12 +10500,13 @@ class HengbotPolicy:
             self.last_reason = "quest-strategy:hold-unreachable"
             return WAIT_KEY
 
-        if hostiles:
-            # Fixed-position profiles never chase. This also keeps Q34 away
-            # from its NEVER_MOVE targets and the bee alcove until its turn.
-            if hold is not None:
-                self.last_reason = "quest-strategy:hold"
-                return WAIT_KEY
+        # Fixed-position profiles keep their post even between visible waves.
+        # Falling through to generic exploration makes the bot step away, then
+        # immediately retake the hold on the following turn.  This also keeps
+        # Q34 away from its NEVER_MOVE targets and the bee alcove until its turn.
+        if hold is not None:
+            self.last_reason = "quest-strategy:hold"
+            return WAIT_KEY
         return None
 
     def _quest_strategy_for_errand_or_floor(
