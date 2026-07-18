@@ -3266,6 +3266,37 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6y")
         self.assertEqual(policy.last_reason, "fixedquest:enter")
 
+    def test_taken_q1_approach_does_not_start_northeast_town_loop(self):
+        origin = Position(26, 109)
+        entrance = Position(35, 177)
+        northeast_detour = {
+            Position(25, x) for x in range(110, entrance.x + 1)
+        } | {
+            Position(y, entrance.x) for y in range(25, entrance.y + 1)
+        }
+        town_map = replace(
+            self._town_map(),
+            walkable=frozenset(northeast_detour),
+        )
+        grids = {
+            origin: grid(origin.y, origin.x),
+            Position(27, 110): grid(27, 110),
+            entrance: grid(
+                entrance.y,
+                entrance.x,
+                has_quest_enter=True,
+                quest_id=self.QUEST_ID,
+            ),
+        }
+        policy = HengbotPolicy(town_map)
+
+        key = policy.choose_key(
+            self._town_snapshot(origin.y, origin.x, grids, QUEST_STATUS_TAKEN)
+        )
+
+        self.assertEqual(key, "3")
+        self.assertEqual(policy.last_reason, "fixedquest:approach")
+
     def test_claims_completed_fixed_quest_and_latches_reward(self):
         grids = {
             Position(26, 97): grid(26, 97),

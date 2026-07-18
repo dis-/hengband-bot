@@ -11192,6 +11192,43 @@ class HengbotPolicy:
             snapshot,
             lambda grid: grid.has_quest_enter and grid.quest_id == quest_id,
         )
+        if step is not None:
+            # A shortest path through the fixed town map may begin with a
+            # distance-increasing detour around a building.  Immediately after
+            # accepting a quest that can route through a town monster which is
+            # still outside view: combat then walks back to the starting cell
+            # and the two priorities oscillate forever.  Prefer an available
+            # step that makes monotonic progress toward the known entrance when
+            # the BFS first step moves away from it.
+            goal = min(positions, key=snapshot.player.position.distance_to)
+            origin = snapshot.player.position
+            moving_away = (
+                (goal.y - origin.y) * (step.y - origin.y) < 0
+                or (goal.x - origin.x) * (step.x - origin.x) < 0
+            )
+            if moving_away:
+                monotonic = [
+                    neighbor
+                    for neighbor in self._walkable_neighbors(snapshot, origin)
+                    if neighbor.distance_to(goal) < origin.distance_to(goal)
+                    and (goal.y - origin.y) * (neighbor.y - origin.y) >= 0
+                    and (goal.x - origin.x) * (neighbor.x - origin.x) >= 0
+                ]
+                if monotonic:
+                    step = min(
+                        monotonic,
+                        key=lambda neighbor: (
+                            neighbor.distance_to(goal),
+                            -sum(
+                                before != after
+                                for before, after in (
+                                    (origin.y, neighbor.y),
+                                    (origin.x, neighbor.x),
+                                )
+                            ),
+                            self._visit_counts[neighbor],
+                        ),
+                    )
         if step is None:
             step = min(
                 (
