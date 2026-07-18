@@ -5223,6 +5223,88 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(pol._find_home_deposit(snap), refused)
 
+    def test_full_weapon_smith_is_latched_after_repeated_rejection(self):
+        # A full store accepts the weapon type yet rejects the sale (no room).
+        # After the stuck detector proves the rejection, the store must be latched
+        # as sale-refused so the withdraw/route logic stops feeding it more.
+        pol = HengbotPolicy()
+        spare = item("k", 23, 1, name="a Dagger", is_equipment=True, known=True)
+        stock = store_item("a", 23, 2, name="a Long Sword", price=50)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[spare],
+            store=StoreState(store_type=STORE_WEAPON, items=[stock]),
+        )
+        # Identical-snapshot calls simulate the store rejecting the sale
+        # (pack/gold/turn never change). The first emits the sell; the second,
+        # seeing the unchanged board, must LEAVE (Escape) rather than re-emit a
+        # multi-key sell whose trailing keys would desync into the store command
+        # loop after the "no room" message — and latch the store as full.
+        first = pol._store_sell_key(
+            snap, spare, "shop:sell-inferior-weapon",
+            rejected_reason="shop:unsellable-weapon-leave",
+        )
+        second = pol._store_sell_key(
+            snap, spare, "shop:sell-inferior-weapon",
+            rejected_reason="shop:unsellable-weapon-leave",
+        )
+        self.assertNotEqual(first, LEAVE_STORE_KEY)
+        self.assertEqual(second, LEAVE_STORE_KEY)
+        self.assertIn(STORE_WEAPON, pol._store_sale_refused)
+
+    def test_no_spare_withdrawal_while_weapon_smith_is_full(self):
+        # Once the smith is full this visit, pulling more spares from Home only
+        # churns futile trips to a store with no room — do not withdraw.
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._store_sale_refused.add(STORE_WEAPON)
+        ego = item(
+            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
+            is_ego=True, known=True,
+        )
+        spare = store_item(
+            "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=True,
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+            equipment=[ego],
+            store=StoreState(store_type=STORE_HOME, items=[spare]),
+        )
+
+        pol.choose_key(snap)
+
+        self.assertNotEqual(pol.last_reason, "home:withdraw-inferior-weapon")
+
+    def test_full_smith_lets_inferior_spares_shelve_back(self):
+        # Leftover spares stuck in the pack when the smith fills must become
+        # depositable, or a pack of unsellable weapons stalls town departure.
+        pol = HengbotPolicy()
+        pol._store_sale_refused.add(STORE_WEAPON)
+        ego = item(
+            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
+            is_ego=True, known=True,
+        )
+        spare = item(
+            "b", 23, 1, name="a Dagger", is_equipment=True, known=True,
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[spare],
+            equipment=[ego],
+        )
+
+        self.assertEqual(pol._find_home_deposit(snap), spare)
+
     def test_withdrawn_home_candidate_is_not_immediately_deposited_again(self):
         withdrawn = item(
             "e", 23, 5, name="a Long Sword", is_equipment=True, aware=False
@@ -15438,12 +15520,16 @@ class StoreSellGateTest(unittest.TestCase):
 
         self.assertNotIn(policy._item_signature(potion), policy._unsellable_items)
 
-    def test_same_turn_unchanged_sale_latches_after_two_emitted_attempts(self):
+    def test_same_turn_unchanged_sale_latches_after_one_emitted_attempt(self):
         potion = item("a", TVAL_POTION, SV_POTION_RESIST_COLD)
         snap = self._store([potion], STORE_ALCHEMIST)
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._shop(snap), "da\r\ry")
+        # One emit whose board is unchanged proves the sale was rejected (a
+        # genuine duplicate snapshot only re-fires after the retry delay, by which
+        # time the game has processed the key). Leave instead of re-emitting the
+        # multi-key sell — a second emit lands its trailing keys in the store
+        # command loop after the "no room" message (the observed desync).
         self.assertEqual(policy._shop(snap), "da\r\ry")
         self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
         self.assertIn(policy._item_signature(potion), policy._unsellable_items)

@@ -1331,6 +1331,11 @@ class HengbotPolicy:
         # store can reject an otherwise sellable item, so retry it after the next
         # dungeon trip instead of blacklisting it for the whole bot session.
         self._unsellable_items: set[tuple[str, int, int]] = set()
+        # Store types that refused a sale this town visit because they are FULL
+        # (no room), not because of the item type. While a store is latched here
+        # the bot must stop routing spare weapons to it and stop pulling more from
+        # Home to sell there — otherwise it churns futile trips to the full store.
+        self._store_sale_refused: set[int] = set()
         self._town_blocked_reason: str | None = None
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
@@ -2703,6 +2708,7 @@ class HengbotPolicy:
                 self._shopping_abandoned = False
                 self._town_store_attempted.clear()
                 self._unsellable_items.clear()
+                self._store_sale_refused.clear()
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
                 self._deferred_device_items.clear()
@@ -4609,10 +4615,13 @@ class HengbotPolicy:
             and not (
                 high_grade
                 and self._weapon_is_inferior(item)
-                # A spare the smith has refused (unsellable) is no longer held for
-                # sale — let it shelve back to Home so a pack of refused spares
-                # cannot block town departure forever.
+                # An inferior spare is carried for sale only while the Weapon Smith
+                # can still take it: keep it out of the deposit pass only if it is
+                # neither individually refused (unsellable) NOR blocked by a full
+                # smith this visit. Once the smith refuses/fills, let leftovers
+                # shelve back so a pack of unsellable spares cannot stall departure.
                 and (item.name, item.tval, item.sval) not in self._unsellable_items
+                and STORE_WEAPON not in self._store_sale_refused
             )
             and self._item_signature(item) not in self._home_pending_batch
             and (
@@ -7522,12 +7531,20 @@ class HengbotPolicy:
         else:
             self._last_sell_sig = sig
             self._store_sell_stuck_count = 0
-        # Two already-emitted attempts with the same-turn store/pack snapshot
-        # prove that the first key or its selection was rejected.  Reuse the
-        # existing sell latch and abandon this item before an eight-nudge wait.
-        if self._store_sell_stuck_count >= 2:
+        # One already-emitted attempt whose store/pack/gold snapshot is unchanged
+        # proves the sale was rejected: the snapshot re-fires only after the
+        # duplicate-retry delay, by which time the game has processed the key, so
+        # an identical board means no sale happened. Leave now instead of
+        # re-emitting the multi-key sell — a second emit lands its trailing keys
+        # in the store command loop after the "no room" message ("そのコマンドは
+        # 店の中では使えません"), the desync the user observed.
+        if self._store_sell_stuck_count >= 1:
             self._unsellable_items.add(self._item_signature(item))
             self._town_store_attempted[store.store_type] = snapshot.turn
+            # The store accepts this item's type (it passed _store_accepts_sale)
+            # yet rejected the sale: it is FULL. Latch it so the withdraw/route
+            # logic stops feeding more spares to a store with no room.
+            self._store_sale_refused.add(store.store_type)
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
@@ -7816,6 +7833,11 @@ class HengbotPolicy:
 
             if (
                 self._equipped_weapon_high_grade(snapshot)
+                # Stop pulling spares once the Weapon Smith is full this visit:
+                # they could not be sold, and re-opening its sale route (below)
+                # would only churn futile trips to a store with no room. This
+                # also suppresses the route re-open, since the pop lives here.
+                and STORE_WEAPON not in self._store_sale_refused
                 # Never pull spares past the batch reserve: an unguarded pull
                 # filled the pack to zero free every Home visit, and a full pack
                 # blocks town departure (MIN_FREE_PACK_SLOTS).
