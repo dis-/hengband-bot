@@ -7869,7 +7869,7 @@ class HengbotPolicy:
                     )
                     quantity = min(scrolls_missing, stored_scrolls.count)
                     self.last_reason = "home:withdraw-treasure-detection"
-                    suffix = f"\r{quantity}\r" if stored_scrolls.count > 1 else "\r"
+                    suffix = f"{quantity}\r" if stored_scrolls.count > 1 else "\r"
                     return BUY_KEY + stored_scrolls.letter + suffix
 
                 if not self._has_digging_tool(snapshot):

@@ -4902,7 +4902,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy._shop(snap), "pa\r5\r")
+        self.assertEqual(policy._shop(snap), "pa5\r")
         self.assertEqual(policy.last_reason, "home:withdraw-treasure-detection")
 
         with_scrolls = replace(
