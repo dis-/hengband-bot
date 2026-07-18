@@ -785,10 +785,8 @@ def optimize_loadout(
         )[:3]
     )
 
-    # Disposal proof is deliberately separate from best-loadout selection. The
-    # previous all-loadouts-by-all-loadouts proof was cubic at terminal Home
-    # sizes. Until a conservative slot-local proof is available, retaining an
-    # uncertain item at Home is the agreed safe behavior.
+    # Physical Home disposal uses the capacity-aware R1 slot-local proof in
+    # warrior_loadout_search.  Unknown items never reach that proof.
     dominated_ids: set[str] = set()
 
     return OptimizationResult(

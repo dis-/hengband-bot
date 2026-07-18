@@ -10816,7 +10816,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._home_pending_item)
         self.assertNotEqual(policy.last_reason, "equipment:equip-dominating-upgrade")
 
-    def test_only_mundane_fully_dominated_armour_is_disposable(self):
+    def test_legacy_armour_comparison_does_not_bypass_r1_catalog_proof(self):
         superior = item(
             "body",
             36,
@@ -10848,7 +10848,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             equipment=[superior, self._lantern()],
         )
         policy = HengbotPolicy()
-        self.assertTrue(policy._is_disposable_dominated_armour(snap, inferior))
+        self.assertFalse(policy._is_disposable_dominated_armour(snap, inferior))
         self.assertFalse(policy._is_disposable_dominated_armour(snap, protected))
 
     def test_weapon_is_not_disposed_by_armour_dominance_rule(self):
@@ -10868,7 +10868,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             HengbotPolicy()._is_disposable_dominated_armour(snap, inferior)
         )
 
-    def test_pseudo_average_armour_is_disposable_only_against_same_base(self):
+    def test_pseudo_average_armour_is_never_disposable(self):
         superior = item(
             "body", 37, 1, known=True, fully_known=True,
             is_equipment=True, ac=5, to_a=3,
@@ -10887,7 +10887,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertTrue(
+        self.assertFalse(
             policy._is_disposable_dominated_armour(snap, same_base)
         )
         self.assertFalse(
@@ -10896,7 +10896,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_withdraws_dominated_mundane_armour_from_home_for_sale(self):
         superior = store_item(
-            "a", 36, 1, name="superior armour", known=True,
+            "a", 37, 1, name="superior armour", known=True,
             fully_known=True, is_equipment=True, ac=10, to_a=5,
         )
         inferior = store_item(
@@ -10912,6 +10912,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             town_flag=True,
         )
         policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page(snap.store.items)
+        policy._home_disposal_pass = True
 
         self.assertEqual(policy.choose_key(snap), "pb\r")
         self.assertEqual(policy.last_reason, "home:withdraw-dominated")

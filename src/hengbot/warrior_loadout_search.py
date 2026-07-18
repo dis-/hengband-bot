@@ -107,14 +107,15 @@ def _catalog_dominates(left: OwnedEquipment, right: OwnedEquipment) -> bool:
     )
 
 
+def _slot_capacity(item: OwnedEquipment) -> int:
+    return 2 if item.item.tval in {21, 22, 23, 45} else 1
+
+
 def _prune_dominated_catalog(
     items: tuple[OwnedEquipment, ...],
     protected_ids: frozenset[str] = frozenset(),
 ) -> tuple[OwnedEquipment, ...]:
     """Remove same-slot candidates that cannot improve any Warrior metric."""
-    def slot_capacity(item: OwnedEquipment) -> int:
-        return 2 if item.item.tval in {21, 22, 23, 45} else 1
-
     return tuple(
         item
         for item in items
@@ -122,7 +123,31 @@ def _prune_dominated_catalog(
         or sum(
             other.id != item.id and _catalog_dominates(other, item)
             for other in items
-        ) < slot_capacity(item)
+        ) < _slot_capacity(item)
+    )
+
+
+def disposable_dominated_item_ids(
+    items: Iterable[OwnedEquipment],
+    protected_ids: frozenset[str] = frozenset(),
+) -> frozenset[str]:
+    """Return items whose R1 dominators survive capacity-aware pruning.
+
+    Disposal is intentionally stricter than merely disappearing from the search
+    catalog: every required physical dominator must itself remain owned after
+    the prune.  Two-slot classes therefore need two distinct retained copies.
+    """
+    catalog = tuple(items)
+    retained = _prune_dominated_catalog(catalog, protected_ids)
+
+    return frozenset(
+        item.id
+        for item in catalog
+        if item.id not in protected_ids
+        and sum(
+            other.id != item.id and _catalog_dominates(other, item)
+            for other in retained
+        ) >= _slot_capacity(item)
     )
 
 

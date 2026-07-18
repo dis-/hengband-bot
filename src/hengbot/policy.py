@@ -44,6 +44,7 @@ from hengbot.warrior_optimization import (
     prepare_warrior_optimization,
     weapon_expected_dps,
 )
+from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_YEEK_CAVE,
@@ -5737,65 +5738,49 @@ class HengbotPolicy:
     def _is_disposable_dominated_armour(
         self, snapshot: Snapshot, candidate: InventoryItem | StoreItem
     ) -> bool:
+        """Whether this fully known item is disposal-safe under the R1 prune."""
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return False
-        group = self._equipment_slot_group(candidate)
-        pseudo_mundane = not candidate.known and candidate.pseudo_feeling == "average"
         if (
-            group is None
-            or group == "weapon"
-            or (not candidate.known and not pseudo_mundane)
+            not candidate.is_equipment
+            or not candidate.known
             or candidate.is_cursed
             or candidate.is_broken
-            or candidate.is_ego
-            or candidate.is_artifact
-            or bool(candidate.known_flags)
-            or (
-                candidate.known
-                and
-                item_requires_full_identification(candidate)
-                and not candidate.fully_known
-            )
+            or (item_requires_full_identification(candidate) and not candidate.fully_known)
+            or self._equipment_disposal_reserved(snapshot, candidate)
+            or not self._equipment_catalog.home_scan_complete
         ):
             return False
-
-        comparators: list[InventoryItem | StoreItem] = [
-            item
-            for item in snapshot.equipment
-            if self._equipment_slot_group(item) == group
-            and item.known
-            and not item.is_cursed
-            and not item.is_broken
-            and (not item_requires_full_identification(item) or item.fully_known)
-        ]
-        comparators.extend(
-            item
-            for signature, item in self._home_catalog.items()
-            if signature != self._item_signature(candidate)
-            and self._equipment_slot_group(item) == group
-            and item.known
-            and not item.is_cursed
-            and not item.is_broken
-            and (not item_requires_full_identification(item) or item.fully_known)
+        catalog = self._equipment_catalog.items
+        protected = frozenset(
+            owned.id
+            for owned in catalog
+            if owned.origin == "equipped"
+            or owned.item.is_cursed
+            or self._equipment_disposal_reserved(snapshot, owned.item)
         )
-        if pseudo_mundane:
-            # Pseudo-ID omits base AC. Compare only the exact same base kind,
-            # where a known non-negative bonus/trait is a strict improvement.
-            return any(
-                comparator.tval == candidate.tval
-                and comparator.sval == candidate.sval
-                and comparator.to_a >= 0
-                and comparator.pval >= 0
-                and (
-                    comparator.to_a > 0
-                    or comparator.pval > 0
-                    or bool(comparator.known_flags)
-                )
-                for comparator in comparators
-            )
+        candidate_identity = equipment_identity(candidate)
+        disposable = disposable_dominated_item_ids(catalog, protected)
         return any(
-            self._equipment_dominates(comparator, candidate)
-            for comparator in comparators
+            owned.id in disposable
+            and owned.origin == "home"
+            and equipment_identity(owned.item) == candidate_identity
+            for owned in catalog
+        )
+
+    def _equipment_disposal_reserved(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem
+    ) -> bool:
+        """Apply retention ownership without pretending Home wares are pack items."""
+        if any(item is carried for carried in (*snapshot.inventory, *snapshot.equipment)):
+            return self._retention_reservation(snapshot, item) > 0
+        if self._item_signature(item) in self._town_visit_purchases:
+            return True
+        if item.is_torch:
+            return True
+        return bool(
+            item.is_digging_tool
+            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
         )
 
     def _home_dominated_disposal_key(self, snapshot: Snapshot) -> str | None:
@@ -5840,6 +5825,9 @@ class HengbotPolicy:
                 self._clear_pending_disposal()
                 self.last_reason = "home:dominated-withdraw-deferred"
                 return None
+
+        if not self._home_disposal_pass:
+            return None
 
         candidate = next(
             (
@@ -5898,6 +5886,13 @@ class HengbotPolicy:
         self._disposal_store_attempts.clear()
         self._destroy_pending = False
         self._destroy_attempts = 0
+
+    @staticmethod
+    def _dominated_disposal_store(item: InventoryItem | StoreItem) -> int | None:
+        for store_type in (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE):
+            if item.tval in STORE_ACCEPTED_TVALS[store_type]:
+                return store_type
+        return None
 
     def _town_destroy_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or not self._destroy_pending:
@@ -6204,10 +6199,11 @@ class HengbotPolicy:
 
         if (
             self._pending_disposal_item is not None
-            and self._pending_disposal(snapshot) is not None
-            and STORE_ARMOURY not in self._disposal_store_attempts
+            and (target := self._pending_disposal(snapshot)) is not None
         ):
-            add(STORE_ARMOURY, "disposal")
+            disposal_store = self._dominated_disposal_store(target)
+            if disposal_store is not None and disposal_store not in self._disposal_store_attempts:
+                add(disposal_store, "disposal")
         if self._pending_disposal_item is not None:
             return needs
 
@@ -6648,16 +6644,13 @@ class HengbotPolicy:
             self._planned_mining_runs = None
             self._town_store_attempted.clear()
         if self._pending_disposal_item is not None:
-            if self._pending_disposal(snapshot) is None:
+            target = self._pending_disposal(snapshot)
+            if target is None:
                 self._clear_pending_disposal()
             else:
-                # Dominated disposal candidates are always ordinary, flagless
-                # equipment. The Black Market does not add a useful fallback
-                # for that value tier, so one Armoury refusal is enough before
-                # destroying the item in town.
-                for store_type in (STORE_ARMOURY,):
-                    if store_type not in self._disposal_store_attempts:
-                        return store_type
+                store_type = self._dominated_disposal_store(target)
+                if store_type is not None and store_type not in self._disposal_store_attempts:
+                    return store_type
                 self._destroy_pending = True
                 return None
         equipped_weapon = next(
@@ -7745,22 +7738,23 @@ class HengbotPolicy:
             transaction_key = self._equipment_transaction_home_key(snapshot)
             if transaction_key is not None:
                 return transaction_key
-            disposal_key = self._home_disposal_home_key(snapshot)
-            if disposal_key is not None:
-                return disposal_key
             dominated_disposal = self._home_dominated_disposal_key(snapshot)
             if dominated_disposal is not None:
                 return dominated_disposal
+            disposal_key = self._home_disposal_home_key(snapshot)
+            if disposal_key is not None:
+                return disposal_key
 
         if (
-            store.store_type in {STORE_ARMOURY, STORE_BLACK}
-            and self._pending_disposal_item is not None
+            self._pending_disposal_item is not None
         ):
             target = self._pending_disposal(snapshot)
             if target is None:
                 self._clear_pending_disposal()
                 self.last_reason = "equipment:sale-complete"
                 return LEAVE_STORE_KEY
+            if store.store_type != self._dominated_disposal_store(target):
+                return None
             key = self._store_sell_key(
                 snapshot, target, "equipment:sell-dominated",
                 rejected_reason="equipment:sale-refused",
