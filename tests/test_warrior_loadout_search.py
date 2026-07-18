@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from itertools import product
 
 from hengbot.equipment_encounters import EncounterTarget
@@ -255,14 +256,152 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
             candidate_loadouts=exhaustive_loadouts(pruned_catalog),
         )
 
-        self.assertEqual(len(pruned_catalog), len(catalog) - len(weak))
+        self.assertEqual(len(pruned_catalog), len(catalog) - 1)
+        self.assertNotIn(weak[1], pruned_catalog)
+        self.assertIn(weak[0], pruned_catalog)
+        self.assertIn(weak[2], pruned_catalog)
         self.assertEqual(reduced.best.metrics, reference.best.metrics)
         self.assertEqual(
             {entry.metrics for entry in reduced.pareto_frontier},
             {entry.metrics for entry in reference.pareto_frontier},
         )
-        # Revert proof: the unpruned reference restores all three candidates.
-        self.assertEqual(len(catalog), len(pruned_catalog) + 3)
+        # Capacity-one cloak dominance still removes exactly one candidate.
+        self.assertEqual(len(catalog), len(pruned_catalog) + 1)
+
+    def test_stacking_dex_and_speed_rings_survive_single_dominator(self):
+        stacking_inputs = WarriorLoadoutInputs(
+            WarriorCombatInputs(
+                level=20,
+                natural_str=18,
+                natural_dex=18,
+                melee_skill=80,
+                two_weapon_skill=4000,
+            ),
+            WarriorDefenseInputs(level=20, natural_dex=18, saving_skill=50),
+            200,
+            SpellSelectionContext(),
+        )
+        for flag, label in ((3, "dex"), (12, "speed")):
+            with self.subTest(label=label):
+                evaluator_inputs = stacking_inputs
+                encounters = self.encounters
+                if label == "speed":
+                    evaluator_inputs = replace(
+                        stacking_inputs,
+                        defense=replace(stacking_inputs.defense, base_speed=126),
+                    )
+                    encounters = (
+                        replace(
+                            self.encounters[0],
+                            knowledge=replace(
+                                self.encounters[0].knowledge,
+                                blows=(MonsterBlow("HIT", "INERTIA", 1, 6),),
+                            ),
+                        ),
+                    )
+                strong = owned(f"strong-{label}", 45, flags={flag}, pval=3)
+                weak = owned(f"weak-{label}", 45, flags={flag}, pval=2)
+                catalog = (
+                    owned("sword", 23, to_d=8),
+                    owned("light", 39),
+                    strong,
+                    weak,
+                )
+
+                pruned = _prune_dominated_catalog(catalog)
+                self.assertIn(strong, pruned)
+                self.assertIn(weak, pruned)
+
+                reference_evaluator = CachedWarriorLoadoutEvaluator(
+                    evaluator_inputs, encounters
+                )
+                reduced_evaluator = CachedWarriorLoadoutEvaluator(
+                    evaluator_inputs, encounters
+                )
+                reference = optimize_loadout(
+                    catalog,
+                    lambda loadout: reference_evaluator(loadout).metrics,
+                    depth=1,
+                    timeout_seconds=10,
+                    candidate_loadouts=exhaustive_loadouts(catalog),
+                )
+                reduced = optimize_loadout(
+                    catalog,
+                    lambda loadout: reduced_evaluator(loadout).metrics,
+                    depth=1,
+                    timeout_seconds=10,
+                    candidate_loadouts=enumerate_warrior_loadouts(catalog),
+                )
+
+                self.assertEqual(reduced.best.metrics, reference.best.metrics)
+                self.assertEqual(
+                    {strong.id, weak.id},
+                    {item_id for item_id in reference.best.loadout.item_ids
+                     if item_id.endswith(label)},
+                )
+
+    def test_dominated_dual_wield_pair_survives_single_dominator(self):
+        strong = owned("strong-sword", 23, to_h=12, to_d=20, weight=30)
+        weak = owned("weak-sword", 23, to_h=10, to_d=18, weight=30)
+        catalog = (
+            strong,
+            weak,
+            owned("light", 39),
+        )
+        dual_wield_inputs = WarriorLoadoutInputs(
+            WarriorCombatInputs(
+                level=20,
+                natural_str=38,
+                natural_dex=38,
+                melee_skill=80,
+                two_weapon_skill=16000,
+            ),
+            WarriorDefenseInputs(level=20, natural_dex=38, saving_skill=50),
+            200,
+            SpellSelectionContext(),
+        )
+
+        pruned = _prune_dominated_catalog(catalog)
+        self.assertIn(strong, pruned)
+        self.assertIn(weak, pruned)
+
+        reference_evaluator = CachedWarriorLoadoutEvaluator(
+            dual_wield_inputs, self.encounters
+        )
+        reduced_evaluator = CachedWarriorLoadoutEvaluator(
+            dual_wield_inputs, self.encounters
+        )
+        reference = optimize_loadout(
+            catalog,
+            lambda loadout: reference_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(catalog),
+        )
+        reduced = optimize_loadout(
+            catalog,
+            lambda loadout: reduced_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=enumerate_warrior_loadouts(catalog),
+        )
+
+        self.assertEqual(reference.best.loadout.hand_mode, "dual_wield")
+        self.assertEqual(
+            {item_id for item_id in reference.best.loadout.item_ids
+             if item_id.endswith("sword")},
+            {strong.id, weak.id},
+        )
+        self.assertEqual(reduced.best.metrics, reference.best.metrics)
+
+    def test_two_distinct_ring_dominators_prune_weakest_ring(self):
+        strongest = owned("ring-plus-four", 45, to_d=4)
+        strong = owned("ring-plus-three", 45, to_d=3)
+        weak = owned("ring-plus-two", 45, to_d=2)
+
+        pruned = _prune_dominated_catalog((strongest, strong, weak))
+
+        self.assertEqual(pruned, (strongest, strong))
 
     def test_launcher_and_light_stage_inputs_are_pareto_frontiers(self):
         bows = tuple(

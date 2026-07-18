@@ -112,14 +112,17 @@ def _prune_dominated_catalog(
     protected_ids: frozenset[str] = frozenset(),
 ) -> tuple[OwnedEquipment, ...]:
     """Remove same-slot candidates that cannot improve any Warrior metric."""
+    def slot_capacity(item: OwnedEquipment) -> int:
+        return 2 if item.item.tval in {21, 22, 23, 45} else 1
+
     return tuple(
         item
         for item in items
         if item.id in protected_ids
-        or not any(
+        or sum(
             other.id != item.id and _catalog_dominates(other, item)
             for other in items
-        )
+        ) < slot_capacity(item)
     )
 
 
