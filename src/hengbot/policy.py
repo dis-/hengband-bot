@@ -10599,11 +10599,11 @@ class HengbotPolicy:
                 return travel
         info = self._quest_knowledge.get(quest_id)
         if info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}:
+            if snapshot.in_town and self._fixed_quest_reward_pending == quest_id:
+                return self._fixed_quest_reward_key(snapshot, quest_id)
             if quest.status == QUEST_STATUS_COMPLETED:
                 if not snapshot.in_town:
                     return None
-                if self._fixed_quest_reward_pending == quest_id:
-                    return self._fixed_quest_reward_key(snapshot, quest_id)
                 return self._fixed_quest_building_key(
                     snapshot,
                     quest_id,

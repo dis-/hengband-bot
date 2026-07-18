@@ -2730,6 +2730,37 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "fixedquest:claim")
         self.assertEqual(policy._fixed_quest_reward_pending, 14)
 
+    def test_q14_rewarded_collects_latched_floor_reward_and_clears_latch(self):
+        policy, snapshot = self._q14_town_fixture(QUEST_STATUS_REWARDED)
+        policy._fixed_quest_reward_pending = 14
+        grids = {
+            Position(27, 97): grid(27, 97),
+            Position(27, 98): grid(27, 98, objects=1),
+        }
+        snapshot = replace(snapshot, player=player(27, 97), grids=grids)
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "fixedquest:reward-approach")
+
+        policy._floor_key = (0, 0, 0)
+        policy._last_position = Position(27, 97)
+        pickup = replace(snapshot, player=player(27, 98))
+        self.assertEqual(policy.choose_key(pickup), "g")
+        self.assertEqual(policy.last_reason, "fixedquest:reward-pickup")
+
+        policy._floor_key = (0, 0, 0)
+        policy._last_position = Position(27, 98)
+        empty = replace(
+            pickup,
+            grids={
+                Position(27, 97): grid(27, 97),
+                Position(27, 98): grid(27, 98),
+            },
+        )
+        self.assertIsNone(policy._fixed_quest_key(empty, []))
+        self.assertIsNone(policy._fixed_quest_reward_pending)
+        self.assertEqual(policy.last_reason, "fixedquest:reward-complete")
+
     def test_q2_outbound_travel_is_blocked_until_executor_exists(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
