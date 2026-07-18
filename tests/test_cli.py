@@ -891,7 +891,7 @@ class StallRecoveryTest(unittest.TestCase):
 
     def test_store_macro_waits_between_quantity_digits(self):
         self.assertEqual(
-            _delay_after_macro_key("pf\r10\r\ry", 3),
+            _delay_after_macro_key("pf10\r\r", 2),
             STORE_QUANTITY_DIGIT_DELAY_SECONDS,
         )
 

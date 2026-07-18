@@ -720,24 +720,19 @@ DESTROY_FAIL_LIMIT = 3
 LANTERN_REFILL_FUEL = 1000
 TORCH_REFILL_FUEL = 500
 
-# Shopping. In a store, 'p' is the (rewritten-to-'g') Purchase command; it prompts
-# for an item letter, then a quantity (pre-filled "1", so Return buys one), then a
-# [Y/n] confirm (DEFAULT_Y). So "buy one of <letter>" = 'p' + letter + Return + y.
+# Shopping. In a store, 'p' is the (rewritten-to-'g') Purchase command. It
+# consumes an item letter, a quantity plus Return for stacked wares, and one
+# [Y/n] confirmation key. DEFAULT_Y makes Return itself the affirmative key.
 # Leaving the store is Escape. See the store-subsystem notes.
 BUY_KEY = "p"
-# After 'p'+letter, a stacked item shows a price -more-, then quantity (default
-# 1), then a second "Buying ..." -more-, and only then the [Y/n] confirmation.
-# Three Returns advance those screens before y confirms. A single item skips the
-# first two screens; the extra Returns are accepted by DEFAULT_Y / ignored by the
-# store loop, so the same macro safely buys one of either kind.
-BUY_CONFIRM_SUFFIX = "\r\r\ry"
-# A stacked ware's quantity prompt defaults to the maximum affordable amount,
-# not one. Enter an explicit 1 before accepting it so restocking remains bounded
-# by the policy's target counts.
-STACKED_BUY_CONFIRM_SUFFIX = "\r1\r\ry"
+# A one-count ware skips input_quantity, so only its confirmation Return follows.
+BUY_CONFIRM_SUFFIX = "\r"
+# A stacked ware's quantity prompt defaults to one. Enter the intended quantity,
+# submit it, then use exactly one Return for DEFAULT_Y confirmation.
+STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
 LEAVE_STORE_KEY = "\x1b"
 SELL_KEY = "d"
-SELL_CONFIRM_SUFFIX = "\r\ry"
+SELL_CONFIRM_SUFFIX = "\r"
 # Mirrors store/service-checker.cpp's per-store tval switches.  The policy's
 # sale paths only need these ordinary, unconditional cases; the Temple's
 # blessed-weapon/figurine exceptions and the General/Magic special svals are
@@ -7478,7 +7473,10 @@ class HengbotPolicy:
         elif item.is_ammo:
             needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
-            strategy = self._quest_strategy_for_errand_or_floor(snapshot)
+            strategy = (
+                self._carry_procurement_strategy(snapshot)
+                or self._quest_strategy_for_errand_or_floor(snapshot)
+            )
             target = TORCH_THROW_TARGET
             if strategy is not None:
                 target = max(target, int(
@@ -7618,6 +7616,22 @@ class HengbotPolicy:
         rejected_reason: str = "shop:unsellable-leave",
     ) -> str:
         store = snapshot.store
+        current = next(
+            (
+                candidate for candidate in snapshot.inventory
+                if candidate.slot == item.slot
+                and self._item_signature(candidate) == self._item_signature(item)
+            ),
+            None,
+        )
+        if current is None:
+            # A sale candidate can outlive the inventory board that supplied
+            # its letter after an earlier sale removes or reorders the pack.
+            self._last_sell_sig = None
+            self._store_sell_stuck_count = 0
+            self.last_reason = rejected_reason
+            return LEAVE_STORE_KEY
+        item = current
         if store is None or not self._store_accepts_sale(store.store_type, item):
             # 'd' can be rejected before opening an item prompt.  Never attach
             # Return/yes tail keys unless the C++ store tval gate says the prompt
@@ -7703,7 +7717,7 @@ class HengbotPolicy:
             if food_item is not None:
                 quantity = self._purchase_quantity(snapshot, food_item)
                 suffix = (
-                    f"\r{quantity}\r\ry"
+                    f"{quantity}\r\r"
                     if food_item.count > 1
                     else BUY_CONFIRM_SUFFIX
                 )
@@ -8121,7 +8135,7 @@ class HengbotPolicy:
                     else "shop:sell-spare-lantern"
                 )
                 suffix = (
-                    f"{quantity}\r\ry"
+                    f"{quantity}\r\r"
                     if quantity < sale.count
                     else SELL_CONFIRM_SUFFIX
                 )
@@ -8209,7 +8223,7 @@ class HengbotPolicy:
             # price/quantity.  Thus 'p' has a live selectable precondition; the
             # remaining Returns are prompt defaults and a final confirmation,
             # not an unchecked tail after a possibly unsupported command.
-            suffix = f"\r{quantity}\r\ry" if item.count > 1 else BUY_CONFIRM_SUFFIX
+            suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
             return BUY_KEY + item.letter + suffix
 
         self._last_buy_sig = None
