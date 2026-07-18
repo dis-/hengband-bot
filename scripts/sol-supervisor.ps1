@@ -12,6 +12,8 @@ $legacyOperatorPidFile = Join-Path $runtime 'sol-operator.pid'
 $stateFile = Join-Path $runtime 'sol-supervisor-state.json'
 $agentHeartbeatFile = Join-Path $runtime 'sol-agent-heartbeat.json'
 $eventsFile = Join-Path $runtime 'sol-events.jsonl'
+$runOutLog = Join-Path $runtime 'sol-supervisor.run.out.log'
+$runErrLog = Join-Path $runtime 'sol-supervisor.run.err.log'
 $operatorScript = Join-Path $BotRoot 'scripts\sol-operator-once.ps1'
 $self = $MyInvocation.MyCommand.Path
 
@@ -46,7 +48,16 @@ function Add-Event([string]$Type, [string]$Detail) {
         source = 'sol-supervisor'
         detail = $Detail
     }
-    Add-Content -LiteralPath $eventsFile -Value ($event | ConvertTo-Json -Compress) -Encoding utf8
+    $line = $event | ConvertTo-Json -Compress
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        try {
+            Add-Content -LiteralPath $eventsFile -Value $line -Encoding utf8
+            return
+        } catch [System.IO.IOException] {
+            if ($attempt -lt 10) { Start-Sleep -Milliseconds 100 }
+        }
+    }
+    try { [Console]::Error.WriteLine("Unable to append supervisor event after 10 attempts: $Type - $Detail") } catch {}
 }
 
 function Get-HeartbeatAgeSeconds {
@@ -80,10 +91,18 @@ function Start-Supervisor {
         Start-Sleep -Milliseconds 500
     }
 
+    # Start-Process overwrites redirected files, so preserve the previous run's
+    # diagnostics before launching a replacement supervisor.
+    foreach ($log in @($runOutLog, $runErrLog)) {
+        if (Test-Path -LiteralPath $log) {
+            Move-Item -LiteralPath $log -Destination "$log.previous" -Force
+        }
+    }
+
     $process = Start-Process powershell.exe -ArgumentList @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $self,
         '-Action', 'run', '-BotRoot', $BotRoot
-    ) -WindowStyle Hidden -PassThru
+    ) -WindowStyle Hidden -PassThru -RedirectStandardOutput $runOutLog -RedirectStandardError $runErrLog
 
     $deadline = [DateTimeOffset]::Now.AddSeconds(10)
     do {
@@ -160,14 +179,15 @@ try {
     $operatorStartedAt = $null
 
     while (Test-Path -LiteralPath $enabledFile) {
-        $now = [DateTimeOffset]::Now
-        $gamePid = Get-FilePid (Join-Path $runtime 'hengband.pid')
-        $botPid = Get-FilePid (Join-Path $runtime 'bot.pid')
-        $gameAlive = Test-LivePid $gamePid
-        $botAlive = Test-LivePid $botPid
-        $anomaly = $null
+        try {
+            $now = [DateTimeOffset]::Now
+            $gamePid = Get-FilePid (Join-Path $runtime 'hengband.pid')
+            $botPid = Get-FilePid (Join-Path $runtime 'bot.pid')
+            $gameAlive = Test-LivePid $gamePid
+            $botAlive = Test-LivePid $botPid
+            $anomaly = $null
 
-        if ($gameAlive -and -not $botAlive) {
+            if ($gameAlive -and -not $botAlive) {
             $loopLine = Get-Content -LiteralPath (Join-Path $runtime 'bot-stderr.log') -Tail 20 -ErrorAction SilentlyContinue |
                 Where-Object { $_ -match 'loop-detected|stopping bot|Traceback|ERROR' } |
                 Select-Object -Last 1
@@ -176,11 +196,11 @@ try {
                 Add-Event 'operator_alert' $anomaly
                 $lastIncident = $anomaly
             }
-        } elseif ($botAlive) {
-            $lastIncident = ''
-        }
+            } elseif ($botAlive) {
+                $lastIncident = ''
+            }
 
-        if ($operator -and $operator.HasExited) {
+            if ($operator -and $operator.HasExited) {
             $operatorRuntime = if ($operatorStartedAt) { ($now - $operatorStartedAt).TotalSeconds } else { 0 }
             Add-Event 'operator_exit' "Operator generation $generation exited with code $($operator.ExitCode); restart in ${restartDelay}s."
             $operator = $null
@@ -188,9 +208,9 @@ try {
             $restartDelay = if ($operatorRuntime -ge 300) { 5 } else { [Math]::Min($restartDelay * 2, 120) }
             $operatorStartedAt = $null
             Remove-Item -LiteralPath $legacyOperatorPidFile -Force -ErrorAction SilentlyContinue
-        }
+            }
 
-        if ($operator -and -not $operator.HasExited) {
+            if ($operator -and -not $operator.HasExited) {
             $agentHeartbeat = Get-JsonFile $agentHeartbeatFile
             $agentAge = [double]::PositiveInfinity
             if ($agentHeartbeat -and $agentHeartbeat.time) {
@@ -204,9 +224,9 @@ try {
                 $operatorStartedAt = $null
                 Remove-Item -LiteralPath $legacyOperatorPidFile -Force -ErrorAction SilentlyContinue
             }
-        }
+            }
 
-        if (-not $operator -and $now -ge $nextStart) {
+            if (-not $operator -and $now -ge $nextStart) {
             $generation++
             Write-AtomicJson $agentHeartbeatFile ([ordered]@{
                 time = $now.ToString('o'); generation = $generation; phase = 'launching'; source = 'sol-supervisor'
@@ -217,19 +237,34 @@ try {
             $operatorStartedAt = $now
             Set-Content -LiteralPath $legacyOperatorPidFile -Value $operator.Id -Encoding ascii
             Add-Event 'operator_start' "Started operator generation $generation as PID $($operator.Id)."
-        }
+            }
 
-        Write-AtomicJson $stateFile ([ordered]@{
-            heartbeat = $now.ToString('o')
-            supervisor_pid = $PID
-            operator_pid = $(if ($operator -and -not $operator.HasExited) { $operator.Id } else { $null })
-            operator_generation = $generation
-            game_pid = $gamePid
-            game_alive = $gameAlive
-            bot_pid = $botPid
-            bot_alive = $botAlive
-            anomaly = $anomaly
-        })
+            Write-AtomicJson $stateFile ([ordered]@{
+                heartbeat = $now.ToString('o')
+                supervisor_pid = $PID
+                operator_pid = $(if ($operator -and -not $operator.HasExited) { $operator.Id } else { $null })
+                operator_generation = $generation
+                game_pid = $gamePid
+                game_alive = $gameAlive
+                bot_pid = $botPid
+                bot_alive = $botAlive
+                anomaly = $anomaly
+            })
+        } catch {
+            $message = $_.Exception.Message
+            try { Add-Event 'error' "Supervisor iteration failed: $message" } catch {}
+            try {
+                Write-AtomicJson $stateFile ([ordered]@{
+                    heartbeat = [DateTimeOffset]::Now.ToString('o')
+                    supervisor_pid = $PID
+                    operator_pid = $(if ($operator -and -not $operator.HasExited) { $operator.Id } else { $null })
+                    operator_generation = $generation
+                    status = 'error'
+                    error = $message
+                })
+            } catch {}
+            try { [Console]::Error.WriteLine("Supervisor iteration failed: $message") } catch {}
+        }
         Start-Sleep -Seconds 15
     }
 } finally {
