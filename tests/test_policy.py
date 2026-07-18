@@ -131,6 +131,7 @@ from hengbot.policy import (
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
+    MINING_MIN_VIABLE_VEINS,
     MINING_ROUTE_REVISIT_LIMIT,
     MINING_NAVIGATION_REVISIT_LIMIT,
     MINING_STALL_LIMIT,
@@ -6112,6 +6113,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         grids = {
             Position(10, 10): grid(10, 10, upstairs=True),
             Position(10, 11): grid(10, 11, passable=False, rubble=True, gold=True),
+            Position(20, 20): grid(20, 20, passable=False, gold=True),
+            Position(21, 20): grid(21, 20, passable=False, gold=True),
+            Position(22, 20): grid(22, 20, passable=False, gold=True),
+            Position(23, 20): grid(23, 20, passable=False, gold=True),
         }
         tool = item(
             "main_hand",
@@ -7968,6 +7973,76 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertFalse(policy._mining_sweep_done)
+
+    def test_mining_abandons_dry_floor_immediately_after_detection(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        base_grids = {
+            Position(10, 10): grid(10, 10, upstairs=True),
+            Position(10, 11): grid(10, 11),
+        }
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            base_grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=80,
+            height=80,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertTrue(policy.choose_key(snap).startswith(READ_KEY))
+        revealed = dict(base_grids)
+        revealed.update(
+            {
+                Position(20, 20): grid(20, 20, passable=False, gold=True),
+                Position(30, 30): grid(30, 30, passable=False, gold=True),
+            }
+        )
+        detected = replace(snap, grids=revealed)
+        self.assertEqual(policy.choose_key(detected), "<")
+        self.assertEqual(policy.last_reason, "fundraise:ascend")
+        self.assertLessEqual(policy._mining_sweep_steps, 3)
+
+    def test_mining_viability_gate_preserves_rich_unreachable_sweep(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        start = Position(10, 10)
+        snap = Snapshot(
+            player(start.y, start.x, class_id=PLAYER_CLASS_WARRIOR),
+            {start: grid(start.y, start.x), Position(10, 11): grid(10, 11)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=80,
+            height=80,
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        self.assertTrue(policy.choose_key(snap).startswith(READ_KEY))
+
+        revealed = dict(snap.grids)
+        for index in range(MINING_MIN_VIABLE_VEINS):
+            position = Position(30, 30 + index)
+            revealed[position] = grid(
+                position.y, position.x, passable=False, gold=True
+            )
+        detected = replace(snap, grids=revealed)
+        with patch.object(
+            policy, "_mining_sweep_step", return_value=Position(10, 11)
+        ):
+            policy.choose_key(detected)
+            policy.choose_key(detected)
+
+        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
+        self.assertGreaterEqual(policy._mining_sweep_steps, 2)
         self.assertFalse(policy._mining_sweep_done)
 
     def test_mining_oscillation_leaves_when_no_other_frontier_remains(self):

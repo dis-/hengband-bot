@@ -802,6 +802,10 @@ DIGGER_WIELD_LIMIT = 8
 # Never spends a Teleport/Recall scroll. (Pure oscillation with nothing diggable gives up
 # at once instead — that path is NOT harness-exempt, so it must not linger.)
 MINING_STALL_LIMIT = 150
+# Audit-mandated post-detection yield gate.  The observed dry floor exposed only
+# 2 veins, while healthy floors exposed at least 29, so 5 rejects the clear dry
+# outlier without coming close to suppressing a productive sweep.
+MINING_MIN_VIABLE_VEINS = 5
 MINING_SWEEP_NO_PROGRESS_LIMIT = 24
 MINING_SWEEP_HARD_LIMIT = 600
 MINING_ROUTE_REVISIT_LIMIT = 4
@@ -1167,6 +1171,7 @@ class HengbotPolicy:
         # exclusion "skip to the next vein" silently retries the same one until
         # a revisit limit ends the whole floor with most treasure uncollected.
         self._mining_sweep_done = False
+        self._mining_viability_pending_floor: tuple[int, int, int] | None = None
         self._mining_sweep_steps = 0
         self._mining_sweep_no_progress = 0
         self._mining_sweep_revealed_grids = 0
@@ -2801,6 +2806,7 @@ class HengbotPolicy:
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
             self._mining_sweep_done = False
+            self._mining_viability_pending_floor = None
             self._mining_sweep_steps = 0
             self._mining_sweep_no_progress = 0
             self._mining_sweep_revealed_grids = 0
@@ -9881,6 +9887,8 @@ class HengbotPolicy:
                 # Fresh detection = a fresh sweep of the (extended) area and a
                 # fresh chance for veins whose walk failed before.
                 self._mining_sweep_done = False
+                if needs_initial_detection:
+                    self._mining_viability_pending_floor = snapshot.floor_key
                 self._reset_mining_sweep_progress(snapshot)
                 self._mining_swept_dead_targets.clear()
                 self._mining_grids_at_sweep_done = 0
@@ -9891,6 +9899,18 @@ class HengbotPolicy:
                     else "fundraise:redetect-treasure"
                 )
                 return READ_KEY + scroll.slot
+
+        # The detection command's snapshot does not contain its effect yet.  Assess
+        # exactly once on the following decision, after _observe has incorporated
+        # the revealed veins, and reroll a clear dry outlier before paying for the
+        # thorough radius sweep.  Dropped veins are excluded for consistency with
+        # the phase-2 yield accounting (normally this set is empty after detection).
+        if self._mining_viability_pending_floor == snapshot.floor_key:
+            self._mining_viability_pending_floor = None
+            detected_total = len(self._known_treasure - self._mining_dropped_veins)
+            if detected_total < MINING_MIN_VIABLE_VEINS:
+                self._mining_stall_turns = MINING_STALL_LIMIT
+                return self._finish_mining_floor(snapshot)
 
         adjacent_gold = min(
             (
