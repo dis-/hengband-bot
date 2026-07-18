@@ -443,6 +443,39 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         )
         self.assertEqual(result.best.metrics, reference.best.metrics)
 
+    def test_evaluator_invisible_flags_and_nonmelee_weight_are_lossless(self):
+        weak = owned("utility-light", 39, ac=1, weight=50, flags={72, 200})
+        strong = owned("plain-light", 39, ac=3, weight=500)
+        catalog = (owned("sword", 23, to_d=4), weak, strong)
+        reference_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        reduced_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+
+        reference = optimize_loadout(
+            catalog,
+            lambda loadout: reference_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(catalog),
+        )
+        reduced = optimize_loadout(
+            catalog,
+            lambda loadout: reduced_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=enumerate_warrior_loadouts(catalog),
+        )
+
+        self.assertNotIn(weak, _prune_dominated_catalog(catalog))
+        self.assertEqual(reduced.best.metrics, reference.best.metrics)
+        self.assertEqual(
+            {entry.metrics for entry in reduced.pareto_frontier},
+            {entry.metrics for entry in reference.pareto_frontier},
+        )
+
     def test_melee_equivalent_weapons_do_not_breed_quadratic_pairs(self):
         swords = tuple(
             owned(f"sword-{i}", 23, sval=i, to_h=3, to_d=4)
@@ -511,11 +544,17 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
 
     def test_live_shaped_hoard_has_exact_structural_bound(self):
         launchers = tuple(
-            owned(f"bow-{i}", 19, ac=i % 3, flags=({50 + i} if i < 3 else ()))
+            owned(
+                f"bow-{i}", 19, ac=i % 3, weight=30 + i * 7,
+                flags={200 + i, *({50 + i} if i < 3 else ())},
+            )
             for i in range(11)
         )
         lights = tuple(
-            owned(f"light-{i}", 39, ac=i % 4, flags=({55 + i} if i < 4 else ()))
+            owned(
+                f"light-{i}", 39, ac=i % 4, weight=10 + i * 5,
+                flags={220 + i, *({55 + i} if i < 4 else ())},
+            )
             for i in range(13)
         )
         melee = tuple(

@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Iterable, Iterator, Mapping
 
+from hengbot.equipment_encounters import BRANDS, SLAYS
 from hengbot.equipment_optimizer import (
     FIXED_SLOTS,
     SLOT_LIGHT,
@@ -40,7 +41,23 @@ BENEFICIAL_GEAR_FLAGS = frozenset(
         69, 70, 76, 79, 84,  # anti-magic, mana reduction, levitation, telepathy
         143, 144, 145, 157, 163,
     }
+) | frozenset(flag for flag, *_ in (*SLAYS, *BRANDS))
+
+# Flags outside this set are not read by the composite Warrior evaluator or by
+# its depth requirements.  Keeping the raw known_flags set in cache and
+# dominance keys made harmless lore/utility flags split otherwise identical
+# live Home candidates into separate search states.
+WARRIOR_EVALUATOR_FLAGS = BENEFICIAL_GEAR_FLAGS | frozenset(
+    {
+        134, 141,  # LOW_AC / NO_AC
+        147, 151,  # supportive / impact
+        152, 153, 154, 155,  # elemental vulnerabilities
+    }
 )
+
+
+def _evaluator_flags(item: OwnedEquipment) -> frozenset[int]:
+    return item.flags.intersection(WARRIOR_EVALUATOR_FLAGS)
 
 def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
     """Return every item field observed by the Warrior loadout evaluator.
@@ -63,7 +80,7 @@ def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
         obj.pval,
         obj.weight,
         obj.weapon_proficiency,
-        item.flags,
+        _evaluator_flags(item),
         item.exploration_legal,
     )
 
@@ -73,24 +90,28 @@ def _item_dominance_parts(
 ) -> tuple[tuple[object, ...], tuple[int, ...], frozenset[int]]:
     """Split the evaluator signature into exact and monotonic components."""
     signature = _loadout_value_signature(item)
-    flags = item.flags
+    flags = _evaluator_flags(item)
+    melee_weapon = item.item.tval in {21, 22, 23}
     return (
         (
             signature[0],  # slot
-            signature[1],  # tval (weapon handling and armour type)
-            signature[10],  # weight changes blows and dual-wield penalties
+            # Only wielded melee weapons expose kind and weight to the Warrior
+            # evaluator.  Real Home launchers, lights, and armour have distinct
+            # base weights; comparing those invisible values kept their entire
+            # catalogs alive and defeated this prune in production.
+            signature[1] if melee_weapon else None,
+            signature[10] if melee_weapon else None,
             flags - BENEFICIAL_GEAR_FLAGS,
-            signature[13],
         ),
         (
             int(signature[3]),
             int(signature[4]),
             int(signature[5]),
             int(signature[6]),
-            int(signature[7]),
-            int(signature[8]),
+            int(signature[7]) if melee_weapon else 0,
+            int(signature[8]) if melee_weapon else 0,
             int(signature[9]),
-            int(signature[11]),
+            int(signature[11]) if melee_weapon else 0,
         ),
         flags.intersection(BENEFICIAL_GEAR_FLAGS),
     )
@@ -165,7 +186,7 @@ def _weapon_contribution_signature(item: OwnedEquipment) -> tuple[object, ...]:
         obj.pval,
         obj.weight,
         obj.weapon_proficiency,
-        item.flags,
+        _evaluator_flags(item),
         item.exploration_legal,
     )
 
@@ -254,7 +275,7 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
     )
     key = (
         loadout.hand_mode,
-        loadout.flags,
+        loadout.flags.intersection(WARRIOR_EVALUATOR_FLAGS),
         loadout.item_at(SLOT_LIGHT) is not None,
         vector,
     )
