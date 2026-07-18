@@ -611,7 +611,7 @@ MOVE_REASONS = frozenset(
         "breakout:seek-frontier",
         "clear-descent",
         "hunt",
-        "town:clear-traveler",
+        "town:kill-mob-approach",
         "stuck:seek-stairs",
         "seek-secret-wall",
         "stuck:wander",
@@ -1711,6 +1711,13 @@ class HengbotPolicy:
         #     recall to safety, never shop/explore/fight for XP.
         if snapshot.on_open_wilderness:
             return self._wilderness_survival_key(snapshot, hostiles)
+
+        # Town is cleared before errands resume.  Unlike dungeon hunting this is
+        # deliberately unconditional: every visible non-pet monster is a target,
+        # regardless of friendliness, strength, range, or the hostile-count cap.
+        town_kill = self._town_kill_mob_key(snapshot)
+        if town_kill is not None:
+            return town_kill
 
         # 0b. Ride out confusion in a safe spot rather than stumbling randomly.
         if player.confused and not hostiles:
@@ -8309,42 +8316,39 @@ class HengbotPolicy:
     def _town_clear_traveler_key(
         self, snapshot: Snapshot, goal: Position | None = None
     ) -> str | None:
-        """Clear a reachable town monster before resuming a locomotion leg.
+        """Compatibility hook for travel callers; town combat is global now."""
+        return self._town_kill_mob_key(snapshot)
 
-        This deliberately runs before ``_town_travel_key`` so an interrupted
-        route's no-progress budget is unchanged while combat is in progress.
-        Hengband's ``exe_movement`` silently pushes past a visible non-hostile
-        and swaps positions, so an adjacent route blocker needs a direct move
-        into its occupied tile rather than the monster-avoiding hunt grid.
-        The ordinary hunt pathfinder also inherits the town-border guard from
-        ``_walkable_neighbors`` and falls through when no safe route exists.
+    def _town_kill_mob_key(self, snapshot: Snapshot) -> str | None:
+        """Approach and kill every visible town monster except the player's pets.
+
+        A direction key merely swaps places with a friendly in Hengband's
+        ``exe_movement``.  The alter command instead reaches ``do_cmd_attack``
+        through ``exe_alter``; a normal Warrior then receives the friendly-fire
+        confirmation, answered inline by the trailing ``y``.
         """
-        if snapshot.dungeon_level != 0 or not snapshot.in_town:
+        if not snapshot.in_town or snapshot.dungeon_level != 0:
             return None
         player = snapshot.player
-        if goal is not None and player.hp_ratio >= HUNT_HP_RATIO:
-            blockers = [
-                monster
-                for monster in snapshot.visible_monsters
-                if not monster.pet
-                and player.position.distance_to(monster.position) <= 1
-                and monster.position.distance_to(goal)
-                < player.position.distance_to(goal)
-                and (
-                    monster.asleep
-                    or monster.fearful
-                    or monster.max_hp <= max(player.max_hp, 1)
-                )
-            ]
-            if blockers:
-                blocker = min(blockers, key=lambda m: m.position.distance_to(goal))
-                self.last_reason = "town:clear-traveler"
-                return self._direction_key(player.position, blocker.position)
-        step = self._hunt_step(snapshot, self._hostiles(snapshot))
-        if step is None:
-            return None
-        self.last_reason = "town:clear-traveler"
-        return self._step_toward(snapshot, step)
+        targets = sorted(
+            (monster for monster in snapshot.visible_monsters if not monster.pet),
+            key=lambda monster: monster.distance,
+        )
+        for target in targets:
+            if player.position.distance_to(target.position) <= 1:
+                if target.friendly:
+                    self.last_reason = "town:kill-mob-friendly"
+                    return "+" + self._direction_key(player.position, target.position) + "y"
+                # Preserve the ordinary adjacent-hostile melee path and reason.
+                return None
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid, target=target: grid.position.distance_to(target.position) <= 1,
+            )
+            if step is not None:
+                self.last_reason = "town:kill-mob-approach"
+                return self._step_toward(snapshot, step)
+        return None
 
     def _active_dungeon_target(self) -> int:
         if self._fundraising_mode in {"mine", "scavenge"}:

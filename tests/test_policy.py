@@ -404,7 +404,10 @@ class CombatTest(unittest.TestCase):
         summoner = hostile(
             1, 10, 13, hp=80, max_hp=80, distance=3, can_summon=True
         )
-        snap = Snapshot(player(10, 10, hp=100, max_hp=100), grids, [summoner])
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=100), grids, [summoner],
+            floor_key=(1, 5, 0),
+        )
         pol = HengbotPolicy()
         self.assertEqual(pol.choose_key(snap), "4")
         self.assertEqual(pol.last_reason, "summoner:retreat")
@@ -491,15 +494,17 @@ class CombatTest(unittest.TestCase):
         self.assertNotEqual(key, "<")
         self.assertNotIn("flee", pol.last_reason)
 
-    def test_ignores_friendly_and_pet(self):
+    def test_attacks_friendly_in_town(self):
         friendly = MonsterState(1, Position(10, 11), hp=10, max_hp=10, distance=1, friendly=True, pet=False)
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 11): grid(10, 11),
             Position(10, 12): grid(10, 12, downstairs=True),
         }
-        # Should walk past the friendly toward the stairs, not attack it.
-        self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [friendly])), "6")
+        self.assertEqual(
+            HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [friendly])),
+            "+6y",
+        )
 
 
 class UnseenAttackerTest(unittest.TestCase):
@@ -1049,7 +1054,10 @@ class DescendTest(unittest.TestCase):
         grids[Position(24, 42)] = grid(24, 42, passable=False)
 
         monster = hostile(1, 24, 34, hp=24, max_hp=24, distance=3, speed=122)
-        snap = Snapshot(player(24, 37, hp=99, max_hp=99), grids, [monster], width=80, height=200)
+        snap = Snapshot(
+            player(24, 37, hp=99, max_hp=99), grids, [monster],
+            floor_key=(1, 5, 0), width=80, height=200,
+        )
         pol = HengbotPolicy()
         self.assertEqual(pol.choose_key(snap), "4")
         self.assertEqual(pol.last_reason, "clear-descent")
@@ -2139,7 +2147,10 @@ class PickupTest(unittest.TestCase):
         }
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(Snapshot(player(10, 10), grids, [monster])), "6")
+        snapshot = Snapshot(
+            player(10, 10), grids, [monster], floor_key=(1, 5, 0)
+        )
+        self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "seek-loot")
 
     def test_material_ranged_threat_blocks_loot(self):
@@ -14826,16 +14837,16 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
             snapshot, Position(10, 11), "shop:travel"
         )
 
-    def test_reachable_hostile_preempts_town_travel(self):
+    def test_visible_hostile_preempts_town_travel(self):
         policy = HengbotPolicy()
 
         key = self._approach(policy, self._snapshot())
 
         self.assertEqual(key, "6")
-        self.assertEqual(policy.last_reason, "town:clear-traveler")
+        self.assertEqual(policy.last_reason, "town:kill-mob-approach")
         self.assertNotEqual(key, "\x1b`n!.")
 
-    def test_adjacent_friendly_blocker_is_pushed_into_not_bypassed(self):
+    def test_adjacent_friendly_is_attacked_with_alter_and_inline_confirmation(self):
         policy = HengbotPolicy()
         snapshot = replace(
             self._snapshot(monster_pos=Position(10, 11)),
@@ -14849,11 +14860,11 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
 
         key = self._approach(policy, snapshot)
 
-        self.assertEqual(key, "6")
-        self.assertEqual(policy.last_reason, "town:clear-traveler")
-        self.assertNotEqual(key, "\x1b`n!.")
+        self.assertEqual(key, "+6y")
+        self.assertEqual(policy.last_reason, "town:kill-mob-friendly")
+        self.assertNotEqual(key, "6")
 
-    def test_friendly_does_not_count_against_hostile_hunt_cap(self):
+    def test_visible_friendly_is_approached_despite_multiple_hostiles(self):
         policy = HengbotPolicy()
         snapshot = self._snapshot(monster_pos=Position(10, 13))
         snapshot = replace(
@@ -14874,9 +14885,9 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         )
 
         self.assertEqual(self._approach(policy, snapshot), "6")
-        self.assertEqual(policy.last_reason, "town:clear-traveler")
+        self.assertEqual(policy.last_reason, "town:kill-mob-approach")
 
-    def test_distant_or_tough_friendly_is_not_engaged(self):
+    def test_visible_friendly_is_engaged_without_range_or_strength_gate(self):
         for monster_pos, distance, max_hp, speed in (
             (Position(10, 13), 3, 10, 110),
             (Position(10, 11), 1, 101, 121),
@@ -14894,8 +14905,28 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
                     ],
                 )
 
-                self.assertEqual(self._approach(policy, snapshot), "\x1b`n!.")
-                self.assertEqual(policy.last_reason, "shop:travel")
+                key = self._approach(policy, snapshot)
+                if distance == 1:
+                    self.assertEqual(key, "+6y")
+                    self.assertEqual(policy.last_reason, "town:kill-mob-friendly")
+                else:
+                    self.assertEqual(key, "6")
+                    self.assertEqual(policy.last_reason, "town:kill-mob-approach")
+
+    def test_pet_is_not_engaged_and_town_travel_proceeds(self):
+        policy = HengbotPolicy()
+        snapshot = replace(
+            self._snapshot(monster_pos=Position(10, 13)),
+            visible_monsters=[
+                MonsterState(
+                    1, Position(10, 13), hp=10, max_hp=10, distance=3,
+                    friendly=True, pet=True,
+                )
+            ],
+        )
+
+        self.assertEqual(self._approach(policy, snapshot), "\x1b`n!.")
+        self.assertEqual(policy.last_reason, "shop:travel")
 
     def test_unreachable_hostile_falls_through_to_town_travel(self):
         policy = HengbotPolicy()
@@ -14943,7 +14974,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         key = policy._town_clear_traveler_key(snapshot, self.GOAL)
 
         self.assertEqual(key, "8")
-        self.assertEqual(policy.last_reason, "town:clear-traveler")
+        self.assertEqual(policy.last_reason, "town:kill-mob-approach")
         self.assertFalse(policy._on_town_border(snapshot, Position(1, 3)))
 
     def test_hunt_interlude_preserves_travel_progress_and_then_resumes(self):
