@@ -11039,6 +11039,61 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._deepest_level = RECALL_MIN_DEPTH - 1
         self.assertTrue(pol._is_descent_target(snap, entrance))  # shallow -> walk
 
+    @staticmethod
+    def _q14(status):
+        info = QuestInfo(
+            14, "Warg Problem", 1, 5, 2, dungeon=DUNGEON_YEEK_CAVE,
+            max_num=1, monrace_id=257,
+        )
+        quest = QuestState(
+            id=14, status=status, type=1, level=5,
+            dungeon_id=DUNGEON_YEEK_CAVE, fixed=True,
+        )
+        return info, quest
+
+    def _q14_floor(self, status, depth):
+        info, quest = self._q14(status)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10, downstairs=True)},
+            [], floor_key=(DUNGEON_YEEK_CAVE, depth, 0),
+            quests={14: quest}, entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+        )
+        return HengbotPolicy(quest_knowledge={14: info}), snap
+
+    def test_untaken_q14_below_objective_does_not_veto_descent(self):
+        pol, snap = self._q14_floor(QUEST_STATUS_UNTAKEN, 8)
+        self.assertTrue(pol._is_descent_target(snap, snap.grid_at(Position(10, 10))))
+
+    def test_untaken_q14_shallow_steering_still_descends(self):
+        pol, snap = self._q14_floor(QUEST_STATUS_UNTAKEN, 3)
+        self.assertTrue(pol._is_descent_target(snap, snap.grid_at(Position(10, 10))))
+
+    def test_taken_q14_objective_floor_vetoes_overshoot(self):
+        pol, snap = self._q14_floor(QUEST_STATUS_TAKEN, 5)
+        self.assertFalse(pol._is_descent_target(snap, snap.grid_at(Position(10, 10))))
+
+    def test_rewarded_q14_does_not_veto_descent(self):
+        pol, snap = self._q14_floor(QUEST_STATUS_REWARDED, 5)
+        self.assertTrue(pol._is_descent_target(snap, snap.grid_at(Position(10, 10))))
+
+    def test_taken_q14_deep_recall_uses_walk_in_entry(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE, recall_depth=8,
+        )
+        info, quest = self._q14(QUEST_STATUS_TAKEN)
+        pol._quest_knowledge = {14: info}
+        snap = replace(snap, quests={14: quest})
+        entrance = GridState(
+            position=Position(10, 11), known=True, passable=True, wall=False,
+            has_monster=False, has_down_stairs=False, has_up_stairs=False,
+            unsafe=False, has_entrance=True,
+            entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+        )
+
+        self.assertIsNone(pol._town_special_key(snap))
+        self.assertTrue(pol._is_descent_target(snap, entrance))
+
 
 
 class OverExtensionDungeonSwitchTest(unittest.TestCase):

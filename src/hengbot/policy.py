@@ -3814,6 +3814,7 @@ class HengbotPolicy:
             or (
                 self._target_dungeon_id == DUNGEON_YEEK_CAVE
                 and self._fundraising_mode not in {"mine", "scavenge"}
+                and not self._taken_kill_quest_requires_walk_in(snapshot)
                 and self._deepest_level >= RECALL_MIN_DEPTH
                 and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
             )
@@ -3852,6 +3853,18 @@ class HengbotPolicy:
             # if Temple and Alchemist are both out of stock.
             target = max(target, RECALL_RETURN_THRESHOLD + 1)
         return target
+
+    def _taken_kill_quest_requires_walk_in(self, snapshot: Snapshot) -> bool:
+        """Enter above a taken kill objective instead of recalling below it."""
+        return any(
+            quest.id in FIXED_QUEST_ALLOWLIST
+            and quest.status == QUEST_STATUS_TAKEN
+            and (info := self._quest_knowledge.get(quest.id)) is not None
+            and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
+            and info.dungeon == self._target_dungeon_id
+            and info.level < snapshot.recall_depth
+            for quest in snapshot.quests.values()
+        )
 
     def _teleport_target(self, snapshot: Snapshot) -> int:
         # 10F+ escapes constantly, so carry a deep buffer; shallower runs need few.
@@ -9047,6 +9060,7 @@ class HengbotPolicy:
         elif (
             self._target_dungeon_id == DUNGEON_YEEK_CAVE
             and self._fundraising_mode not in {"mine", "scavenge"}
+            and not self._taken_kill_quest_requires_walk_in(snapshot)
             and self._deepest_level >= RECALL_MIN_DEPTH
             and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
         ):
@@ -12822,9 +12836,9 @@ class HengbotPolicy:
             return False
         if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
             return False
-        kill_target = next(
+        kill_quest = next(
             (
-                info
+                (quest, info)
                 for quest in snapshot.quests.values()
                 if quest.id in FIXED_QUEST_ALLOWLIST
                 and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
@@ -12834,8 +12848,13 @@ class HengbotPolicy:
             ),
             None,
         )
-        if kill_target is not None and snapshot.floor_key[0] == kill_target.dungeon:
-            return snapshot.dungeon_level < kill_target.level
+        if kill_quest is not None:
+            quest, kill_target = kill_quest
+            if (
+                snapshot.dungeon_level <= kill_target.level
+                or quest.status == QUEST_STATUS_TAKEN
+            ):
+                return snapshot.dungeon_level < kill_target.level
         if snapshot.player.class_id < 0:
             return True
         if snapshot.in_town and grid.has_entrance:
@@ -12846,6 +12865,8 @@ class HengbotPolicy:
             # entrance stops being a descent goal past RECALL_MIN_DEPTH. Fundraising
             # keeps walking in — it mines level 1, where recall would overshoot.
             if self._fundraising_mode in {"mine", "scavenge"}:
+                return True
+            if self._taken_kill_quest_requires_walk_in(snapshot):
                 return True
             return self._deepest_level < RECALL_MIN_DEPTH
         if self._fundraising_mode in {"mine", "scavenge"}:
