@@ -13490,7 +13490,7 @@ class HengbotPolicy:
         blocked = self._blocked_unknown
         best: Position | None = None
         best_count: int | None = None
-        probe_offsets = CARDINAL_OFFSETS + tuple(
+        probe_offsets = ((-1, 0), (1, 0), (0, -1), (0, 1)) + tuple(
             offset for offset in NEIGHBOR_OFFSETS if offset not in CARDINAL_OFFSETS
         )
         for dy, dx in probe_offsets:

@@ -3525,6 +3525,18 @@ class ProbeTest(unittest.TestCase):
         policy._build_grid_index(snap)
         self.assertEqual(policy._probe_unknown_step(snap), Position(10, 11))
 
+    def test_probe_step_prefers_down_over_left_on_tie(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(9, 10): grid(9, 10, passable=False),
+            Position(10, 11): grid(10, 11, passable=False),
+        }
+        snap = Snapshot(player(10, 10), grids, [], width=20, height=20)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._probe_unknown_step(snap), Position(11, 10))
+
     def test_probes_into_unknown_when_oscillating(self):
         # Boxed on three sides; the fourth (east) is an unexplored tile absent
         # from the snapshot. The pathfinder can't reach it, so once the bot is
