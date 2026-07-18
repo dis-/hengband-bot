@@ -8861,6 +8861,13 @@ class HengbotPolicy:
         gates take over); the session/disposal/travel resets kill the other
         observed drivers. The latches expire on the normal STORE_RETRY_TURNS
         schedule, so a later town visit shops normally again."""
+        # This repair starts a fresh observation epoch.  In particular, a
+        # wander-limit detection may leave the generic no-progress count at 60;
+        # carrying that debt forward makes 36 legitimate entrance-walk steps
+        # look like a second cycle and stops the bot before it can depart.
+        self._town_signature_history.clear()
+        self._town_no_progress_count = 0
+        self._town_wander_streak = 0
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         shortages = (
             self._ledger_departure_shortages(ledger)

@@ -13730,6 +13730,35 @@ class TownWanderCircuitBreakerTest(unittest.TestCase):
         self.assertTrue(pol._town_restock_suppressed)
         self.assertIsNone(pol._next_required_store_type(t))
 
+    def test_cycle_break_resets_generic_no_progress_debt_before_entrance_walk(self):
+        pol = HengbotPolicy()
+        t = self._town()
+        for step in range(TOWN_WANDER_LIMIT):
+            pol.last_reason = "stuck:wander"
+            pol._observe(
+                replace(t, player=replace(t.player, position=Position(10, 10 + step)))
+            )
+
+        self.assertTrue(pol._town_cycle_pending)
+        self.assertEqual(pol._town_special_key(t), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+
+        # The live entrance leg needed exactly the residual 96 - 60 decisions.
+        # They are productive locomotion and must not be mistaken for a second
+        # offense merely because the first detector's counter was retained.
+        for step in range(TOWN_NO_PROGRESS_LIMIT - TOWN_WANDER_LIMIT):
+            pol.last_reason = "seek-downstairs"
+            pol._observe(
+                replace(t, player=replace(t.player, position=Position(10, 70 + step)))
+            )
+
+        self.assertFalse(pol._town_cycle_pending)
+        self.assertIsNone(pol._town_blocked_reason)
+        self.assertEqual(
+            pol._town_no_progress_count,
+            TOWN_NO_PROGRESS_LIMIT - TOWN_WANDER_LIMIT,
+        )
+
     def test_second_wander_limit_after_break_stops_visibly(self):
         pol = HengbotPolicy()
         t = self._town()
