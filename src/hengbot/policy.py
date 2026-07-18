@@ -306,6 +306,7 @@ FIXED_QUEST_REWARD_POSITIONS = {
     2: (1, frozenset({Position(22, 42)})),
     # Rewarding Outpost castle quests share this `!` floor square. Quest 28
     # explicitly has no floor reward and therefore needs no latch/coordinate.
+    14: (0, frozenset({Position(27, 98)})),
     18: (0, frozenset({Position(27, 98)})),
     25: (0, frozenset({Position(27, 98)})),
     # Dump Witness: the parsed town map carries a second reward glyph at
@@ -10599,11 +10600,33 @@ class HengbotPolicy:
         info = self._quest_knowledge.get(quest_id)
         if info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}:
             if quest.status == QUEST_STATUS_COMPLETED:
+                if not snapshot.in_town:
+                    return None
+                if self._fixed_quest_reward_pending == quest_id:
+                    return self._fixed_quest_reward_key(snapshot, quest_id)
+                return self._fixed_quest_building_key(
+                    snapshot,
+                    quest_id,
+                    "fixedquest:claim",
+                    set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
+                )
+            if quest.status == QUEST_STATUS_UNTAKEN:
+                if (
+                    not snapshot.in_town
+                    or (quest_id == 2 and self.approved_quest_strategy(2) is None)
+                    or quest_id not in EXECUTABLE_QUEST_STRATEGY_IDS
+                    or not self._fixed_quest_ready(snapshot, quest_id)
+                ):
+                    return None
+                return self._fixed_quest_building_key(
+                    snapshot,
+                    quest_id,
+                    "fixedquest:request",
+                    set_reward_pending=False,
+                )
+            if quest.status != QUEST_STATUS_TAKEN:
                 return None
-            if quest.status == QUEST_STATUS_UNTAKEN and not self._fixed_quest_ready(snapshot, quest_id):
-                return None
-            # Accepted by entering its dungeon floor, not through a building.
-            # Reuse ordinary entrance routing and stair descent.
+            # A taken kill quest uses ordinary entrance routing and stair descent.
             self._target_dungeon_id = info.dungeon
             return None
         if snapshot.floor_key[2] == quest_id:

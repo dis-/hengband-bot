@@ -83,7 +83,8 @@ from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
 from hengbot.quest_knowledge import (
-    QUEST_FLAG_ONCE, QuestBattlefield, QuestInfo, load_quest_knowledge,
+    QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QuestBattlefield, QuestInfo,
+    load_quest_knowledge,
 )
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.policy import (
@@ -118,6 +119,7 @@ from hengbot.policy import (
     FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
     FIXED_QUEST_LEVEL_MARGIN,
+    QUEST_STATUS_COMPLETED,
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
@@ -2668,6 +2670,66 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertIsNone(policy._fixed_quest_key(snapshot, []))
 
+    def _q14_town_fixture(self, status):
+        quest = QuestState(
+            14, status=status, type=QUEST_TYPE_KILL_LEVEL, level=5,
+            dungeon_id=DUNGEON_YEEK_CAVE, fixed=True,
+        )
+        knowledge = {
+            14: QuestInfo(
+                14, "Warg Problem", QUEST_TYPE_KILL_LEVEL, 5, 2,
+                dungeon=DUNGEON_YEEK_CAVE, max_num=1, monrace_id=257,
+            )
+        }
+        town_map = TownMap(
+            name="Outpost", width=198, height=66,
+            walkable=frozenset(
+                Position(y, x) for y in range(66) for x in range(198)
+            ),
+            quest_buildings={14: frozenset({Position(26, 98)})},
+            quest_entrances={},
+            reward_positions=frozenset({Position(27, 98)}),
+        )
+        grids = {
+            Position(26, 97): grid(26, 97),
+            Position(26, 98): grid(
+                26, 98, building_type=1, building_special=14
+            ),
+        }
+        snapshot = replace(
+            self._town_snapshot(26, 97, grids, QUEST_STATUS_UNTAKEN),
+            quests={14: quest},
+        )
+        policy = HengbotPolicy(town_map, quest_knowledge=knowledge)
+        policy._build_grid_index(snapshot)
+        return policy, snapshot
+
+    def test_q14_untaken_requests_castle_acceptance_without_retargeting_dungeon(self):
+        policy, snapshot = self._q14_town_fixture(QUEST_STATUS_UNTAKEN)
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._target_dungeon_id = 7
+
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "6q\x1b")
+        self.assertEqual(policy.last_reason, "fixedquest:request")
+        self.assertEqual(policy._target_dungeon_id, 7)
+
+    def test_q14_taken_targets_yeek_for_walk_in_descent(self):
+        policy, snapshot = self._q14_town_fixture(QUEST_STATUS_TAKEN)
+        policy._target_dungeon_id = 7
+
+        self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_YEEK_CAVE)
+        self.assertTrue(policy._taken_kill_quest_requires_walk_in(
+            replace(snapshot, recall_depth=8)
+        ))
+
+    def test_q14_completed_claims_at_castle_and_latches_floor_reward(self):
+        policy, snapshot = self._q14_town_fixture(QUEST_STATUS_COMPLETED)
+
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "6q\x1b")
+        self.assertEqual(policy.last_reason, "fixedquest:claim")
+        self.assertEqual(policy._fixed_quest_reward_pending, 14)
+
     def test_q2_outbound_travel_is_blocked_until_executor_exists(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
@@ -2692,8 +2754,8 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(policy._fixed_quest_key(snapshot, []), "home")
 
-    def test_other_executable_quest_acceptance_stays_unchanged(self):
-        for quest_id in (1, 14):
+    def test_other_executable_building_quest_acceptance_stays_unchanged(self):
+        for quest_id in (1, 34):
             with self.subTest(quest_id=quest_id):
                 snapshot = replace(
                     self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
