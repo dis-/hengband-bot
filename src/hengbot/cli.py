@@ -804,8 +804,23 @@ def _rewind_if_truncated(file, path: Path) -> bool:
 
 
 def _duplicate_snapshot_ready(
-    line: str, previous_line: str | None, elapsed: float
+    line: str,
+    previous_line: str | None,
+    elapsed: float,
+    previous_reason: str | None = None,
 ) -> bool:
+    if line == previous_line and previous_reason is not None and (
+        previous_reason.startswith("shop:buy-")
+        or previous_reason.startswith("shop:sell")
+        or previous_reason.startswith("home:deposit")
+        or previous_reason.startswith("home:withdraw")
+    ):
+        # A store transaction can complete without advancing the game turn.
+        # Retrying the generic stale-snapshot path then addresses the shifted
+        # shelf/pack with the old letter and leaves the macro tail as bare store
+        # commands.  Wait for any newly serialized state (gold, inventory, or
+        # store stock) before allowing another mutating transaction.
+        return False
     return line != previous_line or elapsed >= DUPLICATE_RETRY_SECONDS
 
 
@@ -1057,6 +1072,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         recent_cells: deque[tuple] = deque(maxlen=MULTIPLIER_COMBAT_LOOP_WINDOW)
         multiplier_combat_grace = 0
         last_decision_line: str | None = None
+        last_decision_reason: str | None = None
         last_decision_at = 0.0
         stalled_command_count = 0
         blocked_streak = 0
@@ -1117,12 +1133,14 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         snapshot_line,
                         last_decision_line,
                         now - last_decision_at,
+                        last_decision_reason,
                     ):
                         continue
                     last_decision_line = snapshot_line
                     last_decision_at = now
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
                     key = policy.choose_key(snapshot)
+                    last_decision_reason = policy.last_reason
                     command_signature = _command_state_signature(
                         snapshot,
                         policy.last_reason,

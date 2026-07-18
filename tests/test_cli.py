@@ -657,6 +657,28 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
 
         self.assertTrue(_duplicate_snapshot_ready(current, previous, 0.0))
 
+    def test_emits_one_purchase_until_a_new_store_snapshot_arrives(self):
+        line = _snap_line(2068969, 31, 91)
+        emitted = []
+        previous_line = None
+        previous_reason = None
+
+        for elapsed in (0.0, 2.0):
+            if _duplicate_snapshot_ready(
+                line, previous_line, elapsed, previous_reason
+            ):
+                emitted.append("ph30\r\r")
+                previous_line = line
+                previous_reason = "shop:buy-ammo"
+
+        self.assertEqual(emitted, ["ph30\r\r"])
+        changed_data = json.loads(line)
+        changed_data["player"]["gold"] = 970
+        changed = json.dumps(changed_data) + "\n"
+        self.assertTrue(
+            _duplicate_snapshot_ready(changed, previous_line, 0.0, previous_reason)
+        )
+
 
 class LoopDetectionTest(unittest.TestCase):
     FLOOR = (2, 1, 0)
