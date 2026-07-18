@@ -11,7 +11,7 @@ from hengbot.cli import (
     DUMP_INTERVAL_SECONDS,
     EconomyLedger,
     LOOP_WINDOW,
-    MINING_DIG_REASONS,
+    STATIONARY_EXEMPT_REASONS,
     MULTI_KEY_DELAY_SECONDS,
     MULTIPLIER_COMBAT_LOOP_WINDOW,
     REST_STALL_GRACE,
@@ -968,15 +968,29 @@ class StationaryReasonsTest(unittest.TestCase):
         # must be exempt (the policy's MINING_STALL_LIMIT leash bounds them instead), so
         # a long tunnel-to-a-vein or dig-out is never mistaken for a stuck loop.
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
-        self.assertIn("fundraise:mine-treasure", MINING_DIG_REASONS)
-        self.assertIn("fundraise:tunnel-out", MINING_DIG_REASONS)
+        self.assertIn("fundraise:mine-treasure", STATIONARY_EXEMPT_REASONS)
+        self.assertIn("fundraise:tunnel-out", STATIONARY_EXEMPT_REASONS)
         self.assertFalse(
             _cell_loop_guard_applies(dungeon, "breakout:dig-to-stairs")
         )
         # Walking reasons stay guardable — only in-place digging is exempt. The
         # two-phase design never tunnels toward far veins, so the old
         # tunnel-to-treasure reason no longer exists at all.
-        self.assertNotIn("fundraise:seek-treasure", MINING_DIG_REASONS)
+        self.assertNotIn("fundraise:seek-treasure", STATIONARY_EXEMPT_REASONS)
+
+    def test_fixed_quest_hold_is_exempt_from_loop_detection(self):
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+
+        self.assertIn("quest-strategy:hold", STATIONARY_EXEMPT_REASONS)
+        self.assertFalse(_cell_loop_guard_applies(dungeon, "quest-strategy:hold"))
+        # Failed positioning can repeat for a real strategy defect, so only the
+        # intentional at-post hold is exempt from the outer circuit breaker.
+        self.assertTrue(
+            _cell_loop_guard_applies(dungeon, "quest-strategy:hold-unreachable")
+        )
+        self.assertTrue(
+            _cell_loop_guard_applies(dungeon, "quest-strategy:avoid-never-move")
+        )
 
     def test_deep_fundraising_combat_uses_multiplier_grace_reason(self):
         """The live deep-mining policy calls multiplier/summoner combat
@@ -988,7 +1002,7 @@ class StationaryReasonsTest(unittest.TestCase):
             _uses_multiplier_combat_grace("fundraise:eliminate-multiplier")
         )
         self.assertFalse(_uses_multiplier_combat_grace("fundraise:sweep-explore"))
-        self.assertNotIn("fundraise:tunnel-to-treasure", MINING_DIG_REASONS)
+        self.assertNotIn("fundraise:tunnel-to-treasure", STATIONARY_EXEMPT_REASONS)
 
 
 if __name__ == "__main__":

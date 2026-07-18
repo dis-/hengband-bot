@@ -795,7 +795,7 @@ SHOP_APPROACH_STUCK_LIMIT = 12
 DIGGER_WIELD_LIMIT = 8
 # Consecutive turns spent tunnelling toward a walled-off vein before giving up on it
 # and ascending. Digging holds the player on one tile, so `fundraise:tunnel-to-treasure`
-# is EXEMPT from the harness loop guard (cli.py MINING_DIG_REASONS) — this leash, not the
+# is EXEMPT from the harness loop guard (cli.py STATIONARY_EXEMPT_REASONS) — this leash, not the
 # 40-decision window, is what bounds a dig, so it can run long: a vein 3-4 rock tiles deep
 # needs ~30 turns per granite tile. Reaching a vein (mine-treasure) resets it, so a
 # productive floor mines indefinitely; only an unreachably-deep vein burns the full leash.
@@ -10339,6 +10339,13 @@ class HengbotPolicy:
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if profile is None:
             return None
+
+        # Completion owns the floor before the profile's deliberate between-wave
+        # hold. Otherwise a completed fixed-position quest can wait forever at
+        # its post and never reach fixedquest:exit routing.
+        quest = snapshot.quests.get(profile.quest_id)
+        if quest is not None and quest.status == QUEST_STATUS_COMPLETED:
+            return self._fixed_quest_exit_key(snapshot, profile.quest_id)
 
         abort = profile.abort_conditions
         if (

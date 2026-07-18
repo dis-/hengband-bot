@@ -231,17 +231,16 @@ STATIONARY_REASONS = frozenset(
     }
 )
 
-# Digging holds the player on ONE tile for many turns (a vein face, or tunnelling
-# out of a pocket), which looks like a confined oscillation to the position-based
-# loop guard. These are productive, not stuck, so they must not trip it — the
-# policy's own MINING_STALL_LIMIT leash bounds a dig instead (see policy.py). Pure
-# mining WALK-oscillation is NOT here: the policy gives that up at once, and
-# leaving it guardable keeps a genuine non-digging loop catchable.
-MINING_DIG_REASONS = frozenset(
+# These productive actions deliberately hold the player on ONE tile, which looks
+# like a confined oscillation to the position-based guard. Mining has its own
+# MINING_STALL_LIMIT leash; a quest hold ends when a wave appears or completion
+# routing takes ownership. Walking and failed-position reasons remain guardable.
+STATIONARY_EXEMPT_REASONS = frozenset(
     {
         "breakout:dig-to-stairs",
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
+        "quest-strategy:hold",
     }
 )
 
@@ -270,7 +269,7 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
     return (
         not snapshot.in_town
         and reason not in STATIONARY_REASONS
-        and reason not in MINING_DIG_REASONS
+        and reason not in STATIONARY_EXEMPT_REASONS
         and not reason.startswith("item:")
         # A firefight legitimately holds one tile for many decisions.
         and not reason.startswith("ranged:")
