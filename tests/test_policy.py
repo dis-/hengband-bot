@@ -1134,6 +1134,22 @@ class DescendTest(unittest.TestCase):
         snap = Snapshot(player(10, 10, hp=20, max_hp=20), grids, [])
         self.assertEqual(HengbotPolicy().choose_key(snap), ">")
 
+    def test_descends_when_standing_on_expired_downstairs(self):
+        position = Position(10, 10)
+        grids = {position: grid(10, 10, downstairs=True)}
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=20),
+            grids,
+            [],
+            floor_key=(1, 8, 0),
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snap.floor_key
+        policy._nav_ledger.expire("descend", position)
+
+        self.assertEqual(policy.choose_key(snap), ">")
+        self.assertEqual(policy.last_reason, "descend")
+
     def test_rests_before_descending_when_hurt_then_descends(self):
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}
         policy = HengbotPolicy()

@@ -77,6 +77,19 @@ class NavigationLedgerTest(unittest.TestCase):
         self.assertEqual(ledger.expired_targets("descend"), {target})
         self.assertFalse(ledger.is_expired("explore", target))
 
+    def test_reaching_stalled_descent_target_clears_routing_expiry(self):
+        ledger = NavigationLedger(stall_limit=2)
+        target = Position(1, 1)
+        ledger.commit_descent_route(target, [target])
+        ledger.observe("descend", target, 10)
+        ledger.observe("descend", target, 10)
+        ledger.observe("descend", target, 10)
+        self.assertTrue(ledger.is_expired("descend", target))
+
+        ledger.observe("descend", target, 0)
+
+        self.assertFalse(ledger.is_expired("descend", target))
+
     def test_begin_decision_clears_the_improvement_flag(self):
         ledger = NavigationLedger()
         ledger.observe("descend", Position(1, 1), 10)
@@ -256,7 +269,7 @@ class StairRejectionInvalidationTest(unittest.TestCase):
             turn=turn,
         )
 
-    def test_two_rejected_descents_remove_and_expire_phantom(self):
+    def test_two_rejected_descents_expire_phantom_from_routing_only(self):
         snapshot = self._stair_snapshot(downstairs=True)
         policy = HengbotPolicy()
 
@@ -266,9 +279,10 @@ class StairRejectionInvalidationTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
 
         target = snapshot.player.position
-        self.assertNotEqual(key, ">")
+        self.assertEqual(key, ">")
         self.assertNotIn(target, policy._remembered_downstairs)
         self.assertTrue(policy._nav_ledger.is_expired("descend", target))
+        self.assertIsNone(policy._descent_step(snapshot))
         self.assertEqual(policy._stair_rejection_strikes[(">", target)], 2)
 
     def test_real_descent_floor_change_is_never_struck(self):
@@ -347,9 +361,10 @@ class StairRejectionInvalidationTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), ">")
         key = policy.choose_key(snapshot)
 
-        self.assertNotEqual(key, ">")
+        self.assertEqual(key, ">")
         self.assertNotIn((">", target), policy._unverified_stairs)
         self.assertTrue(policy._nav_ledger.is_expired("descend", target))
+        self.assertIsNone(policy._descent_step(snapshot))
 
     def test_2031_replay_removes_both_phantoms_then_explores(self):
         policy = HengbotPolicy()

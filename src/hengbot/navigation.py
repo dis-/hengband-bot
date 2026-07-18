@@ -11,7 +11,7 @@ goal to each other forever while every aggregate metric looked like progress.
 
 The ledger replaces that with ONE rule: a (kind, target) pair whose best
 achieved distance stops improving for ``stall_limit`` consecutive decisions is
-EXPIRED for the rest of the floor visit, for every mode at once. Legitimate
+EXPIRED from routing selection until the target is reached. Legitimate
 approaches keep improving their best distance (lateral detours merely plateau,
 well inside the budget) so they never expire mid-route.
 """
@@ -56,9 +56,12 @@ class NavigationLedger:
 
         Returns True when this decision improved the target's best distance
         (or committed to it for the first time). Crossing the stall budget
-        expires the (kind, target) pair for the rest of the floor visit.
+        expires the (kind, target) pair from routing selection. Reaching a
+        descent target clears that routing expiry.
         """
         key = (kind, target)
+        if kind == "descend" and distance == 0:
+            self._expired.discard(key)
         entry = self._progress.get(key)
         if entry is None:
             self._progress[key] = _TargetProgress(distance)

@@ -2100,14 +2100,12 @@ class HengbotPolicy:
             snapshot.in_town
             and self._town_map_active(snapshot)
             and self._town_map_descent_entrance(snapshot) == player.position
-            and not self._is_downstairs_expired(player.position)
         )
         if (
             (
                 here is not None
                 and here.is_descent
                 and self._is_descent_target(snapshot, here)
-                and not self._is_downstairs_expired(player.position)
                 or static_entrance_here
             )
             and player.hp_ratio >= DESCEND_MIN_HP_RATIO
