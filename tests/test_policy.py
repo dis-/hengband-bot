@@ -92,6 +92,7 @@ from hengbot.policy import (
     CHARACTER_DUMP_MACRO,
     DESTROY_FAIL_LIMIT,
     EMPTY_DIVE_LIMIT,
+    OVEREXTEND_LOOT_MAX,
     UNUSED_DIVE_LIMIT,
     SELL_KEY,
     SELL_CONFIRM_SUFFIX,
@@ -10929,7 +10930,10 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     # override stays out of the way and these tests isolate the over-extension switch.
     ALL_CONQUERED = (3, 4, 7, 14)
 
-    def _town(self, *, clvl=23, recall_depth=26, entered=None, abilities=None):
+    def _town(
+        self, *, clvl=23, recall_depth=26, entered=None, abilities=None,
+        conquered=None, angband_unlocked=True,
+    ):
         return Snapshot(
             player(10, 10, hp=255, max_hp=255, level=clvl, class_id=PLAYER_CLASS_WARRIOR,
                    abilities=self.MOUNTAIN_SAFE if abilities is None else abilities),
@@ -10940,29 +10944,41 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             recall_dungeon_id=DUNGEON_ANGBAND,
             recall_depth=recall_depth,
             entered_dungeon_ids=self.ALL_ENTERED if entered is None else entered,
-            conquered_dungeon_ids=self.ALL_CONQUERED,
-            angband_recall_unlocked=True,
+            conquered_dungeon_ids=(
+                self.ALL_CONQUERED if conquered is None else conquered
+            ),
+            angband_recall_unlocked=angband_unlocked,
         )
 
-    def _dungeon(self, dungeon_id, level, *, clvl=23, recall_depth=26):
+    def _dungeon(
+        self, dungeon_id, level, *, clvl=23, recall_depth=26, abilities=None,
+        conquered=None, angband_unlocked=True,
+    ):
         return Snapshot(
             player(10, 10, hp=255, max_hp=255, level=clvl, class_id=PLAYER_CLASS_WARRIOR,
-                   abilities=self.MOUNTAIN_SAFE),
+                   abilities=self.MOUNTAIN_SAFE if abilities is None else abilities),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(dungeon_id, level, 0),
             recall_dungeon_id=DUNGEON_ANGBAND,
             recall_depth=recall_depth,
             entered_dungeon_ids=self.ALL_ENTERED,
-            conquered_dungeon_ids=self.ALL_CONQUERED,
-            angband_recall_unlocked=True,
+            conquered_dungeon_ids=(
+                self.ALL_CONQUERED if conquered is None else conquered
+            ),
+            angband_recall_unlocked=angband_unlocked,
         )
 
     def _run_dive(
         self, pol, *, loot=0, emergencies=0, dungeon_id=DUNGEON_ANGBAND, level=26,
-        clvl=23, recall_depth=26,
+        clvl=23, recall_depth=26, abilities=None, conquered=None,
+        angband_unlocked=True,
     ):
-        dung = self._dungeon(dungeon_id, level, clvl=clvl, recall_depth=recall_depth)
+        dung = self._dungeon(
+            dungeon_id, level, clvl=clvl, recall_depth=recall_depth,
+            abilities=abilities, conquered=conquered,
+            angband_unlocked=angband_unlocked,
+        )
         pol.last_reason = "descend"
         pol._observe(dung)  # prev=town -> dive begins
         for _ in range(loot):
@@ -10972,7 +10988,10 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             pol.last_reason = "emergency:teleport"
             pol._observe(dung)  # counts an emergency escape
         pol.last_reason = "town:return"
-        pol._observe(self._town(clvl=clvl, recall_depth=recall_depth))  # dive ends
+        pol._observe(self._town(
+            clvl=clvl, recall_depth=recall_depth, abilities=abilities,
+            conquered=conquered, angband_unlocked=angband_unlocked,
+        ))  # dive ends
 
     # An over-extended dive mirrors the real telemetry: one trivial pickup and a
     # run of emergency teleports that drain the escape kit.
@@ -11038,6 +11057,58 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_empty_dives, 0)
         self._run_dive(pol, **self.OVEREXTENDED)
         self.assertIsNone(pol._alternate_dungeon)  # streak restarted, no switch yet
+
+    def test_conquest_target_is_demoted_after_over_extended_dives(self):
+        pol = self._policy()
+        pol._target_dungeon_id = 7
+        pol._conquest_committed = 7
+        abilities = self.MOUNTAIN_SAFE | {"resist_chaos"}
+        conquered = (3, 4, 14)
+
+        for _ in range(EMPTY_DIVE_LIMIT):
+            self._run_dive(
+                pol, dungeon_id=7, level=32, recall_depth=32,
+                abilities=abilities, conquered=conquered,
+                angband_unlocked=False, **self.OVEREXTENDED,
+            )
+
+        self.assertEqual(pol._alternate_dungeon, 14)
+        self.assertEqual(pol._target_dungeon_id, 14)
+        self.assertIsNone(pol._conquest_committed)
+
+    def test_conquest_target_can_return_after_alternate_period(self):
+        pol = self._policy()
+        pol._alternate_dungeon = 14
+        pol._target_dungeon_id = 14
+        abilities = self.MOUNTAIN_SAFE | {"resist_chaos"}
+        snap = self._town(
+            clvl=30, recall_depth=32, abilities=abilities,
+            conquered=(3, 4, 14), angband_unlocked=False,
+        )
+
+        with patch.object(pol, "_guardian_fight_viable", return_value=True):
+            pol._observe(snap)
+
+        self.assertIsNone(pol._alternate_dungeon)
+        self.assertEqual(pol._conquest_committed, 7)
+        self.assertEqual(pol._target_dungeon_id, 7)
+
+    def test_productive_conquest_dive_resets_streak_without_unlatching(self):
+        pol = self._policy()
+        pol._target_dungeon_id = 7
+        pol._conquest_committed = 7
+        pol._target_empty_dives = EMPTY_DIVE_LIMIT - 1
+        abilities = self.MOUNTAIN_SAFE | {"resist_chaos"}
+
+        self._run_dive(
+            pol, dungeon_id=7, level=32, recall_depth=32,
+            loot=OVEREXTEND_LOOT_MAX + 1, abilities=abilities,
+            conquered=(3, 4, 14), angband_unlocked=False,
+        )
+
+        self.assertEqual(pol._target_empty_dives, 0)
+        self.assertEqual(pol._conquest_committed, 7)
+        self.assertIsNone(pol._alternate_dungeon)
 
     def test_a_dangerous_but_looted_dive_is_not_over_extended(self):
         # Bailing out repeatedly is fine as long as the pack came back full — that

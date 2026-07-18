@@ -2625,6 +2625,10 @@ class HengbotPolicy:
             alt = self._pick_alternate_dungeon(snapshot)
             if alt is not None:
                 self._alternate_dungeon = alt
+                # The safety valve must demote even a latched conquest target.
+                # It may be selected again after the existing alternate period,
+                # but must not immediately override the alternate below.
+                self._conquest_committed = None
             self._target_empty_dives = 0
         # A switched target overrides the default until the character grows into the
         # main dungeon's recommended level.
@@ -2637,10 +2641,14 @@ class HengbotPolicy:
                 self._target_dungeon_id = self._alternate_dungeon
 
         # HIGHEST PRIORITY target: clear an unconquered dungeon whose bottom is within
-        # our resistance limit, for the final guardian's gear. Overrides Angband and
-        # the over-extension alternate — farming a beatable guardian beats grinding a
-        # dungeon too deep for the character's resistances.
-        conquest = self._conquest_target(snapshot)
+        # our resistance limit, for the final guardian's gear. It normally overrides
+        # Angband, but the over-extension safety valve temporarily demotes it while
+        # the existing alternate lifecycle is active.
+        conquest = (
+            self._conquest_target(snapshot)
+            if self._alternate_dungeon is None
+            else None
+        )
         if conquest is not None:
             self._target_dungeon_id = conquest
             # Fundraising is only superseded when the conquest expedition can
