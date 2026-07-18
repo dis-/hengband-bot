@@ -13481,16 +13481,19 @@ class HengbotPolicy:
     def _probe_unknown_step(self, snapshot: Snapshot) -> Position | None:
         """Step into an adjacent unknown (absent, in-bounds) tile to reveal it.
 
-        Orthogonal only — a diagonal probe into an unseen wall is rejected. A tile
-        that keeps blocking the move (a wall) is abandoned after PROBE_LIMIT tries
-        so we do not bump it forever.
+        Prefer orthogonal probes, then try diagonals. A tile that keeps blocking
+        the move (a wall) is abandoned after PROBE_LIMIT tries so we do not bump
+        it forever.
         """
         origin = snapshot.player.position
         known = self._known_t
         blocked = self._blocked_unknown
         best: Position | None = None
         best_count: int | None = None
-        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        probe_offsets = CARDINAL_OFFSETS + tuple(
+            offset for offset in NEIGHBOR_OFFSETS if offset not in CARDINAL_OFFSETS
+        )
+        for dy, dx in probe_offsets:
             ny = origin.y + dy
             nx = origin.x + dx
             key = (ny, nx)

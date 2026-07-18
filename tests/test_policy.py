@@ -3507,7 +3507,7 @@ class ProbeTest(unittest.TestCase):
         policy._visit_counts.update(
             {Position(10, x): 1 for x in range(10, 13)}
         )
-        policy._blocked_unknown.add((10, 9))
+        policy._blocked_unknown.update({(9, 9), (10, 9), (11, 9)})
 
         self.assertEqual(policy.choose_key(snap), "s")
         self.assertEqual(policy.last_reason, "search")
@@ -3540,6 +3540,60 @@ class ProbeTest(unittest.TestCase):
         probes = [key for key, reason in results if reason == "probe"]
         self.assertTrue(probes, f"expected a probe once oscillating; got {results}")
         self.assertEqual(probes[0], "6")
+
+    def test_probes_diagonal_only_unknown_neighbor(self):
+        grids = {
+            Position(y, x): grid(y, x, passable=False)
+            for y in range(9, 12)
+            for x in range(9, 12)
+            if (y, x) != (9, 11)
+        }
+        grids[Position(10, 10)] = grid(10, 10)
+        snap = Snapshot(player(10, 10), grids, [], width=20, height=20)
+
+        direct_policy = HengbotPolicy()
+        direct_policy._build_grid_index(snap)
+        self.assertEqual(
+            direct_policy._probe_unknown_step(snap), Position(9, 11)
+        )
+
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "9")
+        self.assertEqual(policy.last_reason, "probe")
+
+    def test_probe_prefers_orthogonal_unknown_over_diagonal(self):
+        grids = {
+            Position(y, x): grid(y, x, passable=False)
+            for y in range(9, 12)
+            for x in range(9, 12)
+            if (y, x) not in {(9, 11), (10, 11)}
+        }
+        grids[Position(10, 10)] = grid(10, 10)
+        snap = Snapshot(player(10, 10), grids, [], width=20, height=20)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._probe_unknown_step(snap), Position(10, 11))
+
+    def test_blocked_diagonal_unknown_stops_being_frontier(self):
+        grids = {
+            Position(y, x): grid(y, x, passable=False)
+            for y in range(9, 12)
+            for x in range(9, 12)
+            if (y, x) != (9, 11)
+        }
+        origin = Position(10, 10)
+        target = Position(9, 11)
+        grids[origin] = grid(10, 10)
+        snap = Snapshot(player(10, 10), grids, [], width=20, height=20)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snap)
+
+        for _ in range(policy_module.PROBE_LIMIT):
+            self.assertEqual(policy._probe_unknown_step(snap), target)
+
+        self.assertIn((target.y, target.x), policy._blocked_unknown)
+        self.assertFalse(policy._is_frontier(snap, grids[origin]))
 
     def test_escapes_a_searched_pocket_by_least_visited_route(self):
         # The live dl1 loop had three heavily visited cells north/east and an
