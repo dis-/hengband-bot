@@ -389,6 +389,7 @@ STUCK_FAMILY_REASONS = frozenset(
         "seek-secret-wall",
         "breakout:least-visited",
         "breakout:seek-frontier",
+        "breakout:dig-to-stairs",
         "probe",
         # Leaving a fundraising floor toward up-stairs it cannot reach loops the
         # same way (a walled-off ascent), so those reasons count too.
@@ -2179,6 +2180,16 @@ class HengbotPolicy:
             and not player.blind
             and not player.confused
         ):
+            # A known descent can be sealed behind ordinary diggable veins even
+            # after every walkable frontier has been exhausted.  Recompute the
+            # augmented route on every decision: successful tunnelling changes
+            # the map, while the mode-independent navigation ledger eventually
+            # takes over and recalls if repeated digs make no observable progress.
+            if self._has_digging_tool(snapshot) and not self._nav_exhausted:
+                dig = self._dig_to_known_downstairs_key(snapshot)
+                if dig is not None:
+                    self.last_reason = "breakout:dig-to-stairs"
+                    return dig
             recall = self._find_recall_scroll(snapshot)
             if recall is not None:
                 self._stuck_escape_streak = 0
@@ -9361,6 +9372,48 @@ class HengbotPolicy:
             cell = snapshot.grids.get(Position(pos.y + cy, pos.x + cx))
             if cell is not None and cell.can_dig:
                 return TUNNEL_KEY + DIRECTION_KEYS[(cy, cx)]
+        return None
+
+    def _dig_to_known_downstairs_key(self, snapshot: Snapshot) -> str | None:
+        """Route toward a known descent, allowing only known diggable terrain."""
+        origin = snapshot.player.position
+        targets = set(self._remembered_downstairs)
+        targets.update(
+            grid.position for grid in snapshot.grids.values() if grid.has_down_stairs
+        )
+        targets.discard(origin)
+        if not targets:
+            return None
+
+        # Walking always wins.  This breakout is solely for stairs whose known
+        # approach requires at least one vein to be tunnelled.
+        if self._nearest_goal_step(snapshot, lambda grid: grid.position in targets):
+            return None
+
+        seen = {origin}
+        queue: deque[tuple[Position, Position | None]] = deque([(origin, None)])
+        while queue:
+            position, first = queue.popleft()
+            if position in targets and position != origin:
+                assert first is not None
+                first_grid = snapshot.grids.get(first)
+                if first_grid is not None and first_grid.can_dig:
+                    return self._tunnel_step_toward(snapshot, first)
+                return self._step_toward(snapshot, first)
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor in seen:
+                    continue
+                grid = snapshot.grids.get(neighbor)
+                if grid is None or not grid.known or grid.has_monster:
+                    continue
+                walkable = neighbor in self._walkable_neighbors(snapshot, position)
+                # Match the mining tunneller's terrain authority.  Digging is
+                # permitted diagonally when the emitter marks that tile can_dig.
+                if not walkable and not grid.can_dig:
+                    continue
+                seen.add(neighbor)
+                queue.append((neighbor, neighbor if first is None else first))
         return None
 
     def _drop_mining_vein(self, vein: Position) -> None:

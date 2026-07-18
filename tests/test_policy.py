@@ -12919,6 +12919,68 @@ class StuckEscapeTest(unittest.TestCase):
         self.assertEqual(pol._leave_fundraising_floor(snap), TUNNEL_KEY + "6")
         self.assertEqual(pol.last_reason, "fundraise:tunnel-out")
 
+    def test_stuck_digs_through_known_vein_to_downstairs_before_recall(self):
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        digger = item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)
+        snap = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, passable=False, can_dig=True),
+                Position(10, 12): grid(10, 12, downstairs=True),
+            },
+            [],
+            inventory=[recall, digger],
+            floor_key=(2, 8, 0),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        self.assertEqual(pol.choose_key(snap), TUNNEL_KEY + "6")
+        self.assertEqual(pol.last_reason, "breakout:dig-to-stairs")
+
+    def test_stuck_recall_escape_without_digging_tool(self):
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, passable=False, can_dig=True),
+                Position(10, 12): grid(10, 12, downstairs=True),
+            },
+            [],
+            inventory=[recall],
+            floor_key=(2, 8, 0),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        self.assertEqual(pol.choose_key(snap), READ_KEY + "r")
+        self.assertEqual(pol.last_reason, "stuck:recall-escape")
+
+    def test_stuck_uses_walkable_downstairs_route_without_tunnelling(self):
+        digger = item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)
+        snap = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12, downstairs=True),
+            },
+            [],
+            inventory=[digger],
+            floor_key=(2, 8, 0),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        self.assertEqual(pol.choose_key(snap), "6")
+        self.assertIn(pol.last_reason, {"seek-downstairs", "approach-descent"})
+        self.assertFalse(pol.last_reason.startswith("breakout:dig"))
+
     def test_forgetting_maze_does_not_recall_on_stuck_streak(self):
         maze = DungeonInfo(
             4, "Labyrinth", 10, 18, 1,
