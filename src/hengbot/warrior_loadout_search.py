@@ -102,6 +102,7 @@ def _item_dominance_parts(
             signature[1] if melee_weapon else None,
             signature[10] if melee_weapon else None,
             flags - BENEFICIAL_GEAR_FLAGS,
+            signature[13],  # exploration legality
         ),
         (
             int(signature[3]),

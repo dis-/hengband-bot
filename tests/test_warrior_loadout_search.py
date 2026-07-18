@@ -7,6 +7,7 @@ from hengbot.equipment_optimizer import (
     FIXED_SLOTS,
     SLOT_MAIN_RING,
     SLOT_SUB_RING,
+    TR_AGGRAVATE,
     Loadout,
     OwnedEquipment,
     hand_configurations,
@@ -25,6 +26,7 @@ from hengbot.warrior_loadout_evaluator import (
 from hengbot.warrior_loadout_search import (
     _deduplicate_melee_weapons,
     _prune_dominated_catalog,
+    disposable_dominated_item_ids,
     enumerate_warrior_loadouts,
 )
 
@@ -403,6 +405,24 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
 
         self.assertEqual(pruned, (strongest, strong))
 
+    def test_illegal_dominators_do_not_make_legal_item_disposable(self):
+        illegal_strongest = owned(
+            "aggravating-ring-plus-four", 45, flags={TR_AGGRAVATE}, to_d=4
+        )
+        illegal_strong = owned(
+            "aggravating-ring-plus-three", 45, flags={TR_AGGRAVATE}, to_d=3
+        )
+        legal = owned("legal-ring-plus-two", 45, to_d=2)
+
+        disposable = disposable_dominated_item_ids(
+            (illegal_strongest, illegal_strong, legal)
+        )
+
+        self.assertFalse(illegal_strongest.exploration_legal)
+        self.assertFalse(illegal_strong.exploration_legal)
+        self.assertTrue(legal.exploration_legal)
+        self.assertNotIn(legal.id, disposable)
+
     def test_launcher_and_light_stage_inputs_are_pareto_frontiers(self):
         bows = tuple(
             owned(
@@ -574,7 +594,7 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         self.assertEqual(len(catalog), 59)
         search = enumerate_warrior_loadouts(catalog)
         considered = sum(1 for _ in search)
-        self.assertLess(considered, 10_000)
+        self.assertLess(considered, 300)
         self.assertFalse(search.truncated)
 
 
