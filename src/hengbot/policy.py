@@ -8222,10 +8222,10 @@ class HengbotPolicy:
         progress (see _town_travel_key)."""
         if not self._has_light_equipped(snapshot):
             return self._step_toward(snapshot, step)
-        clear_traveler = self._town_clear_traveler_key(snapshot)
+        goal = self._shopping_approach_goal
+        clear_traveler = self._town_clear_traveler_key(snapshot, goal)
         if clear_traveler is not None:
             return clear_traveler
-        goal = self._shopping_approach_goal
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
             return self._step_toward(snapshot, step)
@@ -8299,23 +8299,47 @@ class HengbotPolicy:
             return None
         if not self._has_light_equipped(snapshot):
             return None
-        clear_traveler = self._town_clear_traveler_key(snapshot)
+        clear_traveler = self._town_clear_traveler_key(snapshot, goal)
         if clear_traveler is not None:
             return clear_traveler
         return self._town_travel_key(
             snapshot, goal, ENTRANCE_TRAVEL_MACRO, "town:travel-entrance"
         )
 
-    def _town_clear_traveler_key(self, snapshot: Snapshot) -> str | None:
+    def _town_clear_traveler_key(
+        self, snapshot: Snapshot, goal: Position | None = None
+    ) -> str | None:
         """Clear a reachable town monster before resuming a locomotion leg.
 
         This deliberately runs before ``_town_travel_key`` so an interrupted
         route's no-progress budget is unchanged while combat is in progress.
+        Hengband's ``exe_movement`` silently pushes past a visible non-hostile
+        and swaps positions, so an adjacent route blocker needs a direct move
+        into its occupied tile rather than the monster-avoiding hunt grid.
         The ordinary hunt pathfinder also inherits the town-border guard from
         ``_walkable_neighbors`` and falls through when no safe route exists.
         """
         if snapshot.dungeon_level != 0 or not snapshot.in_town:
             return None
+        player = snapshot.player
+        if goal is not None and player.hp_ratio >= HUNT_HP_RATIO:
+            blockers = [
+                monster
+                for monster in snapshot.visible_monsters
+                if not monster.pet
+                and player.position.distance_to(monster.position) <= 1
+                and monster.position.distance_to(goal)
+                < player.position.distance_to(goal)
+                and (
+                    monster.asleep
+                    or monster.fearful
+                    or monster.max_hp <= max(player.max_hp, 1)
+                )
+            ]
+            if blockers:
+                blocker = min(blockers, key=lambda m: m.position.distance_to(goal))
+                self.last_reason = "town:clear-traveler"
+                return self._direction_key(player.position, blocker.position)
         step = self._hunt_step(snapshot, self._hostiles(snapshot))
         if step is None:
             return None

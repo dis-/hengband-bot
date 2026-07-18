@@ -14768,6 +14768,68 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "town:clear-traveler")
         self.assertNotEqual(key, "\x1b`n!.")
 
+    def test_adjacent_friendly_blocker_is_pushed_into_not_bypassed(self):
+        policy = HengbotPolicy()
+        snapshot = replace(
+            self._snapshot(monster_pos=Position(10, 11)),
+            visible_monsters=[
+                MonsterState(
+                    1, Position(10, 11), hp=10, max_hp=10, distance=1,
+                    friendly=True, pet=False,
+                )
+            ],
+        )
+
+        key = self._approach(policy, snapshot)
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "town:clear-traveler")
+        self.assertNotEqual(key, "\x1b`n!.")
+
+    def test_friendly_does_not_count_against_hostile_hunt_cap(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot(monster_pos=Position(10, 13))
+        snapshot = replace(
+            snapshot,
+            visible_monsters=[
+                hostile(1, 10, 13, distance=3),
+                hostile(2, 10, 14, distance=4),
+                MonsterState(
+                    3, Position(11, 13), hp=10, max_hp=10, distance=3,
+                    friendly=True, pet=False,
+                ),
+            ],
+            grids={
+                **snapshot.grids,
+                Position(10, 14): grid(10, 14, monster=True),
+                Position(11, 13): grid(11, 13, monster=True),
+            },
+        )
+
+        self.assertEqual(self._approach(policy, snapshot), "6")
+        self.assertEqual(policy.last_reason, "town:clear-traveler")
+
+    def test_distant_or_tough_friendly_is_not_engaged(self):
+        for monster_pos, distance, max_hp, speed in (
+            (Position(10, 13), 3, 10, 110),
+            (Position(10, 11), 1, 101, 121),
+        ):
+            with self.subTest(monster_pos=monster_pos):
+                policy = HengbotPolicy()
+                snapshot = replace(
+                    self._snapshot(monster_pos=monster_pos),
+                    visible_monsters=[
+                        MonsterState(
+                            1, monster_pos, hp=max_hp, max_hp=max_hp,
+                            distance=distance, friendly=True, pet=False,
+                            speed=speed,
+                        )
+                    ],
+                )
+
+                self.assertEqual(self._approach(policy, snapshot), "\x1b`n!.")
+                self.assertEqual(policy.last_reason, "shop:travel")
+
     def test_unreachable_hostile_falls_through_to_town_travel(self):
         policy = HengbotPolicy()
         snapshot = self._snapshot()
@@ -14811,7 +14873,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         )
         policy._build_grid_index(snapshot)
 
-        key = policy._town_clear_traveler_key(snapshot)
+        key = policy._town_clear_traveler_key(snapshot, self.GOAL)
 
         self.assertEqual(key, "8")
         self.assertEqual(policy.last_reason, "town:clear-traveler")
