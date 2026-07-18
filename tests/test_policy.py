@@ -15036,7 +15036,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs*t\x1b")
+        self.assertEqual(policy.choose_key(snap), "fs*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
     def test_blocked_ray_uses_game_targeting(self):
@@ -15049,7 +15049,7 @@ class RangedAttackTest(unittest.TestCase):
         blocked[Position(10, 12)] = grid(10, 12, passable=False)
         snap = replace(snap, grids=blocked)
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs*t\x1b")
+        self.assertEqual(policy.choose_key(snap), "fs*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
     def test_aligned_hostile_is_preferred_when_off_axis_is_also_visible(self):

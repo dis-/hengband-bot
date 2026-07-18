@@ -3053,7 +3053,8 @@ class HengbotPolicy:
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
-        # The trailing Escape safely cancels fire if the game found no target.
+        # `5` fires at the accepted target after returning to the direction
+        # prompt.  The trailing Escape safely cancels fire if targeting failed.
         # Keep throwables on the bot-verified V1 direction path.
         targetable_hostile = any(
             2 <= (distance := max(
@@ -3068,7 +3069,7 @@ class HengbotPolicy:
         if ammo is None or not targetable_hostile:
             return None
         self.last_reason = "ranged:fire-target"
-        return FIRE_KEY + ammo.slot + "*t\x1b"
+        return FIRE_KEY + ammo.slot + "*t5\x1b"
 
     @staticmethod
     def _is_processable_chest(item: InventoryItem) -> bool:
