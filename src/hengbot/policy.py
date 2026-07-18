@@ -2148,6 +2148,8 @@ class HengbotPolicy:
             snapshot.in_town
             and self._town_map_active(snapshot)
             and self._town_map_descent_entrance(snapshot) == player.position
+            and here is not None
+            and self._is_active_dungeon_entrance(here)
         )
         if (
             (
@@ -8400,6 +8402,9 @@ class HengbotPolicy:
         approach — the existing explore-toward path handles that)."""
         if snapshot.dungeon_level != 0 or goal is None:
             return None
+        entrance = snapshot.grids.get(goal)
+        if entrance is None or not self._is_active_dungeon_entrance(entrance):
+            return None
         if self.last_reason not in {"seek-downstairs", "approach-descent"}:
             return None
         if not self._has_light_equipped(snapshot):
@@ -8452,6 +8457,12 @@ class HengbotPolicy:
         if self._fundraising_mode in {"mine", "scavenge"}:
             return DUNGEON_YEEK_CAVE
         return self._target_dungeon_id
+
+    def _is_active_dungeon_entrance(self, grid: GridState) -> bool:
+        return (
+            grid.has_entrance
+            and grid.entrance_dungeon_id == self._active_dungeon_target()
+        )
 
     def _is_forgetting_maze(self, snapshot: Snapshot) -> bool:
         info = self._dungeon_knowledge.get(snapshot.floor_key[0])
@@ -12945,7 +12956,7 @@ class HengbotPolicy:
         if snapshot.player.class_id < 0:
             return True
         if snapshot.in_town and grid.has_entrance:
-            if grid.entrance_dungeon_id != self._active_dungeon_target():
+            if not self._is_active_dungeon_entrance(grid):
                 return False
             # A deep, non-fundraising run returns by Word of Recall (see
             # _town_special_key) instead of walking to the entrance, so the town
@@ -13308,18 +13319,14 @@ class HengbotPolicy:
             return None
         if self._town_map.entrance is None:
             return None
+        entrance = snapshot.grids.get(self._town_map.entrance)
+        if entrance is None or not self._is_active_dungeon_entrance(entrance):
+            return None
         if self._town_restock_suppressed:
             # A deep character with no recall scroll loses its saved depth here,
             # but an L1 walk-in is the only remaining departure; do not turn it
             # into an unsupplied deep recall.
-            entrance = snapshot.grids.get(self._town_map.entrance)
-            if (
-                entrance is not None
-                and entrance.has_entrance
-                and entrance.entrance_dungeon_id == self._active_dungeon_target()
-            ):
-                return self._town_map.entrance
-            return None
+            return self._town_map.entrance
         if (
             self._fundraising_mode in {"mine", "scavenge"}
             or self._deepest_level < RECALL_MIN_DEPTH

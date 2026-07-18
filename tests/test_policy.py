@@ -7708,11 +7708,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
-    def test_fundraising_descends_from_static_entrance_when_live_flag_is_missing(self):
-        # Immediately after ascending and restoring the combat weapon, one live
-        # snapshot can expose the fixed entrance tile as ordinary floor. Routing
-        # to the static entrance then has an empty path because we are already on
-        # it; descend directly instead of taking one arbitrary stuck:wander step.
+    def test_fundraising_descends_from_matching_static_entrance(self):
         entrance = Position(10, 10)
         town_map = TownMap(
             name="test",
@@ -7723,7 +7719,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {entrance: grid(10, 10)},  # transiently lacks has_entrance
+            {entrance: grid(
+                10, 10, entrance=True,
+                entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+            )},
             [],
             floor_key=(0, 0, 0),
             width=20,
@@ -11394,6 +11393,13 @@ class TownRecallReturnTest(unittest.TestCase):
 
         self.assertIsNone(pol._town_special_key(snap))
         self.assertTrue(pol._is_descent_target(snap, entrance))
+        at_entrance = replace(
+            snap,
+            player=replace(snap.player, position=entrance.position),
+            grids={entrance.position: entrance},
+        )
+        self.assertEqual(pol.choose_key(at_entrance), ">\ry")
+        self.assertEqual(pol.last_reason, "descend")
 
 
 
@@ -11976,17 +11982,17 @@ class TownNightNavigationTest(unittest.TestCase):
         pol, snap = self._night_town(tm, px=5)
         self.assertIsNone(pol._town_map_goal_step(snap, Position(2, 5)))
 
-    def test_shallow_run_walks_to_town_map_entrance_at_night(self):
+    def test_shallow_run_does_not_route_to_unverified_night_entrance(self):
         tm = TownMap(
             name="T", width=7, height=5, walkable=self._corridor(), entrance=Position(2, 5)
         )
         pol, snap = self._night_town(tm)
         pol._deepest_level = 1  # below RECALL_MIN_DEPTH -> descend on foot
-        # Isolate the entrance routing from the supply-readiness gate (which has
-        # its own tests): a supplied, departure-ready bot must reach the entrance.
+        # The static map remembers only the coordinate, not its dungeon ID.  Do
+        # not commit a foot-entry route until live metadata verifies the target.
         pol._descent_is_blocked = lambda _snap: False
-        self.assertEqual(pol._descent_step(snap), Position(2, 2))
-        self.assertEqual(pol.last_reason, "seek-downstairs")
+        self.assertIsNone(pol._descent_step(snap))
+        self.assertIsNone(pol._nav_ledger.descent_target)
 
     def test_deep_run_does_not_route_to_entrance(self):
         # Past the recall threshold the bot returns by Word of Recall from
@@ -14941,7 +14947,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._town_restock_suppressed = True
         pol._target_dungeon_id = DUNGEON_ANGBAND
-        pol._town_map = SimpleNamespace(entrance=entrance)
+        pol._town_map = SimpleNamespace(entrance=entrance, walkable=frozenset({entrance}))
         pol._town_map_active = lambda _snapshot: True
         pol._descent_is_blocked = lambda _snapshot: False
         snap = replace(
@@ -14958,6 +14964,37 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertIsNone(pol._town_map_descent_entrance(snap))
         self.assertIsNone(pol._descent_step(snap))
         self.assertIsNone(pol._nav_ledger.descent_target)
+
+    def test_cycle_break_cannot_descend_from_non_target_entrance_underfoot(self):
+        """Reproduce turns 2058602-2059139 after travel reached Yeek's gate.
+
+        The route producer is stubbed as already committed so this remains a
+        final step-5 regression: reverting the on-tile target check emits >\ry.
+        """
+        from types import SimpleNamespace
+
+        entrance = Position(34, 120)
+        pol = HengbotPolicy()
+        pol._town_restock_suppressed = True
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        pol._town_map = SimpleNamespace(
+            entrance=entrance, walkable=frozenset({entrance})
+        )
+        pol._town_map_active = lambda _snapshot: True
+        pol._town_map_descent_entrance = lambda _snapshot: entrance
+        pol._descent_is_blocked = lambda _snapshot: False
+        snap = replace(
+            self._town_snap(y=entrance.y, x=entrance.x),
+            grids={entrance: grid(
+                entrance.y, entrance.x, entrance=True,
+                entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+            )},
+        )
+
+        key = pol.choose_key(snap)
+
+        self.assertNotEqual(key, ">\ry")
+        self.assertNotEqual(pol.last_reason, "descend")
 
     def test_sale_routes_honor_the_store_latches(self):
         # An unsellable candidate re-routed the bot to the sale store forever,
@@ -15792,7 +15829,8 @@ class EntranceTravelTest(unittest.TestCase):
         grids = {Position(34, x): grid(34, x)}
         if goal_remembered:
             grids[EntranceTravelTest.GOAL] = grid(
-                EntranceTravelTest.GOAL.y, EntranceTravelTest.GOAL.x
+                EntranceTravelTest.GOAL.y, EntranceTravelTest.GOAL.x,
+                entrance=True, entrance_dungeon_id=DUNGEON_YEEK_CAVE,
             )
         return Snapshot(
             player(34, x),
@@ -15805,8 +15843,18 @@ class EntranceTravelTest(unittest.TestCase):
         )
 
     def _travel(self, pol, snap, goal=GOAL):
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
         pol.last_reason = "seek-downstairs"
         return pol._entrance_travel_key(snap, goal)
+
+    def test_non_target_surface_goal_does_not_travel(self):
+        pol = HengbotPolicy()
+        snap = self._surface_snap()
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        pol.last_reason = "seek-downstairs"
+
+        self.assertIsNone(pol._entrance_travel_key(snap, self.GOAL))
+        self.assertIsNone(pol._town_travel_state)
 
     def test_far_surface_goal_travels(self):
         pol = HengbotPolicy()
