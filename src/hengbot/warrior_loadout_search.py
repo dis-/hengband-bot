@@ -42,17 +42,6 @@ BENEFICIAL_GEAR_FLAGS = frozenset(
     }
 )
 
-EXACT_PARTIAL_STATE_LIMIT = 10_000
-PARTIAL_BEAM_WIDTH = 256
-EXACT_HAND_CONFIGURATION_LIMIT = 1_000
-HAND_BEAM_WIDTH = 256
-LARGE_CATALOG_SIZE = 100
-LARGE_EXACT_PARTIAL_STATE_LIMIT = 2_000
-LARGE_PARTIAL_BEAM_WIDTH = 32
-LARGE_EXACT_HAND_CONFIGURATION_LIMIT = 500
-LARGE_HAND_BEAM_WIDTH = 32
-
-
 def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
     """Return every item field observed by the Warrior loadout evaluator.
 
@@ -77,6 +66,99 @@ def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
         item.flags,
         item.exploration_legal,
     )
+
+
+def _item_dominance_parts(
+    item: OwnedEquipment,
+) -> tuple[tuple[object, ...], tuple[int, ...], frozenset[int]]:
+    """Split the evaluator signature into exact and monotonic components."""
+    signature = _loadout_value_signature(item)
+    flags = item.flags
+    return (
+        (
+            signature[0],  # slot
+            signature[1],  # tval (weapon handling and armour type)
+            signature[10],  # weight changes blows and dual-wield penalties
+            flags - BENEFICIAL_GEAR_FLAGS,
+            signature[13],
+        ),
+        (
+            int(signature[3]),
+            int(signature[4]),
+            int(signature[5]),
+            int(signature[6]),
+            int(signature[7]),
+            int(signature[8]),
+            int(signature[9]),
+            int(signature[11]),
+        ),
+        flags.intersection(BENEFICIAL_GEAR_FLAGS),
+    )
+
+
+def _catalog_dominates(left: OwnedEquipment, right: OwnedEquipment) -> bool:
+    left_exact, left_vector, left_flags = _item_dominance_parts(left)
+    right_exact, right_vector, right_flags = _item_dominance_parts(right)
+    return (
+        left_exact == right_exact
+        and left_flags.issuperset(right_flags)
+        and all(a >= b for a, b in zip(left_vector, right_vector))
+        and (left_flags > right_flags or left_vector != right_vector)
+    )
+
+
+def _prune_dominated_catalog(
+    items: tuple[OwnedEquipment, ...],
+    protected_ids: frozenset[str] = frozenset(),
+) -> tuple[OwnedEquipment, ...]:
+    """Remove same-slot candidates that cannot improve any Warrior metric."""
+    return tuple(
+        item
+        for item in items
+        if item.id in protected_ids
+        or not any(
+            other.id != item.id and _catalog_dominates(other, item)
+            for other in items
+        )
+    )
+
+
+def _weapon_contribution_signature(item: OwnedEquipment) -> tuple[object, ...]:
+    """Return all per-weapon inputs consumed by melee and defense evaluation."""
+    obj = item.item
+    return (
+        obj.tval,
+        obj.to_h,
+        obj.to_d,
+        obj.to_a,
+        obj.ac,
+        obj.damage_dice_num,
+        obj.damage_dice_sides,
+        obj.pval,
+        obj.weight,
+        obj.weapon_proficiency,
+        item.flags,
+        item.exploration_legal,
+    )
+
+
+def _deduplicate_melee_weapons(
+    items: tuple[OwnedEquipment, ...],
+    protected_ids: frozenset[str] = frozenset(),
+) -> tuple[OwnedEquipment, ...]:
+    """Keep at most the two melee-equivalent copies a loadout can consume."""
+    groups: dict[tuple[object, ...], list[OwnedEquipment]] = defaultdict(list)
+    non_weapons: list[OwnedEquipment] = []
+    for item in items:
+        if item.item.tval not in {21, 22, 23}:
+            non_weapons.append(item)
+            continue
+        groups[_weapon_contribution_signature(item)].append(item)
+    kept = list(non_weapons)
+    for copies in groups.values():
+        copies.sort(key=lambda item: (item.id not in protected_ids, item.id))
+        kept.extend(copies[:2])
+    return tuple(kept)
 
 
 def _deduplicate_slot_copies(
@@ -181,9 +263,6 @@ def _compress_states(
     processed_slots: tuple[str, ...],
     current_by_slot: dict[str, str],
     current_item_ids: frozenset[str],
-    force_beam: bool = False,
-    exact_limit: int = EXACT_PARTIAL_STATE_LIMIT,
-    beam_width: int = PARTIAL_BEAM_WIDTH,
 ) -> tuple[tuple[Loadout, ...], bool]:
     equivalent: dict[tuple[object, ...], Loadout] = {}
     vectors: dict[tuple[object, ...], tuple[int, ...]] = {}
@@ -206,17 +285,6 @@ def _compress_states(
         flags = key[1]
         groups[(key[0], flags - BENEFICIAL_GEAR_FLAGS, key[2])].append(
             (state, vectors[key], flags.intersection(BENEFICIAL_GEAR_FLAGS))
-        )
-
-    if force_beam or len(equivalent) > exact_limit:
-        return (
-            _diverse_state_beam(
-                tuple(equivalent.values()),
-                processed_slots=processed_slots,
-                current_by_slot=current_by_slot,
-                width=beam_width,
-            ),
-            True,
         )
 
     result: list[Loadout] = []
@@ -251,58 +319,6 @@ def _compress_states(
     return tuple(result), False
 
 
-def _state_scores(loadout: Loadout) -> tuple[int, int, int, int]:
-    _, vector = _gear_state(loadout)
-    beneficial = loadout.flags.intersection(BENEFICIAL_GEAR_FLAGS)
-    offense = (
-        20 * vector[0]
-        + 10 * vector[1]
-        + 5 * (vector[2] + vector[4])
-        + 10 * (vector[3] + vector[5])
-        + 100 * (vector[6] + vector[7])
-    )
-    defense = 100 * vector[8] + 5 * vector[9] + 10 * vector[10]
-    utility = 50 * len(beneficial)
-    utility += 150 * int(69 in beneficial)
-    utility += 200 * int(79 in beneficial)
-    balanced = offense + defense + utility
-    return offense, defense, utility, balanced
-
-
-def _diverse_state_beam(
-    states: tuple[Loadout, ...],
-    *,
-    processed_slots: tuple[str, ...],
-    current_by_slot: dict[str, str],
-    width: int,
-) -> tuple[Loadout, ...]:
-    selected: dict[tuple[tuple[str, str], ...], Loadout] = {}
-
-    def add(state: Loadout) -> None:
-        if len(selected) < width:
-            key = tuple(sorted((slot, item.id) for slot, item in state.slots))
-            selected.setdefault(key, state)
-
-    for state in states:
-        if _is_current_partial(state, processed_slots, current_by_slot):
-            add(state)
-
-    scored = [(state, _state_scores(state)) for state in states]
-    rankings = (
-        sorted(scored, key=lambda entry: entry[1][0], reverse=True),
-        sorted(scored, key=lambda entry: entry[1][1], reverse=True),
-        sorted(scored, key=lambda entry: entry[1][2], reverse=True),
-        sorted(scored, key=lambda entry: entry[1][3], reverse=True),
-    )
-    index = 0
-    while len(selected) < width and any(index < len(ranking) for ranking in rankings):
-        for ranking in rankings:
-            if index < len(ranking):
-                add(ranking[index][0])
-        index += 1
-    return tuple(selected.values())
-
-
 def _slot_choices(
     slot: str,
     legal: tuple[OwnedEquipment, ...],
@@ -324,8 +340,6 @@ def _gear_states(
     current_by_slot: dict[str, str],
     current_item_ids: frozenset[str],
     pinned: Mapping[str, OwnedEquipment],
-    exact_limit: int = EXACT_PARTIAL_STATE_LIMIT,
-    beam_width: int = PARTIAL_BEAM_WIDTH,
 ) -> tuple[tuple[Loadout, ...], bool]:
     states = (Loadout((), hand_mode),)
     processed: tuple[str, ...] = ()
@@ -352,60 +366,9 @@ def _gear_states(
             processed_slots=processed,
             current_by_slot=current_by_slot,
             current_item_ids=current_item_ids,
-            force_beam=truncated,
-            exact_limit=exact_limit,
-            beam_width=beam_width,
         )
         truncated = truncated or stage_truncated
     return states, truncated
-
-
-def _hand_score(hands) -> int:
-    score = 0
-    for item in (hands.main, hands.sub):
-        if item is None:
-            continue
-        obj = item.item
-        score += obj.damage_dice_num * (obj.damage_dice_sides + 1) * 5
-        score += obj.to_h * 5 + obj.to_d * 10
-        score += obj.ac + obj.to_a * 5
-        score += 30 * len(item.flags.intersection(BENEFICIAL_GEAR_FLAGS))
-    return score
-
-
-def _limit_hand_configurations(
-    configurations,
-    current_hand_ids,
-    *,
-    exact_limit=EXACT_HAND_CONFIGURATION_LIMIT,
-    beam_width=HAND_BEAM_WIDTH,
-):
-    configurations = tuple(configurations)
-    if len(configurations) <= exact_limit:
-        return configurations, False
-    current = [
-        hands
-        for hands in configurations
-        if frozenset(
-            item.id for item in (hands.main, hands.sub) if item is not None
-        ) == current_hand_ids
-    ]
-    ranked = sorted(configurations, key=_hand_score, reverse=True)
-    selected = []
-    seen = set()
-    for hands in (*current, *ranked):
-        key = (
-            hands.main.id if hands.main is not None else None,
-            hands.sub.id if hands.sub is not None else None,
-            hands.mode,
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        selected.append(hands)
-        if len(selected) >= beam_width:
-            break
-    return tuple(selected), True
 
 
 @dataclass
@@ -421,6 +384,9 @@ class WarriorLoadoutSearch:
             item for item in self.items
             if item.exploration_legal and item.id not in self.excluded_item_ids
         ]
+        protected_ids = self.current_item_ids.union(
+            item.id for item in self.pinned.values()
+        )
         legal = _deduplicate_slot_copies(
             tuple(
                 [
@@ -435,44 +401,19 @@ class WarriorLoadoutSearch:
             self.current_item_ids,
             self.pinned,
         )
+        legal = _prune_dominated_catalog(legal, protected_ids)
+        legal = _deduplicate_melee_weapons(legal, protected_ids)
         current_by_slot = {
             item.equipped_slot: item.id
             for item in legal
             if item.id in self.current_item_ids and item.equipped_slot is not None
         }
-        current_hand_ids = frozenset(
-            item.id
-            for item in legal
-            if item.id in self.current_item_ids
-            and item.equipped_slot in {SLOT_MAIN_HAND, SLOT_SUB_HAND}
-        )
-        large = len(legal) >= LARGE_CATALOG_SIZE
-        partial_exact_limit = (
-            LARGE_EXACT_PARTIAL_STATE_LIMIT
-            if large
-            else EXACT_PARTIAL_STATE_LIMIT
-        )
-        partial_beam_width = (
-            LARGE_PARTIAL_BEAM_WIDTH if large else PARTIAL_BEAM_WIDTH
-        )
-        hand_exact_limit = (
-            LARGE_EXACT_HAND_CONFIGURATION_LIMIT
-            if large
-            else EXACT_HAND_CONFIGURATION_LIMIT
-        )
-        hand_beam_width = LARGE_HAND_BEAM_WIDTH if large else HAND_BEAM_WIDTH
         configurations_by_mode = defaultdict(list)
         for hands in hand_configurations(legal, self.pinned):
             configurations_by_mode[hands.mode].append(hands)
 
         gear_by_profile: dict[str, tuple[tuple[Loadout, ...], bool]] = {}
         for mode, configurations in configurations_by_mode.items():
-            limited, hands_truncated = _limit_hand_configurations(
-                configurations,
-                current_hand_ids,
-                exact_limit=hand_exact_limit,
-                beam_width=hand_beam_width,
-            )
             profile = (
                 mode
                 if mode in {"two_handed", "dual_wield"}
@@ -486,13 +427,11 @@ class WarriorLoadoutSearch:
                     current_by_slot=current_by_slot,
                     current_item_ids=self.current_item_ids,
                     pinned=self.pinned,
-                    exact_limit=partial_exact_limit,
-                    beam_width=partial_beam_width,
                 )
                 gear_by_profile[profile] = cached
             gear_states, gear_truncated = cached
-            self.truncated = self.truncated or hands_truncated or gear_truncated
-            for hands in limited:
+            self.truncated = self.truncated or gear_truncated
+            for hands in configurations:
                 for gear in gear_states:
                     slots = list(gear.slots)
                     if hands.main is not None:
@@ -509,7 +448,7 @@ def enumerate_warrior_loadouts(
     pinned: Mapping[str, OwnedEquipment] | None = None,
     excluded_item_ids: frozenset[str] = frozenset(),
 ) -> WarriorLoadoutSearch:
-    """Yield exact representatives, with a bounded fallback for large catalogs."""
+    """Yield the exact nondominated Warrior loadout representatives."""
     return WarriorLoadoutSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids
     )

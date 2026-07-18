@@ -21,16 +21,23 @@ from hengbot.warrior_loadout_evaluator import (
     CachedWarriorLoadoutEvaluator,
     WarriorLoadoutInputs,
 )
-from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
+from hengbot.warrior_loadout_search import (
+    _deduplicate_melee_weapons,
+    _prune_dominated_catalog,
+    enumerate_warrior_loadouts,
+)
 
 
-def owned(item_id, tval, *, flags=(), ac=0, to_a=0, to_h=0, to_d=0):
+def owned(
+    item_id, tval, *, flags=(), ac=0, to_a=0, to_h=0, to_d=0,
+    sval=1, pval=0, dice=None, weight=80,
+):
     item = InventoryItem(
         slot=item_id,
         name=item_id,
         count=1,
         tval=tval,
-        sval=1,
+        sval=sval,
         aware=True,
         known=True,
         fully_known=True,
@@ -40,9 +47,10 @@ def owned(item_id, tval, *, flags=(), ac=0, to_a=0, to_h=0, to_d=0):
         to_a=to_a,
         to_h=to_h,
         to_d=to_d,
-        damage_dice_num=2 if tval in {20, 21, 22, 23} else 0,
-        damage_dice_sides=5 if tval in {20, 21, 22, 23} else 0,
-        weight=80,
+        pval=pval,
+        damage_dice_num=(dice or (2, 5))[0] if tval in {20, 21, 22, 23} else 0,
+        damage_dice_sides=(dice or (2, 5))[1] if tval in {20, 21, 22, 23} else 0,
+        weight=weight,
         weapon_proficiency=4000,
     )
     return OwnedEquipment(item_id, item, "home")
@@ -211,6 +219,125 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
             exhaustive.combinations_considered,
         )
 
+    def test_slot_dominance_reduces_catalog_and_preserves_exact_frontier(self):
+        weak = (
+            owned("weak-sword", 23, to_h=1, to_d=1),
+            owned("weak-cloak", 35, ac=1, to_a=1),
+            owned("weak-ring", 45, to_d=1),
+        )
+        strong = (
+            owned("strong-sword", 23, to_h=4, to_d=5),
+            owned("strong-cloak", 35, ac=3, to_a=4),
+            owned("strong-ring", 45, to_d=4),
+        )
+        support = (owned("light", 39), owned("shield", 34, ac=3, to_a=2))
+        catalog = (*weak, *strong, *support)
+        pruned_catalog = _prune_dominated_catalog(catalog)
+
+        reference_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        pruned_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        reference = optimize_loadout(
+            catalog,
+            lambda loadout: reference_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(catalog),
+        )
+        reduced = optimize_loadout(
+            catalog,
+            lambda loadout: pruned_evaluator(loadout).metrics,
+            depth=1,
+            timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(pruned_catalog),
+        )
+
+        self.assertEqual(len(pruned_catalog), len(catalog) - len(weak))
+        self.assertEqual(reduced.best.metrics, reference.best.metrics)
+        self.assertEqual(
+            {entry.metrics for entry in reduced.pareto_frontier},
+            {entry.metrics for entry in reference.pareto_frontier},
+        )
+        # Revert proof: the unpruned reference restores all three candidates.
+        self.assertEqual(len(catalog), len(pruned_catalog) + 3)
+
+    def test_launcher_and_light_stage_inputs_are_pareto_frontiers(self):
+        bows = tuple(
+            owned(
+                f"bow-{i}", 19, ac=i % 3, to_a=i % 2,
+                flags=({50 + i} if i < 4 else ()),
+            )
+            for i in range(11)
+        )
+        lights = tuple(
+            owned(
+                f"light-{i}", 39, ac=i % 4,
+                flags=({50 + i} if i < 5 else ()),
+            )
+            for i in range(13)
+        )
+        catalog = (*bows, *lights, owned("sword", 23, to_d=4))
+        reduced = _prune_dominated_catalog(catalog)
+        reduced_bows = [item for item in reduced if item.item.tval == 19]
+        reduced_lights = [item for item in reduced if item.item.tval == 39]
+
+        self.assertLess(len(reduced_bows), len(bows))
+        self.assertLess(len(reduced_lights), len(lights))
+        reference_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        reduced_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        reference = optimize_loadout(
+            catalog, lambda loadout: reference_evaluator(loadout).metrics,
+            depth=1, timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(catalog),
+        )
+        result = optimize_loadout(
+            catalog, lambda loadout: reduced_evaluator(loadout).metrics,
+            depth=1, timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(reduced),
+        )
+        self.assertEqual(result.best.metrics, reference.best.metrics)
+
+    def test_melee_equivalent_weapons_do_not_breed_quadratic_pairs(self):
+        swords = tuple(
+            owned(f"sword-{i}", 23, sval=i, to_h=3, to_d=4)
+            for i in range(3)
+        )
+        deduped = _deduplicate_melee_weapons(swords)
+        self.assertEqual(len(deduped), 2)
+        self.assertEqual(
+            sum(
+                1 for hands in hand_configurations(deduped)
+                if hands.mode == "dual_wield"
+            ),
+            2,
+        )
+        reference_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        reduced_evaluator = CachedWarriorLoadoutEvaluator(
+            self.inputs, self.encounters
+        )
+        catalog = (*swords, owned("light", 39))
+        reduced_catalog = (*deduped, owned("light", 39))
+        reference = optimize_loadout(
+            catalog, lambda loadout: reference_evaluator(loadout).metrics,
+            depth=1, timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(catalog),
+        )
+        result = optimize_loadout(
+            catalog, lambda loadout: reduced_evaluator(loadout).metrics,
+            depth=1, timeout_seconds=10,
+            candidate_loadouts=exhaustive_loadouts(reduced_catalog),
+        )
+        self.assertEqual(result.best.metrics, reference.best.metrics)
+
     def test_live_shaped_duplicate_supplies_never_enter_search(self):
         launchers = tuple(owned(f"bow-{index}", 19) for index in range(10))
         torches = tuple(owned(f"torch-{index}", 39) for index in range(13))
@@ -242,6 +369,35 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         )
         self.assertLess(considered, 1_000)
         self.assertFalse(loadouts.truncated)
+
+    def test_live_shaped_hoard_has_exact_structural_bound(self):
+        launchers = tuple(
+            owned(f"bow-{i}", 19, ac=i % 3, flags=({50 + i} if i < 3 else ()))
+            for i in range(11)
+        )
+        lights = tuple(
+            owned(f"light-{i}", 39, ac=i % 4, flags=({55 + i} if i < 4 else ()))
+            for i in range(13)
+        )
+        melee = tuple(
+            owned(f"sword-{i}", 23, sval=i, to_h=i % 2, to_d=i % 3)
+            for i in range(13)
+        )
+        rings = tuple(owned(f"ring-{i}", 45, to_d=i) for i in range(5))
+        bodies = tuple(owned(f"body-{i}", 36, ac=i + 1, to_a=i) for i in range(6))
+        catalog = (
+            *launchers, *lights, *melee, *rings, *bodies,
+            *(owned(f"cloak-{i}", 35, ac=i + 1) for i in range(3)),
+            *(owned(f"feet-{i}", 30, ac=i + 1) for i in range(2)),
+            owned("head", 33, ac=2), owned("arms", 31, ac=2),
+            owned("shield", 34, ac=3),
+            *(owned(f"amulet-{i}", 40, to_a=i) for i in range(3)),
+        )
+        self.assertEqual(len(catalog), 59)
+        search = enumerate_warrior_loadouts(catalog)
+        considered = sum(1 for _ in search)
+        self.assertLess(considered, 10_000)
+        self.assertFalse(search.truncated)
 
 
 if __name__ == "__main__":
