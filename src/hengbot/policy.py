@@ -10384,6 +10384,21 @@ class HengbotPolicy:
     ) -> str | None:
         if hostiles:
             return None
+        if snapshot.in_town and snapshot.town_id != 0:
+            q2 = snapshot.quests.get(2)
+            active_approved_q2 = (
+                q2 is not None
+                and q2.status in {
+                    QUEST_STATUS_UNTAKEN,
+                    QUEST_STATUS_TAKEN,
+                    QUEST_STATUS_COMPLETED,
+                }
+                and self.approved_quest_strategy(2) is not None
+            )
+            if not active_approved_q2:
+                if snapshot.player.gold < 500:
+                    return None
+                return self._town_teleport_key(snapshot, 0)
         quest_id = self._fixed_quest_target(snapshot)
         if quest_id is None:
             return None
@@ -10421,7 +10436,11 @@ class HengbotPolicy:
             )
         if quest.status == QUEST_STATUS_TAKEN:
             return self._fixed_quest_enter_key(snapshot, quest_id)
-        if quest.status == QUEST_STATUS_UNTAKEN and self._fixed_quest_ready(snapshot, quest_id):
+        if (
+            quest.status == QUEST_STATUS_UNTAKEN
+            and (quest_id != 2 or self.approved_quest_strategy(2) is not None)
+            and self._fixed_quest_ready(snapshot, quest_id)
+        ):
             return self._fixed_quest_building_key(
                 snapshot, quest_id, "fixedquest:request", set_reward_pending=False
             )
@@ -10433,6 +10452,14 @@ class HengbotPolicy:
         """Use the inn service for the approved Q2 errand, never wilderness."""
         if snapshot.visited_town_ids is None or 1 not in snapshot.visited_town_ids:
             return None
+        if (
+            snapshot.town_id == 1
+            and self._telmora_q2_errand
+            and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+        ):
+            if snapshot.player.gold < 500:
+                return None
+            return self._town_teleport_key(snapshot, 0)
         if self.approved_quest_strategy(2) is None:
             return None
         if snapshot.town_id == 0 and quest.status in {
@@ -10446,10 +10473,6 @@ class HengbotPolicy:
                 return WAIT_KEY
             self._telmora_q2_errand = True
             return self._town_teleport_key(snapshot, 1)
-        if snapshot.town_id == 1 and (
-            self._telmora_q2_errand and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
-        ):
-            return self._town_teleport_key(snapshot, 0)
         return None
 
     def _town_teleport_key(self, snapshot: Snapshot, destination_town_id: int) -> str | None:
@@ -10574,7 +10597,11 @@ class HengbotPolicy:
             # direction-aware QUEST_UP/QUEST_DOWN progression across all three
             # linked floors.  The final floor is not shaped like 5 and 6.
             return quest_id in FIXED_QUEST_ALLOWLIST and not (
-                quest_id == 2 and snapshot.visited_town_ids is None
+                quest_id == 2
+                and (
+                    snapshot.visited_town_ids is None
+                    or 1 not in snapshot.visited_town_ids
+                )
             )
 
         floor_quest = snapshot.floor_key[2]

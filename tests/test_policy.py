@@ -115,6 +115,9 @@ from hengbot.policy import (
     FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
     FIXED_QUEST_LEVEL_MARGIN,
+    QUEST_STATUS_REWARDED,
+    QUEST_STATUS_TAKEN,
+    QUEST_STATUS_UNTAKEN,
     FOOD_MIN_SVAL,
     OIL_TARGET,
     AMMO_PURCHASE_TARGET,
@@ -2516,6 +2519,17 @@ class FixedQuestTest(unittest.TestCase):
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
         self.assertIsNone(policy._fixed_quest_target(snapshot))
 
+    def test_q2_is_absent_from_targeting_until_telmora_was_visited(self):
+        snapshot = replace(
+            self._town_snapshot(26, 97, {}, 0),
+            quests={2: QuestState(2, status=0, fixed=True)},
+            visited_town_ids=(0,),
+        )
+        policy = HengbotPolicy(self._town_map())
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+
+        self.assertIsNone(policy._fixed_quest_target(snapshot))
+
     def test_q2_telmora_visit_requires_exported_visited_town(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, 0),
@@ -2532,6 +2546,59 @@ class FixedQuestTest(unittest.TestCase):
             "teleport:1",
         )
         self.assertTrue(policy._telmora_q2_errand)
+
+    def _telmora_q2_snapshot(self, status, *, gold=500):
+        return replace(
+            self._town_snapshot(26, 97, {}, 0),
+            player=replace(self._town_snapshot(26, 97, {}, 0).player, gold=gold),
+            town_id=1,
+            quests={2: QuestState(2, status=status, fixed=True)},
+            visited_town_ids=(0, 1),
+        )
+
+    def test_q2_return_trip_uses_errand_latch_after_claim(self):
+        snapshot = self._telmora_q2_snapshot(QUEST_STATUS_REWARDED)
+        policy = HengbotPolicy(self._town_map())
+        policy._telmora_q2_errand = True
+        policy.approved_quest_strategy = lambda _quest_id: None
+        policy._town_teleport_key = lambda _snapshot, town_id: "a" if town_id == 0 else None
+
+        self.assertEqual(policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]), "a")
+
+    def test_q2_approval_revocation_in_telmora_returns_home(self):
+        snapshot = self._telmora_q2_snapshot(QUEST_STATUS_TAKEN)
+        policy = HengbotPolicy(self._town_map())
+        policy._telmora_q2_errand = True
+        policy.approved_quest_strategy = lambda _quest_id: None
+        policy._town_teleport_key = lambda _snapshot, town_id: "a" if town_id == 0 else None
+
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "a")
+
+    def test_q2_failure_in_telmora_returns_home(self):
+        snapshot = self._telmora_q2_snapshot(5)
+        policy = HengbotPolicy(self._town_map())
+        policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._town_teleport_key = lambda _snapshot, town_id: "a" if town_id == 0 else None
+
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "a")
+
+    def test_q2_acceptance_in_telmora_requires_approval(self):
+        snapshot = self._telmora_q2_snapshot(QUEST_STATUS_UNTAKEN)
+        policy = HengbotPolicy(self._town_map())
+        policy.approved_quest_strategy = lambda _quest_id: None
+        policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_building_key = lambda *_args, **_kwargs: "accept"
+
+        self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+
+    def test_q2_return_trip_requires_teleport_fare(self):
+        snapshot = self._telmora_q2_snapshot(QUEST_STATUS_REWARDED, gold=499)
+        policy = HengbotPolicy(self._town_map())
+        policy._telmora_q2_errand = True
+        policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._town_teleport_key = lambda _snapshot, _town_id: "unexpected"
+
+        self.assertIsNone(policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]))
 
     def test_q2_outpost_inn_selects_telmora_with_letter_b(self):
         inn = Position(26, 98)
