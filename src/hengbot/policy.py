@@ -10466,16 +10466,18 @@ class HengbotPolicy:
             return floor_profile
         if not snapshot.in_town:
             return None
-        quest_id = self._fixed_quest_target(snapshot)
-        if quest_id is None:
-            candidates = [
-                quest for quest in snapshot.quests.values()
-                if quest.id in FIXED_QUEST_ALLOWLIST
-                and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
-                and self.approved_quest_strategy(quest.id) is not None
-            ]
-            if candidates:
-                quest_id = min(candidates, key=self._fixed_quest_order).id
+        # Errand retention is itself part of town-departure readiness.  Do not
+        # ask _fixed_quest_target here: for a force-ready untaken quest that
+        # evaluates readiness -> departure -> Home deposits -> retention and
+        # recursively returns here.  Supplies belong to the earliest approved
+        # pending/taken quest regardless of whether departure is ready yet.
+        candidates = [
+            quest for quest in snapshot.quests.values()
+            if quest.id in FIXED_QUEST_ALLOWLIST
+            and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
+            and self.approved_quest_strategy(quest.id) is not None
+        ]
+        quest_id = min(candidates, key=self._fixed_quest_order).id if candidates else None
         if quest_id is None:
             return None
         quest = snapshot.quests.get(quest_id)

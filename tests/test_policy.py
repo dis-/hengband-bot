@@ -3359,6 +3359,27 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             for need in needs
         ))
 
+    def test_force_ready_q34_retention_does_not_recurse_through_departure(self):
+        policy = self._policy()
+        snap = self._force_snapshot(34, hp=605, torches=20, speed=1, healing=25)
+        snap = replace(
+            snap,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            quests={34: QuestState(id=34, status=0, fixed=True, level=5)},
+        )
+        torches = snap.inventory[0]
+
+        # Model the live readiness tail directly: fixed-quest readiness reaches
+        # departure readiness, which asks Home retention about the same pack.
+        with patch.object(
+            policy,
+            "_fixed_quest_ready",
+            side_effect=lambda current, _quest_id: policy._find_home_deposit(current) is None,
+        ):
+            self.assertEqual(policy._retention_reservation(snap, torches), 20)
+            self.assertIsNone(policy._find_home_deposit(snap))
+
     def test_q34_carry_purchase_stops_at_existing_gold_reserve(self):
         policy = self._policy()
         torch = StoreItem(
