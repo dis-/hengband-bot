@@ -11714,6 +11714,82 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         return HengbotPolicy(quest_knowledge={14: info}), snap
 
+    def _exhausted_q14_floor(self, status, depth, *, cur_num=14):
+        info, quest = self._q14(status)
+        info = replace(info, max_num=16)
+        quest = replace(quest, cur_num=cur_num, max_num=16)
+        here = grid(10, 10, upstairs=True, downstairs=True)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): here}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, depth, 0), quests={14: quest},
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+        )
+        pol = HengbotPolicy(quest_knowledge={14: info})
+        pol._explore_step = lambda _snapshot: None
+        pol._is_frontier = lambda *_args: False
+        return pol, snap
+
+    def test_taken_q14_exhausted_floor_regenerates_up_instead_of_descending(self):
+        pol, snap = self._exhausted_q14_floor(QUEST_STATUS_TAKEN, 5)
+        self.assertEqual(pol.choose_key(snap), "<")
+        self.assertEqual(pol.last_reason, "quest:regen:ascend")
+
+    def test_untaken_q14_exhausted_floor_preserves_old_descend_fallback(self):
+        pol, snap = self._exhausted_q14_floor(QUEST_STATUS_UNTAKEN, 8)
+        pol._fixed_quest_key = lambda *_args: None
+        snap = replace(snap, player=replace(snap.player, class_id=-1))
+        self.assertEqual(pol.choose_key(snap), ">")
+        self.assertEqual(pol.last_reason, "descend")
+
+    def test_taken_q14_overshoot_recovers_up_across_multiple_floors(self):
+        pol, snap = self._exhausted_q14_floor(QUEST_STATUS_TAKEN, 9)
+        for depth in (9, 8, 7, 6):
+            current = replace(snap, floor_key=(DUNGEON_YEEK_CAVE, depth, 0))
+            self.assertFalse(
+                pol._is_descent_target(
+                    current, current.grid_at(current.player.position)
+                )
+            )
+            self.assertEqual(pol.choose_key(current), "<")
+            self.assertEqual(pol.last_reason, "quest:regen:ascend")
+        objective = replace(snap, floor_key=(DUNGEON_YEEK_CAVE, 5, 0))
+        self.assertFalse(pol._kill_quest_descent_allowed(objective))
+
+    def test_taken_q14_regeneration_returns_down_then_resumes_hunt(self):
+        pol, floor5 = self._exhausted_q14_floor(QUEST_STATUS_TAKEN, 5)
+        self.assertEqual(pol.choose_key(floor5), "<")
+        floor4 = replace(floor5, floor_key=(DUNGEON_YEEK_CAVE, 4, 0))
+        self.assertEqual(pol.choose_key(floor4), ">")
+        self.assertEqual(pol.last_reason, "quest:regen:descend")
+        target = MonsterState(
+            1, Position(10, 11), 1, 1, 1, False, False, race_id=257,
+        )
+        fresh = replace(
+            floor5,
+            grids={
+                Position(10, 10): grid(10, 10, upstairs=True, downstairs=True),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            visible_monsters=[target],
+        )
+        self.assertNotIn(pol.choose_key(fresh), {"<", ">"})
+        self.assertIn(pol.last_reason, {"melee", "ranged", "hunt"})
+
+    def test_taken_q14_regeneration_stops_after_three_zero_kill_rounds(self):
+        pol, floor5 = self._exhausted_q14_floor(QUEST_STATUS_TAKEN, 5)
+        self.assertEqual(pol.choose_key(floor5), "<")
+        for round_number in range(3):
+            floor4 = replace(floor5, floor_key=(DUNGEON_YEEK_CAVE, 4, 0))
+            self.assertEqual(pol.choose_key(floor4), ">")
+            result = pol.choose_key(floor5)
+            if round_number < 2:
+                self.assertEqual(result, "<")
+            else:
+                self.assertEqual(result, "5")
+                self.assertEqual(pol.last_reason, "quest:regen:exhausted")
+        self.assertNotEqual(pol.choose_key(floor5), ">")
+
     def test_untaken_q14_below_objective_does_not_veto_descent(self):
         pol, snap = self._q14_floor(QUEST_STATUS_UNTAKEN, 8)
         self.assertTrue(pol._is_descent_target(snap, snap.grid_at(Position(10, 10))))

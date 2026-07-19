@@ -1305,6 +1305,15 @@ class HengbotPolicy:
         self._fixed_quest_readiness: dict = {}
         self._fixed_quest_speed_floor: tuple[int, int, int] | None = None
         self._fixed_quest_speed_attempted = False
+        # Regenerating a depleted KILL_LEVEL floor is a two-floor transaction:
+        # leave upward, then return immediately.  Three fruitless fresh floors
+        # are a phase bound: enough to distinguish bad luck from a broken quest
+        # feed without turning regeneration into another invisible infinite loop.
+        self._quest_regen_id: int | None = None
+        self._quest_regen_phase: str | None = None
+        self._quest_regen_kills_before = 0
+        self._quest_regen_zero_rounds = 0
+        self._quest_regen_exhausted_floor: tuple[int, int, int] | None = None
         self._telmora_q2_errand = False
         # The conquest target latch (see _conquest_target): sticky once chosen, so
         # consumable possession (a Speed potion bought/drunk/stashed) cannot flip
@@ -1892,6 +1901,10 @@ class HengbotPolicy:
         if survival is not None:
             return survival
 
+        quest_floor_recovery = self._kill_quest_floor_recovery_key(snapshot)
+        if quest_floor_recovery is not None:
+            return quest_floor_recovery
+
         home_disposal = self._home_disposal_processing_key(snapshot)
         if home_disposal is not None:
             return home_disposal
@@ -2378,6 +2391,9 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, step)
 
         # 9. Nothing to explore: take any known stairs to reach a fresh floor.
+        quest_regen = self._start_kill_quest_regeneration(snapshot)
+        if quest_regen is not None:
+            return quest_regen
         floor_exit_locked = self._floor_navigation_exit_locked(snapshot)
         allow_descent = not self._descent_is_blocked(snapshot)
         step = self._nearest_goal_step(
@@ -2500,6 +2516,13 @@ class HengbotPolicy:
         if snapshot.in_town:
             self._home_disposal.reload_decisions()
         if previous_floor is not None and previous_floor != snapshot.floor_key:
+            if (
+                self._quest_regen_phase == "ascend"
+                and self._quest_regen_id is not None
+                and snapshot.floor_key[0] == previous_floor[0]
+                and snapshot.floor_key[1] == previous_floor[1] - 1
+            ):
+                self._quest_regen_phase = "descend"
             self._fruitless_disengage_floor = None
             self._fruitless_disengage_decisions = 0
             if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
@@ -11388,6 +11411,8 @@ class HengbotPolicy:
         if not positions:
             return None
         if snapshot.player.position in positions:
+            if not self._kill_quest_descent_allowed(snapshot):
+                return None
             self.last_reason = "fixedquest:enter"
             return DOWN_STAIRS_KEY + "y"
         step = self._nearest_goal_step(
@@ -13213,6 +13238,8 @@ class HengbotPolicy:
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
             return False
+        if not self._kill_quest_descent_allowed(snapshot):
+            return False
         # Town entrances are also emitted as downstairs.  Reject an entrance
         # for another dungeon before quest-depth steering: that steering may
         # decide whether to go deeper on the current quest route, but it must
@@ -13225,25 +13252,25 @@ class HengbotPolicy:
             return False
         if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
             return False
-        kill_quest = next(
+        # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
+        # overshoot invariant is owned solely by _kill_quest_descent_allowed.
+        untaken_kill_target = next(
             (
-                (quest, info)
+                info
                 for quest in snapshot.quests.values()
                 if quest.id in FIXED_QUEST_ALLOWLIST
-                and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
+                and quest.status == QUEST_STATUS_UNTAKEN
                 and (info := self._quest_knowledge.get(quest.id)) is not None
                 and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
                 and info.dungeon == snapshot.floor_key[0]
             ),
             None,
         )
-        if kill_quest is not None:
-            quest, kill_target = kill_quest
-            if (
-                snapshot.dungeon_level <= kill_target.level
-                or quest.status == QUEST_STATUS_TAKEN
-            ):
-                return snapshot.dungeon_level < kill_target.level
+        if (
+            untaken_kill_target is not None
+            and snapshot.dungeon_level <= untaken_kill_target.level
+        ):
+            return snapshot.dungeon_level < untaken_kill_target.level
         if snapshot.player.class_id < 0:
             return True
         if snapshot.in_town and grid.has_entrance:
@@ -13269,6 +13296,105 @@ class HengbotPolicy:
         if self._missing_required_abilities(snapshot, snapshot.dungeon_level + 1):
             return False
         return True
+
+    def _taken_dungeon_kill_level_quest(
+        self, snapshot: Snapshot
+    ) -> tuple[QuestState, QuestInfo] | None:
+        """Return the incomplete TAKEN KILL_LEVEL quest for this dungeon."""
+        dungeon_id = snapshot.floor_key[0]
+        for quest in snapshot.quests.values():
+            info = self._quest_knowledge.get(quest.id)
+            if (
+                info is not None
+                and info.type == QUEST_TYPE_KILL_LEVEL
+                and info.dungeon == dungeon_id
+                and quest.status == QUEST_STATUS_TAKEN
+                and quest.cur_num < self._kill_quest_completion_target(quest, info)
+            ):
+                return quest, info
+        return None
+
+    def _kill_quest_descent_allowed(self, snapshot: Snapshot) -> bool:
+        """Central veto for every ordinary or quest-regeneration descent."""
+        active = self._taken_dungeon_kill_level_quest(snapshot)
+        return active is None or snapshot.dungeon_level < active[1].level
+
+    def _kill_quest_floor_recovery_key(self, snapshot: Snapshot) -> str | None:
+        """Recover an overshoot, or finish the downward half of regeneration."""
+        active = self._taken_dungeon_kill_level_quest(snapshot)
+        if active is None:
+            self._quest_regen_id = None
+            self._quest_regen_phase = None
+            return None
+        quest, info = active
+        here = snapshot.grid_at(snapshot.player.position)
+        if snapshot.dungeon_level > info.level:
+            if here is not None and self._is_upstairs_target(here):
+                self.last_reason = "quest:regen:ascend"
+                return UP_STAIRS_KEY
+            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+            if step is not None:
+                self.last_reason = "quest:regen:ascend"
+                return self._step_toward(snapshot, step)
+            return None
+        if (
+            self._quest_regen_id == quest.id
+            and self._quest_regen_phase == "descend"
+            and snapshot.dungeon_level == info.level - 1
+        ):
+            if here is not None and here.is_descent and self._kill_quest_descent_allowed(snapshot):
+                self.last_reason = "quest:regen:descend"
+                return DOWN_STAIRS_KEY
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: grid.is_descent and self._kill_quest_descent_allowed(snapshot),
+            )
+            if step is not None:
+                self.last_reason = "quest:regen:descend"
+                return self._step_toward(snapshot, step)
+        return None
+
+    def _start_kill_quest_regeneration(self, snapshot: Snapshot) -> str | None:
+        """Start UP-then-DOWN regeneration at the existing exhausted-floor seam."""
+        active = self._taken_dungeon_kill_level_quest(snapshot)
+        if active is None:
+            return None
+        quest, info = active
+        if snapshot.dungeon_level != info.level:
+            return None
+        if any(
+            monster.race_id == info.monrace_id
+            for monster in snapshot.visible_monsters
+        ):
+            return None
+        if self._quest_regen_exhausted_floor == snapshot.floor_key:
+            return None
+        if self._quest_regen_phase == "ascend":
+            pass
+        elif self._quest_regen_id == quest.id:
+            if quest.cur_num == self._quest_regen_kills_before:
+                self._quest_regen_zero_rounds += 1
+            else:
+                self._quest_regen_zero_rounds = 0
+            if self._quest_regen_zero_rounds >= 3:
+                self._quest_regen_exhausted_floor = snapshot.floor_key
+                self._quest_regen_phase = None
+                self.last_reason = "quest:regen:exhausted"
+                return WAIT_KEY
+        else:
+            self._quest_regen_zero_rounds = 0
+        self._quest_regen_id = quest.id
+        self._quest_regen_phase = "ascend"
+        self._quest_regen_kills_before = quest.cur_num
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and self._is_upstairs_target(here):
+            self.last_reason = "quest:regen:ascend"
+            return UP_STAIRS_KEY
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        if step is not None:
+            self.last_reason = "quest:regen:ascend"
+            return self._step_toward(snapshot, step)
+        return None
 
     def _all_known_descents_blocked_by_next_depth_requirements(
         self, snapshot: Snapshot
