@@ -4575,8 +4575,12 @@ class HengbotPolicy:
             self.last_reason = "equipment-transaction:abandon-blocked-home"
             return LEAVE_STORE_KEY
         if session.pending_action is not None:
-            self.last_reason = "equipment-transaction:await-confirmation"
-            return WAIT_KEY
+            # The store command loop rejects the normal rest command ("5").
+            # The dispatched transaction has already been processed by the time
+            # this snapshot arrives, so leave Home and confirm it from town.
+            self._equipment_transaction_home_pages.clear()
+            self.last_reason = "equipment-transaction:await-confirmation-leave-home"
+            return LEAVE_STORE_KEY
         if session.required_context == "outside_home":
             self._equipment_transaction_home_pages.clear()
             self.last_reason = "equipment-transaction:leave-home-to-equip"

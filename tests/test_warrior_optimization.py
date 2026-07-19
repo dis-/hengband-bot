@@ -360,9 +360,10 @@ class WarriorOptimizationTest(unittest.TestCase):
             policy._equipment_transaction_home_key(snapshot), "pc\r"
         )
 
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "5")
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:await-confirmation"
+            policy.last_reason,
+            "equipment-transaction:await-confirmation-leave-home",
         )
         self.assertTrue(policy._equipment_transaction_session.executable)
 
