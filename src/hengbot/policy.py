@@ -11484,6 +11484,7 @@ class HengbotPolicy:
                 return encounter
 
         opening_door = profile.engagement_plan.get("opening_door")
+        opening_corner = profile.engagement_plan.get("opening_corner")
         opening_approach = profile.engagement_plan.get("opening_approach")
         if opening_door is not None and opening_approach is not None:
             door = Position(*opening_door)
@@ -11491,7 +11492,12 @@ class HengbotPolicy:
             door_grid = snapshot.grid_at(door)
             if door_grid is not None and door_grid.known and door_grid.is_closed_door:
                 if snapshot.player.position != approach:
-                    step = self._town_map_goal_step(snapshot, approach)
+                    route_goal = approach
+                    if opening_corner is not None:
+                        corner = Position(*opening_corner)
+                        if snapshot.player.position.x != corner.x:
+                            route_goal = corner
+                    step = self._town_map_goal_step(snapshot, route_goal)
                     if step is None:
                         self.last_reason = "quest-strategy:opening-door-unreachable"
                         return WAIT_KEY

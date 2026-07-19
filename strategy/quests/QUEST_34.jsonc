@@ -5,6 +5,7 @@
   "approved_note": "User approved via manual-test-runner 2026-07-17T10:46:07.516Z. Feedback: 殺人蜂は上部小部屋から自力で出てくることがないので、先にクローカーデスソードを投擲で処理してレベルアップすることでさらに安全にクリアできる",
   "engagement_plan": {
     "opening_door": [11, 2],
+    "opening_corner": [1, 1],
     "opening_approach": [11, 1],
     "opening_route": "First cross the top edge to the left exterior corridor, descend to [11,1], and open the ordinary locked door at [11,2] before combat or item recovery.",
     "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open.",

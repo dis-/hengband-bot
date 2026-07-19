@@ -4547,6 +4547,14 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:approach-opening-door"
         )
 
+        left_edge = replace(start, player=player(2, 1))
+        self.assertEqual(
+            policy._approved_quest_strategy_key(left_edge, [monster], []), "2"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:approach-opening-door"
+        )
+
         approach = replace(start, player=player(11, 1))
         self.assertEqual(
             policy._approved_quest_strategy_key(approach, [monster], []), "o6"
