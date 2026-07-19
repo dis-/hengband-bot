@@ -189,6 +189,12 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         retained = _prune_dominated_catalog((short, crossbow))
 
         self.assertEqual({item.id for item in retained}, {"short", "crossbow"})
+        launchers = {
+            loadout.item_at("bow").id
+            for loadout in enumerate_warrior_loadouts((short, crossbow))
+            if loadout.item_at("bow") is not None
+        }
+        self.assertEqual(launchers, {"short", "crossbow"})
 
     def test_exact_copy_pruning_preserves_exhaustive_dual_wield_optimum(self):
         items = (

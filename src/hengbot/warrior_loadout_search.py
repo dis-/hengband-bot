@@ -9,6 +9,7 @@ from typing import Iterable, Iterator, Mapping
 from hengbot.equipment_encounters import BRANDS, SLAYS
 from hengbot.equipment_optimizer import (
     FIXED_SLOTS,
+    SLOT_BOW,
     SLOT_LIGHT,
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
@@ -262,6 +263,8 @@ def _acid_armor_count(loadout: Loadout) -> int:
 
 def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
     melee = warrior_melee_signature(loadout)
+    launcher = loadout.item_at(SLOT_BOW)
+    launcher_item = launcher.item if launcher is not None else None
     vector = (
         int(melee[3]),
         int(melee[4]),
@@ -274,11 +277,20 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
         _pval_total(loadout, TR_SPEED),
         sum(item.item.ac + item.item.to_a for _, item in loadout.slots),
         _acid_armor_count(loadout),
+        launcher_item.to_h if launcher_item is not None else 0,
+        launcher_item.to_d if launcher_item is not None else 0,
     )
     key = (
         loadout.hand_mode,
         loadout.flags.intersection(WARRIOR_EVALUATOR_FLAGS),
         loadout.item_at(SLOT_LIGHT) is not None,
+        (
+            launcher_item.sval,
+            launcher_item.weight,
+            launcher_item.weapon_proficiency,
+        )
+        if launcher_item is not None
+        else None,
         vector,
     )
     return key, vector
@@ -334,7 +346,7 @@ def _compress_states(
     )
     for key, state in equivalent.items():
         flags = key[1]
-        groups[(key[0], flags - BENEFICIAL_GEAR_FLAGS, key[2])].append(
+        groups[(key[0], flags - BENEFICIAL_GEAR_FLAGS, key[2], key[3])].append(
             (state, vectors[key], flags.intersection(BENEFICIAL_GEAR_FLAGS))
         )
 
