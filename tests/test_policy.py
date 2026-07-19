@@ -4702,6 +4702,26 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(step, Position(10, 13))
         self.assertGreater(step.distance_to(Position(9, 11)), 1)
 
+    def test_q34_can_leave_a_defeated_sword_recovery_lane(self):
+        policy = self._policy()
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34], battlefield=None
+        )
+        grids = {
+            Position(9, 11): grid(9, 11),
+            Position(10, 11): grid(10, 11),
+            Position(11, 12): grid(11, 12),
+            Position(11, 13): grid(11, 13),
+        }
+        snap = Snapshot(player(9, 11), grids, [], floor_key=(0, 5, 34))
+        policy._build_grid_index(snap)
+
+        step = policy._quest_strategy_route_step(
+            snap, policy._quest_strategies[34], Position(11, 13)
+        )
+
+        self.assertEqual(step, Position(10, 11))
+
     def test_q34_opens_lower_left_door_before_combat(self):
         policy = self._policy()
         grids = {

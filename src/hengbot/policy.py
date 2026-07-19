@@ -11475,6 +11475,11 @@ class HengbotPolicy:
             for dy in (-1, 0, 1):
                 for dx in (-1, 0, 1):
                     blocked.add(Position(target.y + dy, target.x + dx))
+            recovery_cells = {
+                Position(*raw) for raw in plan.get("recovery_cells", ())
+            }
+            if snapshot.player.position in recovery_cells:
+                blocked.difference_update(recovery_cells)
         blocked.discard(goal)
         if battlefield is not None:
             navigator = self._quest_navigators.setdefault(
