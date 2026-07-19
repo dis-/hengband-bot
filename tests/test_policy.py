@@ -88,6 +88,7 @@ from hengbot.quest_knowledge import (
     load_quest_knowledge,
 )
 from hengbot.quest_strategies import load_quest_strategies
+from hengbot.projection_path import projection_path
 from hengbot.policy import (
     HengbotPolicy,
     BUY_KEY,
@@ -95,6 +96,7 @@ from hengbot.policy import (
     DESTROY_FAIL_LIMIT,
     EMPTY_DIVE_LIMIT,
     OVEREXTEND_LOOT_MAX,
+    RANGED_MAX_DISTANCE,
     UNUSED_DIVE_LIMIT,
     SELL_KEY,
     SELL_CONFIRM_SUFFIX,
@@ -15695,10 +15697,10 @@ class RangedAttackTest(unittest.TestCase):
         snap = replace(snap, grids=grids)
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "fs*o4t")
+        self.assertEqual(policy.choose_key(snap), "fs*p777444444t")
         self.assertEqual(policy.last_reason, "ranged:fire-offset")
 
-    def test_offset_aim_is_forbidden_when_victim_is_not_nearest_hostile(self):
+    def test_offset_aim_does_not_depend_on_nearest_targetable_monster(self):
         snap = self._snap(
             monsters=[
                 hostile(1, 7, 2, distance=8),
@@ -15712,9 +15714,48 @@ class RangedAttackTest(unittest.TestCase):
         snap = replace(snap, grids=grids)
         policy = HengbotPolicy()
 
-        self.assertIsNone(
-            policy._offset_fire_aim(snap, snap.visible_monsters[0], snap.visible_monsters)
+        self.assertEqual(
+            policy._offset_fire_aim(snap, snap.visible_monsters[0]), Position(7, 1)
         )
+
+    def test_near_side_neighbor_does_not_validate_as_offset_aim(self):
+        snap = self._snap(
+            monsters=[hostile(1, 2, 5, distance=8)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        grids = dict(snap.grids)
+        grids[Position(4, 6)] = grid(4, 6, passable=False)
+        snap = replace(snap, grids=grids)
+        policy = HengbotPolicy()
+
+        near_side = Position(3, 6)
+        through_path = projection_path(
+            snap.player.position,
+            near_side,
+            RANGED_MAX_DISTANCE,
+            lambda pos: pos == Position(4, 6),
+            through=True,
+        )
+        self.assertLess(
+            through_path.index(near_side),
+            through_path.index(snap.visible_monsters[0].position),
+        )
+        self.assertNotEqual(
+            policy._offset_fire_aim(snap, snap.visible_monsters[0]), near_side
+        )
+
+    def test_no_projectable_monster_still_uses_player_origin_offset(self):
+        snap = self._snap(
+            monsters=[hostile(1, 7, 2, distance=8)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        grids = dict(snap.grids)
+        grids[Position(7, 3)] = grid(7, 3, passable=False)
+        snap = replace(snap, grids=grids)
+
+        self.assertEqual(HengbotPolicy().choose_key(snap), "fs*p777444444t")
 
     def test_failed_targeting_is_skipped_until_player_moves(self):
         snap = self._snap(
@@ -15730,6 +15771,27 @@ class RangedAttackTest(unittest.TestCase):
 
         moved = replace(snap, player=replace(snap.player, position=Position(10, 11)))
         self.assertEqual(policy.choose_key(moved), "fs*t5\x1b")
+
+        policy = HengbotPolicy()
+        progressing = snap
+        for count in range(20, 15, -1):
+            progressing = replace(progressing, inventory=[self._shots(count)])
+            self.assertEqual(policy.choose_key(progressing), "fs*t5\x1b")
+
+    def test_failed_offset_targeting_is_skipped_after_three_attempts(self):
+        snap = self._snap(
+            monsters=[hostile(1, 7, 2, distance=8)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        grids = dict(snap.grids)
+        grids[Position(7, 3)] = grid(7, 3, passable=False)
+        snap = replace(snap, grids=grids)
+        policy = HengbotPolicy()
+
+        attempts = [policy.choose_key(snap) for _ in range(4)]
+        self.assertEqual(attempts[:3], ["fs*p777444444t"] * 3)
+        self.assertNotEqual(attempts[3], "fs*p777444444t")
 
     def test_aligned_hostile_is_preferred_when_off_axis_is_also_visible(self):
         snap = self._snap(

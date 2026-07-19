@@ -4,7 +4,7 @@ from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
 from itertools import count
-from math import ceil, gcd
+from math import ceil
 from typing import Literal
 from pathlib import Path
 
@@ -1269,6 +1269,7 @@ class HengbotPolicy:
         # clear the guard as soon as the player moves.
         self._ranged_target_guard_position: Position | None = None
         self._ranged_target_attempts: dict[int, int] = {}
+        self._ranged_target_signatures: dict[int, tuple[int, int, Position]] = {}
         self._emergency_escape_pending = False
         # Speed-potion state for the currently engaged unique.  The baseline is
         # the speed observed before quaffing; after the bonus expires we may dose
@@ -3049,6 +3050,10 @@ class HengbotPolicy:
         blindness hides the ray, so both bail. Fear deliberately does NOT
         bail — do_cmd_fire works while afraid, which turns the old
         flee-while-shot-to-death pattern into an exchange."""
+        visible_indices = {monster.index for monster in hostiles}
+        for index in self._ranged_target_signatures.keys() - visible_indices:
+            self._ranged_target_signatures.pop(index, None)
+            self._ranged_target_attempts.pop(index, None)
         if adjacent or not hostiles:
             return None
         player = snapshot.player
@@ -3099,17 +3104,27 @@ class HengbotPolicy:
         if self._ranged_target_guard_position != player.position:
             self._ranged_target_guard_position = player.position
             self._ranged_target_attempts.clear()
+            self._ranged_target_signatures.clear()
+        signature = (ammo.count, victim.hp, victim.position)
+        previous_signature = self._ranged_target_signatures.get(victim.index)
+        if previous_signature is not None:
+            if signature != previous_signature:
+                self._ranged_target_attempts[victim.index] = 0
+            else:
+                self._ranged_target_attempts[victim.index] = (
+                    self._ranged_target_attempts.get(victim.index, 0) + 1
+                )
         if self._ranged_target_attempts.get(victim.index, 0) >= RANGED_TARGET_FAILURE_LIMIT:
             return None
 
-        aim = self._offset_fire_aim(snapshot, victim, eligible)
+        aim = self._offset_fire_aim(snapshot, victim)
         if aim is not None:
-            keys = self._cursor_delta_keys(victim.position, aim)
-            # target-setter.cpp: '*' begins at pos_interests[0]; 'o' leaves
-            # that interesting-target mode at the same grid, lowercase dirs
-            # move one grid, and 't' confirms a free-grid target.
+            keys = self._cursor_delta_keys(player.position, aim)
+            self._ranged_target_signatures[victim.index] = signature
+            # 'p' resets both interest and free-grid targeting modes to the
+            # player, giving the cursor movement a deterministic origin.
             self.last_reason = "ranged:fire-offset"
-            return FIRE_KEY + ammo.slot + "*o" + keys + "t"
+            return FIRE_KEY + ammo.slot + "*p" + keys + "t"
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
@@ -3128,9 +3143,7 @@ class HengbotPolicy:
         )
         if not targetable_hostile:
             return None
-        self._ranged_target_attempts[victim.index] = (
-            self._ranged_target_attempts.get(victim.index, 0) + 1
-        )
+        self._ranged_target_signatures[victim.index] = signature
         self.last_reason = "ranged:fire-target"
         return FIRE_KEY + ammo.slot + "*t5\x1b"
 
@@ -3138,9 +3151,8 @@ class HengbotPolicy:
         self,
         snapshot: Snapshot,
         victim: MonsterState,
-        eligible: list[MonsterState],
     ) -> Position | None:
-        """Find a PROJECT_THRU aim whose first monster is ``victim``."""
+        """Find an aim grid strictly beyond ``victim`` on a clear shot path."""
         origin = snapshot.player.position
         occupied = {monster.position for monster in snapshot.visible_monsters}
 
@@ -3150,41 +3162,44 @@ class HengbotPolicy:
             # cheaper than abandoning a potentially valid offset shot.
             return grid is not None and grid.known and not grid.passable
 
-        def first_monster(aim: Position) -> Position | None:
-            path = projection_path(
-                origin, aim, RANGED_MAX_DISTANCE, blocks, through=True
+        def victim_precedes_aim(aim: Position) -> bool:
+            path = projection_path(origin, aim, RANGED_MAX_DISTANCE, blocks)
+            try:
+                victim_index = path.index(victim.position)
+                aim_index = path.index(aim)
+            except ValueError:
+                return False
+            return victim_index < aim_index and not any(
+                pos in occupied for pos in path[:victim_index]
             )
-            return next((pos for pos in path if pos in occupied), None)
 
         # A direct target remains on the established *t5<esc> path.
-        if first_monster(victim.position) == victim.position:
-            return None
-
-        # TARGET_KILL's stable distance sort starts '*' on the nearest visible
-        # hostile.  Offset mode is forbidden unless that is this victim.
-        nearest = min(
-            eligible,
-            key=lambda monster: self._target_cursor_sort_key(origin, monster),
+        direct_path = projection_path(
+            origin, victim.position, RANGED_MAX_DISTANCE, blocks
         )
-        if nearest.index != victim.index:
+        if victim.position in direct_path and not any(
+            pos in occupied for pos in direct_path[: direct_path.index(victim.position)]
+        ):
             return None
 
-        candidates = [
-            Position(victim.position.y + dy, victim.position.x + dx)
-            for dy, dx in NEIGHBOR_OFFSETS
-        ]
         delta_y = victim.position.y - origin.y
         delta_x = victim.position.x - origin.x
-        divisor = gcd(abs(delta_y), abs(delta_x))
-        step_y = delta_y // divisor
-        step_x = delta_x // divisor
-        for distance in range(1, RANGED_MAX_DISTANCE + 1):
-            candidates.append(
-                Position(
-                    victim.position.y + step_y * distance,
-                    victim.position.x + step_x * distance,
-                )
+        victim_dot = delta_y * delta_y + delta_x * delta_x
+        candidates = []
+        for y in range(1, snapshot.height - 1):
+            for x in range(1, snapshot.width - 1):
+                candidate = Position(y, x)
+                candidate_y = y - origin.y
+                candidate_x = x - origin.x
+                if candidate_y * delta_y + candidate_x * delta_x > victim_dot:
+                    candidates.append(candidate)
+        candidates.sort(
+            key=lambda pos: (
+                len(self._cursor_delta_keys(origin, pos)),
+                pos.y,
+                pos.x,
             )
+        )
         for candidate in candidates:
             if (
                 candidate == origin
@@ -3192,7 +3207,7 @@ class HengbotPolicy:
                 or not (1 <= candidate.x < snapshot.width - 1)
             ):
                 continue
-            if first_monster(candidate) == victim.position:
+            if victim_precedes_aim(candidate):
                 return candidate
         return None
 
