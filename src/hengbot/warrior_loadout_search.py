@@ -35,7 +35,7 @@ GEAR_STAGES = (
 # in the exact group key, so this compression cannot silently reinterpret them.
 BENEFICIAL_GEAR_FLAGS = frozenset(
     {
-        0, 3, 6, 12, 13,  # STR, DEX, device skill, speed, blows (pval in vector)
+        0, 3, 4, 6, 12, 13,  # STR, DEX, CON, device, speed, blows
         32, 33, 34, 35, 36, 37,  # sustains
         39, 40, 41, 42, 43, 45, 46, 47,
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
@@ -55,6 +55,8 @@ WARRIOR_EVALUATOR_FLAGS = BENEFICIAL_GEAR_FLAGS | frozenset(
         152, 153, 154, 155,  # elemental vulnerabilities
     }
 )
+
+TR_CON = 4
 
 
 def _evaluator_flags(item: OwnedEquipment) -> frozenset[int]:
@@ -275,6 +277,7 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
         int(melee[9]),
         int(melee[10]),
         _pval_total(loadout, TR_SPEED),
+        _pval_total(loadout, TR_CON),
         sum(item.item.ac + item.item.to_a for _, item in loadout.slots),
         _acid_armor_count(loadout),
         launcher_item.to_h if launcher_item is not None else 0,
