@@ -671,11 +671,19 @@ def _prefer(
                 if candidate_bow is not None and incumbent_bow is not None
                 else set()
             )
-            if launcher_pair == {
-                SV_BOW_SHORT,
-                SV_BOW_LIGHT_XBOW,
-            }:
-                return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
+            if launcher_pair == {SV_BOW_SHORT, SV_BOW_LIGHT_XBOW}:
+                short_bow = next(
+                    bow.item
+                    for bow in (candidate_bow, incumbent_bow)
+                    if bow.item.sval == SV_BOW_SHORT
+                )
+                short_bow_high_grade = (
+                    short_bow.is_ego
+                    or short_bow.is_artifact
+                    or short_bow.pseudo_feeling in {"excellent", "special"}
+                )
+                if not short_bow_high_grade:
+                    return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
             if cm.ranged_dps != im.ranged_dps:
                 return cm.ranged_dps > im.ranged_dps
         if cm.expected_dps != im.expected_dps:
