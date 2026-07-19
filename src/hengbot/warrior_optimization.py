@@ -71,6 +71,8 @@ PLAYER_ABILITY_FLAGS = {
 }
 
 REPRESENTATIVE_CATALOG_THRESHOLD = 48
+FREE_ACTION_PRESERVE_DEPTH = 10
+TR_FREE_ACT = 46
 
 
 def optimization_encounters(
@@ -331,17 +333,24 @@ def prepare_warrior_optimization(
         and item.equipped_slot is not None
         and item.item.is_cursed
     }
+    required_candidate_flags = {
+        ABILITY_FLAG[ability]
+        for ability in required_abilities(depth)
+        if ability not in intrinsic_abilities
+    }
+    # Once paralysis is a live dungeon risk, an optimizer transaction must not
+    # discard free action that the current loadout already owns merely because
+    # a mundane armor piece gains a few points of AC. Another slot may replace
+    # the flag, but the resulting complete loadout must retain it.
+    if depth >= FREE_ACTION_PRESERVE_DEPTH and TR_FREE_ACT in current.flags:
+        required_candidate_flags.add(TR_FREE_ACT)
     candidate_loadouts = enumerate_warrior_loadouts(
         items,
         current_item_ids=current.item_ids,
         pinned=pinned,
         excluded_item_ids=search_excluded_item_ids,
         require_light=True,
-        required_flags=frozenset(
-            ABILITY_FLAG[ability]
-            for ability in required_abilities(depth)
-            if ability not in intrinsic_abilities
-        ),
+        required_flags=frozenset(required_candidate_flags),
     )
     result = optimize_loadout(
         items,
