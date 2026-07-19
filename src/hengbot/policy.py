@@ -1102,6 +1102,9 @@ class HengbotPolicy:
         self._quest_strategy_visible_targets: dict[
             int, set[tuple[int, int, int]]
         ] = {}
+        self._quest_strategy_cleared_targets: dict[
+            int, set[tuple[int, int, int]]
+        ] = {}
         self._quest_strategy_pending_recovery: dict[int, dict[str, object]] = {}
         self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
         self._q2_speed_attempted: set[int] = set()
@@ -2565,6 +2568,7 @@ class HengbotPolicy:
             self._home_disposal.reload_decisions()
         if previous_floor is not None and previous_floor != snapshot.floor_key:
             self._quest_strategy_visible_targets.clear()
+            self._quest_strategy_cleared_targets.clear()
             self._quest_strategy_pending_recovery.clear()
             if (
                 self._quest_regen_phase == "ascend"
@@ -11583,6 +11587,10 @@ class HengbotPolicy:
         )
         newly_defeated_targets = previous_targets - current_targets
         self._quest_strategy_visible_targets[profile.quest_id] = current_targets
+        cleared_targets = self._quest_strategy_cleared_targets.setdefault(
+            profile.quest_id, set()
+        )
+        cleared_targets.update(newly_defeated_targets)
         if (
             newly_defeated_targets
             and profile.quest_id not in self._quest_strategy_pending_recovery
@@ -11609,9 +11617,14 @@ class HengbotPolicy:
                 battlefield.monster_placements if battlefield is not None else ()
             )
         )
+        throwing_points = profile.engagement_plan.get("throwing_points", ())
         final_target_phase = (
             expected_never_move > 0
-            and len(defeated_never_move) >= expected_never_move
+            and (
+                len(cleared_targets) >= len(throwing_points)
+                if throwing_points
+                else len(defeated_never_move) >= expected_never_move
+            )
             and not current_never_move
         )
         if final_target_phase:
@@ -11727,6 +11740,47 @@ class HengbotPolicy:
                         THROW_KEY + torch.slot
                         + self._direction_key(snapshot.player.position, target.position)
                     )
+
+        # A restarted bot has no in-memory record of fixed targets killed
+        # earlier in the same quest. Revisit the approved firing points in
+        # order; from each point the target cell is directly observable, so an
+        # empty cell safely reconstructs both defeat and recovery state.
+        if throwing_points and not combat_hostiles and not final_target_phase:
+            survey_plan = next(
+                (
+                    plan
+                    for plan in throwing_points
+                    if (
+                        int(plan.get("race_id", 0)),
+                        int(plan["target"][0]),
+                        int(plan["target"][1]),
+                    ) not in cleared_targets
+                ),
+                None,
+            )
+            if survey_plan is not None:
+                stand = Position(*survey_plan["stand"])
+                if snapshot.player.position != stand:
+                    step = self._town_map_goal_step(snapshot, stand)
+                    if step is not None:
+                        self.last_reason = "quest-strategy:survey-throw-point"
+                        return self._step_toward(snapshot, step)
+                else:
+                    target_key = (
+                        int(survey_plan.get("race_id", 0)),
+                        int(survey_plan["target"][0]),
+                        int(survey_plan["target"][1]),
+                    )
+                    target_grid = snapshot.grid_at(Position(*survey_plan["target"]))
+                    if target_grid is not None and not target_grid.has_monster:
+                        cleared_targets.add(target_key)
+                        self._quest_strategy_pending_recovery[
+                            profile.quest_id
+                        ] = survey_plan
+                        self.last_reason = "quest-strategy:survey-target-cleared"
+                        return WAIT_KEY
+                    self.last_reason = "quest-strategy:survey-target-unconfirmed"
+                    return SEARCH_KEY
 
         if profile.quest_id == 2 and not hostiles:
             navigator = self._quest_navigators.setdefault(

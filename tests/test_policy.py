@@ -4595,6 +4595,34 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             PICKUP_KEY,
         )
 
+    def test_q34_restart_surveys_explicit_throw_points(self):
+        policy = self._policy()
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(7, 11)
+            for x in range(13, 21)
+        }
+        hold = Snapshot(
+            player(10, 20), grids, [],
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=18, fuel=5000)
+            ],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(hold)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(hold, [], []), "7"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:survey-throw-point")
+
+        at_cloaker_point = replace(hold, player=player(7, 13))
+        self.assertEqual(
+            policy._approved_quest_strategy_key(at_cloaker_point, [], []),
+            WAIT_KEY,
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:survey-target-cleared")
+
     def test_q34_opens_lower_left_door_before_combat(self):
         policy = self._policy()
         grids = {
