@@ -3736,6 +3736,40 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             )
             self.assertFalse(policy._approved_strategy_force_ready(short_ammo, profile))
 
+    def test_q34_readiness_does_not_make_never_move_melee_targets_adjacent(self):
+        policy = self._policy()
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            placed_monsters=((174, 1), (243, 1), (107, 2)),
+        )
+        stationary = MonraceKnowledge(
+            49, 110, False, False, max_melee_damage=300,
+            flags=frozenset({"NEVER_MOVE"}),
+        )
+        policy._monrace_knowledge.update({107: stationary, 243: stationary})
+        policy._monrace_knowledge[174] = MonraceKnowledge(
+            8, 120, False, False, max_melee_damage=9
+        )
+        snapshot = self._force_snapshot(
+            34, hp=627, torches=20, speed=10, healing=29
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+
+        with (
+            patch("hengbot.policy.weapon_expected_dps", return_value=78.0),
+            patch.object(policy, "_main_hand_dps", return_value=78.0),
+        ):
+            self.assertTrue(policy._fixed_quest_ready(snapshot, 34))
+
+        readiness = policy.fixed_quest_readiness_state()
+        self.assertEqual(readiness["strategy_controlled_stationary"], [107, 243])
+        self.assertLess(
+            readiness["worst_adjacent"],
+            readiness["hp_healing_budget"]
+            * policy_module.FIXED_QUEST_MAX_DAMAGE_RATIO,
+        )
+
     def test_acceptance_errand_reserves_and_routes_q34_torches(self):
         policy = self._policy()
         torches = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)

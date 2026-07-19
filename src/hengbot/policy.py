@@ -12085,6 +12085,21 @@ class HengbotPolicy:
         telemetry["hasted"] = hasted
 
         candidates: list[tuple[int, int, MonsterState]] = []
+        strategy_controlled_stationary: set[int] = set()
+        if profile is not None:
+            strategy_controlled_stationary = {
+                r_idx
+                for r_idx in self._quest_never_move_races(profile)
+                if (
+                    (knowledge := self._monrace_knowledge.get(r_idx)) is not None
+                    and knowledge.max_ranged_damage <= 0
+                    and not knowledge.can_summon
+                    and not knowledge.can_multiply
+                )
+            }
+        telemetry["strategy_controlled_stationary"] = sorted(
+            strategy_controlled_stationary
+        )
         player_pos = snapshot.player.position
         positions = [
             Position(player_pos.y + dy, player_pos.x + dx)
@@ -12138,9 +12153,15 @@ class HengbotPolicy:
         candidates.sort(key=lambda entry: (entry[0], entry[2].max_hp), reverse=True)
         _, toughest_r_idx, toughest = candidates[0]
         telemetry["toughest_r_idx"] = toughest_r_idx
+        adjacent_candidates = [
+            entry for entry in candidates
+            if entry[1] not in strategy_controlled_stationary
+        ]
         simultaneous = [
             replace(entry[2], index=-(index + 1), position=positions[index], distance=1)
-            for index, entry in enumerate(candidates[:FIXED_QUEST_SIMULTANEOUS_MONSTERS])
+            for index, entry in enumerate(
+                adjacent_candidates[:FIXED_QUEST_SIMULTANEOUS_MONSTERS]
+            )
         ]
         worst_adjacent = self.threat_prediction(
             combat_snapshot, simultaneous, FIXED_QUEST_THREAT_TURNS
