@@ -11958,7 +11958,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._batch_sell_key(snap)
             policy._batch_sell_key(snap)
             remaining = replace(snap, inventory=[candidates[1]])
-            self.assertIsNone(policy._batch_sell_key(remaining))
+            self.assertEqual(policy._batch_sell_key(remaining), LEAVE_STORE_KEY)
+            self.assertEqual(policy.last_reason, "shop:batch-verify-leave")
             self.assertEqual(policy._store_sell_attempt[0], policy._item_signature(candidates[1]))
             self.assertIn(STORE_MAGIC, policy._batch_sell_attempted)
             self.assertIsNone(policy._batch_sell_key(remaining))
@@ -17728,6 +17729,18 @@ class ChestProcessingTest(unittest.TestCase):
         policy.choose_key(emptied)
         self.assertFalse(policy.last_reason.startswith("chest:"))
         self.assertIsNone(policy._chest_position)
+
+    def test_chest_hidden_under_player_steps_off_before_empty_check(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest")
+        snap = self._snap(inventory=[chest])
+        policy = HengbotPolicy()
+        policy.choose_key(snap)
+
+        dropped_but_hidden = replace(snap, inventory=[])
+        policy.choose_key(dropped_but_hidden)
+
+        self.assertEqual(policy.last_reason, "chest:step-off")
+        self.assertEqual(policy._chest_position, Position(10, 10))
 
     def test_empty_chest_is_not_processed(self):
         chest = item("c", TVAL_CHEST, 1, name="small wooden chest (empty)")

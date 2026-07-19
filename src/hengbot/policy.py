@@ -3464,13 +3464,13 @@ class HengbotPolicy:
             return None
         if self._chest_position is not None:
             chest_pos = self._chest_position
+            distance = player.position.distance_to(chest_pos)
             grid = snapshot.grids.get(chest_pos)
-            if grid is not None and grid.object_count == 0:
+            if distance > 0 and grid is not None and grid.object_count == 0:
                 # Opened and fully looted, or destroyed by its own trap.
                 self._chest_position = None
                 self._chest_phase_counts = {}
                 return None
-            distance = player.position.distance_to(chest_pos)
             if distance == 0:
                 neighbors = self._walkable_neighbors(snapshot, player.position)
                 if not neighbors:
@@ -8371,6 +8371,11 @@ class HengbotPolicy:
             self._batch_sell_pending = None
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
+            # A completed batch can compact every following inventory slot.
+            # Leave before issuing any letter-based individual sale from a
+            # snapshot that may still reflect the pre-batch slot layout.
+            self.last_reason = "shop:batch-verify-leave"
+            return LEAVE_STORE_KEY
 
         if store.store_type in self._batch_sell_attempted:
             return None

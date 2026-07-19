@@ -646,6 +646,23 @@ def _prefer(
         and cm.relevant_traits == im.relevant_traits
     )
     if same_non_offense:
+        candidate_slots = dict(candidate.loadout.slots)
+        incumbent_slots = dict(incumbent.loadout.slots)
+        bow_only_change = (
+            candidate_slots.get(SLOT_BOW) != incumbent_slots.get(SLOT_BOW)
+            and {
+                slot: item.id
+                for slot, item in candidate_slots.items()
+                if slot != SLOT_BOW
+            }
+            == {
+                slot: item.id
+                for slot, item in incumbent_slots.items()
+                if slot != SLOT_BOW
+            }
+        )
+        if bow_only_change and cm.ranged_dps != im.ranged_dps:
+            return cm.ranged_dps > im.ranged_dps
         if cm.expected_dps != im.expected_dps:
             return cm.expected_dps > im.expected_dps
         if cm.ranged_dps != im.ranged_dps:
