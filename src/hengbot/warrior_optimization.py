@@ -70,6 +70,22 @@ PLAYER_ABILITY_FLAGS = {
     "telepathy": 79,
 }
 
+REPRESENTATIVE_CATALOG_THRESHOLD = 48
+
+
+def optimization_encounters(
+    encounters: tuple,
+    *,
+    catalog_size: int,
+) -> tuple:
+    """Bound encounter cost once owned equipment makes the search large."""
+    if (
+        len(encounters) > 512
+        or catalog_size >= REPRESENTATIVE_CATALOG_THRESHOLD
+    ):
+        return representative_encounters(encounters)
+    return encounters
+
 
 @dataclass(frozen=True)
 class WarriorOptimizationPreparation:
@@ -232,10 +248,9 @@ def prepare_warrior_optimization(
         return WarriorOptimizationPreparation(
             current, None, None, ("empty-encounter-set",)
         )
-    encounters = (
-        representative_encounters(all_encounters)
-        if len(all_encounters) > 512
-        else all_encounters
+    encounters = optimization_encounters(
+        all_encounters,
+        catalog_size=len(items),
     )
 
     intrinsic_abilities = _conservative_intrinsic_abilities(

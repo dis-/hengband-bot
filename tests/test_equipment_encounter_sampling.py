@@ -1,6 +1,7 @@
 import unittest
 
 from hengbot.equipment_encounters import EncounterTarget, representative_encounters
+from hengbot.warrior_optimization import optimization_encounters
 from hengbot.monrace_knowledge import MonraceKnowledge
 
 
@@ -20,6 +21,32 @@ def encounter(race_id, level, weight, *, unique=False):
 
 
 class EquipmentEncounterSamplingTest(unittest.TestCase):
+
+    def test_large_equipment_catalog_uses_bounded_encounter_sample(self):
+        source = tuple(
+            EncounterTarget(
+                index,
+                1 / 100,
+                MonraceKnowledge(
+                    max_hp=10,
+                    speed=110,
+                    can_summon=False,
+                    friendly=False,
+                    level=index % 20,
+                    rarity=1,
+                ),
+            )
+            for index in range(100)
+        )
+
+        self.assertEqual(
+            len(optimization_encounters(source, catalog_size=48)),
+            64,
+        )
+        self.assertIs(
+            optimization_encounters(source, catalog_size=47),
+            source,
+        )
     def test_excludes_uniques_and_preserves_normalized_weight(self):
         source = tuple(
             encounter(index, index % 40, 1.0 / 41, unique=index == 40)
