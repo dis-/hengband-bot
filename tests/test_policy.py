@@ -37,6 +37,8 @@ from hengbot.model import (
     SV_SCROLL_WORD_OF_RECALL,
     SV_SCROLL_REMOVE_CURSE,
     SV_SCROLL_STAR_REMOVE_CURSE,
+    SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+    SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
     SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_HOLY_CHANT,
     SV_SCROLL_IDENTIFY,
@@ -13247,6 +13249,152 @@ class RemoveCurseTest(unittest.TestCase):
         policy._observe(snapshot)
         self.assertFalse(policy._heavy_cursed_items)
         self.assertIsNone(policy._heavy_curse_inscription_pending)
+
+
+class LauncherEnchantTest(unittest.TestCase):
+    def _town(
+        self, launcher=None, inventory=None, store=None, *, gold=4000
+    ):
+        equipment = [] if launcher is None else [launcher]
+        return Snapshot(
+            player(10, 10, gold=gold, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory or [],
+            equipment=equipment,
+            store=store,
+        )
+
+    @staticmethod
+    def _launcher(*, to_h=5, to_d=3, known=True, artifact=False):
+        return item(
+            "bow", TVAL_BOW, SV_BOW_SHORT, name="Short Bow",
+            is_equipment=True, known=known, to_h=to_h, to_d=to_d,
+            is_artifact=artifact,
+        )
+
+    @staticmethod
+    def _stock():
+        return StoreState(
+            STORE_ALCHEMIST,
+            [
+                store_item(
+                    "h", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+                    name="Enchant Weapon To-Hit", price=200,
+                ),
+                store_item(
+                    "i", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
+                    name="Enchant Weapon To-Dam", price=200,
+                ),
+            ],
+        )
+
+    def test_surplus_store_buys_one_scroll_for_each_needed_launcher_stat(self):
+        launcher = self._launcher()
+        policy = HengbotPolicy()
+        first = self._town(launcher, store=self._stock())
+        with patch.object(policy, "_town_departure_ready", return_value=True):
+            self.assertEqual(
+                policy._launcher_enchant_purchase(first).sval,
+                SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+            )
+            carried_hit = item(
+                "h", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+                name="Enchant Weapon To-Hit",
+            )
+            second = replace(first, inventory=[carried_hit])
+            self.assertEqual(
+                policy._launcher_enchant_purchase(second).sval,
+                SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
+            )
+
+    def test_read_targets_equipped_launcher_and_bounds_failed_deltas(self):
+        launcher = self._launcher()
+        hit = item("h", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT)
+        dam = item("i", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_DAM)
+        policy = HengbotPolicy()
+        first = self._town(launcher, [hit, dam])
+
+        self.assertEqual(policy._town_enchant_launcher_key(first), "rh/c")
+        self.assertEqual(policy.last_reason, "town:enchant-launcher-tohit")
+        # The scroll disappeared but the launcher did not improve: failure or a
+        # wrong target. It must move to the other stat, never retry To-Hit.
+        failed = self._town(launcher, [dam])
+        policy._observe_launcher_enchant(failed)
+        self.assertEqual(policy._town_enchant_launcher_key(failed), "ri/c")
+        self.assertEqual(policy.last_reason, "town:enchant-launcher-todam")
+        policy._observe_launcher_enchant(self._town(launcher))
+        self.assertIsNone(policy._town_enchant_launcher_key(self._town(launcher)))
+
+    def test_stats_above_nine_are_independently_skipped(self):
+        launcher = self._launcher(to_h=10, to_d=3)
+        policy = HengbotPolicy()
+        snapshot = self._town(launcher, store=self._stock())
+        with patch.object(policy, "_town_departure_ready", return_value=True):
+            self.assertEqual(
+                policy._launcher_enchant_purchase(snapshot).sval,
+                SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
+            )
+
+    def test_poor_or_not_ready_town_does_not_buy_enchant_scrolls(self):
+        launcher = self._launcher()
+        policy = HengbotPolicy()
+        poor = self._town(launcher, store=self._stock(), gold=3100)
+        with patch.object(policy, "_town_departure_ready", return_value=True):
+            self.assertIsNone(policy._launcher_enchant_purchase(poor))
+        ready_gold = replace(poor, player=replace(poor.player, gold=4000))
+        with patch.object(policy, "_town_departure_ready", return_value=False):
+            self.assertIsNone(policy._launcher_enchant_purchase(ready_gold))
+
+    def test_artifact_unknown_or_missing_launcher_is_skipped(self):
+        policy = HengbotPolicy()
+        for launcher in (
+            self._launcher(artifact=True),
+            self._launcher(known=False),
+            None,
+        ):
+            with self.subTest(launcher=launcher):
+                snapshot = self._town(launcher, store=self._stock())
+                with patch.object(policy, "_town_departure_ready", return_value=True):
+                    self.assertIsNone(policy._launcher_enchant_purchase(snapshot))
+
+    def test_surplus_launcher_enchant_routes_to_alchemist_without_blocking(self):
+        launcher = self._launcher()
+        policy = HengbotPolicy()
+        snapshot = self._town(launcher, gold=4000)
+        with patch.object(policy, "_town_departure_ready", return_value=True):
+            needs = policy._enumerate_town_needs(snapshot)
+        self.assertIn(TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"), needs)
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+        with patch.object(policy, "_town_departure_ready", return_value=True):
+            needs = policy._enumerate_town_needs(snapshot)
+        self.assertNotIn(
+            TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"), needs
+        )
+
+    def test_shop_reasons_name_curse_and_launcher_scrolls(self):
+        cases = (
+            (SV_SCROLL_REMOVE_CURSE, "shop:buy-remove-curse"),
+            (SV_SCROLL_STAR_REMOVE_CURSE, "shop:buy-star-remove-curse"),
+            (SV_SCROLL_ENCHANT_WEAPON_TO_HIT, "shop:buy-enchant-tohit"),
+            (SV_SCROLL_ENCHANT_WEAPON_TO_DAM, "shop:buy-enchant-todam"),
+        )
+        for sval, reason in cases:
+            with self.subTest(sval=sval):
+                ware = store_item("a", TVAL_SCROLL, sval, price=100)
+                snapshot = self._town(
+                    self._launcher(), store=StoreState(STORE_ALCHEMIST, [ware])
+                )
+                policy = HengbotPolicy()
+                with (
+                    patch.object(policy, "_next_purchase", return_value=ware),
+                    patch.object(policy, "_purchase_quantity", return_value=1),
+                ):
+                    self.assertEqual(policy._shop(snapshot), "pa\r")
+                self.assertEqual(policy.last_reason, reason)
+
 
 class HighValueBookSaleTest(unittest.TestCase):
     def _town(self, inventory, store=None):

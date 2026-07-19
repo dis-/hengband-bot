@@ -83,6 +83,8 @@ from hengbot.model import (
     SV_SCROLL_STAR_IDENTIFY,
     SV_SCROLL_REMOVE_CURSE,
     SV_SCROLL_STAR_REMOVE_CURSE,
+    SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+    SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
     SV_SCROLL_STAR_DESTRUCTION,
     SV_STAFF_DESTRUCTION,
     SV_STAFF_IDENTIFY,
@@ -1339,6 +1341,8 @@ class HengbotPolicy:
         self._remove_curse_watch: tuple[tuple[str, int, int], int, int] | None = None
         self._heavy_cursed_items: set[tuple[str, int, int]] = set()
         self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
+        self._launcher_enchant_attempted: set[int] = set()
+        self._launcher_enchant_watch: tuple[int, tuple[str, int, int], int] | None = None
         self._last_sell_sig: tuple | None = None
         self._store_sell_stuck_count = 0
         # Item signature, last observed count, and consecutive attempts. Unlike
@@ -2067,6 +2071,10 @@ class HengbotPolicy:
         if remove_curse is not None:
             return remove_curse
 
+        enchant_launcher = self._town_enchant_launcher_key(snapshot)
+        if enchant_launcher is not None:
+            return enchant_launcher
+
         suppress_random_teleport = self._town_random_teleport_suppression_key(
             snapshot
         )
@@ -2504,6 +2512,7 @@ class HengbotPolicy:
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()
         self._observe_remove_curse(snapshot)
+        self._observe_launcher_enchant(snapshot)
         previous_floor = self._floor_key
         self._observe_stair_command(snapshot)
         if not snapshot.in_town and snapshot.player.recalling:
@@ -2871,6 +2880,8 @@ class HengbotPolicy:
 
         if snapshot.floor_key != self._floor_key:
             self._town_visit_purchases.clear()
+            self._launcher_enchant_attempted.clear()
+            self._launcher_enchant_watch = None
             self._fundraising_pursuit_target = None
             self._visit_counts.clear()
             self._recent.clear()
@@ -6632,6 +6643,13 @@ class HengbotPolicy:
         if self._affordable_star_remove_curse(snapshot) is not None:
             add(STORE_TEMPLE, "star-remove-curse")
         if (
+            self._launcher_enchant_needed_svals(snapshot)
+            and self._town_departure_ready(snapshot)
+            and snapshot.player.gold > FUNDRAISING_START_GOLD
+            and STORE_ALCHEMIST not in self._town_store_attempted
+        ):
+            add(STORE_ALCHEMIST, "launcher-enchant")
+        if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and (
                 not self._equipment_catalog.home_scan_complete
@@ -7566,6 +7584,9 @@ class HengbotPolicy:
         star_remove_curse = self._affordable_star_remove_curse(snapshot)
         if star_remove_curse is not None:
             return star_remove_curse
+        launcher_enchant = self._launcher_enchant_purchase(snapshot)
+        if launcher_enchant is not None:
+            return launcher_enchant
         if store.store_type == STORE_BLACK:
             # Buy until neither type is affordable/in stock. Prefer the less-held
             # type so one cheap stack cannot consume all gold before the other
@@ -8527,6 +8548,20 @@ class HengbotPolicy:
                 self.last_reason = "shop:buy-identify"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
                 self.last_reason = "shop:buy-star-identify"
+            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
+                self.last_reason = "shop:buy-remove-curse"
+            elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+                self.last_reason = "shop:buy-star-remove-curse"
+            elif (
+                item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
+            ):
+                self.last_reason = "shop:buy-enchant-tohit"
+            elif (
+                item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_DAM
+            ):
+                self.last_reason = "shop:buy-enchant-todam"
             elif (
                 snapshot.player.food_type == FOOD_TYPE_MANA
                 and item.tval in {TVAL_WAND, TVAL_STAFF}
@@ -9100,6 +9135,112 @@ class HengbotPolicy:
         )
         self.last_reason = "town:remove-curse"
         return READ_KEY + scroll.slot
+
+    def _launcher_enchant_needed_svals(self, snapshot: Snapshot) -> tuple[int, ...]:
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None or not launcher.known or launcher.is_artifact:
+            return ()
+        needs: list[int] = []
+        if (
+            launcher.to_h <= 9
+            and SV_SCROLL_ENCHANT_WEAPON_TO_HIT not in self._launcher_enchant_attempted
+        ):
+            needs.append(SV_SCROLL_ENCHANT_WEAPON_TO_HIT)
+        if (
+            launcher.to_d <= 9
+            and SV_SCROLL_ENCHANT_WEAPON_TO_DAM not in self._launcher_enchant_attempted
+        ):
+            needs.append(SV_SCROLL_ENCHANT_WEAPON_TO_DAM)
+        return tuple(needs)
+
+    def _launcher_enchant_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        store = snapshot.store
+        if (
+            store is None
+            or store.store_type not in {STORE_ALCHEMIST, STORE_MAGIC}
+            or not self._town_departure_ready(snapshot)
+        ):
+            return None
+        carried_svals = {
+            item.sval
+            for item in snapshot.inventory
+            if item.is_scroll and item.aware
+        }
+        for sval in self._launcher_enchant_needed_svals(snapshot):
+            if sval in carried_svals:
+                continue
+            scroll = next(
+                (
+                    item for item in store.items
+                    if item.tval == TVAL_SCROLL
+                    and item.sval == sval
+                    and item.count > 0
+                    and snapshot.player.gold - item.price >= FUNDRAISING_START_GOLD
+                ),
+                None,
+            )
+            if scroll is not None:
+                return scroll
+        return None
+
+    def _observe_launcher_enchant(self, snapshot: Snapshot) -> None:
+        watch = self._launcher_enchant_watch
+        if watch is None:
+            return
+        self._launcher_enchant_watch = None
+        sval, signature, previous_bonus = watch
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None or self._item_signature(launcher) != signature:
+            return
+        current_bonus = (
+            launcher.to_h
+            if sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
+            else launcher.to_d
+        )
+        # No increase means failure or a wrong target. The per-visit attempted
+        # latch remains set, so either case is bounded instead of carouselling.
+        if current_bonus <= previous_bonus:
+            return
+
+    def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
+        if (
+            not snapshot.in_town
+            or snapshot.store is not None
+            or snapshot.player.blind
+            or snapshot.player.confused
+        ):
+            return None
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None:
+            return None
+        slot_key = EQUIPMENT_SLOT_KEY.get(launcher.slot)
+        if slot_key is None:
+            return None
+        for sval in self._launcher_enchant_needed_svals(snapshot):
+            scroll = self._first_item(
+                snapshot,
+                lambda item: item.is_scroll and item.aware and item.sval == sval,
+            )
+            if scroll is None:
+                continue
+            previous_bonus = (
+                launcher.to_h
+                if sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
+                else launcher.to_d
+            )
+            self._launcher_enchant_attempted.add(sval)
+            self._launcher_enchant_watch = (
+                sval,
+                self._item_signature(launcher),
+                previous_bonus,
+            )
+            self.last_reason = (
+                "town:enchant-launcher-tohit"
+                if sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
+                else "town:enchant-launcher-todam"
+            )
+            return READ_KEY + scroll.slot + "/" + slot_key
+        return None
 
     @staticmethod
     def _needs_random_teleport_suppression(item) -> bool:
