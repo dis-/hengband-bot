@@ -16983,6 +16983,25 @@ class RangedAttackTest(unittest.TestCase):
             policy._purchase_quantity(snap, selected), TORCH_THROW_TARGET
         )
 
+    def test_matching_ammo_prevents_throwing_torch_restock(self):
+        torch_ware = StoreItem(
+            "f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=1
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[self._shots(), *self._strict_supplies_for_ammo()],
+            equipment=[self._lantern(), self._sling()],
+            store=StoreState(STORE_GENERAL, [torch_ware]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertIsNone(policy._next_purchase(snap))
+
     def test_pack_equipment_kind_torches_count_and_buy_as_one_batch(self):
         torch_ware = StoreItem("f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=3)
         carried = item(
@@ -18216,7 +18235,10 @@ class StoreSellGateTest(unittest.TestCase):
 
 
 class RetentionAuthorityTest(unittest.TestCase):
-    def _town(self, inventory, *, store=None, gold=FUNDRAISING_START_GOLD):
+    def _town(
+        self, inventory, *, equipment=(), store=None,
+        gold=FUNDRAISING_START_GOLD,
+    ):
         return Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=gold),
             {Position(10, 10): grid(10, 10)},
@@ -18224,6 +18246,7 @@ class RetentionAuthorityTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             town_flag=True,
             inventory=list(inventory),
+            equipment=list(equipment),
             store=store,
         )
 
@@ -18271,6 +18294,26 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._retention_surplus(snap, torches), 4)
         self.assertEqual(policy._find_home_deposit(snap), torches)
         self.assertEqual(policy._home_deposit_key(snap, torches), "dj4\r")
+
+    def test_matching_launcher_ammo_replaces_throwing_torches(self):
+        torches = item(
+            "j", TVAL_LITE, SV_LITE_TORCH,
+            count=10, name="Wooden Torches", fuel=5000,
+        )
+        shots = item("s", TVAL_SHOT, 1, count=20, name="Iron Shots")
+        sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING,
+            name="Sling", is_equipment=True,
+        )
+        snap = self._town(
+            [torches, shots], equipment=[sling],
+            store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._retention_reservation(snap, torches), 0)
+        self.assertEqual(policy._find_home_deposit(snap), torches)
+        self.assertEqual(policy._home_deposit_key(snap, torches), "dj10\r")
 
     def test_same_visit_purchase_guard_clears_on_floor_change(self):
         detection = item(

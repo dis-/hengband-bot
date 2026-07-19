@@ -4884,6 +4884,8 @@ class HengbotPolicy:
                 candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
             )
         elif item.is_torch:
+            if self._matching_ammo(snapshot) is not None:
+                return 0
             if not item.known or item.fuel <= 0:
                 return 0
             target = TORCH_THROW_TARGET
@@ -5019,6 +5021,11 @@ class HengbotPolicy:
             and self._retention_reservation(snapshot, item) > 0
             and self._retention_surplus(snapshot, item) > 0
         )
+        throwing_torches_replaced = (
+            snapshot is not None
+            and item.is_torch
+            and self._matching_ammo(snapshot) is not None
+        )
         return (
             spare_equipment
             or protected_unknown_consumable
@@ -5026,6 +5033,7 @@ class HengbotPolicy:
             or idle_dead_weight
             or depleted_device
             or reserved_stack_surplus
+            or throwing_torches_replaced
         )
 
     def _idle_deposit_protected(self, item: InventoryItem) -> bool:
@@ -6813,6 +6821,7 @@ class HengbotPolicy:
         if (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+            and self._matching_ammo(snapshot) is None
             and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
             and STORE_GENERAL not in self._town_store_attempted
         ):
@@ -7686,6 +7695,7 @@ class HengbotPolicy:
                 )
             if (
                 self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+                and self._matching_ammo(snapshot) is None
                 and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
             ):
                 # Shallow mining trips carry throwing torches (user directive);
@@ -7788,6 +7798,7 @@ class HengbotPolicy:
             return next((it for it in store.items if it.is_oil and it.price <= gold), None)
         if (
             self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+            and self._matching_ammo(snapshot) is None
             and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
         ):
             torch = next(
