@@ -387,6 +387,23 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertTrue(town.in_town)
         self.assertFalse(town.on_open_wilderness)
 
+    def test_parses_visible_floor_object_classes(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "object_count": 2,
+                "object_tvals": [65, 55],
+                "terrain": {"move": True},
+            }
+        ]
+
+        floor_grid = parse_snapshot(data, {}).grids[Position(5, 6)]
+        self.assertEqual(floor_grid.object_count, 2)
+        self.assertEqual(floor_grid.object_tvals, (65, 55))
+
     def test_parses_fixed_quest_progress_and_visible_quest_grids(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["floor"].update({"level": 0, "in_town": True, "town_id": 0, "town_index": 1})

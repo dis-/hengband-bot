@@ -510,6 +510,9 @@ class GridState:
     is_door: bool = False  # any door, open or closed (only enterable orthogonally)
     trap: bool = False
     object_count: int = 0
+    # Visible floor-object classes. Empty on older emitters, where only the
+    # count was available and policy must conservatively treat the pile unknown.
+    object_tvals: tuple[int, ...] = ()
     has_entrance: bool = False  # wilderness/town dungeon entrance (enter with '>')
     store_number: int = -1  # -1 = not a store; else the StoreSaleType index
     can_dig: bool = False  # terrain is a dig target (rubble / vein / granite)
@@ -776,6 +779,7 @@ def parse_snapshot(
             is_door=door,
             trap=known and _as_bool(terrain.get("trap", False)),
             object_count=int(grid_data.get("object_count", 0)),
+            object_tvals=tuple(int(value) for value in grid_data.get("object_tvals", [])),
             has_entrance=known and _as_bool(terrain.get("entrance", False)),
             store_number=int(grid_data.get("store_number", -1)) if known else -1,
             can_dig=known

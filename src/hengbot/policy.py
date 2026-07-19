@@ -1952,6 +1952,10 @@ class HengbotPolicy:
         if survival is not None:
             return survival
 
+        mana_food_loot = self._mana_food_loot_key(snapshot, hostiles)
+        if mana_food_loot is not None:
+            return mana_food_loot
+
         quest_floor_recovery = self._kill_quest_floor_recovery_key(snapshot)
         if quest_floor_recovery is not None:
             return quest_floor_recovery
@@ -13150,6 +13154,68 @@ class HengbotPolicy:
             return None
         self.last_reason = seek_reason
         return self._step_toward(snapshot, step)
+
+    def _mana_food_loot_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Recover visible device food before stairs or an ordinary return."""
+        if (
+            snapshot.in_town
+            or snapshot.floor_key[2] != 0
+            or snapshot.player.food_type != FOOD_TYPE_MANA
+            or len(snapshot.inventory) >= PACK_CAPACITY
+            or (
+                self._count_mana_food_devices(snapshot) >= MANA_FOOD_DEVICE_TARGET
+                and self._count_mana_food_uses(snapshot) >= MANA_FOOD_CHARGE_TARGET
+            )
+            or self._loot_block_reason(snapshot, hostiles) is not None
+        ):
+            return None
+
+        candidates = {
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.object_count > 0
+            and grid.passable
+            and (
+                not grid.object_tvals
+                or any(tval in {TVAL_WAND, TVAL_STAFF} for tval in grid.object_tvals)
+            )
+        }
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.position in candidates:
+            return self._current_floor_item_key(
+                snapshot,
+                pickup_reason="mana-food:pickup-device",
+                trigger_reason="mana-food:trigger-autodestroy",
+            )
+
+        step = self._nearest_position_step(snapshot, candidates)
+        if step is None:
+            return None
+        self.last_reason = "mana-food:seek-device"
+        return self._step_toward(snapshot, step)
+
+    def _nearest_position_step(
+        self, snapshot: Snapshot, targets: set[Position]
+    ) -> Position | None:
+        if not targets:
+            return None
+        start = snapshot.player.position
+        seen = {start}
+        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        while queue:
+            position, first_step = queue.popleft()
+            if position != start and position in targets:
+                return first_step
+            for neighbor in self._walkable_neighbors(snapshot, position):
+                if neighbor in seen:
+                    continue
+                seen.add(neighbor)
+                queue.append(
+                    (neighbor, neighbor if first_step is None else first_step)
+                )
+        return None
 
     def _loot_block_reason(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

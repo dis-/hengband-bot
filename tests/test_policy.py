@@ -204,6 +204,7 @@ def grid(
     unsafe=False,
     trap=False,
     objects=0,
+    object_tvals=(),
     entrance=False,
     rubble=False,
     gold=False,
@@ -231,6 +232,7 @@ def grid(
         is_door=known and (closed_door or open_door),
         trap=trap,
         object_count=objects,
+        object_tvals=tuple(object_tvals),
         has_entrance=entrance,
         can_dig=known and (rubble or can_dig),
         has_gold=known and gold,
@@ -2417,6 +2419,56 @@ class RestTest(unittest.TestCase):
 
 
 class PickupTest(unittest.TestCase):
+    def test_mana_food_deficit_prioritizes_device_over_known_downstairs(self):
+        grids = {
+            Position(10, 10): grid(10, 10, downstairs=True),
+            Position(10, 11): grid(10, 11, objects=1, object_tvals=(TVAL_SCROLL,)),
+            Position(11, 10): grid(11, 10, objects=1, object_tvals=(TVAL_WAND,)),
+        }
+        snapshot = Snapshot(
+            player(10, 10, food_type=FOOD_TYPE_MANA),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            inventory=[item("a", TVAL_STAFF, 1, charges=1)],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snapshot), "2")
+        self.assertEqual(policy.last_reason, "mana-food:seek-device")
+
+    def test_mana_food_deficit_recovers_unknown_legacy_floor_item(self):
+        grids = {
+            Position(10, 10): grid(10, 10, downstairs=True),
+            Position(10, 11): grid(10, 11, objects=1),
+        }
+        snapshot = Snapshot(
+            player(10, 10, food_type=FOOD_TYPE_MANA), grids, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "mana-food:seek-device")
+
+    def test_mana_food_full_reserve_does_not_override_downstairs(self):
+        grids = {
+            Position(10, 10): grid(10, 10, downstairs=True),
+            Position(10, 11): grid(10, 11, objects=1, object_tvals=(TVAL_WAND,)),
+        }
+        snapshot = Snapshot(
+            player(10, 10, food_type=FOOD_TYPE_MANA), grids, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            inventory=[
+                item("a", TVAL_WAND, 1, charges=15),
+                item("b", TVAL_STAFF, 1, charges=5),
+            ],
+        )
+        policy = HengbotPolicy()
+
+        policy._build_grid_index(snapshot)
+        self.assertIsNone(policy._mana_food_loot_key(snapshot, []))
+
     def test_distant_weak_hostile_does_not_block_safe_loot(self):
         monster = hostile(1, 10, 13, distance=3, max_melee_damage=2)
         grids = {
