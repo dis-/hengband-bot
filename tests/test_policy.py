@@ -2837,7 +2837,7 @@ class FixedQuestTest(unittest.TestCase):
             )
         self.assertTrue(policy._telmora_q2_errand)
 
-    def test_q2_acceptance_is_blocked_until_executor_exists(self):
+    def test_q2_acceptance_is_enabled_after_executor_lands(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
             quests={2: QuestState(2, status=QUEST_STATUS_UNTAKEN, fixed=True)},
@@ -2852,7 +2852,7 @@ class FixedQuestTest(unittest.TestCase):
             lambda *_args, **_kwargs: "fixedquest:request"
         )
 
-        self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+        self.assertEqual(policy._fixed_quest_key(snapshot, []), "fixedquest:request")
 
     def _q14_town_fixture(self, status):
         quest = QuestState(
@@ -2945,7 +2945,7 @@ class FixedQuestTest(unittest.TestCase):
         self.assertIsNone(policy._fixed_quest_reward_pending)
         self.assertEqual(policy.last_reason, "fixedquest:reward-complete")
 
-    def test_q2_outbound_travel_is_blocked_until_executor_exists(self):
+    def test_q2_outbound_travel_is_enabled_after_executor_lands(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),
             player=replace(self._town_snapshot(26, 97, {}, 0).player, gold=2000),
@@ -2957,8 +2957,11 @@ class FixedQuestTest(unittest.TestCase):
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
         policy._town_teleport_key = lambda _snapshot, town_id: f"teleport:{town_id}"
 
-        self.assertIsNone(policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]))
-        self.assertFalse(policy._telmora_q2_errand)
+        self.assertEqual(
+            policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]),
+            "teleport:1",
+        )
+        self.assertTrue(policy._telmora_q2_errand)
 
     def test_telmora_stranding_recovery_stays_ungated(self):
         snapshot = replace(self._telmora_q2_snapshot(QUEST_STATUS_UNTAKEN), quests={})

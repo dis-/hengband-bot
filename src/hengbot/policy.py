@@ -292,8 +292,7 @@ QUEST_ID_THIEF = 1
 WIN_QUEST_IDS = frozenset({8, 9})
 FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 25, 28, 34})
 # This is executor capability, not strategy approval or a tuning threshold.
-# Fixers 72/73/74 must add Q2 here as their final step when its executor lands.
-EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 14, 34})
+EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 34})
 # A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
