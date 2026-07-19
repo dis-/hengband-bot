@@ -275,9 +275,11 @@ class OptimizationResult:
     incomplete_item_ids: frozenset[str]
     search_truncated: bool = False
     top_candidates: tuple[EvaluatedLoadout, ...] = ()
+    duplicate_combinations: int = 0
 
 
 LoadoutEvaluator = Callable[[Loadout], LoadoutMetrics]
+LoadoutSignature = Callable[[Loadout], object]
 
 
 def _catalog_signature(item: EquipmentItem) -> tuple:
@@ -711,12 +713,11 @@ def _prefer(
     return candidate_is_current and not incumbent_is_current
 
 
-def _selection_equivalence_key(
-    entry: EvaluatedLoadout,
+def _loadout_policy_key(
+    loadout: Loadout,
     current_item_ids: frozenset[str],
 ) -> tuple[object, ...]:
-    """Keep policy-distinct representatives even when metrics are identical."""
-    bow = entry.loadout.item_at(SLOT_BOW)
+    bow = loadout.item_at(SLOT_BOW)
     if bow is None:
         bow_policy = None
     else:
@@ -727,9 +728,19 @@ def _selection_equivalence_key(
             or bow.item.pseudo_feeling in {"excellent", "special"},
         )
     return (
-        entry.metrics,
         bow_policy,
-        entry.loadout.item_ids == current_item_ids,
+        loadout.item_ids == current_item_ids,
+    )
+
+
+def _selection_equivalence_key(
+    entry: EvaluatedLoadout,
+    current_item_ids: frozenset[str],
+) -> tuple[object, ...]:
+    """Keep policy-distinct representatives even when metrics are identical."""
+    return (
+        entry.metrics,
+        *_loadout_policy_key(entry.loadout, current_item_ids),
     )
 
 
@@ -743,6 +754,7 @@ def optimize_loadout(
     current_item_ids: frozenset[str] = frozenset(),
     timeout_seconds: float = 5.0,
     candidate_loadouts: Iterable[Loadout] | None = None,
+    candidate_signature: LoadoutSignature | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
@@ -767,8 +779,9 @@ def optimize_loadout(
             timed_out=False,
             incomplete_item_ids=incomplete,
         )
-    considered = evaluated_count = invalid = 0
+    considered = evaluated_count = invalid = duplicates = 0
     evaluated_by_metrics: dict[tuple[object, ...], EvaluatedLoadout] = {}
+    seen_candidate_signatures: set[tuple[object, ...]] = set()
     timed_out = False
 
     if candidate_loadouts is None:
@@ -795,6 +808,15 @@ def optimize_loadout(
         ):
             invalid += 1
             continue
+        if candidate_signature is not None:
+            signature = (
+                candidate_signature(loadout),
+                _loadout_policy_key(loadout, current_item_ids),
+            )
+            if signature in seen_candidate_signatures:
+                duplicates += 1
+                continue
+            seen_candidate_signatures.add(signature)
         metrics = evaluator(loadout)
         if not _meets_requirements(
             loadout,
@@ -879,4 +901,5 @@ def optimize_loadout(
         incomplete_item_ids=incomplete,
         search_truncated=bool(getattr(candidate_loadouts, "truncated", False)),
         top_candidates=ranked,
+        duplicate_combinations=duplicates,
     )

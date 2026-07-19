@@ -4565,6 +4565,7 @@ class HengbotPolicy:
                     "considered": preparation.result.combinations_considered,
                     "evaluated": preparation.result.combinations_evaluated,
                     "invalid": preparation.result.invalid_combinations,
+                    "duplicates": preparation.result.duplicate_combinations,
                     "elapsed_seconds": preparation.result.elapsed_seconds,
                     "truncated": preparation.result.search_truncated,
                 }

@@ -171,6 +171,33 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertIn("xbow", result.best.loadout.item_ids)
 
+    def test_complete_evaluation_signature_skips_equivalent_candidates(self):
+        body_a = gear("body-a", 36)
+        body_b = gear("body-b", 36)
+        loadouts = (
+            Loadout((("light", self.light), ("body", body_a)), "empty"),
+            Loadout((("light", self.light), ("body", body_b)), "empty"),
+        )
+        calls = 0
+
+        def evaluate(loadout):
+            nonlocal calls
+            calls += 1
+            return metrics(1)
+
+        result = optimize_loadout(
+            [self.light, body_a, body_b],
+            evaluate,
+            depth=1,
+            candidate_loadouts=loadouts,
+            candidate_signature=lambda loadout: "same-result",
+        )
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(result.combinations_considered, 2)
+        self.assertEqual(result.combinations_evaluated, 1)
+        self.assertEqual(result.duplicate_combinations, 1)
+
     def test_high_grade_short_bow_uses_normal_ranged_comparison(self):
         short = gear(
             "short",

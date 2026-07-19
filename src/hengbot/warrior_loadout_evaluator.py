@@ -228,6 +228,18 @@ class CachedWarriorLoadoutEvaluator:
     def cache_sizes(self) -> tuple[int, int, int]:
         return len(self._melee), len(self._defense), len(self._ranged)
 
+    def evaluation_signature(self, loadout: Loadout) -> tuple[object, ...]:
+        """Return every value that can affect the composite result."""
+        flags = loadout.flags | self.inputs.defense.intrinsic_flags
+        return (
+            warrior_melee_signature(loadout),
+            warrior_defense_signature(loadout, self.inputs.defense),
+            flags,
+            loadout_max_hp(loadout, self.inputs),
+            warrior_ranged_offense_dps(loadout, self.inputs.combat),
+            _speed_bonus(loadout),
+        )
+
     def __call__(self, loadout: Loadout) -> WarriorLoadoutResult:
         melee_key = warrior_melee_signature(loadout)
         melee = self._melee.get(melee_key)

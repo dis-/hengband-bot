@@ -337,6 +337,7 @@ def prepare_warrior_optimization(
         current_item_ids=current.item_ids,
         timeout_seconds=timeout_seconds,
         candidate_loadouts=candidate_loadouts,
+        candidate_signature=evaluator.evaluation_signature,
     )
     if loadout_report_path is not None:
         _append_loadout_report(loadout_report_path, depth, result, evaluator, defense)
@@ -432,6 +433,9 @@ def _append_loadout_report(
         "search_truncated": result.search_truncated,
         "considered": result.combinations_considered,
         "evaluated": result.combinations_evaluated,
+        "duplicates": result.duplicate_combinations,
+        "elapsed_seconds": result.elapsed_seconds,
+        "component_cache_sizes": evaluator.cache_sizes,
         "candidates": candidates,
     }
     try:
