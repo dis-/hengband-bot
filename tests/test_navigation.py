@@ -33,7 +33,7 @@ from hengbot.policy import (
 )
 from test_policy import FOOD, SCROLL, grid, hostile, item, player
 
-from hengbot.model import SV_SCROLL_WORD_OF_RECALL
+from hengbot.model import SV_SCROLL_TELEPORT, SV_SCROLL_WORD_OF_RECALL
 
 DUNGEON_FLOOR = (2, 6, 0)
 
@@ -727,6 +727,29 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._nav_exhausted = True
         policy.choose_key(snapshot)
         self.assertEqual(policy.last_reason, "livelock:seek-upstairs")
+
+    def test_exhausted_return_teleports_to_resume_exploration(self):
+        teleport = item("t", SCROLL, SV_SCROLL_TELEPORT, count=12)
+        snapshot = self._quiet_room(inventory=[teleport])
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._returning_to_town = True
+        policy._nav_exhausted = True
+
+        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.last_reason, "livelock:teleport-explore")
+        self.assertFalse(policy._nav_exhausted)
+
+    def test_exhausted_return_preserves_last_emergency_teleport(self):
+        teleport = item("t", SCROLL, SV_SCROLL_TELEPORT, count=1)
+        snapshot = self._quiet_room(inventory=[teleport])
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._returning_to_town = True
+        policy._nav_exhausted = True
+
+        self.assertEqual(policy.choose_key(snapshot), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
 
     def test_exhausted_floor_with_no_escape_stops_visibly(self):
         snapshot = self._quiet_room()

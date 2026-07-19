@@ -4169,6 +4169,17 @@ class HengbotPolicy:
             status.count < status.required_departure and status.obtainable
         )
 
+    def _recall_destination_safe(
+        self, snapshot: Snapshot, dungeon_id: int
+    ) -> bool:
+        """Reject recall when its landing floor violates mandatory depth gates."""
+        if dungeon_id == snapshot.recall_dungeon_id:
+            depth = snapshot.recall_depth
+        else:
+            info = self._dungeon_knowledge.get(dungeon_id)
+            depth = info.min_depth if info is not None else 1
+        return not self._missing_required_abilities(snapshot, depth)
+
     def _recall_departure_minimum(self, snapshot: Snapshot) -> int:
         """Hard minimum that must remain available when leaving town."""
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
@@ -4209,7 +4220,7 @@ class HengbotPolicy:
                 self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
                 and self._target_dungeon_id in snapshot.entered_dungeon_ids
             )
-        )
+        ) and self._recall_destination_safe(snapshot, self._target_dungeon_id)
         if recalls_from_town:
             target += 1
             if self._planned_depth() >= RECALL_MIN_DEPTH:
@@ -4923,6 +4934,21 @@ class HengbotPolicy:
         self._last_overextended_depth = max(
             self._last_overextended_depth, self._planned_depth()
         )
+        self._equipment_optimization_signature = None
+        self._equipment_optimization_preparation = None
+        return alternate
+
+    def _activate_safe_recall_fallback(self, snapshot: Snapshot) -> int | None:
+        """Select the shallowest entered dungeon when the current recall is unsafe."""
+        alternate = self._pick_alternate_dungeon(
+            snapshot,
+            max_entry_depth=max(1, snapshot.recall_depth - 1),
+        )
+        if alternate is None:
+            return None
+        self._alternate_dungeon = alternate
+        self._target_dungeon_id = alternate
+        self._conquest_committed = None
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
         return alternate
@@ -10084,14 +10110,29 @@ class HengbotPolicy:
         # level 1, so it keeps walking to the entrance instead.
         recall_dest = None
         recall_dungeon_id = self._target_dungeon_id
+        if (
+            self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+            and not self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+        ):
+            if self._activate_safe_recall_fallback(snapshot) is not None:
+                self.last_reason = "town:unsafe-recall-fallback"
+                return WAIT_KEY
+            self.last_reason = "town:blocked:no-safe-recall-destination"
+            return WAIT_KEY
         if deep_fundraising:
             recall_dest = "yeek-cave-mining"
             recall_dungeon_id = DUNGEON_YEEK_CAVE
-        elif self._target_dungeon_id == DUNGEON_ANGBAND and snapshot.angband_recall_unlocked:
+        elif (
+            self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+            and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+        ):
             recall_dest = "angband"
         elif (
             self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
             and self._target_dungeon_id in snapshot.entered_dungeon_ids
+            and self._recall_destination_safe(snapshot, self._target_dungeon_id)
         ):
             # A resistance-safe already-unlocked dungeon: the priority CONQUEST target
             # (clear it for the guardian's gear), or the over-extension fallback when
@@ -10103,6 +10144,7 @@ class HengbotPolicy:
             and not self._taken_kill_quest_requires_walk_in(snapshot)
             and self._deepest_level >= RECALL_MIN_DEPTH
             and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
+            and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
         ):
             recall_dest = "yeek-cave"
         # A consumed/moved item can leave the old in-memory pointer behind even
@@ -13390,6 +13432,7 @@ class HengbotPolicy:
     def _pick_alternate_dungeon(
         self, snapshot: Snapshot, *, max_entry_depth: int | None = None
     ) -> int | None:
+        """Choose the shallowest safe dungeon already available to Recall."""
         # The deepest already-unlocked dungeon — excluding the over-deep main one
         # and the Yeek Cave reserved for fundraising — whose recommended level the
         # character meets and whose floor is SHALLOWER than the depth we could not
@@ -13419,7 +13462,7 @@ class HengbotPolicy:
             # (e.g. a sub-20F Forest / Orc cave with no resistance requirement).
             if self._missing_required_abilities(snapshot, info.min_depth):
                 continue
-            if best is None or info.min_depth > best.min_depth:
+            if best is None or (info.min_depth, info.id) < (best.min_depth, best.id):
                 best = info
         return best.id if best is not None else None
 
@@ -13739,6 +13782,20 @@ class HengbotPolicy:
             if step is not None:
                 self.last_reason = "livelock:seek-upstairs"
                 return self._step_toward(snapshot, step)
+            if (
+                self._returning_to_town
+                and not player.blind
+                and not player.confused
+                and (teleport := self._find_teleport_scroll(snapshot)) is not None
+                and teleport.count > 1
+            ):
+                # The return explorer has proved that this remembered region has
+                # no route to an up-stair. Relocate once, preserving one emergency
+                # scroll, then let normal exploration rebuild its progress budget.
+                self._nav_exhausted = False
+                self._nav_stall_count = 0
+                self.last_reason = "livelock:teleport-explore"
+                return READ_KEY + teleport.slot
         self.last_reason = "livelock:exhausted"
         return WAIT_KEY
 

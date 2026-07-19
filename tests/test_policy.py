@@ -11038,6 +11038,41 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "rra")
         self.assertEqual(policy.last_reason, "town:recall-to-angband")
 
+    def test_unsafe_angband_recall_switches_to_shallowest_entered_dungeon(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                level=26,
+                class_id=PLAYER_CLASS_WARRIOR,
+                abilities=frozenset(),
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=self._strict_supplies(recall=10),
+            equipment=[self._lantern()],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            recall_depth=20,
+            entered_dungeon_ids=(1, 2, 3, 4, 7, 12, 14),
+            yeek_cave_conquered=True,
+            angband_recall_unlocked=True,
+        )
+        policy = HengbotPolicy(
+            dungeon_knowledge={
+                DUNGEON_ANGBAND: DungeonInfo(
+                    DUNGEON_ANGBAND, "Angband", 1, 127, 30
+                ),
+                3: DungeonInfo(3, "Orc Cave", 10, 22, 5),
+            }
+        )
+        policy._target_dungeon_id = DUNGEON_ANGBAND
+        policy._char_dump_done_this_visit = True
+
+        self.assertEqual(policy._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "town:unsafe-recall-fallback")
+        self.assertEqual(policy._target_dungeon_id, 3)
+        self.assertFalse(policy._recall_destination_safe(snap, DUNGEON_ANGBAND))
+
     def test_town_recall_selects_the_target_from_entered_dungeon_order(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -13231,12 +13266,11 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     OVEREXTENDED = dict(loot=1, emergencies=3)
 
     # --- _pick_alternate_dungeon ------------------------------------------
-    def test_picks_deepest_level_appropriate_shallower_dungeon(self):
+    def test_picks_shallowest_recall_selectable_dungeon(self):
         pol = self._policy()
         pol._last_overextended_depth = 26
         snap = self._town()
-        # clvl 23: Mountain (25, minPLv 20) is the deepest we still qualify for.
-        self.assertEqual(pol._pick_alternate_dungeon(snap), 14)
+        self.assertEqual(pol._pick_alternate_dungeon(snap), 3)
 
     def test_skips_a_dungeon_whose_entry_needs_a_missing_resistance(self):
         # The character lacks confusion resistance, so the Mountain (25F entry needs
@@ -13245,7 +13279,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol = self._policy()
         pol._last_overextended_depth = 26
         snap = self._town(abilities=frozenset({"resist_fire", "resist_pois"}))  # no conf
-        self.assertEqual(pol._pick_alternate_dungeon(snap), 7)  # Forest, not Mountain
+        self.assertEqual(pol._pick_alternate_dungeon(snap), 3)
 
     def test_loadout_fallback_picks_best_dungeon_at_or_below_twenty(self):
         pol = self._policy()
@@ -13255,13 +13289,13 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
 
         self.assertEqual(
             pol._pick_alternate_dungeon(snap, max_entry_depth=20),
-            7,
+            3,
         )
 
     def test_steps_down_when_the_alternate_also_over_extends(self):
         pol = self._policy()
         pol._last_overextended_depth = 25  # Mountain came up empty too
-        self.assertEqual(pol._pick_alternate_dungeon(self._town()), 7)  # Forest 15
+        self.assertEqual(pol._pick_alternate_dungeon(self._town()), 3)
 
     def test_never_re_picks_the_alternate_it_is_leaving(self):
         # Even if the bot descended past Mountain's entrance before giving up (so
@@ -13270,7 +13304,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol = self._policy()
         pol._alternate_dungeon = 14  # currently in Mountain, over-extended
         pol._last_overextended_depth = 30  # reached L30 there before bailing
-        self.assertEqual(pol._pick_alternate_dungeon(self._town()), 7)  # Forest, not Mountain
+        self.assertEqual(pol._pick_alternate_dungeon(self._town()), 3)
 
     def test_skips_dungeons_above_the_characters_recommended_level(self):
         pol = self._policy()
@@ -13290,8 +13324,22 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol = self._policy()
         for _ in range(EMPTY_DIVE_LIMIT):
             self._run_dive(pol, **self.OVEREXTENDED)
-        self.assertEqual(pol._alternate_dungeon, 14)
-        self.assertEqual(pol._target_dungeon_id, 14)
+        self.assertEqual(pol._alternate_dungeon, 3)
+        self.assertEqual(pol._target_dungeon_id, 3)
+
+    def test_unentered_alternate_is_not_a_walk_in_target(self):
+        pol = self._policy()
+        pol._alternate_dungeon = 7
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        snap = self._town(
+            entered=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
+            abilities=frozenset(),
+        )
+
+        pol._observe(snap)
+
+        self.assertEqual(pol._alternate_dungeon, 7)
+        self.assertEqual(pol._target_dungeon_id, DUNGEON_ANGBAND)
 
     def test_a_productive_dive_resets_the_streak(self):
         pol = self._policy()
@@ -13316,8 +13364,8 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
                 angband_unlocked=False, **self.OVEREXTENDED,
             )
 
-        self.assertEqual(pol._alternate_dungeon, 14)
-        self.assertEqual(pol._target_dungeon_id, 14)
+        self.assertEqual(pol._alternate_dungeon, 3)
+        self.assertEqual(pol._target_dungeon_id, 3)
         self.assertIsNone(pol._conquest_committed)
 
     def test_conquest_target_can_return_after_alternate_period(self):
@@ -13390,7 +13438,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_empty_dives, 2)
         self.assertIsNone(pol._alternate_dungeon)
         self._run_dive(pol, **self.OVEREXTENDED)      # streak 3 -> switch
-        self.assertEqual(pol._alternate_dungeon, 14)
+        self.assertEqual(pol._alternate_dungeon, 3)
 
     def test_only_a_profitable_dive_clears_the_streak(self):
         pol = self._policy()
@@ -13434,7 +13482,10 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             item("s", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20),  # 25F run needs it
         ]
         snap = Snapshot(
-            player(10, 10, hp=255, max_hp=255, level=23, gold=2000, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10, 10, hp=255, max_hp=255, level=23, gold=2000,
+                class_id=PLAYER_CLASS_WARRIOR, abilities=self.MOUNTAIN_SAFE,
+            ),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
