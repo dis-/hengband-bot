@@ -4591,6 +4591,25 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._approved_quest_strategy_key(snap, [], []), "5")
         self.assertEqual(policy.last_reason, "quest-strategy:hold")
 
+    def test_q34_recovery_never_routes_through_glass_doors(self):
+        policy = self._policy()
+        grids = {
+            Position(5, 8): grid(5, 8),
+            Position(4, 9): grid(4, 9, closed_door=True),
+            Position(3, 10): grid(3, 10, objects=1),
+        }
+        snap = Snapshot(
+            player(5, 8), grids, [],
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=19, fuel=5000)
+            ],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._approved_quest_strategy_key(snap, [], []), "5")
+        self.assertEqual(policy.last_reason, "quest-strategy:hold-unreachable")
+
     def test_never_move_races_come_from_monrace_flags_not_quest_ids(self):
         profile = replace(self.profiles[1], priority_targets=(900, 901))
         stationary = MonraceKnowledge(

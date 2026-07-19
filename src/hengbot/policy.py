@@ -11459,6 +11459,14 @@ class HengbotPolicy:
         if profile is None:
             return None
 
+        # Fixed quest profiles may identify doors that are intentionally much
+        # harder than ordinary doors. Keep every tactical route from treating
+        # them as cheap enterable cells.
+        for raw_position in profile.engagement_plan.get(
+            "avoid_door_positions", ()
+        ):
+            self._door_t.discard(tuple(raw_position))
+
         abort = profile.abort_conditions
         if (
             bool(abort.get("allowed", False))
