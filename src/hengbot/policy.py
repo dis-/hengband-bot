@@ -11774,7 +11774,18 @@ class HengbotPolicy:
         # earlier in the same quest. Revisit the approved firing points in
         # order; from each point the target cell is directly observable, so an
         # empty cell safely reconstructs both defeat and recovery state.
-        if throwing_points and not combat_hostiles and not final_target_phase:
+        planned_throw_races = {
+            int(plan.get("race_id", 0)) for plan in throwing_points
+        }
+        has_planned_throw_hostile = any(
+            monster.race_id in planned_throw_races
+            for monster in combat_hostiles
+        )
+        if (
+            throwing_points
+            and not has_planned_throw_hostile
+            and not final_target_phase
+        ):
             survey_plan = next(
                 (
                     plan
