@@ -2036,6 +2036,38 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
         self.assertEqual(key, "01kb")
 
+    def test_preserves_entire_detection_stack_when_only_part_is_surplus(self):
+        detection = item(
+            "a", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            count=7, name="Detect Treasure",
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_detection_scroll_target = lambda snapshot: 4
+        snapshot = self._town([detection])
+
+        self.assertEqual(policy._retention_surplus(snapshot, detection), 3)
+        self.assertIsNone(policy._overflow_disposal_item(snapshot))
+
+    def test_verified_destroy_rejects_partially_reserved_stack(self):
+        detection = item(
+            "a", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            count=7, name="Detect Treasure",
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_detection_scroll_target = lambda snapshot: 4
+        snapshot = self._town([detection])
+
+        key = policy._verified_destroy_key(
+            snapshot,
+            lambda current: detection,
+            "town:destroy-overflow",
+        )
+
+        self.assertIsNone(key)
+        self.assertNotEqual(policy.last_reason, "town:destroy-overflow")
+
     def test_destroys_junk_until_departure_free_slot_requirement_is_met(self):
         used = PACK_CAPACITY - MIN_FREE_PACK_SLOTS + 1
         staves = [
@@ -19236,6 +19268,26 @@ class FullPackDisposalTest(unittest.TestCase):
         )
         pol._observe(town)
         self.assertEqual(pol._undestroyable_sigs, set())
+
+    def test_destroy_failure_watch_survives_same_town_visit(self):
+        torch = item("q", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=0)
+        town = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        pol = HengbotPolicy()
+        pol._observe(town)
+        watch = (pol._item_signature(torch), torch.count, 1)
+        pol._destroy_watch = watch
+        pol._destroy_fail_streak = 2
+
+        pol._observe(town)
+
+        self.assertEqual(pol._destroy_watch, watch)
+        self.assertEqual(pol._destroy_fail_streak, 2)
 
 
 class DungeonConquestTest(unittest.TestCase):

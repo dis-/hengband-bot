@@ -2685,12 +2685,6 @@ class HengbotPolicy:
             self._device_identify_watch = None
             self._device_identify_fail_streak = 0
         if snapshot.in_town:
-            # A fresh expedition begins from town: forget which items the game
-            # refused to destroy on the last run so the disposal retry budget
-            # resets (the undestroyable set only guards a single exploration).
-            self._undestroyable_sigs.clear()
-            self._destroy_watch = None
-            self._destroy_fail_streak = 0
             self._unidentifiable_sigs.clear()
             self._identify_watch = None
             self._identify_fail_streak = 0
@@ -2907,6 +2901,12 @@ class HengbotPolicy:
                 # A fresh town visit retries the store: an earlier give-up (e.g.
                 # an unaffordable lantern) must not block buying the rations this
                 # return trip is for. The in-store bail-outs re-bound any retry.
+                # Destruction failures are likewise scoped to one expedition;
+                # preserving the watch during the visit lets unchanged attempts
+                # reach their retry limit instead of being resent forever.
+                self._undestroyable_sigs.clear()
+                self._destroy_watch = None
+                self._destroy_fail_streak = 0
                 self._shopping_abandoned = False
                 self._town_store_attempted.clear()
                 self._unsellable_items.clear()
@@ -3735,7 +3735,7 @@ class HengbotPolicy:
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
-            lambda it: self._retention_surplus(snapshot, it) > 0
+            lambda it: self._entire_stack_is_surplus(snapshot, it)
             and (
                 self._is_disposable_item(it, food_type=snapshot.player.food_type)
                 or self._is_spare_lantern(snapshot, it)
@@ -3758,6 +3758,8 @@ class HengbotPolicy:
         """Destroy a selected item while detecting refused or stalled attempts."""
         disposable = finder(snapshot)
         while disposable is not None:
+            if not self._entire_stack_is_surplus(snapshot, disposable):
+                return None
             watch = (
                 self._item_signature(disposable),
                 disposable.count,
@@ -4985,6 +4987,10 @@ class HengbotPolicy:
     def _retention_surplus(self, snapshot: Snapshot, item: InventoryItem) -> int:
         return max(0, item.count - self._retention_reservation(snapshot, item))
 
+    def _entire_stack_is_surplus(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        """Return whether a whole-stack operation may consume this item."""
+        return item.count > 0 and self._retention_surplus(snapshot, item) == item.count
+
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
     ) -> bool:
@@ -5290,7 +5296,10 @@ class HengbotPolicy:
             return disposable
         return self._first_item(
             snapshot,
-            lambda item: self._retention_surplus(snapshot, item) > 0
+            # Destroy always removes the whole stack to free one pack slot.
+            # A partially surplus stack still contains reserved supplies and
+            # therefore cannot be an overflow victim.
+            lambda item: self._entire_stack_is_surplus(snapshot, item)
             and not self._survival_essential(item)
             and not self._is_useful_device(item)
             and not self._has_town_economic_path(item)
