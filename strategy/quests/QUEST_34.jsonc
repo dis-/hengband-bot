@@ -4,7 +4,12 @@
   "approved": true,
   "approved_note": "User approved via manual-test-runner 2026-07-17T10:46:07.516Z. Feedback: 殺人蜂は上部小部屋から自力で出てくることがないので、先にクローカーデスソードを投擲で処理してレベルアップすることでさらに安全にクリアできる",
   "engagement_plan": {
-    "opening": "[1,20] から入り、照明された東通路を南へ進み、扉を開ける前に [10,20] の隘路を確保する。",
+    "opening_door": [11, 2],
+    "opening_approach": [11, 1],
+    "opening_route": "First cross the top edge to the left exterior corridor, descend to [11,1], and open the ordinary locked door at [11,2] before combat or item recovery.",
+    "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open.",
+    "supply_recovery_bounds": [5, 2, 11, 18],
+    "opening": "[1,20] から上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を最初に開ける。外周のガラス扉は開けようとしない。その後、室内経路から [10,20] の隘路を確保する。",
     "hold_position": [10, 20],
     "formation": "処理順はユーザー指示（2026-07-17）: 殺人蜂は上部小部屋 [3,13] から自力で出てこないため最後に回す。先に [7,15] のクローカーへ通路の射線から、次に [9,11]・[11,9] のデスソードへ南東側から射線を通し、距離2以上を保って点火した松明だけで倒し切る（この間の撃破経験でレベルも上がる）。最後に上部小部屋の殺人蜂を扉越しに処理する。NEVER_MOVE の三体には隣接しない。",
     "ranged_softening": "クローカーは火炎免疫がないため点火松明1d6*2.5（平均8.75）、デスソードは IM_FIRE でブランド倍率が無効だが基礎1d6（平均3.5）は残る。距離2以上から必要数を投げ、固定三体を投擲だけで倒し切る。最後に殺人蜂へ松明1本を投げてから近接で処理する（先の撃破でレベルアップ済みのためさらに安全）。"

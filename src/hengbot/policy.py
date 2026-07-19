@@ -11483,6 +11483,23 @@ class HengbotPolicy:
             if encounter is not None:
                 return encounter
 
+        opening_door = profile.engagement_plan.get("opening_door")
+        opening_approach = profile.engagement_plan.get("opening_approach")
+        if opening_door is not None and opening_approach is not None:
+            door = Position(*opening_door)
+            approach = Position(*opening_approach)
+            door_grid = snapshot.grid_at(door)
+            if door_grid is not None and door_grid.known and door_grid.is_closed_door:
+                if snapshot.player.position != approach:
+                    step = self._town_map_goal_step(snapshot, approach)
+                    if step is None:
+                        self.last_reason = "quest-strategy:opening-door-unreachable"
+                        return WAIT_KEY
+                    self.last_reason = "quest-strategy:approach-opening-door"
+                    return self._step_toward(snapshot, step)
+                self.last_reason = "quest-strategy:open-opening-door"
+                return self._step_toward(snapshot, door)
+
         if hostiles and not self._fixed_quest_speed_attempted:
             threshold = float(
                 profile.consumable_plan.get("speed_potion_use_when", {}).get(
@@ -11613,12 +11630,32 @@ class HengbotPolicy:
         # Recover them before retaking the hold; otherwise normal loot routing
         # advances toward the object on one turn and this strategy immediately
         # walks back toward the hold on the next.
+        required_torches = int(
+            profile.required_force.get("throwing_items", {}).get("lit_torch", 0)
+        )
+        needs_supply_recovery = (
+            required_torches <= 0
+            or self._count_throwing_torches(snapshot) < required_torches
+        )
+        recovery_bounds = profile.engagement_plan.get("supply_recovery_bounds")
+
+        def recoverable_supply(candidate: GridState) -> bool:
+            if candidate.object_count <= 0 or not needs_supply_recovery:
+                return False
+            if recovery_bounds is None:
+                return True
+            min_y, min_x, max_y, max_x = recovery_bounds
+            return (
+                min_y <= candidate.position.y <= max_y
+                and min_x <= candidate.position.x <= max_x
+            )
+
         here = snapshot.grid_at(snapshot.player.position)
-        if here is not None and here.object_count > 0:
+        if here is not None and recoverable_supply(here):
             self.last_reason = "quest-strategy:recover-torch"
             return PICKUP_KEY
         pickup_step = self._nearest_goal_step(
-            snapshot, lambda candidate: candidate.object_count > 0
+            snapshot, recoverable_supply
         )
         if pickup_step is not None and not any(
             monster.race_id in never_move_races

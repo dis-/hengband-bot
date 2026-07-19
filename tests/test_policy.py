@@ -4523,6 +4523,54 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._approved_quest_strategy_key(snap, [blocker], [blocker]), "vt9")
         self.assertEqual(policy.last_reason, "quest-strategy:throw-never-move-blocker")
 
+    def test_q34_opens_lower_left_door_before_combat(self):
+        policy = self._policy()
+        grids = {
+            **{Position(1, x): grid(1, x) for x in range(1, 21)},
+            **{Position(y, 1): grid(y, 1) for y in range(2, 12)},
+            Position(11, 2): grid(11, 2, closed_door=True),
+        }
+        monster = replace(hostile(1, 7, 15), race_id=243)
+        start = Snapshot(
+            player(1, 20), grids, [monster],
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+            ],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(start)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(start, [monster], []), "4"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:approach-opening-door"
+        )
+
+        approach = replace(start, player=player(11, 1))
+        self.assertEqual(
+            policy._approved_quest_strategy_key(approach, [monster], []), "o6"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:open-opening-door")
+
+    def test_q34_does_not_mistake_initial_loot_for_thrown_torches(self):
+        policy = self._policy()
+        grids = {
+            Position(10, 20): grid(10, 20),
+            Position(10, 19): grid(10, 19, objects=1),
+        }
+        snap = Snapshot(
+            player(10, 20), grids, [],
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+            ],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._approved_quest_strategy_key(snap, [], []), "5")
+        self.assertEqual(policy.last_reason, "quest-strategy:hold")
+
     def test_never_move_races_come_from_monrace_flags_not_quest_ids(self):
         profile = replace(self.profiles[1], priority_targets=(900, 901))
         stationary = MonraceKnowledge(
