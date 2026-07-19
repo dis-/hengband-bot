@@ -171,6 +171,34 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertIn("xbow", result.best.loadout.item_ids)
 
+    def test_light_crossbow_preference_survives_other_slot_differences(self):
+        short = gear("short", 19, sval=12, equipped_slot="bow")
+        xbow = gear("xbow", 19, sval=23)
+        weak_body = gear("weak-body", 36)
+        strong_body = gear("strong-body", 36)
+        candidates = (
+            Loadout(
+                (("light", self.light), ("bow", short), ("body", strong_body)),
+                "empty",
+            ),
+            Loadout(
+                (("light", self.light), ("bow", xbow), ("body", weak_body)),
+                "empty",
+            ),
+        )
+
+        result = optimize_loadout(
+            [self.light, short, xbow, weak_body, strong_body],
+            lambda loadout: metrics(
+                100 if "short" in loadout.item_ids else 1,
+                ranged=100 if "short" in loadout.item_ids else 1,
+            ),
+            depth=1,
+            candidate_loadouts=candidates,
+        )
+
+        self.assertIn("xbow", result.best.loadout.item_ids)
+
     def test_high_grade_short_bow_uses_normal_ranged_comparison(self):
         short = gear(
             "short",

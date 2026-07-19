@@ -637,6 +637,26 @@ def _prefer(
 ) -> bool:
     cm = candidate.metrics
     im = incumbent.metrics
+    candidate_bow = candidate.loadout.item_at(SLOT_BOW)
+    incumbent_bow = incumbent.loadout.item_at(SLOT_BOW)
+    launcher_pair = (
+        {candidate_bow.item.sval, incumbent_bow.item.sval}
+        if candidate_bow is not None and incumbent_bow is not None
+        else set()
+    )
+    if launcher_pair == {SV_BOW_SHORT, SV_BOW_LIGHT_XBOW}:
+        short_bow = next(
+            bow.item
+            for bow in (candidate_bow, incumbent_bow)
+            if bow.item.sval == SV_BOW_SHORT
+        )
+        short_bow_high_grade = (
+            short_bow.is_ego
+            or short_bow.is_artifact
+            or short_bow.pseudo_feeling in {"excellent", "special"}
+        )
+        if not short_bow_high_grade:
+            return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
     # When every defensive/utility result is identical, offense is the whole
     # comparison.  The general 1% anti-churn band used combat_margin and could
     # therefore retain an inferior wielded weapon even though a Home weapon had
@@ -666,24 +686,6 @@ def _prefer(
         if bow_only_change:
             candidate_bow = candidate_slots.get(SLOT_BOW)
             incumbent_bow = incumbent_slots.get(SLOT_BOW)
-            launcher_pair = (
-                {candidate_bow.item.sval, incumbent_bow.item.sval}
-                if candidate_bow is not None and incumbent_bow is not None
-                else set()
-            )
-            if launcher_pair == {SV_BOW_SHORT, SV_BOW_LIGHT_XBOW}:
-                short_bow = next(
-                    bow.item
-                    for bow in (candidate_bow, incumbent_bow)
-                    if bow.item.sval == SV_BOW_SHORT
-                )
-                short_bow_high_grade = (
-                    short_bow.is_ego
-                    or short_bow.is_artifact
-                    or short_bow.pseudo_feeling in {"excellent", "special"}
-                )
-                if not short_bow_high_grade:
-                    return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
             if cm.ranged_dps != im.ranged_dps:
                 return cm.ranged_dps > im.ranged_dps
         if cm.expected_dps != im.expected_dps:
