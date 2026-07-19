@@ -11,6 +11,7 @@ from hengbot.warrior_loadout_evaluator import (
     CachedWarriorLoadoutEvaluator,
     WarriorLoadoutInputs,
     evaluate_warrior_loadout,
+    warrior_ranged_offense_dps,
 )
 
 
@@ -33,6 +34,31 @@ class WarriorLoadoutEvaluatorTest(unittest.TestCase):
             known_flags=frozenset(flags),
         )
         return OwnedEquipment("ring", item, "home")
+
+    def launcher(self, item_id, sval, *, to_h, to_d, weight):
+        item = InventoryItem(
+            slot="a", name=item_id, count=1, tval=19, sval=sval,
+            aware=True, known=True, fully_known=True, is_equipment=True,
+            to_h=to_h, to_d=to_d, weight=weight, weapon_proficiency=4000,
+        )
+        return OwnedEquipment(item_id, item, "home")
+
+    def test_store_ammo_ranged_dps_prefers_light_xbow_over_current_short_bow(self):
+        inputs = WarriorCombatInputs(
+            level=25, natural_str=170, natural_dex=68,
+            melee_skill=175, shooting_skill=70,
+        )
+        short = Loadout((("bow", self.launcher(
+            "short", 12, to_h=3, to_d=5, weight=30
+        )),), "empty")
+        light_xbow = Loadout((("bow", self.launcher(
+            "light-xbow", 23, to_h=4, to_d=3, weight=110
+        )),), "empty")
+
+        self.assertGreater(
+            warrior_ranged_offense_dps(light_xbow, inputs),
+            warrior_ranged_offense_dps(short, inputs),
+        )
 
     def test_combines_melee_and_ranged_incoming_damage(self):
         race = MonraceKnowledge(

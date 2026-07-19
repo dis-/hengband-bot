@@ -227,6 +227,7 @@ class PlayerState:
     stat_use: tuple[int, ...] = ()  # six currently modified values
     stat_index: tuple[int, ...] = ()  # indices used by Hengband's adjustment tables
     melee_skill: int = 0
+    shooting_skill: int = 0
     saving_skill: int = 0
     device_skill: int = 0
     stealth_skill: int = 0
@@ -745,6 +746,7 @@ def parse_snapshot(
         stat_use=stat_use,
         stat_index=stat_index,
         melee_skill=int(skills.get("melee", 0)),
+        shooting_skill=int(skills.get("shooting", skills.get("melee", 0))),
         saving_skill=int(skills.get("saving", 0)),
         device_skill=int(skills.get("device", 0)),
         stealth_skill=int(skills.get("stealth", 0)),

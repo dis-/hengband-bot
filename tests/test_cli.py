@@ -157,6 +157,7 @@ class NewestSnapshotTest(unittest.TestCase):
                 },
                 "skills": {
                     "melee": 70,
+                    "shooting": 65,
                     "saving": 40,
                     "device": 31,
                     "stealth": 2,
@@ -180,6 +181,23 @@ class NewestSnapshotTest(unittest.TestCase):
                 "weapon_proficiency": 3456,
             }
         ]
+        data["store"] = {
+            "store_type": 7,
+            "items": [
+                {
+                    "letter": "a",
+                    "name": "Light Crossbow",
+                    "count": 1,
+                    "tval": 19,
+                    "sval": 23,
+                    "aware": True,
+                    "known": True,
+                    "fully_known": True,
+                    "is_equipment": True,
+                    "weapon_proficiency": 2345,
+                }
+            ],
+        }
         snapshot = parse_snapshot(data, {})
         self.assertEqual(snapshot.player.race_id, 12)
         self.assertEqual(snapshot.player.personality_id, 3)
@@ -187,8 +205,10 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot.player.stat_index, (13, 14, 15, 16, 17, 18))
         self.assertEqual(snapshot.player.two_weapon_skill, 123)
         self.assertEqual(snapshot.player.shield_skill, 456)
+        self.assertEqual(snapshot.player.shooting_skill, 65)
         self.assertEqual(snapshot.equipment[0].weight, 120)
         self.assertEqual(snapshot.equipment[0].weapon_proficiency, 3456)
+        self.assertEqual(snapshot.store.items[0].weapon_proficiency, 2345)
 
     def test_returns_only_the_latest_of_a_batch(self):
         # A fast monster can emit several prompts before we read; we must act on

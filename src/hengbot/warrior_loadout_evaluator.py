@@ -7,7 +7,7 @@ from math import isinf
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_encounters import melee_multiplier
-from hengbot.equipment_optimizer import Loadout, LoadoutMetrics
+from hengbot.equipment_optimizer import Loadout, LoadoutMetrics, SLOT_BOW
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     WarriorRangedDefenseResult,
@@ -21,9 +21,19 @@ from hengbot.warrior_defense_evaluator import (
     warrior_defense_signature,
 )
 from hengbot.warrior_equipment_evaluator import (
+    ADJ_DEX_TO_H,
+    ADJ_STR_HOLD,
+    ADJ_STR_TO_D,
+    ADJ_STR_TO_H,
+    TR_DEX,
+    TR_STR,
     WarriorCombatInputs,
     WarriorMeleeResult,
     evaluate_warrior_melee,
+    hit_chance,
+    modify_stat_value,
+    stat_index,
+    trunc_div,
     warrior_melee_signature,
 )
 
@@ -85,6 +95,18 @@ RESOURCE_RISK_WEIGHTS = {
     "earthquake": 1.0,
 }
 
+TR_XTRA_MIGHT = 82
+TR_XTRA_SHOTS = 83
+STORE_AMMO_AVERAGE_DAMAGE = {16: 2.0, 17: 2.5, 18: 3.0}
+LAUNCHER_PROPERTIES = {
+    2: (16, 8000, 2),
+    12: (17, 10000, 2),
+    13: (17, 10000, 3),
+    23: (18, 12000, 3),
+    24: (18, 13333, 4),
+}
+MASTER_WEAPON_EXP = 8000
+
 
 @dataclass(frozen=True)
 class WarriorLoadoutInputs:
@@ -100,6 +122,59 @@ class WarriorLoadoutResult:
     melee: WarriorMeleeResult
     defense: WarriorDefenseResult
     ranged: WarriorRangedDefenseResult
+    ranged_offense_dps: float = 0.0
+
+
+def _pval_total(loadout: Loadout, flag: int) -> int:
+    return sum(item.item.pval for _, item in loadout.slots if flag in item.flags)
+
+
+def _shooting_misc_to_hit(loadout: Loadout) -> int:
+    return sum(
+        item.item.to_h
+        for slot, item in loadout.slots
+        if slot not in {"main_hand", "sub_hand", SLOT_BOW}
+    )
+
+
+def warrior_ranged_offense_dps(
+    loadout: Loadout, inputs: WarriorCombatInputs, target_ac: int = 100
+) -> float:
+    """Evaluate a launcher with ordinary store ammunition of its matching type."""
+    launcher = loadout.item_at(SLOT_BOW)
+    if launcher is None or launcher.item.sval not in LAUNCHER_PROPERTIES:
+        return 0.0
+    ammo_tval, energy, multiplier = LAUNCHER_PROPERTIES[launcher.item.sval]
+    ammo_damage = STORE_AMMO_AVERAGE_DAMAGE[ammo_tval]
+    strength = modify_stat_value(inputs.natural_str, _pval_total(loadout, TR_STR))
+    dexterity = modify_stat_value(inputs.natural_dex, _pval_total(loadout, TR_DEX))
+    str_idx = stat_index(strength)
+    dex_idx = stat_index(dexterity)
+    hold = ADJ_STR_HOLD[str_idx]
+    heavy = hold < launcher.item.weight // 10
+
+    shots = 100 + 100 * sum(
+        1 for _, item in loadout.slots if TR_XTRA_SHOTS in item.flags
+    )
+    if not heavy:
+        shots += inputs.level * 2
+    if any(TR_XTRA_MIGHT in item.flags for _, item in loadout.slots):
+        multiplier += 1
+
+    to_hit = ADJ_DEX_TO_H[dex_idx] + ADJ_STR_TO_H[str_idx]
+    to_hit += _shooting_misc_to_hit(loadout)
+    if heavy:
+        to_hit += 2 * (hold - launcher.item.weight // 10)
+    proficiency = launcher.item.weapon_proficiency
+    if launcher.item.sval in {23, 24}:
+        to_hit += proficiency // 400
+    else:
+        to_hit += trunc_div(proficiency - MASTER_WEAPON_EXP // 2, 200)
+    reliability = inputs.shooting_skill + (to_hit + launcher.item.to_h) * 3
+    accuracy = hit_chance(reliability, target_ac, lazy=inputs.lazy_personality)
+    damage = (ammo_damage + launcher.item.to_d) * multiplier
+    damage *= (100 + ADJ_STR_TO_D[str_idx]) / 100
+    return accuracy * damage * shots * 100 / energy
 
 
 class CachedWarriorLoadoutEvaluator:
@@ -247,12 +322,14 @@ def _combine_warrior_results(
         combat_margin = survival_turns - kill_turns
     complete = defense.melee_complete and ranged.ranged_complete
     secondary_value = secondary_risk_value(defense, ranged)
+    ranged_offense_dps = warrior_ranged_offense_dps(loadout, inputs.combat)
     metrics = LoadoutMetrics(
         expected_dps=melee.expected_dps_ac100,
+        ranged_dps=ranged_offense_dps,
         survival_turns=survival_turns,
         combat_margin=combat_margin,
         speed_bonus=_speed_bonus(loadout),
         secondary_value=secondary_value,
         evaluation_complete=complete,
     )
-    return WarriorLoadoutResult(metrics, melee, defense, ranged)
+    return WarriorLoadoutResult(metrics, melee, defense, ranged, ranged_offense_dps)

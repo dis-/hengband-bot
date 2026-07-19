@@ -71,11 +71,15 @@ def gear(
     )
 
 
-def metrics(margin, *, dps=None, survival=None, speed=0, secondary=0, traits=()):
+def metrics(
+    margin, *, dps=None, ranged=0, survival=None, speed=0, secondary=0,
+    traits=(),
+):
     return LoadoutMetrics(
         expected_dps=margin if dps is None else dps,
         survival_turns=margin if survival is None else survival,
         combat_margin=margin,
+        ranged_dps=ranged,
         speed_bonus=speed,
         secondary_value=secondary,
         relevant_traits=frozenset(traits),
@@ -113,6 +117,21 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertNotIn("shovel", result.best.loadout.item_ids)
         self.assertIn("sword", result.best.loadout.item_ids)
+
+    def test_ranged_dps_breaks_otherwise_equal_launcher_tie(self):
+        short = gear("short", 19, sval=12, equipped_slot="bow")
+        xbow = gear("xbow", 19, sval=23)
+        result = optimize_loadout(
+            [self.light, short, xbow],
+            lambda loadout: metrics(
+                1, ranged=2 if "xbow" in loadout.item_ids else 1
+            ),
+            depth=1,
+            current_item_ids=frozenset({"short"}),
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertIn("xbow", result.best.loadout.item_ids)
 
     def test_never_uses_one_physical_ring_twice(self):
         ring = gear("ring", 45)

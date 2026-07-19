@@ -246,6 +246,7 @@ class LoadoutMetrics:
     expected_dps: float
     survival_turns: float
     combat_margin: float
+    ranged_dps: float = 0.0
     speed_bonus: int = 0
     secondary_value: float = 0.0
     relevant_traits: frozenset[str] = frozenset()
@@ -608,6 +609,7 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     right_traits = rm.relevant_traits
     no_worse = (
         lm.expected_dps >= rm.expected_dps
+        and lm.ranged_dps >= rm.ranged_dps
         and lm.survival_turns >= rm.survival_turns
         and lm.combat_margin >= rm.combat_margin
         and lm.speed_bonus >= rm.speed_bonus
@@ -616,6 +618,7 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     )
     strictly_better = (
         lm.expected_dps > rm.expected_dps
+        or lm.ranged_dps > rm.ranged_dps
         or lm.survival_turns > rm.survival_turns
         or lm.combat_margin > rm.combat_margin
         or lm.speed_bonus > rm.speed_bonus
@@ -642,8 +645,11 @@ def _prefer(
         and cm.secondary_value == im.secondary_value
         and cm.relevant_traits == im.relevant_traits
     )
-    if same_non_offense and cm.expected_dps != im.expected_dps:
-        return cm.expected_dps > im.expected_dps
+    if same_non_offense:
+        if cm.expected_dps != im.expected_dps:
+            return cm.expected_dps > im.expected_dps
+        if cm.ranged_dps != im.ranged_dps:
+            return cm.ranged_dps > im.ranged_dps
     if not isfinite(cm.combat_margin) or not isfinite(im.combat_margin):
         if cm.combat_margin != im.combat_margin:
             return cm.combat_margin > im.combat_margin

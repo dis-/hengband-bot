@@ -252,6 +252,7 @@ def prepare_warrior_optimization(
             natural_str=base_str,
             natural_dex=base_dex,
             melee_skill=player.melee_skill,
+            shooting_skill=getattr(player, "shooting_skill", player.melee_skill),
             two_weapon_skill=player.two_weapon_skill,
         ),
         defense=defense,

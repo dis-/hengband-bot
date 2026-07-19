@@ -84,6 +84,7 @@ class WarriorCombatInputs:
     natural_str: int
     natural_dex: int
     melee_skill: int
+    shooting_skill: int = 0
     two_weapon_skill: int = 0
     valour_hit_bonus: int = 0
     lazy_personality: bool = False
