@@ -903,9 +903,18 @@ class StallRecoveryTest(unittest.TestCase):
     def test_store_transaction_macros_have_no_inter_key_delay(self):
         for macro in ("dk\r", "dj99\ry", "pf10\r\r", "{x@0\r{y@1\r"):
             for index in range(len(macro)):
-                self.assertEqual(_delay_after_macro_key(macro, index), 0.0)
+                self.assertEqual(
+                    _delay_after_macro_key(macro, index, in_store=True),
+                    0.0,
+                )
         self.assertEqual(
             _delay_after_macro_key("ga\r", 0),
+            STORE_ITEM_PROMPT_DELAY_SECONDS,
+        )
+
+    def test_store_delay_exemption_does_not_cover_dungeon_drop(self):
+        self.assertEqual(
+            _delay_after_macro_key("dk", 0),
             STORE_ITEM_PROMPT_DELAY_SECONDS,
         )
 

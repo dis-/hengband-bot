@@ -386,13 +386,13 @@ def _last_activity_after_read(last_activity: float, now: float, chunk: str) -> f
     return now if chunk else last_activity
 
 
-def _delay_after_macro_key(key: str, index: int) -> float:
+def _delay_after_macro_key(key: str, index: int, *, in_store: bool = False) -> float:
     """Return the prompt-settling delay after one character in a macro."""
     if len(key) <= 1 or index >= len(key) - 1:
         return 0.0
     # Store buy/sell and in-store inscription prompt chains do not flush input;
     # they are synchronized entirely by key count and are safe as one blast.
-    if key[0] in {"d", "p", "{"}:
+    if in_store and key[0] in {"d", "p", "{"}:
         return 0.0
     if key.startswith("T") and index == 0:
         return TUNNEL_PROMPT_DELAY_SECONDS
@@ -930,7 +930,7 @@ def main(argv: list[str] | None = None) -> int:
         args.state_file, monrace_path, args.window_pid
     )
 
-    def send(key: str) -> bool:
+    def send(key: str, *, in_store: bool = False) -> bool:
         if not args.send_to_window:
             return True
         try:
@@ -949,7 +949,11 @@ def main(argv: list[str] | None = None) -> int:
                     class_name=args.window_class,
                     process_id=args.window_pid,
                 )
-                delay = _delay_after_macro_key(key, index) if multi else 0.0
+                delay = (
+                    _delay_after_macro_key(key, index, in_store=in_store)
+                    if multi
+                    else 0.0
+                )
                 if delay:
                     time.sleep(delay)
             return True
@@ -1028,7 +1032,7 @@ def main(argv: list[str] | None = None) -> int:
             key = policy.choose_key(snapshot)
             _write_decision(args.decision_log, snapshot, key, policy.last_reason, policy)
             print(key, flush=True)
-            if not send(key):
+            if not send(key, in_store=snapshot.store is not None):
                 return 3
             return 0
         return 1
@@ -1267,7 +1271,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         )
                         return 0
                     print(key, flush=True)
-                    send(key)
+                    send(key, in_store=snapshot.store is not None)
                     last_activity = time.monotonic()
                     quiet_ok_until = last_activity + COMMAND_RESPONSE_GRACE
                     # A rest runs many turns emitting no snapshot; give it room so
