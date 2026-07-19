@@ -411,6 +411,18 @@ class StoreItem:
     @property
     def is_ammo(self) -> bool:
         return self.tval in (TVAL_SHOT, TVAL_ARROW, TVAL_BOLT)
+
+    @property
+    def ammo_tval(self) -> int | None:
+        if self.tval != TVAL_BOW:
+            return None
+        if self.sval == SV_BOW_SLING:
+            return TVAL_SHOT
+        if self.sval in (SV_BOW_SHORT, SV_BOW_LONG):
+            return TVAL_ARROW
+        if self.sval in (SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW):
+            return TVAL_BOLT
+        return None
     fully_known: bool = True
     is_equipment: bool = False
     is_ego: bool = False

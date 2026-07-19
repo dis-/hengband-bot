@@ -68,6 +68,7 @@ from hengbot.model import (
     SV_POTION_HEALING,
     SV_POTION_RESIST_COLD,
     SV_SCROLL_PHASE_DOOR,
+    SV_SCROLL_TELEPORT,
     RESTORE_POTION_SVAL_BY_STAT,
     STAT_GAIN_POTION_SVALS,
     SV_ROD_IDENTIFY,
@@ -1027,6 +1028,16 @@ DISPOSABLE_SCROLL_SVALS = frozenset(
 # Scroll svals that relocate us, from sv-scroll-types.h.
 PHASE_SCROLL_SVAL = 8
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
+
+QUEST_AMMO_TVALS = {
+    "shot": TVAL_SHOT,
+    "arrow": TVAL_ARROW,
+    "bolt": TVAL_BOLT,
+}
+QUEST_SCROLL_SVALS = {
+    "light": SV_SCROLL_LIGHT,
+    "teleport": SV_SCROLL_TELEPORT,
+}
 
 # Hengband's speed_to_energy table for speeds 90..199. Keeping this static game
 # rule in the bot avoids exposing a monster's hidden runtime state.
@@ -3038,6 +3049,117 @@ class HengbotPolicy:
             it.count for it in snapshot.inventory if it.tval == launcher.ammo_tval
         )
 
+    @staticmethod
+    def _quest_launcher_ammo(force: dict) -> int | None:
+        launcher = force.get("launcher")
+        if not isinstance(launcher, dict):
+            return None
+        return QUEST_AMMO_TVALS.get(str(launcher.get("ammo", "")))
+
+    @staticmethod
+    def _quest_named_item_count(
+        snapshot: Snapshot, category: str, name: str
+    ) -> int:
+        if category == "throwing_items":
+            if name == "lit_torch":
+                return sum(it.count for it in snapshot.inventory if it.is_torch)
+            tval = QUEST_AMMO_TVALS.get(name)
+            return sum(it.count for it in snapshot.inventory if it.tval == tval)
+        if category == "required_scrolls":
+            sval = QUEST_SCROLL_SVALS.get(name)
+            return sum(
+                it.count
+                for it in snapshot.inventory
+                if it.tval == TVAL_SCROLL and it.sval == sval and it.aware
+            )
+        if category == "utility_tools" and name == "wall_breach":
+            return sum(
+                it.count
+                for it in (*snapshot.inventory, *snapshot.equipment)
+                if it.is_digging_tool
+                or (
+                    it.tval == TVAL_WAND
+                    and it.sval == SV_WAND_STONE_TO_MUD
+                    and it.charges > 0
+                )
+            )
+        return 0
+
+    def _quest_carry_status(
+        self, snapshot: Snapshot, force: dict
+    ) -> dict[str, dict[str, int | bool]]:
+        status: dict[str, dict[str, int | bool]] = {}
+        launcher_ammo = self._quest_launcher_ammo(force)
+        if launcher_ammo is not None:
+            launcher = self._equipped_launcher(snapshot)
+            ready = launcher is not None and launcher.ammo_tval == launcher_ammo
+            status["launcher"] = {
+                "measured": int(ready), "required": 1, "ready": ready,
+            }
+        for category in ("throwing_items", "required_scrolls", "utility_tools"):
+            requirements = force.get(category, {})
+            if not isinstance(requirements, dict):
+                continue
+            for name, value in requirements.items():
+                required = int(value)
+                current = self._quest_named_item_count(
+                    snapshot, category, str(name)
+                )
+                status[f"{category}.{name}"] = {
+                    "measured": current,
+                    "required": required,
+                    "ready": current >= required,
+                }
+        return status
+
+    def _quest_carry_target_for_item(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem, force: dict
+    ) -> tuple[str, int, int] | None:
+        launcher_ammo = self._quest_launcher_ammo(force)
+        if item.tval == TVAL_BOW and item.ammo_tval == launcher_ammo:
+            equipped = self._equipped_launcher(snapshot)
+            current = int(equipped is not None and equipped.ammo_tval == launcher_ammo)
+            current += sum(
+                it.count
+                for it in snapshot.inventory
+                if it.tval == TVAL_BOW and it.ammo_tval == launcher_ammo
+            )
+            return "launcher", current, 1
+        throwing = force.get("throwing_items", {})
+        if isinstance(throwing, dict):
+            for name, value in throwing.items():
+                matches = (
+                    (item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH)
+                    if name == "lit_torch"
+                    else item.tval == QUEST_AMMO_TVALS.get(str(name))
+                )
+                if matches:
+                    return str(name), self._quest_named_item_count(
+                        snapshot, "throwing_items", str(name)
+                    ), int(value)
+        scrolls = force.get("required_scrolls", {})
+        if isinstance(scrolls, dict):
+            for name, value in scrolls.items():
+                if item.tval == TVAL_SCROLL and item.sval == QUEST_SCROLL_SVALS.get(
+                    str(name)
+                ):
+                    return str(name), self._quest_named_item_count(
+                        snapshot, "required_scrolls", str(name)
+                    ), int(value)
+        tools = force.get("utility_tools", {})
+        if (
+            isinstance(tools, dict)
+            and "wall_breach" in tools
+            and (
+                item.tval == TVAL_DIGGING
+                or (item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD)
+            )
+        ):
+            return "wall_breach", self._quest_named_item_count(
+                snapshot, "utility_tools", "wall_breach"
+            ), int(tools["wall_breach"])
+        return None
+
     def _ranged_target(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> MonsterState | None:
@@ -4205,6 +4327,27 @@ class HengbotPolicy:
             current = int(self._find_identification_source(snapshot, full=full) is not None)
             require("*Identify* source" if full else "Identify source", current, 1)
 
+        strategy = self._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            labels = {
+                "launcher": "Quest launcher",
+                "throwing_items.lit_torch": "Quest throwing torches",
+                "throwing_items.shot": "Quest shots",
+                "throwing_items.arrow": "Quest arrows",
+                "throwing_items.bolt": "Quest bolts",
+                "required_scrolls.light": "Quest Light scrolls",
+                "required_scrolls.teleport": "Quest Teleport scrolls",
+                "utility_tools.wall_breach": "Quest wall-breach tools",
+            }
+            for name, status in self._quest_carry_status(
+                snapshot, strategy.required_force
+            ).items():
+                require(
+                    labels.get(name, f"Quest carry: {name}"),
+                    int(status["measured"]),
+                    int(status["required"]),
+                )
+
         return requirements
 
     def _prepare_equipment_optimization(
@@ -4761,10 +4904,15 @@ class HengbotPolicy:
         )
         if strategy is not None:
             force = strategy.required_force
-            if item.is_torch and item.known and item.fuel > 0:
-                target = max(target, int(force.get("throwing_items", {}).get("lit_torch", 0)))
+            carry_target = self._quest_carry_target_for_item(snapshot, item, force)
+            if carry_target is not None:
+                carry_name, _, required = carry_target
+                target = max(target, required)
                 matches = lambda candidate: (
-                    candidate.is_torch and candidate.known and candidate.fuel > 0
+                    (candidate_target := self._quest_carry_target_for_item(
+                        snapshot, candidate, force
+                    )) is not None
+                    and candidate_target[0] == carry_name
                 )
             elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
                 target = max(target, int(force.get("speed_potions", 0)))
@@ -6580,12 +6728,30 @@ class HengbotPolicy:
         quest_strategy = self._carry_procurement_strategy(snapshot)
         if quest_strategy is not None:
             force = quest_strategy.required_force
-            if (
-                self._count_throwing_torches(snapshot)
-                < int(force.get("throwing_items", {}).get("lit_torch", 0))
-                and STORE_GENERAL not in self._town_store_attempted
-            ):
-                add(STORE_GENERAL, "quest-throwing-items")
+            carry_status = self._quest_carry_status(snapshot, force)
+            missing_carries = {
+                name for name, status in carry_status.items()
+                if not bool(status["ready"])
+            }
+            if "throwing_items.lit_torch" in missing_carries:
+                if STORE_GENERAL not in self._town_store_attempted:
+                    add(STORE_GENERAL, "quest-throwing-items")
+            if missing_carries & {
+                "launcher",
+                "throwing_items.shot",
+                "throwing_items.arrow",
+                "throwing_items.bolt",
+            }:
+                if STORE_WEAPON not in self._town_store_attempted:
+                    add(STORE_WEAPON, "quest-ranged-kit")
+            if any(name.startswith("required_scrolls.") for name in missing_carries):
+                if STORE_ALCHEMIST not in self._town_store_attempted:
+                    add(STORE_ALCHEMIST, "quest-scrolls")
+            if "utility_tools.wall_breach" in missing_carries:
+                if STORE_MAGIC not in self._town_store_attempted:
+                    add(STORE_MAGIC, "quest-wall-breach")
+                if STORE_GENERAL not in self._town_store_attempted:
+                    add(STORE_GENERAL, "quest-wall-breach")
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
                 < int(force.get("speed_potions", 0))
@@ -7323,6 +7489,24 @@ class HengbotPolicy:
             return None
         return item
 
+    def _quest_carry_purchase(
+        self, snapshot: Snapshot, profile: StrategyProfile
+    ) -> StoreItem | None:
+        store = snapshot.store
+        if store is None:
+            return None
+        force = profile.required_force
+        for item in store.items:
+            if item.price > snapshot.player.gold:
+                continue
+            target = self._quest_carry_target_for_item(snapshot, item, force)
+            if target is None:
+                continue
+            _, current, required = target
+            if current < required:
+                return item
+        return None
+
     def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
         store = snapshot.store
@@ -7458,12 +7642,9 @@ class HengbotPolicy:
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             force = strategy.required_force
-            torch_needed = int(force.get("throwing_items", {}).get("lit_torch", 0))
-            if self._count_throwing_torches(snapshot) < torch_needed:
-                torch = next((it for it in store.items if it.tval == TVAL_LITE
-                              and it.sval == SV_LITE_TORCH and it.price <= gold), None)
-                if torch is not None:
-                    return torch
+            carry = self._quest_carry_purchase(snapshot, strategy)
+            if carry is not None:
+                return carry
             if self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)):
                 speed = next((it for it in store.items if it.tval == TVAL_POTION
                               and it.sval == SV_POTION_SPEED and it.price <= gold), None)
@@ -7654,6 +7835,18 @@ class HengbotPolicy:
     def _purchase_quantity(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Buy this ware's complete shortage in one transaction."""
         ledger = self._supply_ledger(snapshot, self._planned_depth())
+        strategy = (
+            self._carry_procurement_strategy(snapshot)
+            or self._quest_strategy_for_errand_or_floor(snapshot)
+        )
+        quest_needed = 0
+        if strategy is not None:
+            target = self._quest_carry_target_for_item(
+                snapshot, item, strategy.required_force
+            )
+            if target is not None:
+                _, current, required = target
+                quest_needed = required - current
         if item.is_recall_scroll:
             needed = ledger["recall"].required_departure - ledger["recall"].count
         elif item.tval == TVAL_FOOD:
@@ -7682,10 +7875,6 @@ class HengbotPolicy:
         elif item.is_ammo:
             needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
-            strategy = (
-                self._carry_procurement_strategy(snapshot)
-                or self._quest_strategy_for_errand_or_floor(snapshot)
-            )
             target = TORCH_THROW_TARGET
             if strategy is not None:
                 target = max(target, int(
@@ -7712,6 +7901,7 @@ class HengbotPolicy:
             needed = 1
         else:
             needed = 1
+        needed = max(needed, quest_needed)
         affordable = snapshot.player.gold // item.price if item.price > 0 else item.count
         return max(1, min(item.count, affordable, max(1, needed)))
 
@@ -11047,7 +11237,16 @@ class HengbotPolicy:
             for quest in snapshot.quests.values()
             if quest.id in FIXED_QUEST_ALLOWLIST
             and quest.status == QUEST_STATUS_UNTAKEN
-            and self._fixed_quest_is_offered(snapshot, quest.id)
+            and (
+                self._fixed_quest_is_offered(snapshot, quest.id)
+                or (
+                    quest.id == 2
+                    and snapshot.in_town
+                    and snapshot.town_id == 0
+                    and snapshot.visited_town_ids is not None
+                    and 1 in snapshot.visited_town_ids
+                )
+            )
             and (profile := self.approved_quest_strategy(quest.id)) is not None
         ]
         if not profiles:
@@ -11055,15 +11254,23 @@ class HengbotPolicy:
         base = min(profiles, key=lambda profile: self._fixed_quest_order(
             snapshot.quests[profile.quest_id]
         ))
-        throwing_items: dict[str, int] = {}
+        carry_groups = {
+            "throwing_items": {},
+            "required_scrolls": {},
+            "utility_tools": {},
+        }
         for profile in profiles:
-            for name, required in profile.required_force.get("throwing_items", {}).items():
-                throwing_items[str(name)] = max(
-                    throwing_items.get(str(name), 0), int(required)
-                )
+            for group, combined in carry_groups.items():
+                requirements = profile.required_force.get(group, {})
+                if not isinstance(requirements, dict):
+                    continue
+                for name, required in requirements.items():
+                    combined[str(name)] = max(
+                        combined.get(str(name), 0), int(required)
+                    )
         force = {
             **base.required_force,
-            "throwing_items": throwing_items,
+            **carry_groups,
             "speed_potions": max(
                 int(profile.required_force.get("speed_potions", 0))
                 for profile in profiles
@@ -11073,6 +11280,16 @@ class HengbotPolicy:
                 for profile in profiles
             ),
         }
+        launcher = next(
+            (
+                profile.required_force["launcher"]
+                for profile in profiles
+                if isinstance(profile.required_force.get("launcher"), dict)
+            ),
+            None,
+        )
+        if launcher is not None:
+            force["launcher"] = dict(launcher)
         return replace(base, required_force=force)
 
     @staticmethod
@@ -11099,9 +11316,8 @@ class HengbotPolicy:
             if weapon is not None else 0.0
         )
         dps = float(dps or 0.0)
-        torch_count = self._count_throwing_torches(snapshot)
-        torch_required = int(force.get("throwing_items", {}).get("lit_torch", 0))
-        throwing_ready = torch_count >= torch_required
+        carry_status = self._quest_carry_status(snapshot, force)
+        carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
             self._profile_resistance_name(str(name)) in snapshot.player.abilities
             for name in force.get("resists", ())
@@ -11116,18 +11332,25 @@ class HengbotPolicy:
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": float(force.get("min_expected_dps", 0) or 0)},
             "hp": {"measured": snapshot.player.max_hp, "required": int(force.get("min_hp", 0))},
-            "lit_torch": {"measured": torch_count, "required": torch_required},
+            "carries": carry_status,
             "speed_potions": {"measured": speed_count, "required": int(force.get("speed_potions", 0))},
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
             "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
         }
+        lit_torch = carry_status.get("throwing_items.lit_torch")
+        if lit_torch is not None:
+            details["lit_torch"] = {
+                "measured": lit_torch["measured"],
+                "required": lit_torch["required"],
+            }
         self._fixed_quest_readiness["strategy_force"] = details
-        if not throwing_ready or not resists_ready:
+        if not carries_ready or not resists_ready:
             details["failed"] = [
-                name for name, ready in (
-                    ("lit_torch", throwing_ready), ("resists", resists_ready)
-                ) if not ready
+                name for name, item in carry_status.items()
+                if not bool(item["ready"])
             ]
+            if not resists_ready:
+                details["failed"].append("resists")
             return False
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (

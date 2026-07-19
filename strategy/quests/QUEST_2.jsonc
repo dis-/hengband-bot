@@ -23,7 +23,10 @@
     // 深い水たまり（r_idx 1044/944）の実AC。
     "reference_ac": 40,
     "resists": [], "speed_potions": 2, "heal_potions": 2,
+    "launcher": {"ammo": "bolt", "equipped": true},
     "throwing_items": {"bolt": 45},
+    "required_scrolls": {"light": 6, "teleport": 2},
+    "utility_tools": {"wall_breach": 1},
     // 受注条件は Q1 と同じ2段構造: 基本ゲート (min_hp/min_expected_dps) での
     // 受注は下記携行品 (speed_potions/heal_potions/throwing_items) の所持が
     // 条件。no_healing_tier を満たす戦力なら薬なしで受注できる（投擲物は

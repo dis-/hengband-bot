@@ -43,13 +43,39 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
         raise ValueError("name must contain ja and en")
     if "approved" in data and not isinstance(data["approved"], bool):
         raise ValueError("approved must be a boolean")
+    force = data["required_force"]
+    if not isinstance(force, dict):
+        raise ValueError("required_force must be an object")
+    launcher = force.get("launcher")
+    if launcher is not None and (
+        not isinstance(launcher, dict)
+        or launcher.get("ammo") not in {"shot", "arrow", "bolt"}
+        or launcher.get("equipped", True) is not True
+    ):
+        raise ValueError("launcher must require an equipped shot/arrow/bolt launcher")
+    carry_names = {
+        "throwing_items": {"lit_torch", "shot", "arrow", "bolt"},
+        "required_scrolls": {"light", "teleport"},
+        "utility_tools": {"wall_breach"},
+    }
+    for group, allowed in carry_names.items():
+        values = force.get(group, {})
+        if not isinstance(values, dict):
+            raise ValueError(f"{group} must be an object")
+        if set(values) - allowed:
+            raise ValueError(f"unknown {group}: {', '.join(sorted(set(values) - allowed))}")
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values.values()
+        ):
+            raise ValueError(f"{group} quantities must be non-negative integers")
     return StrategyProfile(
         quest_id=int(data["quest_id"]), name={"ja": str(name["ja"]), "en": str(name["en"])},
         approved=bool(data.get("approved", False)), approved_note=str(data.get("approved_note", "")),
         engagement_plan=dict(data["engagement_plan"]),
         priority_targets=tuple(int(value) for value in data["priority_targets"]),
         consumable_plan=dict(data["consumable_plan"]), abort_conditions=dict(data["abort_conditions"]),
-        required_force=dict(data["required_force"]), generated_by=str(data["generated_by"]),
+        required_force=dict(force), generated_by=str(data["generated_by"]),
         generated_at=str(data["generated_at"]),
     )
 

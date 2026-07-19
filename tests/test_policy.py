@@ -42,18 +42,22 @@ from hengbot.model import (
     SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_HOLY_CHANT,
     SV_SCROLL_IDENTIFY,
+    SV_SCROLL_LIGHT,
     SV_SCROLL_STAR_IDENTIFY,
     SV_SCROLL_TELEPORT,
     SV_SCROLL_STAR_DESTRUCTION,
     SV_STAFF_DESTRUCTION,
     SV_STAFF_IDENTIFY,
+    SV_WAND_STONE_TO_MUD,
     TVAL_BOTTLE,
     TVAL_ARROW,
+    TVAL_BOLT,
     TVAL_CHEST,
     TVAL_SHOT,
     TVAL_BOW,
     SV_BOW_SLING,
     SV_BOW_SHORT,
+    SV_BOW_LIGHT_XBOW,
     TVAL_DIGGING,
     TVAL_FLASK,
     TVAL_AMULET,
@@ -3777,6 +3781,138 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIn(
             policy_module.TownNeed(STORE_BLACK, "quest-speed", "normal"), needs
         )
+
+    def _q2_carry_snapshot(self):
+        return Snapshot(
+            player(10, 10, hp=218, max_hp=218, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 2),
+            inventory=[
+                item("b", TVAL_BOLT, 0, count=45),
+                item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2),
+                item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=3),
+                item("s", TVAL_POTION, SV_POTION_SPEED, count=2),
+                item("h", TVAL_POTION, SV_POTION_HEALING, count=2),
+            ],
+            equipment=[
+                item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+                item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True),
+            ],
+        )
+
+    def test_q2_readiness_requires_launcher_ammo_scrolls_and_wall_breach(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        base = self._q2_carry_snapshot()
+        with patch("hengbot.policy.weapon_expected_dps", return_value=50):
+            self.assertTrue(policy._approved_strategy_force_ready(base, profile))
+            digger_ready = replace(
+                base,
+                inventory=[*base.inventory[:3], *base.inventory[4:]],
+                equipment=[
+                    base.equipment[1],
+                    item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+                ],
+            )
+            self.assertTrue(
+                policy._approved_strategy_force_ready(digger_ready, profile)
+            )
+            variants = {
+                "launcher": replace(base, equipment=base.equipment[:1]),
+                "throwing_items.bolt": replace(
+                    base, inventory=[replace(base.inventory[0], count=44), *base.inventory[1:]]
+                ),
+                "required_scrolls.light": replace(
+                    base, inventory=[base.inventory[0], replace(base.inventory[1], count=5), *base.inventory[2:]]
+                ),
+                "required_scrolls.teleport": replace(
+                    base, inventory=[*base.inventory[:2], replace(base.inventory[2], count=1), *base.inventory[3:]]
+                ),
+                "utility_tools.wall_breach": replace(
+                    base, inventory=[*base.inventory[:3], *base.inventory[4:]]
+                ),
+            }
+            for missing, snapshot in variants.items():
+                with self.subTest(missing=missing):
+                    self.assertFalse(
+                        policy._approved_strategy_force_ready(snapshot, profile)
+                    )
+                    self.assertIn(
+                        missing,
+                        policy.fixed_quest_readiness_state()["strategy_force"]["failed"],
+                    )
+
+    def test_q2_carry_shortages_route_to_each_supply_store(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=10000),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+        )
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            needs = policy._enumerate_town_needs(snapshot)
+        self.assertIn(TownNeed(STORE_WEAPON, "quest-ranged-kit", "normal"), needs)
+        self.assertIn(TownNeed(STORE_ALCHEMIST, "quest-scrolls", "normal"), needs)
+        self.assertIn(TownNeed(STORE_MAGIC, "quest-wall-breach", "normal"), needs)
+        self.assertIn(TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), needs)
+
+    def test_q2_outpost_errand_activates_real_carry_procurement(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=10000),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True, town_id=0,
+            visited_town_ids=(0, 1),
+            quests={2: QuestState(id=2, status=QUEST_STATUS_UNTAKEN, fixed=True)},
+        )
+
+        strategy = policy._carry_procurement_strategy(snapshot)
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.quest_id, 2)
+        self.assertEqual(strategy.required_force["throwing_items"]["bolt"], 45)
+
+    def test_q2_carry_procurement_buys_and_reserves_exact_shortages(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        base = replace(
+            self._q2_carry_snapshot(),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[],
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True)],
+        )
+        crossbow = StoreItem(
+            "a", "Light Crossbow", 1, TVAL_BOW, SV_BOW_LIGHT_XBOW, price=200
+        )
+        bolts = StoreItem("b", "Bolts", 99, TVAL_BOLT, 0, price=2)
+        weapon_store = replace(base, store=StoreState(STORE_WEAPON, [crossbow, bolts]))
+        self.assertEqual(policy._quest_carry_purchase(weapon_store, profile), crossbow)
+        armed = replace(
+            weapon_store,
+            equipment=[*base.equipment, item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)],
+        )
+        self.assertEqual(policy._quest_carry_purchase(armed, profile), bolts)
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            self.assertEqual(policy._purchase_quantity(armed, bolts), 45)
+
+        light = StoreItem("l", "Light", 20, TVAL_SCROLL, SV_SCROLL_LIGHT, price=20)
+        scroll_store = replace(base, store=StoreState(STORE_ALCHEMIST, [light]))
+        self.assertEqual(policy._quest_carry_purchase(scroll_store, profile), light)
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            self.assertEqual(policy._purchase_quantity(scroll_store, light), 6)
+
+        carried_bolts = item("b", TVAL_BOLT, 0, count=45)
+        carried_light = item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)
+        carried_wand = item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)
+        retained = replace(base, inventory=[carried_bolts, carried_light, carried_wand])
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            self.assertEqual(policy._retention_reservation(retained, carried_bolts), 45)
+            self.assertEqual(policy._retention_reservation(retained, carried_light), 6)
+            self.assertEqual(policy._retention_reservation(retained, carried_wand), 1)
 
     def test_completed_mining_rearms_normal_maintenance_restock(self):
         policy = self._policy()

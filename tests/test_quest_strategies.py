@@ -61,6 +61,11 @@ class QuestStrategiesTest(unittest.TestCase):
         # test_shipped_drafts_match_real_quest_data — no hardcoded duplicate
         # here (Q34 was user-approved via the Phase 4 pipeline on 2026-07-17).
         self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
+        q2_force = profiles[2].required_force
+        self.assertEqual(q2_force["launcher"], {"ammo": "bolt", "equipped": True})
+        self.assertEqual(q2_force["throwing_items"], {"bolt": 45})
+        self.assertEqual(q2_force["required_scrolls"], {"light": 6, "teleport": 2})
+        self.assertEqual(q2_force["utility_tools"], {"wall_breach": 1})
 
     def test_reward_routing_covers_every_rewarded_allowlisted_quest(self):
         # The reward latch coordinates are a reviewed hard-code; every entry
