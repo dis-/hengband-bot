@@ -4183,6 +4183,43 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             self.assertEqual(policy._retention_reservation(retained, carried_light), 6)
             self.assertEqual(policy._retention_reservation(retained, carried_wand), 1)
 
+    def test_q2_prefers_superior_home_crossbow_over_store_plain_crossbow(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        base = replace(
+            self._q2_carry_snapshot(),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[],
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True)],
+        )
+        superior = StoreItem(
+            "a", "Superior Light Crossbow", 1,
+            TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            price=0, is_equipment=True, is_ego=True, to_h=5, to_d=4,
+        )
+        plain = StoreItem(
+            "a", "Light Crossbow", 1,
+            TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            price=200, is_equipment=True,
+        )
+        bolts = StoreItem("b", "Bolts", 99, TVAL_BOLT, 0, price=2)
+        policy._equipment_catalog.observe_home_page([superior])
+
+        home = replace(base, store=StoreState(STORE_HOME, [superior]))
+        with patch.object(
+            policy, "_carry_procurement_strategy", return_value=profile
+        ):
+            self.assertEqual(policy._home_quest_launcher_key(home), "pa\r")
+        self.assertEqual(policy.last_reason, "home:withdraw-quest-launcher")
+
+        weapon_store = replace(
+            base, store=StoreState(STORE_WEAPON, [plain, bolts])
+        )
+        self.assertEqual(
+            policy._quest_carry_purchase(weapon_store, profile), bolts
+        )
+
     def test_q2_lights_dark_shooting_area_before_firing_fixed_undead(self):
         policy = self._policy()
         # Real Q2 placement: corpse mass 202 occupies [7,35]/[7,36].
@@ -17475,9 +17512,26 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         self.assertEqual(self._approach(policy, self._snapshot()), "6")
         self.assertEqual(policy._town_travel_state, travel_state)
 
-        resumed = replace(clear, player=player(10, 11))
+        resumed = replace(clear, player=player(10, 12))
         self.assertEqual(self._approach(policy, resumed), "\x1b`n!.")
         self.assertEqual(policy.last_reason, "shop:travel")
+
+    def test_hidden_town_hunt_target_does_not_resume_travel(self):
+        policy = HengbotPolicy()
+        visible = self._snapshot(monster_pos=Position(10, 13))
+        self.assertEqual(self._approach(policy, visible), "6")
+
+        hidden = replace(
+            visible,
+            player=player(10, 11),
+            visible_monsters=[],
+            grids={
+                position: replace(cell, monster_index=0)
+                for position, cell in visible.grids.items()
+            },
+        )
+        self.assertEqual(self._approach(policy, hidden), "6")
+        self.assertEqual(policy.last_reason, "town:kill-mob-approach")
 
 
 class EntranceTravelTest(unittest.TestCase):

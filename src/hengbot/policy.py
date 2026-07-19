@@ -1138,6 +1138,7 @@ class HengbotPolicy:
         self._descent_target_goal: Position | None = None
         self._town_travel_state: TownTravelProgress | None = None
         self._town_travel_fallback: Position | None = None
+        self._town_hunt_target: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
         # weapon). The pre-recall weapon check blocks a dive until this clears (weapon
@@ -1148,6 +1149,9 @@ class HengbotPolicy:
         # Space advances a page and seeing a signature twice means we wrapped.
         self._home_rearm_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_digger_seen_pages: set[
+            tuple[tuple[str, str, int, int], ...]
+        ] = set()
+        self._home_quest_launcher_seen_pages: set[
             tuple[tuple[str, str, int, int], ...]
         ] = set()
         # Normal Home processing has the same paged view. Do not treat an empty
@@ -2576,6 +2580,7 @@ class HengbotPolicy:
             # previous visit would suppress native travel forever.
             self._town_travel_state = None
             self._town_travel_fallback = None
+            self._town_hunt_target = None
             self._town_signature_history.clear()
             self._town_progress_marker = None
             self._town_no_progress_count = 0
@@ -6762,12 +6767,16 @@ class HengbotPolicy:
             if "throwing_items.lit_torch" in missing_carries:
                 if STORE_GENERAL not in self._town_store_attempted:
                     add(STORE_GENERAL, "quest-throwing-items")
+            home_launcher = self._preferred_home_quest_launcher(
+                snapshot, quest_strategy
+            )
+            if "launcher" in missing_carries and home_launcher is not None:
+                add(STORE_HOME, "quest-launcher", "home-first")
             if missing_carries & {
-                "launcher",
                 "throwing_items.shot",
                 "throwing_items.arrow",
                 "throwing_items.bolt",
-            }:
+            } or ("launcher" in missing_carries and home_launcher is None):
                 if STORE_WEAPON not in self._town_store_attempted:
                     add(STORE_WEAPON, "quest-ranged-kit")
             if any(name.startswith("required_scrolls.") for name in missing_carries):
@@ -7520,6 +7529,89 @@ class HengbotPolicy:
             return None
         return item
 
+    @staticmethod
+    def _quest_launcher_quality(
+        item: InventoryItem | StoreItem,
+    ) -> tuple[int, int, int, int, int, int]:
+        return (
+            int(item.is_artifact),
+            int(item.is_ego),
+            item.to_h + item.to_d,
+            item.to_d,
+            item.to_h,
+            item.pval,
+        )
+
+    def _preferred_home_quest_launcher(
+        self, snapshot: Snapshot, profile: StrategyProfile
+    ) -> InventoryItem | StoreItem | None:
+        ammo_tval = self._quest_launcher_ammo(profile.required_force)
+        if ammo_tval is None:
+            return None
+        equipped = self._equipped_launcher(snapshot)
+        if equipped is not None and equipped.ammo_tval == ammo_tval:
+            return None
+        home = [
+            owned.item
+            for owned in self._equipment_catalog.items
+            if owned.origin == "home"
+            and owned.item.tval == TVAL_BOW
+            and owned.item.ammo_tval == ammo_tval
+        ]
+        if not home:
+            return None
+        preferred = max(home, key=self._quest_launcher_quality)
+        carried = [
+            item for item in snapshot.inventory
+            if item.tval == TVAL_BOW and item.ammo_tval == ammo_tval
+        ]
+        if carried and self._quest_launcher_quality(preferred) <= max(
+            self._quest_launcher_quality(item) for item in carried
+        ):
+            return None
+        return preferred
+
+    def _home_quest_launcher_key(self, snapshot: Snapshot) -> str | None:
+        store = snapshot.store
+        profile = self._carry_procurement_strategy(snapshot)
+        if store is None or store.store_type != STORE_HOME or profile is None:
+            self._home_quest_launcher_seen_pages.clear()
+            return None
+        preferred = self._preferred_home_quest_launcher(snapshot, profile)
+        if preferred is None:
+            self._home_quest_launcher_seen_pages.clear()
+            return None
+        signature = self._item_signature(preferred)
+        candidate = next(
+            (
+                item for item in store.items
+                if self._item_signature(item) == signature
+            ),
+            None,
+        )
+        if candidate is not None:
+            self._home_quest_launcher_seen_pages.clear()
+            self._home_pending_item = signature
+            self._home_pending_slot = None
+            self._home_withdraw_inflight = (
+                signature,
+                len(snapshot.inventory),
+                self._inventory_signature_count(snapshot, signature),
+            )
+            self._home_candidate_waiting = False
+            self.last_reason = "home:withdraw-quest-launcher"
+            return BUY_KEY + candidate.letter + "\r"
+        page = tuple(
+            (item.letter, item.name, item.tval, item.sval)
+            for item in store.items
+        )
+        if page not in self._home_quest_launcher_seen_pages:
+            self._home_quest_launcher_seen_pages.add(page)
+            self.last_reason = "home:seek-quest-launcher-page"
+            return " "
+        self._home_quest_launcher_seen_pages.clear()
+        return None
+
     def _quest_carry_purchase(
         self, snapshot: Snapshot, profile: StrategyProfile
     ) -> StoreItem | None:
@@ -7556,7 +7648,13 @@ class HengbotPolicy:
             target = self._quest_carry_target_for_item(snapshot, item, force)
             if target is None:
                 continue
-            _, current, required = target
+            name, current, required = target
+            if (
+                name == "launcher"
+                and self._preferred_home_quest_launcher(snapshot, profile)
+                is not None
+            ):
+                continue
             if current < required:
                 return item
         return None
@@ -8361,6 +8459,9 @@ class HengbotPolicy:
             transaction_key = self._equipment_transaction_home_key(snapshot)
             if transaction_key is not None:
                 return transaction_key
+            quest_launcher = self._home_quest_launcher_key(snapshot)
+            if quest_launcher is not None:
+                return quest_launcher
             dominated_disposal = self._home_dominated_disposal_key(snapshot)
             if dominated_disposal is not None:
                 return dominated_disposal
@@ -9086,6 +9187,7 @@ class HengbotPolicy:
         confirmation, answered inline by the trailing ``y``.
         """
         if not snapshot.in_town or snapshot.dungeon_level != 0:
+            self._town_hunt_target = None
             return None
         player = snapshot.player
         targets = sorted(
@@ -9093,6 +9195,7 @@ class HengbotPolicy:
             key=lambda monster: monster.distance,
         )
         for target in targets:
+            self._town_hunt_target = target.position
             if player.position.distance_to(target.position) <= 1:
                 if target.friendly:
                     self.last_reason = "town:kill-mob-friendly"
@@ -9106,6 +9209,20 @@ class HengbotPolicy:
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
                 return self._step_toward(snapshot, step)
+        if self._town_hunt_target is not None:
+            if player.position.distance_to(self._town_hunt_target) <= 1:
+                self._town_hunt_target = None
+                return None
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: grid.position.distance_to(
+                    self._town_hunt_target
+                ) <= 1,
+            )
+            if step is not None:
+                self.last_reason = "town:kill-mob-approach"
+                return self._step_toward(snapshot, step)
+            self._town_hunt_target = None
         return None
 
     def _active_dungeon_target(self) -> int:
