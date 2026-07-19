@@ -11889,6 +11889,31 @@ class HengbotPolicy:
                 else self._quest_final_target_position(profile, never_move_races)
             )
             if target_position is not None:
+                final_door_value = profile.engagement_plan.get("final_door")
+                final_approach_value = profile.engagement_plan.get(
+                    "final_door_approach"
+                )
+                if final_door_value is not None and final_approach_value is not None:
+                    final_door = Position(*final_door_value)
+                    final_approach = Position(*final_approach_value)
+                    final_door_grid = snapshot.grid_at(final_door)
+                    final_door_open = (
+                        final_door_grid is not None
+                        and final_door_grid.known
+                        and not final_door_grid.is_closed_door
+                    )
+                    if not final_door_open:
+                        if snapshot.player.position == final_approach:
+                            self.last_reason = "quest-strategy:open-final-door"
+                            return OPEN_KEY + self._direction_key(
+                                final_approach, final_door
+                            )
+                        step = self._quest_strategy_route_step(
+                            snapshot, profile, final_approach
+                        )
+                        if step is not None:
+                            self.last_reason = "quest-strategy:approach-final-door"
+                            return self._step_toward(snapshot, step)
                 step = self._nearest_goal_step(
                     snapshot,
                     lambda candidate: candidate.position.distance_to(target_position) <= 1,
