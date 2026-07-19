@@ -15680,6 +15680,57 @@ class RangedAttackTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "fs*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
+    def test_wall_corner_uses_single_grid_offset_aim(self):
+        snap = self._snap(
+            monsters=[hostile(1, 7, 2, distance=8)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(1, 15)
+            for x in range(1, 15)
+        }
+        grids[Position(7, 3)] = grid(7, 3, passable=False)
+        snap = replace(snap, grids=grids)
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "fs*o4t")
+        self.assertEqual(policy.last_reason, "ranged:fire-offset")
+
+    def test_offset_aim_is_forbidden_when_victim_is_not_nearest_hostile(self):
+        snap = self._snap(
+            monsters=[
+                hostile(1, 7, 2, distance=8),
+                hostile(2, 10, 13, distance=3),
+            ],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        grids = dict(snap.grids)
+        grids[Position(7, 3)] = grid(7, 3, passable=False)
+        snap = replace(snap, grids=grids)
+        policy = HengbotPolicy()
+
+        self.assertIsNone(
+            policy._offset_fire_aim(snap, snap.visible_monsters[0], snap.visible_monsters)
+        )
+
+    def test_failed_targeting_is_skipped_until_player_moves(self):
+        snap = self._snap(
+            monsters=[hostile(1, 11, 14, distance=4)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+
+        attempts = [policy.choose_key(snap) for _ in range(4)]
+        self.assertEqual(attempts[:3], ["fs*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "fs*t5\x1b")
+
+        moved = replace(snap, player=replace(snap.player, position=Position(10, 11)))
+        self.assertEqual(policy.choose_key(moved), "fs*t5\x1b")
+
     def test_aligned_hostile_is_preferred_when_off_axis_is_also_visible(self):
         snap = self._snap(
             monsters=[

@@ -4,7 +4,7 @@ from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
 from itertools import count
-from math import ceil
+from math import ceil, gcd
 from typing import Literal
 from pathlib import Path
 
@@ -40,6 +40,7 @@ from hengbot.monster_ranged_evaluator import (
     expected_ability_hp_damage,
     maximum_ability_hp_damage,
 )
+from hengbot.projection_path import projection_path
 from hengbot.warrior_optimization import (
     WarriorOptimizationPreparation,
     prepare_warrior_optimization,
@@ -660,6 +661,7 @@ THROW_KEY = "v"
 # Fire range is 13+tmul/80 (shoot.cpp:531) ≈ 15 for a sling; the bot stays
 # conservative because every ray tile must be KNOWN passable to fire at all.
 RANGED_MAX_DISTANCE = 10
+RANGED_TARGET_FAILURE_LIMIT = 3
 # Don't wake distant sleepers with a shot — approach quietly instead (the
 # existing hunt path); close sleepers get softened before they act anyway.
 RANGED_SLEEPER_MAX_DISTANCE = 4
@@ -1262,6 +1264,11 @@ class HengbotPolicy:
         # Value-keyed aggregate-p95 cache shared across decisions — see
         # _aggregate_ranged_percentile. Bounded; cleared when it fills.
         self._aggregate_ranged_cache: dict[tuple, object] = {}
+        # A targeting macro ending in Escape made no observable progress when
+        # the same player/grid pair is offered again.  Bound those retries and
+        # clear the guard as soon as the player moves.
+        self._ranged_target_guard_position: Position | None = None
+        self._ranged_target_attempts: dict[int, int] = {}
         self._emergency_escape_pending = False
         # Speed-potion state for the currently engaged unique.  The baseline is
         # the speed observed before quaffing; after the bonus expires we may dose
@@ -3072,6 +3079,38 @@ class HengbotPolicy:
             self.last_reason = reason
             return prefix + slot + self._direction_key(player.position, target.position)
 
+        eligible = [
+            monster
+            for monster in hostiles
+            if 2 <= player.position.distance_to(monster.position) <= RANGED_MAX_DISTANCE
+            and not (
+                monster.asleep
+                and player.position.distance_to(monster.position)
+                > RANGED_SLEEPER_MAX_DISTANCE
+            )
+        ]
+        if not eligible or ammo is None:
+            return None
+        victim = min(
+            eligible,
+            key=lambda monster: self._target_cursor_sort_key(player.position, monster),
+        )
+
+        if self._ranged_target_guard_position != player.position:
+            self._ranged_target_guard_position = player.position
+            self._ranged_target_attempts.clear()
+        if self._ranged_target_attempts.get(victim.index, 0) >= RANGED_TARGET_FAILURE_LIMIT:
+            return None
+
+        aim = self._offset_fire_aim(snapshot, victim, eligible)
+        if aim is not None:
+            keys = self._cursor_delta_keys(victim.position, aim)
+            # target-setter.cpp: '*' begins at pos_interests[0]; 'o' leaves
+            # that interesting-target mode at the same grid, lowercase dirs
+            # move one grid, and 't' confirms a free-grid target.
+            self.last_reason = "ranged:fire-offset"
+            return FIRE_KEY + ammo.slot + "*o" + keys + "t"
+
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
         # `5` fires at the accepted target after returning to the direction
@@ -3087,10 +3126,98 @@ class HengbotPolicy:
             )
             for monster in hostiles
         )
-        if ammo is None or not targetable_hostile:
+        if not targetable_hostile:
             return None
+        self._ranged_target_attempts[victim.index] = (
+            self._ranged_target_attempts.get(victim.index, 0) + 1
+        )
         self.last_reason = "ranged:fire-target"
         return FIRE_KEY + ammo.slot + "*t5\x1b"
+
+    def _offset_fire_aim(
+        self,
+        snapshot: Snapshot,
+        victim: MonsterState,
+        eligible: list[MonsterState],
+    ) -> Position | None:
+        """Find a PROJECT_THRU aim whose first monster is ``victim``."""
+        origin = snapshot.player.position
+        occupied = {monster.position for monster in snapshot.visible_monsters}
+
+        def blocks(pos: Position) -> bool:
+            grid = snapshot.grids.get(pos)
+            # Unknown grids are deliberately optimistic: a wasted arrow is
+            # cheaper than abandoning a potentially valid offset shot.
+            return grid is not None and grid.known and not grid.passable
+
+        def first_monster(aim: Position) -> Position | None:
+            path = projection_path(
+                origin, aim, RANGED_MAX_DISTANCE, blocks, through=True
+            )
+            return next((pos for pos in path if pos in occupied), None)
+
+        # A direct target remains on the established *t5<esc> path.
+        if first_monster(victim.position) == victim.position:
+            return None
+
+        # TARGET_KILL's stable distance sort starts '*' on the nearest visible
+        # hostile.  Offset mode is forbidden unless that is this victim.
+        nearest = min(
+            eligible,
+            key=lambda monster: self._target_cursor_sort_key(origin, monster),
+        )
+        if nearest.index != victim.index:
+            return None
+
+        candidates = [
+            Position(victim.position.y + dy, victim.position.x + dx)
+            for dy, dx in NEIGHBOR_OFFSETS
+        ]
+        delta_y = victim.position.y - origin.y
+        delta_x = victim.position.x - origin.x
+        divisor = gcd(abs(delta_y), abs(delta_x))
+        step_y = delta_y // divisor
+        step_x = delta_x // divisor
+        for distance in range(1, RANGED_MAX_DISTANCE + 1):
+            candidates.append(
+                Position(
+                    victim.position.y + step_y * distance,
+                    victim.position.x + step_x * distance,
+                )
+            )
+        for candidate in candidates:
+            if (
+                candidate == origin
+                or not (1 <= candidate.y < snapshot.height - 1)
+                or not (1 <= candidate.x < snapshot.width - 1)
+            ):
+                continue
+            if first_monster(candidate) == victim.position:
+                return candidate
+        return None
+
+    @staticmethod
+    def _target_cursor_sort_key(
+        origin: Position, monster: MonsterState
+    ) -> tuple[int, int, int]:
+        """target-sorter.cpp double-distance with its stable y/x scan tie."""
+        dy = abs(monster.position.y - origin.y)
+        dx = abs(monster.position.x - origin.x)
+        return 2 * max(dy, dx) + min(dy, dx), monster.position.y, monster.position.x
+
+    @staticmethod
+    def _cursor_delta_keys(origin: Position, target: Position) -> str:
+        """Move the free targeting cursor exactly to an arbitrary grid."""
+        dy = target.y - origin.y
+        dx = target.x - origin.x
+        keys: list[str] = []
+        while dy or dx:
+            step_y = (dy > 0) - (dy < 0)
+            step_x = (dx > 0) - (dx < 0)
+            keys.append(DIRECTION_KEYS[(step_y, step_x)])
+            dy -= step_y
+            dx -= step_x
+        return "".join(keys)
 
     @staticmethod
     def _is_processable_chest(item: InventoryItem) -> bool:
