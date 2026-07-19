@@ -11924,13 +11924,15 @@ class HengbotPolicy:
                         if step is not None:
                             self.last_reason = "quest-strategy:approach-final-door"
                             return self._step_toward(snapshot, step)
-                step = self._nearest_goal_step(
-                    snapshot,
-                    lambda candidate: candidate.position.distance_to(target_position) <= 1,
+                step = self._quest_strategy_route_step(
+                    snapshot, profile, target_position
                 )
                 if step is None:
-                    step = self._quest_strategy_route_step(
-                        snapshot, profile, target_position
+                    step = self._nearest_goal_step(
+                        snapshot,
+                        lambda candidate: (
+                            candidate.position.distance_to(target_position) <= 1
+                        ),
                     )
                 if step is not None:
                     self.last_reason = "quest-strategy:approach-final-target"

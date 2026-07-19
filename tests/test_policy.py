@@ -4748,6 +4748,50 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:open-final-door")
 
+    def test_q34_enters_the_open_accessible_door_before_outer_routes(self):
+        policy = self._policy()
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            battlefield=QuestBattlefield(
+                terrain={
+                    (5, 14): "floor",
+                    (4, 14): "door",
+                    (3, 14): "floor",
+                    (3, 13): "floor",
+                },
+                monster_placements=(
+                    ((3, 13), 174),
+                    ((7, 15), 243),
+                    ((9, 11), 107),
+                    ((11, 9), 107),
+                ),
+            ),
+        )
+        policy._quest_strategy_cleared_targets[34] = {
+            (243, 7, 15),
+            (107, 9, 11),
+            (107, 11, 9),
+        }
+        snap = Snapshot(
+            player(5, 14),
+            {
+                Position(3, 13): grid(3, 13),
+                Position(3, 14): grid(3, 14),
+                Position(4, 14): grid(4, 14),
+                Position(5, 13): grid(5, 13),
+                Position(5, 14): grid(5, 14),
+                Position(11, 2): grid(11, 2),
+            },
+            [],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snap)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snap, [], []), "8"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+
     def test_q34_fallback_route_avoids_every_adjacent_sword_cell(self):
         policy = self._policy()
         policy._quest_knowledge[34] = replace(
