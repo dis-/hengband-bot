@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import json
 from math import isfinite
@@ -17,6 +17,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipment,
     current_loadout,
     optimize_loadout,
+    required_abilities,
 )
 from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
@@ -83,6 +84,29 @@ class WarriorOptimizationPreparation:
     def ready(self) -> bool:
         return not self.blockers and self.transaction is not None
 
+
+@dataclass
+class WarriorEvaluatorCache:
+    """Reuse exact component evaluations while the combat context is stable."""
+
+    context: tuple[object, ...] | None = None
+    evaluator: CachedWarriorLoadoutEvaluator | None = None
+
+    def get(
+        self,
+        inputs: WarriorLoadoutInputs,
+        encounters: tuple,
+    ) -> CachedWarriorLoadoutEvaluator:
+        normalized_inputs = (
+            replace(inputs, current_hp=0)
+            if inputs.base_hp is not None
+            else inputs
+        )
+        context = (normalized_inputs, encounters)
+        if self.context != context or self.evaluator is None:
+            self.context = context
+            self.evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
+        return self.evaluator
 
 def weapon_expected_dps(snapshot: Snapshot, weapon, reference_ac: int) -> float | None:
     """Score both wielded hands against a visible, non-immune neutral target."""
@@ -186,6 +210,7 @@ def prepare_warrior_optimization(
     search_excluded_item_ids: frozenset[str] = frozenset(),
     timeout_seconds: float = 60.0,
     loadout_report_path: Path | None = None,
+    evaluator_cache: WarriorEvaluatorCache | None = None,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command."""
     current = current_loadout(items)
@@ -279,7 +304,11 @@ def prepare_warrior_optimization(
         natural_con=base_con,
         base_hp=base_hp,
     )
-    evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
+    evaluator = (
+        evaluator_cache.get(inputs, encounters)
+        if evaluator_cache is not None
+        else CachedWarriorLoadoutEvaluator(inputs, encounters)
+    )
     pinned = {
         item.equipped_slot: item
         for item in items
@@ -292,6 +321,12 @@ def prepare_warrior_optimization(
         current_item_ids=current.item_ids,
         pinned=pinned,
         excluded_item_ids=search_excluded_item_ids,
+        require_light=True,
+        required_flags=frozenset(
+            ABILITY_FLAG[ability]
+            for ability in required_abilities(depth)
+            if ability not in intrinsic_abilities
+        ),
     )
     result = optimize_loadout(
         items,

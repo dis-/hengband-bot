@@ -576,6 +576,43 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         self.assertLess(considered, 1_000)
         self.assertFalse(loadouts.truncated)
 
+    def test_required_light_is_pruned_before_complete_loadouts(self):
+        light = owned("light", 39)
+        weapon = owned("weapon", 23)
+
+        unrestricted = tuple(enumerate_warrior_loadouts((light, weapon)))
+        required = tuple(
+            enumerate_warrior_loadouts(
+                (light, weapon),
+                require_light=True,
+            )
+        )
+
+        self.assertTrue(required)
+        self.assertTrue(
+            all(loadout.item_at("light") == light for loadout in required)
+        )
+        self.assertLess(len(required), len(unrestricted))
+
+    def test_required_flag_can_be_supplied_by_hand_configuration(self):
+        light = owned("light", 39)
+        plain = owned("plain", 23)
+        resistant = owned("resistant", 23, flags={57})
+
+        loadouts = tuple(
+            enumerate_warrior_loadouts(
+                (light, plain, resistant),
+                require_light=True,
+                required_flags=frozenset({57}),
+            )
+        )
+
+        self.assertTrue(loadouts)
+        self.assertTrue(all(57 in loadout.flags for loadout in loadouts))
+        self.assertTrue(
+            all("resistant" in loadout.item_ids for loadout in loadouts)
+        )
+
     def test_live_shaped_hoard_has_exact_structural_bound(self):
         launchers = tuple(
             owned(

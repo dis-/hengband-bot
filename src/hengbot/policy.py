@@ -43,6 +43,7 @@ from hengbot.monster_ranged_evaluator import (
 )
 from hengbot.projection_path import projection_path
 from hengbot.warrior_optimization import (
+    WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
     prepare_warrior_optimization,
     weapon_expected_dps,
@@ -1464,6 +1465,7 @@ class HengbotPolicy:
         self._equipment_optimization_preparation: (
             WarriorOptimizationPreparation | None
         ) = None
+        self._warrior_evaluator_cache = WarriorEvaluatorCache()
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_home_pages: set[tuple[str, ...]] = set()
@@ -4425,10 +4427,24 @@ class HengbotPolicy:
         )
         has_destruction = self._has_destruction_method(snapshot)
         optimization_depth = self._equipment_optimization_depth(snapshot)
+        value_catalog_signature = tuple(
+            sorted(equipment_identity(item.item) for item in catalog)
+        )
+        equipped_value_signature = tuple(
+            sorted(
+                (
+                    item.equipped_slot or "",
+                    equipment_identity(item.item),
+                )
+                for item in catalog
+                if item.origin == "equipped"
+            )
+        )
         signature = (
             self._equipment_catalog.home_scan_complete,
             optimization_depth,
-            tuple(sorted(item.id for item in catalog)),
+            value_catalog_signature,
+            equipped_value_signature,
             snapshot.player.level,
             snapshot.player.stat_cur,
             snapshot.player.stat_use,
@@ -4493,6 +4509,7 @@ class HengbotPolicy:
             preserve_pack_item_ids=preserve,
             search_excluded_item_ids=search_excluded,
             loadout_report_path=self._loadout_report_path,
+            evaluator_cache=self._warrior_evaluator_cache,
         )
         self._equipment_optimization_signature = signature
         self._equipment_optimization_preparation = preparation

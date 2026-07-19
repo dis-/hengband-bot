@@ -386,6 +386,8 @@ def _slot_choices(
     slot: str,
     legal: tuple[OwnedEquipment, ...],
     pinned: Mapping[str, OwnedEquipment],
+    *,
+    required: bool = False,
 ) -> tuple[OwnedEquipment | None, ...]:
     if slot in pinned:
         return (pinned[slot],)
@@ -393,7 +395,7 @@ def _slot_choices(
         candidates = tuple(item for item in legal if item.item.tval == 45)
     else:
         candidates = tuple(item for item in legal if slot_for(item.item) == slot)
-    return (None, *candidates)
+    return candidates if required else (None, *candidates)
 
 
 def _gear_states(
@@ -403,6 +405,8 @@ def _gear_states(
     current_by_slot: dict[str, str],
     current_item_ids: frozenset[str],
     pinned: Mapping[str, OwnedEquipment],
+    require_light: bool,
+    required_flags: frozenset[int],
 ) -> tuple[tuple[Loadout, ...], bool]:
     states = (Loadout((), hand_mode),)
     processed: tuple[str, ...] = ()
@@ -411,7 +415,12 @@ def _gear_states(
         expanded: list[Loadout] = []
         for state in states:
             main_ring = state.item_at(SLOT_MAIN_RING)
-            for candidate in _slot_choices(slot, legal, pinned):
+            for candidate in _slot_choices(
+                slot,
+                legal,
+                pinned,
+                required=require_light and slot == SLOT_LIGHT,
+            ):
                 if (
                     slot == SLOT_SUB_RING
                     and candidate is not None
@@ -424,6 +433,27 @@ def _gear_states(
                     slots = (*slots, (slot, candidate))
                 expanded.append(Loadout(slots, hand_mode))
         processed = (*processed, slot)
+        remaining_slots = GEAR_STAGES[len(processed):]
+        future_flags: set[int] = set()
+        for item in legal:
+            item_slot = slot_for(item.item)
+            if (
+                item.item.tval in {21, 22, 23, 34}
+                or item_slot in remaining_slots
+                or (
+                    item.item.tval == 45
+                    and any(
+                        remaining in {SLOT_MAIN_RING, SLOT_SUB_RING}
+                        for remaining in remaining_slots
+                    )
+                )
+            ):
+                future_flags.update(item.flags)
+        expanded = [
+            state
+            for state in expanded
+            if required_flags.issubset(state.flags.union(future_flags))
+        ]
         states, stage_truncated = _compress_states(
             expanded,
             processed_slots=processed,
@@ -440,6 +470,8 @@ class WarriorLoadoutSearch:
     current_item_ids: frozenset[str] = frozenset()
     pinned: Mapping[str, OwnedEquipment] = field(default_factory=dict)
     excluded_item_ids: frozenset[str] = frozenset()
+    require_light: bool = False
+    required_flags: frozenset[int] = frozenset()
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -490,6 +522,8 @@ class WarriorLoadoutSearch:
                     current_by_slot=current_by_slot,
                     current_item_ids=self.current_item_ids,
                     pinned=self.pinned,
+                    require_light=self.require_light,
+                    required_flags=self.required_flags,
                 )
                 gear_by_profile[profile] = cached
             gear_states, gear_truncated = cached
@@ -501,7 +535,10 @@ class WarriorLoadoutSearch:
                         slots.append((SLOT_MAIN_HAND, hands.main))
                     if hands.sub is not None:
                         slots.append((SLOT_SUB_HAND, hands.sub))
-                    yield Loadout(tuple(slots), hands.mode)
+                    loadout = Loadout(tuple(slots), hands.mode)
+                    if not self.required_flags.issubset(loadout.flags):
+                        continue
+                    yield loadout
 
 
 def enumerate_warrior_loadouts(
@@ -510,8 +547,11 @@ def enumerate_warrior_loadouts(
     current_item_ids: frozenset[str] = frozenset(),
     pinned: Mapping[str, OwnedEquipment] | None = None,
     excluded_item_ids: frozenset[str] = frozenset(),
+    require_light: bool = False,
+    required_flags: frozenset[int] = frozenset(),
 ) -> WarriorLoadoutSearch:
     """Yield the exact nondominated Warrior loadout representatives."""
     return WarriorLoadoutSearch(
-        tuple(items), current_item_ids, pinned or {}, excluded_item_ids
+        tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
+        require_light, required_flags,
     )

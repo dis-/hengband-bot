@@ -711,6 +711,28 @@ def _prefer(
     return candidate_is_current and not incumbent_is_current
 
 
+def _selection_equivalence_key(
+    entry: EvaluatedLoadout,
+    current_item_ids: frozenset[str],
+) -> tuple[object, ...]:
+    """Keep policy-distinct representatives even when metrics are identical."""
+    bow = entry.loadout.item_at(SLOT_BOW)
+    if bow is None:
+        bow_policy = None
+    else:
+        bow_policy = (
+            bow.item.sval,
+            bow.item.is_ego
+            or bow.item.is_artifact
+            or bow.item.pseudo_feeling in {"excellent", "special"},
+        )
+    return (
+        entry.metrics,
+        bow_policy,
+        entry.loadout.item_ids == current_item_ids,
+    )
+
+
 def optimize_loadout(
     items: Iterable[OwnedEquipment],
     evaluator: LoadoutEvaluator,
@@ -746,8 +768,7 @@ def optimize_loadout(
             incomplete_item_ids=incomplete,
         )
     considered = evaluated_count = invalid = 0
-    evaluated: list[EvaluatedLoadout] = []
-    frontier: list[EvaluatedLoadout] = []
+    evaluated_by_metrics: dict[tuple[object, ...], EvaluatedLoadout] = {}
     timed_out = False
 
     if candidate_loadouts is None:
@@ -785,14 +806,24 @@ def optimize_loadout(
             invalid += 1
             continue
         entry = EvaluatedLoadout(loadout, metrics)
-        evaluated.append(entry)
         evaluated_count += 1
-        if any(_pareto_dominates(other, entry) for other in frontier):
-            continue
-        frontier = [
-            other for other in frontier if not _pareto_dominates(entry, other)
-        ]
-        frontier.append(entry)
+        equivalence_key = _selection_equivalence_key(entry, current_item_ids)
+        incumbent = evaluated_by_metrics.get(equivalence_key)
+        if incumbent is None or _prefer(entry, incumbent, current_item_ids):
+            evaluated_by_metrics[equivalence_key] = entry
+
+    evaluated = list(evaluated_by_metrics.values())
+    frontier: list[EvaluatedLoadout] = []
+    if not timed_out:
+        for entry in evaluated:
+            if any(_pareto_dominates(other, entry) for other in frontier):
+                continue
+            frontier = [
+                other
+                for other in frontier
+                if not _pareto_dominates(entry, other)
+            ]
+            frontier.append(entry)
 
     # A partial result is never safe to act on: timeout means stop town departure.
     if timed_out:
