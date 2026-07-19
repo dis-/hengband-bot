@@ -11480,6 +11480,16 @@ class HengbotPolicy:
             }
             if snapshot.player.position in recovery_cells:
                 blocked.difference_update(recovery_cells)
+        final_door_value = profile.engagement_plan.get("final_door")
+        if final_door_value is not None:
+            final_door = Position(*final_door_value)
+            final_door_grid = snapshot.grid_at(final_door)
+            if (
+                final_door_grid is not None
+                and final_door_grid.known
+                and not final_door_grid.is_closed_door
+            ):
+                blocked.discard(final_door)
         blocked.discard(goal)
         if battlefield is not None:
             navigator = self._quest_navigators.setdefault(

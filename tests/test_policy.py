@@ -4505,7 +4505,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(
             policy._approved_quest_strategy_key(final_hidden, [], []), "8"
         )
-        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-door")
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
 
     def test_q34_never_move_blocker_is_thrown_at_and_never_meleed(self):
         policy = self._policy()
@@ -4677,7 +4677,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(
             policy._approved_quest_strategy_key(snap, [], []), "8"
         )
-        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-door")
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
 
     def test_q34_final_phase_uses_static_map_beyond_visible_grids(self):
         policy = self._policy()
@@ -4716,7 +4716,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
 
-    def test_q34_final_door_uses_only_its_northern_approach(self):
+    def test_q34_final_door_uses_only_its_southern_approach(self):
         policy = self._policy()
         policy._quest_strategy_cleared_targets[34] = {
             (243, 7, 15),
@@ -4724,12 +4724,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             (107, 11, 9),
         }
         north = Snapshot(
-            player(1, 14),
+            player(5, 15),
             {
-                Position(1, 13): grid(1, 13),
-                Position(1, 14): grid(1, 14),
-                Position(2, 13): grid(2, 13, closed_door=True),
-                Position(2, 14): grid(2, 14, closed_door=True),
+                Position(4, 14): grid(4, 14, closed_door=True),
+                Position(4, 15): grid(4, 15, closed_door=True),
+                Position(5, 14): grid(5, 14),
+                Position(5, 15): grid(5, 15),
                 Position(11, 2): grid(11, 2),
             },
             [],
@@ -4742,9 +4742,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:approach-final-door")
 
-        at_approach = replace(north, player=player(1, 13))
+        at_approach = replace(north, player=player(5, 14))
         self.assertEqual(
-            policy._approved_quest_strategy_key(at_approach, [], []), "o2"
+            policy._approved_quest_strategy_key(at_approach, [], []), "o8"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:open-final-door")
 
