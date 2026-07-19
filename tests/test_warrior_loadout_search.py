@@ -182,6 +182,14 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         self.assertIn(("ring-hit", "ring-damage"), assignments)
         self.assertIn(("ring-damage", "ring-hit"), assignments)
 
+    def test_short_bow_does_not_prune_light_crossbow_subtype(self):
+        short = owned("short", 19, sval=12, to_h=3, to_d=5)
+        crossbow = owned("crossbow", 19, sval=23)
+
+        retained = _prune_dominated_catalog((short, crossbow))
+
+        self.assertEqual({item.id for item in retained}, {"short", "crossbow"})
+
     def test_exact_copy_pruning_preserves_exhaustive_dual_wield_optimum(self):
         items = (
             owned("strong-sword", 23, to_h=5, to_d=7),

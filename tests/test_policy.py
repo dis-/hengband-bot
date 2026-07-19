@@ -2020,6 +2020,22 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
         self.assertEqual(key, "01kb")
 
+    def test_preserves_charged_identify_staff_during_overflow_disposal(self):
+        identify = item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            charges=9, name="Staff of Identify",
+        )
+        junk = [
+            item(chr(ord("b") + i), TVAL_STAFF, 3, name=f"junk-{i}")
+            for i in range(PACK_CAPACITY - 1)
+        ]
+
+        pol = HengbotPolicy()
+        key = pol.choose_key(self._town([identify, *junk]))
+
+        self.assertEqual(pol.last_reason, "town:destroy-overflow")
+        self.assertEqual(key, "01kb")
+
     def test_destroys_junk_until_departure_free_slot_requirement_is_met(self):
         used = PACK_CAPACITY - MIN_FREE_PACK_SLOTS + 1
         staves = [
@@ -5272,6 +5288,10 @@ class ProbeTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(snap), "2")
         self.assertEqual(policy.last_reason, "breakout:seek-frontier")
+
+        advanced = replace(snap, player=player(10, 152))
+        self.assertEqual(policy.choose_key(advanced), "2")
+        self.assertEqual(policy.last_reason, "explore")
 
 
 class TownRestockTest(unittest.TestCase):

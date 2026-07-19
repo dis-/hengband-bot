@@ -2380,6 +2380,12 @@ class HengbotPolicy:
             # neighbour first traps us in a fully-known room forever.
             step = self._explore_step(snapshot)
             if step is not None:
+                # A valid committed route means the oscillation was escaped. Drop
+                # the stale stationary/search history now; otherwise it remains
+                # "oscillating" for several more decisions and searches at every
+                # waypoint until the recall escape threshold is reached.
+                self._recent.clear()
+                self._stuck_escape_streak = 0
                 self.last_reason = "breakout:seek-frontier"
                 return self._step_toward(snapshot, step)
             # No reachable unexplored floor or frontier remains. Only now use a
@@ -5286,6 +5292,7 @@ class HengbotPolicy:
             snapshot,
             lambda item: self._retention_surplus(snapshot, item) > 0
             and not self._survival_essential(item)
+            and not self._is_useful_device(item)
             and not self._has_town_economic_path(item)
             and self._item_signature(item) not in self._undestroyable_sigs,
         )

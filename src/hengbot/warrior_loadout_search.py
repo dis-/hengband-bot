@@ -92,14 +92,15 @@ def _item_dominance_parts(
     signature = _loadout_value_signature(item)
     flags = _evaluator_flags(item)
     melee_weapon = item.item.tval in {21, 22, 23}
+    launcher = item.item.tval == 19
     return (
         (
             signature[0],  # slot
-            # Only wielded melee weapons expose kind and weight to the Warrior
-            # evaluator.  Real Home launchers, lights, and armour have distinct
-            # base weights; comparing those invisible values kept their entire
-            # catalogs alive and defeated this prune in production.
-            signature[1] if melee_weapon else None,
+            # Melee kind and launcher subtype affect offense. In particular, a
+            # Short Bow with larger enchantments must not prune a Light Crossbow
+            # before the launcher's explicit policy preference is evaluated.
+            signature[1] if melee_weapon or launcher else None,
+            signature[2] if launcher else None,
             signature[10] if melee_weapon else None,
             flags - BENEFICIAL_GEAR_FLAGS,
             signature[13],  # exploration legality
