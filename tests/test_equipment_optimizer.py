@@ -154,6 +154,23 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertIn("xbow", result.best.loadout.item_ids)
 
+    def test_light_crossbow_is_preferred_over_short_bow(self):
+        short = gear("short", 19, sval=12, equipped_slot="bow")
+        xbow = gear("xbow", 19, sval=23)
+
+        result = optimize_loadout(
+            [self.light, short, xbow],
+            lambda loadout: metrics(
+                1,
+                ranged=100 if "short" in loadout.item_ids else 10,
+            ),
+            depth=1,
+            current_item_ids=frozenset({"light", "short"}),
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertIn("xbow", result.best.loadout.item_ids)
+
     def test_never_uses_one_physical_ring_twice(self):
         ring = gear("ring", 45)
         loadouts = list(enumerate_loadouts([self.light, ring]))

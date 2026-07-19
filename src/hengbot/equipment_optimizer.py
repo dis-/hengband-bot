@@ -19,6 +19,8 @@ from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
 from hengbot.model import (
+    SV_BOW_LIGHT_XBOW,
+    SV_BOW_SHORT,
     TVAL_ARROW,
     TVAL_BOLT,
     TVAL_SHOT,
@@ -661,8 +663,21 @@ def _prefer(
                 if slot != SLOT_BOW
             }
         )
-        if bow_only_change and cm.ranged_dps != im.ranged_dps:
-            return cm.ranged_dps > im.ranged_dps
+        if bow_only_change:
+            candidate_bow = candidate_slots.get(SLOT_BOW)
+            incumbent_bow = incumbent_slots.get(SLOT_BOW)
+            launcher_pair = (
+                {candidate_bow.item.sval, incumbent_bow.item.sval}
+                if candidate_bow is not None and incumbent_bow is not None
+                else set()
+            )
+            if launcher_pair == {
+                SV_BOW_SHORT,
+                SV_BOW_LIGHT_XBOW,
+            }:
+                return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
+            if cm.ranged_dps != im.ranged_dps:
+                return cm.ranged_dps > im.ranged_dps
         if cm.expected_dps != im.expected_dps:
             return cm.expected_dps > im.expected_dps
         if cm.ranged_dps != im.ranged_dps:
