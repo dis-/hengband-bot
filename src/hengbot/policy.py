@@ -11893,6 +11893,10 @@ class HengbotPolicy:
                     snapshot,
                     lambda candidate: candidate.position.distance_to(target_position) <= 1,
                 )
+                if step is None:
+                    step = self._quest_strategy_route_step(
+                        snapshot, profile, target_position
+                    )
                 if step is not None:
                     self.last_reason = "quest-strategy:approach-final-target"
                     return self._step_toward(snapshot, step)

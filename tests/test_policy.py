@@ -4679,6 +4679,43 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
 
+    def test_q34_final_phase_uses_static_map_beyond_visible_grids(self):
+        policy = self._policy()
+        route_cells = (
+            {(y, 9) for y in range(7, 10)}
+            | {(y, 10) for y in range(3, 8)}
+            | {(3, x) for x in range(10, 14)}
+        )
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            battlefield=QuestBattlefield(
+                terrain={position: "floor" for position in route_cells},
+                monster_placements=(
+                    ((3, 13), 174),
+                    ((7, 15), 243),
+                    ((9, 11), 107),
+                    ((11, 9), 107),
+                ),
+            ),
+        )
+        policy._quest_strategy_cleared_targets[34] = {
+            (243, 7, 15),
+            (107, 9, 11),
+            (107, 11, 9),
+        }
+        snap = Snapshot(
+            player(9, 9),
+            {Position(9, 9): grid(9, 9)},
+            [],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snap)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snap, [], []), "8"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+
     def test_q34_fallback_route_avoids_every_adjacent_sword_cell(self):
         policy = self._policy()
         policy._quest_knowledge[34] = replace(
