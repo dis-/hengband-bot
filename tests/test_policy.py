@@ -3981,6 +3981,94 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._q2_ranged_core_key(no_crossbow, self.profiles[2], [target])
         )
 
+    def test_q2_quaffs_speed_at_wererat_and_white_crocodile_engagements(self):
+        policy = self._policy()
+        speed = item("s", TVAL_POTION, SV_POTION_SPEED, count=2)
+        wererat = replace(hostile(1, 16, 25, distance=1), race_id=270)
+        base = Snapshot(
+            player(16, 24),
+            {
+                Position(16, 24): grid(16, 24),
+                Position(16, 25): grid(16, 25, monster=True),
+            },
+            [wererat], floor_key=(0, 1, 2), inventory=[speed],
+        )
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(base, [wererat], [wererat]), "qs"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-quaff-speed")
+        self.assertNotEqual(
+            policy._approved_quest_strategy_key(base, [wererat], [wererat]), "qs"
+        )
+
+        crocodile = replace(hostile(2, 19, 11, distance=1), race_id=1044)
+        croc_snapshot = replace(
+            base,
+            player=player(19, 10),
+            grids={
+                Position(19, 10): grid(19, 10),
+                Position(19, 11): grid(19, 11, monster=True),
+            },
+            visible_monsters=[crocodile],
+        )
+        self.assertEqual(
+            policy._approved_quest_strategy_key(
+                croc_snapshot, [crocodile], [crocodile]
+            ),
+            "qs",
+        )
+
+    def test_q2_wererat_lock_overrides_earlier_profile_targets(self):
+        policy = self._policy()
+        policy._fixed_quest_speed_attempted = True
+        giant_rat = replace(hostile(1, 10, 14, distance=4), race_id=86)
+        wererat = replace(hostile(2, 14, 10, distance=4), race_id=270)
+        grids = {
+            **{Position(10, x): grid(10, x, monster=x == 14, lit=True)
+               for x in range(10, 15)},
+            **{Position(y, 10): grid(y, 10, monster=y == 14, lit=True)
+               for y in range(11, 15)},
+        }
+        snapshot = Snapshot(
+            player(10, 10), grids, [giant_rat, wererat], floor_key=(0, 1, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=45)],
+            equipment=[item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)],
+        )
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(
+                snapshot, [giant_rat, wererat], []
+            ),
+            "fb2",
+        )
+
+    def test_q2_surround_uses_teleport_reset_before_fighting(self):
+        policy = self._policy()
+        adjacent = [
+            replace(hostile(index, y, x, distance=1), race_id=86)
+            for index, (y, x) in enumerate(((9, 10), (10, 11), (11, 10)), 1)
+        ]
+        snapshot = Snapshot(
+            player(10, 10, hp=300, max_hp=300),
+            {
+                Position(10, 10): grid(10, 10),
+                **{
+                    monster.position: grid(
+                        monster.position.y, monster.position.x, monster=True
+                    )
+                    for monster in adjacent
+                },
+            },
+            adjacent, floor_key=(0, 1, 2),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
+        )
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, adjacent, adjacent), "rt"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-teleport-reset")
+
     def test_completed_mining_rearms_normal_maintenance_restock(self):
         policy = self._policy()
         policy._deepest_level = 5

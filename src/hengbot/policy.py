@@ -1094,6 +1094,7 @@ class HengbotPolicy:
         self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
         self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
+        self._q2_speed_attempted: set[int] = set()
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
@@ -2893,6 +2894,7 @@ class HengbotPolicy:
         if snapshot.floor_key != self._floor_key:
             self._town_visit_purchases.clear()
             self._quest_light_attempted.clear()
+            self._q2_speed_attempted.clear()
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
             self._fundraising_pursuit_target = None
@@ -11080,6 +11082,30 @@ class HengbotPolicy:
             + self._direction_key(snapshot.player.position, target.position)
         )
 
+    def _q2_encounter_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        if len(adjacent) >= SWARM_COUNT and not (
+            snapshot.player.blind or snapshot.player.confused
+        ):
+            teleport = self._find_teleport_scroll(snapshot)
+            if teleport is not None:
+                self.last_reason = "quest-strategy:q2-teleport-reset"
+                return READ_KEY + teleport.slot
+        present = {monster.race_id for monster in hostiles}
+        for race_id in (270, 1044):  # Wererat, White crocodile.
+            if race_id in present and race_id not in self._q2_speed_attempted:
+                self._q2_speed_attempted.add(race_id)
+                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                if speed is not None:
+                    self._fixed_quest_speed_attempted = True
+                    self.last_reason = "quest-strategy:q2-quaff-speed"
+                    return QUAFF_KEY + speed.slot
+        return None
+
     def _quest_execute_key(
         self,
         snapshot: Snapshot,
@@ -11109,6 +11135,11 @@ class HengbotPolicy:
                 if exit_key is not None:
                     self.last_reason = "quest-strategy:abort"
                     return exit_key
+
+        if profile.quest_id == 2:
+            encounter = self._q2_encounter_key(snapshot, hostiles, adjacent)
+            if encounter is not None:
+                return encounter
 
         if hostiles and not self._fixed_quest_speed_attempted:
             threshold = float(
@@ -11159,9 +11190,16 @@ class HengbotPolicy:
             if survival is not None:
                 return survival
 
+        combat_hostiles = hostiles
+        if profile.quest_id == 2:
+            wererats = [monster for monster in hostiles if monster.race_id == 270]
+            if wererats:
+                combat_hostiles = wererats
+        combat_indices = {monster.index for monster in combat_hostiles}
         mobile_adjacent = [
             monster for monster in adjacent
-            if monster.race_id not in never_move_races
+            if monster.index in combat_indices
+            and monster.race_id not in never_move_races
         ]
         if mobile_adjacent and not snapshot.player.afraid:
             ranked = sorted(
@@ -11175,17 +11213,20 @@ class HengbotPolicy:
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
 
-        if profile.quest_id == 2 and hostiles:
-            ranged = self._q2_ranged_core_key(snapshot, profile, hostiles)
+        if profile.quest_id == 2 and combat_hostiles:
+            ranged = self._q2_ranged_core_key(snapshot, profile, combat_hostiles)
             if ranged is not None:
                 return ranged
 
-        if hostiles:
-            present = {monster.race_id for monster in hostiles}
+        if combat_hostiles:
+            present = {monster.race_id for monster in combat_hostiles}
             active_race = next(
                 (race_id for race_id in profile.priority_targets if race_id in present), None
             )
-            targets = [monster for monster in hostiles if monster.race_id == active_race]
+            targets = [
+                monster for monster in combat_hostiles
+                if monster.race_id == active_race
+            ]
             torch = self._first_item(snapshot, lambda item: item.is_torch)
             if torch is not None and targets:
                 target = self._ranged_target(snapshot, targets)
