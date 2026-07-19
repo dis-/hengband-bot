@@ -1321,6 +1321,10 @@ class HengbotPolicy:
         self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
         self._last_sell_sig: tuple | None = None
         self._store_sell_stuck_count = 0
+        # Item signature, last observed count, and consecutive attempts. Unlike
+        # _last_sell_sig, this survives turn changes and store exit/re-entry so
+        # an unanswered prompt cannot evade rejection by advancing the turn.
+        self._store_sell_attempt: tuple[tuple[str, int, int], int, int] | None = None
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
         self._home_full = False
@@ -2809,6 +2813,7 @@ class HengbotPolicy:
                 self._town_store_attempted.clear()
                 self._unsellable_items.clear()
                 self._store_sale_refused.clear()
+                self._store_sell_attempt = None
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
                 self._deferred_device_items.clear()
@@ -7620,7 +7625,6 @@ class HengbotPolicy:
         item: InventoryItem,
         reason: str,
         *,
-        suffix: str = SELL_CONFIRM_SUFFIX,
         rejected_reason: str = "shop:unsellable-leave",
     ) -> str:
         store = snapshot.store
@@ -7651,6 +7655,16 @@ class HengbotPolicy:
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
+
+        item_signature = self._item_signature(item)
+        attempts = 1
+        if self._store_sell_attempt is not None:
+            previous_signature, previous_count, previous_attempts = (
+                self._store_sell_attempt
+            )
+            if previous_signature == item_signature and item.count >= previous_count:
+                attempts = previous_attempts + 1
+        self._store_sell_attempt = (item_signature, item.count, attempts)
 
         pack_state = tuple(
             (it.slot, self._item_signature(it), it.count, it.charges)
@@ -7690,8 +7704,20 @@ class HengbotPolicy:
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
+        if attempts >= 3:
+            self._unsellable_items.add(item_signature)
+            self._town_store_attempted[store.store_type] = snapshot.turn
+            self._store_sale_refused.add(store.store_type)
+            self._last_sell_sig = None
+            self._store_sell_stuck_count = 0
+            self._store_sell_attempt = None
+            self.last_reason = rejected_reason
+            return LEAVE_STORE_KEY
         self.last_reason = reason
-        return SELL_KEY + item.slot + suffix
+        if item.count == 1:
+            return SELL_KEY + item.slot + SELL_CONFIRM_SUFFIX
+        quantity = min(item.count, self._retention_surplus(snapshot, item))
+        return SELL_KEY + item.slot + f"{quantity}\ry"
 
     def _shop(self, snapshot: Snapshot) -> str:
         store = snapshot.store
@@ -8137,19 +8163,13 @@ class HengbotPolicy:
                     )
             sale = self._find_light_sale(snapshot)
             if sale is not None:
-                quantity = self._light_sale_quantity(sale)
                 reason = (
                     "shop:sell-surplus-torches"
                     if sale.is_torch
                     else "shop:sell-spare-lantern"
                 )
-                suffix = (
-                    f"{quantity}\r\r"
-                    if quantity < sale.count
-                    else SELL_CONFIRM_SUFFIX
-                )
                 return self._store_sell_key(
-                    snapshot, sale, reason, suffix=suffix,
+                    snapshot, sale, reason,
                     rejected_reason="shop:unsellable-light-leave",
                 )
 

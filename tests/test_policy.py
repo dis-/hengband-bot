@@ -5953,6 +5953,71 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(second, LEAVE_STORE_KEY)
         self.assertIn(STORE_WEAPON, pol._store_sale_refused)
 
+    def test_cross_turn_sell_rejection_is_latched_on_third_attempt(self):
+        pol = HengbotPolicy()
+        pile = item("j", TVAL_WAND, 1, name="wands", count=3, charges=9)
+
+        def snapshot(turn, carried=pile):
+            return Snapshot(
+                player(10, 10),
+                {Position(10, 10): grid(10, 10)},
+                [],
+                turn=turn,
+                floor_key=(0, 0, 0),
+                inventory=[carried],
+                store=StoreState(store_type=STORE_MAGIC, items=[]),
+            )
+
+        self.assertEqual(pol._store_sell_key(snapshot(1), pile, "shop:sell-device"), "dj3\ry")
+        self.assertEqual(pol._store_sell_key(snapshot(2), pile, "shop:sell-device"), "dj3\ry")
+        self.assertEqual(
+            pol._store_sell_key(
+                snapshot(3), pile, "shop:sell-device",
+                rejected_reason="shop:unsellable-device-leave",
+            ),
+            LEAVE_STORE_KEY,
+        )
+        self.assertEqual(pol.last_reason, "shop:unsellable-device-leave")
+        self.assertIn(pol._item_signature(pile), pol._unsellable_items)
+        self.assertIn(STORE_MAGIC, pol._store_sale_refused)
+
+    def test_cross_turn_sell_attempts_reset_after_count_decreases(self):
+        pol = HengbotPolicy()
+        pile = item("j", TVAL_WAND, 1, name="wands", count=3, charges=9)
+        reduced = replace(pile, count=2, charges=6)
+
+        def snapshot(turn, carried):
+            return Snapshot(
+                player(10, 10),
+                {Position(10, 10): grid(10, 10)},
+                [],
+                turn=turn,
+                floor_key=(0, 0, 0),
+                inventory=[carried],
+                store=StoreState(store_type=STORE_MAGIC, items=[]),
+            )
+
+        self.assertNotEqual(
+            pol._store_sell_key(snapshot(1, pile), pile, "shop:sell-device"),
+            LEAVE_STORE_KEY,
+        )
+        self.assertNotEqual(
+            pol._store_sell_key(snapshot(2, pile), pile, "shop:sell-device"),
+            LEAVE_STORE_KEY,
+        )
+        self.assertEqual(
+            pol._store_sell_key(snapshot(3, reduced), reduced, "shop:sell-device"),
+            "dj2\ry",
+        )
+        self.assertNotEqual(
+            pol._store_sell_key(snapshot(4, reduced), reduced, "shop:sell-device"),
+            LEAVE_STORE_KEY,
+        )
+        self.assertEqual(
+            pol._store_sell_key(snapshot(5, reduced), reduced, "shop:sell-device"),
+            LEAVE_STORE_KEY,
+        )
+
     def test_no_spare_withdrawal_while_weapon_smith_is_full(self):
         # Once the smith is full this visit, pulling more spares from Home only
         # churns futile trips to a store with no room — do not withdraw.
@@ -10582,6 +10647,52 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 policy = HengbotPolicy()
                 self.assertEqual(policy.choose_key(snap), "da\r")
                 self.assertEqual(policy.last_reason, "shop:sell-device")
+
+    def test_magic_shop_sells_device_pile_with_quantity_and_confirmation(self):
+        device = item(
+            "j", TVAL_WAND, 1, charges=9, count=3, name="pile of wands"
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[device],
+            store=StoreState(store_type=STORE_MAGIC, items=[]),
+            town_flag=True,
+        )
+
+        self.assertEqual(HengbotPolicy().choose_key(snap), "dj3\ry")
+
+    def test_single_device_sale_has_no_trailing_yes(self):
+        device = item("j", TVAL_WAND, 1, charges=3, name="wand")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[device],
+            store=StoreState(store_type=STORE_MAGIC, items=[]),
+            town_flag=True,
+        )
+
+        self.assertEqual(HengbotPolicy().choose_key(snap), "dj\r")
+
+    def test_pile_sale_quantity_is_capped_by_retention_surplus(self):
+        pile = item("j", TVAL_FOOD, FOOD_MIN_SVAL, count=3, name="rations")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[pile],
+            store=StoreState(store_type=STORE_GENERAL, items=[]),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(policy, "_retention_reservation", return_value=1):
+            self.assertEqual(
+                policy._store_sell_key(snap, pile, "shop:sell-food"),
+                "dj2\ry",
+            )
 
     def test_keeps_useful_devices(self):
         devices = [
@@ -15696,7 +15807,7 @@ class RangedAttackTest(unittest.TestCase):
             store=StoreState(STORE_GENERAL, []),
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy._shop(snap), "df38\r\r")
+        self.assertEqual(policy._shop(snap), "df38\ry")
         self.assertEqual(policy.last_reason, "shop:sell-surplus-torches")
 
     def test_oil_reserve_is_never_thrown(self):
@@ -16836,15 +16947,20 @@ class StoreSellGateTest(unittest.TestCase):
         self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
         self.assertIn(policy._item_signature(potion), policy._unsellable_items)
 
-    def test_changed_turn_does_not_trigger_fast_rejection_latch(self):
+    def test_changed_turn_latches_only_after_three_attempts(self):
         potion = item("a", TVAL_POTION, SV_POTION_RESIST_COLD)
         policy = HengbotPolicy()
 
-        for turn in range(3):
+        for turn in range(2):
             self.assertEqual(
                 policy._shop(self._store([potion], STORE_ALCHEMIST, turn=turn)),
                 "da\r",
             )
+        self.assertEqual(
+            policy._shop(self._store([potion], STORE_ALCHEMIST, turn=2)),
+            LEAVE_STORE_KEY,
+        )
+        self.assertIn(policy._item_signature(potion), policy._unsellable_items)
 
 
 class RetentionAuthorityTest(unittest.TestCase):
