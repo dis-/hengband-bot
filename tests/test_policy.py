@@ -4488,14 +4488,15 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             replace(snap, visible_monsters=[bee, sword2]), [bee, sword2], []
         ), "vt4")
 
-        # The real final target is at [3,13], behind the [2,13] door.  There is
+        # The real final target is at [3,13], behind the [4,14] door.  There is
         # no ray from the [10,20] hold, so the final phase must release the hold
         # and traverse the doorway instead of relying on a fake visible bee.
         approach_grids = {
             **{Position(y, 20): grid(y, 20) for y in range(1, 11)},
-            **{Position(1, x): grid(1, x) for x in range(13, 21)},
-            Position(2, 13): grid(2, 13, closed_door=True),
+            **{Position(5, x): grid(5, x) for x in range(14, 21)},
+            Position(4, 14): grid(4, 14, closed_door=True),
             Position(3, 13): grid(3, 13),
+            Position(3, 14): grid(3, 14),
         }
         final_hidden = replace(snap, grids=approach_grids, visible_monsters=[])
         policy._build_grid_index(final_hidden)
@@ -4505,7 +4506,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(
             policy._approved_quest_strategy_key(final_hidden, [], []), "8"
         )
-        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-door")
 
     def test_q34_never_move_blocker_is_thrown_at_and_never_meleed(self):
         policy = self._policy()
@@ -4667,9 +4668,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         }
         grids = {
             **{Position(y, 20): grid(y, 20) for y in range(1, 11)},
-            **{Position(1, x): grid(1, x) for x in range(13, 21)},
-            Position(2, 13): grid(2, 13, closed_door=True),
+            **{Position(5, x): grid(5, x) for x in range(14, 21)},
+            Position(4, 14): grid(4, 14, closed_door=True),
             Position(3, 13): grid(3, 13),
+            Position(3, 14): grid(3, 14),
         }
         snap = Snapshot(player(10, 20), grids, [], floor_key=(0, 5, 34))
         policy._build_grid_index(snap)
@@ -4677,7 +4679,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(
             policy._approved_quest_strategy_key(snap, [], []), "8"
         )
-        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-door")
 
     def test_q34_final_phase_uses_static_map_beyond_visible_grids(self):
         policy = self._policy()
@@ -4791,6 +4793,40 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(snap, [], []), "8"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+
+    def test_q34_exit_reuses_accessible_door_and_avoids_jammed_glass(self):
+        policy = self._policy()
+        safe_path = (
+            {(3, x) for x in range(14, 19)}
+            | {(4, 14), (5, 14), (5, 15), (5, 16), (5, 17), (5, 18),
+               (5, 19), (5, 20)}
+            | {(y, 20) for y in range(1, 6)}
+        )
+        jammed_shortcut = {(2, 18), (1, 18), (1, 19), (1, 20)}
+        battlefield = QuestBattlefield(
+            terrain={
+                position: (
+                    "door" if position in {(4, 14), (2, 18)} else "floor"
+                )
+                for position in safe_path | jammed_shortcut
+            },
+            entrance=(1, 20),
+            exit=(1, 20),
+        )
+        navigator = QuestFloorNavigator(34, battlefield)
+        snap = Snapshot(
+            player(3, 18),
+            {
+                Position(2, 18): grid(2, 18, closed_door=True),
+                Position(3, 18): grid(3, 18),
+                Position(4, 14): grid(4, 14),
+            },
+            [],
+            floor_key=(0, 5, 34),
+        )
+
+        self.assertEqual(navigator._exit(policy, snap), "4")
+        self.assertEqual(policy.last_reason, "quest:exit:route")
 
     def test_q34_fallback_route_avoids_every_adjacent_sword_cell(self):
         policy = self._policy()

@@ -10,6 +10,7 @@
     "opening_route": "First cross the top edge to the left exterior corridor, descend to [11,1], and open the ordinary locked door at [11,2] before combat or item recovery.",
     "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open.",
     "avoid_door_positions": [
+      [2,13], [2,14], [2,15], [2,16], [2,17], [2,18],
       [4,6], [4,7], [4,8], [4,9], [4,14], [4,15], [4,16], [4,17],
       [6,2], [6,19], [7,2], [7,19], [8,19], [9,19]
     ],

@@ -156,7 +156,17 @@ class QuestFloorNavigator:
         if snapshot.player.position == target:
             owner.last_reason = "quest:exit"
             return "<"
-        path = self._static_path(snapshot.player.position, {target})
+        profile = owner.approved_quest_strategy(self.quest_id)
+        plan = profile.engagement_plan if profile is not None else {}
+        blocked = {
+            Position(*raw) for raw in plan.get("avoid_door_positions", ())
+        }
+        final_door_value = plan.get("final_door")
+        if final_door_value is not None:
+            blocked.discard(Position(*final_door_value))
+        path = self._static_path(
+            snapshot.player.position, {target}, blocked=blocked
+        )
         if len(path) < 2:
             owner.last_reason = "quest:blocked:exit"
             return "5"
