@@ -61,6 +61,22 @@ class QuestStrategiesTest(unittest.TestCase):
         # test_shipped_drafts_match_real_quest_data — no hardcoded duplicate
         # here (Q34 was user-approved via the Phase 4 pipeline on 2026-07-17).
         self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
+        throwing_points = profiles[34].engagement_plan["throwing_points"]
+        self.assertEqual(
+            [
+                (
+                    point["race_id"], point["target"], point["stand"],
+                    point["direction"], point["recovery_cells"],
+                )
+                for point in throwing_points
+            ],
+            [
+                (243, [7, 15], [7, 13], 6,
+                 [[7, 14], [7, 15], [7, 16], [7, 17], [7, 18]]),
+                (107, [9, 11], [11, 11], 8, [[10, 11], [9, 11]]),
+                (107, [11, 9], [9, 9], 2, [[10, 9], [11, 9]]),
+            ],
+        )
         q2_force = profiles[2].required_force
         self.assertEqual(q2_force["launcher"], {"ammo": "bolt", "equipped": True})
         self.assertEqual(q2_force["throwing_items"], {"bolt": 45})

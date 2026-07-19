@@ -14,9 +14,14 @@
       [6,2], [6,19], [7,2], [7,19], [8,19], [9,19]
     ],
     "supply_recovery_bounds": [5, 2, 11, 18],
+    "throwing_points": [
+      {"race_id": 243, "target": [7,15], "stand": [7,13], "direction": 6, "recovery_cells": [[7,14],[7,15],[7,16],[7,17],[7,18]], "note": "Throw east at the cloaker from distance 2, then recover every surviving torch on the firing lane before engaging the next target."},
+      {"race_id": 107, "target": [9,11], "stand": [11,11], "direction": 8, "recovery_cells": [[10,11],[9,11]], "note": "Throw north at the first death sword from distance 2, then recover its firing lane before engaging the next target."},
+      {"race_id": 107, "target": [11,9], "stand": [9,9], "direction": 2, "recovery_cells": [[10,9],[11,9]], "note": "Throw south at the second death sword from distance 2, then recover its firing lane before engaging the next target."}
+    ],
     "opening": "[1,20] から上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を最初に開ける。外周のガラス扉は開けようとしない。その後、室内経路から [10,20] の隘路を確保する。",
     "hold_position": [10, 20],
-    "formation": "処理順はユーザー指示（2026-07-17）: 殺人蜂は上部小部屋 [3,13] から自力で出てこないため最後に回す。先に [7,15] のクローカーへ通路の射線から、次に [9,11]・[11,9] のデスソードへ南東側から射線を通し、距離2以上を保って点火した松明だけで倒し切る（この間の撃破経験でレベルも上がる）。最後に上部小部屋の殺人蜂を扉越しに処理する。NEVER_MOVE の三体には隣接しない。",
+    "formation": "処理順はユーザー指示（2026-07-17）: 殺人蜂は上部小部屋 [3,13] から自力で出てこないため最後に回す。クローカー [7,15] は投擲地点 [7,13] から東へ投げる。撃破直後に射線 [7,14]〜[7,18] の松明を回収し切ってから次へ進む。デスソード [9,11] は [11,11] から北へ投げ、撃破後に [10,11]・[9,11] を回収する。デスソード [11,9] は [9,9] から南へ投げ、撃破後に [10,9]・[11,9] を回収する。一体倒すごとに回収完了を確認し、未回収のまま次の標的へ移らない。三地点とも距離2で射線上に壁・扉はない。最後に上部小部屋の殺人蜂を扉越しに処理する。NEVER_MOVE の三体には隣接しない。",
     "ranged_softening": "クローカーは火炎免疫がないため点火松明1d6*2.5（平均8.75）、デスソードは IM_FIRE でブランド倍率が無効だが基礎1d6（平均3.5）は残る。距離2以上から必要数を投げ、固定三体を投擲だけで倒し切る。最後に殺人蜂へ松明1本を投げてから近接で処理する（先の撃破でレベルアップ済みのためさらに安全）。"
   },
   "priority_targets": [243, 107, 174],

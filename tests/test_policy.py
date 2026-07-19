@@ -153,6 +153,7 @@ from hengbot.policy import (
     MIN_FREE_PACK_SLOTS,
     HOME_BATCH_RESERVED_SLOTS,
     PACK_CAPACITY,
+    PICKUP_KEY,
     REST_MACRO,
     RESTOCK_WAIT_MACRO,
     STUCK_WINDOW,
@@ -4523,6 +4524,76 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(policy._approved_quest_strategy_key(snap, [blocker], [blocker]), "vt9")
         self.assertEqual(policy.last_reason, "quest-strategy:throw-never-move-blocker")
+
+    def test_q34_approaches_and_uses_explicit_cloaker_throw_point(self):
+        policy = self._policy()
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+        cloaker = replace(hostile(1, 7, 15, distance=3), race_id=243)
+        grids = {
+            Position(7, x): grid(7, x, monster=(x == 15))
+            for x in range(12, 16)
+        }
+        approach = Snapshot(
+            player(7, 12), grids, [cloaker], inventory=[torch],
+            floor_key=(0, 5, 34),
+        )
+        policy._fixed_quest_speed_attempted = True
+        policy._build_grid_index(approach)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(approach, [cloaker], []), "6"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-throw-point")
+
+        firing = replace(approach, player=player(7, 13))
+        self.assertEqual(
+            policy._approved_quest_strategy_key(firing, [cloaker], []), "vt6"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")
+
+    def test_q34_recovers_each_target_volley_before_next_target(self):
+        policy = self._policy()
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, count=19, fuel=5000)
+        cloaker = replace(hostile(1, 7, 15, distance=2), race_id=243)
+        grids = {
+            Position(7, 13): grid(7, 13),
+            Position(7, 14): grid(7, 14),
+            Position(7, 15): grid(7, 15, monster=True),
+            Position(9, 11): grid(9, 11, monster=True),
+        }
+        volley = Snapshot(
+            player(7, 13), grids, [cloaker], inventory=[torch],
+            floor_key=(0, 5, 34),
+        )
+        policy._fixed_quest_speed_attempted = True
+        policy._build_grid_index(volley)
+        self.assertEqual(
+            policy._approved_quest_strategy_key(volley, [cloaker], []), "vt6"
+        )
+
+        sword = replace(hostile(2, 9, 11, distance=4), race_id=107)
+        dropped = replace(
+            volley,
+            grids={
+                **grids,
+                Position(7, 15): grid(7, 15, objects=1),
+            },
+            visible_monsters=[sword],
+        )
+        policy._build_grid_index(dropped)
+        self.assertEqual(
+            policy._approved_quest_strategy_key(dropped, [sword], []), "6"
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:recover-defeated-target-torches",
+        )
+
+        on_torch = replace(dropped, player=player(7, 15))
+        self.assertEqual(
+            policy._approved_quest_strategy_key(on_torch, [sword], []),
+            PICKUP_KEY,
+        )
 
     def test_q34_opens_lower_left_door_before_combat(self):
         policy = self._policy()

@@ -1099,6 +1099,10 @@ class HengbotPolicy:
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
         self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
+        self._quest_strategy_visible_targets: dict[
+            int, set[tuple[int, int, int]]
+        ] = {}
+        self._quest_strategy_pending_recovery: dict[int, dict[str, object]] = {}
         self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
         self._q2_speed_attempted: set[int] = set()
         self._q2_surveyed_placements: set[Position] = set()
@@ -2560,6 +2564,8 @@ class HengbotPolicy:
         if snapshot.in_town:
             self._home_disposal.reload_decisions()
         if previous_floor is not None and previous_floor != snapshot.floor_key:
+            self._quest_strategy_visible_targets.clear()
+            self._quest_strategy_pending_recovery.clear()
             if (
                 self._quest_regen_phase == "ascend"
                 and self._quest_regen_id is not None
@@ -11567,6 +11573,34 @@ class HengbotPolicy:
         )
         defeated_never_move.update(previous_never_move - current_never_move)
         self._quest_strategy_visible_never_move[profile.quest_id] = current_never_move
+        current_targets = {
+            (monster.race_id, monster.position.y, monster.position.x)
+            for monster in hostiles
+            if monster.race_id in never_move_races
+        }
+        previous_targets = self._quest_strategy_visible_targets.get(
+            profile.quest_id, set()
+        )
+        newly_defeated_targets = previous_targets - current_targets
+        self._quest_strategy_visible_targets[profile.quest_id] = current_targets
+        if (
+            newly_defeated_targets
+            and profile.quest_id not in self._quest_strategy_pending_recovery
+        ):
+            recovery_plan = next(
+                (
+                    plan
+                    for plan in profile.engagement_plan.get("throwing_points", ())
+                    if (
+                        int(plan.get("race_id", 0)),
+                        int(plan["target"][0]),
+                        int(plan["target"][1]),
+                    ) in newly_defeated_targets
+                ),
+                None,
+            )
+            if recovery_plan is not None:
+                self._quest_strategy_pending_recovery[profile.quest_id] = recovery_plan
         info = self._quest_knowledge.get(profile.quest_id)
         battlefield = info.battlefield if info is not None else None
         expected_never_move = sum(
@@ -11584,6 +11618,36 @@ class HengbotPolicy:
             survival = self._survival_gate_key(snapshot, hostiles)
             if survival is not None:
                 return survival
+
+        pending_recovery = self._quest_strategy_pending_recovery.get(
+            profile.quest_id
+        )
+        if pending_recovery is not None:
+            recovery_cells = {
+                Position(*raw)
+                for raw in pending_recovery.get("recovery_cells", ())
+            }
+            here = snapshot.grid_at(snapshot.player.position)
+            if (
+                snapshot.player.position in recovery_cells
+                and here is not None
+                and here.object_count > 0
+            ):
+                self.last_reason = "quest-strategy:recover-defeated-target-torches"
+                return PICKUP_KEY
+            pickup_step = self._nearest_goal_step(
+                snapshot,
+                lambda candidate: (
+                    candidate.position in recovery_cells
+                    and candidate.object_count > 0
+                ),
+            )
+            if pickup_step is not None:
+                self.last_reason = "quest-strategy:recover-defeated-target-torches"
+                return self._step_toward(snapshot, pickup_step)
+            self._quest_strategy_pending_recovery.pop(profile.quest_id, None)
+            self.last_reason = "quest-strategy:recovery-complete"
+            return WAIT_KEY
 
         combat_hostiles = hostiles
         if profile.quest_id == 2:
@@ -11626,6 +11690,35 @@ class HengbotPolicy:
                 if monster.race_id == active_race
             ]
             torch = self._first_item(snapshot, lambda item: item.is_torch)
+            throwing_points = profile.engagement_plan.get("throwing_points", ())
+            planned_throw = next(
+                (
+                    (plan, monster)
+                    for plan in throwing_points
+                    for monster in targets
+                    if int(plan.get("race_id", 0)) == monster.race_id
+                    and Position(*plan["target"]) == monster.position
+                ),
+                None,
+            )
+            if planned_throw is not None:
+                plan, target_monster = planned_throw
+                stand = Position(*plan["stand"])
+                if snapshot.player.position != stand:
+                    step = self._town_map_goal_step(snapshot, stand)
+                    if step is None:
+                        self.last_reason = "quest-strategy:throw-point-unreachable"
+                        return WAIT_KEY
+                    self.last_reason = "quest-strategy:approach-throw-point"
+                    return self._step_toward(snapshot, step)
+                if torch is not None:
+                    self.last_reason = "quest-strategy:throw-torch"
+                    return (
+                        THROW_KEY + torch.slot
+                        + self._direction_key(
+                            snapshot.player.position, target_monster.position
+                        )
+                    )
             if torch is not None and targets:
                 target = self._ranged_target(snapshot, targets)
                 if target is not None:
