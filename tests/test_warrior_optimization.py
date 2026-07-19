@@ -36,7 +36,7 @@ from hengbot.warrior_optimization import (
     prepare_warrior_optimization,
     weapon_expected_dps,
 )
-from hengbot.warrior_equipment_evaluator import TR_DEX, TR_STR
+from hengbot.warrior_equipment_evaluator import TR_BLOWS, TR_DEX, TR_STR
 
 
 def gear(
@@ -281,6 +281,62 @@ class WarriorOptimizationTest(unittest.TestCase):
 
         self.assertTrue(prepared.ready, prepared.blockers)
         self.assertEqual(prepared.result.best.loadout.item_at("head"), crown)
+
+    def test_crown_stat_threshold_is_recomputed_with_each_weapon_candidate(self):
+        light = gear("light", "equipped", slot="light", tval=39)
+        dagger = gear(
+            "fire-dagger", "equipped", slot="main_hand", to_h=6, to_d=12,
+            dice=(1, 4), weight=12, flags=(30,), proficiency=6000,
+        )
+        steel_helm = gear(
+            "steel-helm", "equipped", slot="head", tval=32, ac=6, to_a=2,
+        )
+        crown = gear(
+            "crown-of-might", "home", tval=33, ac=0, to_a=3,
+            pval=3, flags=(TR_STR, TR_DEX, 4),
+        )
+        extra_attack_sword = gear(
+            "extra-attack-longsword", "home", to_h=5, to_d=6,
+            pval=1, flags=(TR_BLOWS,), dice=(2, 5), weight=130,
+            proficiency=4000,
+        )
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR,
+            stat_cur=(60, 12, 16, 17, 110, 14),
+            stat_use=(140, 3, 7, 38, 180, 10),
+            level=27,
+            shield_skill=4000,
+            speed=110,
+            saving_skill=59,
+            abilities=frozenset(),
+            ac=85,
+            melee_skill=181,
+            shooting_skill=136,
+            two_weapon_skill=4184,
+            max_hp=616,
+            max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=80, average_hp=80, speed=110, can_summon=False,
+            friendly=False, level=2, armor_class=20, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 4, 6),),
+        )
+
+        prepared = prepare_warrior_optimization(
+            snapshot,
+            (light, dagger, steel_helm, crown, extra_attack_sword),
+            {1: monster},
+            depth=15,
+            home_scan_complete=True,
+        )
+
+        self.assertTrue(prepared.ready, prepared.blockers)
+        self.assertEqual(prepared.result.best.loadout.item_at("head"), crown)
+        self.assertEqual(
+            prepared.result.best.loadout.item_at("main_hand"),
+            extra_attack_sword,
+        )
 
     def test_preserves_current_free_action_despite_large_ac_gain(self):
         light = gear("light", "equipped", slot="light", tval=39)
