@@ -151,6 +151,7 @@ from hengbot.policy import (
     MINING_SWEEP_HARD_LIMIT,
     MINING_SWEEP_NO_PROGRESS_LIMIT,
     MIN_FREE_PACK_SLOTS,
+    NEIGHBOR_OFFSETS,
     HOME_BATCH_RESERVED_SLOTS,
     PACK_CAPACITY,
     PICKUP_KEY,
@@ -1035,6 +1036,58 @@ class SearchTest(unittest.TestCase):
         pol = HengbotPolicy()
         results = [(pol.choose_key(snap), pol.last_reason) for _ in range(14)]
         self.assertIn(("s", "search"), results)
+
+    def test_return_searches_hidden_upstairs_even_with_known_downstairs(self):
+        floor_key = (DUNGEON_ANGBAND, 14, 0)
+        floors = {Position(10, 10), Position(10, 11), Position(10, 12)}
+        grids = {position: grid(position.y, position.x) for position in floors}
+        grids[Position(10, 10)] = grid(10, 10, downstairs=True)
+        for position in floors:
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor not in grids:
+                    grids[neighbor] = grid(
+                        neighbor.y, neighbor.x, passable=False
+                    )
+        snapshot = Snapshot(
+            player(10, 12), grids, [], floor_key=floor_key, width=40, height=40
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = floor_key
+        policy._returning_to_town = True
+        policy._build_grid_index(snapshot)
+        policy._visit_counts.update({position: 1 for position in floors})
+
+        self.assertEqual(policy._return_to_town_key(snapshot, []), "s")
+        self.assertEqual(policy.last_reason, "return:search-upstairs")
+
+    def test_secret_search_prefers_corridor_end_over_room_perimeter(self):
+        floors = {
+            Position(10, 10),
+            Position(9, 10),
+            Position(11, 10),
+            Position(10, 9),
+            Position(10, 11),
+            Position(10, 12),
+            Position(10, 13),
+        }
+        grids = {position: grid(position.y, position.x) for position in floors}
+        for position in floors:
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor not in grids:
+                    grids[neighbor] = grid(
+                        neighbor.y, neighbor.x, passable=False
+                    )
+        snapshot = Snapshot(
+            player(10, 10), grids, [], floor_key=(1, 14, 0), width=40, height=40
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._secret_wall_search_step(snapshot), Position(10, 11)
+        )
 
     def test_never_searches_in_town(self):
         # Secret doors/passages do not exist in town, so 's' there is wasted

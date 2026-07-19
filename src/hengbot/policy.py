@@ -13735,6 +13735,25 @@ class HengbotPolicy:
             self.last_reason = "return:explore"
             return self._step_toward(snapshot, step)
 
+        # Returning without a recall scroll requires an up-stair, which may be
+        # hidden behind a secret door. This cannot use the ordinary secret-wall
+        # sweep below: the return owner exits earlier, and that sweep is disabled
+        # whenever any down-stair is known. Search likely wall exits after all
+        # reachable floor/frontier exploration is exhausted.
+        if (
+            not self._is_forgetting_maze(snapshot)
+            and not player.blind
+            and not player.confused
+        ):
+            if self._undersearched_walls(player.position):
+                self._record_wall_search(player.position)
+                self.last_reason = "return:search-upstairs"
+                return SEARCH_KEY
+            step = self._secret_wall_search_step(snapshot)
+            if step is not None:
+                self.last_reason = "return:seek-secret-wall"
+                return self._step_toward(snapshot, step)
+
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "return:wander"
@@ -15578,19 +15597,36 @@ class HengbotPolicy:
         }
         start = snapshot.player.position
         seen = {start}
-        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        queue: deque[tuple[Position, Position | None, int]] = deque(
+            [(start, None, 0)]
+        )
+        best: tuple[tuple[int, int, int, int], Position] | None = None
         while queue:
-            pos, first_step = queue.popleft()
-            if pos != start and pos in candidates:
-                return first_step
+            pos, first_step, distance = queue.popleft()
+            if pos != start and pos in candidates and first_step is not None:
+                # Secret exits are most likely at corridor ends. Prefer fewer
+                # walkable neighbors before path distance so large room
+                # perimeters do not consume the no-progress budget first.
+                score = (
+                    len(self._walkable_neighbors(snapshot, pos)),
+                    distance,
+                    pos.y,
+                    pos.x,
+                )
+                if best is None or score < best[0]:
+                    best = (score, first_step)
             for neighbor in self._walkable_neighbors(snapshot, pos):
                 if neighbor in seen:
                     continue
                 seen.add(neighbor)
                 queue.append(
-                    (neighbor, neighbor if first_step is None else first_step)
+                    (
+                        neighbor,
+                        neighbor if first_step is None else first_step,
+                        distance + 1,
+                    )
                 )
-        return None
+        return best[1] if best is not None else None
 
     def _probe_unknown_step(self, snapshot: Snapshot) -> Position | None:
         """Step into an adjacent unknown (absent, in-bounds) tile to reveal it.
