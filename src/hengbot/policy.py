@@ -2674,7 +2674,10 @@ class HengbotPolicy:
         if snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
             self._rumor_unlock_pending = False
-        elif snapshot.yeek_cave_conquered:
+        elif (
+            (quest_14 := snapshot.quests.get(14)) is not None
+            and quest_14.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+        ):
             self._rumor_unlock_pending = True
 
         # --- Over-extension: recall into a level-appropriate dungeon when the main
@@ -13950,11 +13953,17 @@ class HengbotPolicy:
         if route:
             nxt = route[0]
             if origin.distance_to(nxt) == 1 and self._is_step_open(snapshot, origin, nxt):
+                # Both metrics bottom out at one before arrival: committed paths
+                # use remaining length, while fresh BFS uses distance from origin.
                 self._nav_ledger.observe("descend", target, len(route))
                 if self._nav_ledger.is_expired("descend", target):
                     self._descent_target_goal = None
                     return None
-                self.last_reason = "seek-downstairs"
+                self.last_reason = (
+                    "seek-downstairs"
+                    if route[-1] == target
+                    else "approach-descent"
+                )
                 return nxt
             # A wall/monster or an off-path survival/combat move invalidates
             # only the path.  The target remains owned by the ledger.
@@ -14032,6 +14041,11 @@ class HengbotPolicy:
             path.reverse()
             self._nav_ledger.commit_descent_route(target, path)
             self.last_reason = "approach-descent"
+        else:
+            # No path and no frontier can make progress toward this commitment.
+            # Expire it now so deterministic selection cannot choose it again.
+            self._nav_ledger.expire("descend", target)
+            self._descent_target_goal = None
         return best_first
 
     def _explore_step(self, snapshot: Snapshot) -> Position | None:

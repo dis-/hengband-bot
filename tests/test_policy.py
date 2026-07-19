@@ -123,6 +123,7 @@ from hengbot.policy import (
     FUNDRAISING_START_GOLD,
     FIXED_QUEST_LEVEL_MARGIN,
     QUEST_STATUS_COMPLETED,
+    QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
@@ -1204,12 +1205,14 @@ class DescendTest(unittest.TestCase):
         for position in cycle | {escape, Position(10, 8)}:
             grids[position] = grid(position.y, position.x)
         grids[Position(8, 12)] = grid(8, 12, downstairs=True)
+        del grids[Position(10, 7)]  # reachable frontier for the committed approach
 
         policy = HengbotPolicy()
         policy._floor_key = (2, 12, 0)
         policy._recent.extend(list(cycle) * 3)
         for position in cycle:
             policy._visit_counts[position] = 5
+        policy._search_counts[(origin.y, origin.x)] = SEARCH_LIMIT
         snapshot = Snapshot(
             player(origin.y, origin.x, food=12000),
             grids,
@@ -1218,9 +1221,58 @@ class DescendTest(unittest.TestCase):
             width=30,
             height=30,
         )
-        policy.choose_key(snapshot)
+        key = policy.choose_key(snapshot)
+        self.assertIn(key, "12346789")
         self.assertEqual(policy._nav_ledger.descent_target, Position(8, 12))
         self.assertNotEqual(policy.last_reason, "breakout:descent")
+
+    def test_releases_unreachable_committed_stair_for_reachable_alternative(self):
+        origin = Position(10, 10)
+        unreachable = Position(8, 10)
+        alternative = Position(10, 13)
+        grids = {
+            Position(y, x): grid(y, x, passable=False)
+            for y in range(6, 12)
+            for x in range(8, 15)
+        }
+        grids[origin] = grid(10, 10)
+        grids[Position(10, 11)] = grid(10, 11)
+        grids[Position(10, 12)] = grid(10, 12)
+        grids[alternative] = grid(10, 13, downstairs=True)
+        grids[unreachable] = grid(8, 10, downstairs=True)
+        snapshot = Snapshot(
+            player(10, 10), grids, [], floor_key=(2, 12, 0), width=30, height=30
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+        policy._nav_ledger.commit_descent_route(unreachable, ())
+
+        self.assertIsNone(policy._descent_step(snapshot))
+        self.assertIsNone(policy._nav_ledger.descent_target)
+        self.assertEqual(policy._descent_step(snapshot), Position(10, 11))
+        self.assertEqual(policy._nav_ledger.descent_target, alternative)
+
+    def test_committed_frontier_path_keeps_approach_reason(self):
+        origin = Position(10, 10)
+        step = Position(10, 11)
+        frontier = Position(10, 12)
+        target = Position(8, 12)
+        grids = {
+            origin: grid(10, 10),
+            step: grid(10, 11),
+            frontier: grid(10, 12),
+            target: grid(8, 12, downstairs=True),
+        }
+        snapshot = Snapshot(
+            player(10, 10), grids, [], floor_key=(2, 12, 0), width=30, height=30
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._nav_ledger.commit_descent_route(target, (step, frontier))
+
+        self.assertEqual(policy._descent_step(snapshot), step)
+        self.assertEqual(policy.last_reason, "approach-descent")
 
     def test_descends_when_standing_on_downstairs_and_healthy(self):
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}
@@ -9754,7 +9806,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            yeek_cave_conquered=True,
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
         # Adjacent inn one step east: walk on and read a full batch of rumors in
@@ -9776,7 +9828,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            yeek_cave_conquered=True,
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "6" + "u\r" * 60 + "\x1b")
@@ -9795,7 +9847,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            yeek_cave_conquered=True,
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), WAIT_KEY)
@@ -9817,11 +9869,53 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            yeek_cave_conquered=True,
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "town:rumor")
+
+    def test_q14_reward_states_arm_rumor_without_yeek_conquest(self):
+        for status in (QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED):
+            with self.subTest(status=status):
+                snap = Snapshot(
+                    player(10, 10),
+                    {Position(10, 10): grid(10, 10)},
+                    [],
+                    quests={14: QuestState(14, status=status)},
+                    yeek_cave_conquered=False,
+                )
+                policy = HengbotPolicy()
+                policy._observe(snap)
+                self.assertTrue(policy._rumor_unlock_pending)
+
+    def test_pre_reward_or_missing_q14_does_not_arm_rumor_after_conquest(self):
+        for status in (None, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED):
+            with self.subTest(status=status):
+                quests = {} if status is None else {14: QuestState(14, status=status)}
+                snap = Snapshot(
+                    player(10, 10),
+                    {Position(10, 10): grid(10, 10)},
+                    [],
+                    quests=quests,
+                    yeek_cave_conquered=True,
+                )
+                policy = HengbotPolicy()
+                policy._observe(snap)
+                self.assertFalse(policy._rumor_unlock_pending)
+
+    def test_angband_unlock_clears_q14_rumor_latch(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            quests={14: QuestState(14, status=QUEST_STATUS_FINISHED)},
+            angband_recall_unlocked=True,
+        )
+        policy = HengbotPolicy()
+        policy._rumor_unlock_pending = True
+        policy._observe(snap)
+        self.assertFalse(policy._rumor_unlock_pending)
 
     def test_standing_on_inn_does_not_latch_inn_not_found_block(self):
         # Regression for the town "5-loop": when already standing on the inn tile
