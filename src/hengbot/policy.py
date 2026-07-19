@@ -11270,8 +11270,17 @@ class HengbotPolicy:
             placements = placements_by_race.get(race_id, [])
             for placement in placements:
                 grid = snapshot.grid_at(placement)
+                ranged_vantages = navigator.ranged_vantage_goals(
+                    placement, RANGED_MAX_DISTANCE
+                )
+                observation_goals = ranged_vantages or navigator.observation_goals(
+                    placement, RANGED_MAX_DISTANCE
+                )
                 if (
-                    snapshot.player.position.distance_to(placement) <= 1
+                    (
+                        snapshot.player.position.distance_to(placement) <= 1
+                        or snapshot.player.position in observation_goals
+                    )
                     and grid is not None
                     and grid.known
                     and not grid.has_monster
@@ -11290,10 +11299,15 @@ class HengbotPolicy:
                 if navigator._static_walkable(placement):
                     goals.add(placement)
                     continue
-                for dy, dx in ((-1, 0), (0, -1), (0, 1), (1, 0)):
-                    neighbor = Position(placement.y + dy, placement.x + dx)
-                    if navigator._static_walkable(neighbor):
-                        goals.add(neighbor)
+                ranged_vantages = navigator.ranged_vantage_goals(
+                    placement, RANGED_MAX_DISTANCE
+                )
+                goals.update(
+                    ranged_vantages
+                    or navigator.observation_goals(
+                        placement, RANGED_MAX_DISTANCE
+                    )
+                )
             step = navigator.route_to_static_goals(snapshot.player.position, goals)
             if step is not None:
                 self.last_reason = f"quest-strategy:q2-phase-{race_id}"

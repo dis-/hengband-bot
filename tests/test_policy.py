@@ -4015,6 +4015,82 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._q2_breach_key(strong, navigator), "T8")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-dig")
 
+    def test_q2_real_map_phase_replay_clears_every_placement_via_breach(self):
+        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
+        if not definitions.is_file():
+            self.skipTest("real Hengband quest definitions are unavailable")
+        q2 = load_quest_knowledge(definitions)[2]
+        battlefield = q2.battlefield
+        self.assertIsNotNone(battlefield)
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        profile = self.profiles[2]
+        navigator = QuestFloorNavigator(2, battlefield)
+        navigator.reset_for_floor((0, 1, 2))
+        placements = {
+            race_id: [Position(*position) for position, placed in battlefield.monster_placements
+                      if placed == race_id]
+            for race_id in profile.priority_targets
+        }
+        wand = item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=3)
+
+        def observe(placement):
+            if navigator._static_walkable(placement):
+                standing = placement
+                placement_grid = grid(placement.y, placement.x)
+            else:
+                goals = navigator.ranged_vantage_goals(
+                    placement, RANGED_MAX_DISTANCE
+                ) or navigator.observation_goals(
+                    placement, RANGED_MAX_DISTANCE
+                )
+                standing = min(
+                    goals,
+                    key=lambda position: position.distance_to(placement),
+                )
+                placement_grid = grid(
+                    placement.y, placement.x, passable=False
+                )
+            snapshot = Snapshot(
+                player(standing.y, standing.x, hp=300, max_hp=300),
+                {
+                    standing: grid(standing.y, standing.x),
+                    placement: placement_grid,
+                },
+                [], floor_key=(0, 1, 2), inventory=[wand],
+            )
+            return policy._q2_phase_key(snapshot, profile, navigator)
+
+        for race_id in profile.priority_targets[:3]:
+            for placement in placements[race_id]:
+                action = observe(placement)
+        self.assertEqual(action, "aw8")
+        self.assertFalse(policy._q2_breach_complete)
+
+        opened = Snapshot(
+            player(12, 47, hp=300, max_hp=300),
+            {
+                Position(12, 47): grid(12, 47),
+                Position(11, 47): grid(11, 47),
+            },
+            [], floor_key=(0, 1, 2), inventory=[replace(wand, charges=2)],
+        )
+        policy._q2_phase_key(opened, profile, navigator)
+        self.assertTrue(policy._q2_breach_complete)
+
+        for race_id in profile.priority_targets[3:]:
+            for placement in placements[race_id]:
+                observe(placement)
+
+        self.assertEqual(policy._q2_cleared_races, set(profile.priority_targets))
+        self.assertTrue(
+            all(
+                not navigator._static_walkable(placement)
+                for race_id in (944, 1044)
+                for placement in placements[race_id]
+            )
+        )
+
     def test_q2_outpost_errand_activates_real_carry_procurement(self):
         policy = self._policy()
         snapshot = Snapshot(

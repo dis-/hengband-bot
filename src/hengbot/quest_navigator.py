@@ -28,6 +28,10 @@ DEFAULT_HOLD_BUDGET = 2000
 # Phase bound prevents an unreachable loot target from trapping the sweep forever.
 SWEEP_BUDGET = 200
 PICKUP_KEY = "g"
+RANGED_VANTAGE_DIRECTIONS = (
+    (-1, -1), (-1, 0), (-1, 1), (0, -1),
+    (0, 1), (1, -1), (1, 0), (1, 1),
+)
 
 
 @dataclass
@@ -180,6 +184,43 @@ class QuestFloorNavigator:
     ) -> Position | None:
         path = self._static_path(start, goals)
         return path[1] if len(path) > 1 else None
+
+    def ranged_vantage_goals(
+        self, target: Position, max_distance: int
+    ) -> set[Position]:
+        """Static dry/shallow firing cells with an unobstructed 8-way ray."""
+        goals: set[Position] = set()
+        ray_terrain = {
+            "floor", "exit", "passage", "shallow_water", "deep_water"
+        }
+        for dy, dx in RANGED_VANTAGE_DIRECTIONS:
+            for distance in range(1, max_distance + 1):
+                candidate = Position(
+                    target.y - dy * distance, target.x - dx * distance
+                )
+                if not self._static_walkable(candidate):
+                    continue
+                clear = all(
+                    Position(target.y - dy * step, target.x - dx * step) in self.opened
+                    or self.battlefield.terrain.get(
+                        (target.y - dy * step, target.x - dx * step)
+                    ) in ray_terrain
+                    for step in range(1, distance)
+                )
+                if clear:
+                    goals.add(candidate)
+        return goals
+
+    def observation_goals(
+        self, target: Position, max_distance: int
+    ) -> set[Position]:
+        """Walkable cells near a mobile target's fixed-map start position."""
+        return {
+            Position(y, x)
+            for (y, x) in self.battlefield.terrain
+            if Position(y, x).distance_to(target) <= max_distance
+            and self._static_walkable(Position(y, x))
+        }
 
     def _static_path(self, start: Position, goals: set[Position]) -> list[Position]:
         queue = deque([start])
