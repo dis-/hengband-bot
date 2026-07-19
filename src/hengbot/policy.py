@@ -3887,6 +3887,19 @@ class HengbotPolicy:
     def _planned_depth(self) -> int:
         return max(1, self._deepest_level + 1)
 
+    def _equipment_optimization_depth(self, snapshot: Snapshot) -> int:
+        """Use the pending fixed quest's depth while assembling its loadout."""
+        strategy = self._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            quest = self._quest_knowledge.get(strategy.quest_id)
+            if quest is not None:
+                return max(1, quest.level)
+        if self._alternate_dungeon is not None:
+            dungeon = self._dungeon_knowledge.get(self._alternate_dungeon)
+            if dungeon is not None:
+                return max(1, dungeon.min_depth)
+        return self._planned_depth()
+
     @staticmethod
     def _recall_target(depth: int) -> int:
         if depth <= 4:
@@ -4411,9 +4424,10 @@ class HengbotPolicy:
             )
         )
         has_destruction = self._has_destruction_method(snapshot)
+        optimization_depth = self._equipment_optimization_depth(snapshot)
         signature = (
             self._equipment_catalog.home_scan_complete,
-            self._planned_depth(),
+            optimization_depth,
             tuple(sorted(item.id for item in catalog)),
             snapshot.player.level,
             snapshot.player.stat_cur,
@@ -4469,7 +4483,7 @@ class HengbotPolicy:
             snapshot,
             catalog,
             self._monrace_knowledge,
-            depth=self._planned_depth(),
+            depth=optimization_depth,
             home_scan_complete=self._equipment_catalog.home_scan_complete,
             # The AGENTS.md 50F+ gate: an identified *Destruction* scroll or a
             # charged staff in the pack (same detection as the descent gate).
@@ -4519,6 +4533,10 @@ class HengbotPolicy:
             "evaluator": "warrior-composite-confirmed-transaction-execution-enabled",
         }
         if preparation is not None:
+            if snapshot is not None:
+                state["optimization_depth"] = self._equipment_optimization_depth(
+                    snapshot
+                )
             state["blockers"] = list(preparation.blockers)
             state["encounters_total"] = preparation.encounters_total
             state["encounters_evaluated"] = preparation.encounters_evaluated
@@ -4855,6 +4873,42 @@ class HengbotPolicy:
             and not preparation.transaction.actions
             and self._equipment_transaction_session is None
         )
+
+    def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
+        """Name an unrepairable optimizer block after all town routes are spent."""
+        preparation = self._prepare_equipment_optimization(snapshot)
+        if (
+            preparation is None
+            or "no-valid-loadout" not in preparation.blockers
+            or self._next_required_store_type(snapshot) is not None
+        ):
+            return None
+        return "equipment-no-valid-loadout"
+
+    def _activate_loadout_depth_fallback(self, snapshot: Snapshot) -> int | None:
+        """Step down from an unbuildable 21F+ loadout to the best <=20F dungeon."""
+        if self._carry_procurement_strategy(snapshot) is not None:
+            return None
+        preparation = self._prepare_equipment_optimization(snapshot)
+        if (
+            preparation is None
+            or "no-valid-loadout" not in preparation.blockers
+            or self._planned_depth() <= 20
+            or self._next_required_store_type(snapshot) is not None
+        ):
+            return None
+        alternate = self._pick_alternate_dungeon(snapshot, max_entry_depth=20)
+        if alternate is None:
+            return None
+        self._alternate_dungeon = alternate
+        self._target_dungeon_id = alternate
+        self._conquest_committed = None
+        self._last_overextended_depth = max(
+            self._last_overextended_depth, self._planned_depth()
+        )
+        self._equipment_optimization_signature = None
+        self._equipment_optimization_preparation = None
+        return alternate
 
     @staticmethod
     def _home_available(snapshot: Snapshot) -> bool:
@@ -10112,6 +10166,15 @@ class HengbotPolicy:
                     self.last_reason = f"town:recall-to-{recall_dest}"
                     return READ_KEY + recall.slot + selection
 
+        if recall_dest is not None and not departure_ok:
+            if self._activate_loadout_depth_fallback(snapshot) is not None:
+                self.last_reason = "town:loadout-depth-fallback"
+                return WAIT_KEY
+            blocker = self._terminal_equipment_blocker(snapshot)
+            if blocker is not None:
+                self._town_blocked_reason = blocker
+                return self._town_blocked_key(snapshot)
+
         return None
 
     def _departure_block_state(
@@ -13307,7 +13370,9 @@ class HengbotPolicy:
             self._conquest_committed = best.id
         return best.id if best is not None else None
 
-    def _pick_alternate_dungeon(self, snapshot: Snapshot) -> int | None:
+    def _pick_alternate_dungeon(
+        self, snapshot: Snapshot, *, max_entry_depth: int | None = None
+    ) -> int | None:
         # The deepest already-unlocked dungeon — excluding the over-deep main one
         # and the Yeek Cave reserved for fundraising — whose recommended level the
         # character meets and whose floor is SHALLOWER than the depth we could not
@@ -13324,7 +13389,10 @@ class HengbotPolicy:
                 continue  # the one we are leaving — never re-pick it, always step down
             if info.min_player_level > clvl:
                 continue
-            if info.min_depth >= self._last_overextended_depth:
+            if max_entry_depth is None:
+                if info.min_depth >= self._last_overextended_depth:
+                    continue
+            elif info.min_depth > max_entry_depth:
                 continue
             # Its entry floor must be within our RESISTANCE safe band, or we just
             # trade one under-resisted dungeon for another. The character lacking

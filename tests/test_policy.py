@@ -13247,6 +13247,17 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         snap = self._town(abilities=frozenset({"resist_fire", "resist_pois"}))  # no conf
         self.assertEqual(pol._pick_alternate_dungeon(snap), 7)  # Forest, not Mountain
 
+    def test_loadout_fallback_picks_best_dungeon_at_or_below_twenty(self):
+        pol = self._policy()
+        snap = self._town(
+            abilities=frozenset({"resist_fire", "resist_pois"})
+        )
+
+        self.assertEqual(
+            pol._pick_alternate_dungeon(snap, max_entry_depth=20),
+            7,
+        )
+
     def test_steps_down_when_the_alternate_also_over_extends(self):
         pol = self._policy()
         pol._last_overextended_depth = 25  # Mountain came up empty too
@@ -19155,6 +19166,69 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             if owned.origin == "pack"
         )
         self.assertIn(spare_id, captured["preserve_pack_item_ids"])
+
+    def test_optimizer_uses_pending_fixed_quest_depth(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 20
+        policy._quest_knowledge[2] = SimpleNamespace(level=15)
+        snapshot = self._town()
+        captured = {}
+
+        def fake_prepare(*args, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(ready=False, transaction=None, blockers=())
+
+        with patch.object(
+            policy,
+            "_carry_procurement_strategy",
+            return_value=SimpleNamespace(quest_id=2),
+        ), patch("hengbot.policy.prepare_warrior_optimization", fake_prepare):
+            policy._prepare_equipment_optimization(snapshot)
+
+        self.assertEqual(captured["depth"], 15)
+
+    def test_no_valid_loadout_is_terminal_after_store_routes_are_spent(self):
+        policy = HengbotPolicy()
+        snapshot = self._town()
+        preparation = SimpleNamespace(blockers=("no-valid-loadout",))
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ), patch.object(policy, "_next_required_store_type", return_value=None):
+            self.assertEqual(
+                policy._terminal_equipment_blocker(snapshot),
+                "equipment-no-valid-loadout",
+            )
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ), patch.object(
+            policy, "_next_required_store_type", return_value=STORE_WEAPON
+        ):
+            self.assertIsNone(policy._terminal_equipment_blocker(snapshot))
+
+    def test_no_valid_21f_loadout_switches_to_best_shallower_dungeon(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 20
+        policy._dungeon_knowledge[7] = SimpleNamespace(min_depth=15)
+        snapshot = self._town()
+        preparation = SimpleNamespace(blockers=("no-valid-loadout",))
+
+        with patch.object(
+            policy, "_carry_procurement_strategy", return_value=None
+        ), patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ), patch.object(
+            policy, "_next_required_store_type", return_value=None
+        ), patch.object(
+            policy, "_pick_alternate_dungeon", return_value=7
+        ) as picker:
+            self.assertEqual(policy._activate_loadout_depth_fallback(snapshot), 7)
+            self.assertEqual(policy._equipment_optimization_depth(snapshot), 15)
+
+        picker.assert_called_once_with(snapshot, max_entry_depth=20)
+        self.assertEqual(policy._target_dungeon_id, 7)
+        self.assertEqual(policy._alternate_dungeon, 7)
 
 
 class FullPackDisposalTest(unittest.TestCase):
