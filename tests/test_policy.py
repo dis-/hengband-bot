@@ -11730,6 +11730,50 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._is_frontier = lambda *_args: False
         return pol, snap
 
+    def test_q14_completed_in_dungeon_reads_recall_to_claim(self):
+        policy, snapshot = self._q14_floor(QUEST_STATUS_COMPLETED, 5)
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snapshot = replace(snapshot, inventory=[recall])
+
+        self.assertEqual(policy.choose_key(snapshot), "rr")
+        self.assertEqual(policy.last_reason, "fixedquest:claim:return")
+
+    def test_q14_completed_in_dungeon_fights_adjacent_hostile_before_recall(self):
+        policy, snapshot = self._q14_floor(QUEST_STATUS_COMPLETED, 5)
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        hostile = MonsterState(
+            1, Position(10, 11), 1, 1, 1, False, False, race_id=257,
+        )
+        snapshot = replace(
+            snapshot,
+            inventory=[recall],
+            grids={
+                **snapshot.grids,
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            visible_monsters=[hostile],
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "melee")
+
+    def test_q14_completed_in_dungeon_without_recall_steers_upstairs(self):
+        policy, snapshot = self._q14_floor(QUEST_STATUS_COMPLETED, 5)
+        snapshot = replace(
+            snapshot,
+            grids={Position(10, 10): grid(10, 10, upstairs=True, downstairs=True)},
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "<")
+        self.assertEqual(policy.last_reason, "fixedquest:claim:return")
+
+    def test_q14_completed_in_dungeon_waits_for_pending_recall(self):
+        policy, snapshot = self._q14_floor(QUEST_STATUS_COMPLETED, 5)
+        snapshot = replace(snapshot, player=replace(snapshot.player, recalling=True))
+
+        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.last_reason, "return:wait-recall")
+
     def test_taken_q14_exhausted_floor_regenerates_up_instead_of_descending(self):
         pol, snap = self._exhausted_q14_floor(QUEST_STATUS_TAKEN, 5)
         self.assertEqual(pol.choose_key(snap), "<")
@@ -11788,7 +11832,19 @@ class TownRecallReturnTest(unittest.TestCase):
             else:
                 self.assertEqual(result, "5")
                 self.assertEqual(pol.last_reason, "quest:regen:exhausted")
-        self.assertNotEqual(pol.choose_key(floor5), ">")
+        for _ in range(3):
+            self.assertEqual(pol.choose_key(floor5), "5")
+            self.assertEqual(pol.last_reason, "quest:regen:exhausted")
+
+    def test_completed_q14_descent_predicates_and_regeneration_are_inert(self):
+        completed, snap = self._exhausted_q14_floor(QUEST_STATUS_COMPLETED, 5)
+        rewarded, baseline = self._exhausted_q14_floor(QUEST_STATUS_REWARDED, 5)
+        completed._fixed_quest_key = lambda *_args: None
+
+        self.assertTrue(completed._kill_quest_descent_allowed(snap))
+        self.assertIsNone(completed._kill_quest_floor_recovery_key(snap))
+        self.assertIsNone(completed._start_kill_quest_regeneration(snap))
+        self.assertEqual(completed.choose_key(snap), rewarded.choose_key(baseline))
 
     def test_untaken_q14_below_objective_does_not_veto_descent(self):
         pol, snap = self._q14_floor(QUEST_STATUS_UNTAKEN, 8)

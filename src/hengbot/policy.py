@@ -10865,7 +10865,7 @@ class HengbotPolicy:
     def _fixed_quest_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
-        if hostiles:
+        if self._adjacent_hostiles(snapshot):
             return None
         if snapshot.in_town and snapshot.town_id != 0:
             q2 = snapshot.quests.get(2)
@@ -10898,7 +10898,11 @@ class HengbotPolicy:
                 return self._fixed_quest_reward_key(snapshot, quest_id)
             if quest.status == QUEST_STATUS_COMPLETED:
                 if not snapshot.in_town:
-                    return None
+                    self._returning_to_town = True
+                    key = self._return_to_town_key(snapshot, hostiles)
+                    if key is not None and self.last_reason != "return:wait-recall":
+                        self.last_reason = "fixedquest:claim:return"
+                    return key
                 return self._fixed_quest_building_key(
                     snapshot,
                     quest_id,
@@ -13368,7 +13372,8 @@ class HengbotPolicy:
         ):
             return None
         if self._quest_regen_exhausted_floor == snapshot.floor_key:
-            return None
+            self.last_reason = "quest:regen:exhausted"
+            return WAIT_KEY
         if self._quest_regen_phase == "ascend":
             pass
         elif self._quest_regen_id == quest.id:
