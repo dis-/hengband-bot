@@ -39,7 +39,9 @@ from hengbot.warrior_equipment_evaluator import (
 )
 from hengbot.warrior_loadout_evaluator import (
     CachedWarriorLoadoutEvaluator,
+    TR_CON,
     WarriorLoadoutInputs,
+    constitution_hp_bonus,
 )
 from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
 
@@ -228,6 +230,19 @@ def prepare_warrior_optimization(
     base_dex = _base_stat_without_current_gear(
         displayed_stats[3], current, TR_DEX
     )
+    base_con = (
+        _base_stat_without_current_gear(displayed_stats[4], current, TR_CON)
+        if len(displayed_stats) >= 5
+        else 3
+    )
+    current_con = modify_stat_value(
+        base_con,
+        sum(item.item.pval for _, item in current.slots if TR_CON in item.flags),
+    )
+    base_hp = max(
+        1,
+        player.max_hp - constitution_hp_bonus(current_con, player.level),
+    )
     provisional_defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_dex,
@@ -261,6 +276,8 @@ def prepare_warrior_optimization(
         spell_selection=SpellSelectionContext(
             player_has_mana=player.max_mp > 0,
         ),
+        natural_con=base_con,
+        base_hp=base_hp,
     )
     evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
     pinned = {

@@ -11,6 +11,7 @@ from hengbot.warrior_loadout_evaluator import (
     CachedWarriorLoadoutEvaluator,
     WarriorLoadoutInputs,
     evaluate_warrior_loadout,
+    loadout_max_hp,
     warrior_ranged_offense_dps,
 )
 
@@ -77,6 +78,29 @@ class WarriorLoadoutEvaluatorTest(unittest.TestCase):
         )
         self.assertAlmostEqual(result.metrics.survival_turns, 100 / incoming)
         self.assertTrue(result.metrics.evaluation_complete)
+
+    def test_loadout_hp_tracks_constitution_pval(self):
+        helm_item = InventoryItem(
+            slot="head", name="stat helm", count=1, tval=33, sval=1,
+            aware=True, known=True, fully_known=True, is_equipment=True,
+            pval=3, known_flags=frozenset({4}),
+        )
+        helm = OwnedEquipment("stat-helm", helm_item, "equipped")
+        inputs = WarriorLoadoutInputs(
+            WarriorCombatInputs(
+                level=25, natural_str=140, natural_dex=38, melee_skill=175
+            ),
+            WarriorDefenseInputs(level=25, natural_dex=38),
+            current_hp=583,
+            natural_con=180,
+            base_hp=365,
+        )
+
+        self.assertEqual(loadout_max_hp(Loadout((), "empty"), inputs), 583)
+        self.assertEqual(
+            loadout_max_hp(Loadout((("head", helm),), "empty"), inputs),
+            627,
+        )
 
     def test_smart_selection_context_fails_closed(self):
         race = MonraceKnowledge(

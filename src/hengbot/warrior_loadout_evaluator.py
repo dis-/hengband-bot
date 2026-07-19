@@ -97,6 +97,12 @@ RESOURCE_RISK_WEIGHTS = {
 
 TR_XTRA_MIGHT = 82
 TR_XTRA_SHOTS = 83
+TR_CON = 4
+ADJ_CON_HP = (
+    -8, -6, -4, -2, -1, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 4,
+    5, 6, 7, 8, 9, 10, 11, 12, 14, 17, 20, 23, 26, 29, 32, 35,
+    38, 40, 42, 44, 46, 48,
+)
 STORE_AMMO_AVERAGE_DAMAGE = {16: 2.0, 17: 2.5, 18: 3.0}
 LAUNCHER_PROPERTIES = {
     2: (16, 8000, 2),
@@ -114,6 +120,8 @@ class WarriorLoadoutInputs:
     defense: WarriorDefenseInputs
     current_hp: int
     spell_selection: SpellSelectionContext | None = None
+    natural_con: int = 3
+    base_hp: int | None = None
 
 
 @dataclass(frozen=True)
@@ -127,6 +135,24 @@ class WarriorLoadoutResult:
 
 def _pval_total(loadout: Loadout, flag: int) -> int:
     return sum(item.item.pval for _, item in loadout.slots if flag in item.flags)
+
+
+def constitution_hp_bonus(constitution: int, level: int) -> int:
+    return trunc_div(ADJ_CON_HP[stat_index(constitution)] * level, 4)
+
+
+def loadout_max_hp(loadout: Loadout, inputs: WarriorLoadoutInputs) -> int:
+    """Apply Hengband's Warrior CON hit-point adjustment to this loadout."""
+    if inputs.base_hp is None:
+        return inputs.current_hp
+    constitution = modify_stat_value(
+        inputs.natural_con, _pval_total(loadout, TR_CON)
+    )
+    return max(
+        1,
+        inputs.base_hp
+        + constitution_hp_bonus(constitution, inputs.combat.level),
+    )
 
 
 def _shooting_misc_to_hit(loadout: Loadout) -> int:
@@ -189,7 +215,9 @@ class CachedWarriorLoadoutEvaluator:
         self.encounters = encounters
         self._melee: dict[tuple[object, ...], WarriorMeleeResult] = {}
         self._defense: dict[tuple[object, ...], WarriorDefenseResult] = {}
-        self._ranged: dict[frozenset[int], WarriorRangedDefenseResult] = {}
+        self._ranged: dict[
+            tuple[frozenset[int], int], WarriorRangedDefenseResult
+        ] = {}
         self._weapon_multipliers: dict[str, tuple[tuple[int, float], ...]] = {}
         self._average_target_hp = sum(
             encounter.weight * encounter.knowledge.average_hp
@@ -238,16 +266,18 @@ class CachedWarriorLoadoutEvaluator:
             self._defense[defense_key] = defense
 
         flags = loadout.flags | self.inputs.defense.intrinsic_flags
-        ranged = self._ranged.get(flags)
+        player_hp = loadout_max_hp(loadout, self.inputs)
+        ranged_key = (flags, player_hp)
+        ranged = self._ranged.get(ranged_key)
         if ranged is None:
             ranged = evaluate_warrior_ranged_defense(
                 flags,
                 saving_skill=self.inputs.defense.saving_skill,
-                player_hp=self.inputs.current_hp,
+                player_hp=player_hp,
                 encounters=self.encounters,
                 selection_context=self.inputs.spell_selection,
             )
-            self._ranged[flags] = ranged
+            self._ranged[ranged_key] = ranged
 
         return _combine_warrior_results(loadout, self.inputs, melee, defense, ranged)
 
@@ -292,10 +322,11 @@ def evaluate_warrior_loadout(
     melee = evaluate_warrior_melee(loadout, inputs.combat, encounters)
     defense = evaluate_warrior_defense(loadout, inputs.defense, encounters)
     flags = loadout.flags | inputs.defense.intrinsic_flags
+    player_hp = loadout_max_hp(loadout, inputs)
     ranged = evaluate_warrior_ranged_defense(
         flags,
         saving_skill=inputs.defense.saving_skill,
-        player_hp=inputs.current_hp,
+        player_hp=player_hp,
         encounters=encounters,
         selection_context=inputs.spell_selection,
     )
@@ -310,8 +341,9 @@ def _combine_warrior_results(
     ranged: WarriorRangedDefenseResult,
 ) -> WarriorLoadoutResult:
     incoming = defense.expected_melee_damage + ranged.expected_ranged_damage
+    player_hp = loadout_max_hp(loadout, inputs)
     survival_turns = (
-        inputs.current_hp / incoming if incoming > 0 else float("inf")
+        player_hp / incoming if incoming > 0 else float("inf")
     )
     kill_turns = melee.expected_kill_turns
     if isinf(kill_turns):
