@@ -1093,6 +1093,7 @@ class HengbotPolicy:
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
         self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
+        self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
@@ -2891,6 +2892,7 @@ class HengbotPolicy:
 
         if snapshot.floor_key != self._floor_key:
             self._town_visit_purchases.clear()
+            self._quest_light_attempted.clear()
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
             self._fundraising_pursuit_target = None
@@ -11011,6 +11013,73 @@ class HengbotPolicy:
                 return Position(*placement)
         return None
 
+    def _quest_profile_ammo(
+        self, snapshot: Snapshot, profile: StrategyProfile
+    ) -> InventoryItem | None:
+        ammo_tval = self._quest_launcher_ammo(profile.required_force)
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None or launcher.ammo_tval != ammo_tval:
+            return None
+        return self._first_item(snapshot, lambda item: item.tval == ammo_tval)
+
+    def _q2_ranged_core_key(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        hostiles: list[MonsterState],
+    ) -> str | None:
+        if snapshot.player.blind or snapshot.player.confused:
+            return None
+        ammo = self._quest_profile_ammo(snapshot, profile)
+        if ammo is None:
+            return None
+        ordered_races = (
+            *profile.priority_targets,
+            *sorted(
+                {monster.race_id for monster in hostiles}
+                - set(profile.priority_targets)
+            ),
+        )
+        target = next(
+            (
+                candidate
+                for race_id in ordered_races
+                if (
+                    candidate := self._ranged_target(
+                        snapshot,
+                        [monster for monster in hostiles if monster.race_id == race_id],
+                    )
+                )
+                is not None
+            ),
+            None,
+        )
+        if target is None:
+            return None
+        target_grid = snapshot.grid_at(target.position)
+        light = self._first_item(
+            snapshot,
+            lambda item: item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_LIGHT
+            and item.aware,
+        )
+        light_key = (snapshot.floor_key, target.position)
+        if (
+            target_grid is not None
+            and not target_grid.lit
+            and light is not None
+            and light_key not in self._quest_light_attempted
+        ):
+            self._quest_light_attempted.add(light_key)
+            self.last_reason = "quest-strategy:q2-light-area"
+            return READ_KEY + light.slot
+        self.last_reason = "quest-strategy:q2-fire"
+        return (
+            FIRE_KEY
+            + ammo.slot
+            + self._direction_key(snapshot.player.position, target.position)
+        )
+
     def _quest_execute_key(
         self,
         snapshot: Snapshot,
@@ -11105,6 +11174,11 @@ class HengbotPolicy:
             )
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
+
+        if profile.quest_id == 2 and hostiles:
+            ranged = self._q2_ranged_core_key(snapshot, profile, hostiles)
+            if ranged is not None:
+                return ranged
 
         if hostiles:
             present = {monster.race_id for monster in hostiles}

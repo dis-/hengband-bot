@@ -520,6 +520,7 @@ class GridState:
     has_quest_exit: bool = False
     quest_id: int = -1
     building_special: int = -1
+    lit: bool = False
 
     @property
     def is_store(self) -> bool:
@@ -792,6 +793,7 @@ def parse_snapshot(
             building_special=(
                 int(grid_data.get("building_special", -1)) if known else -1
             ),
+            lit=known and _as_bool(flags.get("lite", False)),
         )
 
     positions = {

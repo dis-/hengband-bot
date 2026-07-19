@@ -210,6 +210,7 @@ def grid(
     has_quest_exit=False,
     quest_id=-1,
     building_special=-1,
+    lit=False,
 ):
     pos = Position(y, x)
     walkable = (passable and not closed_door and not rubble) or open_door
@@ -235,6 +236,7 @@ def grid(
         has_quest_exit=known and has_quest_exit,
         quest_id=quest_id if known else -1,
         building_special=building_special if known else -1,
+        lit=known and lit,
     )
 
 
@@ -3913,6 +3915,71 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             self.assertEqual(policy._retention_reservation(retained, carried_bolts), 45)
             self.assertEqual(policy._retention_reservation(retained, carried_light), 6)
             self.assertEqual(policy._retention_reservation(retained, carried_wand), 1)
+
+    def test_q2_lights_dark_shooting_area_before_firing_fixed_undead(self):
+        policy = self._policy()
+        # Real Q2 placement: corpse mass 202 occupies [7,35]/[7,36].
+        target = replace(hostile(1, 7, 35, distance=4), race_id=202)
+        grids = {
+            Position(7, x): grid(
+                7, x, monster=x == 35, lit=False
+            )
+            for x in range(31, 36)
+        }
+        bolts = item("b", TVAL_BOLT, 0, count=45)
+        light = item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)
+        snapshot = Snapshot(
+            player(7, 31, hp=300, max_hp=300), grids, [target],
+            floor_key=(0, 1, 2), inventory=[bolts, light],
+            equipment=[item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)],
+        )
+        policy._fixed_quest_speed_attempted = True
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [target], []), "rl"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-light-area")
+
+        # A failed/no-op light read is still bounded: do not consume all six.
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
+        )
+
+        lit_grids = dict(grids)
+        lit_grids[target.position] = replace(grids[target.position], lit=True)
+        illuminated = replace(snapshot, grids=lit_grids, inventory=[bolts])
+        self.assertEqual(
+            policy._approved_quest_strategy_key(illuminated, [target], []), "fb6"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
+
+    def test_q2_fires_profile_bolts_at_fixed_water_target(self):
+        policy = self._policy()
+        # Real Q2 placement: deep-water target 944 occupies [12,64].
+        target = replace(hostile(1, 12, 64, distance=4), race_id=944)
+        grids = {
+            Position(12, x): grid(
+                12, x, monster=x == 64, lit=True
+            )
+            for x in range(60, 65)
+        }
+        snapshot = Snapshot(
+            player(12, 60), grids, [target], floor_key=(0, 1, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=45)],
+            equipment=[item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)],
+        )
+        policy._fixed_quest_speed_attempted = True
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
+        )
+        no_crossbow = replace(
+            snapshot,
+            equipment=[item("bow", TVAL_BOW, SV_BOW_SHORT, is_equipment=True)],
+        )
+        self.assertIsNone(
+            policy._q2_ranged_core_key(no_crossbow, self.profiles[2], [target])
+        )
 
     def test_completed_mining_rearms_normal_maintenance_restock(self):
         policy = self._policy()

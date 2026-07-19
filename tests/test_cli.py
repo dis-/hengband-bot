@@ -209,6 +209,23 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertIsNone(_newest_snapshot([]))
         self.assertIsNone(_newest_snapshot(["\n", "   \n"]))
 
+    def test_parses_visible_grid_lighting_for_quest_area_setup(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "monster_index": 0,
+                "terrain": {"move": True},
+                "flags": {"lite": True},
+            }
+        ]
+
+        snapshot = parse_snapshot(data, {})
+
+        self.assertTrue(snapshot.grid_at(Position(5, 6)).lit)
+
     def test_derives_summoning_from_race_id_not_snapshot_capabilities(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["nearby_grids"] = [
