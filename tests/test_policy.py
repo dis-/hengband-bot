@@ -4513,6 +4513,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         grids = {
             Position(10, 19): grid(10, 19), Position(10, 20): grid(10, 20),
             Position(9, 20): grid(9, 20, monster=True),
+            Position(11, 2): grid(11, 2),
         }
         snap = Snapshot(
             player(10, 19), grids, [blocker], inventory=[torch], floor_key=(0, 1, 34)
@@ -4542,6 +4543,17 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(
             policy._approved_quest_strategy_key(start, [monster], []), "4"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:approach-opening-door"
+        )
+
+        unobserved = replace(start, grids={
+            **{Position(1, x): grid(1, x) for x in range(1, 21)},
+            **{Position(y, 1): grid(y, 1) for y in range(2, 12)},
+        })
+        self.assertEqual(
+            policy._approved_quest_strategy_key(unobserved, [monster], []), "4"
         )
         self.assertEqual(
             policy.last_reason, "quest-strategy:approach-opening-door"

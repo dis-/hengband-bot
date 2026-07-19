@@ -11490,7 +11490,26 @@ class HengbotPolicy:
             door = Position(*opening_door)
             approach = Position(*opening_approach)
             door_grid = snapshot.grid_at(door)
-            if door_grid is not None and door_grid.known and door_grid.is_closed_door:
+            hold_value = profile.engagement_plan.get("hold_position")
+            hold_position = Position(*hold_value) if hold_value is not None else None
+            recovery_bounds = profile.engagement_plan.get("supply_recovery_bounds")
+            inside_opened_area = False
+            if recovery_bounds is not None:
+                min_y, min_x, max_y, max_x = recovery_bounds
+                inside_opened_area = (
+                    min_y <= snapshot.player.position.y <= max_y
+                    and min_x <= snapshot.player.position.x <= max_x
+                )
+            opening_complete = (
+                inside_opened_area
+                or snapshot.player.position == hold_position
+                or (
+                    door_grid is not None
+                    and door_grid.known
+                    and not door_grid.is_closed_door
+                )
+            )
+            if not opening_complete:
                 if snapshot.player.position != approach:
                     route_goal = approach
                     if opening_corner is not None:
@@ -11503,6 +11522,9 @@ class HengbotPolicy:
                         return WAIT_KEY
                     self.last_reason = "quest-strategy:approach-opening-door"
                     return self._step_toward(snapshot, step)
+                if door_grid is None or not door_grid.known:
+                    self.last_reason = "quest-strategy:search-opening-door"
+                    return SEARCH_KEY
                 self.last_reason = "quest-strategy:open-opening-door"
                 return self._step_toward(snapshot, door)
 
