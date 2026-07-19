@@ -7,6 +7,7 @@ from unittest.mock import patch
 import hengbot.policy as policy_module
 
 from hengbot.town_maps import TownMap, parse_town_map
+from hengbot.wilderness_map import WildernessMap
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_YEEK_CAVE,
@@ -12771,7 +12772,18 @@ class WildernessSafetyTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "wilderness:flee")
         self.assertNotEqual(key, "6")  # never step east INTO the adjacent monster
 
-    def test_recalls_off_the_wilderness_when_safe(self):
+    def test_distant_or_sleeping_monsters_do_not_block_global_map(self):
+        distant = replace(hostile(1, 10, 30), distance=21)
+        sleeping = replace(hostile(2, 10, 11), asleep=True)
+        snap = Snapshot(
+            player(10, 10), self._wild_grids(), [distant, sleeping],
+            floor_key=(0, 0, 0), town_flag=False,
+        )
+        pol = HengbotPolicy()
+        self.assertEqual(pol.choose_key(snap), "<")
+        self.assertEqual(pol.last_reason, "wilderness:enter-global")
+
+    def test_enters_global_map_from_safe_local_wilderness(self):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
         snap = Snapshot(
             player(10, 10, hp=100, max_hp=100),
@@ -12782,8 +12794,46 @@ class WildernessSafetyTest(unittest.TestCase):
             inventory=[recall],
         )
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "rr")  # read Word of Recall at slot r
-        self.assertEqual(pol.last_reason, "wilderness:recall")
+        self.assertEqual(pol.choose_key(snap), "<")
+        self.assertEqual(pol.last_reason, "wilderness:enter-global")
+
+    def test_routes_on_global_map_and_enters_town(self):
+        wilderness = WildernessMap(("#####", "#*1.#", "#####"))
+        travelling = Snapshot(
+            player(1, 1), {}, [], floor_key=(0, 0, 0),
+            width=5, height=3, town_flag=False,
+        )
+        pol = HengbotPolicy(wilderness_map=wilderness)
+        self.assertEqual(pol.choose_key(travelling), "6")
+        self.assertEqual(pol.last_reason, "wilderness:global-travel")
+
+        at_town = replace(travelling, player=player(1, 2))
+        self.assertEqual(pol.choose_key(at_town), ">")
+        self.assertEqual(pol.last_reason, "wilderness:enter-town")
+
+    def test_global_route_prefers_road_and_never_uses_water(self):
+        wilderness = WildernessMap((
+            "#######",
+            "#.._..#",
+            "#*~~~1#",
+            "#*****#",
+            "#######",
+        ))
+        pos = Position(2, 1)
+        keys = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+                "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+        visited = []
+        for _ in range(20):
+            key = wilderness.next_key_to_town(pos.y, pos.x)
+            if key == ">":
+                break
+            self.assertIn(key, keys)
+            dy, dx = keys[key]
+            pos = Position(pos.y + dy, pos.x + dx)
+            visited.append(wilderness.rows[pos.y][pos.x])
+        self.assertEqual((pos.y, pos.x), (2, 5))
+        self.assertNotIn("_", visited)
+        self.assertNotIn("~", visited)
 
     def test_town_wander_never_steps_onto_the_border_ring(self):
         # A small walled town; from an interior tile the least-visited-neighbour

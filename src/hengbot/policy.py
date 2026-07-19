@@ -10,6 +10,7 @@ from typing import Literal
 from pathlib import Path
 
 from hengbot.town_maps import TownMap
+from hengbot.wilderness_map import WildernessMap
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
     TR_TELEPORT,
@@ -1077,6 +1078,7 @@ class HengbotPolicy:
         self,
         town_map: "TownMap | None" = None,
         town_maps: "dict[int, TownMap] | None" = None,
+        wilderness_map: "WildernessMap | None" = None,
         dungeon_knowledge: "dict[int, DungeonInfo] | None" = None,
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
@@ -1088,6 +1090,7 @@ class HengbotPolicy:
         # store without the emitter revealing anything the player cannot see.
         self._town_map = town_map
         self._town_maps = dict(town_maps or {})
+        self._wilderness_map = wilderness_map
         if town_map is not None:
             self._town_maps.setdefault(0, town_map)
         # Static dungeon depth/level facts (lib/edit/DungeonDefinitions), also prior
@@ -13648,18 +13651,40 @@ class HengbotPolicy:
     def _wilderness_survival_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str:
-        """Get off an open (non-town) wilderness tile alive.
+        """Reach a town through local and global wilderness without fighting.
 
         The bot only reaches here by straying off a town border, so it is likely
-        under-levelled for whatever roams this tile. Never fight for XP: flee,
-        then recall to safety; if neither is possible, hold still (a stationary
+        under-levelled for whatever roams this tile. Nearby monsters are fled;
+        when safe, '<' opens the global map and a road-biased route reaches town.
         stall trips the loop detector, which stops the bot for investigation —
         far better than marching deeper or trading blows with an out-of-depth
         monster).
         """
         player = snapshot.player
-        if hostiles:
-            step = self._flee_step(snapshot, hostiles)
+        global_map = self._wilderness_map
+        in_global_map = (
+            global_map is not None
+            and snapshot.width == global_map.width
+            and snapshot.height == global_map.height
+        )
+        if in_global_map:
+            key = global_map.next_key_to_town(player.position.y, player.position.x)
+            if key == DOWN_STAIRS_KEY:
+                self.last_reason = "wilderness:enter-town"
+                return key
+            if key is not None:
+                self.last_reason = "wilderness:global-travel"
+                return key
+            self.last_reason = "wilderness:no-safe-route"
+            return WAIT_KEY
+
+        nearby_hostiles = [
+            monster
+            for monster in hostiles
+            if not monster.asleep and monster.distance <= 20
+        ]
+        if nearby_hostiles:
+            step = self._flee_step(snapshot, nearby_hostiles)
             if step is not None:
                 self.last_reason = "wilderness:flee"
                 return self._step_toward(snapshot, step)
@@ -13668,16 +13693,8 @@ class HengbotPolicy:
                 if scroll is not None:
                     self.last_reason = "wilderness:escape-scroll"
                     return READ_KEY + scroll.slot
-        if player.recalling:
-            self.last_reason = "wilderness:wait-recall"
-            return WAIT_KEY
-        if not player.blind and not player.confused:
-            recall = self._find_recall_scroll(snapshot)
-            if recall is not None:
-                self.last_reason = "wilderness:recall"
-                return READ_KEY + recall.slot
-        self.last_reason = "wilderness:hold"
-        return WAIT_KEY
+        self.last_reason = "wilderness:enter-global"
+        return UP_STAIRS_KEY
 
     def _return_to_town_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

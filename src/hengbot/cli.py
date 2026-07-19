@@ -16,6 +16,7 @@ from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_kno
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
+from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.policy import (
     FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
@@ -981,6 +982,17 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as exc:
             print(f"could not load Telmora map ({telmora_path}): {exc}", file=sys.stderr)
 
+    wilderness_map = None
+    wilderness_path = find_wilderness_definition(args.state_file)
+    if wilderness_path is not None:
+        try:
+            wilderness_map = load_wilderness_map(wilderness_path)
+        except (OSError, ValueError) as exc:
+            print(
+                f"could not load wilderness map ({wilderness_path}): {exc}",
+                file=sys.stderr,
+            )
+
     # Static dungeon depth/level facts let the bot recall into a level-appropriate
     # dungeon instead of over-extending in one far past its recommended level.
     # Optional: without it the bot still plays, just never switches dungeons.
@@ -1011,6 +1023,7 @@ def main(argv: list[str] | None = None) -> int:
     policy = ConservativePolicy(
         town_map=outpost_map,
         town_maps=town_maps,
+        wilderness_map=wilderness_map,
         dungeon_knowledge=dungeon_knowledge,
         monrace_knowledge=monrace_knowledge,
         quest_knowledge=quest_knowledge,
