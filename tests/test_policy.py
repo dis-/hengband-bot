@@ -4617,8 +4617,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         grids = {Position(10, 20): grid(10, 20)}
         bee = replace(hostile(9, 3, 13, distance=14), race_id=174)
+        later_sword = replace(hostile(10, 9, 11, distance=9), race_id=107)
         hold = Snapshot(
-            player(10, 20), grids, [bee],
+            player(10, 20), grids, [bee, later_sword],
             inventory=[
                 item("t", TVAL_LITE, SV_LITE_TORCH, count=18, fuel=5000)
             ],
@@ -4627,7 +4628,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._build_grid_index(hold)
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(hold, [bee], []), "8"
+            policy._approved_quest_strategy_key(
+                hold, [bee, later_sword], []
+            ),
+            "8",
         )
         self.assertEqual(policy.last_reason, "quest-strategy:survey-throw-point")
 
@@ -4640,7 +4644,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            policy._approved_quest_strategy_key(at_cloaker_point, [bee], []),
+            policy._approved_quest_strategy_key(
+                at_cloaker_point, [bee, later_sword], []
+            ),
             WAIT_KEY,
         )
         self.assertEqual(policy.last_reason, "quest-strategy:survey-target-cleared")

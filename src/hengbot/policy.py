@@ -11464,26 +11464,31 @@ class HengbotPolicy:
         profile: StrategyProfile,
         goal: Position,
     ) -> Position | None:
-        step = self._town_map_goal_step(snapshot, goal)
-        if step is not None:
-            return step
         info = self._quest_knowledge.get(profile.quest_id)
         battlefield = info.battlefield if info is not None else None
-        if battlefield is None:
-            return None
-        navigator = self._quest_navigators.setdefault(
-            profile.quest_id,
-            QuestFloorNavigator(profile.quest_id, battlefield),
-        )
         blocked = {
             Position(*raw)
             for raw in profile.engagement_plan.get("avoid_door_positions", ())
         }
-        return navigator.route_to_static_goals(
-            snapshot.player.position,
-            {goal},
-            blocked=blocked,
-        )
+        for plan in profile.engagement_plan.get("throwing_points", ()):
+            target = Position(*plan["target"])
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    blocked.add(Position(target.y + dy, target.x + dx))
+        blocked.discard(goal)
+        if battlefield is not None:
+            navigator = self._quest_navigators.setdefault(
+                profile.quest_id,
+                QuestFloorNavigator(profile.quest_id, battlefield),
+            )
+            step = navigator.route_to_static_goals(
+                snapshot.player.position,
+                {goal},
+                blocked=blocked,
+            )
+            if step is not None:
+                return step
+        return self._town_map_goal_step(snapshot, goal)
 
     def _quest_execute_key(
         self,
@@ -11721,14 +11726,59 @@ class HengbotPolicy:
                 return ranged
 
         if combat_hostiles:
-            present = {monster.race_id for monster in combat_hostiles}
-            active_race = next(
-                (race_id for race_id in profile.priority_targets if race_id in present), None
+            next_throw_plan = next(
+                (
+                    plan
+                    for plan in throwing_points
+                    if (
+                        int(plan.get("race_id", 0)),
+                        int(plan["target"][0]),
+                        int(plan["target"][1]),
+                    ) not in cleared_targets
+                ),
+                None,
             )
-            targets = [
-                monster for monster in combat_hostiles
-                if monster.race_id == active_race
-            ]
+            if next_throw_plan is not None:
+                planned_target = Position(*next_throw_plan["target"])
+                targets = [
+                    monster for monster in combat_hostiles
+                    if monster.race_id == int(next_throw_plan["race_id"])
+                    and monster.position == planned_target
+                ]
+                configured_targets_visible = any(
+                    monster.race_id == int(plan.get("race_id", 0))
+                    and monster.position == Position(*plan["target"])
+                    for plan in throwing_points
+                    for monster in combat_hostiles
+                )
+                if not targets and not configured_targets_visible:
+                    present = {monster.race_id for monster in combat_hostiles}
+                    active_race = next(
+                        (
+                            race_id
+                            for race_id in profile.priority_targets
+                            if race_id in present
+                        ),
+                        None,
+                    )
+                    targets = [
+                        monster for monster in combat_hostiles
+                        if monster.race_id == active_race
+                    ]
+            else:
+                present = {monster.race_id for monster in combat_hostiles}
+                active_race = next(
+                    (
+                        race_id
+                        for race_id in profile.priority_targets
+                        if race_id in present
+                    ),
+                    None,
+                )
+                targets = [
+                    monster for monster in combat_hostiles
+                    if monster.race_id == active_race
+                ]
             torch = self._first_item(snapshot, lambda item: item.is_torch)
             throwing_points = profile.engagement_plan.get("throwing_points", ())
             planned_throw = next(
@@ -11774,18 +11824,7 @@ class HengbotPolicy:
         # earlier in the same quest. Revisit the approved firing points in
         # order; from each point the target cell is directly observable, so an
         # empty cell safely reconstructs both defeat and recovery state.
-        planned_throw_races = {
-            int(plan.get("race_id", 0)) for plan in throwing_points
-        }
-        has_planned_throw_hostile = any(
-            monster.race_id in planned_throw_races
-            for monster in combat_hostiles
-        )
-        if (
-            throwing_points
-            and not has_planned_throw_hostile
-            and not final_target_phase
-        ):
+        if throwing_points and not final_target_phase:
             survey_plan = next(
                 (
                     plan
