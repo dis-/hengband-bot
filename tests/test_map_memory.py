@@ -99,6 +99,30 @@ class PerFloorGridMemoryTest(unittest.TestCase):
         self.assertNotIn(old, town.grids)
         self.assertEqual(set(town.grids), {Position(10, 3)})
 
+    def test_surface_region_change_clears_same_floor_key_memory(self):
+        policy = HengbotPolicy()
+        stale = Position(10, 7)
+        local = replace(
+            snapshot(6, [grid(10, 6), grid(10, 7)], floor=(0, 0, 0)),
+            width=198,
+            height=66,
+            town_id=-1,
+            town_flag=False,
+        )
+        policy._with_grid_memory(local)
+
+        town = replace(
+            snapshot(3, [grid(10, 3)], floor=(0, 0, 0), turn=2),
+            width=198,
+            height=66,
+            town_id=2,
+            town_flag=True,
+        )
+        current = policy._with_grid_memory(town)
+
+        self.assertNotIn(stale, current.grids)
+        self.assertEqual(set(current.grids), {Position(10, 3)})
+
     def test_dark_cavern_exploration_keeps_route_through_vanished_trail(self):
         policy = HengbotPolicy()
         corridor = [grid(10, x) for x in range(5, 11)]

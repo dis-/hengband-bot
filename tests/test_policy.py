@@ -18376,12 +18376,30 @@ class EntranceTravelTest(unittest.TestCase):
         pol = HengbotPolicy()
         snap = self._surface_snap(turn=1)
         self.assertEqual(self._travel(pol, snap), "\x1b`n>.")
-        # Rejected route: allow a bounded set of retries for Windows input
-        # latency, then give the goal back to BFS walking.
-        for _ in range(TOWN_TRAVEL_STALL_LIMIT - 1):
-            self.assertEqual(self._travel(pol, snap), "\x1b`n>.")
+        # The duplicate is emitted only after the stall nudge waited and sent
+        # Escape, so immediately give the rejected entrance back to BFS.
         self.assertIsNone(self._travel(pol, snap))
         self.assertIsNone(self._travel(pol, snap))
+
+    def test_yeek_entrance_is_not_a_descent_target_outside_outpost(self):
+        pol = HengbotPolicy()
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+        entrance = grid(
+            34,
+            130,
+            entrance=True,
+            entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+        )
+        elsewhere = replace(
+            self._surface_snap(),
+            grids={entrance.position: entrance},
+            town_id=2,
+            town_flag=True,
+        )
+        outpost = replace(elsewhere, town_id=0)
+
+        self.assertFalse(pol._is_descent_target(elsewhere, entrance))
+        self.assertTrue(pol._is_descent_target(outpost, entrance))
 
     def test_dungeon_floors_never_travel(self):
         pol = HengbotPolicy()

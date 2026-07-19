@@ -1176,7 +1176,7 @@ class HengbotPolicy:
         # Hengband does not mark dark floor permanently, so walked corridors can
         # disappear from later nearby_grids snapshots. Retain the last terrain
         # observation for this floor visit; dynamic occupancy is stripped below.
-        self._grid_memory_floor: tuple[int, int, int] | None = None
+        self._grid_memory_region: tuple[int, int, int, int, int, int, bool] | None = None
         self._grid_memory: dict[Position, GridState] = {}
         self._last_position: Position | None = None
         self._recent: deque[Position] = deque(maxlen=STUCK_WINDOW)
@@ -1501,8 +1501,18 @@ class HengbotPolicy:
         terrain. Monster occupancy is different: it is authoritative only in the
         current snapshot and must never survive after its grid leaves view.
         """
-        if self._grid_memory_floor != snapshot.floor_key:
-            self._grid_memory_floor = snapshot.floor_key
+        # Every surface view uses floor_key=(0, 0, 0), including fixed towns,
+        # local wilderness, and the differently-sized global map.  Terrain from
+        # one of those coordinate spaces must never leak into another one.
+        region = (
+            *snapshot.floor_key,
+            snapshot.width,
+            snapshot.height,
+            snapshot.town_id,
+            snapshot.in_town,
+        )
+        if self._grid_memory_region != region:
+            self._grid_memory_region = region
             self._grid_memory = {}
 
         remembered = {
@@ -9304,6 +9314,20 @@ class HengbotPolicy:
             return None
         if not self._has_light_equipped(snapshot):
             return None
+        # The stall nudge has already waited COMMAND_RESPONSE_GRACE and sent
+        # Escape before this duplicate snapshot is reconsidered. Reopening the
+        # same entrance selector can therefore only repeat a rejected route.
+        # Give the goal straight back to BFS walking after that first failure.
+        state = self._town_travel_state
+        if (
+            state is not None
+            and state.goal == goal
+            and state.last_turn == snapshot.turn
+            and snapshot.player.position.distance_to(goal) >= state.best_distance
+        ):
+            self._town_travel_fallback = goal
+            self._town_travel_state = None
+            return None
         clear_traveler = self._town_clear_traveler_key(snapshot, goal)
         if clear_traveler is not None:
             return clear_traveler
@@ -14894,6 +14918,15 @@ class HengbotPolicy:
         if not grid.is_descent:
             return False
         if not self._kill_quest_descent_allowed(snapshot):
+            return False
+        # Yeek Cave shares the Outpost wilderness tile. A remembered entrance
+        # at the same local coordinates in another town/wilderness region is
+        # not a valid walking route to it.
+        if (
+            grid.has_entrance
+            and self._active_dungeon_target() == DUNGEON_YEEK_CAVE
+            and snapshot.town_id not in {-1, 0}
+        ):
             return False
         # Town entrances are also emitted as downstairs.  Reject an entrance
         # for another dungeon before quest-depth steering: that steering may
