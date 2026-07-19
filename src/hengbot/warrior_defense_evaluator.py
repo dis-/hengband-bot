@@ -56,6 +56,15 @@ TR_RES_TIME = 143
 
 PROTECTOR_TVALS = frozenset({30, 31, 32, 33, 34, 35, 36, 37, 38})
 
+# Exact average hit chance makes a few AC points dominate whole-loadout
+# selection against weak encounters: the same AC then also reduces HURT damage,
+# so defense is effectively rewarded twice. Equipment choice uses a conservative
+# half-weight for hit avoidance while retaining the full source-compatible AC
+# damage reduction below. This keeps substantial armor valuable without letting
+# AC +5 beat large STR/DEX/CON gains on a Warrior.
+EQUIPMENT_HIT_AVOIDANCE_AC_NUMERATOR = 1
+EQUIPMENT_HIT_AVOIDANCE_AC_DENOMINATOR = 2
+
 ADJ_DEX_TO_AC = (
     -4, -3, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2,
     2, 2, 3, 3, 3, 4, 5, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14, 15,
@@ -448,7 +457,11 @@ def evaluate_warrior_defense(
             if blow.effect not in MODELLED_HP_EFFECTS:
                 unsupported.add(blow.effect or "NONE")
             hit_probability = monster_melee_hit_chance(
-                blow.effect, race.level, armor_class
+                blow.effect,
+                race.level,
+                armor_class
+                * EQUIPMENT_HIT_AVOIDANCE_AC_NUMERATOR
+                // EQUIPMENT_HIT_AVOIDANCE_AC_DENOMINATOR,
             )
             expected += encounter.weight * hit_probability * expected_blow_hp_damage(
                 blow,
