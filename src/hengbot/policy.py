@@ -1827,11 +1827,14 @@ class HengbotPolicy:
         # ALREADY-ADJACENT summoner is past that point: walking away just donates
         # free hits every step (and a faster summoner stays adjacent the whole
         # way) — kill it instead; melee below already targets summoners first.
-        summoners = [monster for monster in hostiles if monster.can_summon]
+        summoners = [
+            monster for monster in hostiles
+            if monster.can_summon and not monster.asleep
+        ]
         # A KILL_NUMBER pack gets the same reviewed choke-point movement as a
         # summoner fight.  The normal ranged phase below then softens pursuers.
         corridor_threats = summoners
-        if self._active_kill_quest_id(snapshot) is not None:
+        if summoners and self._active_kill_quest_id(snapshot) is not None:
             corridor_threats = hostiles
         summoner_adjacent = any(
             player.position.distance_to(monster.position) <= 1 for monster in corridor_threats

@@ -419,6 +419,92 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "4")
         self.assertEqual(pol.last_reason, "summoner:retreat")
 
+    def test_does_not_retreat_from_a_sleeping_summoner(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(9, 12)
+            for x in range(7, 14)
+        }
+        grids[Position(9, 9)] = grid(9, 9, passable=False)
+        grids[Position(11, 9)] = grid(11, 9, passable=False)
+        grids[Position(10, 13)] = grid(10, 13, monster=True)
+        summoner = hostile(
+            1, 10, 13, hp=80, max_hp=80, distance=3,
+            asleep=True, can_summon=True,
+        )
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=100), grids, [summoner],
+            floor_key=(1, 5, 0),
+        )
+        pol = HengbotPolicy()
+
+        key = pol.choose_key(snap)
+
+        self.assertNotEqual(pol.last_reason, "summoner:retreat")
+        self.assertNotEqual(key, "4")
+
+    def test_sleeping_quest_summoner_does_not_flip_flop_with_loot(self):
+        quest_info = QuestInfo(
+            14, "Warg Problem", 5, 5, 2, dungeon=0,
+            num_mon=16, monrace_id=257,
+        )
+        quest = QuestState(
+            id=14, status=QUEST_STATUS_TAKEN, type=5, level=5,
+            dungeon_id=0, r_idx=257, cur_num=11, num_mon=16, fixed=True,
+        )
+        policy = HengbotPolicy(quest_knowledge={14: quest_info})
+        loot = Position(10, 9)
+        position = Position(10, 10)
+        positions = [position]
+        reasons = []
+        direction_delta = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+
+        with (
+            patch.object(policy, "_emergency_item", return_value=None),
+            patch.object(policy, "_fixed_quest_key", return_value=None),
+        ):
+            for _ in range(3):
+                monster_position = Position(10, 14)
+                grids = {
+                    Position(y, grid_x): grid(y, grid_x)
+                    for y in range(9, 12)
+                    for grid_x in range(9, 15)
+                }
+                grids[loot] = grid(loot.y, loot.x, objects=1)
+                grids[monster_position] = grid(
+                    monster_position.y, monster_position.x, monster=True
+                )
+                summoner = hostile(
+                    1, monster_position.y, monster_position.x,
+                    hp=80, max_hp=80,
+                    distance=position.distance_to(monster_position),
+                    asleep=True, can_summon=True,
+                )
+                snap = Snapshot(
+                    player(position.y, position.x, hp=605, max_hp=605),
+                    grids, [summoner],
+                    floor_key=(0, 5, 14), quests={14: quest},
+                )
+
+                key = policy.choose_key(snap)
+                reasons.append(policy.last_reason)
+                self.assertIn(key, direction_delta)
+                dy, dx = direction_delta[key]
+                next_position = Position(position.y + dy, position.x + dx)
+                self.assertLess(
+                    next_position.distance_to(monster_position),
+                    position.distance_to(monster_position),
+                )
+                position = next_position
+                positions.append(position)
+
+        self.assertNotIn("summoner:retreat", reasons)
+        self.assertNotIn("seek-loot", reasons)
+        self.assertEqual(len(set(positions)), len(positions))
+
     def test_flees_even_from_an_almost_dead_enemy_when_low_hp(self):
         # Coarse visible health is useful for target choice, but must not justify
         # continuing combat once the player has crossed the survival threshold.
