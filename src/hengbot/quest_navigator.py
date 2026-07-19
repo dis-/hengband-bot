@@ -23,8 +23,11 @@ class QuestPhase(str, Enum):
 # generic exploration. It deliberately matches the policy's established secret
 # search evidence budget.
 DOOR_SEARCH_BUDGET = 8
+# Phase bound fallback when a strategy profile supplies no engagement hold budget.
 DEFAULT_HOLD_BUDGET = 2000
+# Phase bound prevents an unreachable loot target from trapping the sweep forever.
 SWEEP_BUDGET = 200
+PICKUP_KEY = "g"
 
 
 @dataclass
@@ -71,7 +74,7 @@ class QuestFloorNavigator:
             owner.last_reason = "quest:blocked:enter"
             return "5"
         owner.last_reason = "quest:enter:approach"
-        return owner._step_toward(snapshot, step) + ("y" if step in positions else "")
+        return owner._step_toward(snapshot, step)
 
     def decide(self, owner: Any, snapshot: Snapshot, hostiles: list[Any], adjacent: list[Any]) -> str:
         self.reset_for_floor(snapshot.floor_key)
@@ -123,7 +126,9 @@ class QuestFloorNavigator:
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and here.object_count > 0:
             owner.last_reason = "quest:sweep:pickup"
-            return ","
+            if here.object_count > 1:
+                return PICKUP_KEY + ("a" * here.object_count)
+            return PICKUP_KEY
         loot = {
             pos for pos, grid in snapshot.grids.items()
             if grid.object_count > 0 and self._static_walkable(pos)
@@ -152,7 +157,7 @@ class QuestFloorNavigator:
         nxt = path[1]
         kind = self.battlefield.terrain.get((nxt.y, nxt.x))
         grid = snapshot.grid_at(nxt)
-        if kind == "door" and (grid is None or grid.is_closed_door or not grid.enterable):
+        if kind == "door" and (grid is None or not grid.enterable):
             door = (nxt.y, nxt.x)
             if self.door_searches[door] >= DOOR_SEARCH_BUDGET:
                 owner.last_reason = "quest:blocked:exit"

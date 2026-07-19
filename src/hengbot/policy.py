@@ -31,7 +31,7 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import StrategyProfile
-from hengbot.quest_navigator import QuestFloorNavigator
+from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
@@ -687,7 +687,6 @@ CHEST_SEARCH_BUDGET = 6
 CHEST_DISARM_BUDGET = 2
 CHEST_OPEN_BUDGET = 8
 EAT_KEY = "E"
-PICKUP_KEY = "g"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
 TAKEOFF_KEY = "t"
 INSCRIBE_KEY = "{"
