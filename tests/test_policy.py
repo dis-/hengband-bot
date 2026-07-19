@@ -14580,26 +14580,57 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         return snapshot, monster, knowledge
 
-    def test_quaffs_speed_only_when_it_materially_improves_a_viable_unique_fight(self):
+    def test_does_not_quaff_speed_for_damage_reduction_without_healing_use(self):
         snapshot, _, knowledge = self._snapshot(
             monster_level=30,
             inventory=[item("s", TVAL_POTION, SV_POTION_SPEED, count=2)]
         )
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
-        self.assertEqual(policy.choose_key(snapshot), "qs")
-        self.assertEqual(policy.last_reason, "unique:quaff-speed")
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertNotEqual(policy.last_reason, "unique:quaff-speed")
 
         hasted = replace(snapshot, player=replace(snapshot.player, speed=120))
         self.assertEqual(policy.choose_key(hasted), "6")
-        self.assertEqual(policy.last_reason, "melee")
+        self.assertNotEqual(policy.last_reason, "unique:quaff-speed")
 
         expired = replace(
             snapshot,
             inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
         )
-        self.assertEqual(policy.choose_key(expired), "qs")
+        self.assertEqual(policy.choose_key(expired), "6")
+        self.assertNotEqual(policy.last_reason, "unique:quaff-speed")
+
+    def test_quaffs_speed_when_it_saves_a_healing_potion(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=100,
+            monster_speed=120,
+            blow_sides=30,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING, count=3),
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertEqual(policy.choose_key(snapshot), "qs")
         self.assertEqual(policy.last_reason, "unique:quaff-speed")
+
+    def test_does_not_spend_speed_when_unique_needs_no_healing_potion(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=60,
+            monster_speed=110,
+            blow_sides=10,
+            inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "melee")
 
     def test_multiple_healing_potions_can_be_committed_to_one_unique_fight(self):
         inventory = [
@@ -14680,7 +14711,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "melee")
 
-    def test_summoning_unique_may_use_speed_in_a_choke_point(self):
+    def test_summoning_unique_in_a_choke_point_does_not_spend_speed_without_healing(self):
         snapshot, monster, knowledge = self._snapshot(
             inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)]
         )
@@ -14692,8 +14723,8 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             monrace_knowledge={9001: replace(knowledge, can_summon=True)}
         )
 
-        self.assertEqual(policy.choose_key(snapshot), "qs")
-        self.assertEqual(policy.last_reason, "unique:quaff-speed")
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "melee")
 
     def test_summoning_unique_in_open_terrain_escapes_without_spending_speed(self):
         snapshot, monster, knowledge = self._snapshot(

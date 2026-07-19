@@ -13917,6 +13917,7 @@ class HengbotPolicy:
             target,
             player_speed=player.speed,
         )
+        healing_count = self._exact_potion_count(snapshot, SV_POTION_HEALING)
         speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
         speed_plan = None
         if (
@@ -13932,10 +13933,23 @@ class HengbotPolicy:
                 extra_turns=1,
             )
 
+        # Speed potions are scarce. Spend one on a unique only when the normal
+        # fight would consume a Potion of Healing and haste actually saves at
+        # least one dose. A merely smaller damage projection is not enough.
         speed_is_material = speed_plan is not None and (
-            normal_plan is None
-            or speed_plan["healing_uses"] < normal_plan["healing_uses"]
-            or speed_plan["operational"] < normal_plan["operational"]
+            (
+                normal_plan is not None
+                and normal_plan["healing_uses"] > 0
+                and speed_plan["healing_uses"] < normal_plan["healing_uses"]
+            )
+            or (
+                # The normal projection tried every carried Healing potion and
+                # still failed; haste is worthwhile only if it makes the fight
+                # viable while consuming fewer than that entire stock.
+                normal_plan is None
+                and healing_count > 0
+                and speed_plan["healing_uses"] < healing_count
+            )
         )
         chosen_plan = speed_plan if speed_is_material else normal_plan
         if chosen_plan is None:
