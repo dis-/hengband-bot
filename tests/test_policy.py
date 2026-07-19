@@ -1971,6 +1971,27 @@ class ReturnToTownTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "5")
         self.assertEqual(policy.last_reason, "return:wait-recall")
 
+    def test_walking_return_breaks_four_cell_frontier_oscillation(self):
+        positions = [
+            Position(26, 109), Position(27, 108),
+            Position(28, 109), Position(29, 108),
+        ]
+        snapshot = Snapshot(
+            player(27, 108, food=6000),
+            {position: grid(position.y, position.x) for position in positions},
+            [],
+            floor_key=self.FLOOR,
+            width=198,
+            height=66,
+        )
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+        policy._floor_key = self.FLOOR
+        policy._recent.extend((positions * 3)[:9])
+
+        self.assertEqual(policy.choose_key(snapshot), "8")
+        self.assertEqual(policy.last_reason, "return:probe")
+
     def test_low_food_without_supplies_uses_identified_recall(self):
         recall = item("h", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
         snap = Snapshot(

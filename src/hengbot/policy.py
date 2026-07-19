@@ -13813,10 +13813,31 @@ class HengbotPolicy:
             self.last_reason = "return:seek-upstairs"
             return self._step_toward(snapshot, step)
 
-        step = self._explore_step(snapshot)
-        if step is not None:
-            self.last_reason = "return:explore"
-            return self._step_toward(snapshot, step)
+        if self._is_oscillating():
+            # The ordinary exploration owner has an oscillation breakout below,
+            # but a latched return exits through this method first. Give walking
+            # returns the same unknown probe/search escape instead of repeating
+            # a four-cell frontier cycle forever.
+            step = self._probe_unknown_step(snapshot)
+            if step is not None:
+                self._explore_path = []
+                self.last_reason = "return:probe"
+                return self._step_toward(snapshot, step)
+            if (
+                not self._is_forgetting_maze(snapshot)
+                and not player.blind
+                and not player.confused
+                and self._undersearched_walls(player.position)
+            ):
+                self._record_wall_search(player.position)
+                self._explore_path = []
+                self.last_reason = "return:search-upstairs"
+                return SEARCH_KEY
+        else:
+            step = self._explore_step(snapshot)
+            if step is not None:
+                self.last_reason = "return:explore"
+                return self._step_toward(snapshot, step)
 
         # Returning without a recall scroll requires an up-stair, which may be
         # hidden behind a secret door. This cannot use the ordinary secret-wall
