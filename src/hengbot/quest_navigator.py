@@ -180,9 +180,12 @@ class QuestFloorNavigator:
         }
 
     def route_to_static_goals(
-        self, start: Position, goals: set[Position]
+        self,
+        start: Position,
+        goals: set[Position],
+        blocked: set[Position] | None = None,
     ) -> Position | None:
-        path = self._static_path(start, goals)
+        path = self._static_path(start, goals, blocked=blocked)
         return path[1] if len(path) > 1 else None
 
     def ranged_vantage_goals(
@@ -222,7 +225,14 @@ class QuestFloorNavigator:
             and self._static_walkable(Position(y, x))
         }
 
-    def _static_path(self, start: Position, goals: set[Position]) -> list[Position]:
+    def _static_path(
+        self,
+        start: Position,
+        goals: set[Position],
+        *,
+        blocked: set[Position] | None = None,
+    ) -> list[Position]:
+        blocked = blocked or set()
         queue = deque([start])
         previous: dict[Position, Position | None] = {start: None}
         end = None
@@ -233,7 +243,11 @@ class QuestFloorNavigator:
                 break
             for dy, dx in ((-1, 0), (0, -1), (0, 1), (1, 0)):
                 nxt = Position(current.y + dy, current.x + dx)
-                if nxt not in previous and self._static_walkable(nxt):
+                if (
+                    nxt not in previous
+                    and nxt not in blocked
+                    and self._static_walkable(nxt)
+                ):
                     previous[nxt] = current
                     queue.append(nxt)
         if end is None:

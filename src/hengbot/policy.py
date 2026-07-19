@@ -11458,6 +11458,33 @@ class HengbotPolicy:
 
         return None
 
+    def _quest_strategy_route_step(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        goal: Position,
+    ) -> Position | None:
+        step = self._town_map_goal_step(snapshot, goal)
+        if step is not None:
+            return step
+        info = self._quest_knowledge.get(profile.quest_id)
+        battlefield = info.battlefield if info is not None else None
+        if battlefield is None:
+            return None
+        navigator = self._quest_navigators.setdefault(
+            profile.quest_id,
+            QuestFloorNavigator(profile.quest_id, battlefield),
+        )
+        blocked = {
+            Position(*raw)
+            for raw in profile.engagement_plan.get("avoid_door_positions", ())
+        }
+        return navigator.route_to_static_goals(
+            snapshot.player.position,
+            {goal},
+            blocked=blocked,
+        )
+
     def _quest_execute_key(
         self,
         snapshot: Snapshot,
@@ -11718,7 +11745,9 @@ class HengbotPolicy:
                 plan, target_monster = planned_throw
                 stand = Position(*plan["stand"])
                 if snapshot.player.position != stand:
-                    step = self._town_map_goal_step(snapshot, stand)
+                    step = self._quest_strategy_route_step(
+                        snapshot, profile, stand
+                    )
                     if step is None:
                         self.last_reason = "quest-strategy:throw-point-unreachable"
                         return WAIT_KEY
@@ -11761,7 +11790,9 @@ class HengbotPolicy:
             if survey_plan is not None:
                 stand = Position(*survey_plan["stand"])
                 if snapshot.player.position != stand:
-                    step = self._town_map_goal_step(snapshot, stand)
+                    step = self._quest_strategy_route_step(
+                        snapshot, profile, stand
+                    )
                     if step is not None:
                         self.last_reason = "quest-strategy:survey-throw-point"
                         return self._step_toward(snapshot, step)

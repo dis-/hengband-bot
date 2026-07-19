@@ -4597,11 +4597,25 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def test_q34_restart_surveys_explicit_throw_points(self):
         policy = self._policy()
-        grids = {
-            Position(y, x): grid(y, x)
-            for y in range(7, 11)
-            for x in range(13, 21)
-        }
+        route_cells = (
+            {(y, 20) for y in range(1, 11)}
+            | {(1, x) for x in range(1, 21)}
+            | {(y, 1) for y in range(1, 12)}
+            | {(11, 2), (11, 3)}
+            | {(y, 3) for y in range(7, 12)}
+            | {(7, x) for x in range(3, 14)}
+        )
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            battlefield=QuestBattlefield(
+                terrain={position: "floor" for position in route_cells},
+                monster_placements=(
+                    ((3, 13), 174), ((7, 15), 243),
+                    ((9, 11), 107), ((11, 9), 107),
+                ),
+            ),
+        )
+        grids = {Position(10, 20): grid(10, 20)}
         hold = Snapshot(
             player(10, 20), grids, [],
             inventory=[
@@ -4612,11 +4626,18 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._build_grid_index(hold)
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(hold, [], []), "7"
+            policy._approved_quest_strategy_key(hold, [], []), "8"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:survey-throw-point")
 
-        at_cloaker_point = replace(hold, player=player(7, 13))
+        at_cloaker_point = replace(
+            hold,
+            player=player(7, 13),
+            grids={
+                Position(7, 13): grid(7, 13),
+                Position(7, 15): grid(7, 15),
+            },
+        )
         self.assertEqual(
             policy._approved_quest_strategy_key(at_cloaker_point, [], []),
             WAIT_KEY,
