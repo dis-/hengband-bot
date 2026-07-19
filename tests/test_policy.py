@@ -10782,6 +10782,73 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 "dj2\ry",
             )
 
+    def test_batch_sale_inscribes_then_sells_by_stable_tags(self):
+        candidates = [
+            item("x", TVAL_WAND, 1, count=1, name="one"),
+            item("y", TVAL_WAND, 2, count=4, name="four"),
+            item("z", TVAL_WAND, 3, count=2, name="two"),
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=candidates,
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(policy, "_current_store_sale_candidates", return_value=candidates), patch.object(
+            policy, "_retention_surplus", side_effect=lambda snapshot, target: target.count
+        ):
+            self.assertEqual(policy._batch_sell_key(snap), "{x@0\r{y@1\r{z@2\r")
+            self.assertEqual(policy._batch_sell_key(snap), "d0\rd199\ryd299\ry")
+
+    def test_batch_sale_reuses_an_existing_exact_tag(self):
+        candidates = [
+            replace(item("x", TVAL_WAND, 1, name="one"), inscription="{@0}"),
+            item("y", TVAL_WAND, 2, name="two"),
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=candidates,
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(policy, "_current_store_sale_candidates", return_value=candidates), patch.object(
+            policy, "_retention_surplus", return_value=1
+        ):
+            self.assertEqual(policy._batch_sell_key(snap), "{y@1\r")
+
+    def test_batch_straggler_advances_attempt_and_does_not_rebatch(self):
+        candidates = [
+            item("x", TVAL_WAND, 1, name="one"),
+            item("y", TVAL_WAND, 2, name="two"),
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=candidates,
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(policy, "_current_store_sale_candidates", return_value=candidates), patch.object(
+            policy, "_retention_surplus", return_value=1
+        ):
+            policy._batch_sell_key(snap)
+            policy._batch_sell_key(snap)
+            remaining = replace(snap, inventory=[candidates[1]])
+            self.assertIsNone(policy._batch_sell_key(remaining))
+            self.assertEqual(policy._store_sell_attempt[0], policy._item_signature(candidates[1]))
+            self.assertIn(STORE_MAGIC, policy._batch_sell_attempted)
+            self.assertIsNone(policy._batch_sell_key(remaining))
+
+    def test_nonpositive_surplus_sells_the_whole_offered_pile(self):
+        pile = item("j", TVAL_WAND, 1, count=3, name="pile")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[pile],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(policy, "_retention_surplus", return_value=0):
+            self.assertEqual(policy._store_sell_key(snap, pile, "shop:sell"), "dj3\ry")
+
     def test_keeps_useful_devices(self):
         devices = [
             item("a", TVAL_WAND, 3, charges=2, name="Teleport Away"),
@@ -13820,8 +13887,8 @@ class WeaponSaleTest(unittest.TestCase):
             pol._next_required_store_type(self._town([short, broad], equip)), STORE_WEAPON
         )
         snap = self._town([short, broad], equip, store=StoreState(STORE_WEAPON, []))
-        self.assertEqual(pol._shop(snap), SELL_KEY + "n" + SELL_CONFIRM_SUFFIX)
-        self.assertEqual(pol.last_reason, "shop:sell-inferior-weapon")
+        self.assertEqual(pol._shop(snap), "{n@0\r{o@1\r")
+        self.assertEqual(pol.last_reason, "shop:batch-inscribe")
 
 
 

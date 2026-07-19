@@ -390,6 +390,10 @@ def _delay_after_macro_key(key: str, index: int) -> float:
     """Return the prompt-settling delay after one character in a macro."""
     if len(key) <= 1 or index >= len(key) - 1:
         return 0.0
+    # Store buy/sell and in-store inscription prompt chains do not flush input;
+    # they are synchronized entirely by key count and are safe as one blast.
+    if key[0] in {"d", "p", "{"}:
+        return 0.0
     if key.startswith("T") and index == 0:
         return TUNNEL_PROMPT_DELAY_SECONDS
     if key in TRAVEL_MACRO_TRIGGERS and index in {1, 2, 3}:

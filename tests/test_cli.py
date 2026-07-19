@@ -900,21 +900,13 @@ class StallRecoveryTest(unittest.TestCase):
             )
             self.assertFalse(_valid_bot_play_macro_pref(pref))
 
-    def test_store_macro_waits_for_the_item_selector_redraw(self):
-        self.assertEqual(
-            _delay_after_macro_key("dk\r", 0),
-            STORE_ITEM_PROMPT_DELAY_SECONDS,
-        )
-        self.assertEqual(_delay_after_macro_key("dk\r", 1), MULTI_KEY_DELAY_SECONDS)
+    def test_store_transaction_macros_have_no_inter_key_delay(self):
+        for macro in ("dk\r", "dj99\ry", "pf10\r\r", "{x@0\r{y@1\r"):
+            for index in range(len(macro)):
+                self.assertEqual(_delay_after_macro_key(macro, index), 0.0)
         self.assertEqual(
             _delay_after_macro_key("ga\r", 0),
             STORE_ITEM_PROMPT_DELAY_SECONDS,
-        )
-
-    def test_store_macro_waits_between_quantity_digits(self):
-        self.assertEqual(
-            _delay_after_macro_key("pf10\r\r", 2),
-            STORE_QUANTITY_DIGIT_DELAY_SECONDS,
         )
 
     def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):

@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
+import re
 from typing import Literal
 from pathlib import Path
 
@@ -735,6 +736,7 @@ BUY_CONFIRM_SUFFIX = "\r"
 STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
 LEAVE_STORE_KEY = "\x1b"
 SELL_KEY = "d"
+SELL_ATTEMPT_LIMIT = 3
 SELL_CONFIRM_SUFFIX = "\r"
 # Mirrors store/service-checker.cpp's per-store tval switches.  The policy's
 # sale paths only need these ordinary, unconditional cases; the Temple's
@@ -1342,6 +1344,11 @@ class HengbotPolicy:
         # _last_sell_sig, this survives turn changes and store exit/re-entry so
         # an unanswered prompt cannot evade rejection by advancing the turn.
         self._store_sell_attempt: tuple[tuple[str, int, int], int, int] | None = None
+        # Tag-based batches are attempted at most once per store type during a
+        # town visit.  The pending record spans the inscription, sale, and
+        # single verification snapshots.
+        self._batch_sell_attempted: set[int] = set()
+        self._batch_sell_pending: dict[str, object] | None = None
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
         self._home_full = False
@@ -2848,6 +2855,8 @@ class HengbotPolicy:
                 self._unsellable_items.clear()
                 self._store_sale_refused.clear()
                 self._store_sell_attempt = None
+                self._batch_sell_attempted.clear()
+                self._batch_sell_pending = None
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
                 self._deferred_device_items.clear()
@@ -3546,12 +3555,6 @@ class HengbotPolicy:
             and self._retention_surplus(snapshot, it) > 0
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
-
-    @staticmethod
-    def _light_sale_quantity(item: InventoryItem) -> int:
-        if item.is_torch:
-            return item.count - TORCH_THROW_TARGET
-        return item.count
 
     def _find_disposable_item(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
@@ -7872,7 +7875,9 @@ class HengbotPolicy:
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
-        if attempts >= 3:
+        # Three cross-snapshot attempts are enough to prove that the prompt
+        # chain is not completing; continuing risks leaking tail keys.
+        if attempts >= SELL_ATTEMPT_LIMIT:
             self._unsellable_items.add(item_signature)
             self._town_store_attempted[store.store_type] = snapshot.turn
             self._store_sale_refused.add(store.store_type)
@@ -7884,8 +7889,115 @@ class HengbotPolicy:
         self.last_reason = reason
         if item.count == 1:
             return SELL_KEY + item.slot + SELL_CONFIRM_SUFFIX
-        quantity = min(item.count, self._retention_surplus(snapshot, item))
+        surplus = self._retention_surplus(snapshot, item)
+        quantity = min(item.count, surplus) if surplus > 0 else item.count
         return SELL_KEY + item.slot + f"{quantity}\ry"
+
+    def _current_store_sale_candidates(self, snapshot: Snapshot) -> list[InventoryItem]:
+        """Enumerate sale finders in normal shop priority, without mutating policy."""
+        store = snapshot.store
+        if store is None:
+            return []
+        remaining = list(snapshot.inventory)
+        result: list[InventoryItem] = []
+        while remaining:
+            view = replace(snapshot, inventory=remaining)
+            sale = self._find_book_sale(view, store.store_type)
+            if sale is None and store.store_type == STORE_ALCHEMIST:
+                sale = self._find_low_level_sale(view)
+            if sale is None and store.store_type == STORE_MAGIC:
+                sale = self._find_device_sale(view)
+            if sale is None and store.store_type == STORE_WEAPON:
+                sale = self._find_weapon_sale(view)
+            if sale is None and store.store_type == STORE_GENERAL:
+                if snapshot.player.food_type == FOOD_TYPE_MANA:
+                    sale = self._first_item(
+                        view,
+                        lambda item: item.tval == TVAL_FOOD
+                        and self._retention_surplus(snapshot, item) > 0
+                        and self._item_signature(item) not in self._unsellable_items,
+                    )
+                if sale is None:
+                    sale = self._find_light_sale(view)
+            if sale is None:
+                break
+            result.append(sale)
+            remaining = [item for item in remaining if item.slot != sale.slot]
+        return result
+
+    def _batch_sell_key(self, snapshot: Snapshot) -> str | None:
+        """Advance a zero-delay inscription/sale batch, or decline batch mode."""
+        store = snapshot.store
+        if store is None:
+            return None
+
+        pending = self._batch_sell_pending
+        if pending is not None and pending["store_type"] == store.store_type:
+            entries = pending["entries"]
+            if pending["phase"] == "inscribe":
+                pending["phase"] = "sell"
+                self.last_reason = "shop:batch-sell"
+                return "".join(entry["sell"] for entry in entries)
+
+            # Exactly one post-sale snapshot verifies every tagged item.  Any
+            # survivor advances the ordinary attempt record and is then handled
+            # by the existing per-item path; this store visit never re-batches.
+            inventory = {self._item_signature(item): item for item in snapshot.inventory}
+            for entry in entries:
+                survivor = inventory.get(entry["signature"])
+                expected = entry["count"] - entry["quantity"]
+                if survivor is not None and survivor.count > expected:
+                    attempts = 1
+                    if self._store_sell_attempt is not None:
+                        sig, previous_count, previous_attempts = self._store_sell_attempt
+                        if sig == entry["signature"] and survivor.count >= previous_count:
+                            attempts = previous_attempts + 1
+                    self._store_sell_attempt = (entry["signature"], survivor.count, attempts)
+            self._batch_sell_attempted.add(store.store_type)
+            self._batch_sell_pending = None
+            self._last_sell_sig = None
+            self._store_sell_stuck_count = 0
+
+        if store.store_type in self._batch_sell_attempted:
+            return None
+        candidates = self._current_store_sale_candidates(snapshot)
+        if len(candidates) <= 1:
+            return None
+
+        entries: list[dict[str, object]] = []
+        inscribe_parts: list[str] = []
+        for item in candidates[:10]:
+            digit = str(len(entries))
+            exact_tag = f"@{digit}"
+            has_exact_tag = re.search(rf"@{digit}(?!\d)", item.inscription) is not None
+            # Other @ inscriptions may be command bindings owned outside sale
+            # policy.  Never overwrite them merely to make a batch possible.
+            if "@" in item.inscription and not has_exact_tag:
+                continue
+            surplus = self._retention_surplus(snapshot, item)
+            quantity = item.count if surplus <= 0 else min(item.count, surplus)
+            if not has_exact_tag:
+                inscribe_parts.append("{" + item.slot + exact_tag + "\r")
+            amount = "99" if quantity == item.count else str(quantity)
+            sell = SELL_KEY + digit + ("\r" if item.count == 1 else amount + "\ry")
+            entries.append({
+                "signature": self._item_signature(item),
+                "count": item.count,
+                "quantity": quantity,
+                "sell": sell,
+            })
+        if len(entries) <= 1:
+            return None
+        phase = "inscribe" if inscribe_parts else "sell"
+        self._batch_sell_pending = {
+            "store_type": store.store_type,
+            "phase": phase,
+            "entries": entries,
+        }
+        self.last_reason = "shop:batch-inscribe" if inscribe_parts else "shop:batch-sell"
+        return "".join(inscribe_parts) if inscribe_parts else "".join(
+            entry["sell"] for entry in entries
+        )
 
     def _shop(self, snapshot: Snapshot) -> str:
         store = snapshot.store
@@ -8281,6 +8393,10 @@ class HengbotPolicy:
                 else "home:processing-complete"
             )
             return LEAVE_STORE_KEY
+
+        batch_key = self._batch_sell_key(snapshot)
+        if batch_key is not None:
+            return batch_key
 
         book_sale = self._find_book_sale(snapshot, store.store_type)
         if book_sale is not None:
