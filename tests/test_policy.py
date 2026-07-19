@@ -13053,7 +13053,7 @@ class RemoveCurseTest(unittest.TestCase):
         self.assertIsNone(policy._town_remove_curse_key(self._town([cursed], [normal])))
         self.assertEqual(
             policy._heavy_curse_inscription_key(self._town([cursed])),
-            "{/d HEAVY_CURSE\r",
+            "{/d\x05 HEAVY_CURSE\r",
         )
         self.assertIsNone(policy._heavy_curse_inscription_key(self._town([cursed])))
         needs = policy._enumerate_town_needs(self._town([cursed], []))
@@ -13068,7 +13068,45 @@ class RemoveCurseTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertTrue(policy._curse_unremovable(cursed))
         self.assertIsNone(policy._town_remove_curse_key(self._town([cursed], [normal])))
-        self.assertFalse(policy._remove_curse_unchanged)
+
+    def test_uncursed_item_clears_standalone_heavy_curse_tag(self):
+        cured = item(
+            "main_ring", 23, 0, is_equipment=True, is_cursed=False,
+            inscription="HEAVY_CURSE", name="cured ring",
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(cured)
+        policy._heavy_cursed_items.add(signature)
+        snapshot = self._town([cured])
+
+        policy._observe(snapshot)
+
+        self.assertEqual(policy._heavy_curse_inscription_key(snapshot), "}/d")
+        self.assertEqual(policy.last_reason, "equipment:clear-heavy-curse-tag")
+        self.assertNotIn(signature, policy._heavy_cursed_items)
+        self.assertFalse(policy._curse_unremovable(replace(cured, inscription="")))
+
+    def test_uncursed_item_preserves_meaningful_inscription_when_clearing_tag(self):
+        cured = item(
+            "main_ring", 23, 0, is_equipment=True, is_cursed=False,
+            inscription="keep HEAVY_CURSE", name="cured ring",
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            policy._heavy_curse_inscription_key(self._town([cured])),
+            "{/dkeep\r",
+        )
+        self.assertEqual(policy.last_reason, "equipment:remove-heavy-curse-tag")
+
+    def test_uncursed_untagged_item_is_not_uninscribed(self):
+        cured = item(
+            "main_ring", 23, 0, is_equipment=True, is_cursed=False,
+            inscription="keep", name="ordinary ring",
+        )
+        self.assertIsNone(
+            HengbotPolicy()._heavy_curse_inscription_key(self._town([cured]))
+        )
 
     def test_star_remove_curse_loot_is_used_for_heavy_latch(self):
         cursed = item(
@@ -13185,6 +13223,21 @@ class RemoveCurseTest(unittest.TestCase):
             policy._equipment_departure_ready(self._town([cursed], [normal]))
         )
 
+    def test_templeless_town_does_not_claim_remove_curse_is_actionable(self):
+        cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
+        snapshot = replace(self._town([cursed]), width=3, height=3)
+        policy = HengbotPolicy()
+        town_map = TownMap(
+            name="templeless",
+            width=3,
+            height=3,
+            walkable=frozenset({Position(10, 10)}),
+            stores={},
+        )
+        policy._town_maps = {0: town_map}
+
+        self.assertFalse(policy._normal_remove_curse_actionable_this_visit(snapshot))
+
     def test_interrupted_normal_read_does_not_advance_heavy_latch(self):
         cursed = item("a", 23, 0, is_equipment=True, is_cursed=True, name="cursed")
         normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
@@ -13192,7 +13245,8 @@ class RemoveCurseTest(unittest.TestCase):
         snapshot = self._town([cursed], [normal])
         self.assertEqual(policy._town_remove_curse_key(snapshot), "rs")
         policy._observe(snapshot)
-        self.assertFalse(policy._remove_curse_unchanged)
+        self.assertFalse(policy._heavy_cursed_items)
+        self.assertIsNone(policy._heavy_curse_inscription_pending)
 
 class HighValueBookSaleTest(unittest.TestCase):
     def _town(self, inventory, store=None):

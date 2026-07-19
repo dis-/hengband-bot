@@ -693,6 +693,8 @@ EAT_KEY = "E"
 WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
 TAKEOFF_KEY = "t"
 INSCRIBE_KEY = "{"
+UNINSCRIBE_KEY = "}"
+HEAVY_CURSE_TAG = "HEAVY_CURSE"
 EQUIPMENT_SLOT_KEY = {
     "main_hand": "a",
     "sub_hand": "b",
@@ -1335,7 +1337,6 @@ class HengbotPolicy:
         # player-visible, savefile-persistent inscription.  All curse consumers
         # consult _curse_unremovable(), never either backing store directly.
         self._remove_curse_watch: tuple[tuple[str, int, int], int, int] | None = None
-        self._remove_curse_unchanged: Counter[tuple[str, int, int]] = Counter()
         self._heavy_cursed_items: set[tuple[str, int, int]] = set()
         self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
         self._last_sell_sig: tuple | None = None
@@ -8917,7 +8918,7 @@ class HengbotPolicy:
     def _curse_unremovable(self, item: InventoryItem | StoreItem) -> bool:
         """Single authority for confirmed heavy/permanent curse status."""
         return (
-            "HEAVY_CURSE" in item.inscription
+            HEAVY_CURSE_TAG in item.inscription
             or self._item_signature(item) in self._heavy_cursed_items
         )
 
@@ -8943,6 +8944,11 @@ class HengbotPolicy:
                 and item.price <= snapshot.player.gold
                 for item in store.items
             )
+        if (
+            self._town_map_active(snapshot)
+            and self._town_map.store_position(STORE_TEMPLE) is None
+        ):
+            return False
         return STORE_TEMPLE not in self._town_store_attempted
 
     def _affordable_star_remove_curse(self, snapshot: Snapshot) -> StoreItem | None:
@@ -8964,6 +8970,12 @@ class HengbotPolicy:
         )
 
     def _observe_remove_curse(self, snapshot: Snapshot) -> None:
+        cursed_signatures = {
+            self._item_signature(item)
+            for item in snapshot.equipment
+            if item.is_cursed
+        }
+        self._heavy_cursed_items.intersection_update(cursed_signatures)
         watch = self._remove_curse_watch
         if watch is None:
             return
@@ -8982,15 +8994,32 @@ class HengbotPolicy:
             for item in snapshot.equipment
         )
         if not still_cursed:
-            self._remove_curse_unchanged.pop(signature, None)
             self._heavy_cursed_items.discard(signature)
             return
         if scroll_sval == SV_SCROLL_REMOVE_CURSE:
-            self._remove_curse_unchanged[signature] += 1
             self._heavy_cursed_items.add(signature)
             self._heavy_curse_inscription_pending = signature
 
     def _heavy_curse_inscription_key(self, snapshot: Snapshot) -> str | None:
+        stale_tag = next(
+            (
+                item for item in snapshot.equipment
+                if not item.is_cursed and HEAVY_CURSE_TAG in item.inscription
+            ),
+            None,
+        )
+        if stale_tag is not None:
+            slot_key = EQUIPMENT_SLOT_KEY.get(stale_tag.slot)
+            if slot_key is None:
+                return None
+            self._heavy_cursed_items.discard(self._item_signature(stale_tag))
+            cleaned = stale_tag.inscription.replace(HEAVY_CURSE_TAG, "").strip()
+            if not cleaned:
+                self.last_reason = "equipment:clear-heavy-curse-tag"
+                return UNINSCRIBE_KEY + "/" + slot_key
+            self.last_reason = "equipment:remove-heavy-curse-tag"
+            return INSCRIBE_KEY + "/" + slot_key + cleaned + "\r"
+
         signature = self._heavy_curse_inscription_pending
         if signature is None or not snapshot.in_town:
             return None
@@ -9001,7 +9030,7 @@ class HengbotPolicy:
             ),
             None,
         )
-        if target is None or "HEAVY_CURSE" in target.inscription:
+        if target is None or HEAVY_CURSE_TAG in target.inscription:
             self._heavy_curse_inscription_pending = None
             return None
         if snapshot.store is not None:
@@ -9011,9 +9040,9 @@ class HengbotPolicy:
         if slot_key is None:
             return None
         self._heavy_curse_inscription_pending = None
-        # Hengband pre-fills the input with the existing inscription.  Prefixing
-        # a space appends without clobbering it and is also harmless when empty.
-        suffix = " HEAVY_CURSE"
+        # The initial inscription opens in overwrite mode. Ctrl-E moves to its
+        # end and switches to insert mode before the persistent marker is added.
+        suffix = "\x05 " + HEAVY_CURSE_TAG
         self.last_reason = "equipment:mark-heavy-curse"
         return INSCRIBE_KEY + "/" + slot_key + suffix + "\r"
 
