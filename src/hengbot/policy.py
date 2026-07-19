@@ -11488,7 +11488,7 @@ class HengbotPolicy:
             )
             if step is not None:
                 return step
-        return self._town_map_goal_step(snapshot, goal)
+        return self._town_map_goal_step(snapshot, goal, blocked=blocked)
 
     def _quest_execute_key(
         self,
@@ -11651,11 +11651,13 @@ class HengbotPolicy:
         )
         throwing_points = profile.engagement_plan.get("throwing_points", ())
         final_target_phase = (
-            expected_never_move > 0
-            and (
+            (
                 len(cleared_targets) >= len(throwing_points)
                 if throwing_points
-                else len(defeated_never_move) >= expected_never_move
+                else (
+                    expected_never_move > 0
+                    and len(defeated_never_move) >= expected_never_move
+                )
             )
             and not current_never_move
         )
@@ -15006,7 +15008,11 @@ class HengbotPolicy:
         return None
 
     def _town_map_goal_step(
-        self, snapshot: Snapshot, target: Position | None
+        self,
+        snapshot: Snapshot,
+        target: Position | None,
+        *,
+        blocked: set[Position] | None = None,
     ) -> Position | None:
         """BFS to a specific static-town-map tile (store or dungeon entrance).
 
@@ -15021,6 +15027,7 @@ class HengbotPolicy:
         start = snapshot.player.position
         if start == target:
             return None
+        blocked = blocked or set()
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         while queue:
@@ -15028,7 +15035,7 @@ class HengbotPolicy:
             if pos == target:
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen:
+                if neighbor in seen or neighbor in blocked:
                     continue
                 seen.add(neighbor)
                 queue.append((neighbor, neighbor if first_step is None else first_step))

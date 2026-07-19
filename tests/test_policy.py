@@ -4651,6 +4651,57 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:survey-target-cleared")
 
+    def test_q34_final_phase_uses_throw_points_without_fixed_placement_data(self):
+        policy = self._policy()
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            battlefield=QuestBattlefield(
+                terrain={},
+                monster_placements=(((3, 13), 174),),
+            ),
+        )
+        policy._quest_strategy_cleared_targets[34] = {
+            (243, 7, 15),
+            (107, 9, 11),
+            (107, 11, 9),
+        }
+        grids = {
+            **{Position(y, 20): grid(y, 20) for y in range(1, 11)},
+            **{Position(1, x): grid(1, x) for x in range(13, 21)},
+            Position(2, 13): grid(2, 13, closed_door=True),
+            Position(3, 13): grid(3, 13),
+        }
+        snap = Snapshot(player(10, 20), grids, [], floor_key=(0, 5, 34))
+        policy._build_grid_index(snap)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snap, [], []), "8"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
+
+    def test_q34_fallback_route_avoids_every_adjacent_sword_cell(self):
+        policy = self._policy()
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34], battlefield=None
+        )
+        grids = {
+            Position(9, 13): grid(9, 13),
+            Position(10, 12): grid(10, 12),
+            Position(10, 13): grid(10, 13),
+            Position(11, 11): grid(11, 11),
+            Position(11, 12): grid(11, 12),
+            Position(11, 13): grid(11, 13),
+        }
+        snap = Snapshot(player(9, 13), grids, [], floor_key=(0, 5, 34))
+        policy._build_grid_index(snap)
+
+        step = policy._quest_strategy_route_step(
+            snap, policy._quest_strategies[34], Position(11, 11)
+        )
+
+        self.assertEqual(step, Position(10, 13))
+        self.assertGreater(step.distance_to(Position(9, 11)), 1)
+
     def test_q34_opens_lower_left_door_before_combat(self):
         policy = self._policy()
         grids = {
