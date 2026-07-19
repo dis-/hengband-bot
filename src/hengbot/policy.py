@@ -661,6 +661,7 @@ READ_KEY = "r"
 # the bot only shoots RAY-ALIGNED targets (8 directions) it can verify a clear
 # known path to — no target_set cursor session, snapshot-safe as a macro.
 FIRE_KEY = "f"
+AIM_WAND_KEY = "a"
 THROW_KEY = "v"
 # Fire range is 13+tmul/80 (shoot.cpp:531) ≈ 15 for a sling; the bot stays
 # conservative because every ray tile must be KNOWN passable to fire at all.
@@ -1038,6 +1039,12 @@ QUEST_SCROLL_SVALS = {
     "light": SV_SCROLL_LIGHT,
     "teleport": SV_SCROLL_TELEPORT,
 }
+Q2_BREEDER_RACES = frozenset({86, 153, 252, 213})
+Q2_WERERAT_RACE = 270
+Q2_WHITE_CROCODILE_RACE = 1044
+Q2_BREACH_POSITION = Position(11, 47)
+Q2_BREACH_MIN_DIGGING = 3
+Q2_BREACH_ATTEMPT_LIMIT = 20
 
 # Hengband's speed_to_energy table for speeds 90..199. Keeping this static game
 # rule in the bot avoids exposing a monster's hidden runtime state.
@@ -1095,6 +1102,10 @@ class HengbotPolicy:
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
         self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
         self._q2_speed_attempted: set[int] = set()
+        self._q2_surveyed_placements: set[Position] = set()
+        self._q2_cleared_races: set[int] = set()
+        self._q2_breach_attempts = 0
+        self._q2_breach_complete = False
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
@@ -2895,6 +2906,10 @@ class HengbotPolicy:
             self._town_visit_purchases.clear()
             self._quest_light_attempted.clear()
             self._q2_speed_attempted.clear()
+            self._q2_surveyed_placements.clear()
+            self._q2_cleared_races.clear()
+            self._q2_breach_attempts = 0
+            self._q2_breach_complete = False
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
             self._fundraising_pursuit_target = None
@@ -3061,6 +3076,14 @@ class HengbotPolicy:
         return QUEST_AMMO_TVALS.get(str(launcher.get("ammo", "")))
 
     @staticmethod
+    def _is_quest_wall_breach_item(item: InventoryItem | StoreItem) -> bool:
+        return (
+            item.tval == TVAL_WAND
+            and item.sval == SV_WAND_STONE_TO_MUD
+            and item.charges > 0
+        ) or (item.is_digging_tool and item.pval >= Q2_BREACH_MIN_DIGGING)
+
+    @staticmethod
     def _quest_named_item_count(
         snapshot: Snapshot, category: str, name: str
     ) -> int:
@@ -3080,12 +3103,7 @@ class HengbotPolicy:
             return sum(
                 it.count
                 for it in (*snapshot.inventory, *snapshot.equipment)
-                if it.is_digging_tool
-                or (
-                    it.tval == TVAL_WAND
-                    and it.sval == SV_WAND_STONE_TO_MUD
-                    and it.charges > 0
-                )
+                if HengbotPolicy._is_quest_wall_breach_item(it)
             )
         return 0
 
@@ -3154,10 +3172,7 @@ class HengbotPolicy:
         if (
             isinstance(tools, dict)
             and "wall_breach" in tools
-            and (
-                item.tval == TVAL_DIGGING
-                or (item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD)
-            )
+            and self._is_quest_wall_breach_item(item)
         ):
             return "wall_breach", self._quest_named_item_count(
                 snapshot, "utility_tools", "wall_breach"
@@ -6752,9 +6767,13 @@ class HengbotPolicy:
                 if STORE_ALCHEMIST not in self._town_store_attempted:
                     add(STORE_ALCHEMIST, "quest-scrolls")
             if "utility_tools.wall_breach" in missing_carries:
-                if STORE_MAGIC not in self._town_store_attempted:
-                    add(STORE_MAGIC, "quest-wall-breach")
-                if STORE_GENERAL not in self._town_store_attempted:
+                # Stone-to-Mud is not in the normal Magic-shop table.  It can
+                # appear in the Black Market's random stock, so inspect that
+                # store once before checking the General Store for an eligible
+                # +3 digger.  Neither random stock is waited on indefinitely.
+                if STORE_BLACK not in self._town_store_attempted:
+                    add(STORE_BLACK, "quest-wall-breach")
+                elif STORE_GENERAL not in self._town_store_attempted:
                     add(STORE_GENERAL, "quest-wall-breach")
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
@@ -7500,6 +7519,29 @@ class HengbotPolicy:
         if store is None:
             return None
         force = profile.required_force
+        tools = force.get("utility_tools", {})
+        if (
+            isinstance(tools, dict)
+            and int(tools.get("wall_breach", 0)) > 0
+            and self._quest_named_item_count(
+                snapshot, "utility_tools", "wall_breach"
+            ) < int(tools["wall_breach"])
+        ):
+            breach = [
+                item for item in store.items
+                if item.price <= snapshot.player.gold
+                and self._is_quest_wall_breach_item(item)
+            ]
+            if breach:
+                return min(
+                    breach,
+                    key=lambda item: (
+                        item.tval != TVAL_WAND,
+                        -item.pval if item.is_digging_tool else 0,
+                        item.price,
+                        item.letter,
+                    ),
+                )
         for item in store.items:
             if item.price > snapshot.player.gold:
                 continue
@@ -7510,6 +7552,54 @@ class HengbotPolicy:
             if current < required:
                 return item
         return None
+
+    @staticmethod
+    def _has_charged_stone_to_mud(snapshot: Snapshot) -> bool:
+        return any(
+            item.tval == TVAL_WAND
+            and item.sval == SV_WAND_STONE_TO_MUD
+            and item.charges > 0
+            for item in (*snapshot.inventory, *snapshot.equipment)
+        )
+
+    def _black_market_optional_purchase(
+        self, snapshot: Snapshot
+    ) -> StoreItem | None:
+        store = snapshot.store
+        if store is None or store.store_type != STORE_BLACK:
+            return None
+        optional = [
+            item
+            for item in store.items
+            if (
+                (
+                    item.tval == TVAL_POTION
+                    and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
+                )
+                or (
+                    item.tval == TVAL_WAND
+                    and item.sval == SV_WAND_STONE_TO_MUD
+                    and item.charges > 0
+                    and not self._has_charged_stone_to_mud(snapshot)
+                )
+            )
+            and item.count > 0
+            and item.price <= snapshot.player.gold
+        ]
+        if not optional:
+            return None
+
+        def held(item: StoreItem) -> int:
+            if item.tval == TVAL_WAND:
+                return int(self._has_charged_stone_to_mud(snapshot))
+            return self._count_potion(snapshot, item.sval)
+
+        def kind_rank(item: StoreItem) -> int:
+            if item.tval == TVAL_WAND:
+                return 2
+            return int(item.sval != SV_POTION_SPEED)
+
+        return min(optional, key=lambda item: (held(item), kind_rank(item)))
 
     def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
@@ -7662,6 +7752,9 @@ class HengbotPolicy:
                              and it.price <= gold), None)
                 if heal is not None:
                     return heal
+        black_market_optional = self._black_market_optional_purchase(snapshot)
+        if black_market_optional is not None:
+            return black_market_optional
         if not self._recall_ready(snapshot):
             item = next(
                 (it for it in store.items if it.is_recall_scroll and it.price <= gold),
@@ -7772,26 +7865,6 @@ class HengbotPolicy:
         launcher_enchant = self._launcher_enchant_purchase(snapshot)
         if launcher_enchant is not None:
             return launcher_enchant
-        if store.store_type == STORE_BLACK:
-            # Buy until neither type is affordable/in stock. Prefer the less-held
-            # type so one cheap stack cannot consume all gold before the other
-            # survival consumable gets a chance to be bought.
-            optional = [
-                item
-                for item in store.items
-                if item.tval == TVAL_POTION
-                and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
-                and item.count > 0
-                and item.price <= gold
-            ]
-            if optional:
-                return min(
-                    optional,
-                    key=lambda item: (
-                        self._count_potion(snapshot, item.sval),
-                        item.sval != SV_POTION_SPEED,
-                    ),
-                )
         return None
 
     def _outstanding_identification_count(self, snapshot: Snapshot, *, full: bool) -> int:
@@ -11096,7 +11169,7 @@ class HengbotPolicy:
                 self.last_reason = "quest-strategy:q2-teleport-reset"
                 return READ_KEY + teleport.slot
         present = {monster.race_id for monster in hostiles}
-        for race_id in (270, 1044):  # Wererat, White crocodile.
+        for race_id in (Q2_WERERAT_RACE, Q2_WHITE_CROCODILE_RACE):
             if race_id in present and race_id not in self._q2_speed_attempted:
                 self._q2_speed_attempted.add(race_id)
                 speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
@@ -11104,6 +11177,130 @@ class HengbotPolicy:
                     self._fixed_quest_speed_attempted = True
                     self.last_reason = "quest-strategy:q2-quaff-speed"
                     return QUAFF_KEY + speed.slot
+        return None
+
+    def _q2_breach_key(
+        self, snapshot: Snapshot, navigator: QuestFloorNavigator
+    ) -> str | None:
+        breach = snapshot.grid_at(Q2_BREACH_POSITION)
+        if breach is not None and breach.enterable:
+            navigator.opened.add(Q2_BREACH_POSITION)
+            self._q2_breach_complete = True
+            self._q2_breach_attempts = 0
+            return None
+
+        standing = Position(Q2_BREACH_POSITION.y + 1, Q2_BREACH_POSITION.x)
+        if snapshot.player.position != standing:
+            step = navigator.route_to_static_goals(
+                snapshot.player.position, {standing}
+            )
+            if step is None:
+                self.last_reason = "quest:blocked:q2-breach-route"
+                return WAIT_KEY
+            self.last_reason = "quest-strategy:q2-breach-approach"
+            return self._step_toward(snapshot, step)
+
+        if self._q2_breach_attempts >= Q2_BREACH_ATTEMPT_LIMIT:
+            self.last_reason = "quest:blocked:q2-breach-attempts"
+            return WAIT_KEY
+        direction = self._direction_key(standing, Q2_BREACH_POSITION)
+        wand = self._first_item(
+            snapshot,
+            lambda item: item.tval == TVAL_WAND
+            and item.sval == SV_WAND_STONE_TO_MUD
+            and item.charges > 0,
+        )
+        if wand is not None:
+            self._q2_breach_attempts += 1
+            self.last_reason = "quest-strategy:q2-breach-wand"
+            return AIM_WAND_KEY + wand.slot + direction
+
+        equipped = self._equipped_digging_tool(snapshot)
+        if equipped is None or equipped.pval < Q2_BREACH_MIN_DIGGING:
+            strong = self._first_item(
+                snapshot,
+                lambda item: item.is_digging_tool
+                and item.pval >= Q2_BREACH_MIN_DIGGING,
+            )
+            if strong is None:
+                self.last_reason = "quest:blocked:q2-breach-tool"
+                return WAIT_KEY
+            main_hand = next(
+                (item for item in snapshot.equipment if item.slot == "main_hand"),
+                None,
+            )
+            if main_hand is not None and not main_hand.is_digging_tool:
+                self._normal_weapon_name = main_hand.name
+            self.last_reason = "quest-strategy:q2-breach-wield"
+            return self._wield_weapon_key(snapshot, strong)
+
+        self._q2_breach_attempts += 1
+        self.last_reason = "quest-strategy:q2-breach-dig"
+        return TUNNEL_KEY + direction
+
+    def _q2_phase_key(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        navigator: QuestFloorNavigator,
+    ) -> str | None:
+        info = self._quest_knowledge.get(2)
+        battlefield = info.battlefield if info is not None else None
+        if battlefield is None:
+            return None
+
+        placements_by_race: dict[int, list[Position]] = {}
+        for raw_position, race_id in battlefield.monster_placements:
+            placements_by_race.setdefault(race_id, []).append(Position(*raw_position))
+
+        if (
+            Q2_BREEDER_RACES <= self._q2_cleared_races
+            and snapshot.player.hp < snapshot.player.max_hp
+        ):
+            self.last_reason = "quest-strategy:q2-rest-between-engagements"
+            return REST_MACRO
+
+        for race_id in profile.priority_targets:
+            if race_id == 213 and not self._q2_breach_complete:
+                breach_action = self._q2_breach_key(snapshot, navigator)
+                if breach_action is not None:
+                    return breach_action
+            if race_id in self._q2_cleared_races:
+                continue
+            placements = placements_by_race.get(race_id, [])
+            for placement in placements:
+                grid = snapshot.grid_at(placement)
+                if (
+                    snapshot.player.position.distance_to(placement) <= 1
+                    and grid is not None
+                    and grid.known
+                    and not grid.has_monster
+                ):
+                    self._q2_surveyed_placements.add(placement)
+            unsurveyed = [
+                placement for placement in placements
+                if placement not in self._q2_surveyed_placements
+            ]
+            if not unsurveyed:
+                self._q2_cleared_races.add(race_id)
+                continue
+
+            goals: set[Position] = set()
+            for placement in unsurveyed:
+                if navigator._static_walkable(placement):
+                    goals.add(placement)
+                    continue
+                for dy, dx in ((-1, 0), (0, -1), (0, 1), (1, 0)):
+                    neighbor = Position(placement.y + dy, placement.x + dx)
+                    if navigator._static_walkable(neighbor):
+                        goals.add(neighbor)
+            step = navigator.route_to_static_goals(snapshot.player.position, goals)
+            if step is not None:
+                self.last_reason = f"quest-strategy:q2-phase-{race_id}"
+                return self._step_toward(snapshot, step)
+            self.last_reason = f"quest:blocked:q2-phase-{race_id}"
+            return WAIT_KEY
+
         return None
 
     def _quest_execute_key(
@@ -11192,7 +11389,10 @@ class HengbotPolicy:
 
         combat_hostiles = hostiles
         if profile.quest_id == 2:
-            wererats = [monster for monster in hostiles if monster.race_id == 270]
+            wererats = [
+                monster for monster in hostiles
+                if monster.race_id == Q2_WERERAT_RACE
+            ]
             if wererats:
                 combat_hostiles = wererats
         combat_indices = {monster.index for monster in combat_hostiles}
@@ -11236,6 +11436,15 @@ class HengbotPolicy:
                         THROW_KEY + torch.slot
                         + self._direction_key(snapshot.player.position, target.position)
                     )
+
+        if profile.quest_id == 2 and not hostiles:
+            navigator = self._quest_navigators.setdefault(
+                2, QuestFloorNavigator(2, battlefield)
+            ) if battlefield is not None else None
+            if navigator is not None:
+                phase_action = self._q2_phase_key(snapshot, profile, navigator)
+                if phase_action is not None:
+                    return phase_action
 
         if final_target_phase:
             mobile_targets = [

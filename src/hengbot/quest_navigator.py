@@ -41,6 +41,7 @@ class QuestFloorNavigator:
         self.hold_turns = 0
         self.sweep_turns = 0
         self.floor_key: tuple[int, int, int] | None = None
+        self.opened: set[Position] = set()
 
     def reset_for_floor(self, floor_key: tuple[int, int, int]) -> None:
         if self.floor_key == floor_key:
@@ -50,6 +51,7 @@ class QuestFloorNavigator:
         self.door_searches.clear()
         self.hold_turns = 0
         self.sweep_turns = 0
+        self.opened.clear()
 
     @staticmethod
     def enter_from_town(owner: Any, snapshot: Snapshot, quest_id: int) -> str | None:
@@ -169,9 +171,15 @@ class QuestFloorNavigator:
         return owner._step_toward(snapshot, nxt)
 
     def _static_walkable(self, pos: Position) -> bool:
-        return self.battlefield.terrain.get((pos.y, pos.x)) in {
-            "floor", "exit", "door", "passage", "rubble"
+        return pos in self.opened or self.battlefield.terrain.get((pos.y, pos.x)) in {
+            "floor", "exit", "door", "passage", "rubble", "shallow_water"
         }
+
+    def route_to_static_goals(
+        self, start: Position, goals: set[Position]
+    ) -> Position | None:
+        path = self._static_path(start, goals)
+        return path[1] if len(path) > 1 else None
 
     def _static_path(self, start: Position, goals: set[Position]) -> list[Position]:
         queue = deque([start])

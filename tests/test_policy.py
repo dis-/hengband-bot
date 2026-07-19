@@ -94,6 +94,7 @@ from hengbot.quest_knowledge import (
     load_quest_knowledge,
 )
 from hengbot.quest_strategies import load_quest_strategies
+from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.policy import (
     HengbotPolicy,
@@ -3815,11 +3816,24 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 inventory=[*base.inventory[:3], *base.inventory[4:]],
                 equipment=[
                     base.equipment[1],
-                    item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+                    item(
+                        "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                        is_equipment=True, pval=3,
+                    ),
                 ],
             )
             self.assertTrue(
                 policy._approved_strategy_force_ready(digger_ready, profile)
+            )
+            weak_digger = replace(
+                digger_ready,
+                equipment=[
+                    digger_ready.equipment[0],
+                    replace(digger_ready.equipment[1], pval=2),
+                ],
+            )
+            self.assertFalse(
+                policy._approved_strategy_force_ready(weak_digger, profile)
             )
             variants = {
                 "launcher": replace(base, equipment=base.equipment[:1]),
@@ -3846,7 +3860,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                         policy.fixed_quest_readiness_state()["strategy_force"]["failed"],
                     )
 
-    def test_q2_carry_shortages_route_to_each_supply_store(self):
+    def test_q2_wall_breach_checks_black_market_then_falls_back_to_general(self):
         policy = self._policy()
         profile = self.profiles[2]
         snapshot = Snapshot(
@@ -3858,8 +3872,148 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             needs = policy._enumerate_town_needs(snapshot)
         self.assertIn(TownNeed(STORE_WEAPON, "quest-ranged-kit", "normal"), needs)
         self.assertIn(TownNeed(STORE_ALCHEMIST, "quest-scrolls", "normal"), needs)
-        self.assertIn(TownNeed(STORE_MAGIC, "quest-wall-breach", "normal"), needs)
-        self.assertIn(TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), needs)
+        self.assertIn(TownNeed(STORE_BLACK, "quest-wall-breach", "normal"), needs)
+        self.assertNotIn(TownNeed(STORE_MAGIC, "quest-wall-breach", "normal"), needs)
+        self.assertNotIn(TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), needs)
+
+        policy._town_store_attempted[STORE_BLACK] = snapshot.turn
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            fallback = policy._enumerate_town_needs(snapshot)
+        self.assertNotIn(TownNeed(STORE_BLACK, "quest-wall-breach", "normal"), fallback)
+        self.assertIn(TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), fallback)
+
+    def test_q2_black_market_buys_stone_to_mud_when_present(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        wand = StoreItem(
+            "w", "Stone to Mud (4 charges)", 1,
+            TVAL_WAND, SV_WAND_STONE_TO_MUD, price=900, charges=4,
+        )
+        unrelated = StoreItem(
+            "x", "Magic Missile (8 charges)", 1,
+            TVAL_WAND, 15, price=200, charges=8,
+        )
+        strong_digger = StoreItem(
+            "d", "Dwarven Shovel (+3)", 1,
+            TVAL_DIGGING, 3, price=500, pval=3,
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=10000),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            store=StoreState(STORE_BLACK, [strong_digger, unrelated, wand]),
+        )
+
+        self.assertEqual(policy._quest_carry_purchase(snapshot, profile), wand)
+
+    def test_black_market_stone_to_mud_is_not_q2_only(self):
+        policy = self._policy()
+        wand = StoreItem(
+            "w", "Stone to Mud (4 charges)", 1,
+            TVAL_WAND, SV_WAND_STONE_TO_MUD, price=900, charges=4,
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=10000),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            store=StoreState(STORE_BLACK, [wand]),
+        )
+
+        with patch.object(policy, "_carry_procurement_strategy", return_value=None):
+            self.assertEqual(policy._next_purchase_unreserved(snapshot), wand)
+            carried = replace(
+                snapshot,
+                inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)],
+            )
+            self.assertIsNone(policy._next_purchase_unreserved(carried))
+
+    def test_q2_digger_fallback_requires_plus_three(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        weak = StoreItem(
+            "a", "Pick (+2)", 1, TVAL_DIGGING, 4, price=50, pval=2,
+        )
+        strong = StoreItem(
+            "b", "Dwarven Shovel (+3)", 1,
+            TVAL_DIGGING, 3, price=500, pval=3,
+        )
+        base = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=10000),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            store=StoreState(STORE_GENERAL, [weak]),
+        )
+
+        self.assertIsNone(policy._quest_carry_purchase(base, profile))
+        self.assertEqual(
+            policy._quest_carry_purchase(
+                replace(base, store=StoreState(STORE_GENERAL, [weak, strong])),
+                profile,
+            ),
+            strong,
+        )
+
+    @staticmethod
+    def _q2_breach_navigator():
+        battlefield = QuestBattlefield(
+            terrain={
+                (12, 46): "floor", (12, 47): "floor",
+                (11, 47): "wall", (10, 47): "floor",
+            },
+            player_start=(12, 46), entrance=(12, 46), exit=(12, 46),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+        navigator.reset_for_floor((0, 1, 2))
+        return navigator
+
+    def test_q2_breach_wand_is_one_macro_and_requires_grid_confirmation(self):
+        policy = self._policy()
+        navigator = self._q2_breach_navigator()
+        grids = {
+            Position(12, 47): grid(12, 47),
+            Position(11, 47): grid(11, 47, passable=False, can_dig=True),
+        }
+        snapshot = Snapshot(
+            player(12, 47), grids, [], floor_key=(0, 1, 2),
+            inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=3)],
+        )
+
+        self.assertEqual(policy._q2_breach_key(snapshot, navigator), "aw8")
+        self.assertFalse(policy._q2_breach_complete)
+        opened = replace(
+            snapshot,
+            grids={**grids, Position(11, 47): grid(11, 47)},
+            inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)],
+        )
+        self.assertIsNone(policy._q2_breach_key(opened, navigator))
+        self.assertTrue(policy._q2_breach_complete)
+        self.assertIn(Position(11, 47), navigator.opened)
+
+    def test_q2_breach_digging_rejects_plus_two_and_uses_equipped_plus_three(self):
+        policy = self._policy()
+        navigator = self._q2_breach_navigator()
+        grids = {
+            Position(12, 47): grid(12, 47),
+            Position(11, 47): grid(11, 47, passable=False, can_dig=True),
+        }
+        weak = Snapshot(
+            player(12, 47), grids, [], floor_key=(0, 1, 2),
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True, pval=2,
+                )
+            ],
+        )
+        self.assertEqual(policy._q2_breach_key(weak, navigator), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "quest:blocked:q2-breach-tool")
+
+        strong = replace(
+            weak,
+            equipment=[replace(weak.equipment[0], pval=3)],
+        )
+        self.assertEqual(policy._q2_breach_key(strong, navigator), "T8")
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-dig")
 
     def test_q2_outpost_errand_activates_real_carry_procurement(self):
         policy = self._policy()

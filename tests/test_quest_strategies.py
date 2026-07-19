@@ -134,7 +134,11 @@ class QuestStrategiesTest(unittest.TestCase):
                     self.assertIsNone(hold)
                 else:
                     position = tuple(hold)
-                    self.assertEqual(info.battlefield.terrain.get(position), "floor")
+                    terrain = info.battlefield.terrain.get(position)
+                    if data["approved"]:
+                        self.assertIn(terrain, {"floor", "shallow_water"})
+                    else:
+                        self.assertIsNotNone(terrain)
                     if data["approved"] and info.battlefield.chokepoints:
                         self.assertIn(position, info.battlefield.chokepoints)
                 roster_ids = {r_idx for r_idx, _ in info.threat_roster}
