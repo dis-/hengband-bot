@@ -3249,6 +3249,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
 
         with (
             patch.object(policy, "_town_teleport_key") as travel,
@@ -3270,6 +3271,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
         policy._town_travel_rumor_pending = 1
 
         with patch.object(policy, "_town_teleport_key", return_value="TO-TELMORA") as travel:
@@ -3316,6 +3318,7 @@ class FixedQuestTest(unittest.TestCase):
         policy._telmora_q2_travel_key = lambda _snapshot, _quest: None
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
         policy._fixed_quest_building_key = (
             lambda *_args, **_kwargs: "fixedquest:request"
         )
@@ -3448,6 +3451,7 @@ class FixedQuestTest(unittest.TestCase):
         )
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
+        policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
         policy._town_teleport_key = (
             lambda _snapshot, town_id: f"teleport:{town_id}"
         )
@@ -3495,6 +3499,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(town_maps={0: outpost, 1: telmora})
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
         policy._build_grid_index(snapshot)
 
         self.assertEqual(policy._effective_town_id(snapshot), 1)
@@ -3547,6 +3552,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
+        policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
         policy._fixed_quest_is_offered = lambda _snapshot, _quest_id: True
         policy._fixed_quest_building_key = (
             lambda *_args, **_kwargs: "fixedquest:request"
@@ -5375,7 +5381,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.fixed_quest_readiness_state().get("reason"), "ready"
         )
 
-    def test_procurement_unions_carries_for_all_currently_offered_quests(self):
+    def test_procurement_uses_only_the_first_currently_offered_quest(self):
         policy = self._policy()
         quests = {
             quest_id: QuestState(
@@ -5395,14 +5401,15 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         strategy = policy._carry_procurement_strategy(snapshot)
 
         self.assertIsNotNone(strategy)
-        self.assertEqual(strategy.required_force["throwing_items"]["lit_torch"], 20)
+        self.assertEqual(strategy.quest_id, 1)
+        self.assertEqual(strategy.required_force["throwing_items"]["lit_torch"], 5)
         self.assertEqual(strategy.required_force["speed_potions"], 1)
         self.assertEqual(strategy.required_force["heal_potions"], 2)
         torch = StoreItem(
             "a", "Torch", 99, TVAL_LITE, SV_LITE_TORCH,
             price=1, aware=True, known=True,
         )
-        self.assertEqual(policy._purchase_quantity(snapshot, torch), 20)
+        self.assertEqual(policy._purchase_quantity(snapshot, torch), 10)
         needs = policy._enumerate_town_needs(snapshot)
         self.assertIn(
             policy_module.TownNeed(STORE_GENERAL, "quest-throwing-items", "normal"),
@@ -5833,6 +5840,126 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             self.assertIsNone(policy._fixed_quest_key(snapshot, []))
 
         travel.assert_not_called()
+
+    def test_unready_q2_does_not_leave_base_town(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, level=7),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            visited_town_ids=frozenset({0, 1}),
+            quests={
+                2: QuestState(
+                    id=2,
+                    status=QUEST_STATUS_UNTAKEN,
+                    fixed=True,
+                    level=15,
+                )
+            },
+        )
+
+        with patch.object(
+            policy, "_fixed_quest_ready_for_travel", return_value=False
+        ), patch.object(policy, "_town_teleport_key") as travel:
+            self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+
+        travel.assert_not_called()
+
+    def test_unready_q1_blocks_ready_q2_instead_of_skipping_ahead(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, level=8),
+            {
+                Position(10, 10): grid(10, 10, building_special=1),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            visited_town_ids=frozenset({0, 1}),
+            quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+                ),
+                2: QuestState(
+                    id=2, status=QUEST_STATUS_UNTAKEN, fixed=True, level=15
+                ),
+            },
+        )
+        readiness_checks = []
+
+        def ready_for_travel(_snapshot, quest_id):
+            readiness_checks.append(quest_id)
+            return quest_id == 2
+
+        with patch.object(
+            policy, "_fixed_quest_ready_for_travel", side_effect=ready_for_travel
+        ), patch.object(policy, "_town_teleport_key") as travel:
+            self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+
+        self.assertEqual(readiness_checks, [1])
+        travel.assert_not_called()
+
+    def test_q1_owns_procurement_while_q2_is_also_untaken(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, level=8),
+            {Position(10, 10): grid(10, 10, building_special=1)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            visited_town_ids=frozenset({0, 1}),
+            quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+                ),
+                2: QuestState(
+                    id=2, status=QUEST_STATUS_UNTAKEN, fixed=True, level=15
+                ),
+            },
+        )
+
+        strategy = policy._carry_procurement_strategy(snapshot)
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.quest_id, 1)
+        self.assertEqual(
+            strategy.required_force["throwing_items"]["lit_torch"], 5
+        )
+
+    def test_unready_q1_in_telmora_returns_to_outpost_for_preparation(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, level=8, gold=1000),
+            {Position(10, 10): grid(10, 10, building_special=2)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=1,
+            visited_town_ids=frozenset({0, 1}),
+            quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+                ),
+                2: QuestState(
+                    id=2, status=QUEST_STATUS_UNTAKEN, fixed=True, level=15
+                ),
+            },
+        )
+
+        with patch.object(
+            policy, "_fixed_quest_ready_for_travel", return_value=False
+        ), patch.object(
+            policy, "_town_teleport_key", return_value="HOME"
+        ) as travel:
+            self.assertEqual(policy._fixed_quest_key(snapshot, []), "HOME")
+
+        travel.assert_called_once_with(snapshot, 0)
+        self.assertEqual(policy.last_reason, "fixedquest:prepare-return")
 
     def test_ready_q22_travels_to_quest_town(self):
         policy = self._policy()

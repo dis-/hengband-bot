@@ -305,6 +305,10 @@ FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 22, 25, 28, 31, 34
 # This is executor capability, not strategy approval or a tuning threshold.
 EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 22, 31, 34})
 FIXED_QUEST_TOWNS = {2: 1, 22: 3, 31: 0}
+# These quest offers are unconditional once their quest state is exported.
+# Other fixed quests are conditional chains and only become candidates when a
+# live town building actually advertises them.
+FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})
 # Building 0 is the Outpost inn/castle.  The ordinary inns in Telmora,
 # Morivant, and Angwil are building 4.  Zul's tavern does not offer town
 # teleportation, so it is intentionally absent.
@@ -14395,84 +14399,25 @@ class HengbotPolicy:
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
         ]
-        quest_id = min(candidates, key=self._fixed_quest_order).id if candidates else None
-        if quest_id is None:
+        if not candidates:
             return None
-        quest = snapshot.quests.get(quest_id)
-        if quest is None or quest.status not in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}:
-            return None
-        return self.approved_quest_strategy(quest_id)
+        quest = min(candidates, key=self._fixed_quest_order)
+        return self.approved_quest_strategy(quest.id)
 
     def _carry_procurement_strategy(self, snapshot: Snapshot) -> StrategyProfile | None:
-        """Return union carry requirements for all offered, approved quests."""
+        """Return carry requirements for the single next fixed quest."""
         if not snapshot.in_town:
             return None
-        profiles = [
-            profile
-            for quest in snapshot.quests.values()
-            if quest.id in FIXED_QUEST_ALLOWLIST
-            and quest.status == QUEST_STATUS_UNTAKEN
-            and (
-                self._fixed_quest_is_offered(snapshot, quest.id)
-                or (
-                    quest.id == 2
-                    and snapshot.in_town
-                    and snapshot.town_id == 0
-                    and snapshot.visited_town_ids is not None
-                    and 1 in snapshot.visited_town_ids
-                )
-            )
-            and (profile := self.approved_quest_strategy(quest.id)) is not None
-        ]
-        if not profiles:
+        quest = self._fixed_quest_head(snapshot)
+        if quest is None or quest.status != QUEST_STATUS_UNTAKEN:
             return None
-        profiles = [
-            replace(
-                profile,
-                required_force=self._strategy_force_for_snapshot(snapshot, profile),
-            )
-            for profile in profiles
-        ]
-        base = min(profiles, key=lambda profile: self._fixed_quest_order(
-            snapshot.quests[profile.quest_id]
-        ))
-        carry_groups = {
-            "throwing_items": {},
-            "required_scrolls": {},
-            "utility_tools": {},
-        }
-        for profile in profiles:
-            for group, combined in carry_groups.items():
-                requirements = profile.required_force.get(group, {})
-                if not isinstance(requirements, dict):
-                    continue
-                for name, required in requirements.items():
-                    combined[str(name)] = max(
-                        combined.get(str(name), 0), int(required)
-                    )
-        force = {
-            **base.required_force,
-            **carry_groups,
-            "speed_potions": max(
-                int(profile.required_force.get("speed_potions", 0))
-                for profile in profiles
-            ),
-            "heal_potions": max(
-                int(profile.required_force.get("heal_potions", 0))
-                for profile in profiles
-            ),
-        }
-        launcher = next(
-            (
-                profile.required_force["launcher"]
-                for profile in profiles
-                if isinstance(profile.required_force.get("launcher"), dict)
-            ),
-            None,
+        profile = self.approved_quest_strategy(quest.id)
+        if profile is None:
+            return None
+        return replace(
+            profile,
+            required_force=self._strategy_force_for_snapshot(snapshot, profile),
         )
-        if launcher is not None:
-            force["launcher"] = dict(launcher)
-        return replace(base, required_force=force)
 
     @staticmethod
     def _profile_resistance_name(name: str) -> str:
@@ -14617,8 +14562,7 @@ class HengbotPolicy:
                 return None
 
             fixed_quest_candidates = [
-                quest
-                for quest in snapshot.quests.values()
+                quest for quest in snapshot.quests.values()
                 if quest.id in FIXED_QUEST_ALLOWLIST
                 and quest.status in {
                     QUEST_STATUS_UNTAKEN,
@@ -14627,24 +14571,31 @@ class HengbotPolicy:
                 }
                 and self.approved_quest_strategy(quest.id) is not None
             ]
-            travel_candidates = [
-                quest
-                for quest in fixed_quest_candidates
-                if (
-                    quest.status != QUEST_STATUS_UNTAKEN
-                    or quest.id == 2
-                    or self._fixed_quest_ready_for_travel(snapshot, quest.id)
+            fixed_quest_head = self._fixed_quest_head(snapshot)
+            travel_quest = fixed_quest_head
+            if (
+                travel_quest is not None
+                and (
+                    self.approved_quest_strategy(travel_quest.id) is None
+                    or (
+                        travel_quest.status == QUEST_STATUS_UNTAKEN
+                        and not self._fixed_quest_ready_for_travel(
+                            snapshot, travel_quest.id
+                        )
+                    )
                 )
-            ]
-            travel_quest = (
-                min(travel_candidates, key=self._fixed_quest_order)
-                if travel_candidates else None
-            )
+            ):
+                travel_quest = None
             current_town_id = self._effective_town_id(snapshot)
             if travel_quest is None and current_town_id == 1:
                 key = self._town_teleport_key(snapshot, 0)
                 if key is not None:
-                    self.last_reason = "fixedquest:q2-teleport"
+                    self.last_reason = (
+                        "fixedquest:prepare-return"
+                        if fixed_quest_head is not None
+                        and fixed_quest_head.status == QUEST_STATUS_UNTAKEN
+                        else "fixedquest:q2-teleport"
+                    )
                 return key
             if (
                 travel_quest is None
@@ -14945,42 +14896,55 @@ class HengbotPolicy:
         if pending is not None and supported(pending):
             return pending
 
-        # Complete work already in flight first. Even an unsupported fixed
-        # quest blocks acceptance so the bot never holds two TAKEN fixed quests.
+        quest = self._fixed_quest_head(snapshot)
+        if quest is None or not supported(quest.id):
+            return None
+        if quest.status in {QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED}:
+            return quest.id
+        if (
+            quest.status == QUEST_STATUS_UNTAKEN
+            and self._fixed_quest_is_offered(snapshot, quest.id)
+            and self._fixed_quest_ready(snapshot, quest.id)
+        ):
+            return quest.id
+        return None
+
+    def _fixed_quest_head(self, snapshot: Snapshot) -> QuestState | None:
+        """Select one transaction head before readiness or routing is tested."""
+        def supported(quest: QuestState) -> bool:
+            return quest.id in FIXED_QUEST_ALLOWLIST
+
+        # Never accept or prepare another fixed quest while real work is in
+        # flight. The birth-time win quests are the only intentional exception.
         taken = [
-            quest
-            for quest in snapshot.quests.values()
-            if (
-                quest.fixed
-                and quest.status == QUEST_STATUS_TAKEN
-                and quest.id not in WIN_QUEST_IDS
-            )
+            quest for quest in snapshot.quests.values()
+            if quest.fixed
+            and quest.status == QUEST_STATUS_TAKEN
+            and quest.id not in WIN_QUEST_IDS
         ]
-        supported_taken = [quest for quest in taken if supported(quest.id)]
+        supported_taken = [quest for quest in taken if supported(quest)]
         if supported_taken:
-            return min(supported_taken, key=self._fixed_quest_order).id
+            return min(supported_taken, key=self._fixed_quest_order)
         if taken:
             return None
 
         completed = [
-            quest
-            for quest in snapshot.quests.values()
-            if supported(quest.id) and quest.status == QUEST_STATUS_COMPLETED
+            quest for quest in snapshot.quests.values()
+            if supported(quest) and quest.status == QUEST_STATUS_COMPLETED
         ]
         if completed:
-            return min(completed, key=self._fixed_quest_order).id
+            return min(completed, key=self._fixed_quest_order)
 
-        eligible = [
-            quest
-            for quest in snapshot.quests.values()
-            if supported(quest.id)
+        untaken = [
+            quest for quest in snapshot.quests.values()
+            if supported(quest)
             and quest.status == QUEST_STATUS_UNTAKEN
-            and self._fixed_quest_is_offered(snapshot, quest.id)
-            and self._fixed_quest_ready(snapshot, quest.id)
+            and (
+                quest.id in FIXED_QUEST_ALWAYS_OFFERED
+                or self._fixed_quest_is_offered(snapshot, quest.id)
+            )
         ]
-        if eligible:
-            return min(eligible, key=self._fixed_quest_order).id
-        return None
+        return min(untaken, key=self._fixed_quest_order) if untaken else None
 
     def _fixed_quest_order(self, quest: QuestState) -> tuple[int, int]:
         quest_id = quest.id
