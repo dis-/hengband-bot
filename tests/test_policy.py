@@ -11240,6 +11240,74 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
         self.assertIsNone(policy._planned_mining_runs)
 
+    def test_detection_stockout_with_sufficient_gold_switches_to_normal_exploration(self):
+        snap = Snapshot(
+            player(
+                10, 10, level=7, gold=FUNDRAISING_START_GOLD + 7000,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(
+                    recall=5, detection=0, teleport=5, critical=5,
+                ),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            ],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._town_store_attempted[STORE_HOME] = 0
+        policy._town_store_attempted[STORE_ALCHEMIST] = 0
+
+        policy._next_required_store_type(snap)
+
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertFalse(
+            policy._ledger_departure_shortages(
+                policy._supply_ledger(snap, policy._planned_depth())
+            )
+        )
+
+    def test_detection_stockout_rearms_normal_supply_stores_before_departure(self):
+        snap = Snapshot(
+            player(
+                10, 10, level=7, gold=FUNDRAISING_START_GOLD + 7000,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(
+                    recall=0, detection=0, teleport=5, critical=5,
+                ),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            ],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._town_store_attempted[STORE_HOME] = 0
+        policy._town_store_attempted[STORE_ALCHEMIST] = 0
+
+        self.assertIn(
+            policy._next_required_store_type(snap),
+            {STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_ALCHEMIST},
+        )
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
     def test_completed_shallow_partial_campaign_restores_full_set_target(self):
         snap = self._shallow_partial_mining_snapshot(0)
         policy = HengbotPolicy()

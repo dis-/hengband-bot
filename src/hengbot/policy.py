@@ -8380,6 +8380,10 @@ class HengbotPolicy:
                 if STORE_ALCHEMIST in self._town_store_attempted:
                     if self._activate_partial_deep_mining_plan(snapshot):
                         return self._next_required_store_type(snapshot)
+                    if self._try_normal_expedition_after_detection_stockout(
+                        snapshot
+                    ):
+                        return self._next_required_store_type(snapshot)
                     self._fundraising_mode = "scavenge"
                     self._scavenge_entry_gold = snapshot.player.gold
                 else:
@@ -8570,6 +8574,45 @@ class HengbotPolicy:
         self._shallow_fundraising_trip = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
+        return True
+
+    def _try_normal_expedition_after_detection_stockout(
+        self, snapshot: Snapshot
+    ) -> bool:
+        """Trade a blocked mining campaign for an ordinary expedition.
+
+        Once Home and the Alchemist have both proved that no treasure-detection
+        scroll is available, a character above the poverty threshold should use
+        its money on the normal recall/food/light/teleport/cure kit instead of
+        immediately entering loot-only scavenge.  Re-arm only the stores that
+        can satisfy current ordinary departure shortages; the next router pass
+        buys those supplies and normal departure takes over when they are full.
+        """
+        if snapshot.player.gold < FUNDRAISING_START_GOLD:
+            return False
+
+        self._fundraising_mode = None
+        self._planned_mining_runs = None
+        self._shallow_fundraising_trip = False
+        self._scavenge_entry_gold = None
+        self._town_restock_suppressed = False
+        self._town_restock_wait_until = None
+        self._town_errand_plan = None
+        self._town_blocked_reason = None
+
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        supply_stores = {
+            store_type
+            for status in self._ledger_departure_shortages(ledger)
+            for store_type in status.stores
+        }
+        if not self._light_ready(snapshot):
+            supply_stores.add(STORE_GENERAL)
+        if not self._identify_staff_ready(snapshot):
+            supply_stores.add(STORE_MAGIC)
+        for store_type in supply_stores:
+            self._town_store_attempted.pop(store_type, None)
+            self._town_restock_rechecked.discard(store_type)
         return True
 
     def _identification_deadlock_recoverable(self, snapshot: Snapshot) -> bool:
