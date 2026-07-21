@@ -2468,6 +2468,17 @@ class HengbotPolicy:
             if town_return is not None:
                 return town_return
 
+        # A monster can be just outside the material-threat threshold at its
+        # current distance while becoming material after one closing step.
+        # Preserve higher-priority concrete work such as safe loot recovery,
+        # but retreat before descent, hunting, or generic exploration can
+        # close into the engagement and alternate with the threat gate.
+        if any(self._material_melee_engagement(snapshot, monster) for monster in hostiles):
+            step = self._flee_step(snapshot, hostiles)
+            if step is not None:
+                self.last_reason = "threat:avoid-engagement"
+                return self._step_toward(snapshot, step)
+
         # 6. Head for a known downstairs / dungeon entrance: path straight there
         #    if reachable, otherwise explore toward it (the entrance may be known
         #    but its approach still unmapped — e.g. the town's wilderness gate).
@@ -17791,13 +17802,7 @@ class HengbotPolicy:
             # the intended engagement at melee range, where every remaining
             # monster action can become an attack, instead of only at its current
             # (temporarily safe) distance.
-            melee_actions = self._monster_actions(
-                m.speed, player.speed, turns=3
-            )
-            if (
-                m.max_melee_damage * melee_actions
-                >= player.hp * LOOT_THREAT_DAMAGE_RATIO
-            ):
+            if self._material_melee_engagement(snapshot, m):
                 return False
             if m.asleep or m.fearful:
                 return True
@@ -17812,6 +17817,19 @@ class HengbotPolicy:
         target = min(targets, key=lambda m: m.distance)
         return self._nearest_goal_step(
             snapshot, lambda g: g.position.distance_to(target.position) <= 1
+        )
+
+    def _material_melee_engagement(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        if monster.distance > HUNT_RANGE or monster.max_melee_damage <= 0:
+            return False
+        actions = self._monster_actions(
+            monster.speed, snapshot.player.speed, turns=3
+        )
+        return (
+            monster.max_melee_damage * actions
+            >= snapshot.player.hp * LOOT_THREAT_DAMAGE_RATIO
         )
 
     # ------------------------------------------------------------- pathfinding

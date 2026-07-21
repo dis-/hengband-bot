@@ -398,7 +398,7 @@ class CombatTest(unittest.TestCase):
 
         policy.choose_key(snapshot)
 
-        self.assertNotEqual(policy.last_reason, "hunt")
+        self.assertEqual(policy.last_reason, "threat:avoid-engagement")
 
     def test_attacks_adjacent_hostile(self):
         grids = {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11, monster=True)}
