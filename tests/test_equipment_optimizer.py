@@ -21,6 +21,7 @@ from hengbot.equipment_transaction_planner import plan_equipment_transactions
 from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
 from hengbot.model import (
     SV_DRAGON_HELM,
+    SV_LITE_FEANOR,
     SV_LITE_LANTERN,
     TVAL_ARROW,
     TVAL_HELM,
@@ -667,6 +668,28 @@ class EquipmentOptimizerTest(unittest.TestCase):
             current_item_ids=frozenset({"light", "current"}),
         )
         self.assertEqual(result.best.loadout.item_ids, {"light", "current"})
+
+    def test_feanorian_lamp_replaces_current_lantern_after_search_compression(self):
+        lantern = gear(
+            "lantern", TVAL_LITE,
+            equipped_slot="light", sval=SV_LITE_LANTERN,
+        )
+        feanorian = gear("feanorian", TVAL_LITE, sval=SV_LITE_FEANOR)
+        candidates = enumerate_warrior_loadouts(
+            (lantern, feanorian),
+            current_item_ids=frozenset({lantern.id}),
+            require_light=True,
+        )
+
+        result = optimize_loadout(
+            (lantern, feanorian),
+            lambda loadout: metrics(10),
+            depth=18,
+            current_item_ids=frozenset({lantern.id}),
+            candidate_loadouts=candidates,
+        )
+
+        self.assertEqual(result.best.loadout.item_at("light"), feanorian)
 
     def test_more_than_one_percent_replaces_current_loadout(self):
         current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)

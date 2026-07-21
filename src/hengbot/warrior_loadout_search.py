@@ -18,6 +18,7 @@ from hengbot.equipment_optimizer import (
     Loadout,
     OwnedEquipment,
     hand_configurations,
+    light_source_quality,
     slot_for,
 )
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
@@ -288,6 +289,7 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
         _acid_armor_count(loadout),
         launcher_item.to_h if launcher_item is not None else 0,
         launcher_item.to_d if launcher_item is not None else 0,
+        light_source_quality(loadout),
     )
     key = (
         loadout.hand_mode,

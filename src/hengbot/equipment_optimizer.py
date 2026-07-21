@@ -21,6 +21,8 @@ from typing import Callable, Iterable, Iterator, Mapping
 from hengbot.model import (
     SV_BOW_LIGHT_XBOW,
     SV_BOW_SHORT,
+    SV_LITE_FEANOR,
+    SV_LITE_LANTERN,
     TVAL_ARROW,
     TVAL_BOLT,
     TVAL_SHOT,
@@ -241,6 +243,18 @@ class Loadout:
         for _, item in self.slots:
             result.update(item.flags)
         return frozenset(result)
+
+
+def light_source_quality(loadout: Loadout) -> int:
+    """Rank operational light quality without making fuel a volatile input."""
+    light = loadout.item_at(SLOT_LIGHT)
+    if light is None:
+        return -1
+    if light.item.sval >= SV_LITE_FEANOR:
+        return 2
+    if light.item.sval == SV_LITE_LANTERN:
+        return 1
+    return 0
 
 
 @dataclass(frozen=True)
@@ -660,6 +674,14 @@ def _prefer(
         )
         if not short_bow_high_grade:
             return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
+    # A permanent light is a strict operational upgrade over a lantern or
+    # torch when every modeled combat result is identical. Keep this separate
+    # from combat metrics so light quality cannot trade against defense or DPS.
+    if cm == im:
+        candidate_light = light_source_quality(candidate.loadout)
+        incumbent_light = light_source_quality(incumbent.loadout)
+        if candidate_light != incumbent_light:
+            return candidate_light > incumbent_light
     # When every defensive/utility result is identical, offense is the whole
     # comparison.  The general 1% anti-churn band used combat_margin and could
     # therefore retain an inferior wielded weapon even though a Home weapon had
@@ -764,6 +786,7 @@ def _selection_equivalence_key(
     return (
         entry.metrics,
         bow_policy,
+        light_source_quality(entry.loadout),
         entry.loadout.item_ids == current_item_ids,
     )
 
@@ -844,6 +867,7 @@ def _stable_operational_best(
             entry.metrics.ranged_dps,
             entry.metrics.secondary_value,
             entry.metrics.speed_bonus,
+            light_source_quality(entry.loadout),
             entry.loadout.item_ids == current_item_ids,
             entry.metrics.combat_margin,
             entry.metrics.survival_turns,
