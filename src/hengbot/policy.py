@@ -4356,6 +4356,23 @@ class HengbotPolicy:
             return None
         return candidate
 
+    def _owns_usable_permanent_light(self, snapshot: Snapshot) -> bool:
+        """Return whether carried gear or the known Home catalog has permanent light."""
+        if any(
+            item.tval == TVAL_LITE
+            and item.sval >= SV_LITE_FEANOR
+            and not item.is_cursed
+            and not item.is_broken
+            for item in (*snapshot.inventory, *snapshot.equipment)
+        ):
+            return True
+        return any(
+            owned.item.tval == TVAL_LITE
+            and owned.item.sval >= SV_LITE_FEANOR
+            and owned.exploration_legal
+            for owned in self._equipment_catalog.items
+        )
+
     def _light_refill_item(self, snapshot: Snapshot) -> InventoryItem | None:
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
@@ -4544,6 +4561,11 @@ class HengbotPolicy:
                 required_departure = max(
                     required_departure, self._recall_required_target(snapshot)
                 )
+            elif kind == "oil" and self._owns_usable_permanent_light(snapshot):
+                # Permanent lights consume no fuel. Oil therefore stops being
+                # expedition stock as soon as a usable permanent light is owned,
+                # including one already catalogued in Home during this visit.
+                required_return = required_departure = 0
             elif kind == "food" and mana_food:
                 required_return = required_departure = MANA_FOOD_CHARGE_TARGET
             statuses[kind] = SupplyStatus(
@@ -5725,11 +5747,16 @@ class HengbotPolicy:
         allocated in pack order so duplicate stacks share one aggregate target.
         """
         signature = self._item_signature(item)
+        obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (
             item.tval == TVAL_POTION
             and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
         )
-        if signature in self._town_visit_purchases and not capped_emergency_potion:
+        if (
+            signature in self._town_visit_purchases
+            and not capped_emergency_potion
+            and not obsolete_oil
+        ):
             return item.count
 
         target = 0
@@ -6020,6 +6047,11 @@ class HengbotPolicy:
             and item.is_torch
             and self._matching_ammo(snapshot) is not None
         )
+        obsolete_oil = (
+            snapshot is not None
+            and item.is_oil
+            and self._owns_usable_permanent_light(snapshot)
+        )
         return (
             spare_equipment
             or protected_unknown_consumable
@@ -6028,6 +6060,7 @@ class HengbotPolicy:
             or depleted_device
             or reserved_stack_surplus
             or throwing_torches_replaced
+            or obsolete_oil
         )
 
     def _idle_deposit_protected(self, item: InventoryItem) -> bool:

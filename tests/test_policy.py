@@ -1015,6 +1015,35 @@ class ShoppingTest(unittest.TestCase):
 
         self.assertEqual(HengbotPolicy()._light_to_wield(snap).slot, "f")
 
+    def test_home_owned_permanent_light_makes_all_pack_oil_depositable(self):
+        oil = item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500)
+        feanorian = store_item(
+            "f", TVAL_LITE, SV_LITE_FEANOR,
+            name="Feanorian Lamp", is_equipment=True,
+            known=True, fully_known=True,
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[oil],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN,
+                    name="Brass Lantern", fuel=7500,
+                )
+            ],
+            store=StoreState(store_type=STORE_HOME, items=[feanorian]),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page(snap.store.items)
+
+        self.assertEqual(policy._supply_ledger(snap, 18)["oil"].required_departure, 0)
+        self.assertEqual(policy._retention_reservation(snap, oil), 0)
+        self.assertTrue(policy._home_deposit_candidate(oil, snap))
+        self.assertEqual(policy._home_deposit_key(snap, oil), "do5\r")
+
 
 class RubbleTest(unittest.TestCase):
     def test_tunnels_through_rubble_frontier(self):
