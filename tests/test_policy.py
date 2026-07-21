@@ -371,6 +371,35 @@ def hostile(
 
 
 class CombatTest(unittest.TestCase):
+    def test_hunt_does_not_close_with_material_sleeping_threat(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 13)
+            for x in range(79, 85)
+        }
+        monster = hostile(
+            1,
+            11,
+            83,
+            hp=100,
+            max_hp=100,
+            distance=3,
+            asleep=True,
+            max_melee_damage=28,
+        )
+        grids[monster.position] = grid(11, 83, monster=True)
+        snapshot = Snapshot(
+            player(8, 80, hp=306, max_hp=306, level=15),
+            grids,
+            [monster],
+            floor_key=(2, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        policy.choose_key(snapshot)
+
+        self.assertNotEqual(policy.last_reason, "hunt")
+
     def test_attacks_adjacent_hostile(self):
         grids = {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11, monster=True)}
         snap = Snapshot(player(10, 10), grids, [hostile(1, 10, 11, hp=3)])

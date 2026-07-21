@@ -17785,6 +17785,20 @@ class HengbotPolicy:
         def easy(m: MonsterState) -> bool:
             if m.distance > HUNT_RANGE:
                 return False
+            # Do not deliberately close with a sleeper that the material-threat
+            # gate will immediately flee from after one step.  That disagreement
+            # produced a two-cell hunt/reposition loop on Yeek Cave 5F.  Judge
+            # the intended engagement at melee range, where every remaining
+            # monster action can become an attack, instead of only at its current
+            # (temporarily safe) distance.
+            melee_actions = self._monster_actions(
+                m.speed, player.speed, turns=3
+            )
+            if (
+                m.max_melee_damage * melee_actions
+                >= player.hp * LOOT_THREAT_DAMAGE_RATIO
+            ):
+                return False
             if m.asleep or m.fearful:
                 return True
             # Avoid poking things that clearly outclass us.
