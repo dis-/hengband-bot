@@ -992,8 +992,13 @@ class StallRecoveryTest(unittest.TestCase):
 
     def test_loaded_tunnel_macro_replaces_each_direction_with_one_character(self):
         for direction, trigger in TUNNEL_MACRO_TRIGGERS.items():
+            if direction == "1":
+                continue
             self.assertEqual(_transport_key(f"T{direction}", True), trigger)
             self.assertEqual(len(_transport_key(f"T{direction}", True)), 1)
+        # Ctrl+A is the game's repeat-command control and was observed failing
+        # to expand on the live build.  Use the existing prompt-paced fallback.
+        self.assertEqual(_transport_key("T1", True), "T1")
         self.assertEqual(_transport_key("T5", True), "T5")
         self.assertEqual(_transport_key("T3", False), "T3")
         self.assertEqual(_transport_key("qf", True), "qf")

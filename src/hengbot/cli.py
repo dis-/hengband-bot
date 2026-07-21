@@ -505,6 +505,13 @@ def _bot_play_macros_ready(
 def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
     if tunnel_macros_ready and key in TRAVEL_MACRO_TRIGGERS:
         return TRAVEL_MACRO_TRIGGERS[key]
+    # Ctrl+A is Hengband's built-in repeat-command control in the live Windows
+    # build.  It can win before the pref macro that maps it to ``T1``, leaving
+    # the game on the same turn while the bot repeats the southwest dig forever.
+    # Keep direction 1 on the paced two-key fallback; the other control triggers
+    # are verified to expand as one-character macros.
+    if tunnel_macros_ready and key == "T1":
+        return key
     if tunnel_macros_ready and len(key) == 2 and key[0] == "T":
         return TUNNEL_MACRO_TRIGGERS.get(key[1], key)
     return key
