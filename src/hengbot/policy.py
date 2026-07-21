@@ -7819,7 +7819,7 @@ class HengbotPolicy:
                     add(STORE_GENERAL, "fundraising-light")
             if (
                 self._owns_lantern(snapshot)
-                and self._supply_ledger(snapshot, self._planned_depth())["oil"].count < OIL_TARGET
+                and self._oil_below_departure_target(snapshot)
                 and STORE_GENERAL not in self._town_store_attempted
             ):
                 add(STORE_GENERAL, "fundraising-oil")
@@ -8665,12 +8665,17 @@ class HengbotPolicy:
         return True
 
     def _owns_lantern(self, snapshot: Snapshot) -> bool:
-        return any(it.is_lantern for it in snapshot.inventory) or any(
-            it.is_lantern for it in snapshot.equipment
+        """Return whether the lantern requirement is met by it or a better light."""
+        return self._owns_usable_permanent_light(snapshot) or any(
+            it.is_lantern for it in (*snapshot.inventory, *snapshot.equipment)
         )
 
     def _count_oil(self, snapshot: Snapshot) -> int:
         return sum(it.count for it in snapshot.inventory if it.is_oil)
+
+    def _oil_below_departure_target(self, snapshot: Snapshot) -> bool:
+        oil = self._supply_ledger(snapshot, self._planned_depth())["oil"]
+        return oil.count < oil.required_departure
 
     def _count_food(self, snapshot: Snapshot) -> int:
         return sum(
@@ -8941,7 +8946,7 @@ class HengbotPolicy:
                     (it for it in store.items if it.is_lantern and it.price <= gold),
                     None,
                 )
-            if self._supply_ledger(snapshot, self._planned_depth())["oil"].count < OIL_TARGET:
+            if self._oil_below_departure_target(snapshot):
                 return next(
                     (it for it in store.items if it.is_oil and it.price <= gold),
                     None,
@@ -9113,7 +9118,7 @@ class HengbotPolicy:
             )
         if not self._owns_lantern(snapshot):
             return next((it for it in store.items if it.is_lantern and it.price <= gold), None)
-        if self._supply_ledger(snapshot, self._planned_depth())["oil"].count < OIL_TARGET:
+        if self._oil_below_departure_target(snapshot):
             return next((it for it in store.items if it.is_oil and it.price <= gold), None)
         if (
             self._planned_depth() <= TORCH_THROW_MAX_DEPTH

@@ -700,6 +700,21 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(self._in_store(items, inv=inv)), "pc5\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-oil")
 
+    def test_permanent_light_buys_neither_lantern_nor_oil(self):
+        wares = [
+            store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120),
+            store_item("c", TVAL_FLASK, SV_FLASK_OIL, price=3, count=42),
+        ]
+        feanorian = item(
+            "light", TVAL_LITE, SV_LITE_FEANOR,
+            name="Feanorian Lamp", is_equipment=True,
+            known=True, fully_known=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(self._in_store(wares, eq=[feanorian])), "\x1b")
+        self.assertEqual(policy.last_reason, "shop:leave")
+
     def test_does_not_sell_only_lantern_while_empty_torch_is_equipped(self):
         lantern = item(
             "d", TVAL_LITE, SV_LITE_LANTERN, name="brass lantern", fuel=7500
@@ -9119,6 +9134,34 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._fundraising_kit_secured(snap))
         self.assertEqual(policy._fundraising_kit_reserve(snap), 0)
         self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+
+    def test_fundraising_does_not_route_to_oil_with_permanent_light(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item("d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_FEANOR,
+                    name="Feanorian Lamp", is_equipment=True,
+                    known=True, fully_known=True,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        categories = {
+            need.category for need in policy._enumerate_town_needs(snap)
+        }
+        self.assertNotIn("fundraising-oil", categories)
 
     def test_shallow_mana_fundraising_departs_when_device_food_is_unaffordable(self):
         snap = Snapshot(
