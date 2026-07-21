@@ -16505,12 +16505,13 @@ class HengbotPolicy:
         nearby_threat = bool(threats) and min(
             monster.distance for monster in threats
         ) <= 4
+        quest_locked = self._floor_navigation_exit_locked(snapshot)
 
         # A quest floor cannot be abandoned, but once local retreat has broken
         # contact the disengage latch must not own every turn with WAIT.  Let
         # the ordinary quest objective continue until the swarm closes again;
         # only actual local-retreat attempts consume the bounded budget.
-        if self._floor_navigation_exit_locked(snapshot) and not nearby_threat:
+        if quest_locked and not nearby_threat:
             return None
 
         if self._fruitless_disengage_decisions >= FRUITLESS_DISENGAGE_LIMIT:
@@ -16518,6 +16519,21 @@ class HengbotPolicy:
             return WAIT_KEY
         self._fruitless_disengage_decisions += 1
         self._returning_to_town = True
+
+        # On an ordinary floor, the latched return is the single owner of the
+        # escape transaction.  Previously local retreat ran first whenever a
+        # monster stayed within four cells, so it could starve recall issuance,
+        # ignore an active recall countdown, and oscillate forever with a
+        # pursuing monster.  Quest floors cannot use this exit path and retain
+        # their bounded local-retreat behavior below.
+        if snapshot.floor_key[2] == 0 and not quest_locked:
+            key = self._return_to_town_key(snapshot, hostiles)
+            if key is not None:
+                if self.last_reason.startswith("return:"):
+                    self.last_reason = (
+                        "combat:disengage-" + self.last_reason[7:]
+                    )
+                return key
 
         if nearby_threat:
             step = self._summoner_retreat_step(snapshot, threats, hostiles)

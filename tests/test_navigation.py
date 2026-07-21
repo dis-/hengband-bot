@@ -626,6 +626,36 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(clear), "<")
         self.assertEqual(policy.last_reason, "combat:disengage-ascend")
 
+    def test_fruitless_disengagement_starts_return_before_local_retreat(self):
+        recall = item("w", SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        base = self._quiet_room(inventory=(recall,))
+        naga = hostile(1, 10, 11)
+        fighting = replace(base, visible_monsters=[naga])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = fighting.floor_key
+        policy._returning_to_town = True
+
+        key = policy.choose_key(fighting)
+
+        self.assertEqual(key, "rw")
+        self.assertEqual(policy.last_reason, "combat:disengage-recall")
+
+    def test_fruitless_disengagement_waits_while_recall_is_active(self):
+        base = self._quiet_room()
+        fighting = replace(
+            base,
+            player=replace(base.player, recalling=True),
+            visible_monsters=[hostile(1, 10, 11)],
+        )
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = fighting.floor_key
+        policy._returning_to_town = True
+
+        key = policy.choose_key(fighting)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "combat:disengage-wait-recall")
+
     def test_blocked_fruitless_disengagement_reaches_visible_stop(self):
         snapshot = self._quiet_room()
         policy = HengbotPolicy()
