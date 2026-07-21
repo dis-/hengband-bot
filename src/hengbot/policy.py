@@ -3987,8 +3987,16 @@ class HengbotPolicy:
                 else None
             )
             if step is None:
-                self.last_reason = "chest:reserved-position-unreachable"
-                return WAIT_KEY
+                # A completed quest can be resumed with no in-memory record of
+                # cleared fixed targets.  Its reviewed route may then reject
+                # every path back to the chest's reserved square.  Waiting here
+                # can never change that routing evidence, so process the carried
+                # chest at the current safe, hostile-free position instead.
+                self._chest_drop_origin = player.position
+                self._chest_phase_counts = {}
+                self._chest_collecting = False
+                self.last_reason = "chest:drop-unreachable-reserved"
+                return CHEST_DROP_KEY + chest.slot
             self.last_reason = "chest:return-reserved-position"
             return self._step_toward(snapshot, step)
         self._chest_drop_origin = player.position

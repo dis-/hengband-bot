@@ -21957,6 +21957,33 @@ class ChestProcessingTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "chest:return-reserved-position")
         self.assertIsNone(policy._chest_drop_origin)
 
+    def test_carried_reserved_chest_drops_in_place_when_position_is_unreachable(self):
+        chest = item("c", TVAL_CHEST, 1, name="small wooden chest")
+        snap = replace(
+            self._snap(inventory=[chest], player_pos=(6, 16)),
+            floor_key=(0, 5, 34),
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy,
+            "approved_quest_strategy",
+            return_value=SimpleNamespace(quest_id=34),
+        ), patch.object(
+            policy,
+            "_quest_strategy_route_step",
+            return_value=None,
+        ):
+            self.assertEqual(
+                policy._chest_processing_key(
+                    snap, [], allowed_positions={Position(10, 8)}
+                ),
+                "dc",
+            )
+
+        self.assertEqual(policy.last_reason, "chest:drop-unreachable-reserved")
+        self.assertEqual(policy._chest_drop_origin, Position(6, 16))
+
     def test_opened_floor_chest_collects_contents_without_drop(self):
         chest_position = Position(10, 10)
         grids = {
