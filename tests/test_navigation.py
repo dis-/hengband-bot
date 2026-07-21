@@ -556,11 +556,13 @@ class NavigationInvariantTest(unittest.TestCase):
         fighting = replace(base, visible_monsters=lice)
         policy = HengbotPolicy()
 
+        armed = False
         for _ in range(COMBAT_OUTCOME_WINDOW + 1):
             policy.last_reason = "melee"
             policy._update_combat_outcome(fighting)
+            armed = armed or policy.last_reason == "combat:disengage-armed"
 
-        self.assertEqual(policy.last_reason, "combat:disengage-armed")
+        self.assertTrue(armed)
         self.assertFalse(policy._combat_fruitful)
         self.assertEqual(policy._fruitless_disengage_floor, fighting.floor_key)
 
@@ -584,6 +586,24 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "combat:disengage-armed")
         self.assertFalse(policy._combat_fruitful)
         self.assertEqual(policy._fruitless_disengage_floor, base.floor_key)
+
+    def test_breeder_verdict_does_not_rearm_existing_disengage(self):
+        base = self._quiet_room()
+        fighting = replace(
+            base,
+            visible_monsters=[hostile(1, 10, 11, can_multiply=True)],
+        )
+        policy = HengbotPolicy()
+        policy._breeder_engagement_floor = base.floor_key
+        policy._breeder_engagement_score = BREEDER_CONTAINMENT_WINDOW
+        policy._fruitless_disengage_floor = base.floor_key
+        policy._fruitless_disengage_decisions = 37
+        policy.last_reason = "combat:disengage-step"
+
+        policy._update_combat_outcome(fighting)
+
+        self.assertEqual(policy._fruitless_disengage_decisions, 37)
+        self.assertEqual(policy.last_reason, "combat:disengage-step")
 
     def test_fruitless_swarm_disengages_then_leaves_floor(self):
         base = self._quiet_room(upstairs=True)

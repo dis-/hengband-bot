@@ -16421,10 +16421,11 @@ class HengbotPolicy:
             )
         if self._breeder_engagement_score >= BREEDER_CONTAINMENT_WINDOW:
             self._combat_fruitful = False
-            self._fruitless_disengage_floor = snapshot.floor_key
-            self._fruitless_disengage_decisions = 0
-            self._returning_to_town = True
-            self.last_reason = "combat:disengage-armed"
+            if self._fruitless_disengage_floor != snapshot.floor_key:
+                self._fruitless_disengage_floor = snapshot.floor_key
+                self._fruitless_disengage_decisions = 0
+                self._returning_to_town = True
+                self.last_reason = "combat:disengage-armed"
             return
 
         reason = self.last_reason
@@ -16484,7 +16485,10 @@ class HengbotPolicy:
             or hostile_count_progress
             or single_target_progress
         )
-        if not self._combat_fruitful:
+        if (
+            not self._combat_fruitful
+            and self._fruitless_disengage_floor != snapshot.floor_key
+        ):
             self._fruitless_disengage_floor = snapshot.floor_key
             self._fruitless_disengage_decisions = 0
             self._returning_to_town = True
