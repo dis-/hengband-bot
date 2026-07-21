@@ -1260,11 +1260,30 @@ class WieldLightTest(unittest.TestCase):
         pol.choose_key(snap)
         self.assertNotEqual(pol.last_reason, "refill-light")
 
+    def test_refills_an_unidentified_lantern_when_player_square_is_dark(self):
+        grids = {Position(10, 10): grid(10, 10, lit=False)}
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            inventory=[item("b", TVAL_FLASK, SV_FLASK_OIL, name="oil", fuel=7500)],
+            equipment=[
+                item(
+                    "f", TVAL_LITE, SV_LITE_LANTERN,
+                    name="unidentified brass lantern", aware=True, known=False,
+                )
+            ],
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol.choose_key(snap), "\\Fb")
+        self.assertEqual(pol.last_reason, "refill-light")
+
     def test_does_not_refill_an_unidentified_light(self):
         # An unidentified equipped light reports a redacted fuel of 0, which must
         # not be mistaken for empty — refilling it would waste a flask of oil on a
         # light that is very likely full.
-        grids = {Position(10, 10): grid(10, 10)}
+        grids = {Position(10, 10): grid(10, 10, lit=True)}
         snap = Snapshot(
             player(10, 10),
             grids,

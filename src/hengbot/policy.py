@@ -4385,11 +4385,15 @@ class HengbotPolicy:
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
             return None
-        # Fuel is only reported for identified lights; an unidentified equipped
-        # light reads a redacted fuel of 0, which must NOT be mistaken for empty
-        # (that would burn a torch/oil topping up a light that is likely full).
+        # Fuel is only reported for identified lights.  For an unidentified
+        # lantern, use actual illumination of the player's square as the empty
+        # signal: this avoids wasting oil while it still burns, but recovers
+        # once the redacted-fuel lantern really goes dark.
         if not equipped.known:
-            return None
+            here = snapshot.grid_at(snapshot.player.position)
+            if not equipped.is_lantern or here is None or here.lit:
+                return None
+            return self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0)
         if equipped.is_lantern:
             if equipped.fuel > LANTERN_REFILL_FUEL:
                 return None
