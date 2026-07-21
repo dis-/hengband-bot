@@ -11237,6 +11237,13 @@ class HengbotPolicy:
                     if self._fundraising_departure_ready(snapshot):
                         self.last_reason = "fundraise:fallback-shallow"
                         return None
+                # Do not let this early fundraising wait starve the ordinary
+                # town pack-pressure pipeline below.  Descent deliberately
+                # rejects a completely full pack, so waiting here can only
+                # become a cycle; falling through lets identification, safe
+                # destruction, and the terminal overflow fallback free a slot.
+                if len(snapshot.inventory) >= PACK_CAPACITY:
+                    return None
                 # Once every store route has been abandoned, preferred food is
                 # optional for a shallow scavenge dive.  A working light was
                 # checked when the cycle was broken and remains a hard gate.

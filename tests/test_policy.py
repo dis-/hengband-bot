@@ -11665,6 +11665,25 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy.last_reason, "fundraise:departure-blocked-step-off"
         )
 
+    def test_full_pack_fundraising_block_falls_through_to_disposal(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                item(str(index), TVAL_POTION, index)
+                for index in range(PACK_CAPACITY)
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "scavenge"
+        policy._fundraising_departure_ready = lambda snapshot: False
+        policy._activate_shallow_fundraising_trip = lambda snapshot: False
+
+        self.assertIsNone(policy._town_special_key(snap))
+
     def test_known_distant_store_uses_native_travel_without_bfs_memory(self):
         home = Position(45, 123)
         snap = Snapshot(
