@@ -134,6 +134,17 @@ class QuestKnowledgeTest(unittest.TestCase):
         )
         self.assertTrue(battlefield.chokepoints)
 
+    def test_real_old_man_willow_preserves_walkable_tree_terrain(self):
+        edit = Path(r"C:\hengband\lib\edit")
+        if not (edit / "QuestDefinitionList.txt").is_file():
+            self.skipTest("real Hengband lib/edit is not available")
+
+        battlefield = load_quest_knowledge(edit / "QuestDefinitionList.txt")[31].battlefield
+
+        self.assertIsNotNone(battlefield)
+        self.assertEqual(battlefield.terrain[(2, 1)], "tree")
+        self.assertEqual(battlefield.entrance, (18, 1))
+
     def test_locator_prefers_legacy_then_falls_back_to_jsonc(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

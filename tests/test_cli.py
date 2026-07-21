@@ -3,10 +3,12 @@ import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.cli import (
     COMMAND_RESPONSE_GRACE,
+    CHEST_MOVE_RESPONSE_SECONDS,
     DECISION_WATCHDOG_SECONDS,
     DUMP_INTERVAL_SECONDS,
     EconomyLedger,
@@ -28,8 +30,11 @@ from hengbot.cli import (
     _cell_loop_guard_applies,
     _uses_multiplier_combat_grace,
     _delay_after_macro_key,
+    _delay_spec_after_macro_key,
+    _intentional_action_wait_category,
     _decision_record,
     _duplicate_snapshot_ready,
+    _chest_movement_response_pending,
     _fundraising_state,
     _floor_transition_needs_prompt_clear,
     _deduplicate_consecutive,
@@ -76,6 +81,42 @@ class PeriodicDumpTimerTest(unittest.TestCase):
         self.assertEqual(deadline, 100.0 + DUMP_INTERVAL_SECONDS)
         self.assertEqual(_request_due_dump(policy, 101.0, deadline), deadline)
         policy.request_character_dump.assert_called_once_with()
+
+
+class WaitClassificationTest(unittest.TestCase):
+    def test_macro_delays_have_stable_categories(self):
+        self.assertEqual(
+            _delay_spec_after_macro_key("T3", 0),
+            (TUNNEL_PROMPT_DELAY_SECONDS, "input:tunnel-prompt"),
+        )
+        travel = next(iter(TRAVEL_MACRO_TRIGGERS))
+        self.assertEqual(
+            _delay_spec_after_macro_key(travel, 1),
+            (TRAVEL_PROMPT_DELAY_SECONDS, "input:travel-prompt"),
+        )
+        self.assertEqual(
+            _delay_spec_after_macro_key("fa6", 0),
+            (STORE_ITEM_PROMPT_DELAY_SECONDS, "input:item-prompt"),
+        )
+        self.assertEqual(
+            _delay_spec_after_macro_key("qa", 0),
+            (MULTI_KEY_DELAY_SECONDS, "input:generic-prompt"),
+        )
+
+    def test_only_deliberate_stationary_actions_are_timed(self):
+        self.assertEqual(
+            _intentional_action_wait_category("5", "town:wait-recall"),
+            "action:town:wait-recall",
+        )
+        self.assertEqual(
+            _intentional_action_wait_category("R&.", "town:recover"),
+            "action:town:recover",
+        )
+        self.assertEqual(
+            _intentional_action_wait_category("5", "quest-strategy:hold"),
+            "action:quest-strategy:hold",
+        )
+        self.assertIsNone(_intentional_action_wait_category("6", "explore"))
 
 
 def _snap_line(turn, y, x):
@@ -404,6 +445,21 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertEqual(floor_grid.object_count, 2)
         self.assertEqual(floor_grid.object_tvals, (65, 55))
 
+    def test_parses_walkable_line_of_fire_blocker(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {
+                "y": 5,
+                "x": 6,
+                "known": True,
+                "terrain": {"move": True, "los": False},
+            }
+        ]
+
+        floor_grid = parse_snapshot(data, {}).grids[Position(5, 6)]
+        self.assertTrue(floor_grid.passable)
+        self.assertFalse(floor_grid.allows_los)
+
     def test_parses_fixed_quest_progress_and_visible_quest_grids(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["floor"].update({"level": 0, "in_town": True, "town_id": 0, "town_index": 1})
@@ -471,11 +527,13 @@ class NewestSnapshotTest(unittest.TestCase):
         data["progress"] = {
             "recall_dungeon_id": 2,
             "entered_dungeon_ids": [1, 2, 5],
+            "dungeon_recall_depths": {"1": 20, "2": 13, "5": 31},
         }
 
         snap = parse_snapshot(data, {})
 
         self.assertEqual(snap.entered_dungeon_ids, (1, 2, 5))
+        self.assertEqual(snap.dungeon_recall_depths, {1: 20, 2: 13, 5: 31})
 
     def test_ignores_legacy_exact_food_and_recall_counters(self):
         data = json.loads(_snap_line(100, 5, 5))
@@ -731,6 +789,40 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         changed = json.dumps(changed_data) + "\n"
         self.assertTrue(
             _duplicate_snapshot_ready(changed, previous_line, 0.0, previous_reason)
+        )
+
+
+class ChestMovementAcknowledgementTest(unittest.TestCase):
+    def _snapshot(self, position, floor_key=(0, 0, 0)):
+        return SimpleNamespace(
+            floor_key=floor_key,
+            player=SimpleNamespace(position=position),
+        )
+
+    def test_holds_duplicate_move_while_position_is_unchanged(self):
+        position = Position(35, 119)
+        pending = ((0, 0, 0), position, 10.0)
+
+        self.assertTrue(
+            _chest_movement_response_pending(
+                pending, self._snapshot(position), 10.5
+            )
+        )
+        self.assertFalse(
+            _chest_movement_response_pending(
+                pending,
+                self._snapshot(position),
+                10.0 + CHEST_MOVE_RESPONSE_SECONDS,
+            )
+        )
+
+    def test_position_change_acknowledges_move_immediately(self):
+        pending = ((0, 0, 0), Position(35, 119), 10.0)
+
+        self.assertFalse(
+            _chest_movement_response_pending(
+                pending, self._snapshot(Position(34, 118)), 10.1
+            )
         )
 
 
@@ -1045,6 +1137,21 @@ class StationaryReasonsTest(unittest.TestCase):
         )
         self.assertTrue(
             _cell_loop_guard_applies(dungeon, "quest-strategy:avoid-never-move")
+        )
+
+    def test_fixed_quest_combat_is_exempt_but_routing_is_guarded(self):
+        # Q22 can require an entire wave to be fought from one defensive post.
+        # Those attacks make game progress even though position does not change.
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "quest-strategy:melee")
+        )
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "quest-strategy:ranged-fire")
+        )
+        self.assertTrue(
+            _cell_loop_guard_applies(dungeon, "quest-strategy:position")
         )
 
     def test_deep_fundraising_combat_uses_multiplier_grace_reason(self):

@@ -24,6 +24,8 @@ from hengbot.warrior_loadout_evaluator import (
     WarriorLoadoutInputs,
 )
 from hengbot.warrior_loadout_search import (
+    MAX_GEAR_STATES_PER_PROFILE,
+    _compress_states,
     _deduplicate_melee_weapons,
     _prune_dominated_catalog,
     disposable_dominated_item_ids,
@@ -94,6 +96,33 @@ def exhaustive_loadouts(items):
 
 
 class WarriorLoadoutSearchTest(unittest.TestCase):
+    def test_large_pareto_front_is_bounded_and_keeps_extremes_and_current(self):
+        states = []
+        for index in range(MAX_GEAR_STATES_PER_PROFILE + 100):
+            launcher = owned(
+                f"bow-{index}",
+                19,
+                sval=2,
+                to_h=index,
+                to_d=MAX_GEAR_STATES_PER_PROFILE + 100 - index,
+            )
+            states.append(Loadout((("bow", launcher),), "one_handed"))
+        current_id = "bow-550"
+
+        compressed, truncated = _compress_states(
+            states,
+            processed_slots=("bow",),
+            current_by_slot={"bow": current_id},
+            current_item_ids=frozenset({current_id}),
+        )
+
+        kept = set().union(*(state.item_ids for state in compressed))
+        self.assertTrue(truncated)
+        self.assertEqual(len(compressed), MAX_GEAR_STATES_PER_PROFILE)
+        self.assertIn("bow-0", kept)
+        self.assertIn(f"bow-{MAX_GEAR_STATES_PER_PROFILE + 99}", kept)
+        self.assertIn(current_id, kept)
+
     def setUp(self):
         race = MonraceKnowledge(
             max_hp=80,

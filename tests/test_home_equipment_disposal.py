@@ -32,6 +32,9 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
         ])
         policy = HengbotPolicy()
         policy._equipment_catalog.observe_home_page(home.store.items)
+        policy._equipment_catalog.observe_home_page(
+            home.store.items, allow_wrap=True
+        )
         policy._home_disposal_pass = True
         self.assertEqual(policy._home_dominated_disposal_key(home), "pc\r")
 

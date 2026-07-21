@@ -22,6 +22,12 @@ from hengbot.equipment_transaction_session import (
     EquipmentTransactionSession,
     observe_equipment_transactions,
 )
+from hengbot.equipment_transaction_planner import (
+    PHASE_HOME_PREPARE,
+    EquipmentTransaction,
+    EquipmentTransactionPlan,
+    plan_equipment_transactions,
+)
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.navigation import NavigationLedger
 from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState
@@ -52,6 +58,7 @@ from hengbot.warrior_optimization import (
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.model import (
     DUNGEON_ANGBAND,
+    DUNGEON_CHAMELEON_CAVE,
     DUNGEON_YEEK_CAVE,
     PLAYER_CLASS_WARRIOR,
     STORE_ALCHEMIST,
@@ -63,6 +70,7 @@ from hengbot.model import (
     STORE_TEMPLE,
     STORE_WEAPON,
     SV_LITE_LANTERN,
+    SV_LITE_FEANOR,
     SV_LITE_TORCH,
     SV_POTION_SLEEP,
     SV_POTION_SPEED,
@@ -132,6 +140,7 @@ from hengbot.model import (
     TVAL_CAPTURE,
     TVAL_CARD,
     TVAL_BOTTLE,
+    TVAL_CHEST,
     GridState,
     InventoryItem,
     MonsterState,
@@ -292,9 +301,14 @@ QUEST_ID_THIEF = 1
 # Oberon and the Serpent are factual game constants: fixed WIN quests that are
 # TAKEN from birth and are never completable by the bot's fixed-quest machinery.
 WIN_QUEST_IDS = frozenset({8, 9})
-FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 25, 28, 34})
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 22, 25, 28, 31, 34})
 # This is executor capability, not strategy approval or a tuning threshold.
-EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 34})
+EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 22, 31, 34})
+FIXED_QUEST_TOWNS = {2: 1, 22: 3, 31: 0}
+# Building 0 is the Outpost inn/castle.  The ordinary inns in Telmora,
+# Morivant, and Angwil are building 4.  Zul's tavern does not offer town
+# teleportation, so it is intentionally absent.
+TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
 # A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
 # and adds modest insurance before committing to another one-shot floor.  The
 # full-health, loadout, pack-space, and departure gates below still all apply.
@@ -321,6 +335,8 @@ FIXED_QUEST_REWARD_POSITIONS = {
     # (36,119), directly beside the quest-34 building at (37,119). Without
     # this entry the reward pickup silently no-ops (user-caught 2026-07-17).
     34: (0, frozenset({Position(36, 119)})),
+    22: (3, frozenset({Position(31, 99)})),
+    31: (0, frozenset({Position(36, 119)})),
 }
 # A closed door does not open just by walking into it (that depends on game
 # options and fails on locked doors); explicitly open it with 'o' + direction.
@@ -441,6 +457,9 @@ NAV_ESCAPE_STEP_LIMIT = 200
 # forever merely because attack keys keep being issued.  Retain one extra sample
 # so a full window has both endpoints to compare.
 COMBAT_OUTCOME_WINDOW = 300
+# Experience gain is not proof that a breeder swarm is being contained: a
+# kill-and-reproduce equilibrium can award XP forever without clearing a route.
+BREEDER_CONTAINMENT_WINDOW = 120
 FRUITLESS_DISENGAGE_LIMIT = 100
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of
@@ -465,6 +484,12 @@ TOWN_WANDER_LIMIT = 60
 # resets the window.
 TOWN_CYCLE_WINDOW = 48
 TOWN_CYCLE_MAX_DISTINCT = 8
+# Native town travel is comparatively slow, so the generic 48-decision window
+# can represent many minutes.  A route that emits at least eight travel rows
+# while collapsing to three cells is not a legitimate cross-town traverse.
+TOWN_FAST_TRAVEL_WINDOW = 12
+TOWN_FAST_TRAVEL_MIN_ROWS = 8
+TOWN_FAST_TRAVEL_MAX_POSITIONS = 3
 # d309c2a lowered this fallback only to beat cli.py's 40-decision cell guard in
 # town.  1e46bb5 removed that guard from town entirely, so that race no longer
 # exists and the tighter bound only adds false positives: on a first visit,
@@ -674,12 +699,27 @@ RANGED_SLEEPER_MAX_DISTANCE = 4
 # The Weapon Smith always stocks SHOT/ARROW/BOLT (articles-on-sale.cpp).
 AMMO_PURCHASE_TARGET = 30
 AMMO_RESTOCK_THRESHOLD = 10
+# A full launcher stack is operationally useful and user-approved, but duplicate
+# stacks beyond it must not impose an inventory-speed penalty.
+AMMO_CARRY_TARGET = 99
 # User directive (2026-07-16): potions are never thrown (weak), and on early
 # floors the bot actively throws CHEAP TORCHES instead — a thrown light
 # survives 50% (object-broken.cpp) and costs ~1g at the General Store, so it
 # is near-free ranged pressure while the launcher has no matching ammo.
 TORCH_THROW_MAX_DEPTH = 10
 TORCH_THROW_TARGET = 10
+# Speed and Healing are valuable emergency supplies, but carrying an unlimited
+# Black Market stockpile can impose a speed penalty.  Keep a useful field stock
+# while shelving everything above the user-approved per-kind limit at Home.
+EMERGENCY_POTION_CARRY_TARGET = 10
+# Source: player-status-table.cpp adj_str_wgt.  Values become internal
+# decipounds after multiplication by 50 in calc_weight_limit().
+ADJ_STR_WEIGHT_LIMIT = (
+    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 31, 31, 32, 32, 33, 33, 34, 34, 35, 35, 36,
+    36, 37, 37, 38, 38, 39,
+)
+PLAYER_CLASS_BERSERKER = 23
 # Chest processing (user-specified procedure): drop the carried chest, step
 # to an adjacent tile, `s` to discover its trap (search() marks adjacent
 # trapped chests known — player-move.cpp discover_hidden_things), `D` to
@@ -742,6 +782,10 @@ BUY_CONFIRM_SUFFIX = "\r"
 # submit it, then use exactly one Return for DEFAULT_Y confirmation.
 STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
 LEAVE_STORE_KEY = "\x1b"
+# *Identify* always opens screen_object(); equipment with many attributes can
+# add several ``-- more --`` pages before the final continue prompt.  Escape
+# closes each page and is harmless after control returns to the command loop.
+FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
 SELL_KEY = "d"
 SELL_ATTEMPT_LIMIT = 3
 SELL_CONFIRM_SUFFIX = "\r"
@@ -865,6 +909,9 @@ MANA_FOOD_DEVICE_TARGET = 2
 # overrides this reserve because survival is the device's final purpose.
 IDENTIFY_CHARGE_FLOOR = 5
 MIN_FREE_PACK_SLOTS = 5
+# Five slots is the normal loot-space target.  Four remains a usable terminal
+# fallback when every safe town route for freeing another slot is exhausted.
+MIN_TERMINAL_FREE_PACK_SLOTS = 4
 TELEPORT_SCROLL_TARGET = 3
 # Deep runs (10F+) escape far more often, so carry a big teleport buffer and only
 # head back to restock once it is drawn down to the low reserve.
@@ -988,14 +1035,12 @@ INN_BUILDING_TYPE = 0
 HUNTER_OFFICE_BUILDING_TYPE = 13
 RUMOR_KEY = "u"
 RUMOR_EXIT_SUFFIX = "\r\r\x1b"
-# Unlocking Angband recall takes roughly $2000 of medium ("u") rumors — about 200
-# reads at 10g each — before the shallow-dungeon rumor that calls
-# set_max_level(Angband) turns up. Read the whole batch in ONE inn visit (the
-# building menu stays open between reads) so the bot neither crawls one rumor per
-# turn nor oscillates on/off the inn tile, which the loop guard would trip.
+# Unlocking destinations can take many medium ("u") rumors. Keep each visit
+# bounded so PostMessage input finishes well below the CLI's stalled-send
+# diagnostic, then re-read exported progress before spending more gold.
 RUMOR_COST = 10
 RUMOR_READ_KEY = RUMOR_KEY + "\r"  # pick the rumor action, dismiss its -more-
-RUMOR_READS_PER_VISIT = 200
+RUMOR_READS_PER_VISIT = 40
 # Gold kept in reserve so a rumor batch never spends the character dry; the batch
 # size adapts to whatever is affordable above it. Below this, top up by mining.
 RUMOR_GOLD_RESERVE = 300
@@ -1040,12 +1085,25 @@ QUEST_SCROLL_SVALS = {
     "light": SV_SCROLL_LIGHT,
     "teleport": SV_SCROLL_TELEPORT,
 }
-Q2_BREEDER_RACES = frozenset({86, 153, 252, 213})
+Q2_BREEDER_RACES = frozenset({86, 153, 202, 252, 213})
+Q2_RESIDUAL_SWEEP_RACES = (202, 213, 252, 153, 86)
 Q2_WERERAT_RACE = 270
 Q2_WHITE_CROCODILE_RACE = 1044
 Q2_BREACH_POSITION = Position(11, 47)
+Q2_BREACH_STANDING = Position(6, 47)
+Q2_BREACH_REQUIRED_USES = 2
+Q2_BLUE_CONFIRM_POSITION = Position(13, 47)
+Q2_POST_BLUE_SEQUENCE = (
+    ("down-puddle", 885, (Position(18, 46),)),
+    ("spiders", 175, tuple(Position(21, x) for x in range(50, 56))),
+    ("lower-right-puddle", 885, (Position(20, 62),)),
+    ("upper-puddle", 944, (Position(12, 64),)),
+    ("nether-worm", 213, (Position(11, 60),)),
+    ("upper-left-puddle", 944, (Position(8, 55),)),
+)
 Q2_BREACH_MIN_DIGGING = 3
 Q2_BREACH_ATTEMPT_LIMIT = 20
+Q34_WOODEN_CHEST_POSITION = Position(10, 8)
 
 # Hengband's speed_to_energy table for speeds 90..199. Keeping this static game
 # rule in the bot avoids exposing a monster's hidden runtime state.
@@ -1110,12 +1168,29 @@ class HengbotPolicy:
             int, set[tuple[int, int, int]]
         ] = {}
         self._quest_strategy_pending_recovery: dict[int, dict[str, object]] = {}
+        self._quest_strategy_initial_hold_turns: dict[int, int] = {}
+        self._quest_strategy_surveyed_placements: dict[int, set[Position]] = {}
+        self._quest_strategy_sweep_rounds: dict[int, int] = {}
+        self._quest_strategy_opening_phase: dict[int, int] = {}
+        self._quest_strategy_hold_positions: dict[int, Position] = {}
+        self._quest_strategy_post_wave_light_attempted: set[int] = set()
         self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
+        self._q2_phase_light_attempted: set[tuple[object, ...]] = set()
+        self._q2_phase_visited_goals: set[
+            tuple[tuple[int, int, int], int, Position, Position]
+        ] = set()
+        self._q2_phase_route_targets: dict[
+            tuple[tuple[int, int, int], int, Position], Position
+        ] = {}
         self._q2_speed_attempted: set[int] = set()
         self._q2_surveyed_placements: set[Position] = set()
+        self._q2_residual_surveyed_races: set[int] = set()
+        self._q2_final_patrol_visited: set[Position] = set()
+        self._q2_final_patrol_target: Position | None = None
         self._q2_cleared_races: set[int] = set()
         self._q2_breach_attempts = 0
         self._q2_breach_complete = False
+        self._q2_blue_recovery_complete = False
         self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
@@ -1129,6 +1204,11 @@ class HengbotPolicy:
         self._target_empty_dives = 0  # consecutive over-extended dives of the target
         self._last_overextended_depth = 0  # recall depth we could not loot at
         self._alternate_dungeon: int | None = None  # switched-to level-fit dungeon
+        # A depth fallback caused by an invalid deep loadout is released only
+        # after one expedition there.  Character level alone cannot repair the
+        # missing equipment and must not cancel this target while still in town.
+        self._loadout_depth_fallback_dungeon: int | None = None
+        self._pending_recall_dungeon_id: int | None = None
         # Idle-item tracking: an item carried but never used (consumed or wielded)
         # across several dives is dead weight to stash at home. See UNUSED_DIVE_LIMIT.
         self._item_idle_dives: dict[tuple[str, int, int], int] = {}
@@ -1237,6 +1317,9 @@ class HengbotPolicy:
         # budgets already spent (search/disarm/open). None = no chest placed.
         self._chest_position: Position | None = None
         self._chest_phase_counts: dict[str, int] = {}
+        self._chest_drop_origin: Position | None = None
+        self._chest_collecting = False
+        self._processed_chest_positions: set[Position] = set()
         # Known-grid high-water mark at the moment the sweep latched done. A
         # tapped-out RESUME must show the map grew past this (mining exposed
         # new floor); resuming on mere frontier existence re-runs the exact
@@ -1258,11 +1341,18 @@ class HengbotPolicy:
         self._town_no_progress_count = 0
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
+        self._observed_town_id: int | None = None
         self._town_restock_suppressed = False
         self._town_errand_plan: TownErrandPlan | None = None
+        # Four free slots are accepted only after the productive town pipeline
+        # has declined every action for this exact inventory.  Keep the readiness
+        # gate pure: calling disposal/store planners from it recurses through the
+        # supply ledger and equipment departure checks.
+        self._terminal_pack_space_signature: tuple[tuple[object, ...], ...] | None = None
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
+        self._pending_loot_pickup: tuple[tuple[int, int, int], Position, int] | None = None
         self._multiplier_target: Position | None = None
         self._multiplier_target_grace = 0
         self._probe_counts: Counter[tuple[int, int]] = Counter()
@@ -1335,6 +1425,8 @@ class HengbotPolicy:
         self._combat_outcomes: deque[tuple] = deque(maxlen=COMBAT_OUTCOME_WINDOW + 1)
         self._combat_outcome_floor: tuple[int, int, int] | None = None
         self._combat_fruitful = True
+        self._breeder_engagement_floor: tuple[int, int, int] | None = None
+        self._breeder_engagement_score = 0
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
         self._town_wander_streak = 0
@@ -1368,6 +1460,10 @@ class HengbotPolicy:
         # every observation.
         self._fundraising_cleared_for_conquest: int | None = None
         self._rumor_unlock_pending = False
+        # Inn travel only lists towns marked as visited by the game.  Rumors can
+        # reveal those towns, so keep the intended destination latched until the
+        # exported progress confirms that the service can actually select it.
+        self._town_travel_rumor_pending: int | None = None
         # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
         self._town_store_attempted: dict[int, int] = {}
         self._town_restock_wait_until: int | None = None
@@ -1458,6 +1554,7 @@ class HengbotPolicy:
         self._deferred_device_items: set[tuple[str, int, int]] = set()
         self._processed_home_items: set[tuple[str, int, int]] = set()
         self._deferred_home_items: set[tuple[str, int, int]] = set()
+        self._retried_home_identification_items: set[tuple[str, int, int]] = set()
         self._home_catalog: dict[tuple[str, int, int], StoreItem] = {}
         # Full, duplicate-preserving catalog for the complete-loadout optimizer.
         # The legacy dict above remains temporarily for old sale/deposit paths;
@@ -1465,9 +1562,11 @@ class HengbotPolicy:
         # signature collapses physically distinct identical items.
         self._equipment_catalog = OwnedEquipmentCatalog()
         self._equipment_optimization_signature: tuple | None = None
+        self._equipment_optimization_pack_items: int | None = None
         self._equipment_optimization_preparation: (
             WarriorOptimizationPreparation | None
         ) = None
+        self._equipment_optimization_timed_out_this_visit = False
         self._warrior_evaluator_cache = WarriorEvaluatorCache()
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
@@ -1608,16 +1707,30 @@ class HengbotPolicy:
         self._periodic_dump_requested = True
 
     def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
-        """Replace only an already-selected quiet exploration filler action."""
+        """Replace a safe filler action without delaying combat or prompts."""
         if not self._periodic_dump_requested:
             return key
-        safe_filler = self.last_reason in {
+        safe_exploration = self.last_reason in {
             "explore",
             "fundraise:deep-explore",
             "fundraise:sweep-explore",
         }
+        safe_q2_patrol = (
+            (
+                self.last_reason.startswith("quest-strategy:q2-residual-")
+                or self.last_reason.startswith("quest-strategy:q2-final-patrol")
+            )
+            and not self._hostiles(snapshot)
+        )
+        safe_town = (
+            snapshot.in_town
+            and snapshot.store is None
+            and not self._hostiles(snapshot)
+            and not snapshot.player.blind
+            and not snapshot.player.confused
+        )
         if (
-            not safe_filler
+            not (safe_exploration or safe_q2_patrol or safe_town)
             or snapshot.store is not None
             or snapshot.player.recalling
             or self._adjacent_hostiles(snapshot)
@@ -1671,8 +1784,6 @@ class HengbotPolicy:
             for item in snapshot.inventory:
                 if (
                     not item.is_equipment
-                    or item.is_light
-                    or item.is_digging_tool
                     or (
                         item.known
                         and not (
@@ -1707,10 +1818,13 @@ class HengbotPolicy:
             and snapshot.player.gold < FUNDRAISING_START_GOLD
         ):
             self._fundraising_mode = "prepare"
-        resumable_fundraising_floor = snapshot.dungeon_level == 1 or (
+        deep_fundraising_restart = (
             snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
-            and snapshot.player.gold < FUNDRAISING_GOLD_TARGET
             and self._deep_fundraising_active(snapshot)
+            and self._has_digging_tool(snapshot)
+        )
+        resumable_fundraising_floor = (
+            snapshot.dungeon_level == 1 or deep_fundraising_restart
         )
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
@@ -1798,9 +1912,15 @@ class HengbotPolicy:
         player = snapshot.player
         hostiles = self._hostiles(snapshot)
         adjacent = self._adjacent_hostiles(snapshot)
+        profile = self.approved_quest_strategy(snapshot.floor_key[2])
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
-        emergency = self._emergency_item(snapshot, hostiles)
+        emergency_hostiles = (
+            self._quest_strategy_emergency_hostiles(snapshot, profile, hostiles)
+            if profile is not None
+            else hostiles
+        )
+        emergency = self._emergency_item(snapshot, emergency_hostiles)
         if emergency is not None:
             return emergency
 
@@ -1815,7 +1935,6 @@ class HengbotPolicy:
             if restore is not None:
                 return restore
 
-        profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if profile is not None:
             # Approved-floor survival remains above the navigator. Keeping this
             # scoped to the quest branch preserves byte-for-byte dispatch order
@@ -1823,6 +1942,15 @@ class HengbotPolicy:
             survival = self._survival_gate_key(snapshot, hostiles)
             if survival is not None:
                 return survival
+            # Approved quest navigation owns the whole floor and returns before
+            # the ordinary light-maintenance block below. Refill during a quiet
+            # turn so a long fixed-map sweep cannot consume every remaining turn
+            # of lantern fuel while oil is already in the pack.
+            if not hostiles and not player.confused:
+                refill = self._light_refill_item(snapshot)
+                if refill is not None:
+                    self.last_reason = "refill-light"
+                    return REFILL_KEY + refill.slot
             info = self._quest_knowledge.get(profile.quest_id)
             if info is None or info.battlefield is None:
                 self.last_reason = "quest:blocked:enter"
@@ -1831,6 +1959,24 @@ class HengbotPolicy:
                 profile.quest_id,
                 QuestFloorNavigator(profile.quest_id, info.battlefield),
             )
+            quest = snapshot.quests.get(profile.quest_id)
+            if (
+                quest is not None
+                and quest.status == QUEST_STATUS_COMPLETED
+                and not hostiles
+            ):
+                # Fixed-quest sweep would otherwise treat a chest as generic
+                # loot and carry it out unopened. Process it on this floor so
+                # only Chest::open() contents enter the pack.
+                chest = self._chest_processing_key(
+                    snapshot,
+                    hostiles,
+                    allowed_positions={Q34_WOODEN_CHEST_POSITION}
+                    if profile.quest_id == 34
+                    else None,
+                )
+                if chest is not None:
+                    return chest
             return navigator.decide(self, snapshot, hostiles, adjacent)
 
         # A reviewed one-shot quest is entered on the assumption that its carried
@@ -1873,6 +2019,16 @@ class HengbotPolicy:
         disengage = self._fruitless_disengage_key(snapshot, hostiles)
         if disengage is not None:
             return disengage
+
+        # A harmless but extremely durable unique can otherwise fall through
+        # the consumable projection and into ordinary melee forever.  Arm a
+        # floor-level disengage while it is visible; the latch survives BLINK
+        # and TELEPORT interruptions that reset the contiguous combat tracker.
+        unprofitable_unique = self._unprofitable_unique_disengage_key(
+            snapshot, hostiles
+        )
+        if unprofitable_unique is not None:
+            return unprofitable_unique
 
         # 1. Survival: flee when hurt, swarmed, or too afraid to fight back.
         if self._should_flee(snapshot, hostiles, adjacent):
@@ -1952,6 +2108,25 @@ class HengbotPolicy:
         ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
         if ranged is not None:
             return ranged
+
+        # A material threat that cannot be attacked from the current square
+        # must not fall through to descent or exploration.  Live on Orc cave
+        # 19F, three fast monsters at distance two were already worth 57% of
+        # current HP over three turns; ordinary exploration then stepped into
+        # their pack and turned them into a five-monster surround.
+        if hostiles and self._predicted_damage(
+            snapshot, hostiles, turns=3
+        ) >= player.hp * LOOT_THREAT_DAMAGE_RATIO:
+            step = self._flee_step(snapshot, hostiles)
+            if step is not None:
+                self.last_reason = "threat:reposition"
+                return self._step_toward(snapshot, step)
+            scroll = self._escape_scroll(snapshot)
+            if scroll is not None:
+                self.last_reason = "threat:scroll"
+                return READ_KEY + scroll.slot
+            self.last_reason = "threat:wait"
+            return WAIT_KEY
 
         # 2s. Survival gate (R1): starvation safety is mode- and objective-
         # independent. It runs ABOVE fundraising/quests/descent because every
@@ -2194,7 +2369,12 @@ class HengbotPolicy:
         ):
             overflow_destroy = self._town_overflow_destroy_key(snapshot)
             if overflow_destroy is not None:
+                self._terminal_pack_space_signature = None
                 return overflow_destroy
+            if PACK_CAPACITY - len(snapshot.inventory) >= MIN_TERMINAL_FREE_PACK_SLOTS:
+                signature = self._town_pack_space_signature(snapshot)
+                if self._terminal_pack_space_signature != signature:
+                    self._terminal_pack_space_signature = signature
 
         town_special = self._town_special_key(snapshot)
         if town_special is not None:
@@ -2325,13 +2505,14 @@ class HengbotPolicy:
         #     with reachable stairs. Checked BEFORE the search/explore cluster so it
         #     actually runs (those steps return before the old step-10 fallback).
         forgetting_maze = self._is_forgetting_maze(snapshot)
+        completed_forgetting_maze = self._is_completed_forgetting_maze(snapshot)
         if (
             not snapshot.in_town
             and (
                 self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
                 or self._breakout_dig_floor == snapshot.floor_key
             )
-            and not forgetting_maze
+            and (not forgetting_maze or completed_forgetting_maze)
             # Leaving an active quest floor can permanently fail a random quest.
             # Keep searching for its target instead of treating the floor as a
             # disposable bad generation.
@@ -2528,6 +2709,11 @@ class HengbotPolicy:
 
     def _is_upstairs_target(self, grid: GridState) -> bool:
         return grid.has_up_stairs and (
+            (
+                grid.in_view
+                and self._stair_rejection_strikes[(UP_STAIRS_KEY, grid.position)] < 2
+            )
+            or
             (UP_STAIRS_KEY, grid.position) in self._unverified_stairs
             or not self._nav_ledger.is_expired("ascend", grid.position)
         )
@@ -2573,6 +2759,15 @@ class HengbotPolicy:
         self._observe_remove_curse(snapshot)
         self._observe_launcher_enchant(snapshot)
         previous_floor = self._floor_key
+        current_town_id = (
+            self._effective_town_id(snapshot) if snapshot.in_town else None
+        )
+        town_changed = (
+            current_town_id is not None
+            and self._observed_town_id is not None
+            and current_town_id != self._observed_town_id
+        )
+        self._observed_town_id = current_town_id
         self._observe_stair_command(snapshot)
         if not snapshot.in_town and snapshot.player.recalling:
             self._saw_dungeon_recall = True
@@ -2595,6 +2790,12 @@ class HengbotPolicy:
             self._quest_strategy_visible_targets.clear()
             self._quest_strategy_cleared_targets.clear()
             self._quest_strategy_pending_recovery.clear()
+            self._quest_strategy_initial_hold_turns.clear()
+            self._quest_strategy_surveyed_placements.clear()
+            self._quest_strategy_sweep_rounds.clear()
+            self._quest_strategy_opening_phase.clear()
+            self._quest_strategy_hold_positions.clear()
+            self._quest_strategy_post_wave_light_attempted.clear()
             if (
                 self._quest_regen_phase == "ascend"
                 and self._quest_regen_id is not None
@@ -2623,8 +2824,33 @@ class HengbotPolicy:
             self._town_cycle_breaks = 0
             self._town_restock_suppressed = False
             self._town_errand_plan = None
+            self._terminal_pack_space_signature = None
             self._town_restock_wait_until = None
             self._town_restock_rechecked.clear()
+        elif town_changed:
+            # Inn travel keeps the surface floor key at (0, 0, 0), but it is a
+            # new town visit with different stores and routes.  Carrying the
+            # previous town's cycle debt made the first ordinary shopping pass
+            # in the destination look like a second repetition offense.
+            self._town_travel_state = None
+            self._town_travel_fallback = None
+            self._town_hunt_target = None
+            self._town_signature_history.clear()
+            self._town_progress_marker = None
+            self._town_no_progress_count = 0
+            self._town_wander_streak = 0
+            self._town_cycle_pending = False
+            self._town_cycle_breaks = 0
+            self._town_blocked_reason = None
+            self._town_restock_suppressed = False
+            self._town_errand_plan = None
+            self._terminal_pack_space_signature = None
+            self._town_restock_wait_until = None
+            self._town_restock_rechecked.clear()
+            self._town_store_attempted.clear()
+            self._shopping_stuck = False
+            self._shop_approach_stuck_count = 0
+            self._shopping_abandoned = False
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
         # fighting (reset by any such progress, or by reaching town) — so a
@@ -2647,15 +2873,29 @@ class HengbotPolicy:
         # previous decision's signature; any real progress (gold, pack or
         # equipment change) resets the window.
         if snapshot.in_town:
+            plan = self._town_errand_plan
             marker = (
                 snapshot.player.gold,
                 len(snapshot.inventory),
                 len(snapshot.equipment),
+                self._identification_need,
+                self._equipment_catalog.home_scan_complete,
+                tuple(plan.completed_this_visit) if plan is not None else (),
+                tuple(plan.blocked_this_visit) if plan is not None else (),
             )
             if marker != self._town_progress_marker:
+                had_marker = self._town_progress_marker is not None
                 self._town_progress_marker = marker
                 self._town_signature_history.clear()
                 self._town_no_progress_count = 0
+                if had_marker:
+                    # Completing an identification/home-scan/errand stage is
+                    # real workflow progress even when gold and pack counts do
+                    # not change. Do not carry an earlier entrance-wait offense
+                    # across that boundary and mislabel the next store visit as
+                    # a second town cycle.
+                    self._town_cycle_pending = False
+                    self._town_cycle_breaks = 0
             if (
                 self.last_reason
                 and self.last_reason not in TOWN_CYCLE_IGNORED_REASONS
@@ -2746,6 +2986,12 @@ class HengbotPolicy:
             and quest_14.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
         ):
             self._rumor_unlock_pending = True
+        if (
+            self._town_travel_rumor_pending is not None
+            and snapshot.visited_town_ids is not None
+            and self._town_travel_rumor_pending in snapshot.visited_town_ids
+        ):
+            self._town_travel_rumor_pending = None
 
         # --- Over-extension: recall into a level-appropriate dungeon when the main
         # one is too deep to loot. On each dive of the recall target, track both the
@@ -2783,6 +3029,16 @@ class HengbotPolicy:
                 # to zero either, or the switch could never accumulate. Only a
                 # profitable dive clears the suspicion.
             self._dive_dungeon = None
+        if (
+            snapshot.in_town
+            and prev_dungeon == self._loadout_depth_fallback_dungeon
+        ):
+            # The shallow expedition has completed.  Let the optimizer check
+            # the deep loadout once more now that new equipment may be present.
+            self._loadout_depth_fallback_dungeon = None
+            self._alternate_dungeon = None
+            self._equipment_optimization_signature = None
+            self._equipment_optimization_preparation = None
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             self._last_overextended_depth = snapshot.recall_depth
             alt = self._pick_alternate_dungeon(snapshot)
@@ -2797,7 +3053,11 @@ class HengbotPolicy:
         # main dungeon's recommended level.
         if self._alternate_dungeon is not None:
             main = self._dungeon_knowledge.get(DUNGEON_ANGBAND)
-            if main is not None and snapshot.player.level >= main.min_player_level:
+            if (
+                self._loadout_depth_fallback_dungeon is None
+                and main is not None
+                and snapshot.player.level >= main.min_player_level
+            ):
                 self._alternate_dungeon = None
                 self._last_overextended_depth = 0
             elif self._alternate_dungeon in snapshot.entered_dungeon_ids:
@@ -2936,19 +3196,29 @@ class HengbotPolicy:
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
                 self._deferred_device_items.clear()
+                self._retried_home_identification_items.clear()
 
             if snapshot.yeek_cave_conquered and self._yeek_victory_loot:
                 self._yeek_victory_loot = False
                 self._yeek_conquest_processed = True
 
         if snapshot.floor_key != self._floor_key:
+            self._equipment_optimization_timed_out_this_visit = False
+            self._pending_recall_dungeon_id = None
             self._town_visit_purchases.clear()
             self._quest_light_attempted.clear()
+            self._q2_phase_light_attempted.clear()
+            self._q2_phase_visited_goals.clear()
+            self._q2_phase_route_targets.clear()
             self._q2_speed_attempted.clear()
             self._q2_surveyed_placements.clear()
+            self._q2_residual_surveyed_races.clear()
+            self._q2_final_patrol_visited.clear()
+            self._q2_final_patrol_target = None
             self._q2_cleared_races.clear()
             self._q2_breach_attempts = 0
             self._q2_breach_complete = False
+            self._q2_blue_recovery_complete = False
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
             self._fundraising_pursuit_target = None
@@ -2995,9 +3265,13 @@ class HengbotPolicy:
             self._mining_veins_dropped = 0
             self._chest_position = None
             self._chest_phase_counts = {}
+            self._chest_drop_origin = None
+            self._chest_collecting = False
+            self._processed_chest_positions.clear()
             self._known_loot.clear()
             self._loot_target = None
             self._deferred_loot.clear()
+            self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
             # A blocked-town/fundraising reason latches a permanent WAIT (which
@@ -3034,6 +3308,16 @@ class HengbotPolicy:
             self._visit_counts[position] += 1
             self._last_position = position
         self._recent.append(position)
+
+        if self._pending_loot_pickup is not None:
+            pickup_floor, pickup_position, pickup_count = self._pending_loot_pickup
+            if pickup_floor == snapshot.floor_key:
+                pickup_grid = snapshot.grid_at(pickup_position)
+                if pickup_grid is not None and pickup_grid.object_count >= pickup_count:
+                    self._deferred_loot.add(pickup_position)
+                    if self._loot_target == pickup_position:
+                        self._loot_target = None
+            self._pending_loot_pickup = None
 
         treasure_before_observation = set(self._known_treasure)
         for grid in snapshot.grids.values():
@@ -3098,6 +3382,42 @@ class HengbotPolicy:
             for it in snapshot.inventory
             if it.is_torch
         )
+
+    def _opening_q34_active(self, snapshot: Snapshot) -> bool:
+        """Whether the fresh-character Q34-first contract still owns town."""
+        if (
+            not snapshot.in_town
+            or snapshot.town_id not in {-1, 0}
+            or snapshot.player.class_id < 0
+            or snapshot.player.level != 1
+        ):
+            return False
+        quest = snapshot.quests.get(34)
+        if (
+            quest is None
+            or quest.status != QUEST_STATUS_UNTAKEN
+            or not self._fixed_quest_is_offered(snapshot, 34)
+            or any(
+                candidate.fixed
+                and candidate.status == QUEST_STATUS_TAKEN
+                and candidate.id not in WIN_QUEST_IDS
+                for candidate in snapshot.quests.values()
+            )
+        ):
+            return False
+        return self.approved_quest_strategy(34) is not None
+
+    def _opening_q34_torch_shortage(self, snapshot: Snapshot) -> int:
+        """Return the mandatory torch shortage for a fresh Outpost warrior."""
+        if not self._opening_q34_active(snapshot):
+            return 0
+        profile = self.approved_quest_strategy(34)
+        if profile is None:
+            return 0
+        required = int(
+            profile.required_force.get("throwing_items", {}).get("lit_torch", 0)
+        )
+        return max(0, required - self._count_throwing_torches(snapshot))
 
     def _count_matching_ammo(self, snapshot: Snapshot) -> int:
         launcher = self._equipped_launcher(snapshot)
@@ -3332,7 +3652,7 @@ class HengbotPolicy:
             self._ranged_target_guard_position = player.position
             self._ranged_target_attempts.clear()
             self._ranged_target_signatures.clear()
-        signature = (ammo.count, victim.hp, victim.position)
+        signature = (victim.hp, victim.position)
         previous_signature = self._ranged_target_signatures.get(victim.index)
         if previous_signature is not None:
             if signature != previous_signature:
@@ -3351,7 +3671,7 @@ class HengbotPolicy:
             # 'p' resets both interest and free-grid targeting modes to the
             # player, giving the cursor movement a deterministic origin.
             self.last_reason = "ranged:fire-offset"
-            return FIRE_KEY + ammo.slot + "*p" + keys + "t"
+            return FIRE_KEY + ammo.slot + "*p" + keys + "t5\x1b"
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
@@ -3378,6 +3698,8 @@ class HengbotPolicy:
         self,
         snapshot: Snapshot,
         victim: MonsterState,
+        *,
+        allow_direct_cursor: bool = False,
     ) -> Position | None:
         """Find an aim grid strictly beyond ``victim`` on a clear shot path."""
         origin = snapshot.player.position
@@ -3387,7 +3709,7 @@ class HengbotPolicy:
             grid = snapshot.grids.get(pos)
             # Unknown grids are deliberately optimistic: a wasted arrow is
             # cheaper than abandoning a potentially valid offset shot.
-            return grid is not None and grid.known and not grid.passable
+            return grid is not None and grid.known and not grid.allows_los
 
         def victim_precedes_aim(aim: Position) -> bool:
             path = projection_path(origin, aim, RANGED_MAX_DISTANCE, blocks)
@@ -3407,7 +3729,7 @@ class HengbotPolicy:
         if victim.position in direct_path and not any(
             pos in occupied for pos in direct_path[: direct_path.index(victim.position)]
         ):
-            return None
+            return victim.position if allow_direct_cursor else None
 
         delta_y = victim.position.y - origin.y
         delta_x = victim.position.x - origin.x
@@ -3475,7 +3797,10 @@ class HengbotPolicy:
         )
 
     def _chest_processing_key(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        allowed_positions: set[Position] | None = None,
     ) -> str | None:
         """User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.
 
@@ -3487,14 +3812,105 @@ class HengbotPolicy:
         player = snapshot.player
         if hostiles or player.blind or player.confused:
             return None
+        floor_chests = [
+            candidate.position
+            for candidate in snapshot.grids.values()
+            if candidate.known
+            and candidate.object_count > 0
+            and (
+                TVAL_CHEST in candidate.object_tvals
+                or (
+                    allowed_positions is not None
+                    and candidate.position in allowed_positions
+                )
+            )
+            and candidate.position not in self._processed_chest_positions
+            and (
+                allowed_positions is None
+                or candidate.position in allowed_positions
+            )
+        ]
+        if self._chest_drop_origin is not None:
+            nearby = [
+                position
+                for position in floor_chests
+                if position.distance_to(self._chest_drop_origin) <= 3
+            ]
+            if nearby:
+                self._chest_position = min(
+                    nearby,
+                    key=lambda position: (
+                        player.position.distance_to(position), position.y, position.x
+                    ),
+                )
+                self._chest_phase_counts = {}
+                self._chest_drop_origin = None
+            elif any(
+                self._is_processable_chest(item) for item in snapshot.inventory
+            ):
+                # The drop command has not yet reached the next stable snapshot.
+                # Keep ownership so town errands cannot carry the chest away.
+                self.last_reason = "chest:await-drop"
+                return WAIT_KEY
+            else:
+                origin = self._chest_drop_origin
+                origin_grid = snapshot.grids.get(origin)
+                if player.position == origin or (
+                    origin_grid is not None and origin_grid.object_count > 0
+                ):
+                    # Objects under the player are omitted from the visible
+                    # tval list. Preserve the legacy underfoot fallback only
+                    # when no displaced chest was actually observed.
+                    self._chest_position = origin
+                    self._chest_phase_counts = {}
+                self._chest_drop_origin = None
         if self._chest_position is not None:
             chest_pos = self._chest_position
             distance = player.position.distance_to(chest_pos)
             grid = snapshot.grids.get(chest_pos)
+            counts = self._chest_phase_counts
+            if counts.get("open", 0) > 0:
+                # Chest::open() calls drop_near() for every generated item.
+                # Contents can therefore land anywhere within radius three,
+                # not just on the original chest square (live Q34: three cells).
+                contents = {
+                    candidate.position
+                    for candidate in snapshot.grids.values()
+                    if candidate.known
+                    and candidate.object_count > 0
+                    and candidate.position.distance_to(chest_pos) <= 3
+                    and (
+                        candidate.position != chest_pos
+                        or candidate.object_count > 1
+                        or any(tval != TVAL_CHEST for tval in candidate.object_tvals)
+                    )
+                }
+                if contents:
+                    self._chest_collecting = True
+                    here = snapshot.grids.get(player.position)
+                    if player.position in contents and here is not None:
+                        self.last_reason = "chest:collect-contents"
+                        if here.object_count > 1:
+                            return PICKUP_KEY + ("a" * here.object_count)
+                        return PICKUP_KEY
+                    step = self._nearest_goal_step(
+                        snapshot, lambda candidate: candidate.position in contents
+                    )
+                    if step is not None:
+                        self.last_reason = "chest:collect-contents"
+                        return self._step_toward(snapshot, step)
+                if self._chest_collecting:
+                    self._processed_chest_positions.add(chest_pos)
+                    self._chest_position = None
+                    self._chest_phase_counts = {}
+                    self._chest_collecting = False
+                    return None
             if distance > 0 and grid is not None and grid.object_count == 0:
                 # Opened and fully looted, or destroyed by its own trap.
+                self._processed_chest_positions.add(chest_pos)
                 self._chest_position = None
                 self._chest_phase_counts = {}
+                self._chest_collecting = False
                 return None
             if distance == 0:
                 neighbors = self._walkable_neighbors(snapshot, player.position)
@@ -3516,7 +3932,6 @@ class HengbotPolicy:
                     return None
                 self.last_reason = "chest:approach"
                 return self._step_toward(snapshot, step)
-            counts = self._chest_phase_counts
             if counts.get("search", 0) < CHEST_SEARCH_BUDGET:
                 counts["search"] = counts.get("search", 0) + 1
                 self.last_reason = "chest:search"
@@ -3532,7 +3947,23 @@ class HengbotPolicy:
                 return CHEST_OPEN_KEY + direction
             self._chest_position = None
             self._chest_phase_counts = {}
+            self._chest_collecting = False
+            self._processed_chest_positions.add(chest_pos)
             return None
+        if floor_chests:
+            if player.hp < player.max_hp * 0.8:
+                self.last_reason = "chest:wait-health"
+                return WAIT_KEY
+            self._chest_position = min(
+                floor_chests,
+                key=lambda position: (
+                    player.position.distance_to(position), position.y, position.x
+                ),
+            )
+            self._chest_phase_counts = {}
+            return self._chest_processing_key(
+                snapshot, hostiles, allowed_positions=allowed_positions
+            )
         chest = next(
             (it for it in snapshot.inventory if self._is_processable_chest(it)),
             None,
@@ -3542,8 +3973,27 @@ class HengbotPolicy:
         if player.hp < player.max_hp * 0.8:
             # A chest trap can hurt; open on a healthy bar.
             return None
-        self._chest_position = player.position
+        if allowed_positions is not None and player.position not in allowed_positions:
+            target = min(
+                allowed_positions,
+                key=lambda position: (
+                    player.position.distance_to(position), position.y, position.x
+                ),
+            )
+            profile = self.approved_quest_strategy(snapshot.floor_key[2])
+            step = (
+                self._quest_strategy_route_step(snapshot, profile, target)
+                if profile is not None
+                else None
+            )
+            if step is None:
+                self.last_reason = "chest:reserved-position-unreachable"
+                return WAIT_KEY
+            self.last_reason = "chest:return-reserved-position"
+            return self._step_toward(snapshot, step)
+        self._chest_drop_origin = player.position
         self._chest_phase_counts = {}
+        self._chest_collecting = False
         self.last_reason = "chest:drop"
         return CHEST_DROP_KEY + chest.slot
 
@@ -3818,6 +4268,32 @@ class HengbotPolicy:
             "inventory:destroy-disposable-item",
         )
 
+    def _quest_sweep_pack_space_key(
+        self, snapshot: Snapshot, floor_grid: GridState
+    ) -> str | None:
+        """Resolve a full pack before fixed-quest floor pickup.
+
+        A loose light is not worth destroying an already-carried item for.  Mark
+        that cell deferred so the sweep can continue.  For other loot, reuse the
+        verified disposal path; if no carried item is safely disposable, defer
+        the cell rather than retrying an impossible ``g`` forever.
+        """
+        if len(snapshot.inventory) < PACK_CAPACITY:
+            return None
+        if floor_grid.object_tvals and all(
+            tval == TVAL_LITE for tval in floor_grid.object_tvals
+        ):
+            self._deferred_loot.add(floor_grid.position)
+            self.last_reason = "quest:sweep:defer-full-pack-light"
+            return WAIT_KEY
+        destroy = self._full_pack_destroy_key(snapshot)
+        if destroy is not None:
+            self.last_reason = "quest:sweep:free-pack-slot"
+            return destroy
+        self._deferred_loot.add(floor_grid.position)
+        self.last_reason = "quest:sweep:defer-full-pack-loot"
+        return WAIT_KEY
+
     def _find_cure_critical_potion(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
@@ -3838,14 +4314,30 @@ class HengbotPolicy:
         return any(item.is_light for item in snapshot.equipment)
 
     def _find_light(self, snapshot: Snapshot) -> InventoryItem | None:
-        light = self._first_item(snapshot, self._is_usable_light)
+        light = max(
+            (item for item in snapshot.inventory if self._is_usable_light(item)),
+            key=self._light_rank,
+            default=None,
+        )
         if light is not None:
             return light
         # Dungeon-found lights are unidentified, so their fuel is hidden (reads
         # as 0). With nothing else to light the way, wielding one is strictly
         # better than walking in the dark — the exact failure mode that killed
         # the torch-carrying Half-Troll.
-        return self._first_item(snapshot, lambda it: it.is_light and not it.known)
+        return max(
+            (item for item in snapshot.inventory if item.is_light and not item.known),
+            key=self._light_rank,
+            default=None,
+        )
+
+    @staticmethod
+    def _light_rank(item: InventoryItem) -> int:
+        if item.sval >= SV_LITE_FEANOR:
+            return 2
+        if item.is_lantern:
+            return 1
+        return 0
 
     @staticmethod
     def _is_usable_light(item: InventoryItem) -> bool:
@@ -3855,16 +4347,14 @@ class HengbotPolicy:
         return item.is_light and (item.sval > SV_LITE_LANTERN or item.fuel > 0)
 
     def _light_to_wield(self, snapshot: Snapshot) -> InventoryItem | None:
-        """The light we should wield now, or None. Wield any light when nothing is
-        lit; once a light is lit, only upgrade a torch to a lantern we own."""
+        """Wield the best usable light: torch < lantern < permanent light."""
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
             return self._find_light(snapshot)
-        if not equipped.is_lantern:
-            return self._first_item(
-                snapshot, lambda it: it.is_lantern and self._is_usable_light(it)
-            )
-        return None
+        candidate = self._find_light(snapshot)
+        if candidate is None or self._light_rank(candidate) <= self._light_rank(equipped):
+            return None
+        return candidate
 
     def _light_refill_item(self, snapshot: Snapshot) -> InventoryItem | None:
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
@@ -3907,17 +4397,46 @@ class HengbotPolicy:
         return max(1, self._deepest_level + 1)
 
     def _equipment_optimization_depth(self, snapshot: Snapshot) -> int:
-        """Use the pending fixed quest's depth while assembling its loadout."""
-        strategy = self._carry_procurement_strategy(snapshot)
-        if strategy is not None:
-            quest = self._quest_knowledge.get(strategy.quest_id)
-            if quest is not None:
-                return max(1, quest.level)
+        """Optimize for the selected dungeon; quest contracts are independent.
+
+        Approved fixed quests already define their own HP, damage, resistance,
+        and carry requirements.  Treating a quest's static level as a generic
+        dungeon depth mixed two separate objectives: an untaken Q31 injected
+        the 22F resistance band into a Yeek Cave guardian expedition, which in
+        turn manufactured a no-valid-loadout result and redirected the bot to
+        the Forest.  Only the actual dungeon objective may choose this depth.
+        """
         if self._alternate_dungeon is not None:
             dungeon = self._dungeon_knowledge.get(self._alternate_dungeon)
             if dungeon is not None:
-                return max(1, dungeon.min_depth)
-        return self._planned_depth()
+                return max(
+                    1,
+                    snapshot.dungeon_recall_depths.get(
+                        self._alternate_dungeon, dungeon.min_depth
+                    ),
+                )
+        target = self._active_dungeon_target()
+        dungeon = self._dungeon_knowledge.get(target)
+        if dungeon is None:
+            return self._planned_depth()
+        if (
+            target == self._conquest_committed
+            and target not in snapshot.conquered_dungeon_ids
+            and dungeon.max_depth > 0
+        ):
+            return max(1, dungeon.max_depth)
+        landing_depth = snapshot.dungeon_recall_depths.get(target)
+        if (
+            snapshot.recall_dungeon_id == target
+            and snapshot.recall_depth > 0
+        ):
+            landing_depth = max(landing_depth or 0, snapshot.recall_depth)
+        if landing_depth is None:
+            landing_depth = dungeon.min_depth
+        next_depth = max(1, landing_depth + 1)
+        if dungeon.max_depth > 0:
+            next_depth = min(next_depth, dungeon.max_depth)
+        return next_depth
 
     @staticmethod
     def _recall_target(depth: int) -> int:
@@ -4085,13 +4604,18 @@ class HengbotPolicy:
         )
 
     def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:
-        return self._has_withdrawable_digging_tool(
-            snapshot
-        ) and self._has_withdrawable_treasure_detection(snapshot)
+        """Whether the minimum mining kit is physically in the pack/equipment."""
+        return (
+            self._has_digging_tool(snapshot)
+            and self._count_treasure_detection_scrolls(snapshot) > 0
+        )
 
     def _fundraising_kit_reserve(self, snapshot: Snapshot) -> int:
         """Gold to retain for whichever minimum mining-kit pieces are missing."""
-        if self._fundraising_kit_secured(snapshot):
+        if (
+            self._has_withdrawable_digging_tool(snapshot)
+            and self._has_withdrawable_treasure_detection(snapshot)
+        ):
             return 0
         digger_price = FUNDRAISING_DIGGER_BASE_PRICE
         detection_price = FUNDRAISING_DETECTION_BASE_PRICE
@@ -4117,14 +4641,14 @@ class HengbotPolicy:
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
         known_charges = sum(
-            it.charges
+            self._stack_charges(it)
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
         )
         if snapshot.player.food_state in {"weak", "fainting"}:
             return known_charges
         identify_charges = sum(
-            it.charges
+            self._stack_charges(it)
             for it in snapshot.inventory
             if it.known
             and it.tval == TVAL_STAFF
@@ -4132,6 +4656,11 @@ class HengbotPolicy:
             and it.charges > 0
         )
         return known_charges - min(IDENTIFY_CHARGE_FLOOR, identify_charges)
+
+    @staticmethod
+    def _stack_charges(item: InventoryItem) -> int:
+        """Return total charges represented by an inventory stack."""
+        return max(0, item.charges) * max(1, item.count)
 
     def _count_mana_food_devices(self, snapshot: Snapshot) -> int:
         return sum(
@@ -4182,7 +4711,7 @@ class HengbotPolicy:
     def _recall_departure_ready(self, snapshot: Snapshot) -> bool:
         """Minimum recall stock allowed when preferred restocking is unavailable."""
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
-        return not (
+        return status.count > 0 and not (
             status.count < status.required_departure and status.obtainable
         )
 
@@ -4307,7 +4836,15 @@ class HengbotPolicy:
 
     def _cure_critical_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["cure"]
-        return status.count >= status.required_departure
+        if status.count >= status.required_departure:
+            return True
+        # Keep the normal target strict while either supplier remains unchecked.
+        # Once Temple and Alchemist are both known unavailable, however, a
+        # one-potion shortfall is safer than an unbounded restock wait in town.
+        return (
+            status.count == status.required_departure - 1
+            and not status.obtainable
+        )
 
     @staticmethod
     def _count_potion(snapshot: Snapshot, sval: int) -> int:
@@ -4325,7 +4862,7 @@ class HengbotPolicy:
 
     def _total_identify_staff_charges(self, snapshot: Snapshot) -> int:
         return sum(
-            it.charges
+            self._stack_charges(it)
             for it in snapshot.inventory
             if it.tval == TVAL_STAFF
             and it.aware
@@ -4338,9 +4875,13 @@ class HengbotPolicy:
     def _identify_staff_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
             return True
-        # 10F+: carry at least STAFF_IDENTIFY_MIN_CHARGES total charges (may be
-        # spread across several staves).
-        return self._total_identify_staff_charges(snapshot) >= STAFF_IDENTIFY_MIN_CHARGES
+        charges = self._total_identify_staff_charges(snapshot)
+        if charges >= STAFF_IDENTIFY_MIN_CHARGES:
+            return True
+        # Twenty charges is the preferred 10F+ departure stock, not a reason to
+        # wait indefinitely for shop turnover. After checking the Magic shop,
+        # a still-usable staff is the safe minimum for this town visit.
+        return charges > 0 and STORE_MAGIC in self._town_store_attempted
 
     def procurement_requirements(self, snapshot: Snapshot) -> list[dict[str, int | str]]:
         """Return currently unmet item targets for logs and the policy viewer."""
@@ -4411,6 +4952,13 @@ class HengbotPolicy:
             current = int(self._find_identification_source(snapshot, full=full) is not None)
             require("*Identify* source" if full else "Identify source", current, 1)
 
+        if self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH:
+            require(
+                "Identify staff charges",
+                self._total_identify_staff_charges(snapshot),
+                STAFF_IDENTIFY_MIN_CHARGES,
+            )
+
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             labels = {
@@ -4453,6 +5001,20 @@ class HengbotPolicy:
                 and self._item_signature(item.item) in self._deferred_home_items
             )
         )
+        cached_blockers = getattr(
+            self._equipment_optimization_preparation, "blockers", ()
+        )
+        if (
+            self._equipment_optimization_timed_out_this_visit
+            and self._equipment_optimization_preparation is not None
+            and isinstance(cached_blockers, (tuple, list, set, frozenset))
+            and "optimization-timeout" in cached_blockers
+        ):
+            # Small equipment mutations after a bounded search (for example one
+            # launcher enchant) must not restart the same minute-long search for
+            # every town action. Keep the confirmed current loadout unchanged for
+            # the remainder of this town visit.
+            return self._equipment_optimization_preparation
         has_destruction = self._has_destruction_method(snapshot)
         optimization_depth = self._equipment_optimization_depth(snapshot)
         value_catalog_signature = tuple(
@@ -4483,13 +5045,9 @@ class HengbotPolicy:
             snapshot.player.two_weapon_skill,
             snapshot.player.shield_skill,
             snapshot.player.abilities,
-            len(snapshot.inventory),
             has_destruction,
             self._fundraising_mode,
-            tuple(sorted(self._town_visit_purchases)),
         )
-        if signature == self._equipment_optimization_signature:
-            return self._equipment_optimization_preparation
 
         # Keep pack weapons that the ordinary town policy has already classified
         # as sale loot out of the optimizer's Home staging deposits.  Otherwise
@@ -4512,6 +5070,36 @@ class HengbotPolicy:
                 )
             )
         )
+        if signature == self._equipment_optimization_signature:
+            preparation = self._equipment_optimization_preparation
+            if (
+                preparation is not None
+                and self._equipment_optimization_pack_items != len(snapshot.inventory)
+                and preparation.result is not None
+                and preparation.result.best is not None
+                and preparation.transaction is not None
+            ):
+                transaction = plan_equipment_transactions(
+                    catalog,
+                    preparation.current,
+                    preparation.result.best.loadout,
+                    current_pack_items=len(snapshot.inventory),
+                    home_scan_complete=self._equipment_catalog.home_scan_complete,
+                    preserve_pack_item_ids=preserve,
+                )
+                preparation = replace(
+                    preparation,
+                    transaction=transaction,
+                    blockers=transaction.blockers,
+                )
+                self._equipment_optimization_preparation = preparation
+                self._equipment_transaction_session = (
+                    self._equipment_transaction_session_for_preparation(
+                        preparation
+                    )
+                )
+            self._equipment_optimization_pack_items = len(snapshot.inventory)
+            return self._equipment_optimization_preparation
         # Quest replenishment is a pack-supply count target, not equipment
         # search input. Lit throwing torches happen to have an equipment tval;
         # exclude their reserved physical stacks from loadout candidacy while
@@ -4540,20 +5128,53 @@ class HengbotPolicy:
             evaluator_cache=self._warrior_evaluator_cache,
         )
         self._equipment_optimization_signature = signature
+        self._equipment_optimization_pack_items = len(snapshot.inventory)
         self._equipment_optimization_preparation = preparation
+        preparation_blockers = getattr(preparation, "blockers", ())
+        if (
+            isinstance(preparation_blockers, (tuple, list, set, frozenset))
+            and "optimization-timeout" in preparation_blockers
+        ):
+            self._equipment_optimization_timed_out_this_visit = True
         self._equipment_transaction_session = (
-            EquipmentTransactionSession(
-                preparation.transaction,
-                max_unconfirmed_observations=(
-                    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT
-                ),
-            )
-            if preparation.ready
-            and preparation.transaction is not None
-            and preparation.transaction.actions
-            else None
+            self._equipment_transaction_session_for_preparation(preparation)
         )
         return preparation
+
+    @staticmethod
+    def _equipment_transaction_session_for_preparation(
+        preparation: WarriorOptimizationPreparation,
+    ) -> EquipmentTransactionSession | None:
+        """Create a full session, or a deposit-only session that frees pack space."""
+        transaction = preparation.transaction
+        if not isinstance(transaction, EquipmentTransactionPlan) or not transaction.actions:
+            return None
+        plan = transaction
+        if not preparation.ready:
+            blockers = tuple(preparation.blockers)
+            if not blockers or not all(
+                blocker.startswith("pack-space-required:") for blocker in blockers
+            ):
+                return None
+            deposits = tuple(
+                action
+                for action in transaction.actions
+                if action.phase == PHASE_HOME_PREPARE and action.kind == "deposit"
+            )
+            if not deposits:
+                return None
+            # The complete swap may still need temporary slots, but these first
+            # actions only remove carried equipment.  Execute them independently;
+            # their confirmed inventory delta invalidates and rebuilds the plan.
+            plan = EquipmentTransactionPlan(
+                deposits,
+                (),
+                max(0, transaction.peak_pack_items - len(deposits)),
+            )
+        return EquipmentTransactionSession(
+            plan,
+            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        )
 
     def equipment_optimization_state(
         self, snapshot: Snapshot | None = None
@@ -4571,6 +5192,27 @@ class HengbotPolicy:
             "incomplete_items": sum(
                 item.identification_incomplete for item in catalog
             ),
+            "incomplete_item_details": [
+                {
+                    "id": owned.id,
+                    "origin": owned.origin,
+                    "slot": owned.equipped_slot,
+                    "tval": owned.item.tval,
+                    "sval": owned.item.sval,
+                    "known": owned.item.known,
+                    "fully_known": owned.item.fully_known,
+                    "processed": (
+                        self._item_signature(owned.item)
+                        in self._processed_home_items
+                    ),
+                    "retried": (
+                        self._item_signature(owned.item)
+                        in self._retried_home_identification_items
+                    ),
+                }
+                for owned in catalog
+                if owned.identification_incomplete
+            ],
             "catalog_tval_counts": {
                 str(tval): sum(owned.item.tval == tval for owned in catalog)
                 for tval in sorted({owned.item.tval for owned in catalog})
@@ -4829,7 +5471,7 @@ class HengbotPolicy:
         player = snapshot.player
         free_slots_ok = (
             ignore_free_slots
-            or PACK_CAPACITY - len(snapshot.inventory) >= MIN_FREE_PACK_SLOTS
+            or self._town_pack_space_ready(snapshot)
         )
 
         return (
@@ -4848,6 +5490,7 @@ class HengbotPolicy:
                 for item in (*snapshot.inventory, *snapshot.equipment)
             )
             and free_slots_ok
+            and not self._inventory_overweight(snapshot)
             and player.hp >= player.max_hp
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
@@ -4865,6 +5508,27 @@ class HengbotPolicy:
                     and self._equipment_departure_ready(snapshot)
                 )
             )
+        )
+
+    def _town_pack_space_ready(self, snapshot: Snapshot) -> bool:
+        """Accept four slots only after the town pipeline exhausted this pack."""
+        free_slots = PACK_CAPACITY - len(snapshot.inventory)
+        if free_slots >= MIN_FREE_PACK_SLOTS:
+            return True
+        if not snapshot.in_town or free_slots < MIN_TERMINAL_FREE_PACK_SLOTS:
+            return False
+        return self._terminal_pack_space_signature == self._town_pack_space_signature(
+            snapshot
+        )
+
+    @staticmethod
+    def _town_pack_space_signature(
+        snapshot: Snapshot,
+    ) -> tuple[tuple[object, ...], ...]:
+        """Return the exact inventory state certified by the terminal fallback."""
+        return tuple(
+            (item.slot, item.name, item.tval, item.sval, item.count)
+            for item in snapshot.inventory
         )
 
     def _conquest_departure_ready(self, snapshot: Snapshot) -> bool:
@@ -4911,6 +5575,54 @@ class HengbotPolicy:
             # this visit, can make the optimizer's preferred swap impossible.
             # Keep the current legal loadout and dive instead of wandering town.
             return True
+        if (
+            preparation is not None
+            and "optimization-timeout" in preparation.blockers
+            and self._equipment_transaction_session is None
+        ):
+            # A timeout says only that no *new* globally optimal loadout was
+            # proved.  The current loadout remains the last confirmed legal one,
+            # while the ordinary departure gate independently checks weapon,
+            # depth resistances, supplies, HP, and status.  Keep it unchanged
+            # instead of turning search cost into an endless town wander.  Never
+            # execute the optimizer's partial result.
+            return True
+        if (
+            preparation is not None
+            and preparation.blockers
+            and all(
+                blocker.startswith("pack-space-required:")
+                for blocker in preparation.blockers
+            )
+            and self._equipment_transaction_session is None
+            and self._town_pack_space_ready(snapshot)
+        ):
+            # Optimizer transactions need a temporary fifth slot, but failing to
+            # create it does not invalidate the currently equipped legal loadout.
+            # Once all safe disposal/store routes are exhausted, keep that loadout
+            # and depart with four free slots instead of wandering town forever.
+            return True
+        if (
+            preparation is not None
+            and "incomplete-equipment-catalog" in preparation.blockers
+            and preparation.result is not None
+            and self._equipment_transaction_session is None
+            and self._identification_need is None
+        ):
+            catalog = {owned.id: owned for owned in self._equipment_catalog.items}
+            incomplete = [
+                catalog.get(item_id)
+                for item_id in preparation.result.incomplete_item_ids
+            ]
+            if incomplete and all(
+                owned is not None and owned.origin != "equipped"
+                for owned in incomplete
+            ):
+                # A pack/Home candidate that needs *Identify* cannot be compared
+                # until that service appears in a shop. Keep the last confirmed
+                # equipped loadout and retry the candidate on a later town visit;
+                # an incomplete worn item remains a hard departure blocker.
+                return True
         return bool(
             preparation is not None
             and preparation.ready
@@ -4924,32 +5636,60 @@ class HengbotPolicy:
         preparation = self._prepare_equipment_optimization(snapshot)
         if (
             preparation is None
-            or "no-valid-loadout" not in preparation.blockers
             or self._next_required_store_type(snapshot) is not None
         ):
             return None
-        return "equipment-no-valid-loadout"
+        if "no-valid-loadout" in preparation.blockers:
+            return "equipment-no-valid-loadout"
+        if "incomplete-equipment-catalog" in preparation.blockers:
+            return "equipment-incomplete-catalog"
+        return None
 
     def _activate_loadout_depth_fallback(self, snapshot: Snapshot) -> int | None:
-        """Step down from an unbuildable 21F+ loadout to the best <=20F dungeon."""
-        if self._carry_procurement_strategy(snapshot) is not None:
+        """Step down to the deepest recall floor the current loadout supports."""
+        if self._loadout_depth_fallback_dungeon is not None:
+            self._alternate_dungeon = self._loadout_depth_fallback_dungeon
+            self._target_dungeon_id = self._loadout_depth_fallback_dungeon
+            return None
+        if (
+            self._alternate_dungeon is not None
+            and self._equipment_optimization_depth(snapshot) <= 20
+        ):
             return None
         preparation = self._prepare_equipment_optimization(snapshot)
+        optimization_depth = self._equipment_optimization_depth(snapshot)
         if (
             preparation is None
-            or "no-valid-loadout" not in preparation.blockers
-            or self._planned_depth() <= 20
+            or not {
+                "no-valid-loadout",
+                "optimization-timeout",
+            }.intersection(preparation.blockers)
+            or optimization_depth <= 20
             or self._next_required_store_type(snapshot) is not None
         ):
             return None
-        alternate = self._pick_alternate_dungeon(snapshot, max_entry_depth=20)
+        safe_depth = next(
+            (
+                depth
+                for depth in range(optimization_depth - 1, 0, -1)
+                if not self._missing_required_abilities(snapshot, depth)
+            ),
+            1,
+        )
+        alternate = self._pick_alternate_dungeon(
+            snapshot,
+            max_entry_depth=safe_depth,
+            prefer_deepest=True,
+            allow_yeek_cave=True,
+        )
         if alternate is None:
             return None
         self._alternate_dungeon = alternate
+        self._loadout_depth_fallback_dungeon = alternate
         self._target_dungeon_id = alternate
         self._conquest_committed = None
         self._last_overextended_depth = max(
-            self._last_overextended_depth, self._planned_depth()
+            self._last_overextended_depth, optimization_depth
         )
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
@@ -4985,7 +5725,11 @@ class HengbotPolicy:
         allocated in pack order so duplicate stacks share one aggregate target.
         """
         signature = self._item_signature(item)
-        if signature in self._town_visit_purchases:
+        capped_emergency_potion = (
+            item.tval == TVAL_POTION
+            and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
+        )
+        if signature in self._town_visit_purchases and not capped_emergency_potion:
             return item.count
 
         target = 0
@@ -5033,6 +5777,23 @@ class HengbotPolicy:
             matches = lambda candidate: (
                 candidate.is_torch and candidate.known and candidate.fuel > 0
             )
+        elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
+            target = EMERGENCY_POTION_CARRY_TARGET
+            matches = lambda candidate: (
+                candidate.tval == TVAL_POTION
+                and candidate.sval == SV_POTION_SPEED
+            )
+        elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
+            target = EMERGENCY_POTION_CARRY_TARGET
+            matches = lambda candidate: (
+                candidate.tval == TVAL_POTION
+                and candidate.sval == SV_POTION_HEALING
+            )
+        elif item.is_ammo:
+            launcher = self._equipped_launcher(snapshot)
+            if launcher is not None and item.tval == launcher.ammo_tval:
+                target = AMMO_CARRY_TARGET
+                matches = lambda candidate: candidate.tval == launcher.ammo_tval
         # Keep this predicate identical to _next_required_store_type's town-cycle
         # trigger.  That router can activate fundraising later in the same visit,
         # after Home has already asked this retention authority what may be stashed.
@@ -5076,17 +5837,21 @@ class HengbotPolicy:
                     and candidate_target[0] == carry_name
                 )
             elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
-                target = max(target, int(force.get("speed_potions", 0)))
+                target = min(
+                    EMERGENCY_POTION_CARRY_TARGET,
+                    max(target, int(force.get("speed_potions", 0))),
+                )
                 matches = lambda candidate: (
                     candidate.tval == TVAL_POTION and candidate.sval == SV_POTION_SPEED
                 )
-            elif item.tval == TVAL_POTION and item.sval in {
-                SV_POTION_HEALING, SV_POTION_CURE_CRITICAL,
-            }:
-                target = max(target, int(force.get("heal_potions", 0)))
+            elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
+                target = min(
+                    EMERGENCY_POTION_CARRY_TARGET,
+                    max(target, int(force.get("heal_potions", 0))),
+                )
                 matches = lambda candidate: (
                     candidate.tval == TVAL_POTION
-                    and candidate.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+                    and candidate.sval == SV_POTION_HEALING
                 )
         if target <= 0:
             return 0
@@ -5104,6 +5869,84 @@ class HengbotPolicy:
     def _entire_stack_is_surplus(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         """Return whether a whole-stack operation may consume this item."""
         return item.count > 0 and self._retention_surplus(snapshot, item) == item.count
+
+    @staticmethod
+    def _inventory_weight(snapshot: Snapshot) -> int:
+        return sum(
+            max(0, item.weight) * max(1, item.count)
+            for item in (*snapshot.inventory, *snapshot.equipment)
+        )
+
+    @staticmethod
+    def _inventory_weight_limit(snapshot: Snapshot) -> int | None:
+        if not snapshot.player.stat_index:
+            return None
+        strength_index = max(
+            0, min(snapshot.player.stat_index[0], len(ADJ_STR_WEIGHT_LIMIT) - 1)
+        )
+        limit = ADJ_STR_WEIGHT_LIMIT[strength_index] * 50
+        if snapshot.player.class_id == PLAYER_CLASS_BERSERKER:
+            limit = limit * 3 // 2
+        return limit
+
+    def _inventory_overweight(self, snapshot: Snapshot) -> bool:
+        limit = self._inventory_weight_limit(snapshot)
+        return limit is not None and self._inventory_weight(snapshot) > limit
+
+    def _can_add_item_without_overweight(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem
+    ) -> bool:
+        limit = self._inventory_weight_limit(snapshot)
+        if limit is None:
+            return True
+        added_weight = max(0, item.weight) * max(1, item.count)
+        return self._inventory_weight(snapshot) + added_weight <= limit
+
+    def _overweight_home_deposit(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        if not self._inventory_overweight(snapshot):
+            return None
+
+        def priority(item: InventoryItem) -> tuple[int, int, str]:
+            noncombat_bulk = not (
+                item.is_equipment
+                or item.is_ammo
+                or item.is_potion
+                or item.is_scroll
+                or item.is_wand_staff
+                or item.is_food
+                or item.is_oil
+                or item.is_light
+                or item.is_digging_tool
+                or item.is_bounty
+                or self._is_high_value_book(item)
+            )
+            category = (
+                0
+                if noncombat_bulk
+                else 1
+                if item.is_ammo
+                else 2
+                if item.is_equipment
+                else 3
+            )
+            removable_weight = item.weight * self._retention_surplus(snapshot, item)
+            return category, -removable_weight, item.slot
+
+        candidates = [
+            item
+            for item in snapshot.inventory
+            if item.weight > 0
+            and self._retention_surplus(snapshot, item) > 0
+            and not item.is_bounty
+            and not self._is_wanted_jewelry(snapshot, item)
+            and self._item_signature(item) not in self._home_rejected_deposits
+            and self._item_signature(item) not in self._home_pending_batch
+            and item.slot != self._home_pending_slot
+            and item.slot != self._pending_disposal_slot
+        ]
+        return min(candidates, key=priority, default=None)
 
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
@@ -5162,7 +6005,13 @@ class HengbotPolicy:
         depleted_device = item.is_wand_staff and item.known and item.charges <= 0
         reserved_stack_surplus = (
             snapshot is not None
-            and item.is_torch
+            and (
+                item.is_torch
+                or (
+                    item.tval == TVAL_POTION
+                    and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
+                )
+            )
             and self._retention_reservation(snapshot, item) > 0
             and self._retention_surplus(snapshot, item) > 0
         )
@@ -5240,6 +6089,9 @@ class HengbotPolicy:
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_full or self._home_deposit_abandoned:
             return None
+        overweight = self._overweight_home_deposit(snapshot)
+        if overweight is not None:
+            return overweight
         # Inferior weapons may be sold by the sale path, but enhanced weapons stay
         # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)
@@ -5755,7 +6607,13 @@ class HengbotPolicy:
         self.last_reason = (
             "identify:full-equipped" if full else "identify:normal-equipped"
         )
-        return command + source_item.slot + "/" + EQUIPMENT_SLOT_KEY[target.slot]
+        return (
+            command
+            + source_item.slot
+            + "/"
+            + EQUIPMENT_SLOT_KEY[target.slot]
+            + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
+        )
 
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
@@ -5895,10 +6753,10 @@ class HengbotPolicy:
             return None
         wands = [item for item in snapshot.inventory if item.tval == TVAL_WAND and item.known]
         if wands:
-            return max(wands, key=lambda item: item.charges).slot
+            return max(wands, key=self._stack_charges).slot
         staffs = [item for item in snapshot.inventory if item.tval == TVAL_STAFF and item.known]
         if staffs:
-            return max(staffs, key=lambda item: item.charges).slot
+            return max(staffs, key=self._stack_charges).slot
         return None
 
     def _find_surplus_identify_staff(
@@ -5920,11 +6778,41 @@ class HengbotPolicy:
         candidates = [item for item in staffs if item.slot != reserve_slot]
         if not candidates:
             candidates = staffs
+        if snapshot.player.food_type == FOOD_TYPE_MANA:
+            total_identify_charges = sum(
+                self._stack_charges(item) for item in staffs
+            )
+            total_food_charges = sum(
+                self._stack_charges(item)
+                for item in snapshot.inventory
+                if item.known and item.is_wand_staff and item.charges > 0
+            )
+            total_devices = self._count_mana_food_devices(snapshot)
+            required_food = self._supply_ledger(
+                snapshot, self._planned_depth()
+            )["food"].required_departure
+
+            def remains_restocked(item: InventoryItem) -> bool:
+                stack_charges = self._stack_charges(item)
+                identify_charges = total_identify_charges - stack_charges
+                food_charges = total_food_charges - stack_charges
+                edible_charges = food_charges - min(
+                    IDENTIFY_CHARGE_FLOOR, identify_charges
+                )
+                return (
+                    identify_charges >= STAFF_IDENTIFY_MIN_CHARGES
+                    and edible_charges >= required_food
+                    and total_devices - item.count >= MANA_FOOD_DEVICE_TARGET
+                )
+
+            candidates = [item for item in candidates if remains_restocked(item)]
+            if not candidates:
+                return None
         return min(
             candidates,
             key=lambda item: (
-                item.charges / max(1, item.count),
                 item.charges,
+                self._stack_charges(item),
                 item.slot,
             ),
         )
@@ -5972,7 +6860,11 @@ class HengbotPolicy:
         if self._home_pending_item is None:
             target = self._first_item(
                 snapshot,
-                lambda item: self._is_wanted_jewelry(snapshot, item)
+                # The optimizer catalogs every carried equipment item, not only
+                # jewellery. Select from that same domain dynamically: prime()'s
+                # startup batch cannot see an ego weapon acquired later in the
+                # run, which caused the 2026-07-20 incomplete-catalog deadlock.
+                lambda item: item.is_equipment
                 and self._item_signature(item) not in self._deferred_home_items
                 and (
                     not item.known
@@ -5994,7 +6886,12 @@ class HengbotPolicy:
             self._identification_need = None
             self._identification_candidate = None
             self.last_reason = "identify:full" if full else "identify:normal"
-            return command + source_item.slot + target.slot
+            return (
+                command
+                + source_item.slot
+                + target.slot
+                + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
+            )
         target = self._pending_inventory_item(snapshot)
         if target is None:
             # The Home command can be rejected (for example by a prompt timing
@@ -6038,7 +6935,7 @@ class HengbotPolicy:
             command, item = source
             self._identification_need = None
             self.last_reason = "identify:full"
-            return command + item.slot + target.slot
+            return command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
 
         target_signature = self._item_signature(target)
         self._processed_home_items.add(target_signature)
@@ -6726,6 +7623,16 @@ class HengbotPolicy:
                     )
             return needs
 
+        # The approved fresh-character route is intentionally tiny: acquire
+        # Q34's complete throwing-torch stock, then let _fixed_quest_key accept
+        # it on the next decision.  In particular, do not let low-gold
+        # fundraising turn its own missing digger/detection kit into an earlier
+        # Home or Alchemist stop; that created a circular readiness lock where
+        # Q34 waited for torches while fundraising hid their procurement need.
+        if self._opening_q34_torch_shortage(snapshot) > 0:
+            add(STORE_GENERAL, "quest-throwing-items", "opening-quest")
+            return needs
+
         if (
             self._pending_disposal_item is not None
             and (target := self._pending_disposal(snapshot)) is not None
@@ -6772,6 +7679,12 @@ class HengbotPolicy:
         ):
             add(STORE_HOME, "deep-mining-deposit", "home-first")
         if (
+            self._home_available(snapshot)
+            and self._inventory_overweight(snapshot)
+            and self._find_home_deposit(snapshot) is not None
+        ):
+            add(STORE_HOME, "weight-overload", "home-first")
+        elif (
             self._identification_need is None
             and self._home_available(snapshot)
             and (
@@ -6941,11 +7854,7 @@ class HengbotPolicy:
                 and STORE_BLACK not in self._town_store_attempted
             ):
                 add(STORE_BLACK, "quest-speed")
-            healing = sum(
-                it.count for it in snapshot.inventory
-                if it.tval == TVAL_POTION
-                and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
-            )
+            healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
             if healing < int(force.get("heal_potions", 0)):
                 if STORE_TEMPLE not in self._town_store_attempted:
                     add(STORE_TEMPLE, "quest-healing")
@@ -7052,6 +7961,57 @@ class HengbotPolicy:
             ordered.append(store_type)
         return ordered
 
+    @staticmethod
+    def _town_need_phase(need: TownNeed) -> int:
+        """Order mandatory town work before convenience and speculative buys."""
+        if need.category in {
+            "black-market",
+            "ammo",
+            "throwing-torches",
+            "launcher-enchant",
+        }:
+            return 2
+        return 0
+
+    def _order_town_needs(
+        self,
+        snapshot: Snapshot,
+        needs: list[TownNeed],
+        stores: list[int],
+        start: Position,
+    ) -> list[int]:
+        """Order stores by need phase, then minimize travel inside each phase."""
+        needed_store_types = {need.store_type for need in needs}
+        unique_stores = [
+            store_type
+            for store_type in dict.fromkeys(stores)
+            if store_type in needed_store_types
+        ]
+        phase_by_store = {
+            store_type: min(
+                self._town_need_phase(need)
+                for need in needs
+                if need.store_type == store_type
+            )
+            for store_type in unique_stores
+        }
+        ordered: list[int] = []
+        current = start
+        for phase in sorted(set(phase_by_store.values())):
+            phase_order = self._order_town_stops(
+                snapshot,
+                [
+                    store_type
+                    for store_type in unique_stores
+                    if phase_by_store[store_type] == phase
+                ],
+                current,
+            )
+            ordered.extend(phase_order)
+            if phase_order and self._town_map_active(snapshot):
+                current = self._town_map.store_position(phase_order[-1]) or current
+        return ordered
+
     def _build_town_errand_plan(
         self, snapshot: Snapshot, needs: list[TownNeed]
     ) -> TownErrandPlan | None:
@@ -7063,7 +8023,7 @@ class HengbotPolicy:
         stores = {need.store_type for need in needs if need.store_type != STORE_HOME}
         stops: list[int] = [STORE_HOME] if leading_home else []
         start = self._town_map.store_position(STORE_HOME) if leading_home and self._town_map_active(snapshot) else snapshot.player.position
-        ordered = self._order_town_stops(snapshot, list(stores), start)
+        ordered = self._order_town_needs(snapshot, needs, list(stores), start)
         if post_home and STORE_ALCHEMIST in ordered:
             alchemist_index = ordered.index(STORE_ALCHEMIST)
             ordered.insert(alchemist_index + 1, STORE_HOME)
@@ -7084,6 +8044,19 @@ class HengbotPolicy:
                 else STORE_GENERAL
             )
             return None if food_store in self._town_store_attempted else food_store
+        opening_q34 = self._opening_q34_torch_shortage(snapshot) > 0
+        if opening_q34 and self._fundraising_mode in {
+            "prepare", "mine", "scavenge"
+        }:
+            # prime() can reconstruct fundraising from the scrolls left by an
+            # interrupted bad opening.  Cancel that stale owner and rebuild the
+            # route so resume repairs the same character instead of repeating
+            # Home -> Alchemist -> Yeek Cave.
+            self._fundraising_mode = None
+            self._planned_mining_runs = None
+            self._town_store_attempted.clear()
+            self._town_restock_suppressed = False
+            self._town_errand_plan = None
         if self._town_restock_suppressed:
             self._town_errand_plan = None
             return None
@@ -7092,6 +8065,7 @@ class HengbotPolicy:
             and snapshot.player.class_id >= 0
             and snapshot.player.gold < FUNDRAISING_START_GOLD
             and self._fundraising_mode is None
+            and not opening_q34
         ):
             self._start_fundraising(snapshot)
         needs = self._enumerate_town_needs(snapshot)
@@ -7107,15 +8081,24 @@ class HengbotPolicy:
         if plan is None:
             plan = self._build_town_errand_plan(snapshot, needs)
             self._town_errand_plan = plan
-        elif (
-            plan.index >= len(plan.stops)
-            and any(
-                store_type not in self._town_store_attempted
-                for store_type in (*plan.skipped_latched, *plan.blocked_this_visit)
-            )
-        ):
-            plan = self._build_town_errand_plan(snapshot, needs)
-            self._town_errand_plan = plan
+        elif plan.index >= len(plan.stops):
+            # A completed plan is only a snapshot of the needs visible when it
+            # was built. Completing an identification errand can expose the
+            # ordinary supply shortages that it previously owned exclusively.
+            # Rebuild for newly actionable stores instead of falling into the
+            # legacy terminal router, whose first shortage can monopolize town
+            # with an endless one-store restock cycle.
+            completed = set(plan.completed_this_visit)
+            remaining_needs = [
+                need for need in needs
+                if need.store_type not in completed
+            ]
+            if any(
+                need.store_type not in self._town_store_attempted
+                for need in remaining_needs
+            ):
+                plan = self._build_town_errand_plan(snapshot, remaining_needs)
+                self._town_errand_plan = plan
         elif plan.index < len(plan.stops):
             pending = set(plan.stops[plan.index + 1 :])
             finished = set(plan.completed_this_visit) | set(plan.blocked_this_visit)
@@ -7128,8 +8111,11 @@ class HengbotPolicy:
                     else snapshot.player.position
                 )
                 old_remaining = plan.stops[plan.index + 1 :]
-                reordered = self._order_town_stops(
-                    snapshot, old_remaining + sorted(additions), current_position
+                reordered = self._order_town_needs(
+                    snapshot,
+                    needs,
+                    old_remaining + sorted(additions),
+                    current_position,
                 )
                 plan.stops[plan.index + 1 :] = reordered
                 plan.inserted_this_visit.extend(sorted(additions))
@@ -7420,12 +8406,17 @@ class HengbotPolicy:
         if self._home_candidate_waiting and self._home_available(snapshot):
             return STORE_HOME
 
-        if not self._recall_ready(snapshot) or not self._recall_departure_ready(
-            snapshot
-        ):
+        recall_status = self._supply_ledger(
+            snapshot, self._planned_depth()
+        )["recall"]
+        if not self._recall_ready(snapshot) or not self._recall_departure_ready(snapshot):
             for store_type in (STORE_TEMPLE, STORE_ALCHEMIST):
                 if store_type not in self._town_store_attempted:
                     return store_type
+            if recall_status.count == 0:
+                return self._retry_after_store_restock(
+                    snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
+                )
             if not self._recall_departure_ready(snapshot):
                 if self._activate_partial_deep_mining_plan(snapshot):
                     return self._next_required_store_type(snapshot)
@@ -7487,14 +8478,17 @@ class HengbotPolicy:
             # one; revisit Home so the processing pass can page back to it.
             return STORE_HOME
         if STORE_BLACK not in self._town_store_attempted:
-            # Visit once per town stay regardless of the amount already carried:
-            # Speed and Healing have no stockpile cap. There is still no restock
-            # wait or fundraising if current stock is absent/unaffordable.
+            # Visit once per town stay for emergency potions and Stone-to-Mud.
+            # Black Market purchases remain uncapped; the Home deposit pass
+            # shelves emergency potions above the field carry target afterward.
+            # There is no restock wait or fundraising for optional stock.
             return STORE_BLACK
         # All actionable deep-restock routes are exhausted.  If the carried
         # minimum 1F kit is already safe, downgrade now; do not spend a cycle of
         # departure-blocked waits before the town-cycle repair notices.
         if self._activate_shallow_fundraising_trip(snapshot):
+            return self._next_required_store_type(snapshot)
+        if self._retry_processed_home_identification(snapshot):
             return self._next_required_store_type(snapshot)
         if self._start_identification_fundraising(snapshot):
             # Every ordinary errand is exhausted but departure is still blocked by
@@ -7523,6 +8517,8 @@ class HengbotPolicy:
     def _start_fundraising(self, snapshot: Snapshot) -> bool:
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return True
+        if self._opening_q34_torch_shortage(snapshot) > 0:
+            return False
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False
         self._planned_mining_runs = None
@@ -7595,6 +8591,46 @@ class HengbotPolicy:
         self._town_store_attempted.clear()
         return True
 
+    def _retry_processed_home_identification(self, snapshot: Snapshot) -> bool:
+        """Re-arm one exhausted Home-identification pass when mining is a no-op.
+
+        The mining retry driver cannot run at or above its gold target.  In that
+        state, an incomplete Home item already marked as processed otherwise
+        leaves the equipment departure gate false with no remaining town errand.
+        Permit one direct retry per item and town visit; a second failure becomes
+        a visible terminal equipment blocker instead of town wandering.
+        """
+        if snapshot.player.gold < FUNDRAISING_GOLD_TARGET:
+            return False
+        preparation = self._prepare_equipment_optimization(snapshot)
+        if (
+            preparation is None
+            or preparation.result is None
+            or "incomplete-equipment-catalog" not in preparation.blockers
+        ):
+            return False
+        catalog = {owned.id: owned for owned in self._equipment_catalog.items}
+        signatures: set[tuple[str, int, int]] = set()
+        for item_id in preparation.result.incomplete_item_ids:
+            owned = catalog.get(item_id)
+            if owned is None or owned.origin != "home":
+                return False
+            signature = self._item_signature(owned.item)
+            if signature not in self._processed_home_items:
+                return False
+            if signature in self._retried_home_identification_items:
+                return False
+            signatures.add(signature)
+        if not signatures:
+            return False
+        self._processed_home_items.difference_update(signatures)
+        self._retried_home_identification_items.update(signatures)
+        self._town_store_attempted.pop(STORE_HOME, None)
+        self._town_errand_plan = None
+        self._equipment_optimization_signature = None
+        self._equipment_optimization_preparation = None
+        return True
+
     def _owns_lantern(self, snapshot: Snapshot) -> bool:
         return any(it.is_lantern for it in snapshot.inventory) or any(
             it.is_lantern for it in snapshot.equipment
@@ -7664,6 +8700,15 @@ class HengbotPolicy:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
         item = self._next_purchase_unreserved(snapshot)
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
+            return item
+        if (
+            self._opening_q34_torch_shortage(snapshot) > 0
+            and item.tval == TVAL_LITE
+            and item.sval == SV_LITE_TORCH
+        ):
+            # The fresh-character contract is Q34 first.  Reserving the entire
+            # 100g mining-kit budget here made a 100g birth character visit the
+            # correct store, reject every torch, and fall back to Home.
             return item
         reserve = self._fundraising_kit_reserve(snapshot)
         if reserve == 0:
@@ -7995,11 +9040,10 @@ class HengbotPolicy:
                               and it.sval == SV_POTION_SPEED and it.price <= gold), None)
                 if speed is not None:
                     return speed
-            healing = sum(it.count for it in snapshot.inventory if it.tval == TVAL_POTION
-                          and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL})
+            healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
             if healing < int(force.get("heal_potions", 0)):
                 heal = next((it for it in store.items if it.tval == TVAL_POTION
-                             and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
+                             and it.sval == SV_POTION_HEALING
                              and it.price <= gold), None)
                 if heal is not None:
                     return heal
@@ -8131,8 +9175,8 @@ class HengbotPolicy:
         (4 separate Alchemist visits for one Home identification batch).
 
         Mirrors the two mechanisms that actually consume these scrolls: the
-        pack scan in prime() that seeds _home_pending_batch (equipment only,
-        excluding lights/diggers, which that scan never queues) plus the
+        pack scan in prime() that seeds _home_pending_batch (all equipment,
+        including lights and diggers that can otherwise block optimization) plus the
         actionable Home gear _has_actionable_incomplete_home_item finds via
         the duplicate-aware equipment catalog (same deferred/processed skip).
         """
@@ -8140,8 +9184,6 @@ class HengbotPolicy:
             1
             for item in snapshot.inventory
             if item.is_equipment
-            and not item.is_light
-            and not item.is_digging_tool
             and (
                 (item.known and item_requires_full_identification(item) and not item.fully_known)
                 if full
@@ -8225,7 +9267,7 @@ class HengbotPolicy:
             SV_POTION_SPEED,
             SV_POTION_HEALING,
         }:
-            # Re-evaluate after every bottle so the two unlimited stockpiles stay
+            # Re-evaluate after every bottle so the two capped field stocks stay
             # balanced and the other type can use the remaining gold.
             needed = 1
         else:
@@ -8848,6 +9890,7 @@ class HengbotPolicy:
                         it
                         for it in store.items
                         if self._weapon_is_inferior(it)
+                        and self._can_add_item_without_overweight(snapshot, it)
                         # Do not withdraw a spare the Weapon Smith already refused
                         # (it would clog the pack with something no sale can clear).
                         and (it.name, it.tval, it.sval) not in self._unsellable_items
@@ -8897,8 +9940,19 @@ class HengbotPolicy:
 
                 free_slots = PACK_CAPACITY - len(snapshot.inventory)
                 if free_slots <= HOME_BATCH_RESERVED_SLOTS:
-                    self._home_candidate_waiting = not self._home_pending_batch
-                    self.last_reason = "home:batch-capacity"
+                    # This candidate cannot be withdrawn until carried gear is
+                    # identified/sold/deposited.  Keeping candidate_waiting set
+                    # makes Home outrank those space-making errands and creates
+                    # an enter/leave loop on the same full pack. Defer only this
+                    # signature for the town visit and release its identify
+                    # request so carried candidates can be processed first.
+                    signature = self._item_signature(candidate)
+                    self._deferred_home_items.add(signature)
+                    if self._identification_candidate == signature:
+                        self._identification_candidate = None
+                    self._identification_need = None
+                    self._home_candidate_waiting = False
+                    self.last_reason = "home:defer-capacity"
                     return LEAVE_STORE_KEY
 
                 signature = self._item_signature(candidate)
@@ -9170,6 +10224,11 @@ class HengbotPolicy:
         )
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and here.store_number == store_type:
+            # A player-turn snapshot is emitted on the entrance before the
+            # queued SPECIAL_KEY_STORE opens the UI. Do not mistake that for a
+            # completed store visit and immediately step back off the entrance.
+            if not self._last_snapshot_was_store:
+                return snapshot.player.position
             # Standing on the store entrance in town (we just left it) — stepping
             # on it is what re-enters, so hop to an adjacent tile first, then the
             # next approach walks back on and opens the store.
@@ -9234,6 +10293,14 @@ class HengbotPolicy:
         progress (see _town_travel_key)."""
         if not self._has_light_equipped(snapshot):
             return self._step_toward(snapshot, step)
+        here = snapshot.grid_at(snapshot.player.position)
+        if (
+            step == snapshot.player.position
+            and here is not None
+            and here.store_number == self._shopping_approach_store_type
+        ):
+            self.last_reason = f"{travel_reason}:await-entry"
+            return WAIT_KEY
         goal = self._shopping_approach_goal
         clear_traveler = self._town_clear_traveler_key(snapshot, goal)
         if clear_traveler is not None:
@@ -9407,6 +10474,18 @@ class HengbotPolicy:
     def _town_cancel_unsafe_recall_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or not snapshot.player.recalling:
             return None
+        self._activate_loadout_depth_fallback(snapshot)
+        pending_destination = (
+            self._pending_recall_dungeon_id
+            if self._pending_recall_dungeon_id is not None
+            else snapshot.recall_dungeon_id
+        )
+        active_destination = self._active_dungeon_target()
+        destination_changed = (
+            pending_destination != active_destination
+            and self._recall_selection_key(snapshot, active_destination) is not None
+            and self._recall_destination_safe(snapshot, active_destination)
+        )
         blocks_teleport = any(
             self._blocks_teleport(item)
             for item in (*snapshot.inventory, *snapshot.equipment)
@@ -9419,18 +10498,36 @@ class HengbotPolicy:
             snapshot.player.class_id >= 0
             and not self._combat_weapon_ready(snapshot)
         )
+        pending_landing_depth = snapshot.dungeon_recall_depths.get(
+            pending_destination, 0
+        )
+        deep_loadout_unconfirmed = (
+            pending_landing_depth > 20
+            and not self._equipment_departure_ready(snapshot)
+        )
         if not any(
-            (blocks_teleport, pending_home_deposit, pack_too_full, weapon_not_ready)
+            (
+                destination_changed,
+                blocks_teleport,
+                pending_home_deposit,
+                pack_too_full,
+                weapon_not_ready,
+                deep_loadout_unconfirmed,
+            )
         ):
             return None
         recall = self._find_recall_scroll(snapshot)
         if recall is None:
             return None
-        self.last_reason = (
-            "town:cancel-unsafe-recall"
-            if blocks_teleport
-            else "town:cancel-unready-recall"
-        )
+        if destination_changed:
+            self._pending_recall_dungeon_id = None
+            self.last_reason = "town:cancel-wrong-recall-destination"
+        else:
+            self.last_reason = (
+                "town:cancel-unsafe-recall"
+                if blocks_teleport
+                else "town:cancel-unready-recall"
+            )
         return READ_KEY + recall.slot
 
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
@@ -9900,6 +10997,22 @@ class HengbotPolicy:
         (reason, position) signatures with no progress is a repetition cycle,
         whatever subsystem drives it."""
         history = self._town_signature_history
+        recent = list(history)[-TOWN_FAST_TRAVEL_WINDOW:]
+        travel_rows = [row for row in recent if "travel" in row[0]]
+        if (
+            len(recent) == TOWN_FAST_TRAVEL_WINDOW
+            and len(travel_rows) >= TOWN_FAST_TRAVEL_MIN_ROWS
+            and len({(row[1], row[2]) for row in travel_rows})
+            <= TOWN_FAST_TRAVEL_MAX_POSITIONS
+        ):
+            # A failed native-travel command is not repaired by clearing generic
+            # shopping state.  Escalate this first observed fast cycle directly
+            # to the existing visible town stop instead of waiting for a second
+            # 48-decision cycle.
+            self._town_cycle_breaks = max(
+                self._town_cycle_breaks, TOWN_CYCLE_BREAK_LIMIT - 1
+            )
+            return True
         if len(history) < TOWN_CYCLE_WINDOW:
             return False
         return len(set(history)) <= TOWN_CYCLE_MAX_DISTINCT
@@ -9977,6 +11090,18 @@ class HengbotPolicy:
     def _town_blocked_key(self, snapshot: Snapshot) -> str:
         """Leave an open/interleaved store UI before waiting in town."""
         self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        if snapshot.store is None:
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and here.is_store:
+                neighbors = self._walkable_neighbors(
+                    snapshot, snapshot.player.position
+                )
+                if neighbors:
+                    return self._step_toward(snapshot, neighbors[0])
+                # Interleaved main-loop snapshots can omit surrounding town
+                # cells immediately after leaving a store. Still step off the
+                # door instead of sending another ESC into the town command loop.
+                return "2"
         if self._town_blocked_store_context(snapshot):
             return LEAVE_STORE_KEY
         return WAIT_KEY
@@ -10084,8 +11209,17 @@ class HengbotPolicy:
             if not deep_fundraising:
                 return None
 
-        if self._rumor_unlock_pending and not snapshot.angband_recall_unlocked:
-            if not self._town_departure_ready(snapshot):
+        rumor_needed = (
+            self._rumor_unlock_pending and not snapshot.angband_recall_unlocked
+        ) or self._town_travel_rumor_pending is not None
+        if rumor_needed:
+            # Revealing a destination is a town prerequisite, not an expedition.
+            # Do not require a complete dive loadout before reading the rumors
+            # needed to make the inn's travel destination selectable.
+            if (
+                self._town_travel_rumor_pending is None
+                and not self._town_departure_ready(snapshot)
+            ):
                 self.last_reason = "town:rumor-wait-supplies"
                 return WAIT_KEY
             if player.gold < RUMOR_GOLD_RESERVE + RUMOR_COST:
@@ -10139,6 +11273,10 @@ class HengbotPolicy:
         # back into a deep Yeek Cave run (recall lands at the deepest level, far
         # faster than re-walking from the entrance). Fundraising deliberately mines
         # level 1, so it keeps walking to the entrance instead.
+        if self._activate_loadout_depth_fallback(snapshot) is not None:
+            self.last_reason = "town:loadout-depth-fallback"
+            return WAIT_KEY
+
         recall_dest = None
         recall_dungeon_id = self._target_dungeon_id
         if (
@@ -10223,6 +11361,20 @@ class HengbotPolicy:
             )
         else:
             self._departure_block = {}
+        if (
+            recall_dest is not None
+            and not snapshot.player.recalling
+            and self._find_recall_scroll(snapshot) is None
+        ):
+            # A zero-scroll visit cannot execute this recall objective.
+            # Suppliers may both be latched after genuine stock failure;
+            # wait for turnover instead of falling through to dungeon-style
+            # town exploration while carrying an unreachable objective.
+            self._retry_after_store_restock(
+                snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
+            )
+            self.last_reason = "town:wait-restock"
+            return RESTOCK_WAIT_MACRO
         if recall_dest is not None and departure_ok:
             if snapshot.player.recalling:
                 here = snapshot.grid_at(snapshot.player.position)
@@ -10253,6 +11405,7 @@ class HengbotPolicy:
                     )
                     if selection is None:
                         return None
+                    self._pending_recall_dungeon_id = recall_dungeon_id
                     self.last_reason = f"town:recall-to-{recall_dest}"
                     return READ_KEY + recall.slot + selection
 
@@ -10996,6 +12149,16 @@ class HengbotPolicy:
         if self._fundraising_mode == "scavenge":
             if len(snapshot.inventory) >= PACK_CAPACITY:
                 return self._leave_fundraising_floor(snapshot)
+            if (
+                not self._has_digging_tool(snapshot)
+                and self._count_treasure_detection_scrolls(snapshot) > 0
+                and bool(self._known_treasure)
+            ):
+                # This is a recoverable mining run with its tool left in town,
+                # not a loot-only poverty run. Return and let the town plan
+                # withdraw/buy the tool instead of walking past known veins.
+                self._returning_to_town = True
+                return self._leave_fundraising_floor(snapshot)
             step = self._explore_step(snapshot)
             if step is not None:
                 self.last_reason = "fundraise:scavenge"
@@ -11227,11 +12390,12 @@ class HengbotPolicy:
                 for grid in snapshot.grids.values()
                 if grid.object_count > 0 and grid.passable
             }
+        candidates -= self._deferred_loot
         target = self._loot_target
         if (
             max_path_distance is None
             and target is not None
-            and (target in candidates or include_unsafe)
+            and target in candidates
         ):
             step = self._position_target_step(snapshot, target)
             if step is not None:
@@ -11294,6 +12458,8 @@ class HengbotPolicy:
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.object_count <= 0:
             return None
+        if here.position in self._deferred_loot:
+            return None
         if not self._position_changed:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
@@ -11301,6 +12467,11 @@ class HengbotPolicy:
                 self.last_reason = trigger_reason
                 return self._step_toward(snapshot, step)
         self.last_reason = pickup_reason
+        self._pending_loot_pickup = (
+            snapshot.floor_key,
+            here.position,
+            here.object_count,
+        )
         # Hengband picks a lone floor item immediately, but a pile opens the
         # floor-item chooser and waits for one selection per item. Each accepted
         # selection rebuilds the list, so repeatedly choosing its first entry
@@ -11382,6 +12553,31 @@ class HengbotPolicy:
             )
         }
 
+    def _quest_strategy_emergency_hostiles(
+        self,
+        snapshot: Snapshot,
+        profile: StrategyProfile,
+        hostiles: list[MonsterState],
+    ) -> list[MonsterState]:
+        """Exclude only distant stationary enemies owned by the quest plan."""
+        controlled = {
+            race_id
+            for race_id in self._quest_never_move_races(profile)
+            if (
+                (knowledge := self._monrace_knowledge.get(race_id)) is not None
+                and knowledge.max_ranged_damage <= 0
+                and not knowledge.can_summon
+                and not knowledge.can_multiply
+                and "TELE_TO" not in knowledge.abilities
+            )
+        }
+        return [
+            monster
+            for monster in hostiles
+            if monster.race_id not in controlled
+            or snapshot.player.position.distance_to(monster.position) <= 1
+        ]
+
     def _quest_final_target_position(
         self, profile: StrategyProfile, never_move_races: set[int]
     ) -> Position | None:
@@ -11430,20 +12626,36 @@ class HengbotPolicy:
                 - set(profile.priority_targets)
             ),
         )
+        ordered_targets = [
+            candidate
+            for race_id in ordered_races
+            for candidate in hostiles
+            if candidate.race_id == race_id
+        ]
         target = next(
             (
                 candidate
                 for race_id in ordered_races
-                if (
-                    candidate := self._ranged_target(
-                        snapshot,
-                        [monster for monster in hostiles if monster.race_id == race_id],
-                    )
-                )
-                is not None
+                if (candidate := self._ranged_target(
+                    snapshot,
+                    [monster for monster in hostiles if monster.race_id == race_id],
+                )) is not None
             ),
             None,
         )
+        cursor_target = False
+        if target is None:
+            target = next(
+                (
+                    candidate
+                    for candidate in ordered_targets
+                    if 2
+                    <= snapshot.player.position.distance_to(candidate.position)
+                    <= RANGED_MAX_DISTANCE
+                ),
+                None,
+            )
+            cursor_target = target is not None
         if target is None:
             return None
         target_grid = snapshot.grid_at(target.position)
@@ -11461,9 +12673,54 @@ class HengbotPolicy:
             and light_key not in self._quest_light_attempted
         ):
             self._quest_light_attempted.add(light_key)
-            self.last_reason = "quest-strategy:q2-light-area"
+            self.last_reason = (
+                "quest-strategy:q2-light-area"
+                if profile.quest_id == 2
+                else "quest-strategy:ranged-light-area"
+            )
             return READ_KEY + light.slot
-        self.last_reason = "quest-strategy:q2-fire"
+        self.last_reason = (
+            "quest-strategy:q2-fire"
+            if profile.quest_id == 2
+            else "quest-strategy:ranged-fire"
+        )
+        if cursor_target:
+            if self._ranged_target_guard_position != snapshot.player.position:
+                self._ranged_target_guard_position = snapshot.player.position
+                self._ranged_target_attempts.clear()
+                self._ranged_target_signatures.clear()
+            signature = (target.hp, target.position)
+            previous_signature = self._ranged_target_signatures.get(target.index)
+            if previous_signature is not None:
+                if signature != previous_signature:
+                    self._ranged_target_attempts[target.index] = 0
+                else:
+                    self._ranged_target_attempts[target.index] = (
+                        self._ranged_target_attempts.get(target.index, 0) + 1
+                    )
+            if (
+                self._ranged_target_attempts.get(target.index, 0)
+                >= RANGED_TARGET_FAILURE_LIMIT
+            ):
+                return None
+            aim = self._offset_fire_aim(
+                snapshot, target, allow_direct_cursor=True
+            )
+            if aim is None:
+                # Detection can expose a monster which has no clear projectile
+                # path. Do not enter target mode in that state: `*t` leaves the
+                # fire command waiting for a direction and repeats forever.
+                # Returning None lets the Q2 placement route move to a reviewed
+                # ranged-vantage cell instead.
+                return None
+            self._ranged_target_signatures[target.index] = signature
+            return (
+                FIRE_KEY
+                + ammo.slot
+                + "*p"
+                + self._cursor_delta_keys(snapshot.player.position, aim)
+                + "t5\x1b"
+            )
         return (
             FIRE_KEY
             + ammo.slot
@@ -11497,14 +12754,29 @@ class HengbotPolicy:
     def _q2_breach_key(
         self, snapshot: Snapshot, navigator: QuestFloorNavigator
     ) -> str | None:
+        # The live floor can contain already-dissolved cells which are walls in
+        # the quest definition. Feed those confirmations back into static Q2
+        # routing before approaching the dedicated firing point.
+        navigator.opened.update(
+            position
+            for position, grid in snapshot.grids.items()
+            if grid.enterable
+            and navigator.battlefield.terrain.get((position.y, position.x)) == "wall"
+        )
         breach = snapshot.grid_at(Q2_BREACH_POSITION)
-        if breach is not None and breach.enterable:
+        if (
+            (
+                self._q2_breach_attempts == 0
+                or self._q2_breach_attempts >= Q2_BREACH_REQUIRED_USES
+            )
+            and breach is not None
+            and breach.enterable
+        ):
             navigator.opened.add(Q2_BREACH_POSITION)
             self._q2_breach_complete = True
-            self._q2_breach_attempts = 0
             return None
 
-        standing = Position(Q2_BREACH_POSITION.y + 1, Q2_BREACH_POSITION.x)
+        standing = Q2_BREACH_STANDING
         if snapshot.player.position != standing:
             step = navigator.route_to_static_goals(
                 snapshot.player.position, {standing}
@@ -11518,7 +12790,7 @@ class HengbotPolicy:
         if self._q2_breach_attempts >= Q2_BREACH_ATTEMPT_LIMIT:
             self.last_reason = "quest:blocked:q2-breach-attempts"
             return WAIT_KEY
-        direction = self._direction_key(standing, Q2_BREACH_POSITION)
+        direction = "2"
         wand = self._first_item(
             snapshot,
             lambda item: item.tval == TVAL_WAND
@@ -11564,9 +12836,115 @@ class HengbotPolicy:
         if battlefield is None:
             return None
 
+        navigator.opened.update(
+            position
+            for position, grid in snapshot.grids.items()
+            if grid.enterable
+            and battlefield.terrain.get((position.y, position.x)) == "wall"
+        )
+
+        current_kind = battlefield.terrain.get(
+            (snapshot.player.position.y, snapshot.player.position.x)
+        )
+        navigator.allow_diagonal = True
+        navigator.allow_deep_water = (
+            252 not in self._q2_cleared_races
+            or current_kind == "deep_water"
+        )
+
         placements_by_race: dict[int, list[Position]] = {}
         for raw_position, race_id in battlefield.monster_placements:
             placements_by_race.setdefault(race_id, []).append(Position(*raw_position))
+
+        # Multipliers can survive away from their initial cells.  Once one is
+        # visible, the live monster position outranks stale placement progress;
+        # walking back to the entrance hold lets the group multiply unchecked.
+        residual_hostiles = [
+            monster
+            for monster in self._hostiles(snapshot)
+            if monster.race_id in Q2_BREEDER_RACES
+        ]
+        if residual_hostiles:
+            target = min(
+                residual_hostiles,
+                key=lambda monster: snapshot.player.position.distance_to(
+                    monster.position
+                ),
+            )
+            step = navigator.route_to_static_goals(
+                snapshot.player.position, {target.position}
+            )
+            if step is not None:
+                self.last_reason = "quest-strategy:q2-approach-residual-multiplier"
+                return self._step_toward(snapshot, step)
+
+        # Q2 progress lives in the explored map as well as in this process.  A
+        # reconnect must not restart the ordered sewer sweep and walk back to
+        # the opening rooms.  Reaching a later checkpoint is only possible
+        # after the blue-jelly confirmation and bolt recovery in this strategy,
+        # so restore every strictly earlier checkpoint monotonically.
+        reached_post_blue = [
+            index
+            for index, (_, _, placements) in enumerate(Q2_POST_BLUE_SEQUENCE)
+            if any(
+                (grid := snapshot.grid_at(placement)) is not None and grid.known
+                for placement in placements
+            )
+        ]
+        if reached_post_blue:
+            reached_index = max(reached_post_blue)
+            self._q2_breach_complete = True
+            self._q2_cleared_races.update({86, 153, 252})
+            self._q2_blue_recovery_complete = True
+            for _, _, placements in Q2_POST_BLUE_SEQUENCE[:reached_index]:
+                self._q2_surveyed_placements.update(placements)
+
+            completed_post_blue_races = {
+                race_id
+                for _, race_id, placements in Q2_POST_BLUE_SEQUENCE
+                if all(
+                    placement in self._q2_surveyed_placements
+                    for phase_label, phase_race, phase_placements
+                    in Q2_POST_BLUE_SEQUENCE
+                    if phase_race == race_id
+                    for placement in phase_placements
+                )
+            }
+            self._q2_cleared_races.update(completed_post_blue_races)
+
+        # Illuminate the eastbound route immediately after the opening rats are
+        # cleared. Waiting until the gremlin is visible is too late on this dark
+        # floor, and one attempt per floor prevents consuming the whole reserve
+        # if the read command is rejected.
+        def light_after_opening() -> str | None:
+            light_phase = (snapshot.floor_key, 153)
+            in_cleared_opening_room = (
+                snapshot.player.position.y <= 3
+                and snapshot.player.position.x <= 7
+            )
+            if (
+                86 not in self._q2_cleared_races
+                and not in_cleared_opening_room
+            ) or (
+                153 in self._q2_cleared_races
+                or light_phase in self._q2_phase_light_attempted
+            ):
+                return None
+            light = self._first_item(
+                snapshot,
+                lambda item: item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_LIGHT
+                and item.aware,
+            )
+            if light is not None:
+                self._q2_phase_light_attempted.add(light_phase)
+                self.last_reason = "quest-strategy:q2-light-after-opening"
+                return READ_KEY + light.slot
+            return None
+
+        opening_light = light_after_opening()
+        if opening_light is not None:
+            return opening_light
 
         if (
             Q2_BREEDER_RACES <= self._q2_cleared_races
@@ -11575,14 +12953,11 @@ class HengbotPolicy:
             self.last_reason = "quest-strategy:q2-rest-between-engagements"
             return REST_MACRO
 
-        for race_id in profile.priority_targets:
-            if race_id == 213 and not self._q2_breach_complete:
-                breach_action = self._q2_breach_key(snapshot, navigator)
-                if breach_action is not None:
-                    return breach_action
-            if race_id in self._q2_cleared_races:
-                continue
-            placements = placements_by_race.get(race_id, [])
+        def route_phase_placements(
+            race_id: int,
+            placements: list[Position] | tuple[Position, ...],
+            reason: str,
+        ) -> str | None:
             for placement in placements:
                 grid = snapshot.grid_at(placement)
                 ranged_vantages = navigator.ranged_vantage_goals(
@@ -11594,7 +12969,7 @@ class HengbotPolicy:
                 if (
                     (
                         snapshot.player.position.distance_to(placement) <= 1
-                        or snapshot.player.position in observation_goals
+                        or grid is not None and grid.in_view
                     )
                     and grid is not None
                     and grid.known
@@ -11606,31 +12981,301 @@ class HengbotPolicy:
                 if placement not in self._q2_surveyed_placements
             ]
             if not unsurveyed:
-                self._q2_cleared_races.add(race_id)
-                continue
+                return None
 
-            goals: set[Position] = set()
             for placement in unsurveyed:
-                if navigator._static_walkable(placement):
-                    goals.add(placement)
-                    continue
                 ranged_vantages = navigator.ranged_vantage_goals(
                     placement, RANGED_MAX_DISTANCE
                 )
-                goals.update(
-                    ranged_vantages
-                    or navigator.observation_goals(
-                        placement, RANGED_MAX_DISTANCE
+                placement_grid = snapshot.grid_at(placement)
+                if (
+                    snapshot.player.position in ranged_vantages
+                    and (placement_grid is None or not placement_grid.in_view)
+                ):
+                    light_phase = (snapshot.floor_key, race_id, placement)
+                    light = self._first_item(
+                        snapshot,
+                        lambda item: item.tval == TVAL_SCROLL
+                        and item.sval == SV_SCROLL_LIGHT
+                        and item.aware,
                     )
+                    if (
+                        light is not None
+                        and light_phase not in self._q2_phase_light_attempted
+                    ):
+                        self._q2_phase_light_attempted.add(light_phase)
+                        self.last_reason = f"quest-strategy:q2-light-phase-{race_id}"
+                        return READ_KEY + light.slot
+
+            goals: set[Position] = set()
+            for placement in unsurveyed:
+                phase_prefix = (snapshot.floor_key, race_id, placement)
+                if navigator._static_walkable(placement):
+                    goals.add(placement)
+                ranged_vantages = navigator.ranged_vantage_goals(
+                    placement, RANGED_MAX_DISTANCE
                 )
-            step = navigator.route_to_static_goals(snapshot.player.position, goals)
-            if step is not None:
-                self.last_reason = f"quest-strategy:q2-phase-{race_id}"
-                return self._step_toward(snapshot, step)
-            self.last_reason = f"quest:blocked:q2-phase-{race_id}"
+                observation_goals = navigator.observation_goals(
+                    placement, RANGED_MAX_DISTANCE
+                )
+                candidate_goals = ranged_vantages | observation_goals
+                if navigator._static_walkable(placement):
+                    candidate_goals.add(placement)
+                if snapshot.player.position in candidate_goals:
+                    self._q2_phase_visited_goals.add(
+                        (*phase_prefix, snapshot.player.position)
+                    )
+                goals.update(
+                    goal
+                    for goal in candidate_goals
+                    if (*phase_prefix, goal) not in self._q2_phase_visited_goals
+                )
+            goals.discard(snapshot.player.position)
+
+            for placement in unsurveyed:
+                route_key = (snapshot.floor_key, race_id, placement)
+                route_target = self._q2_phase_route_targets.get(route_key)
+                if route_target is None:
+                    continue
+                if snapshot.player.position == route_target:
+                    self._q2_phase_route_targets.pop(route_key, None)
+                    continue
+                step = navigator.route_to_static_goals(
+                    snapshot.player.position, {route_target}
+                )
+                if step is not None:
+                    self.last_reason = reason
+                    return self._step_toward(snapshot, step)
+                self._q2_phase_route_targets.pop(route_key, None)
+
+            goal_distances = {
+                goal: min(goal.distance_to(placement) for placement in unsurveyed)
+                for goal in goals
+            }
+            for distance in sorted(set(goal_distances.values())):
+                path = navigator._static_path(
+                    snapshot.player.position,
+                    {goal for goal, rank in goal_distances.items() if rank == distance},
+                )
+                if len(path) > 1:
+                    route_target = path[-1]
+                    owner = min(
+                        unsurveyed,
+                        key=lambda placement: placement.distance_to(route_target),
+                    )
+                    self._q2_phase_route_targets[
+                        (snapshot.floor_key, race_id, owner)
+                    ] = route_target
+                    self.last_reason = reason
+                    return self._step_toward(snapshot, path[1])
+            self.last_reason = f"quest:blocked:{reason.removeprefix('quest-strategy:')}"
             return WAIT_KEY
 
-        return None
+        if (
+            252 in self._q2_cleared_races
+            and not self._q2_blue_recovery_complete
+        ):
+            recovery_cells = {
+                position
+                for position, grid in snapshot.grids.items()
+                if grid.object_count > 0
+                and 7 <= position.y <= 13
+                and 45 <= position.x <= 49
+                and (
+                    not grid.object_tvals
+                    or TVAL_BOLT in grid.object_tvals
+                )
+            }
+            if snapshot.player.position in recovery_cells:
+                self.last_reason = "quest-strategy:q2-blue-recover-bolts"
+                return PICKUP_KEY
+            if recovery_cells:
+                step = navigator.route_to_static_goals(
+                    snapshot.player.position, recovery_cells
+                )
+                if step is None:
+                    self.last_reason = "quest:blocked:q2-blue-recover-bolts"
+                    return WAIT_KEY
+                self.last_reason = "quest-strategy:q2-blue-recover-bolts"
+                return self._step_toward(snapshot, step)
+            self._q2_blue_recovery_complete = True
+            self.last_reason = "quest-strategy:q2-blue-recovery-complete"
+            return WAIT_KEY
+
+        if 252 in self._q2_cleared_races:
+            for label, race_id, placements in Q2_POST_BLUE_SEQUENCE:
+                action = route_phase_placements(
+                    race_id,
+                    placements,
+                    f"quest-strategy:q2-post-blue-{label}",
+                )
+                if action is not None:
+                    return action
+                if all(
+                    placement in self._q2_surveyed_placements
+                    for _, phase_race, phase_placements in Q2_POST_BLUE_SEQUENCE
+                    if phase_race == race_id
+                    for placement in phase_placements
+                ):
+                    self._q2_cleared_races.add(race_id)
+
+        for race_id in profile.priority_targets:
+            if race_id == 252 and not self._q2_breach_complete:
+                breach_action = self._q2_breach_key(snapshot, navigator)
+                if breach_action is not None:
+                    return breach_action
+            if race_id in self._q2_cleared_races:
+                continue
+            if race_id == 252:
+                if snapshot.player.position != Q2_BLUE_CONFIRM_POSITION:
+                    step = navigator.route_to_static_goals(
+                        snapshot.player.position, {Q2_BLUE_CONFIRM_POSITION}
+                    )
+                    if step is None:
+                        self.last_reason = "quest:blocked:q2-blue-confirm-route"
+                        return WAIT_KEY
+                    self.last_reason = "quest-strategy:q2-blue-confirm-approach"
+                    return self._step_toward(snapshot, step)
+                self._q2_cleared_races.add(252)
+                navigator.allow_deep_water = False
+                self.last_reason = "quest-strategy:q2-blue-clear-confirmed"
+                return WAIT_KEY
+            placements = placements_by_race.get(race_id, [])
+            phase_action = route_phase_placements(
+                race_id, placements, f"quest-strategy:q2-phase-{race_id}"
+            )
+            if phase_action is None:
+                self._q2_cleared_races.add(race_id)
+                if race_id == 86:
+                    opening_light = light_after_opening()
+                    if opening_light is not None:
+                        return opening_light
+                continue
+            return phase_action
+
+        # A placement sweep is not proof that a multiplying race is gone: its
+        # descendants may now be outside the original cell's view. Revisit the
+        # confirmed breeding areas after the ordered Q2 route completes.
+        for race_id in Q2_RESIDUAL_SWEEP_RACES:
+            if race_id in self._q2_residual_surveyed_races:
+                continue
+            placements = placements_by_race.get(race_id, [])
+            unconfirmed: list[Position] = []
+            for placement in placements:
+                grid = snapshot.grid_at(placement)
+                if not (
+                    grid is not None
+                    and grid.known
+                    and not grid.has_monster
+                    and (
+                        grid.in_view
+                        or snapshot.player.position.distance_to(placement) <= 1
+                    )
+                ):
+                    unconfirmed.append(placement)
+            if not unconfirmed:
+                self._q2_residual_surveyed_races.add(race_id)
+                self.last_reason = f"quest-strategy:q2-residual-{race_id}-clear"
+                return WAIT_KEY
+
+            goals: set[Position] = set()
+            for placement in unconfirmed:
+                residual_race = -race_id
+                phase_prefix = (snapshot.floor_key, residual_race, placement)
+                observation_goals = navigator.observation_goals(
+                    placement, RANGED_MAX_DISTANCE
+                )
+                if snapshot.player.position in observation_goals:
+                    self._q2_phase_visited_goals.add(
+                        (*phase_prefix, snapshot.player.position)
+                    )
+                goals.update(
+                    goal
+                    for goal in observation_goals
+                    if (*phase_prefix, goal) not in self._q2_phase_visited_goals
+                )
+            goals.discard(snapshot.player.position)
+            residual_reason = f"quest-strategy:q2-residual-{race_id}-sweep"
+            for placement in unconfirmed:
+                route_key = (snapshot.floor_key, -race_id, placement)
+                route_target = self._q2_phase_route_targets.get(route_key)
+                if route_target is None:
+                    continue
+                if snapshot.player.position == route_target:
+                    self._q2_phase_route_targets.pop(route_key, None)
+                    continue
+                step = navigator.route_to_static_goals(
+                    snapshot.player.position, {route_target}
+                )
+                if step is not None:
+                    self.last_reason = residual_reason
+                    return self._step_toward(snapshot, step)
+                self._q2_phase_route_targets.pop(route_key, None)
+
+            goal_distances = {
+                goal: min(goal.distance_to(placement) for placement in unconfirmed)
+                for goal in goals
+            }
+            for distance in sorted(set(goal_distances.values())):
+                path = navigator._static_path(
+                    snapshot.player.position,
+                    {goal for goal, rank in goal_distances.items() if rank == distance},
+                )
+                if len(path) <= 1:
+                    continue
+                route_target = path[-1]
+                owner = min(
+                    unconfirmed,
+                    key=lambda placement: placement.distance_to(route_target),
+                )
+                self._q2_phase_route_targets[
+                    (snapshot.floor_key, -race_id, owner)
+                ] = route_target
+                self.last_reason = residual_reason
+                return self._step_toward(snapshot, path[1])
+            self.last_reason = f"quest:blocked:q2-residual-{race_id}-sweep"
+            return WAIT_KEY
+
+        # Initial placement checks cannot find monsters that teleported or
+        # wandered into another room. Record the cells actually visible during
+        # a full-map patrol and route toward the nearest unseen walkable cell.
+        # When every reachable cell has been viewed, begin another patrol until
+        # the game reports quest completion.
+        self._q2_final_patrol_visited.update(
+            position
+            for position, grid in snapshot.grids.items()
+            if grid.in_view and navigator._static_walkable(position)
+        )
+        self._q2_final_patrol_visited.add(snapshot.player.position)
+        target = self._q2_final_patrol_target
+        if target is not None:
+            if target in self._q2_final_patrol_visited:
+                self._q2_final_patrol_target = None
+            else:
+                step = navigator.route_to_static_goals(
+                    snapshot.player.position, {target}
+                )
+                if step is not None:
+                    self.last_reason = "quest-strategy:q2-final-patrol"
+                    return self._step_toward(snapshot, step)
+                self._q2_final_patrol_target = None
+
+        unseen = {
+            Position(y, x)
+            for (y, x) in battlefield.terrain
+            if navigator._static_walkable(Position(y, x))
+            and Position(y, x) not in self._q2_final_patrol_visited
+        }
+        path = navigator._static_path(snapshot.player.position, unseen)
+        if len(path) > 1:
+            self._q2_final_patrol_target = path[-1]
+            self.last_reason = "quest-strategy:q2-final-patrol"
+            return self._step_toward(snapshot, path[1])
+
+        self._q2_final_patrol_visited.clear()
+        self._q2_final_patrol_target = None
+        self.last_reason = "quest-strategy:q2-final-patrol-round-complete"
+        return WAIT_KEY
 
     def _quest_strategy_route_step(
         self,
@@ -11644,15 +13289,25 @@ class HengbotPolicy:
             Position(*raw)
             for raw in profile.engagement_plan.get("avoid_door_positions", ())
         }
+        cleared_targets = self._quest_strategy_cleared_targets.get(
+            profile.quest_id, set()
+        )
         for plan in profile.engagement_plan.get("throwing_points", ()):
             target = Position(*plan["target"])
-            for dy in (-1, 0, 1):
-                for dx in (-1, 0, 1):
-                    blocked.add(Position(target.y + dy, target.x + dx))
+            target_key = (
+                int(plan.get("race_id", 0)), target.y, target.x
+            )
+            if target_key not in cleared_targets:
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        blocked.add(Position(target.y + dy, target.x + dx))
             recovery_cells = {
                 Position(*raw) for raw in plan.get("recovery_cells", ())
             }
-            if snapshot.player.position in recovery_cells:
+            if (
+                target_key in cleared_targets
+                and snapshot.player.position in recovery_cells
+            ):
                 blocked.difference_update(recovery_cells)
         final_door_value = profile.engagement_plan.get("final_door")
         if final_door_value is not None:
@@ -11690,6 +13345,96 @@ class HengbotPolicy:
         if profile is None:
             return None
 
+        reposition = profile.engagement_plan.get("opening_reposition")
+        if isinstance(reposition, dict):
+            phase = self._quest_strategy_opening_phase.get(profile.quest_id, 0)
+            goals = {
+                Position(*raw) for raw in reposition.get("goal_points", ())
+            }
+            quest_info = self._quest_knowledge.get(profile.quest_id)
+            opening_battlefield = (
+                quest_info.battlefield if quest_info is not None else None
+            )
+            entrance = (
+                Position(*opening_battlefield.entrance)
+                if opening_battlefield is not None
+                and opening_battlefield.entrance is not None
+                else None
+            )
+            # Opening state is in-memory, but the game can remain on a quest
+            # floor while the external bot is restarted.  An approved hold cell
+            # is durable evidence that speed+teleport+reposition already ran;
+            # reconstruct phase 3 instead of consuming both supplies again.
+            if phase == 0 and snapshot.player.position in goals:
+                self._quest_strategy_hold_positions[profile.quest_id] = (
+                    snapshot.player.position
+                )
+                self._quest_strategy_opening_phase[profile.quest_id] = 3
+                self._fixed_quest_speed_attempted = True
+                phase = 3
+            elif phase == 0 and entrance is not None and (
+                snapshot.player.position != entrance
+            ):
+                # A restart can occur one command after the logged position, so
+                # exact hold matching is too narrow.  Anywhere off the fixed
+                # entrance proves that the opening consumables were already
+                # sent.  Reconstruct phase 2 and finish routing to a reviewed
+                # hold instead of spending Speed and Teleport again.
+                self._quest_strategy_opening_phase[profile.quest_id] = 2
+                self._fixed_quest_speed_attempted = True
+                if opening_battlefield is not None:
+                    self._quest_navigators.setdefault(
+                        profile.quest_id,
+                        QuestFloorNavigator(profile.quest_id, opening_battlefield),
+                    )
+                phase = 2
+            if phase == 0:
+                self._quest_strategy_opening_phase[profile.quest_id] = 1
+                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                if speed is not None:
+                    self._fixed_quest_speed_attempted = True
+                    self.last_reason = "quest-strategy:opening-speed"
+                    return QUAFF_KEY + speed.slot
+                phase = 1
+            if phase == 1:
+                self._quest_strategy_opening_phase[profile.quest_id] = 2
+                teleport = self._find_teleport_scroll(snapshot)
+                if teleport is not None:
+                    self.last_reason = "quest-strategy:opening-teleport"
+                    return READ_KEY + teleport.slot
+                phase = 2
+            if phase == 2:
+                navigator = self._quest_navigators.get(profile.quest_id)
+                if navigator is not None and goals:
+                    hold = self._quest_strategy_hold_positions.get(profile.quest_id)
+                    if hold is None:
+                        routes = [
+                            navigator._static_path(snapshot.player.position, {goal})
+                            for goal in goals
+                        ]
+                        routes = [route for route in routes if route]
+                        if routes:
+                            route = min(
+                                routes,
+                                key=lambda candidate: (
+                                    len(candidate), candidate[-1].y, candidate[-1].x
+                                ),
+                            )
+                            hold = route[-1]
+                            self._quest_strategy_hold_positions[profile.quest_id] = hold
+                    if hold is not None and snapshot.player.position == hold:
+                        self._quest_strategy_opening_phase[profile.quest_id] = 3
+                    elif hold is not None and not adjacent:
+                        blocked = {
+                            monster.position for monster in hostiles
+                        }
+                        step = navigator.route_to_static_goals(
+                            snapshot.player.position, {hold}, blocked=blocked
+                        )
+                        if step is not None:
+                            self.last_reason = "quest-strategy:opening-reposition"
+                            return self._step_toward(snapshot, step)
+
         # Fixed quest profiles may identify doors that are intentionally much
         # harder than ordinary doors. Keep every tactical route from treating
         # them as cheap enterable cells.
@@ -11722,6 +13467,42 @@ class HengbotPolicy:
             if encounter is not None:
                 return encounter
 
+        # Q34 provides a brass lantern at the end of the safe outer-right
+        # corridor.  Its radius-2 light is part of the approved fixed-target
+        # contract: from a distance-2 throwing point, a torch cannot prove that
+        # the target cell is empty.  Pick up and equip the lantern before any
+        # door, combat, or fixed-target phase, and fail closed if it disappeared.
+        opening_light = profile.engagement_plan.get("opening_light")
+        if isinstance(opening_light, dict):
+            equipped_lantern = next(
+                (item for item in snapshot.equipment if item.is_lantern), None
+            )
+            if equipped_lantern is None:
+                carried_lantern = self._first_item(
+                    snapshot, lambda item: item.is_lantern
+                )
+                if carried_lantern is not None:
+                    self.last_reason = "quest-strategy:equip-opening-lantern"
+                    return WIELD_KEY + carried_lantern.slot
+
+                light_position = Position(*opening_light["position"])
+                if snapshot.player.position == light_position:
+                    here = snapshot.grid_at(light_position)
+                    if here is not None and here.object_count > 0:
+                        self.last_reason = "quest-strategy:pickup-opening-lantern"
+                        return PICKUP_KEY
+                    self.last_reason = "quest:blocked:opening-lantern-missing"
+                    return WAIT_KEY
+
+                step = self._quest_strategy_route_step(
+                    snapshot, profile, light_position
+                )
+                if step is not None:
+                    self.last_reason = "quest-strategy:approach-opening-lantern"
+                    return self._step_toward(snapshot, step)
+                self.last_reason = "quest:blocked:opening-lantern-unreachable"
+                return WAIT_KEY
+
         opening_door = profile.engagement_plan.get("opening_door")
         opening_corner = profile.engagement_plan.get("opening_corner")
         opening_approach = profile.engagement_plan.get("opening_approach")
@@ -11729,8 +13510,6 @@ class HengbotPolicy:
             door = Position(*opening_door)
             approach = Position(*opening_approach)
             door_grid = snapshot.grid_at(door)
-            hold_value = profile.engagement_plan.get("hold_position")
-            hold_position = Position(*hold_value) if hold_value is not None else None
             recovery_bounds = profile.engagement_plan.get("supply_recovery_bounds")
             inside_opened_area = False
             if recovery_bounds is not None:
@@ -11741,7 +13520,6 @@ class HengbotPolicy:
                 )
             opening_complete = (
                 inside_opened_area
-                or snapshot.player.position == hold_position
                 or (
                     door_grid is not None
                     and door_grid.known
@@ -11784,8 +13562,63 @@ class HengbotPolicy:
                     return QUAFF_KEY + speed.slot
 
         hold_value = profile.engagement_plan.get("hold_position")
-        hold = Position(*hold_value) if hold_value is not None else None
+        hold = self._quest_strategy_hold_positions.get(profile.quest_id)
+        if hold is None and hold_value is not None:
+            hold = Position(*hold_value)
         never_move_races = self._quest_never_move_races(profile)
+        mobile_visible = any(
+            monster.race_id not in never_move_races for monster in hostiles
+        )
+        initial_hold_budget = max(
+            0, int(profile.engagement_plan.get("initial_hold_turns", 0))
+        )
+        post_wave_phase_started = (
+            profile.quest_id in self._quest_strategy_post_wave_light_attempted
+        )
+        opening_hold_complete = (
+            self._quest_strategy_initial_hold_turns.get(profile.quest_id, 0)
+            >= initial_hold_budget
+        )
+        if mobile_visible and not (
+            post_wave_phase_started or opening_hold_complete
+        ):
+            self._quest_strategy_initial_hold_turns[profile.quest_id] = 0
+        initial_hold_complete = (
+            post_wave_phase_started
+            or opening_hold_complete
+        )
+
+        # Some fixed maps begin with a mobile wave that should be absorbed at a
+        # chokepoint before illuminating the next area.  Once that quiet hold is
+        # complete, let the placement-sweep route advance the configured number
+        # of steps, then read Light before any newly revealed target is required.
+        post_wave_light_configured = "post_wave_light_steps" in profile.engagement_plan
+        post_wave_light_steps = max(
+            0, int(profile.engagement_plan.get("post_wave_light_steps", 0))
+        )
+        if (
+            initial_hold_complete
+            and post_wave_light_configured
+            and profile.quest_id
+            not in self._quest_strategy_post_wave_light_attempted
+            and hold is not None
+            and snapshot.player.position.distance_to(hold)
+            >= post_wave_light_steps
+        ):
+            # Reaching the reviewed reading point is durable phase evidence.
+            # After an external-bot restart the scroll may already be gone
+            # because it was read before the restart; latch the phase even when
+            # there is no remaining scroll instead of restarting wave one.
+            self._quest_strategy_post_wave_light_attempted.add(profile.quest_id)
+            light = self._first_item(
+                snapshot,
+                lambda item: item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_LIGHT
+                and item.aware,
+            )
+            if light is not None:
+                self.last_reason = "quest-strategy:post-wave-light"
+                return READ_KEY + light.slot
         current_never_move = {
             monster.index for monster in hostiles
             if monster.race_id in never_move_races
@@ -11806,12 +13639,67 @@ class HengbotPolicy:
         previous_targets = self._quest_strategy_visible_targets.get(
             profile.quest_id, set()
         )
-        newly_defeated_targets = previous_targets - current_targets
+        throwing_points = profile.engagement_plan.get("throwing_points", ())
+        # A stationary target disappearing from the visible-monster list is not
+        # itself proof of death: changing light/FOV can hide a living target.
+        # Confirm its known fixed cell is currently visible and empty before
+        # unlocking torch recovery through the target's adjacent lane.
+        newly_defeated_targets = {
+            target
+            for target in previous_targets - current_targets
+            if (
+                (target_grid := snapshot.grid_at(Position(target[1], target[2])))
+                is not None
+                and target_grid.known
+                and target_grid.in_view
+                and not target_grid.has_monster
+                and (
+                    profile.quest_id != 34
+                    or any(
+                        (
+                            int(plan.get("race_id", 0)),
+                            int(plan["target"][0]),
+                            int(plan["target"][1]),
+                        ) == target
+                        and snapshot.player.position == Position(*plan["stand"])
+                        for plan in throwing_points
+                    )
+                )
+            )
+        }
         self._quest_strategy_visible_targets[profile.quest_id] = current_targets
         cleared_targets = self._quest_strategy_cleared_targets.setdefault(
             profile.quest_id, set()
         )
         cleared_targets.update(newly_defeated_targets)
+        if profile.quest_id == 34:
+            # Q34 progress must survive an external bot restart. Reaching one
+            # of an ordered target's recovery cells with its entire recovery
+            # lane visible and empty is durable evidence that the target and
+            # every earlier target were killed and their torches collected.
+            for index, plan in enumerate(throwing_points):
+                recovery_cells = [
+                    Position(*raw) for raw in plan.get("recovery_cells", ())
+                ]
+                if (
+                    snapshot.player.position not in recovery_cells
+                    or not recovery_cells
+                    or not all(
+                        (cell_grid := snapshot.grid_at(cell)) is not None
+                        and cell_grid.known
+                        and cell_grid.in_view
+                        and not cell_grid.has_monster
+                        and cell_grid.object_count == 0
+                        for cell in recovery_cells
+                    )
+                ):
+                    continue
+                for completed in throwing_points[: index + 1]:
+                    target = Position(*completed["target"])
+                    cleared_targets.add(
+                        (int(completed.get("race_id", 0)), target.y, target.x)
+                    )
+                break
         if (
             newly_defeated_targets
             and profile.quest_id not in self._quest_strategy_pending_recovery
@@ -11838,7 +13726,6 @@ class HengbotPolicy:
                 battlefield.monster_placements if battlefield is not None else ()
             )
         )
-        throwing_points = profile.engagement_plan.get("throwing_points", ())
         final_target_phase = (
             (
                 len(cleared_targets) >= len(throwing_points)
@@ -11850,7 +13737,7 @@ class HengbotPolicy:
             )
             and not current_never_move
         )
-        if final_target_phase:
+        if final_target_phase and profile.quest_id != 2:
             survival = self._survival_gate_key(snapshot, hostiles)
             if survival is not None:
                 return survival
@@ -11859,6 +13746,17 @@ class HengbotPolicy:
             profile.quest_id
         )
         if pending_recovery is not None:
+            recovery_target_key = (
+                int(pending_recovery.get("race_id", 0)),
+                int(pending_recovery["target"][0]),
+                int(pending_recovery["target"][1]),
+            )
+            if recovery_target_key not in cleared_targets:
+                # Recovery lanes intentionally enter the target's adjacent
+                # cells.  Never unlock one from stale or inferred state.
+                self._quest_strategy_pending_recovery.pop(profile.quest_id, None)
+                self.last_reason = "quest:blocked:unconfirmed-target-recovery"
+                return WAIT_KEY
             recovery_cells = {
                 Position(*raw)
                 for raw in pending_recovery.get("recovery_cells", ())
@@ -11870,17 +13768,31 @@ class HengbotPolicy:
                 and here.object_count > 0
             ):
                 self.last_reason = "quest-strategy:recover-defeated-target-torches"
+                if here.object_count > 1:
+                    return PICKUP_KEY + ("a" * here.object_count)
                 return PICKUP_KEY
-            pickup_step = self._nearest_goal_step(
-                snapshot,
-                lambda candidate: (
-                    candidate.position in recovery_cells
+            recovery_goals = sorted(
+                (
+                    candidate.position
+                    for candidate in snapshot.grids.values()
+                    if candidate.position in recovery_cells
                     and candidate.object_count > 0
                 ),
+                key=lambda position: (
+                    snapshot.player.position.distance_to(position),
+                    position.y,
+                    position.x,
+                ),
             )
-            if pickup_step is not None:
-                self.last_reason = "quest-strategy:recover-defeated-target-torches"
-                return self._step_toward(snapshot, pickup_step)
+            for recovery_goal in recovery_goals:
+                pickup_step = self._quest_strategy_route_step(
+                    snapshot, profile, recovery_goal
+                )
+                if pickup_step is not None:
+                    self.last_reason = (
+                        "quest-strategy:recover-defeated-target-torches"
+                    )
+                    return self._step_toward(snapshot, pickup_step)
             self._quest_strategy_pending_recovery.pop(profile.quest_id, None)
             self.last_reason = "quest-strategy:recovery-complete"
             return WAIT_KEY
@@ -11899,9 +13811,16 @@ class HengbotPolicy:
             if monster.index in combat_indices
             and monster.race_id not in never_move_races
         ]
-        if mobile_adjacent and not snapshot.player.afraid:
+        forced_adjacent = [
+            monster for monster in adjacent
+            if monster.index in combat_indices
+            and profile.quest_id == 31
+            and monster.race_id in never_move_races
+        ]
+        engage_adjacent = mobile_adjacent + forced_adjacent
+        if engage_adjacent and not snapshot.player.afraid:
             ranked = sorted(
-                mobile_adjacent,
+                engage_adjacent,
                 key=lambda monster: (
                     profile.priority_targets.index(monster.race_id)
                     if monster.race_id in profile.priority_targets else len(profile.priority_targets),
@@ -11911,7 +13830,7 @@ class HengbotPolicy:
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
 
-        if profile.quest_id == 2 and combat_hostiles:
+        if profile.required_force.get("launcher") and combat_hostiles:
             ranged = self._q2_ranged_core_key(snapshot, profile, combat_hostiles)
             if ranged is not None:
                 return ranged
@@ -12002,7 +13921,16 @@ class HengbotPolicy:
                             snapshot.player.position, target_monster.position
                         )
                     )
-            if torch is not None and targets:
+            if (
+                profile.quest_id == 34
+                and planned_throw is None
+                and any(
+                    monster.race_id in never_move_races for monster in targets
+                )
+            ):
+                self.last_reason = "quest:blocked:throw-outside-approved-point"
+                return WAIT_KEY
+            if profile.quest_id != 34 and torch is not None and targets:
                 target = self._ranged_target(snapshot, targets)
                 if target is not None:
                     self.last_reason = "quest-strategy:throw-torch"
@@ -12011,11 +13939,39 @@ class HengbotPolicy:
                         + self._direction_key(snapshot.player.position, target.position)
                     )
 
+        # Once the opening hold/light phase is complete, the placement sweep
+        # owns movement.  A mobile enemy can flicker into view at the edge of
+        # that route without a usable firing line; retreating all the way to the
+        # original hold then makes the enemy disappear and creates a two-cell
+        # sweep/retake cycle.  Close on that one observed mobile target locally.
+        if post_wave_phase_started:
+            mobile_targets = [
+                monster for monster in combat_hostiles
+                if monster.race_id not in never_move_races
+            ]
+            if mobile_targets:
+                target = min(
+                    mobile_targets,
+                    key=lambda monster: (
+                        profile.priority_targets.index(monster.race_id)
+                        if monster.race_id in profile.priority_targets
+                        else len(profile.priority_targets),
+                        snapshot.player.position.distance_to(monster.position),
+                        monster.hp,
+                    ),
+                )
+                step = self._quest_strategy_route_step(
+                    snapshot, profile, target.position
+                )
+                if step is not None:
+                    self.last_reason = "quest-strategy:sweep-engage-mobile"
+                    return self._step_toward(snapshot, step)
+
         # A restarted bot has no in-memory record of fixed targets killed
         # earlier in the same quest. Revisit the approved firing points in
         # order; from each point the target cell is directly observable, so an
         # empty cell safely reconstructs both defeat and recovery state.
-        if throwing_points and not final_target_phase:
+        if throwing_points and not final_target_phase and initial_hold_complete:
             survey_plan = next(
                 (
                     plan
@@ -12037,24 +13993,41 @@ class HengbotPolicy:
                     if step is not None:
                         self.last_reason = "quest-strategy:survey-throw-point"
                         return self._step_toward(snapshot, step)
+                    self.last_reason = "quest-strategy:throw-point-unreachable"
+                    return WAIT_KEY
                 else:
                     target_key = (
                         int(survey_plan.get("race_id", 0)),
                         int(survey_plan["target"][0]),
                         int(survey_plan["target"][1]),
                     )
-                    target_grid = snapshot.grid_at(Position(*survey_plan["target"]))
-                    if target_grid is not None and not target_grid.has_monster:
+                    target_position = Position(*survey_plan["target"])
+                    target_grid = snapshot.grid_at(target_position)
+                    if profile.quest_id == 34:
+                        # Q34 throws are allowed only from the reviewed stand and
+                        # only while the corresponding target is visible.  Blind
+                        # throws have a lower hit rate and are user-prohibited.
+                        self.last_reason = "quest:blocked:fixed-target-not-visible"
+                        return WAIT_KEY
+                    if (
+                        target_grid is not None
+                        and target_grid.known
+                        and target_grid.in_view
+                        and not target_grid.has_monster
+                    ):
                         cleared_targets.add(target_key)
                         self._quest_strategy_pending_recovery[
                             profile.quest_id
                         ] = survey_plan
                         self.last_reason = "quest-strategy:survey-target-cleared"
                         return WAIT_KEY
+                    if profile.quest_id == 34:
+                        self.last_reason = "quest:blocked:survey-target-not-visible"
+                        return WAIT_KEY
                     self.last_reason = "quest-strategy:survey-target-unconfirmed"
                     return SEARCH_KEY
 
-        if profile.quest_id == 2 and not hostiles:
+        if profile.quest_id == 2:
             navigator = self._quest_navigators.setdefault(
                 2, QuestFloorNavigator(2, battlefield)
             ) if battlefield is not None else None
@@ -12063,16 +14036,115 @@ class HengbotPolicy:
                 if phase_action is not None:
                     return phase_action
 
+        if (
+            profile.engagement_plan.get("placement_sweep")
+            and battlefield is not None
+            and not hostiles
+            and initial_hold_complete
+            and (
+                profile.quest_id != 34
+                or self._quest_final_target_position(
+                    profile, never_move_races
+                ) in self._quest_strategy_surveyed_placements.get(34, set())
+            )
+        ):
+            navigator = self._quest_navigators.setdefault(
+                profile.quest_id,
+                QuestFloorNavigator(profile.quest_id, battlefield),
+            )
+            surveyed = self._quest_strategy_surveyed_placements.setdefault(
+                profile.quest_id, set()
+            )
+            placements = {
+                Position(*raw_position)
+                for raw_position, _ in battlefield.monster_placements
+            }
+            sweep_scope = profile.engagement_plan.get(
+                "placement_sweep_scope", "placements"
+            )
+            sweep_targets = (
+                {
+                    Position(y, x)
+                    for (y, x) in battlefield.terrain
+                    if navigator._static_walkable(Position(y, x))
+                }
+                if sweep_scope == "battlefield"
+                else placements
+            )
+            for position in sweep_targets:
+                candidate = snapshot.grid_at(position)
+                if (
+                    candidate is not None
+                    and candidate.known
+                    and not candidate.has_monster
+                    and (
+                        candidate.in_view
+                        or snapshot.player.position.distance_to(position) <= 1
+                    )
+                ):
+                    surveyed.add(position)
+            unsurveyed = sweep_targets - surveyed
+            if not unsurveyed:
+                rounds = self._quest_strategy_sweep_rounds.get(profile.quest_id, 0) + 1
+                self._quest_strategy_sweep_rounds[profile.quest_id] = rounds
+                if rounds >= int(profile.engagement_plan.get("max_sweep_rounds", 3)):
+                    self.last_reason = "quest:blocked:placement-sweep-exhausted"
+                    return WAIT_KEY
+                surveyed.clear()
+                self.last_reason = "quest-strategy:placement-sweep-repeat"
+                return WAIT_KEY
+            routes = [
+                navigator._static_path(snapshot.player.position, {placement})
+                for placement in unsurveyed
+            ]
+            routes = [route for route in routes if len(route) > 1]
+            if routes:
+                route = min(
+                    routes,
+                    key=lambda candidate: (
+                        len(candidate), candidate[-1].y, candidate[-1].x
+                    ),
+                )
+                self.last_reason = "quest-strategy:placement-sweep"
+                return self._step_toward(snapshot, route[1])
+            self.last_reason = "quest:blocked:placement-sweep-route"
+            return WAIT_KEY
+
         if final_target_phase:
             mobile_targets = [
                 monster for monster in hostiles
                 if monster.race_id not in never_move_races
             ]
+            # Mobile monsters do not remain at their source placement.  Once the
+            # fixed targets are cleared, walking to an empty original placement
+            # can cycle forever at the goal.  Chase only a currently observed
+            # mobile target; otherwise fall through to the reviewed placement
+            # sweep below and search the whole battlefield.
             target_position = (
-                mobile_targets[0].position if mobile_targets
+                mobile_targets[0].position
+                if mobile_targets
+                else None
+                if profile.quest_id == 31
                 else self._quest_final_target_position(profile, never_move_races)
             )
             if target_position is not None:
+                target_grid = snapshot.grid_at(target_position)
+                if (
+                    profile.quest_id == 34
+                    and not mobile_targets
+                    and target_grid is not None
+                    and target_grid.known
+                    and not target_grid.has_monster
+                    and (
+                        target_grid.in_view
+                        or snapshot.player.position.distance_to(target_position) <= 1
+                    )
+                ):
+                    self._quest_strategy_surveyed_placements.setdefault(
+                        34, set()
+                    ).add(target_position)
+                    self.last_reason = "quest-strategy:final-source-cleared"
+                    return WAIT_KEY
                 final_door_value = profile.engagement_plan.get("final_door")
                 final_approach_value = profile.engagement_plan.get(
                     "final_door_approach"
@@ -12120,8 +14192,8 @@ class HengbotPolicy:
             profile.required_force.get("throwing_items", {}).get("lit_torch", 0)
         )
         needs_supply_recovery = (
-            required_torches <= 0
-            or self._count_throwing_torches(snapshot) < required_torches
+            required_torches > 0
+            and self._count_throwing_torches(snapshot) < required_torches
         )
         recovery_bounds = profile.engagement_plan.get("supply_recovery_bounds")
 
@@ -12152,7 +14224,7 @@ class HengbotPolicy:
             return self._step_toward(snapshot, pickup_step)
 
         if hold is not None and snapshot.player.position != hold:
-            step = self._town_map_goal_step(snapshot, hold)
+            step = self._quest_strategy_route_step(snapshot, profile, hold)
             if step is not None:
                 blocker = next((
                     monster for monster in hostiles
@@ -12160,6 +14232,11 @@ class HengbotPolicy:
                     and step.distance_to(monster.position) <= 1
                 ), None)
                 if blocker is not None:
+                    if profile.quest_id == 34:
+                        self.last_reason = (
+                            "quest:blocked:throw-outside-approved-point"
+                        )
+                        return WAIT_KEY
                     torch = self._first_item(snapshot, lambda item: item.is_torch)
                     if torch is not None:
                         self.last_reason = "quest-strategy:throw-never-move-blocker"
@@ -12179,6 +14256,12 @@ class HengbotPolicy:
         # immediately retake the hold on the following turn.  This also keeps
         # Q34 away from its NEVER_MOVE targets and the bee alcove until its turn.
         if hold is not None:
+            if not mobile_visible and initial_hold_budget > 0:
+                self._quest_strategy_initial_hold_turns[profile.quest_id] = min(
+                    initial_hold_budget,
+                    self._quest_strategy_initial_hold_turns.get(profile.quest_id, 0)
+                    + 1,
+                )
             self.last_reason = "quest-strategy:hold"
             return WAIT_KEY
         return None
@@ -12243,6 +14326,13 @@ class HengbotPolicy:
         ]
         if not profiles:
             return None
+        profiles = [
+            replace(
+                profile,
+                required_force=self._strategy_force_for_snapshot(snapshot, profile),
+            )
+            for profile in profiles
+        ]
         base = min(profiles, key=lambda profile: self._fixed_quest_order(
             snapshot.quests[profile.quest_id]
         ))
@@ -12295,10 +14385,31 @@ class HengbotPolicy:
         }
         return aliases.get(name, name)
 
+    @staticmethod
+    def _strategy_force_for_snapshot(
+        snapshot: Snapshot, profile: StrategyProfile
+    ) -> dict[str, object]:
+        force: dict[str, object] = dict(profile.required_force)
+        tiers = force.get("defensive_tiers", ())
+        if not isinstance(tiers, list):
+            return force
+        eligible = [
+            tier for tier in tiers
+            if isinstance(tier, dict)
+            and snapshot.player.ac >= int(tier.get("min_ac", 0))
+        ]
+        if not eligible:
+            return force
+        tier = max(eligible, key=lambda item: int(item.get("min_ac", 0)))
+        for name in ("min_hp", "heal_potions"):
+            if name in tier:
+                force[name] = int(tier[name])
+        return force
+
     def _approved_strategy_force_ready(
         self, snapshot: Snapshot, profile: StrategyProfile
     ) -> bool:
-        force = profile.required_force
+        force = self._strategy_force_for_snapshot(snapshot, profile)
         weapon = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
         # New strategy profiles must declare their target scale.  The fallback
         # preserves old third-party profiles without silently changing them.
@@ -12315,11 +14426,7 @@ class HengbotPolicy:
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
-        healing = sum(
-            it.count for it in snapshot.inventory
-            if it.tval == TVAL_POTION
-            and it.sval in {SV_POTION_HEALING, SV_POTION_CURE_CRITICAL}
-        )
+        healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
         details = {
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": float(force.get("min_expected_dps", 0) or 0)},
@@ -12371,21 +14478,116 @@ class HengbotPolicy:
     ) -> str | None:
         if self._adjacent_hostiles(snapshot):
             return None
-        if snapshot.in_town and snapshot.town_id != 0:
-            q2 = snapshot.quests.get(2)
-            active_approved_q2 = (
-                q2 is not None
-                and q2.status in {
+        if snapshot.in_town:
+            # A claimed floor reward is part of the quest transaction and must
+            # finish before selecting or travelling to another fixed quest.
+            # Reconstruct the in-memory latch after a bot/game restart from the
+            # dedicated allowlisted tile when the quest is already rewarded.
+            if self._fixed_quest_reward_pending is None:
+                for reward_quest_id in FIXED_QUEST_REWARD_POSITIONS:
+                    reward_quest = snapshot.quests.get(reward_quest_id)
+                    if reward_quest is None or reward_quest.status not in {
+                        QUEST_STATUS_REWARDED,
+                        QUEST_STATUS_FINISHED,
+                    }:
+                        continue
+                    if any(
+                        (grid := snapshot.grid_at(position)) is not None
+                        and grid.object_count > 0
+                        for position in self._fixed_quest_reward_positions(
+                            snapshot, reward_quest_id
+                        )
+                    ):
+                        self._fixed_quest_reward_pending = reward_quest_id
+                        break
+            if self._fixed_quest_reward_pending is not None:
+                reward_key = self._fixed_quest_reward_key(
+                    snapshot, self._fixed_quest_reward_pending
+                )
+                if reward_key is not None:
+                    return reward_key
+                if self._fixed_quest_reward_pending is not None:
+                    self.last_reason = "fixedquest:reward-wait"
+                    return WAIT_KEY
+
+            # Fixed-quest travel used to bypass ordinary town readiness entirely.
+            # Let the town router shed weight at Home before accepting, claiming,
+            # or travelling to another fixed quest.
+            if self._inventory_overweight(snapshot):
+                return None
+
+            fixed_quest_candidates = [
+                quest
+                for quest in snapshot.quests.values()
+                if quest.id in FIXED_QUEST_ALLOWLIST
+                and quest.status in {
                     QUEST_STATUS_UNTAKEN,
                     QUEST_STATUS_TAKEN,
                     QUEST_STATUS_COMPLETED,
                 }
-                and self.approved_quest_strategy(2) is not None
+                and self.approved_quest_strategy(quest.id) is not None
+            ]
+            travel_candidates = [
+                quest
+                for quest in fixed_quest_candidates
+                if (
+                    quest.status != QUEST_STATUS_UNTAKEN
+                    or quest.id == 2
+                    or self._fixed_quest_ready_for_travel(snapshot, quest.id)
+                )
+            ]
+            travel_quest = (
+                min(travel_candidates, key=self._fixed_quest_order)
+                if travel_candidates else None
             )
-            if not active_approved_q2:
+            current_town_id = self._effective_town_id(snapshot)
+            if travel_quest is None and current_town_id == 1:
+                key = self._town_teleport_key(snapshot, 0)
+                if key is not None:
+                    self.last_reason = "fixedquest:q2-teleport"
+                return key
+            if (
+                travel_quest is None
+                and current_town_id != 0
+                and any(
+                    quest.status == QUEST_STATUS_UNTAKEN
+                    for quest in fixed_quest_candidates
+                )
+            ):
+                # A previous process may already have travelled before the
+                # reviewed preparation contract was complete.  Once no fixed
+                # quest is ready here, return by inn to the base town instead
+                # of dropping through to generic town wandering.
                 if snapshot.player.gold < 500:
                     return None
-                return self._town_teleport_key(snapshot, 0)
+                key = self._town_teleport_key(snapshot, 0)
+                if key is not None:
+                    self.last_reason = "fixedquest:prepare-return"
+                return key
+            target_town = (
+                FIXED_QUEST_TOWNS.get(travel_quest.id, 0)
+                if travel_quest is not None else None
+            )
+            if target_town is not None and current_town_id != target_town:
+                if snapshot.player.gold < 500:
+                    return None
+                if (
+                    snapshot.visited_town_ids is None
+                    or target_town not in snapshot.visited_town_ids
+                ):
+                    self._town_travel_rumor_pending = target_town
+                    # Process rumors now, before shopping or another town route
+                    # can starve the unlock.  Never send the inn travel command
+                    # until the destination appears in exported progress.
+                    return self._town_special_key(snapshot)
+                if self._town_travel_rumor_pending == target_town:
+                    self._town_travel_rumor_pending = None
+                if travel_quest is not None and travel_quest.id == 2:
+                    self._telmora_q2_errand = True
+                key = self._town_teleport_key(snapshot, target_town)
+                if key is not None:
+                    self.last_reason = f"fixedquest:q{travel_quest.id}-travel"
+                return key
         quest_id = self._fixed_quest_target(snapshot)
         if quest_id is None:
             return None
@@ -12473,16 +14675,19 @@ class HengbotPolicy:
         if snapshot.visited_town_ids is None or 1 not in snapshot.visited_town_ids:
             return None
         if (
-            snapshot.town_id == 1
+            self._effective_town_id(snapshot) == 1
             and self._telmora_q2_errand
             and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
         ):
             if snapshot.player.gold < 500:
                 return None
-            return self._town_teleport_key(snapshot, 0)
+            key = self._town_teleport_key(snapshot, 0)
+            if key is not None:
+                self.last_reason = "fixedquest:q2-teleport"
+            return key
         if self.approved_quest_strategy(2) is None:
             return None
-        if snapshot.town_id == 0 and quest.status in {
+        if self._effective_town_id(snapshot) == 0 and quest.status in {
             QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED
         }:
             if 2 not in EXECUTABLE_QUEST_STRATEGY_IDS:
@@ -12494,12 +14699,19 @@ class HengbotPolicy:
                 self.last_reason = "fixedquest:q2-travel-needs-funds"
                 return WAIT_KEY
             self._telmora_q2_errand = True
-            return self._town_teleport_key(snapshot, 1)
+            key = self._town_teleport_key(snapshot, 1)
+            if key is not None:
+                self.last_reason = "fixedquest:q2-teleport"
+            return key
         return None
 
-    def _town_teleport_key(self, snapshot: Snapshot, destination_town_id: int) -> str | None:
-        inn_type = 0 if snapshot.town_id == 0 else 4 if snapshot.town_id == 1 else -1
-        if inn_type < 0:
+    def _town_teleport_key(
+        self, snapshot: Snapshot, destination_town_id: int
+    ) -> str | None:
+        inn_type = TOWN_TELEPORT_BUILDING_TYPES.get(
+            self._effective_town_id(snapshot)
+        )
+        if inn_type is None:
             return None
         positions = frozenset(
             grid.position for grid in snapshot.grids.values()
@@ -12511,7 +14723,7 @@ class HengbotPolicy:
         if snapshot.player.position in positions:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
-                self.last_reason = "fixedquest:q2-teleport-step-off"
+                self.last_reason = "town:teleport-step-off"
                 return self._step_toward(snapshot, neighbors[0])
             return None
         step = min(
@@ -12523,7 +14735,7 @@ class HengbotPolicy:
         )
         if step is None:
             return None
-        self.last_reason = "fixedquest:q2-teleport"
+        self.last_reason = "town:teleport"
         suffix = "m" + chr(ord("a") + destination_town_id) if step in positions else ""
         return self._step_toward(snapshot, step) + suffix
 
@@ -12681,6 +14893,25 @@ class HengbotPolicy:
         return info is None or bool(info.flags & QUEST_FLAG_ONCE)
 
     def _fixed_quest_ready(self, snapshot: Snapshot, quest_id: int) -> bool:
+        return self._evaluate_fixed_quest_readiness(
+            snapshot, quest_id, require_target_town=True
+        )
+
+    def _fixed_quest_ready_for_travel(
+        self, snapshot: Snapshot, quest_id: int
+    ) -> bool:
+        """Check the quest contract before travelling to its acceptance town."""
+        return self._evaluate_fixed_quest_readiness(
+            snapshot, quest_id, require_target_town=False
+        )
+
+    def _evaluate_fixed_quest_readiness(
+        self,
+        snapshot: Snapshot,
+        quest_id: int,
+        *,
+        require_target_town: bool,
+    ) -> bool:
         telemetry = {
             "quest_id": quest_id,
             "roster_size": 0,
@@ -12696,8 +14927,11 @@ class HengbotPolicy:
             telemetry["reason"] = reason
             return False
 
-        allowed_towns = {-1, 0, 1} if quest_id == 2 else {-1, 0}
-        if snapshot.town_id not in allowed_towns:
+        allowed_towns = {-1, FIXED_QUEST_TOWNS.get(quest_id, 0)}
+        if (
+            require_target_town
+            and self._effective_town_id(snapshot) not in allowed_towns
+        ):
             return reject("not-in-town")
         info = self._quest_knowledge.get(quest_id)
         if info is None:
@@ -12716,7 +14950,24 @@ class HengbotPolicy:
             return reject("combat-weapon")
         if PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS:
             return reject("pack-space")
-        if not self._town_departure_ready(snapshot):
+        # Approved fixed quests own an explicit, reviewed preparation contract.
+        # The ordinary dungeon departure gate additionally requires a complete
+        # Home equipment scan and no pending Home deposit; those are town
+        # administration, not quest-entry safety, and previously stranded a
+        # fully prepared Q2 character in town. Keep the two universal inventory
+        # hazards explicit while allowing the reviewed strategy to own supplies.
+        if profile is not None and self._inventory_overweight(snapshot):
+            return reject("overweight")
+        if profile is not None and any(
+            self._blocks_teleport(item)
+            for item in (*snapshot.inventory, *snapshot.equipment)
+        ):
+            return reject("random-teleport")
+        if (
+            profile is None
+            and not self._opening_q34_active(snapshot)
+            and not self._town_departure_ready(snapshot)
+        ):
             return reject("departure")
         if not info.threat_roster:
             return reject("empty-roster")
@@ -12812,17 +15063,39 @@ class HengbotPolicy:
             entry for entry in candidates
             if entry[1] not in strategy_controlled_stationary
         ]
+        simultaneous_limit = FIXED_QUEST_SIMULTANEOUS_MONSTERS
+        if profile is not None:
+            simultaneous_limit = max(
+                1,
+                min(
+                    FIXED_QUEST_SIMULTANEOUS_MONSTERS,
+                    int(
+                        profile.engagement_plan.get(
+                            "max_simultaneous_melee", simultaneous_limit
+                        )
+                    ),
+                ),
+            )
+        telemetry["simultaneous_melee"] = simultaneous_limit
         simultaneous = [
             replace(entry[2], index=-(index + 1), position=positions[index], distance=1)
             for index, entry in enumerate(
-                adjacent_candidates[:FIXED_QUEST_SIMULTANEOUS_MONSTERS]
+                adjacent_candidates[:simultaneous_limit]
             )
         ]
         worst_adjacent = self.threat_prediction(
             combat_snapshot, simultaneous, FIXED_QUEST_THREAT_TURNS
         )["operational_total"]
         telemetry["worst_adjacent"] = worst_adjacent
-        if worst_adjacent >= telemetry["hp_healing_budget"] * FIXED_QUEST_MAX_DAMAGE_RATIO:
+        max_damage_ratio = FIXED_QUEST_MAX_DAMAGE_RATIO
+        if profile is not None:
+            max_damage_ratio = float(
+                profile.engagement_plan.get(
+                    "max_damage_ratio", FIXED_QUEST_MAX_DAMAGE_RATIO
+                )
+            )
+        telemetry["max_damage_ratio"] = max_damage_ratio
+        if worst_adjacent >= telemetry["hp_healing_budget"] * max_damage_ratio:
             return reject("three-turn-threat")
         weapon = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None
@@ -13052,6 +15325,26 @@ class HengbotPolicy:
                 return destroy
             self.last_reason = "fixedquest:reward-pack-full"
             return WAIT_KEY
+        positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        here = snapshot.grid_at(snapshot.player.position)
+        if (
+            snapshot.player.position in positions
+            and here is not None
+            and here.object_count > 0
+        ):
+            # Fixed-quest rewards are mandatory and their coordinates are
+            # allowlisted. Do not defer them or route them through the generic
+            # auto-destroy trigger; retry an explicit pickup until they vanish.
+            self._deferred_loot.discard(snapshot.player.position)
+            self.last_reason = "fixedquest:reward-pickup"
+            self._pending_loot_pickup = (
+                snapshot.floor_key,
+                here.position,
+                here.object_count,
+            )
+            if here.object_count > 1:
+                return PICKUP_KEY + ("a" * here.object_count)
+            return PICKUP_KEY
         current = self._current_floor_item_key(
             snapshot,
             pickup_reason="fixedquest:reward-pickup",
@@ -13059,7 +15352,6 @@ class HengbotPolicy:
         )
         if current is not None:
             return current
-        positions = self._fixed_quest_reward_positions(snapshot, quest_id)
         visible_reward = [
             pos
             for pos in positions
@@ -13324,7 +15616,7 @@ class HengbotPolicy:
                 for it in charged
                 if it.tval == TVAL_STAFF and it.sval == SV_STAFF_IDENTIFY
             ]
-            identify_total = sum(it.charges for it in identify)
+            identify_total = sum(self._stack_charges(it) for it in identify)
             if identify and (
                 snapshot.player.food_state in {"weak", "fainting"}
                 or identify_total > IDENTIFY_CHARGE_FLOOR
@@ -13467,6 +15759,7 @@ class HengbotPolicy:
         return bool(
             info is not None
             and info.guardian_id > 0
+            and snapshot.floor_key[0] not in snapshot.conquered_dungeon_ids
             and snapshot.dungeon_level >= info.max_depth - 1
             and not self._guardian_fight_viable(snapshot, info)
         )
@@ -13491,7 +15784,8 @@ class HengbotPolicy:
         if committed is not None:
             info = self._dungeon_knowledge.get(committed)
             if (
-                committed in conquered
+                committed == DUNGEON_CHAMELEON_CAVE
+                or committed in conquered
                 or info is None
                 or committed not in snapshot.entered_dungeon_ids
                 or info.max_depth <= 0
@@ -13506,6 +15800,7 @@ class HengbotPolicy:
             info = self._dungeon_knowledge.get(did)
             if (
                 info is None
+                or did == DUNGEON_CHAMELEON_CAVE
                 or did in conquered
                 or (did == DUNGEON_YEEK_CAVE and info.guardian_id <= 0)
             ):
@@ -13523,7 +15818,12 @@ class HengbotPolicy:
         return best.id if best is not None else None
 
     def _pick_alternate_dungeon(
-        self, snapshot: Snapshot, *, max_entry_depth: int | None = None
+        self,
+        snapshot: Snapshot,
+        *,
+        max_entry_depth: int | None = None,
+        prefer_deepest: bool = False,
+        allow_yeek_cave: bool = False,
     ) -> int | None:
         """Choose the shallowest safe dungeon already available to Recall."""
         # The deepest already-unlocked dungeon — excluding the over-deep main one
@@ -13536,16 +15836,30 @@ class HengbotPolicy:
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)
-            if info is None or did in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE):
+            if info is None or did in (
+                DUNGEON_ANGBAND,
+                DUNGEON_CHAMELEON_CAVE,
+            ):
+                continue
+            if did == DUNGEON_YEEK_CAVE and not allow_yeek_cave:
+                continue
+            if (
+                did in snapshot.conquered_dungeon_ids
+                and {"MAZE", "FORGET"}.issubset(info.flags)
+            ):
+                # A forgetting maze has high navigation cost, and its guardian
+                # reward is gone after conquest. Never choose it as a farming
+                # fallback merely because its recall floor is shallow.
                 continue
             if did == self._alternate_dungeon:
                 continue  # the one we are leaving — never re-pick it, always step down
             if info.min_player_level > clvl:
                 continue
+            landing_depth = snapshot.dungeon_recall_depths.get(did, info.min_depth)
             if max_entry_depth is None:
-                if info.min_depth >= self._last_overextended_depth:
+                if landing_depth >= self._last_overextended_depth:
                     continue
-            elif info.min_depth > max_entry_depth:
+            elif landing_depth > max_entry_depth:
                 continue
             # Its entry floor must be within our RESISTANCE safe band, or we just
             # trade one under-resisted dungeon for another. The character lacking
@@ -13553,11 +15867,34 @@ class HengbotPolicy:
             # and returned with zero loot after a very short dive; steer it instead
             # to a dungeon whose landing depth its resistances actually cover
             # (e.g. a sub-20F Forest / Orc cave with no resistance requirement).
-            if self._missing_required_abilities(snapshot, info.min_depth):
+            if self._missing_required_abilities(snapshot, landing_depth):
                 continue
-            if best is None or (info.min_depth, info.id) < (best.min_depth, best.id):
+            if best is None:
+                best = info
+                continue
+            best_landing_depth = snapshot.dungeon_recall_depths.get(
+                best.id, best.min_depth
+            )
+            better = (
+                landing_depth > best_landing_depth
+                if prefer_deepest
+                else landing_depth < best_landing_depth
+            )
+            if better or (
+                landing_depth == best_landing_depth and info.id < best.id
+            ):
                 best = info
         return best.id if best is not None else None
+
+    def _is_completed_forgetting_maze(self, snapshot: Snapshot) -> bool:
+        """Whether this forgetting maze no longer has a guardian objective."""
+        if not self._is_forgetting_maze(snapshot):
+            return False
+        info = self._dungeon_knowledge.get(snapshot.floor_key[0])
+        return (
+            snapshot.floor_key[0] in snapshot.conquered_dungeon_ids
+            or (info is not None and info.guardian_id <= 0)
+        )
 
     @staticmethod
     def _recall_selection_key(snapshot: Snapshot, dungeon_id: int) -> str | None:
@@ -14002,6 +16339,30 @@ class HengbotPolicy:
 
     def _update_combat_outcome(self, snapshot: Snapshot) -> None:
         """Mark a combat streak fruitless when its full window has no outcome."""
+        if self._breeder_engagement_floor != snapshot.floor_key:
+            self._breeder_engagement_floor = snapshot.floor_key
+            self._breeder_engagement_score = 0
+        breeders = [
+            monster
+            for monster in snapshot.visible_monsters
+            if monster.hostile and monster.can_multiply
+        ]
+        if breeders:
+            self._breeder_engagement_score += 1
+        else:
+            # Brief line-of-sight breaks must not erase a nearly overrun fight,
+            # while a genuinely cleared encounter should age out promptly.
+            self._breeder_engagement_score = max(
+                0, self._breeder_engagement_score - 4
+            )
+        if self._breeder_engagement_score >= BREEDER_CONTAINMENT_WINDOW:
+            self._combat_fruitful = False
+            self._fruitless_disengage_floor = snapshot.floor_key
+            self._fruitless_disengage_decisions = 0
+            self._returning_to_town = True
+            self.last_reason = "combat:disengage-armed"
+            return
+
         reason = self.last_reason
         combat = reason == "melee" or reason.startswith(COMBAT_REASON_PREFIXES)
         combat_adjacent = reason in {
@@ -14095,6 +16456,62 @@ class HengbotPolicy:
                 return key
         self.last_reason = "combat:disengage-wait"
         return WAIT_KEY
+
+    def _unprofitable_unique_disengage_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Leave a non-objective floor instead of grinding an inert unique."""
+        if snapshot.in_town or snapshot.floor_key[2] != 0:
+            return None
+
+        dungeon_id, level, _ = snapshot.floor_key
+        dungeon = self._dungeon_knowledge.get(dungeon_id)
+        objective_guardian_id = (
+            dungeon.guardian_id
+            if (
+                dungeon is not None
+                and dungeon_id == self._target_dungeon_id
+                and level == dungeon.max_depth
+            )
+            else 0
+        )
+        candidates: list[MonsterState] = []
+        for monster in hostiles:
+            knowledge = self._monrace_knowledge.get(monster.race_id)
+            if (
+                knowledge is None
+                or "UNIQUE" not in knowledge.flags
+                or monster.race_id == objective_guardian_id
+                or monster.can_summon
+                or monster.can_multiply
+                or knowledge.can_summon
+                or knowledge.can_multiply
+                or max(monster.max_melee_damage, knowledge.max_melee_damage) > 0
+                or max(monster.max_ranged_damage, knowledge.max_ranged_damage) > 0
+            ):
+                continue
+            if self._unique_fight_projection(
+                snapshot,
+                hostiles,
+                monster,
+                player_speed=snapshot.player.speed,
+            ) is None:
+                candidates.append(monster)
+
+        if not candidates:
+            return None
+
+        self._fruitless_disengage_floor = snapshot.floor_key
+        self._fruitless_disengage_decisions = 0
+        self._returning_to_town = True
+        key = self._fruitless_disengage_key(snapshot, hostiles)
+        if self.last_reason.startswith("combat:disengage-"):
+            self.last_reason = self.last_reason.replace(
+                "combat:disengage-",
+                "combat:avoid-unprofitable-unique-",
+                1,
+            )
+        return key
 
     def has_edible(self, snapshot: Snapshot) -> bool:
         """Return whether the current character can eat something in the pack."""
@@ -14559,8 +16976,57 @@ class HengbotPolicy:
             expected_melee = 0.0
             path_distance = self._monster_path_distance(snapshot, monster.position)
             knowledge = self._monrace_knowledge.get(monster.race_id)
+            never_moves = bool(
+                knowledge is not None and "NEVER_MOVE" in knowledge.flags
+            )
+            can_teleport_player_to = bool(
+                knowledge is not None
+                and "TELE_TO" in knowledge.abilities
+                and self._has_line_of_fire(
+                    snapshot, monster.position, snapshot.player.position
+                )
+            )
+            teleport_to_probability = 0.0
+            if can_teleport_player_to and knowledge is not None:
+                teleport_selection = ability_selection_probabilities(
+                    knowledge,
+                    SpellSelectionContext(distance=max(1, monster.distance)),
+                )
+                teleport_to_probability = (
+                    knowledge.spell_frequency
+                    / 100.0
+                    * teleport_selection.get("TELE_TO", 0.0)
+                )
+            self_destructs_on_melee = bool(
+                knowledge is not None
+                and any(blow.method == "EXPLODE" for blow in knowledge.blows)
+            )
             if path_distance is not None and monster.max_melee_damage > 0:
-                attacks = max(0, actions - max(0, path_distance - 1))
+                movement_attacks = (
+                    actions
+                    if path_distance <= 1
+                    else 0
+                    if never_moves
+                    else max(0, actions - (path_distance - 1))
+                )
+                teleport_to_attacks = (
+                    max(0, actions - 1)
+                    if path_distance > 1 and can_teleport_player_to
+                    else 0
+                )
+                attacks = max(movement_attacks, teleport_to_attacks)
+                expected_teleport_to_attacks = sum(
+                    (1.0 - teleport_to_probability) ** (action - 1)
+                    * teleport_to_probability
+                    * (actions - action)
+                    for action in range(1, actions + 1)
+                )
+                expected_attacks = max(
+                    float(movement_attacks), expected_teleport_to_attacks
+                )
+                if self_destructs_on_melee:
+                    attacks = min(attacks, 1)
+                    expected_attacks = min(expected_attacks, 1.0)
                 if knowledge is not None and knowledge.blows:
                     melee_per_action = sum(
                         self._maximum_melee_blow_damage(snapshot, blow.effect, blow.dice_num * blow.dice_sides)
@@ -14574,10 +17040,10 @@ class HengbotPolicy:
                         for blow in knowledge.blows
                     )
                     melee = attacks * melee_per_action
-                    expected_melee = attacks * expected_melee_per_action
+                    expected_melee = expected_attacks * expected_melee_per_action
                 else:
                     melee = attacks * monster.max_melee_damage
-                    expected_melee = float(melee)
+                    expected_melee = expected_attacks * monster.max_melee_damage
             ranged = 0
             operational_ranged = 0
             expected_ranged = 0.0
@@ -14683,6 +17149,10 @@ class HengbotPolicy:
                     "fearful": monster.fearful,
                     "can_summon": monster.can_summon,
                     "can_multiply": monster.can_multiply,
+                    "never_moves": never_moves,
+                    "can_teleport_player_to": can_teleport_player_to,
+                    "teleport_to_probability_per_action": teleport_to_probability,
+                    "self_destructs_on_melee": self_destructs_on_melee,
                     "actions": actions,
                     "max_melee_damage": monster.max_melee_damage,
                     "max_ranged_damage": monster.max_ranged_damage,
@@ -14853,7 +17323,7 @@ class HengbotPolicy:
             if (y0, x0) == (y1, x1):
                 return True
             grid = snapshot.grid_at(Position(y0, x0))
-            if grid is None or grid.wall or grid.is_closed_door:
+            if grid is None or not grid.allows_los:
                 return False
         return True
 
@@ -15256,8 +17726,10 @@ class HengbotPolicy:
             remembered_door.discard(key)
             remembered_rubble.discard(key)
             remembered_wall.discard(key)
-            if grid.is_door:
-                # Any door (open OR closed) may only be entered orthogonally.
+            if grid.is_closed_door:
+                # Closed doors remain actionable frontiers until opened or
+                # abandoned. Open doors are ordinary passable floor; retaining
+                # them here makes exploration bounce forever between old doors.
                 remembered_door.add(key)
             elif grid.is_rubble:
                 # Rubble is passed by tunnelling ('T'+dir) — treat it like a door
@@ -15805,22 +18277,49 @@ class HengbotPolicy:
             self._blocked_unknown.add(yx)
         return best
 
+    def _effective_town_id(self, snapshot: Snapshot) -> int:
+        """Recover a missing town id from exported, player-known landmarks."""
+        if snapshot.town_id >= 0:
+            return snapshot.town_id
+        observed_buildings = {
+            grid.building_type: grid.position
+            for grid in snapshot.grids.values()
+            if grid.known and grid.building_type >= 0
+        }
+        if not observed_buildings:
+            # Preserve synthetic/legacy snapshots that predate town metadata.
+            return 0 if 0 in self._town_maps else -1
+        scored: list[tuple[int, int]] = []
+        for town_id, town_map in self._town_maps.items():
+            matches = sum(
+                town_map.building_position(building_type) == position
+                for building_type, position in observed_buildings.items()
+            )
+            if matches:
+                scored.append((matches, town_id))
+        if not scored:
+            return 0 if 0 in self._town_maps else -1
+        best_score = max(score for score, _town_id in scored)
+        winners = [town_id for score, town_id in scored if score == best_score]
+        return winners[0] if len(winners) == 1 else -1
+
     def _town_map_active(self, snapshot: Snapshot) -> bool:
         # The static Outpost layout is loaded AND matches this surface floor,
         # so the whole fixed town is effectively known (walls included).
         # Legacy/synthetic snapshots use -1 for an unknown town id; preserve
         # the historical single-map Outpost behavior for them.  Real new
         # snapshots select strictly by the emitter's town id.
-        selected = self._town_maps.get(snapshot.town_id)
-        if selected is None and snapshot.town_id == -1:
-            selected = self._town_maps.get(0)
+        town_id = self._effective_town_id(snapshot)
+        selected = self._town_maps.get(town_id)
         if selected is not None:
             self._town_map = selected
         return (
             selected is not None
             and snapshot.in_town
-            and snapshot.width == selected.width
-            and snapshot.height == selected.height
+            and (snapshot.width or max((p.x for p in snapshot.grids), default=-1) + 1)
+            == selected.width
+            and (snapshot.height or max((p.y for p in snapshot.grids), default=-1) + 1)
+            == selected.height
         )
 
     def _is_frontier(self, snapshot: Snapshot, grid: GridState) -> bool:

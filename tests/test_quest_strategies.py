@@ -57,10 +57,28 @@ class QuestStrategiesTest(unittest.TestCase):
         self.assertEqual(profiles[1].required_force["min_hp"], 36)
         self.assertEqual(profiles[1].required_force["min_expected_dps"], 28)
         self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 88)
+        self.assertEqual(profiles[2].engagement_plan["max_simultaneous_melee"], 1)
         # Approval state is pinned against strategy/approved.json by
         # test_shipped_drafts_match_real_quest_data — no hardcoded duplicate
         # here (Q34 was user-approved via the Phase 4 pipeline on 2026-07-17).
         self.assertEqual(profiles[34].required_force["throwing_items"]["lit_torch"], 20)
+        self.assertNotIn("hold_position", profiles[34].engagement_plan)
+        self.assertIn("殺人蜂には投擲せず", profiles[34].engagement_plan["ranged_softening"])
+        self.assertEqual(
+            profiles[34].engagement_plan["opening_light"],
+            {
+                "position": [10, 20],
+                "item": "brass_lantern",
+                "equip_before_continuing": True,
+                "note": (
+                    "Before opening the lower-left door or engaging anything, "
+                    "follow the safe outer-right corridor to [10,20], pick up "
+                    "the brass lantern, and equip it. Do not begin the fixed-target "
+                    "route until the lantern is confirmed equipped; its radius-2 "
+                    "light makes targets visible from their distance-2 throwing points."
+                ),
+            },
+        )
         throwing_points = profiles[34].engagement_plan["throwing_points"]
         self.assertEqual(
             [
@@ -77,11 +95,47 @@ class QuestStrategiesTest(unittest.TestCase):
                 (107, [11, 9], [9, 9], 2, [[10, 9], [11, 9]]),
             ],
         )
+        for point in throwing_points:
+            self.assertNotIn("approach_path", point)
+            self.assertNotIn("approach_recovery_steps", point)
+            self.assertNotIn("prior_targets_complete_cells", point)
         q2_force = profiles[2].required_force
         self.assertEqual(q2_force["launcher"], {"ammo": "bolt", "equipped": True})
         self.assertEqual(q2_force["throwing_items"], {"bolt": 45})
         self.assertEqual(q2_force["required_scrolls"], {"light": 6, "teleport": 2})
         self.assertEqual(q2_force["utility_tools"], {"wall_breach": 1})
+        q22_force = profiles[22].required_force
+        self.assertEqual(q22_force["min_hp"], 229)
+        self.assertEqual(q22_force["heal_potions"], 1)
+        self.assertEqual(
+            q22_force["required_scrolls"], {"light": 1, "teleport": 10}
+        )
+        q31_force = profiles[31].required_force
+        self.assertEqual(q31_force["min_hp"], 280)
+        self.assertEqual(q31_force["heal_potions"], 2)
+        self.assertEqual(
+            q31_force["healing_plan"],
+            "開幕の同時近接3体による損害回復に1服を使用し、残るフォルン8体の掃討用に1服を必ず残す。",
+        )
+        self.assertEqual(
+            q31_force["defensive_tiers"],
+            [
+                {
+                    "min_ac": 50,
+                    "min_hp": 280,
+                    "heal_potions": 2,
+                    "operational_first_turn_damage": 279,
+                    "operational_three_turn_damage": 465,
+                },
+                {
+                    "min_ac": 80,
+                    "min_hp": 244,
+                    "heal_potions": 2,
+                    "operational_first_turn_damage": 243,
+                    "operational_three_turn_damage": 405,
+                },
+            ],
+        )
 
     def test_reward_routing_covers_every_rewarded_allowlisted_quest(self):
         # The reward latch coordinates are a reviewed hard-code; every entry
@@ -94,11 +148,15 @@ class QuestStrategiesTest(unittest.TestCase):
 
         state = Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
         maps = {}
-        for town_index in (1, 2):
+        town_ids = {
+            town_id for town_id, _ in FIXED_QUEST_REWARD_POSITIONS.values()
+        }
+        for town_id in town_ids:
+            town_index = town_id + 1
             source = find_town_map(town_index, state)
             if source is None:
                 self.skipTest(f"town map {town_index} source is not available")
-            maps[town_index - 1] = parse_town_map(source)
+            maps[town_id] = parse_town_map(source)
         for quest_id, (town_id, positions) in FIXED_QUEST_REWARD_POSITIONS.items():
             with self.subTest(quest_id=quest_id):
                 self.assertTrue(positions <= maps[town_id].reward_positions)
@@ -145,18 +203,38 @@ class QuestStrategiesTest(unittest.TestCase):
                     self.assertTrue(data["approved_note"])
                 self.assertEqual(data["quest_id"], quest_id)
                 info = quests[quest_id]
-                hold = data["engagement_plan"]["hold_position"]
+                hold = data["engagement_plan"].get("hold_position")
                 if info.battlefield is None:
                     self.assertIsNone(hold)
                 else:
-                    position = tuple(hold)
-                    terrain = info.battlefield.terrain.get(position)
-                    if data["approved"]:
-                        self.assertIn(terrain, {"floor", "shallow_water"})
-                    else:
-                        self.assertIsNotNone(terrain)
+                    if hold is not None:
+                        position = tuple(hold)
+                        terrain = info.battlefield.terrain.get(position)
+                        if data["approved"]:
+                            self.assertIn(terrain, {"floor", "shallow_water"})
+                        else:
+                            self.assertIsNotNone(terrain)
                     if data["approved"] and info.battlefield.chokepoints:
-                        self.assertIn(position, info.battlefield.chokepoints)
+                        reposition = data["engagement_plan"].get(
+                            "opening_reposition"
+                        )
+                        combat_holds = (
+                            reposition.get("goal_points", [])
+                            if reposition is not None
+                            else ([hold] if hold is not None else [])
+                        )
+                        for combat_hold in combat_holds:
+                            combat_position = tuple(combat_hold)
+                            self.assertTrue(
+                                any(
+                                    max(
+                                        abs(combat_position[0] - choke[0]),
+                                        abs(combat_position[1] - choke[1]),
+                                    )
+                                    <= 1
+                                    for choke in info.battlefield.chokepoints
+                                )
+                            )
                 roster_ids = {r_idx for r_idx, _ in info.threat_roster}
                 self.assertLessEqual(set(data["priority_targets"]), roster_ids)
                 force = data["required_force"]

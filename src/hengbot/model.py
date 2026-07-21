@@ -101,6 +101,7 @@ SPELLBOOK_TVALS = frozenset(range(TVAL_LIFE_BOOK, TVAL_CRUSADE_BOOK + 1)) | {
 # radius 2 — the lantern is the upgrade we shop for.
 SV_LITE_TORCH = 0
 SV_LITE_LANTERN = 1
+SV_LITE_FEANOR = 2
 SV_POTION_SLEEP = 11
 SV_POTION_SPEED = 29
 SV_SCROLL_DETECT_INVISIBLE = 30
@@ -185,6 +186,7 @@ STORE_HOME = 7
 
 DUNGEON_ANGBAND = 1
 DUNGEON_YEEK_CAVE = 2
+DUNGEON_CHAMELEON_CAVE = 18
 PLAYER_CLASS_WARRIOR = 0
 
 
@@ -322,6 +324,10 @@ class InventoryItem:
         return self.tval == TVAL_LITE and self.sval == SV_LITE_LANTERN
 
     @property
+    def is_feanorian_lamp(self) -> bool:
+        return self.tval == TVAL_LITE and self.sval == SV_LITE_FEANOR
+
+    @property
     def is_torch(self) -> bool:
         return self.tval == TVAL_LITE and self.sval == SV_LITE_TORCH
 
@@ -449,6 +455,10 @@ class StoreItem:
         return self.tval == TVAL_LITE and self.sval == SV_LITE_LANTERN
 
     @property
+    def is_feanorian_lamp(self) -> bool:
+        return self.tval == TVAL_LITE and self.sval == SV_LITE_FEANOR
+
+    @property
     def is_torch(self) -> bool:
         return self.tval == TVAL_LITE and self.sval == SV_LITE_TORCH
 
@@ -525,6 +535,8 @@ class GridState:
     quest_id: int = -1
     building_special: int = -1
     lit: bool = False
+    in_view: bool = False
+    allows_los: bool = True
 
     @property
     def is_store(self) -> bool:
@@ -622,6 +634,7 @@ class Snapshot:
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
+    dungeon_recall_depths: dict[int, int] = field(default_factory=dict)
     conquered_dungeon_ids: tuple[int, ...] = ()  # dungeons whose final guardian is dead
     visited_town_ids: tuple[int, ...] | None = None
     # Deepest level reached in the recall-target dungeon (where Word of Recall
@@ -765,6 +778,9 @@ def parse_snapshot(
         known = bool(grid_data.get("known", flags.get("known", False)))
         monster_index = int(grid_data.get("monster_index", 0))
         move = known and _as_bool(terrain.get("move", False))
+        allows_los = known and _as_bool(
+            terrain.get("los", terrain.get("move", False))
+        )
         door = known and _as_bool(terrain.get("door", False))
         grids[pos] = GridState(
             position=pos,
@@ -800,6 +816,8 @@ def parse_snapshot(
                 int(grid_data.get("building_special", -1)) if known else -1
             ),
             lit=known and _as_bool(flags.get("lite", False)),
+            in_view=known and _as_bool(flags.get("view", False)),
+            allows_los=allows_los,
         )
 
     positions = {
@@ -924,6 +942,10 @@ def parse_snapshot(
         entered_dungeon_ids=tuple(
             int(dungeon_id) for dungeon_id in progress.get("entered_dungeon_ids", [])
         ),
+        dungeon_recall_depths={
+            int(dungeon_id): int(depth)
+            for dungeon_id, depth in progress.get("dungeon_recall_depths", {}).items()
+        },
         conquered_dungeon_ids=tuple(
             int(dungeon_id) for dungeon_id in progress.get("conquered_dungeon_ids", [])
         ),

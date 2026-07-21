@@ -17,6 +17,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.policy import (
     FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
@@ -40,7 +41,7 @@ REST_STALL_GRACE = 20.0
 # Emit a live Python stack when one follow-loop iteration stops making progress.
 # Re-arming at the top of every iteration means normal polling never reaches the
 # deadline; a stuck read/parse/decision/send path repeats the dump once a minute.
-# Exact equipment optimization is intentionally allowed 60 seconds.  Leave a
+# Bounded equipment optimization is intentionally allowed 25 seconds. Leave a
 # margin so a normal optimization timeout cannot itself produce a false hang
 # dump; truly stuck work still emits a diagnostic shortly afterwards.
 DECISION_WATCHDOG_SECONDS = 90
@@ -133,6 +134,15 @@ def _advance_starving_streak(
 # A genuinely rejected move still needs retries so the policy can break out;
 # throttle exact duplicates instead of dropping them forever.
 DUPLICATE_RETRY_SECONDS = 2.0
+# Town snapshots can advance their turn/message state before a posted movement
+# key is consumed.  A second chest movement then overshoots the adjacent work
+# square (live Q34 alternated 35,119 -> 33,117 -> 35,119).  Hold only chest
+# navigation until its position change is visible; combat remains unthrottled.
+CHEST_MOVE_RESPONSE_SECONDS = 2.0
+CHEST_MOVEMENT_REASONS = frozenset(
+    {"chest:step-off", "chest:approach", "chest:collect-contents"}
+)
+DIRECTION_KEYS = frozenset("12346789")
 # A command that repeatedly returns the same turn, player state, inventory, and
 # equipment consumed no energy and made no useful progress. This catches invalid
 # digs and other rejected commands even when their reason is exempt from the
@@ -245,6 +255,14 @@ STATIONARY_EXEMPT_REASONS = frozenset(
     }
 )
 
+# Fixed-quest combat is productive even when a strategy deliberately fights
+# from one post for an entire wave.  Route/avoid failures remain guardable;
+# only commands which actually attack are exempt from the positional loop net.
+QUEST_COMBAT_REASON_PREFIXES = (
+    "quest-strategy:melee",
+    "quest-strategy:ranged-fire",
+)
+
 # Consecutive town:blocked:* decisions before the bot stops itself. The block
 # is a deliberate stationary latch, so this is a short fuse — it exists because
 # store-door snapshots reset the cell-based loop guard and could otherwise hide
@@ -271,6 +289,7 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
         not snapshot.in_town
         and reason not in STATIONARY_REASONS
         and reason not in STATIONARY_EXEMPT_REASONS
+        and not reason.startswith(QUEST_COMBAT_REASON_PREFIXES)
         and not reason.startswith("item:")
         # A firefight legitimately holds one tile for many decisions.
         and not reason.startswith("ranged:")
@@ -387,25 +406,41 @@ def _last_activity_after_read(last_activity: float, now: float, chunk: str) -> f
     return now if chunk else last_activity
 
 
-def _delay_after_macro_key(key: str, index: int, *, in_store: bool = False) -> float:
-    """Return the prompt-settling delay after one character in a macro."""
+def _delay_spec_after_macro_key(
+    key: str, index: int, *, in_store: bool = False
+) -> tuple[float, str | None]:
+    """Return the delay and telemetry category after one macro character."""
     if len(key) <= 1 or index >= len(key) - 1:
-        return 0.0
+        return 0.0, None
     # Store buy/sell and in-store inscription prompt chains do not flush input;
     # they are synchronized entirely by key count and are safe as one blast.
     if in_store and key[0] in {"d", "p", "{"}:
-        return 0.0
+        return 0.0, None
     if key.startswith("T") and index == 0:
-        return TUNNEL_PROMPT_DELAY_SECONDS
+        return TUNNEL_PROMPT_DELAY_SECONDS, "input:tunnel-prompt"
     if key in TRAVEL_MACRO_TRIGGERS and index in {1, 2, 3}:
-        return TRAVEL_PROMPT_DELAY_SECONDS
+        return TRAVEL_PROMPT_DELAY_SECONDS, "input:travel-prompt"
     # f/v raise an item-selection prompt before the direction prompt, the same
     # settle shape as store drop/get.
     if key[0] in {"d", "g", "f", "v"} and index == 0:
-        return STORE_ITEM_PROMPT_DELAY_SECONDS
+        return STORE_ITEM_PROMPT_DELAY_SECONDS, "input:item-prompt"
     if key[0] in {"p", "d"} and key[index].isdigit() and key[index + 1].isdigit():
-        return STORE_QUANTITY_DIGIT_DELAY_SECONDS
-    return MULTI_KEY_DELAY_SECONDS
+        return STORE_QUANTITY_DIGIT_DELAY_SECONDS, "input:quantity-digit"
+    return MULTI_KEY_DELAY_SECONDS, "input:generic-prompt"
+
+
+def _delay_after_macro_key(key: str, index: int, *, in_store: bool = False) -> float:
+    """Return the prompt-settling delay after one character in a macro."""
+    return _delay_spec_after_macro_key(key, index, in_store=in_store)[0]
+
+
+def _intentional_action_wait_category(key: str, reason: str) -> str | None:
+    """Classify commands whose purpose is to spend time without repositioning."""
+    if key.startswith("R"):
+        return f"action:{reason or 'rest'}"
+    if key == "5":
+        return f"action:{reason or 'wait'}"
+    return None
 
 
 def _bot_play_macro_pref_path(monrace_path: Path) -> Path | None:
@@ -828,6 +863,22 @@ def _duplicate_snapshot_ready(
     return line != previous_line or elapsed >= DUPLICATE_RETRY_SECONDS
 
 
+def _chest_movement_response_pending(
+    pending: tuple[tuple[int, int, int], object, float] | None,
+    snapshot,
+    now: float,
+) -> bool:
+    """Wait for an acknowledged chest move instead of queueing a duplicate."""
+    if pending is None:
+        return False
+    floor_key, position, sent_at = pending
+    return (
+        snapshot.floor_key == floor_key
+        and snapshot.player.position == position
+        and now - sent_at < CHEST_MOVE_RESPONSE_SECONDS
+    )
+
+
 def _stall_recovery_key(nudge_streak: int, last_player_level: int | None) -> tuple[str, str]:
     if (
         last_player_level is not None
@@ -852,6 +903,11 @@ def main(argv: list[str] | None = None) -> int:
         "--economy-log",
         type=Path,
         help="append confirmed income and expense events (defaults beside decision log)",
+    )
+    parser.add_argument(
+        "--wait-log",
+        type=Path,
+        help="persist cumulative intentional wait timing (defaults beside decision log)",
     )
     parser.add_argument(
         "--monrace-definitions",
@@ -898,6 +954,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.economy_log is None and args.decision_log is not None:
         args.economy_log = args.decision_log.with_name("bot-economy.jsonl")
+    if args.wait_log is None and args.decision_log is not None:
+        args.wait_log = args.decision_log.with_name("bot-waits.json")
+
+    wait_telemetry = WaitTelemetry(args.wait_log if not args.once else None)
+    if not args.once:
+        wait_telemetry.flush()
+    args.wait_telemetry = wait_telemetry
 
     if args.decision_log is not None and not args.once:
         try:
@@ -942,6 +1005,7 @@ def main(argv: list[str] | None = None) -> int:
             # each key in turn; the gap lets the game raise each successive
             # prompt before the follow-up character arrives so it is not flushed.
             multi = len(key) > 1
+            recorded_wait = False
             for index, char in enumerate(key):
                 send_key_to_window(
                     char,
@@ -950,13 +1014,21 @@ def main(argv: list[str] | None = None) -> int:
                     class_name=args.window_class,
                     process_id=args.window_pid,
                 )
-                delay = (
-                    _delay_after_macro_key(key, index, in_store=in_store)
+                delay, wait_category = (
+                    _delay_spec_after_macro_key(key, index, in_store=in_store)
                     if multi
-                    else 0.0
+                    else (0.0, None)
                 )
                 if delay:
+                    started = time.monotonic()
                     time.sleep(delay)
+                    wait_telemetry.record(
+                        wait_category or "input:uncategorized",
+                        time.monotonic() - started,
+                    )
+                    recorded_wait = True
+            if recorded_wait:
+                wait_telemetry.flush()
             return True
         except RuntimeError as exc:
             print(f"failed to send key: {exc}", file=sys.stderr)
@@ -975,12 +1047,17 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as exc:
             print(f"could not load Outpost map ({outpost_path}): {exc}", file=sys.stderr)
 
-    telmora_path = find_town_map(2, args.state_file)
-    if telmora_path is not None:
+    # Load every active normal town.  Cross-town errands use the inn in
+    # Telmora, Morivant, and Angwil; the static maps keep those routes working
+    # at night when the destination building is not currently lit.
+    for town_index in range(2, 6):
+        town_path = find_town_map(town_index, args.state_file)
+        if town_path is None:
+            continue
         try:
-            town_maps[1] = parse_town_map(telmora_path)
+            town_maps[town_index - 1] = parse_town_map(town_path)
         except (OSError, ValueError) as exc:
-            print(f"could not load Telmora map ({telmora_path}): {exc}", file=sys.stderr)
+            print(f"could not load town map ({town_path}): {exc}", file=sys.stderr)
 
     wilderness_map = None
     wilderness_path = find_wilderness_definition(args.state_file)
@@ -1066,6 +1143,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _run_follow(args, policy, send, monrace_knowledge) -> int:
     path = args.state_file
+    wait_telemetry: WaitTelemetry = args.wait_telemetry
     while not path.exists():
         time.sleep(args.poll_interval)
 
@@ -1094,6 +1172,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         last_decision_line: str | None = None
         last_decision_reason: str | None = None
         last_decision_at = 0.0
+        pending_action_wait: tuple[str, float] | None = None
         stalled_command_count = 0
         blocked_streak = 0
         town_residence_streak = 0
@@ -1104,6 +1183,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
             initial_snapshot.floor_key if initial_snapshot is not None else None
         )
         last_command_signature: tuple | None = None
+        pending_chest_movement: tuple[tuple[int, int, int], object, float] | None = None
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
             _arm_decision_watchdog()
@@ -1149,6 +1229,11 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         if send(NUDGE_KEY):
                             print("<floor-transition:esc>", flush=True)
                     last_snapshot_floor_key = snapshot.floor_key
+                    if _chest_movement_response_pending(
+                        pending_chest_movement, snapshot, now
+                    ):
+                        continue
+                    pending_chest_movement = None
                     if not _duplicate_snapshot_ready(
                         snapshot_line,
                         last_decision_line,
@@ -1156,6 +1241,14 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         last_decision_reason,
                     ):
                         continue
+                    if pending_action_wait is not None:
+                        wait_category, wait_started = pending_action_wait
+                        wait_telemetry.record(
+                            wait_category,
+                            max(0.0, now - wait_started),
+                            force_flush=True,
+                        )
+                        pending_action_wait = None
                     last_decision_line = snapshot_line
                     last_decision_at = now
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
@@ -1284,8 +1377,23 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         )
                         return 0
                     print(key, flush=True)
-                    send(key, in_store=snapshot.store is not None)
+                    sent = send(key, in_store=snapshot.store is not None)
                     last_activity = time.monotonic()
+                    if (
+                        sent
+                        and policy.last_reason in CHEST_MOVEMENT_REASONS
+                        and key in DIRECTION_KEYS
+                    ):
+                        pending_chest_movement = (
+                            snapshot.floor_key,
+                            snapshot.player.position,
+                            last_activity,
+                        )
+                    action_wait_category = _intentional_action_wait_category(
+                        key, policy.last_reason
+                    )
+                    if sent and action_wait_category is not None:
+                        pending_action_wait = (action_wait_category, last_activity)
                     quiet_ok_until = last_activity + COMMAND_RESPONSE_GRACE
                     # A rest runs many turns emitting no snapshot; give it room so
                     # the stall nudge does not immediately disturb it.
@@ -1328,6 +1436,11 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # turns of standing still, easily enough to trip a ≤4-cell
                     # window on its own.
                     if not _cell_loop_guard_applies(snapshot, policy.last_reason):
+                        # Exempt actions break positional continuity.  Keeping
+                        # old route cells across hundreds of intentional hold or
+                        # combat decisions makes them look like the latest
+                        # consecutive window when movement eventually resumes.
+                        recent_cells.clear()
                         if policy.last_reason == "melee" and multiplier_combat_grace:
                             multiplier_combat_grace = MULTIPLIER_COMBAT_GRACE
                         continue
@@ -1351,7 +1464,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             policy,
                             economy_ledger,
                         )
-                        cells = sorted({(c[1], c[2]) for c in recent_cells})
+                        loop_cells = list(recent_cells)[-loop_window:]
+                        cells = sorted({(c[1], c[2]) for c in loop_cells})
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} turn={snapshot.turn} "
                             f"confined to {cells} over {loop_window} decisions; stopping the bot "
@@ -1404,9 +1518,20 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     for _ in range(DEATH_EXIT_ROUNDS):
                         for exit_key in DEATH_EXIT_KEYS:
                             send(exit_key)
+                            started = time.monotonic()
                             time.sleep(0.3)
+                            wait_telemetry.record(
+                                "recovery:terminal-key-gap",
+                                time.monotonic() - started,
+                            )
                     # Give a genuine close_game -> quit() a moment to finish.
+                    started = time.monotonic()
                     time.sleep(2.0)
+                    wait_telemetry.record(
+                        "recovery:shutdown-grace",
+                        time.monotonic() - started,
+                        force_flush=True,
+                    )
                     if not _game_process_alive(args.window_pid):
                         print("<dead>", flush=True)
                         return 0

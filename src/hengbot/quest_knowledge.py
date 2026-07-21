@@ -30,9 +30,9 @@ class QuestBattlefield:
 
     Terrain features are reduced to planning classes: FLOOR and stairs become
     ``floor``; shallow/deep water remain distinct for quest pathing; permanent/granite
-    features become ``wall``; CLOSED/OPEN_DOOR becomes ``door``; PASSAGE becomes
-    ``passage``; and RUBBLE features become ``rubble``. Unknown legacy glyphs are
-    conservatively walls. Chokepoints are walkable tiles with at most two
+    features become ``wall``; TREE becomes walkable ``tree``; CLOSED/OPEN_DOOR
+    becomes ``door``; PASSAGE becomes ``passage``; and RUBBLE features become
+    ``rubble``. Unknown legacy glyphs are conservatively walls. Chokepoints are walkable tiles with at most two
     orthogonal neighbours whose removal disconnects those neighbours.
     """
 
@@ -227,6 +227,8 @@ def _terrain_class(feature: str) -> str:
         return "deep_water"
     if "SHALLOW_WATER" in upper:
         return "shallow_water"
+    if "TREE" in upper:
+        return "tree"
     if any(word in upper for word in ("PERMANENT", "WALL", "GRANITE", "MAGMA", "QUARTZ")):
         return "wall"
     if any(word in upper for word in ("FLOOR", "STAIR", "WATER")):
@@ -252,7 +254,7 @@ def _legacy_battlefield(
     reward = next(((y, x) for y, row in enumerate(rows) for x, ch in enumerate(row) if ch in reward_glyphs), None)
     walkable = {
         pos for pos, kind in terrain.items()
-        if kind in {"floor", "exit", "door", "passage", "shallow_water"}
+        if kind in {"floor", "exit", "door", "passage", "shallow_water", "tree"}
     }
     neighbours = lambda pos: {
         (pos[0] + dy, pos[1] + dx) for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))

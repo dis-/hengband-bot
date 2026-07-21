@@ -39,6 +39,8 @@ class QuestFloorNavigator:
     quest_id: int
     battlefield: QuestBattlefield
     phase: QuestPhase = QuestPhase.ENTER
+    allow_deep_water: bool = False
+    allow_diagonal: bool = False
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -130,21 +132,50 @@ class QuestFloorNavigator:
             if action is not None:
                 return action
         here = snapshot.grid_at(snapshot.player.position)
-        if here is not None and here.object_count > 0:
+        processed_chests = getattr(owner, "_processed_chest_positions", set())
+        profile = owner.approved_quest_strategy(self.quest_id)
+        plan = profile.engagement_plan if profile is not None else {}
+        chest_value = plan.get("chest_position")
+        reserved_chests = (
+            {Position(*chest_value)} if chest_value is not None else set()
+        )
+        if (
+            here is not None
+            and here.object_count > 0
+            and here.position not in processed_chests
+            and here.position not in reserved_chests
+            and here.position not in getattr(owner, "_deferred_loot", set())
+        ):
+            pack_space = owner._quest_sweep_pack_space_key(snapshot, here)
+            if pack_space is not None:
+                return pack_space
             owner.last_reason = "quest:sweep:pickup"
             if here.object_count > 1:
                 return PICKUP_KEY + ("a" * here.object_count)
             return PICKUP_KEY
         loot = {
             pos for pos, grid in snapshot.grids.items()
-            if grid.object_count > 0 and self._static_walkable(pos)
+            if grid.object_count > 0
+            and self._static_walkable(pos)
+            and pos not in processed_chests
+            and pos not in reserved_chests
+            and pos not in getattr(owner, "_deferred_loot", set())
         }
         if loot and self.sweep_turns < SWEEP_BUDGET:
-            step = self._route(snapshot, loot)
-            if step is not None:
+            blocked = {
+                Position(*raw) for raw in plan.get("avoid_door_positions", ())
+            }
+            final_door_value = plan.get("final_door")
+            if final_door_value is not None:
+                blocked.discard(Position(*final_door_value))
+            loot.difference_update(blocked)
+            path = self._static_path(
+                snapshot.player.position, loot, blocked=blocked
+            )
+            if len(path) > 1:
                 self.sweep_turns += 1
                 owner.last_reason = "quest:sweep:collect"
-                return owner._step_toward(snapshot, step)
+                return owner._step_toward(snapshot, path[1])
         return None
 
     def _exit(self, owner: Any, snapshot: Snapshot) -> str:
@@ -185,9 +216,11 @@ class QuestFloorNavigator:
         return owner._step_toward(snapshot, nxt)
 
     def _static_walkable(self, pos: Position) -> bool:
-        return pos in self.opened or self.battlefield.terrain.get((pos.y, pos.x)) in {
-            "floor", "exit", "door", "passage", "rubble", "shallow_water"
-        }
+        kind = self.battlefield.terrain.get((pos.y, pos.x))
+        return pos in self.opened or kind in {
+            "floor", "exit", "door", "passage", "rubble", "shallow_water",
+            "tree",
+        } or (self.allow_deep_water and kind == "deep_water")
 
     def route_to_static_goals(
         self,
@@ -251,7 +284,12 @@ class QuestFloorNavigator:
             if current in goals:
                 end = current
                 break
-            for dy, dx in ((-1, 0), (0, -1), (0, 1), (1, 0)):
+            directions = (
+                RANGED_VANTAGE_DIRECTIONS
+                if self.allow_diagonal
+                else ((-1, 0), (0, -1), (0, 1), (1, 0))
+            )
+            for dy, dx in directions:
                 nxt = Position(current.y + dy, current.x + dx)
                 if (
                     nxt not in previous

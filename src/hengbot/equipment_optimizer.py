@@ -151,7 +151,7 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
 
 
 def required_abilities(depth: int) -> frozenset[str]:
-    if 20 <= depth <= 25:
+    if 21 <= depth <= 25:
         return frozenset({"resist_conf", "resist_fire"})
     if 26 <= depth <= 30:
         return frozenset(
@@ -375,10 +375,13 @@ class OwnedEquipmentCatalog:
         # consumable-only or ammunition-only pages otherwise both collapse to
         # (), falsely completing the scan before later weapon pages are seen.
         page = tuple(_catalog_signature(item) for item in all_page_items)
-        # Hengband displays twelve Home entries per page.  A short page is
-        # therefore both the first and last page; waiting for a page change to
-        # prove wraparound can never complete a one-page (or empty) Home scan.
-        if len(all_page_items) < 12:
+        # An empty Home is unambiguous.  A merely short page is not: after a
+        # deposit or withdrawal Hengband can leave the store cursor on the
+        # short final page of a multi-page Home.  Treating that page as the
+        # whole Home made optimization alternate between whichever weapon was
+        # visible there.  Non-empty scans must prove a wrap after an intentional
+        # page advance, including genuinely single-page Homes.
+        if not all_page_items:
             self.home_scan_complete = True
         if page in self._home_seen_pages:
             if not allow_wrap:
@@ -700,11 +703,41 @@ def _prefer(
         candidate_is_current = candidate.loadout.item_ids == current_item_ids
         incumbent_is_current = incumbent.loadout.item_ids == current_item_ids
         return candidate_is_current and not incumbent_is_current
+    # A modest survival loss must not hide a material damage gain. In the live
+    # Might Crown regression, ten points of head AC improved modeled survival by
+    # only 2.7% while dropping melee DPS by 33%. Combat-margin subtraction still
+    # ranked the helmet first because the survival value is measured in hundreds
+    # of turns. Compare the relative trade directly before that scaled metric.
+    candidate_material_offense = cm.expected_dps > im.expected_dps * 1.05
+    incumbent_material_offense = im.expected_dps > cm.expected_dps * 1.05
+    candidate_preserves_survival = cm.survival_turns >= im.survival_turns * 0.95
+    incumbent_preserves_survival = im.survival_turns >= cm.survival_turns * 0.95
+    if candidate_material_offense and candidate_preserves_survival:
+        return True
+    if incumbent_material_offense and incumbent_preserves_survival:
+        return False
     threshold = abs(im.combat_margin) * 0.01
     difference = cm.combat_margin - im.combat_margin
     if difference > threshold:
         return True
     if difference < -threshold:
+        return False
+    # Inside the existing 1% combat-margin equivalence band, preserve real
+    # offensive output before consulting secondary-risk tie breakers.  Margin
+    # is measured in turns and can let a small AC gain hide a large DPS loss
+    # when expected kill time is short (the live Might Crown regression was
+    # 62.7 vs 82.3 melee DPS for only 0.9% margin).
+    dps_threshold = abs(im.expected_dps) * 0.05
+    dps_difference = cm.expected_dps - im.expected_dps
+    if dps_difference > dps_threshold:
+        return True
+    if dps_difference < -dps_threshold:
+        return False
+    ranged_threshold = abs(im.ranged_dps) * 0.05
+    ranged_difference = cm.ranged_dps - im.ranged_dps
+    if ranged_difference > ranged_threshold:
+        return True
+    if ranged_difference < -ranged_threshold:
         return False
     if cm.secondary_value != im.secondary_value:
         return cm.secondary_value > im.secondary_value
@@ -732,6 +765,92 @@ def _selection_equivalence_key(
         entry.metrics,
         bow_policy,
         entry.loadout.item_ids == current_item_ids,
+    )
+
+
+def _stable_operational_best(
+    evaluated: Iterable[EvaluatedLoadout],
+    current_item_ids: frozenset[str],
+) -> EvaluatedLoadout | None:
+    """Select from the whole field without a non-transitive winner chain.
+
+    Pairwise "material offense if survival is within 5%" comparisons can form
+    a cycle (A outdamages B, B outdamages C, C outlasts A).  A sequential
+    tournament then changes winner with catalog order, which in turn changes
+    whenever Home pages are rescanned after a swap.  Anchor both tolerances to
+    the field maxima before applying deterministic tie breakers.
+    """
+    pool = list(evaluated)
+    if not pool:
+        return None
+
+    # Preserve the explicit launcher policy: an ordinary Short Bow does not
+    # compete with an available Light Crossbow. High-grade Short Bows remain
+    # in the normal comparison.
+    has_light_xbow = any(
+        (bow := entry.loadout.item_at(SLOT_BOW)) is not None
+        and bow.item.sval == SV_BOW_LIGHT_XBOW
+        for entry in pool
+    )
+    if has_light_xbow:
+        pool = [
+            entry
+            for entry in pool
+            if (bow := entry.loadout.item_at(SLOT_BOW)) is None
+            or bow.item.sval != SV_BOW_SHORT
+            or bow.item.is_ego
+            or bow.item.is_artifact
+            or bow.item.pseudo_feeling in {"excellent", "special"}
+        ]
+
+    max_survival = max(entry.metrics.survival_turns for entry in pool)
+    if isfinite(max_survival):
+        pool = [
+            entry
+            for entry in pool
+            if entry.metrics.survival_turns >= max_survival * 0.95
+        ]
+    else:
+        pool = [
+            entry for entry in pool
+            if entry.metrics.survival_turns == max_survival
+        ]
+
+    max_dps = max(entry.metrics.expected_dps for entry in pool)
+    if max_dps > 0:
+        pool = [
+            entry
+            for entry in pool
+            if entry.metrics.expected_dps >= max_dps * 0.95
+        ]
+
+    max_margin = max(entry.metrics.combat_margin for entry in pool)
+    if isfinite(max_margin):
+        margin_band = abs(max_margin) * 0.01
+        pool = [
+            entry
+            for entry in pool
+            if entry.metrics.combat_margin >= max_margin - margin_band
+        ]
+    else:
+        pool = [
+            entry for entry in pool
+            if entry.metrics.combat_margin == max_margin
+        ]
+
+    return max(
+        pool,
+        key=lambda entry: (
+            entry.metrics.ranged_dps,
+            entry.metrics.secondary_value,
+            entry.metrics.speed_bonus,
+            entry.loadout.item_ids == current_item_ids,
+            entry.metrics.combat_margin,
+            entry.metrics.survival_turns,
+            entry.metrics.expected_dps,
+            len(entry.metrics.relevant_traits),
+            tuple(sorted(entry.loadout.item_ids)),
+        ),
     )
 
 
@@ -836,10 +955,7 @@ def optimize_loadout(
         # viable loadout.  The strict Pareto frontier is retained separately for
         # storage/disposal; using it here would discard the current loadout for a
         # mathematically positive but operationally insignificant 0.5% gain.
-        best = None
-        for candidate in evaluated:
-            if best is None or _prefer(candidate, best, current_item_ids):
-                best = candidate
+        best = _stable_operational_best(evaluated, current_item_ids)
 
     alternatives = tuple(
         sorted(
@@ -851,18 +967,17 @@ def optimize_loadout(
             reverse=True,
         )[:5]
     )
-    ranked = tuple(
-        sorted(
-            evaluated,
-            key=cmp_to_key(
-                lambda left, right: (
-                    -1 if _prefer(left, right, current_item_ids)
-                    else 1 if _prefer(right, left, current_item_ids)
-                    else 0
-                )
-            ),
-        )[:3]
+    remaining_ranked = sorted(
+        (entry for entry in evaluated if entry is not best),
+        key=cmp_to_key(
+            lambda left, right: (
+                -1 if _prefer(left, right, current_item_ids)
+                else 1 if _prefer(right, left, current_item_ids)
+                else 0
+            )
+        ),
     )
+    ranked = tuple(([best] if best is not None else []) + remaining_ranked[:2])
 
     # Physical Home disposal uses the capacity-aware R1 slot-local proof in
     # warrior_loadout_search.  Unknown items never reach that proof.

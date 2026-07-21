@@ -24,6 +24,7 @@ from hengbot.cli import (
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
+    BREEDER_CONTAINMENT_WINDOW,
     COMBAT_OUTCOME_WINDOW,
     FRUITLESS_DISENGAGE_LIMIT,
     NAV_NO_PROGRESS_LIMIT,
@@ -562,6 +563,27 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "combat:disengage-armed")
         self.assertFalse(policy._combat_fruitful)
         self.assertEqual(policy._fruitless_disengage_floor, fighting.floor_key)
+
+    def test_breeder_equilibrium_disengages_despite_continuous_experience_gain(self):
+        base = self._quiet_room()
+        breeders = [
+            hostile(index, 10, 11 + index, can_multiply=True)
+            for index in range(1, 3)
+        ]
+        policy = HengbotPolicy()
+
+        for step in range(BREEDER_CONTAINMENT_WINDOW):
+            policy.last_reason = "melee"
+            fighting = replace(
+                base,
+                player=replace(base.player, exp=step),
+                visible_monsters=breeders,
+            )
+            policy._update_combat_outcome(fighting)
+
+        self.assertEqual(policy.last_reason, "combat:disengage-armed")
+        self.assertFalse(policy._combat_fruitful)
+        self.assertEqual(policy._fruitless_disengage_floor, base.floor_key)
 
     def test_fruitless_swarm_disengages_then_leaves_floor(self):
         base = self._quiet_room(upstairs=True)

@@ -7,6 +7,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipmentCatalog,
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
+    SLOT_HEAD,
     SLOT_SUB_RING,
     SLOT_BODY,
     SLOT_SUB_HAND,
@@ -154,6 +155,111 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertIn("xbow", result.best.loadout.item_ids)
 
+    def test_one_percent_margin_band_preserves_large_might_crown_dps_gain(self):
+        helmet = gear("helmet", 32, equipped_slot=SLOT_HEAD)
+        might_crown = gear("might-crown", 32)
+        candidates = (
+            Loadout((("light", self.light), (SLOT_HEAD, helmet)), "empty"),
+            Loadout((("light", self.light), (SLOT_HEAD, might_crown)), "empty"),
+        )
+
+        def evaluate(loadout):
+            if "might-crown" in loadout.item_ids:
+                return metrics(
+                    137.21,
+                    dps=82.34,
+                    survival=138.14,
+                    secondary=-0.1036,
+                )
+            return metrics(
+                138.46,
+                dps=62.74,
+                survival=139.68,
+                secondary=-0.1010,
+            )
+
+        result = optimize_loadout(
+            [self.light, helmet, might_crown],
+            evaluate,
+            depth=1,
+            current_item_ids=frozenset({"light", "helmet"}),
+            candidate_loadouts=candidates,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertIn("might-crown", result.best.loadout.item_ids)
+
+    def test_might_crown_dps_gain_beats_small_survival_gain_outside_margin_band(self):
+        helmet = gear("helmet", 32, equipped_slot=SLOT_HEAD)
+        might_crown = gear("might-crown", 33)
+        candidates = (
+            Loadout((("light", self.light), (SLOT_HEAD, helmet)), "empty"),
+            Loadout((("light", self.light), (SLOT_HEAD, might_crown)), "empty"),
+        )
+
+        def evaluate(loadout):
+            if "might-crown" in loadout.item_ids:
+                return metrics(
+                    251.20398785282805,
+                    dps=93.09549825664416,
+                    survival=251.70886602937142,
+                    secondary=-0.03877355784302404,
+                )
+            return metrics(
+                257.9814478085021,
+                dps=62.3765577117008,
+                survival=258.7349662315842,
+                secondary=-0.036963237030862704,
+            )
+
+        result = optimize_loadout(
+            [self.light, helmet, might_crown],
+            evaluate,
+            depth=1,
+            current_item_ids=frozenset({"light", "helmet"}),
+            candidate_loadouts=candidates,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertIn("might-crown", result.best.loadout.item_ids)
+
+    def test_non_transitive_offense_survival_field_has_order_stable_winner(self):
+        weapons = [
+            gear("orson", 22),
+            gear("takkion", 23),
+            gear("defender", 23),
+        ]
+        candidates = tuple(
+            Loadout((("light", self.light), ("main_hand", weapon)), "one_handed")
+            for weapon in weapons
+        )
+        scores = {
+            "orson": metrics(65.96, dps=124.31, survival=66.47),
+            "takkion": metrics(67.46, dps=81.91, survival=68.24),
+            "defender": metrics(69.69, dps=65.75, survival=70.65),
+        }
+
+        def evaluate(loadout):
+            weapon_id = next(
+                item_id
+                for item_id in ("orson", "takkion", "defender")
+                if item_id in loadout.item_ids
+            )
+            return scores[weapon_id]
+
+        winners = set()
+        for ordered in (candidates, tuple(reversed(candidates))):
+            result = optimize_loadout(
+                [self.light, *weapons],
+                evaluate,
+                depth=1,
+                candidate_loadouts=ordered,
+            )
+            self.assertIsNotNone(result.best)
+            winners.add(result.best.loadout.item_at("main_hand").id)
+
+        self.assertEqual(winners, {"takkion"})
+
     def test_light_crossbow_is_preferred_over_short_bow(self):
         short = gear("short", 19, sval=12, equipped_slot="bow")
         xbow = gear("xbow", 19, sval=23)
@@ -264,9 +370,19 @@ class EquipmentOptimizerTest(unittest.TestCase):
         result = optimize_loadout(
             [self.light, fire, confusion],
             lambda loadout: metrics(float(len(loadout.item_ids))),
-            depth=20,
+            depth=21,
         )
         self.assertEqual(result.best.loadout.item_ids, {"light", "fire-ring", "confusion-amulet"})
+
+    def test_depth_20_remains_a_valid_fallback_without_21f_resistances(self):
+        result = optimize_loadout(
+            [self.light],
+            lambda loadout: metrics(float(len(loadout.item_ids))),
+            depth=20,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertEqual(result.best.loadout.item_ids, {"light"})
 
     def test_no_teleport_is_never_an_exploration_candidate(self):
         blocked = gear("blocked", 23, flags={TR_NO_TELE})
@@ -656,15 +772,36 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertTrue(catalog.observe_home_page(first))
         self.assertTrue(catalog.home_scan_complete)
 
-    def test_single_short_home_page_completes_immediately(self):
+    def test_single_short_home_page_requires_confirmed_wrap(self):
         catalog = OwnedEquipmentCatalog()
         page = [
             self._home_item(chr(ord("a") + index), f"item-{index}")
             for index in range(10)
         ]
 
-        self.assertTrue(catalog.observe_home_page(page, allow_wrap=False))
+        self.assertFalse(catalog.observe_home_page(page, allow_wrap=False))
+        self.assertFalse(catalog.home_scan_complete)
+        self.assertTrue(catalog.observe_home_page(page, allow_wrap=True))
         self.assertTrue(catalog.home_scan_complete)
+
+    def test_short_last_page_after_invalidation_is_not_a_complete_home(self):
+        catalog = OwnedEquipmentCatalog()
+        first = self._full_page("first-page")
+        last = [
+            self._home_item(chr(ord("a") + index), f"last-page-{index}")
+            for index in range(3)
+        ]
+        catalog.observe_home_page(first)
+        catalog.observe_home_page(last)
+        catalog.observe_home_page(first, allow_wrap=True)
+        catalog.invalidate_home()
+
+        self.assertFalse(catalog.observe_home_page(last, allow_wrap=False))
+        self.assertFalse(catalog.home_scan_complete)
+        self.assertEqual(
+            [owned.item.name for owned in catalog.items],
+            [f"last-page-{index}" for index in range(3)],
+        )
 
     def test_empty_home_scan_completes_immediately(self):
         catalog = OwnedEquipmentCatalog()

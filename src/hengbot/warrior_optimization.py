@@ -226,7 +226,7 @@ def prepare_warrior_optimization(
     has_destruction: bool = False,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
     search_excluded_item_ids: frozenset[str] = frozenset(),
-    timeout_seconds: float = 60.0,
+    timeout_seconds: float = 25.0,
     loadout_report_path: Path | None = None,
     evaluator_cache: WarriorEvaluatorCache | None = None,
 ) -> WarriorOptimizationPreparation:

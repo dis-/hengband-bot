@@ -30,6 +30,12 @@ GEAR_STAGES = (
     *FIXED_SLOTS,
 )
 
+# Exact Pareto fronts can grow without bound as Home accumulates equipment.
+# Keep a diverse, deterministic representative beam at each slot stage. Small
+# catalogs remain exact; large catalogs retain the current partial loadout,
+# every numeric-axis extreme, and representatives for every beneficial flag.
+MAX_GEAR_STATES_PER_PROFILE = 1024
+
 # Only flags whose addition is monotonic in the current Warrior model may
 # participate in superset dominance. Unknown, neutral, and adverse flags remain
 # in the exact group key, so this compression cannot silently reinterpret them.
@@ -382,7 +388,67 @@ def _compress_states(
                 continue
             frontier.append((state, vector, beneficial))
         result.extend(state for state, _, _ in frontier)
-    return tuple(result), False
+    if len(result) <= MAX_GEAR_STATES_PER_PROFILE:
+        return tuple(result), False
+
+    def stable_key(state: Loadout) -> tuple[str, ...]:
+        return tuple(sorted(state.item_ids))
+
+    selected: dict[tuple[str, ...], Loadout] = {}
+    for state in result:
+        if _is_current_partial(state, processed_slots, current_by_slot):
+            selected[stable_key(state)] = state
+
+    vectors_by_id = {
+        stable_key(state): _gear_state(state)[1]
+        for state in result
+    }
+    flags_by_id = {
+        stable_key(state): state.flags.intersection(BENEFICIAL_GEAR_FLAGS)
+        for state in result
+    }
+    vector_width = len(next(iter(vectors_by_id.values())))
+    rankings: list[list[Loadout]] = []
+    for index in range(vector_width):
+        rankings.append(
+            sorted(
+                result,
+                key=lambda state: (
+                    -vectors_by_id[stable_key(state)][index],
+                    -len(flags_by_id[stable_key(state)]),
+                    stable_key(state),
+                ),
+            )
+        )
+    for flag in sorted(set().union(*flags_by_id.values())):
+        rankings.append(
+            sorted(
+                (state for state in result if flag in flags_by_id[stable_key(state)]),
+                key=lambda state: (
+                    tuple(-value for value in vectors_by_id[stable_key(state)]),
+                    -len(flags_by_id[stable_key(state)]),
+                    stable_key(state),
+                ),
+            )
+        )
+
+    rank = 0
+    while len(selected) < MAX_GEAR_STATES_PER_PROFILE:
+        added = False
+        for ranking in rankings:
+            if rank >= len(ranking):
+                continue
+            state = ranking[rank]
+            key = stable_key(state)
+            if key not in selected:
+                selected[key] = state
+                added = True
+                if len(selected) >= MAX_GEAR_STATES_PER_PROFILE:
+                    break
+        if not added and all(rank + 1 >= len(ranking) for ranking in rankings):
+            break
+        rank += 1
+    return tuple(selected.values()), True
 
 
 def _slot_choices(

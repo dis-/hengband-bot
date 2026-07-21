@@ -654,6 +654,22 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
+    def test_timeout_keeps_confirmed_loadout_without_partial_transaction(self):
+        policy = HengbotPolicy()
+        current = Loadout((), "empty")
+        timed_out = WarriorOptimizationPreparation(
+            current, None, None, ("optimization-timeout",),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: timed_out
+        snapshot = SimpleNamespace(
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+        )
+
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
+
+        policy._equipment_transaction_session = SimpleNamespace(executable=True)
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
+
 
 if __name__ == "__main__":
     unittest.main()
