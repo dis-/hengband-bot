@@ -651,6 +651,22 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertEqual(decisions[-1], "5")
         self.assertEqual(policy.last_reason, "combat:fruitless")
 
+    def test_quest_disengage_continues_objective_after_breaking_contact(self):
+        # Fixed quests entered through dungeon travel retain quest_id=0 in the
+        # emitted floor key, as in the live Warg Quest incident.
+        snapshot = replace(self._quiet_room(), floor_key=(2, 5, 0))
+        policy = HengbotPolicy()
+        policy._active_fixed_quest_id = lambda _snapshot: 2
+        policy._fruitless_disengage_floor = snapshot.floor_key
+        policy._fruitless_disengage_decisions = 17
+        policy._returning_to_town = True
+
+        key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(key, "5")
+        self.assertFalse(policy.last_reason.startswith("combat:disengage"))
+        self.assertEqual(policy._fruitless_disengage_decisions, 17)
+
     def test_normal_fight_is_unchanged_without_disengage_latch(self):
         base = self._quiet_room()
         fighting = replace(base, visible_monsters=[hostile(1, 10, 11)])

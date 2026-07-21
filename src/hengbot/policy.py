@@ -16495,15 +16495,27 @@ class HengbotPolicy:
     ) -> str | None:
         if self._fruitless_disengage_floor != snapshot.floor_key:
             return None
+
+        breeders = [monster for monster in hostiles if monster.can_multiply]
+        threats = breeders or hostiles
+        nearby_threat = bool(threats) and min(
+            monster.distance for monster in threats
+        ) <= 4
+
+        # A quest floor cannot be abandoned, but once local retreat has broken
+        # contact the disengage latch must not own every turn with WAIT.  Let
+        # the ordinary quest objective continue until the swarm closes again;
+        # only actual local-retreat attempts consume the bounded budget.
+        if self._floor_navigation_exit_locked(snapshot) and not nearby_threat:
+            return None
+
         if self._fruitless_disengage_decisions >= FRUITLESS_DISENGAGE_LIMIT:
             self.last_reason = "combat:fruitless"
             return WAIT_KEY
         self._fruitless_disengage_decisions += 1
         self._returning_to_town = True
 
-        breeders = [monster for monster in hostiles if monster.can_multiply]
-        threats = breeders or hostiles
-        if threats and min(monster.distance for monster in threats) <= 4:
+        if nearby_threat:
             step = self._summoner_retreat_step(snapshot, threats, hostiles)
             if step is not None:
                 self.last_reason = "combat:disengage-step"
