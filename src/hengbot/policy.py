@@ -472,7 +472,12 @@ NAV_ESCAPE_STEP_LIMIT = 200
 COMBAT_OUTCOME_WINDOW = 300
 # Experience gain is not proof that a breeder swarm is being contained: a
 # kill-and-reproduce equilibrium can award XP forever without clearing a route.
-BREEDER_CONTAINMENT_WINDOW = 120
+# This MUST stay below cli's MULTIPLIER_COMBAT_LOOP_WINDOW (80): a full-HP
+# character surrounded by a harmless multiplying swarm (e.g. giant white lice)
+# never trips the damage-gated swarm flee, so the graceful "disengage to town"
+# below has to arm before the position loop guard hard-stops the bot.  At 120 it
+# never did, and the multiplier-combat loop guard stopped the bot instead.
+BREEDER_CONTAINMENT_WINDOW = 60
 FRUITLESS_DISENGAGE_LIMIT = 100
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of

@@ -22194,6 +22194,39 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(key, "rt")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
+    def test_breeder_containment_disengages_before_multiplier_loop_guard(self):
+        # Live 2026-07-24 loop: a full-HP warrior surrounded by ~44 giant white
+        # lice (harmless multipliers) never tripped the damage-gated swarm flee
+        # and melee could not out-pace their breeding, so cli's multiplier-combat
+        # loop guard hard-stopped the bot.  The graceful breeder disengage must
+        # arm BEFORE that guard fires, i.e. within MULTIPLIER_COMBAT_LOOP_WINDOW
+        # continuous breeder-visible decisions.
+        from hengbot.cli import MULTIPLIER_COMBAT_LOOP_WINDOW
+
+        snapshot, monster, knowledge = self._snapshot(
+            hp=600, max_hp=600, monster_hp=8, blow_sides=0
+        )
+        breeder = replace(monster, can_multiply=True)
+        snapshot = replace(
+            snapshot,
+            floor_key=(DUNGEON_YEEK_CAVE, 13, 0),
+            visible_monsters=[breeder],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        armed_at = None
+        for i in range(1, MULTIPLIER_COMBAT_LOOP_WINDOW + 1):
+            policy._update_combat_outcome(snapshot)
+            if not policy._combat_fruitful:
+                armed_at = i
+                break
+
+        self.assertIsNotNone(
+            armed_at, "breeder disengage never armed before the loop guard"
+        )
+        self.assertLess(armed_at, MULTIPLIER_COMBAT_LOOP_WINDOW)
+        self.assertTrue(policy._returning_to_town)
+
     def test_does_not_disengage_from_current_objective_guardian(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=200,
