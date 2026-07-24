@@ -4821,6 +4821,15 @@ class HengbotPolicy:
         if destroy is not None:
             self.last_reason = "quest:sweep:free-pack-slot"
             return destroy
+        # Nothing carried is disposable yet — an all-unidentified pack hides its
+        # junk. The standalone pack-pressure identify never runs mid-quest (the
+        # quest sweep returns here before choose_key reaches it), so identify an
+        # unknown in place: the disposal path can then judge it and free a slot
+        # on a later pass instead of abandoning collectible quest loot.
+        identify = self._pack_pressure_identify_key(snapshot)
+        if identify is not None:
+            self.last_reason = "quest:sweep:identify"
+            return identify
         self._deferred_loot.add(floor_grid.position)
         self.last_reason = "quest:sweep:defer-full-pack-loot"
         return WAIT_KEY

@@ -4387,6 +4387,39 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(q14.engagement_plan.get("max_simultaneous_melee"), 4)
         self.assertEqual(q14.engagement_plan.get("random_move_damage_factor"), 0.5)
 
+    def _full_pack_quest_sweep_setup(self):
+        policy = HengbotPolicy(self._town_map())
+        snapshot = Snapshot(
+            player(5, 5), {Position(5, 5): grid(5, 5)}, [],
+            floor_key=(0, 15, 22),
+            inventory=[item(f"i{n}", TVAL_POTION, 5) for n in range(30)],
+        )
+        # Non-light loot on the floor, so the light-defer shortcut does not apply.
+        floor_grid = grid(4, 5, objects=1, object_tvals=(TVAL_SWORD,))
+        # Nothing carried is disposable yet (all-unidentified pack).
+        policy._full_pack_destroy_key = lambda _snapshot: None
+        return policy, snapshot, floor_grid
+
+    def test_quest_sweep_identifies_unknown_before_abandoning_full_pack_loot(self):
+        policy, snapshot, floor_grid = self._full_pack_quest_sweep_setup()
+        # An identify source/target is available: identify in place instead of
+        # deferring the loot. (The standalone pack-pressure identify never runs
+        # mid-quest, so the quest sweep must invoke it itself.)
+        policy._pack_pressure_identify_key = lambda _snapshot: "uab"
+        self.assertEqual(
+            policy._quest_sweep_pack_space_key(snapshot, floor_grid), "uab"
+        )
+        self.assertEqual(policy.last_reason, "quest:sweep:identify")
+
+    def test_quest_sweep_defers_full_pack_loot_only_when_identify_unavailable(self):
+        policy, snapshot, floor_grid = self._full_pack_quest_sweep_setup()
+        # No usable identify source/target: only now defer the loot.
+        policy._pack_pressure_identify_key = lambda _snapshot: None
+        self.assertEqual(
+            policy._quest_sweep_pack_space_key(snapshot, floor_grid), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "quest:sweep:defer-full-pack-loot")
+
     def test_fixed_quest_healing_budget_is_limited_to_three_quaffs(self):
         info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
         harmless = MonraceKnowledge(1, 110, False, False)
