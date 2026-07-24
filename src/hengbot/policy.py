@@ -15981,6 +15981,18 @@ class HengbotPolicy:
                 rounds = self._quest_strategy_sweep_rounds.get(profile.quest_id, 0) + 1
                 self._quest_strategy_sweep_rounds[profile.quest_id] = rounds
                 if rounds >= int(profile.engagement_plan.get("max_sweep_rounds", 3)):
+                    # Every placement is confirmed empty but the quest is not
+                    # complete: the targets are mobile (e.g. Q22's orcs) and have
+                    # wandered off their placements. Waiting here just deadlocks
+                    # until the loop guard stops the bot, so fall back to ordinary
+                    # floor exploration to bring the strays into view. The sweep
+                    # is gated on `not hostiles`, so combat/hold resumes the
+                    # moment one is sighted; only a fully-explored floor with no
+                    # frontier left degrades to the (loop-guarded) wait.
+                    step = self._explore_step(snapshot)
+                    if step is not None:
+                        self.last_reason = "quest-strategy:placement-sweep-explore"
+                        return self._step_toward(snapshot, step)
                     self.last_reason = "quest:blocked:placement-sweep-exhausted"
                     return WAIT_KEY
                 surveyed.clear()

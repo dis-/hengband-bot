@@ -5100,6 +5100,65 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._approved_quest_strategy_key(at(3), [], []), "6")
         self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep")
 
+    def _q22_exhausted_sweep_policy(self):
+        """Q22 policy primed to the moment the placement sweep is exhausted:
+        opening hold complete, every placement confirmed empty, and the final
+        sweep round reached — the state that used to freeze on WAIT_KEY because
+        the mobile orcs had wandered off their placements."""
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 7)},
+            monster_placements=(((1, 6), 118),),
+            entrance=(1, 1), exit=(1, 1),
+        )
+        profile = replace(
+            self.profiles[22],
+            approved=True,
+            engagement_plan={
+                **self.profiles[22].engagement_plan,
+                "hold_position": [1, 1],
+                "max_sweep_rounds": 3,
+            },
+        )
+        policy = HengbotPolicy(
+            quest_strategies={22: profile},
+            quest_knowledge={
+                22: QuestInfo(22, "Orc Camp", 6, 15, 6, battlefield=battlefield)
+            },
+            monrace_knowledge={118: MonraceKnowledge(64, 110, False, False)},
+        )
+        policy._quest_strategy_initial_hold_turns[22] = 999
+        policy._quest_strategy_surveyed_placements[22] = {Position(1, 6)}
+        policy._quest_strategy_sweep_rounds[22] = 2
+        snapshot = Snapshot(
+            player(1, 1), {Position(1, 1): grid(1, 1)}, [],
+            floor_key=(0, 15, 22),
+        )
+        policy._build_grid_index(snapshot)
+        return policy, snapshot
+
+    def test_q22_exhausted_placement_sweep_explores_for_strayed_targets(self):
+        policy, snapshot = self._q22_exhausted_sweep_policy()
+        # A reachable frontier exists: the exhausted sweep must MOVE to hunt the
+        # strayed orcs, not freeze on WAIT_KEY.
+        policy._explore_step = lambda _snapshot: Position(1, 2)
+        key = policy._approved_quest_strategy_key(snapshot, [], [])
+        self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep-explore")
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertEqual(key, self._direction_key_for(policy, snapshot, Position(1, 2)))
+
+    def test_q22_exhausted_sweep_waits_only_when_no_frontier_remains(self):
+        policy, snapshot = self._q22_exhausted_sweep_policy()
+        # Fully-explored floor, no frontier: degrade to the loop-guarded wait.
+        policy._explore_step = lambda _snapshot: None
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "quest:blocked:placement-sweep-exhausted")
+
+    @staticmethod
+    def _direction_key_for(policy, snapshot, step):
+        return policy._step_toward(snapshot, step)
+
     def test_q31_reads_light_only_after_opening_rush_settles(self):
         battlefield = QuestBattlefield(
             terrain={(18, 1): "floor", (17, 1): "floor"},
