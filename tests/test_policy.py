@@ -2750,6 +2750,53 @@ class OverflowDisposalTest(unittest.TestCase):
         ):
             self.assertTrue(policy._equipment_departure_ready(snapshot))
 
+    def _incomplete_catalog_policy(self):
+        policy = HengbotPolicy()
+        # One Home item stuck as incomplete because it needs *Identify*.
+        policy._equipment_catalog = SimpleNamespace(
+            items=(SimpleNamespace(id="home:x:0", origin="home"),)
+        )
+        policy._identification_need = "full"
+        policy._town_store_attempted = {STORE_ALCHEMIST}
+        policy._home_candidate_waiting = False
+        preparation = SimpleNamespace(
+            blockers=("incomplete-equipment-catalog",),
+            result=SimpleNamespace(incomplete_item_ids=frozenset({"home:x:0"})),
+            ready=False,
+            transaction=None,
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10, downstairs=True)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[],
+        )
+        return policy, snapshot, preparation
+
+    def test_unbuyable_identify_opens_incomplete_catalog_escape_valve(self):
+        policy, snapshot, preparation = self._incomplete_catalog_policy()
+        # Alchemist already tried and holds no *Identify*: the need cannot be
+        # satisfied this visit, so the escape valve must open (depart, retry
+        # later) instead of waiting in town until the loop guard stops the bot.
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ), patch.object(
+            policy, "_find_identification_source", return_value=None
+        ):
+            self.assertTrue(policy._equipment_departure_ready(snapshot))
+
+    def test_buyable_identify_keeps_incomplete_catalog_blocking(self):
+        policy, snapshot, preparation = self._incomplete_catalog_policy()
+        # A source IS obtainable: the need is still satisfiable, so the valve
+        # must stay shut and the catalog remain a departure blocker.
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ), patch.object(
+            policy, "_find_identification_source",
+            return_value=SimpleNamespace(slot="a"),
+        ):
+            self.assertFalse(policy._equipment_departure_ready(snapshot))
 
     def test_preserves_equipment_and_unidentified_consumables(self):
         # Home-depositable equipment and alchemist-sellable unknown scrolls have

@@ -6283,6 +6283,30 @@ class HengbotPolicy:
         finally:
             self._fundraising_mode = fundraising_mode
 
+    def _identification_need_unsatisfiable(self, snapshot: Snapshot) -> bool:
+        """Whether a pending identify errand cannot advance this town visit.
+
+        Mirrors the store-needs logic (which adds no store in exactly this case):
+        no identify source is carried or buyable because the Alchemist was
+        already tried and holds none, and no Home withdrawal is pending. When an
+        item needs *Identify* the town cannot supply, the need would otherwise
+        stay set forever and keep the incomplete-catalog escape valve shut.
+        """
+        if self._identification_need is None:
+            return False
+        source = self._find_identification_source(
+            snapshot,
+            full=self._identification_need == "full",
+            reliable_only=self._identification_requires_reliable_source(snapshot),
+        )
+        if source is not None:
+            return False
+        if STORE_ALCHEMIST not in self._town_store_attempted:
+            return False
+        if self._home_candidate_waiting and self._home_available(snapshot):
+            return False
+        return True
+
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
@@ -6348,7 +6372,15 @@ class HengbotPolicy:
             and "incomplete-equipment-catalog" in preparation.blockers
             and preparation.result is not None
             and self._equipment_transaction_session is None
-            and self._identification_need is None
+            and (
+                self._identification_need is None
+                # An unbuyable *Identify* (no source, Alchemist already tried, no
+                # Home withdrawal pending) leaves the need set forever. Without
+                # this, the escape valve never opens and the bot waits in town
+                # until the loop guard stops it. Depart with the current loadout
+                # and retry the identify next visit instead of deadlocking.
+                or self._identification_need_unsatisfiable(snapshot)
+            )
         ):
             catalog = {owned.id: owned for owned in self._equipment_catalog.items}
             incomplete = [
