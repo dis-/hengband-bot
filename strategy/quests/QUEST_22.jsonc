@@ -17,6 +17,7 @@
     "post_wave_light_steps": 2,
     "max_simultaneous_melee": 1,
     "placement_sweep": true,
+    "carry_identify_staff": true,
     "max_sweep_rounds": 3,
     "hold_budget": 2600
   },

@@ -4467,6 +4467,39 @@ class FixedQuestTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest:sweep:defer-full-pack-loot")
 
+    def _identify_carry_policy(self, engagement_plan):
+        policy = HengbotPolicy(self._town_map())
+        policy._planned_depth = lambda: 1  # shallow: the depth gate alone waives it
+        policy._total_identify_staff_charges = lambda _snapshot: 0
+        policy._carry_procurement_strategy = lambda _snapshot: SimpleNamespace(
+            engagement_plan=engagement_plan
+        )
+        snapshot = self._town_snapshot(
+            26, 97, {Position(26, 97): grid(26, 97)}, 0
+        )
+        return policy, snapshot
+
+    def test_loot_quest_requires_identify_staff_even_when_shallow(self):
+        policy, snapshot = self._identify_carry_policy({"carry_identify_staff": True})
+        # A carry-opting quest needs the staff regardless of the shallow depth.
+        self.assertFalse(policy._identify_staff_ready(snapshot))
+
+    def test_non_carry_quest_leaves_shallow_identify_staff_optional(self):
+        policy, snapshot = self._identify_carry_policy({})
+        # No opt-in: the depth gate still waives the staff for a shallow trip.
+        self.assertTrue(policy._identify_staff_ready(snapshot))
+
+    def test_only_q22_and_q31_opt_into_identify_staff_carry(self):
+        profiles = load_quest_strategies(
+            Path(__file__).resolve().parents[1] / "strategy" / "quests"
+        )
+        self.assertTrue(profiles[22].engagement_plan.get("carry_identify_staff"))
+        self.assertTrue(profiles[31].engagement_plan.get("carry_identify_staff"))
+        for qid in (1, 2, 14, 34):
+            self.assertFalse(
+                profiles[qid].engagement_plan.get("carry_identify_staff"), qid
+            )
+
     def test_fixed_quest_healing_budget_is_limited_to_three_quaffs(self):
         info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
         harmless = MonraceKnowledge(1, 110, False, False)

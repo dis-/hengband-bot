@@ -10,6 +10,7 @@
     "initial_hold_turns": 60,
     "post_wave_light_steps": 0,
     "placement_sweep": true,
+    "carry_identify_staff": true,
     "placement_sweep_scope": "battlefield",
     "max_sweep_rounds": 12,
     "placement_sweep_note": "Huorns teleport, so one battlefield pass cannot confirm extermination. Repeat full-map sweeps until the quest completes.",

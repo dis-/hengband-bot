@@ -5521,7 +5521,19 @@ class HengbotPolicy:
         return self._total_identify_staff_charges(snapshot) > 0
 
     def _identify_staff_ready(self, snapshot: Snapshot) -> bool:
-        if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
+        # A loot-collecting quest (its reviewed profile opts in with
+        # carry_identify_staff) needs a carried Identify staff regardless of the
+        # planned depth: it lets the in-quest sweep identify unknown drops and
+        # free pack slots instead of abandoning collectible loot on a full pack.
+        strategy = self._carry_procurement_strategy(snapshot)
+        quest_requires_identify = (
+            strategy is not None
+            and bool(strategy.engagement_plan.get("carry_identify_staff"))
+        )
+        if (
+            self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH
+            and not quest_requires_identify
+        ):
             return True
         charges = self._total_identify_staff_charges(snapshot)
         if charges >= STAFF_IDENTIFY_MIN_CHARGES:
