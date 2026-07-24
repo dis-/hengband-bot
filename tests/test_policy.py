@@ -20506,6 +20506,50 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     # run of emergency teleports that drain the escape kit.
     OVEREXTENDED = dict(loot=1, emergencies=3)
 
+    def _guardian_bounce(self, pol, trigger):
+        """Arrive at Labyrinth (4), then be recalled straight back with the given
+        return trigger and no loot — the town<->guardian flip-flop shape."""
+        dung = self._dungeon(4, 18, conquered=(3, 7, 14), angband_unlocked=False)
+        pol.last_reason = "descend"
+        pol._observe(dung)  # dive begins
+        pol._target_dungeon_id = 4
+        pol._last_return_trigger = trigger
+        pol.last_reason = "town:return"
+        pol._observe(self._town(conquered=(3, 7, 14), angband_unlocked=False))
+
+    def test_guardian_kit_bounce_counts_as_over_extension(self):
+        pol = self._policy()
+        pol._conquest_committed = 4
+        pol._target_dungeon_id = 4
+        pol._target_empty_dives = 0
+        self._guardian_bounce(pol, "guardian-kit-insufficient")
+        # The empty guardian bounce is counted, so the empty-dive valve can act
+        # instead of flip-flopping forever.
+        self.assertEqual(pol._target_empty_dives, 1)
+
+    def test_quiet_non_guardian_dive_still_holds_the_streak(self):
+        pol = self._policy()
+        pol._target_dungeon_id = 4
+        pol._target_empty_dives = 0
+        self._guardian_bounce(pol, "recall-low")
+        # A non-guardian quiet return keeps the existing HOLD behaviour.
+        self.assertEqual(pol._target_empty_dives, 0)
+
+    def test_recall_departure_target_clears_arrival_return_threshold(self):
+        # Threshold-inversion guard: departing town by recall to a non-Angband /
+        # non-Yeek dungeon (Labyrinth) must leave enough recall that, after the
+        # one scroll the descent itself consumes, the arrival count still clears
+        # the return threshold. Otherwise the bot recalls straight back and
+        # flip-flops. Already satisfied by the +1 departure allowance in
+        # _recall_required_target; this locks the invariant against regression.
+        pol = self._policy()
+        pol._deepest_level = 18
+        pol._target_dungeon_id = 4
+        town = self._town(angband_unlocked=False, conquered=(3, 7, 14))
+        required = pol._recall_required_target(town)
+        return_threshold = pol._supply_threshold("recall", "return", 18)
+        self.assertGreaterEqual(required - 1, return_threshold)
+
     # --- _pick_alternate_dungeon ------------------------------------------
     def test_picks_shallowest_recall_selectable_dungeon(self):
         pol = self._policy()

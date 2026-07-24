@@ -3322,6 +3322,16 @@ class HengbotPolicy:
                 elif self._dive_emergencies >= OVEREXTEND_EMERGENCY_MIN:
                     # Unproductive AND forced to bail out repeatedly = over-extended.
                     self._target_empty_dives += 1
+                elif self._last_return_trigger == "guardian-kit-insufficient":
+                    # A guardian we cannot yet beat recalls us straight back with
+                    # no real dive. Uncounted, it flip-flops town<->guardian
+                    # forever, burning ~2 recall scrolls a round trip until the
+                    # character is stranded at depth with zero escape scrolls
+                    # (live: Labyrinth, recall 9 -> 0). Count it as over-extension
+                    # so the approved empty-dive valve releases the conquest latch
+                    # and switches to a productive dungeon; the latch may
+                    # re-select the guardian later once the kit can beat it.
+                    self._target_empty_dives += 1
                 # else: unproductive but no real danger (found nothing, or a single
                 # scare) — HOLD the streak. Weak evidence must not ADVANCE the count,
                 # but a lone quiet dive between genuinely bad ones must not RESET it
