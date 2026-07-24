@@ -6,7 +6,7 @@
 
 各 `strategy/quests/QUEST_<id>.jsonc` は `quest_id`、`name`、`approved`、`approved_note`、`engagement_plan`、`priority_targets`、`consumable_plan`、`abort_conditions`、`required_force`、`generated_by`、`generated_at` を持つ。`required_force` は `min_hp`、`min_expected_dps`、`level_guideline`、`resists`、`speed_potions`、`heal_potions`、`throwing_items`、`rationale` を持つ。投擲を使わない場合も `throwing_items: {}` とする。投擲を使う場合は、例えば `{"lit_torch": 5}` のように、戦術で実際に使う個数と外れ余裕を整数で記録し、計算を `rationale` に示す。`consumable_plan.other` の文章だけを個数の根拠にしてはならない。
 
-`no_healing_tier` を設ける場合は `min_hp`、`min_expected_dps`、`heal_potions: 0`、`note` を持つ。`approved` と `strategy/approved.json` の変更は Phase 4 の `scripts/strategy_approval.mjs` だけが行う。
+`heal_potions` は体力回復の薬（1服300HP）の必要数だけを表し、致命傷の治癒で代用してはならない。`no_healing_tier` を設ける場合は `min_hp`、`min_expected_dps`、`heal_potions: 0`、`note` を持つ。`approved` と `strategy/approved.json` の変更は Phase 4 の `scripts/strategy_approval.mjs` だけが行う。
 
 ## 必要戦力
 

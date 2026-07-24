@@ -4,10 +4,16 @@
   "approved": true,
   "approved_note": "User approved via manual-test-runner 2026-07-17T10:46:07.516Z. Feedback: 殺人蜂は上部小部屋から自力で出てくることがないので、先にクローカーデスソードを投擲で処理してレベルアップすることでさらに安全にクリアできる",
   "engagement_plan": {
+    "opening_light": {
+      "position": [10, 20],
+      "item": "brass_lantern",
+      "equip_before_continuing": true,
+      "note": "Before opening the lower-left door or engaging anything, follow the safe outer-right corridor to [10,20], pick up the brass lantern, and equip it. Do not begin the fixed-target route until the lantern is confirmed equipped; its radius-2 light makes targets visible from their distance-2 throwing points."
+    },
     "opening_door": [11, 2],
     "opening_corner": [1, 1],
     "opening_approach": [11, 1],
-    "opening_route": "First cross the top edge to the left exterior corridor, descend to [11,1], and open the ordinary locked door at [11,2] before combat or item recovery.",
+    "opening_route": "First descend the safe outer-right corridor to [10,20], recover and equip the brass lantern, then return along the outer corridor, cross the top edge, descend to [11,1], and open the ordinary locked door at [11,2] before combat or other item recovery.",
     "avoid_doors": "Do not route through the hard-locked or locked glass doors on the outer wall; they are deliberately difficult to open.",
     "avoid_door_positions": [
       [2,13], [2,14], [2,15], [2,16], [2,17], [2,18],
@@ -16,16 +22,32 @@
     ],
     "supply_recovery_bounds": [5, 2, 11, 18],
     "throwing_points": [
-      {"race_id": 243, "target": [7,15], "stand": [7,13], "direction": 6, "recovery_cells": [[7,14],[7,15],[7,16],[7,17],[7,18]], "note": "Throw east at the cloaker from distance 2, then recover every surviving torch on the firing lane before engaging the next target."},
-      {"race_id": 107, "target": [9,11], "stand": [11,11], "direction": 8, "recovery_cells": [[10,11],[9,11]], "note": "Throw north at the first death sword from distance 2, then recover its firing lane before engaging the next target."},
-      {"race_id": 107, "target": [11,9], "stand": [9,9], "direction": 2, "recovery_cells": [[10,9],[11,9]], "note": "Throw south at the second death sword from distance 2, then recover its firing lane before engaging the next target."}
+      {
+        "race_id": 243, "target": [7,15], "stand": [7,13], "direction": 6,
+        "recovery_cells": [[7,14],[7,15],[7,16],[7,17],[7,18]],
+        "note": "Use source-derived orthogonal pathfinding from the opened lower-left door while blocking every cell adjacent to an uncleared fixed target and every avoided glass door. Throw east at the cloaker only from [7,13], then recover every surviving torch on the firing lane before engaging the next target."
+      },
+      {
+        "race_id": 107, "target": [9,11], "stand": [11,11], "direction": 8,
+        "recovery_cells": [[10,11],[9,11]],
+        "note": "After cloaker recovery, use source-derived orthogonal pathfinding with uncleared-target adjacency blocked. Throw north only from [11,11], then recover only after positive kill confirmation."
+      },
+      {
+        "race_id": 107, "target": [11,9], "stand": [9,9], "direction": 2,
+        "recovery_cells": [[10,9],[11,9]],
+        "note": "After confirmed recovery of the first death sword lane at [9,11], use source-derived orthogonal pathfinding. The x=10 wall forces the route through the east door [9,12], the large room, [8,7], and [9,8]. Throw south only from [9,9], then recover only after positive kill confirmation."
+      }
     ],
-    "opening": "[1,20] から上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を最初に開ける。外周のガラス扉は開けようとしない。その後、室内経路から [10,20] の隘路を確保する。",
-    "hold_position": [10, 20],
+    "opening": "[1,20] から右外周を南下して [10,20] の真鍮ランタンを回収・装備する。その後、右外周を北へ戻り、上辺を西へ進み、左外周を南下する。[11,1] から通常の施錠扉 [11,2] を開ける。外周のガラス扉は開けない。",
     "final_door": [4, 14],
     "final_door_approach": [5, 14],
-    "formation": "処理順はユーザー指示（2026-07-17）: 殺人蜂は上部小部屋 [3,13] から自力で出てこないため最後に回す。クローカー [7,15] は投擲地点 [7,13] から東へ投げる。撃破直後に射線 [7,14]〜[7,18] の松明を回収し切ってから次へ進む。デスソード [9,11] は [11,11] から北へ投げ、撃破後に [10,11]・[9,11] を回収する。デスソード [11,9] は [9,9] から南へ投げ、撃破後に [10,9]・[11,9] を回収する。一体倒すごとに回収完了を確認し、未回収のまま次の標的へ移らない。三地点とも距離2で射線上に壁・扉はない。最後に上部小部屋の殺人蜂を扉越しに処理する。NEVER_MOVE の三体には隣接しない。",
-    "ranged_softening": "クローカーは火炎免疫がないため点火松明1d6*2.5（平均8.75）、デスソードは IM_FIRE でブランド倍率が無効だが基礎1d6（平均3.5）は残る。距離2以上から必要数を投げ、固定三体を投擲だけで倒し切る。最後に殺人蜂へ松明1本を投げてから近接で処理する（先の撃破でレベルアップ済みのためさらに安全）。"
+    "chest_position": [10, 8],
+    "placement_sweep": true,
+    "placement_sweep_scope": "battlefield",
+    "max_sweep_rounds": 3,
+    "placement_sweep_note": "The killer bee is mobile. First inspect its initial placement at [3,13]; if that visible cell is empty, repeatedly sweep the full battlefield instead of returning to the empty source cell.",
+    "formation": "処理順はユーザー指示（2026-07-17、2026-07-20更新）: 殺人蜂は上部小部屋 [3,13] から自力で出てこないため最後に回し、投擲せず近接で処理する。クローカー [7,15] は投擲地点 [7,13] から東へ投げる。撃破直後に射線 [7,14]〜[7,18] の松明を回収し切ってから次へ進む。デスソード [9,11] は [11,11] から北へ投げ、撃破後に [10,11]・[9,11] を回収する。デスソード [11,9] は [9,9] から南へ投げ、撃破後に [10,9]・[11,9] を回収する。一体倒すごとに回収完了を確認し、未回収のまま次の標的へ移らない。三地点とも距離2で射線上に壁・扉はない。固定三体の回収完了後に [4,14] の扉へ進み、殺人蜂へ接近して近接処理する。NEVER_MOVE の三体には隣接しない。",
+    "ranged_softening": "クローカーは火炎免疫がないため点火松明1d6*2.5（平均8.75）、デスソードは IM_FIRE でブランド倍率が無効だが基礎1d6（平均3.5）は残る。距離2以上から必要数を投げ、固定三体を投擲だけで倒し切る。殺人蜂には投擲せず、固定三体の撃破でレベルアップした後に近接で処理する。"
   },
   "priority_targets": [243, 107, 174],
   "consumable_plan": {

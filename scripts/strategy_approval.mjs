@@ -92,15 +92,16 @@ if (action === "export") {
       .map(([k, v]) => `${k === "lit_torch" ? "点火松明" : k} ${v}`)
       .join("・");
     steps.push(
-      `■ 基本ゲート受注時の携行(必須): 加速 ${rf.speed_potions ?? 0}（条件付き使用）/ 治癒 ${rf.heal_potions ?? 0}${throwing ? ` / ${throwing}` : ""} / 耐性 ${
+      `■ 基本ゲート受注時の携行(必須): 加速 ${rf.speed_potions ?? 0}（条件付き使用）/ 体力回復 ${rf.heal_potions ?? 0}${throwing ? ` / ${throwing}` : ""} / 耐性 ${
         (rf.resists ?? []).length ? (rf.resists ?? []).join("・") : "不要"
       }`,
     );
     if (nh) {
       steps.push(
-        `■ 無保険ティア受注時 (HP ${nh.min_hp} + DPS ${nh.min_expected_dps}): 携行は 加速 ${nh.speed_potions ?? 0} / 治癒 ${nh.heal_potions ?? 0}${throwing ? ` / ${throwing}（弾薬は免除されない）` : ""}`,
+        `■ 無保険ティア受注時 (HP ${nh.min_hp} + DPS ${nh.min_expected_dps}): 携行は 加速 ${nh.speed_potions ?? 0} / 体力回復 ${nh.heal_potions ?? 0}${throwing ? ` / ${throwing}（弾薬は免除されない）` : ""}`,
       );
     }
+    if (rf.healing_plan) steps.push(`■ 回復計画: ${rf.healing_plan}`);
     steps.push(
       `■ 優先ターゲット: ${targets || "なし"}`,
       `■ 陣取り: hold ${hold} / 撤退 ${q.abort_conditions?.allowed ? `可 (HP ${Math.round((q.abort_conditions?.hp_ratio ?? 0) * 100)}% で中断)` : "不可 (ONCE)"}`,
@@ -108,6 +109,45 @@ if (action === "export") {
     );
     if (ep.formation) steps.push(`■ 隊形: ${ep.formation}`);
     if (ep.ranged_softening) steps.push(`■ 投擲: ${ep.ranged_softening}`);
+    if (ep.initial_hold_turns != null) {
+      steps.push(`■ 静穏確認: ${ep.initial_hold_turns}ターン / 保持予算 ${ep.hold_budget ?? "未指定"}`);
+    }
+    if (ep.max_simultaneous_melee != null) {
+      steps.push(`■ 同時近接上限: ${ep.max_simultaneous_melee}体`);
+    }
+    if (ep.placement_sweep) {
+      steps.push(`■ 固定配置巡回: 有効 / 最大 ${ep.max_sweep_rounds ?? 1}巡`);
+    }
+    for (const [index, point] of (ep.throwing_points ?? []).entries()) {
+      steps.push(
+        `■ 射撃点${index + 1}: ${monsterLabel(point.race_id)} / 立点 [${point.stand}] / ` +
+        `標的 [${point.target}] / 回収 ${fmt(point.recovery_cells ?? [])}`,
+      );
+    }
+    const launcher = rf.launcher;
+    if (launcher) {
+      steps.push(`■ 射撃装備: ${launcher.ammo}用ランチャーを装備 / 通常弾 ${rf.throwing_items?.[launcher.ammo] ?? 0}`);
+    }
+    if (Object.keys(rf.required_scrolls ?? {}).length) {
+      steps.push(`■ 必須巻物: ${fmt(rf.required_scrolls)}`);
+    }
+    const speedGate = q.consumable_plan?.speed_potion_use_when;
+    if (speedGate) {
+      steps.push(`■ 加速使用条件: 予想被害/現在HP ${Math.round((speedGate.expected_damage_hp_ratio_min ?? 0) * 100)}%以上`);
+    }
+    if (q.consumable_plan?.heal_threshold_ratio != null) {
+      steps.push(`■ 回復開始条件: HP ${Math.round(q.consumable_plan.heal_threshold_ratio * 100)}%以下`);
+    }
+    const reviewLabels = {
+      acceptance: "受注導線",
+      entry: "侵入導線",
+      completion: "完了確認",
+      reward: "報酬回収確認",
+      withdrawal: "最悪時の撤収",
+    };
+    for (const [label, detail] of Object.entries(q.review_plan ?? {})) {
+      steps.push(`■ ${reviewLabels[label] ?? label}: ${detail}`);
+    }
     // The rationale is an audit-trail paragraph; split it into sentence
     // bullets so a human can scan the arithmetic.
     for (const sentence of (rf.rationale ?? "").split(/(?<=\.)\s+/)) {
@@ -125,14 +165,14 @@ if (action === "export") {
     };
   });
   // Sentinel: marking this item pass = "入力完了" — a background watcher
-  // notices it in results.json and Fable collects the batch automatically,
+  // notices it in results.json and Codex collects the batch automatically,
   // no chat message needed.
   items.push({
     id: "approval-batch-complete",
     category: "送信",
     title: "【入力完了】全項目の判断を終えたらこれを合格にする",
     steps: ["上の全項目に 合格/失敗+フィードバック を入力した後で押す"],
-    expected: "これを合格にすると Fable が自動で結果を回収・適用します。",
+    expected: "これを合格にすると Codex が自動で結果を回収し、承認適用または改善を行います。",
   });
   const payload = {
     title: "クエスト戦略プロファイル承認",

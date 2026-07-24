@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 
+NON_HP_DAMAGE_BLOW_EFFECTS = frozenset({"FLAVOR", "DR_MANA", "HUNGRY"})
+
+
 SUMMON_ABILITIES = frozenset(
     {
         "S_KIN",
@@ -209,7 +212,9 @@ def load_monrace_knowledge(path: Path) -> dict[int, MonraceKnowledge]:
             for blow in monster.get("blows", [])
         )
         max_melee_damage = sum(
-            blow.dice_num * blow.dice_sides for blow in blows
+            blow.dice_num * blow.dice_sides
+            for blow in blows
+            if blow.effect not in NON_HP_DAMAGE_BLOW_EFFECTS
         )
         probability = str(skill.get("probability", ""))
         probability_match = re.fullmatch(r"1_IN_(\d+)", probability)

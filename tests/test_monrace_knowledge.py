@@ -26,7 +26,8 @@ class JsoncTest(unittest.TestCase):
              "flags": ["MULTIPLY", "FORCE_MAXHP", "ORC"],
              "blows": [
                {"method": "HIT", "effect": "HURT", "damage_dice": "2d6"},
-               {"method": "BITE", "effect": "POISON", "damage_dice": "1d4"}],
+               {"method": "BITE", "effect": "POISON", "damage_dice": "1d4"},
+               {"method": "SHOW", "effect": "HUNGRY", "damage_dice": "500d1"}],
              "skill": {"probability": "1_IN_3", "shoot": "2d8",
                        "list": ["BLINK", "S_MONSTER",],},},
             {"id": 11, "hit_point": "2d7", "speed": -3,

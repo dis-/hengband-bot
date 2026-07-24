@@ -533,7 +533,7 @@ class WarriorOptimizationTest(unittest.TestCase):
 
     def test_policy_dispatches_home_withdraw_from_visible_page(self):
         store_item = StoreItem(
-            letter="c", name="stored", count=1, tval=23, sval=1,
+            letter="a", name="stored", count=1, tval=23, sval=1,
             price=0, aware=True, known=True, fully_known=True,
             is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
         )
@@ -553,7 +553,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
         self.assertEqual(
-            policy._equipment_transaction_home_key(snapshot), "pc\r"
+            policy._equipment_transaction_home_key(snapshot), "pa\r"
         )
 
         self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
@@ -563,9 +563,83 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         self.assertTrue(policy._equipment_transaction_session.executable)
 
+    def test_policy_scans_home_pages_and_uses_visible_page_letter(self):
+        first_page = tuple(
+            StoreItem(
+                letter=chr(ord("a") + index),
+                name=f"stored-{index}",
+                count=1,
+                tval=23,
+                sval=index,
+                price=0,
+                aware=True,
+                known=True,
+                fully_known=True,
+                is_equipment=True,
+                damage_dice_num=1,
+                damage_dice_sides=4,
+            )
+            for index in range(12)
+        )
+        target = StoreItem(
+            letter="b", name="stored-target", count=1, tval=23, sval=13,
+            price=0, aware=True, known=True, fully_known=True,
+            is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
+        )
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE,
+            "withdraw",
+            "stored-N",
+            item_identity=equipment_identity(target),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1),
+            max_unconfirmed_observations=1,
+        )
+        snapshot = SimpleNamespace(
+            in_town=True,
+            store=SimpleNamespace(store_type=STORE_HOME, items=first_page),
+            inventory=(),
+            equipment=(),
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+        )
+
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:seek-home-page"
+        )
+        snapshot.store = SimpleNamespace(store_type=STORE_HOME, items=(
+            StoreItem(
+                letter="a", name="stored-other", count=1, tval=23, sval=12,
+                price=0, aware=True, known=True, fully_known=True,
+                is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
+            ),
+            target,
+        ))
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "pb\r")
+
+    def test_policy_waits_for_home_page_after_interleaved_town_snapshot(self):
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+        )
+        policy._home_page_advance_pending = True
+        policy._prepare_equipment_optimization = lambda snapshot: None
+        snapshot = SimpleNamespace(in_town=True, store=None)
+
+        self.assertEqual(policy._equipment_transaction_town_key(snapshot), "5")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:await-home-page"
+        )
+        self.assertTrue(policy._home_page_advance_pending)
+
     def test_policy_abandons_unconfirmed_home_withdraw_for_replanning(self):
         store_item = StoreItem(
-            letter="c", name="stored", count=1, tval=23, sval=1,
+            letter="a", name="stored", count=1, tval=23, sval=1,
             price=0, aware=True, known=True, fully_known=True,
             is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
         )
@@ -586,7 +660,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
 
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "pc\r")
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "pa\r")
         session.observe(observe_equipment_transactions(snapshot))
         self.assertFalse(session.executable)
         self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")

@@ -11,7 +11,7 @@ from functools import lru_cache
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_optimizer import Loadout, SLOT_MAIN_HAND, SLOT_SUB_HAND
-from hengbot.monrace_knowledge import MonsterBlow
+from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonsterBlow
 from hengbot.warrior_equipment_evaluator import modify_stat_value, stat_index
 
 
@@ -368,7 +368,7 @@ def expected_blow_hp_damage(
     acid_armor_probability: float = 0.0,
     speed: int = 110,
 ) -> float:
-    if blow.method == "EXPLODE" or blow.effect in {"FLAVOR", "DR_MANA", "HUNGRY"}:
+    if blow.method == "EXPLODE" or blow.effect in NON_HP_DAMAGE_BLOW_EFFECTS:
         return 0.0
     distribution = _dice_distribution(blow.dice_num, blow.dice_sides)
     outcomes = sum(count for _, count in distribution)

@@ -49,12 +49,27 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
     launcher = force.get("launcher")
     if launcher is not None and (
         not isinstance(launcher, dict)
-        or launcher.get("ammo") not in {"shot", "arrow", "bolt"}
+        or launcher.get("ammo") not in {"shot", "arrow", "bolt", "equipped"}
         or launcher.get("equipped", True) is not True
     ):
-        raise ValueError("launcher must require an equipped shot/arrow/bolt launcher")
+        raise ValueError(
+            "launcher must require an equipped shot/arrow/bolt launcher "
+            "or the currently equipped launcher"
+        )
+    if isinstance(launcher, dict):
+        min_average_damage = launcher.get("min_average_damage", 0)
+        if (
+            not isinstance(min_average_damage, (int, float))
+            or isinstance(min_average_damage, bool)
+            or min_average_damage < 0
+        ):
+            raise ValueError(
+                "launcher min_average_damage must be a non-negative number"
+            )
     carry_names = {
-        "throwing_items": {"lit_torch", "shot", "arrow", "bolt"},
+        "throwing_items": {
+            "lit_torch", "shot", "arrow", "bolt", "launcher_ammo",
+        },
         "required_scrolls": {"light", "teleport"},
         "utility_tools": {"wall_breach"},
     }

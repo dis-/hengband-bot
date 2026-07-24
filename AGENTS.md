@@ -16,7 +16,8 @@ speed requirements.
 | Dungeon depth | Required | Recommended / optimization |
 | --- | --- | --- |
 | 1-19F | No additional resistance requirement | Maximize offense and defense. |
-| 20-25F | Confusion and fire resistance | Poison resistance is recommended. |
+| 20F | Free action and fire resistance | Poison resistance is recommended. |
+| 21-25F | Free action, confusion resistance, and fire resistance | Poison resistance is recommended. |
 | 26-30F | Poison, cold, electricity and acid resistance | Maximize offense and defense after satisfying it. |
 | 31-39F | Chaos resistance only | Add no further mandatory resistance. |
 | 40-49F | Chaos and nether resistance | Nether resistance is required from 40F onward. |
@@ -26,8 +27,8 @@ speed requirements.
 Each band lists its own mandatory abilities (the "only" bands add nothing beyond
 what is named). Chaos resistance is required continuously from 31F; nether
 resistance continuously from 40F; telepathy and `*Destruction*` from 50F; speed
-`+25` from 81F. The 20-25F and 26-30F elemental requirements are specific to those
-bands.
+`+25` from 81F. Free action begins at 20F, while confusion resistance begins at
+21F. The 20-25F and 26-30F elemental requirements are specific to those bands.
 
 Supporting rules:
 

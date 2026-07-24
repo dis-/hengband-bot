@@ -47,6 +47,45 @@ class EquipmentEncounterSamplingTest(unittest.TestCase):
             optimization_encounters(source, catalog_size=47),
             source,
         )
+
+    def test_live_sized_catalog_uses_sample_before_optimizer_timeout(self):
+        # Live 2026-07-24 regression: 40 owned equipment candidates at 18F
+        # produced 403 ordinary encounters.  Evaluating 12,288 loadouts against
+        # all 403 targets took 25.297s and failed closed, preventing a one-AC
+        # shield upgrade.  This workload must be bounded even though the raw
+        # catalog is below the legacy 48-item threshold.
+        source = tuple(
+            EncounterTarget(
+                index,
+                1 / 403,
+                MonraceKnowledge(
+                    max_hp=10,
+                    speed=110,
+                    can_summon=False,
+                    friendly=False,
+                    level=index % 19,
+                    rarity=1,
+                ),
+            )
+            for index in range(403)
+        )
+
+        sampled = optimization_encounters(source, catalog_size=40)
+
+        self.assertEqual(len(sampled), 64)
+        self.assertAlmostEqual(sum(item.weight for item in sampled), 1.0)
+
+    def test_small_evaluation_workload_remains_exact(self):
+        source = tuple(
+            encounter(index, index % 20, 1 / 403)
+            for index in range(403)
+        )
+
+        self.assertIs(
+            optimization_encounters(source, catalog_size=29),
+            source,
+        )
+
     def test_excludes_uniques_and_preserves_normalized_weight(self):
         source = tuple(
             encounter(index, index % 40, 1.0 / 41, unique=index == 40)

@@ -57,6 +57,24 @@ class QuestStrategiesTest(unittest.TestCase):
         self.assertEqual(profiles[1].required_force["min_hp"], 36)
         self.assertEqual(profiles[1].required_force["min_expected_dps"], 28)
         self.assertEqual(profiles[1].required_force["no_healing_tier"]["min_hp"], 88)
+        self.assertEqual(
+            profiles[14].required_force["no_healing_tier"],
+            {
+                "min_hp": 150,
+                "min_expected_dps": 36,
+                "heal_potions": 0,
+                "speed_potions": 0,
+                "note": profiles[14].required_force["no_healing_tier"]["note"],
+            },
+        )
+        self.assertIn(
+            "4+3+2+1=10体ターン",
+            profiles[14].required_force["rationale"],
+        )
+        self.assertIn(
+            "RAND_25の不規則移動を反映して半分の75",
+            profiles[14].required_force["rationale"],
+        )
         self.assertEqual(profiles[2].engagement_plan["max_simultaneous_melee"], 1)
         # Approval state is pinned against strategy/approved.json by
         # test_shipped_drafts_match_real_quest_data — no hardcoded duplicate
@@ -100,13 +118,31 @@ class QuestStrategiesTest(unittest.TestCase):
             self.assertNotIn("approach_recovery_steps", point)
             self.assertNotIn("prior_targets_complete_cells", point)
         q2_force = profiles[2].required_force
-        self.assertEqual(q2_force["launcher"], {"ammo": "bolt", "equipped": True})
-        self.assertEqual(q2_force["throwing_items"], {"bolt": 45})
+        self.assertEqual(
+            q2_force["launcher"], {"ammo": "equipped", "equipped": True}
+        )
+        self.assertEqual(q2_force["throwing_items"], {"launcher_ammo": 45})
+        q31_force = profiles[31].required_force
+        self.assertEqual(
+            q31_force["launcher"], {"ammo": "equipped", "equipped": True}
+        )
+        self.assertEqual(q31_force["throwing_items"], {"launcher_ammo": 99})
         self.assertEqual(q2_force["required_scrolls"], {"light": 6, "teleport": 2})
         self.assertEqual(q2_force["utility_tools"], {"wall_breach": 1})
         q22_force = profiles[22].required_force
         self.assertEqual(q22_force["min_hp"], 229)
         self.assertEqual(q22_force["heal_potions"], 1)
+        self.assertEqual(
+            q22_force["launcher"],
+            {
+                "ammo": "equipped",
+                "equipped": True,
+                "min_average_damage": 18,
+            },
+        )
+        self.assertEqual(
+            q22_force["throwing_items"], {"launcher_ammo": 99}
+        )
         self.assertEqual(
             q22_force["required_scrolls"], {"light": 1, "teleport": 10}
         )

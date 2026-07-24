@@ -2,7 +2,7 @@
   "quest_id": 14,
   "name": {"ja": "ワーグを殲滅せよ", "en": "Warg problem"},
   "approved": true,
-  "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬と実測戦力ゲートを使用し、退却を許可する。実行は Phase 5 まで禁止。",
+  "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬と実測戦力ゲートを使用し、退却を許可する。2026-07-22 に同時隣接4体を上限とし、RAND_25の不規則移動を被害半減として扱う物資なしTier2（HP 150 / DPS 36）をユーザー承認。実行は Phase 5 まで禁止。",
   "engagement_plan": {"opening": "地下5階の到着地点から偵察し、ワーグを一体ずつ引き寄せる。", "hold_position": null, "formation": "現地で確認した最も狭い通路を使う。ランダム階のため固定座標はない。"},
   "priority_targets": [257],
   "consumable_plan": {
@@ -16,7 +16,12 @@
     "min_hp": 120, "min_expected_dps": 13, "level_guideline": 8,
     "reference_ac": 20,
     "resists": [], "speed_potions": 1, "heal_potions": 2, "throwing_items": {},
-    "rationale": "r_idx 257 のワーグ16体。speed 120 の energy 15 とプレイヤー speed 110 の energy 10 から1.5行動/ターン。通路で平均1.5体が接敵し、命中率約55%、4体の波を min_expected_dps=13 で処理すると期待被害約82。退却可能なので70%予算を使い min_hp=ceil(82/0.70)=120。固定地形がなく単列維持を保証できないため、戦術維持下の一意な最大接敵数を定義できず no_healing_tier は設けない。戦術が崩れた場合は hp_ratio=0.30 で中止する。"
+    "no_healing_tier": {
+      "min_hp": 150, "min_expected_dps": 36,
+      "heal_potions": 0, "speed_potions": 0,
+      "note": "同時隣接は最大4体とする。ワーグは8d8平均HP36なので DPS 36 なら1プレイヤーターンに1体ずつ倒せる。4→3→2→1体が攻撃可能な露出は合計10体ターン。speed 120 の energy 15 対プレイヤー speed 110 の energy 10 では基礎15行動、命中率100%・最大ダイス1d10の基礎被害は150。ワーグのRAND_25による不規則移動をユーザー指定どおり被害半減として評価し、Tier2被害を75とする。これをRAW HPの50%に収めるため min_hp=75/0.50=150。Tier2では回復薬と速度薬を要求しない。5体以上が同時隣接した場合はTier2想定外として通常の危険回避を優先する。"
+    },
+    "rationale": "r_idx 257 のワーグ16体。speed 120 の energy 15 とプレイヤー speed 110 の energy 10 から1.5行動/ターン。通常Tierは通路で平均1.5体が接敵し、命中率約55%、4体の波を min_expected_dps=13 で処理すると期待被害約82。退却可能なので70%予算を使い min_hp=ceil(82/0.70)=120。物資なしTier2はユーザー指定の同時隣接4体を上限とし、DPS 36で平均HP36のワーグを毎ターン1体ずつ倒す。4+3+2+1=10体ターン、速度比1.5で15行動、最大1d10・命中率100%の基礎被害150を、RAND_25の不規則移動を反映して半分の75と評価する。これをRAW HPの50%に収め min_hp=150 とする。戦術が崩れた場合または5体以上が同時隣接した場合は通常の危険回避を優先し、hp_ratio=0.30で中止する。"
   },
   "generated_by": "Codex Phase 3 real-data draft generator",
   "generated_at": "2026-07-16T00:00:00+09:00"

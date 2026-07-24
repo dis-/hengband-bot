@@ -59,6 +59,7 @@ FIXED_SLOTS = (
     SLOT_FEET,
 )
 
+TR_FREE_ACT = 46
 TR_RES_ACID = 48
 TR_RES_ELEC = 49
 TR_RES_FIRE = 50
@@ -124,6 +125,7 @@ IGNORED_DOMINANCE_FLAGS = frozenset(
 )
 
 ABILITY_FLAG = {
+    "free_action": TR_FREE_ACT,
     "resist_acid": TR_RES_ACID,
     "resist_elec": TR_RES_ELEC,
     "resist_fire": TR_RES_FIRE,
@@ -153,8 +155,10 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
 
 
 def required_abilities(depth: int) -> frozenset[str]:
+    if depth == 20:
+        return frozenset({"free_action", "resist_fire"})
     if 21 <= depth <= 25:
-        return frozenset({"resist_conf", "resist_fire"})
+        return frozenset({"free_action", "resist_conf", "resist_fire"})
     if 26 <= depth <= 30:
         return frozenset(
             {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
@@ -208,6 +212,19 @@ class OwnedEquipment:
         if not self.evaluable or self.flags.intersection(FORBIDDEN_EXPLORATION_FLAGS):
             return False
         return TR_TELEPORT not in self.flags or self.random_teleport_suppressed
+
+
+def operational_equipment_candidate(owned: OwnedEquipment) -> bool:
+    """Reject a carried, visibly exhausted consumable light from loadout search."""
+    item = owned.item
+    return not (
+        owned.origin in {"pack", "equipped"}
+        and isinstance(item, InventoryItem)
+        and item.is_light
+        and item.sval <= SV_LITE_LANTERN
+        and item.known
+        and item.fuel <= 0
+    )
 
 
 @dataclass(frozen=True)

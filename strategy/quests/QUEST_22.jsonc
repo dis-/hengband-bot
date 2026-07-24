@@ -1,0 +1,62 @@
+{
+  "quest_id": 22,
+  "name": {"ja": "オークのキャンプ", "en": "Orc Camp"},
+  "approved": true,
+  "approved_note": "User approved via manual-test-runner 2026-07-20T04:43:01.407Z.",
+  "engagement_plan": {
+    "opening": "侵入直後に加速し、テレポートを1回使用する。着地点から3か所の1対1保持点のうち最短経路の地点へ移動し、移動中は隣接した敵以外との交戦を避ける。",
+    "hold_position": [1,29],
+    "formation": "保持点[8,3]・[9,58]・[15,2]はいずれも接続セルが1つだけで、同時近接を1体に制限できる。静穏80ターンを確認してから野営地の初期配置点を巡回する。敵を再視認したら選択済み保持点へ戻る。",
+    "opening_reposition": {
+      "speed_first": true,
+      "teleport_once": true,
+      "goal_points": [[8,3],[9,58],[15,2]],
+      "avoid_non_adjacent_combat": true
+    },
+    "initial_hold_turns": 80,
+    "post_wave_light_steps": 2,
+    "max_simultaneous_melee": 1,
+    "placement_sweep": true,
+    "max_sweep_rounds": 3,
+    "hold_budget": 2600
+  },
+  "review_plan": {
+    "acceptance": "宿屋の町移動でアングウィルへ移動し、Q22を受注する。承認済みプロファイルと全準備条件を満たすまで受注しない。",
+    "entry": "固定入口[1,33]で加速し、テレポートを1回使用する。着地点から[8,3]・[9,58]・[15,2]の最寄りへ移動し、1対1の保持点を確保する。",
+    "completion": "80静穏ターン後に固定配置79地点を最大3巡し、再視認した敵がいれば保持点へ戻る。全敵掃討と床上アイテム回収を確認してから退出する。",
+    "reward": "アングウィル[31,99]のエルフのクローク専用位置へ移動し、object_countが0になるまで回収を確認する。",
+    "withdrawal": "最悪時はHP22%以下で脱出口[1,29]へ戻り、撤収を許可する。"
+  },
+  "priority_targets": [162,285,244,251,215,149,118],
+  "consumable_plan": {
+    "light_scroll": "Carry one Scroll of Light. After the first wave settles at the chokepoint, advance three steps along the sweep route and read it.",
+    "speed_potion": "conditional",
+    "speed_potion_use_when": {
+      "expected_damage_hp_ratio_min": 0.5,
+      "note": "3ターン運用被害が現在HPの50%以上の場合だけ使用する。"
+    },
+    "heal_threshold_ratio": 0.55,
+    "other": "店売りの並のクロスボウ用ボルト99本、テレポート10巻、回復10服を最低備蓄する。スナガ工兵の爆発と射手・呪文役を優先する。"
+  },
+  "abort_conditions": {"hp_ratio": 0.22, "allowed": true},
+  "required_force": {
+    "min_hp": 229,
+    "min_expected_dps": 35,
+    "level_guideline": 18,
+    "reference_ac": 60,
+    "resists": [],
+    "speed_potions": 1,
+    "heal_potions": 1,
+    "launcher": {
+      "ammo": "equipped",
+      "equipped": true,
+      "min_average_damage": 18
+    },
+    "throwing_items": {"launcher_ammo": 99},
+    "required_scrolls": {"light": 1, "teleport": 10},
+    "utility_tools": {},
+    "rationale": "固定配置79体。開幕加速後にテレポートし、着地点から接続セル1個の[8,3]・[9,58]・[15,2]の最寄りへ移動するため同時近接は1体。AC60・加速込みの運用被害は1ターン76、3ターン114。薬に依存しない50%安全境界は114 < 0.50*HPよりmin_hp=229。heal_potionsは体力回復の薬(300HP)だけを意味し、長期戦の非常用として1服を携行する。最悪の近接単体はr_idx 251の48、固有r_idx 215は240HP/AC60。DPS35なら最硬240HPを10ターン以内に処理できる。遠距離役の停滞を防ぐため店売り並ボルト99本を専用携行する。"
+  },
+  "generated_by": "Codex Q22/Q31 fixed-map implementation",
+  "generated_at": "2026-07-20T05:30:00+09:00"
+}

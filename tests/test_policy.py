@@ -105,6 +105,7 @@ from hengbot.policy import (
     CHARACTER_DUMP_MACRO,
     DESTROY_FAIL_LIMIT,
     EMPTY_DIVE_LIMIT,
+    NO_DEPTH_PROGRESS_DIVE_LIMIT,
     OVEREXTEND_LOOT_MAX,
     RANGED_MAX_DISTANCE,
     UNUSED_DIVE_LIMIT,
@@ -175,6 +176,7 @@ from hengbot.policy import (
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     TOWN_STOP_PASS_LIMIT,
+    TownErrandPlan,
     TownTravelProgress,
     TownNeed,
     TOWN_NO_PROGRESS_LIMIT,
@@ -385,7 +387,7 @@ class CombatTest(unittest.TestCase):
             max_hp=100,
             distance=3,
             asleep=True,
-            max_melee_damage=28,
+            max_melee_damage=60,
         )
         grids[monster.position] = grid(11, 83, monster=True)
         snapshot = Snapshot(
@@ -399,6 +401,148 @@ class CombatTest(unittest.TestCase):
         policy.choose_key(snapshot)
 
         self.assertEqual(policy.last_reason, "threat:avoid-engagement")
+
+    def test_material_threat_retreat_invalidates_returning_explore_path(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(3, 7)
+            for x in range(8, 19)
+        }
+        monster = hostile(
+            1,
+            4,
+            18,
+            hp=60,
+            max_hp=60,
+            distance=8,
+            speed=120,
+            max_melee_damage=16,
+        )
+        grids[monster.position] = grid(4, 18, monster=True)
+        danger = Snapshot(
+            player(5, 10, hp=189, max_hp=189, level=7),
+            grids,
+            [monster],
+            floor_key=(2, 6, 0),
+        )
+        policy = HengbotPolicy()
+        policy._explore_path = [Position(5, 9), Position(5, 10)]
+
+        policy.choose_key(danger)
+
+        self.assertEqual(policy.last_reason, "threat:avoid-engagement")
+        self.assertIn(Position(5, 10), policy._engagement_avoid_cells)
+        self.assertEqual(policy._explore_path, [])
+
+        retreated = replace(
+            danger,
+            player=player(5, 9, hp=189, max_hp=189, level=7),
+            visible_monsters=[replace(monster, distance=9)],
+        )
+        policy._explore_path = [Position(5, 10), Position(5, 11)]
+        policy._build_grid_index(retreated)
+
+        self.assertNotEqual(policy._explore_step(retreated), Position(5, 10))
+
+    def test_material_threat_retreat_does_not_reenter_abandoned_cell(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(4, 7)
+            for x in range(9, 12)
+        }
+        monster = hostile(
+            1,
+            5,
+            18,
+            hp=100,
+            max_hp=100,
+            distance=8,
+            speed=115,
+            max_melee_damage=88,
+        )
+        snapshot = Snapshot(
+            player(5, 10, hp=501, max_hp=501, level=28),
+            grids,
+            [monster],
+            floor_key=(1, 30, 0),
+        )
+        policy = HengbotPolicy()
+        abandoned = Position(5, 9)
+        policy._engagement_avoid_cells.add(abandoned)
+        policy._build_grid_index(snapshot)
+
+        step = policy._flee_step(snapshot, [monster])
+
+        self.assertIsNotNone(step)
+        self.assertNotEqual(step, abandoned)
+        self.assertNotIn(step, policy._engagement_avoid_cells)
+
+    def test_killable_large_brown_snake_is_not_a_material_threat(self):
+        snake = hostile(
+            1,
+            4,
+            18,
+            hp=24,
+            max_hp=24,
+            distance=8,
+            speed=100,
+            max_melee_damage=16,
+        )
+        weapon = item(
+            "main_hand",
+            TVAL_SWORD,
+            0,
+            is_equipment=True,
+            damage_dice_num=2,
+            damage_dice_sides=6,
+        )
+        snapshot = Snapshot(
+            player(
+                5,
+                10,
+                hp=189,
+                max_hp=189,
+                level=7,
+                main_hand_blows=4,
+                main_hand_to_d=5,
+            ),
+            {
+                Position(5, 10): grid(5, 10),
+                snake.position: grid(4, 18, monster=True),
+            },
+            [snake],
+            floor_key=(2, 6, 0),
+            equipment=[weapon],
+        )
+
+        self.assertFalse(policy_module.HengbotPolicy()._material_melee_engagement(
+            snapshot, snake
+        ))
+
+    def test_three_turn_damage_near_quarter_hp_does_not_force_retreat(self):
+        monster = hostile(
+            1,
+            4,
+            18,
+            hp=100,
+            max_hp=100,
+            distance=8,
+            speed=110,
+            max_melee_damage=16,
+        )
+        snapshot = Snapshot(
+            player(5, 10, hp=189, max_hp=189, level=7),
+            {
+                Position(5, 10): grid(5, 10),
+                monster.position: grid(4, 18, monster=True),
+            },
+            [monster],
+            floor_key=(2, 6, 0),
+        )
+
+        self.assertFalse(HengbotPolicy()._material_melee_engagement(
+            snapshot, monster
+        ))
 
     def test_attacks_adjacent_hostile(self):
         grids = {Position(10, 10): grid(10, 10), Position(10, 11): grid(10, 11, monster=True)}
@@ -691,6 +835,134 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertEqual(key, "6")  # step east toward the up stairs
         self.assertEqual(pol.last_reason, "unseen:flee-stairs")
 
+    def test_unseen_flee_remains_latched_after_damage_stops_and_hp_recovers(self):
+        grids = {Position(10, x): grid(10, x) for x in range(10, 15)}
+        grids[Position(10, 14)] = grid(10, 14, upstairs=True)
+        floor = (1, 15, 0)
+        pol = HengbotPolicy()
+
+        pol.choose_key(
+            Snapshot(player(10, 10, hp=200, max_hp=200), grids, [], turn=1, floor_key=floor)
+        )
+        self.assertEqual(
+            pol.choose_key(
+                Snapshot(player(10, 10, hp=170, max_hp=200), grids, [], turn=2, floor_key=floor)
+            ),
+            "6",
+        )
+        self.assertEqual(pol.last_reason, "unseen:flee-stairs")
+
+        # No further hit and HP is full.  The old behavior fell back to normal
+        # exploration here and could re-enter the attacker's firing lane.
+        self.assertEqual(
+            pol.choose_key(
+                Snapshot(player(10, 11, hp=200, max_hp=200), grids, [], turn=3, floor_key=floor)
+            ),
+            "6",
+        )
+        self.assertEqual(pol.last_reason, "return:seek-upstairs")
+
+    def test_unseen_damage_during_recall_teleports_instead_of_waiting(self):
+        grids = self._open_grids(10, 10)
+        floor = (1, 15, 0)
+        pol = HengbotPolicy()
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)
+
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=200, max_hp=200, word_recall=5),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        first_hit = pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=185, max_hp=200, word_recall=4),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+        self.assertNotEqual(first_hit, "rt")
+        self.assertEqual(pol.last_reason, "unseen-recall:move")
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=170, max_hp=200, word_recall=3),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=3,
+                floor_key=floor,
+            )
+        )
+
+        self.assertEqual(key, "rt")
+        self.assertEqual(pol.last_reason, "emergency:teleport")
+
+    def test_modest_first_unseen_hit_walks_instead_of_spending_teleport(self):
+        grids = {Position(10, x): grid(10, x) for x in range(10, 15)}
+        grids[Position(10, 14)] = grid(10, 14, upstairs=True)
+        floor = (1, 15, 0)
+        pol = HengbotPolicy()
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)
+
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=200, max_hp=200),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=170, max_hp=200),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+
+        self.assertEqual(key, "6")
+        self.assertEqual(pol.last_reason, "unseen:flee-stairs")
+
+    def test_unseen_damage_during_recall_moves_when_no_escape_item(self):
+        grids = {Position(10, x): grid(10, x) for x in range(10, 15)}
+        grids[Position(10, 14)] = grid(10, 14, upstairs=True)
+        floor = (1, 15, 0)
+        pol = HengbotPolicy()
+
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=200, max_hp=200, word_recall=5),
+                grids,
+                [],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=170, max_hp=200, word_recall=4),
+                grids,
+                [],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+
+        self.assertEqual(key, "6")
+        self.assertEqual(pol.last_reason, "unseen-recall:move")
+
     def test_still_rests_when_hp_not_dropping(self):
         # HP steady/rising with no hostiles is the normal heal-up case.
         grids = self._open_grids(10, 10)
@@ -728,6 +1000,31 @@ class ShoppingTest(unittest.TestCase):
         pol = HengbotPolicy()
         self.assertEqual(pol.choose_key(self._in_store(items, inv=inv)), "pc5\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-oil")
+
+    def test_fundraising_buys_oil_before_leaving_general_store(self):
+        oil = store_item("f", TVAL_FLASK, SV_FLASK_OIL, price=1, count=15)
+        inventory = [
+            item("a", TVAL_FOOD, 35, count=5),
+            item("d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
+            item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+        ]
+        equipment = [
+            item("main_hand", 23, 1, is_equipment=True),
+            item(
+                "light", TVAL_LITE, SV_LITE_LANTERN,
+                fuel=5000, is_equipment=True,
+            ),
+        ]
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertEqual(
+            policy.choose_key(
+                self._in_store([oil], gold=1654, inv=inventory, eq=equipment)
+            ),
+            "pf5\r\r",
+        )
+        self.assertEqual(policy.last_reason, "shop:buy-oil")
 
     def test_permanent_light_buys_neither_lantern_nor_oil(self):
         wares = [
@@ -1275,6 +1572,91 @@ class WieldLightTest(unittest.TestCase):
         pol = HengbotPolicy()
         self.assertEqual(pol.choose_key(snap), "\\Fb")
         self.assertEqual(pol.last_reason, "refill-light")
+
+    def test_wields_fuelled_torch_when_low_lantern_has_no_oil(self):
+        grids = {Position(10, 10): grid(10, 10)}
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            inventory=[
+                item("b", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=2500)
+            ],
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    name="nearly empty lantern",
+                    fuel=17,
+                )
+            ],
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol.choose_key(snap), "wb")
+        self.assertEqual(pol.last_reason, "wield-light")
+
+    def test_restores_empty_pack_lantern_after_oil_is_acquired(self):
+        grids = {Position(10, 10): grid(10, 10)}
+        torch = item(
+            "light", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=640
+        )
+        empty_lantern = item(
+            "o",
+            TVAL_LITE,
+            SV_LITE_LANTERN,
+            name="empty ego lantern",
+            fuel=0,
+            known=True,
+            is_equipment=True,
+            is_ego=True,
+        )
+        oil = item("a", TVAL_FLASK, SV_FLASK_OIL, name="oil", fuel=7500)
+        town = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            inventory=[oil, empty_lantern],
+            equipment=[torch],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol.choose_key(town), "wo")
+        self.assertEqual(pol.last_reason, "restore-lantern")
+
+        lantern_equipped = replace(
+            town,
+            inventory=[oil, replace(torch, slot="t")],
+            equipment=[replace(empty_lantern, slot="light")],
+        )
+        self.assertEqual(pol.choose_key(lantern_equipped), "\\Fa")
+        self.assertEqual(pol.last_reason, "refill-light")
+
+    def test_does_not_equip_empty_pack_lantern_without_oil(self):
+        grids = {Position(10, 10): grid(10, 10)}
+        snap = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            inventory=[
+                item(
+                    "o", TVAL_LITE, SV_LITE_LANTERN,
+                    name="empty lantern", fuel=0, known=True,
+                )
+            ],
+            equipment=[
+                item("light", TVAL_LITE, SV_LITE_TORCH, fuel=640)
+            ],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        pol = HengbotPolicy()
+
+        pol.choose_key(snap)
+        self.assertNotEqual(pol.last_reason, "restore-lantern")
 
     def test_does_not_refill_a_full_lantern(self):
         grids = {Position(10, 10): grid(10, 10)}
@@ -1847,6 +2229,39 @@ class ConsumableTest(unittest.TestCase):
         threat = hostile(1, 10, 13, hp=30, max_hp=30, distance=3)  # a monster is near
         snap = Snapshot(player(10, 10, hp=20, max_hp=100), grids, [threat], inventory=inv)
         self.assertEqual(HengbotPolicy().choose_key(snap), "qc")
+
+    def test_excludes_healing_potion_weaker_than_expected_next_turn_damage(self):
+        grids = self._open_room()
+        weak = item("c", POTION, 35)  # Cure Serious: expected 18 HP.
+        strong = item("h", POTION, 37)  # Healing: 300 HP.
+        threat = hostile(1, 10, 11, hp=30, max_hp=30, distance=1)
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=400), grids, [threat],
+            inventory=[weak, strong],
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage",
+            side_effect=lambda *_args, **kwargs: 40 if kwargs.get("expected") else 0,
+        ):
+            self.assertEqual(policy.choose_key(snap), "qh")
+            self.assertEqual(policy.last_reason, "item:heal")
+
+    def test_uses_no_healing_potion_when_all_restore_less_than_expected_damage(self):
+        grids = self._open_room()
+        weak = item("c", POTION, 35)
+        threat = hostile(1, 10, 11, hp=30, max_hp=30, distance=1)
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=100), grids, [threat], inventory=[weak]
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage",
+            side_effect=lambda *_args, **kwargs: 40 if kwargs.get("expected") else 0,
+        ):
+            self.assertNotEqual(policy.choose_key(snap), "qc")
 
     def test_rests_instead_of_quaffing_when_safe(self):
         # Hurt but no enemy in sight: rest heals for free, so don't burn a potion.
@@ -2726,6 +3141,89 @@ class PickupTest(unittest.TestCase):
 
         self.assertEqual(policy.last_reason, "threat:reposition")
         self.assertIn(key, {"4", "7", "8"})
+        self.assertIn(Position(10, 10), policy._engagement_avoid_cells)
+
+    def test_survival_flee_does_not_reverse_to_loot_when_threat_flickers(self):
+        floor_key = (1, 40, 0)
+        origin = Position(10, 10)
+        abandoned = Position(10, 11)
+        loot = Position(10, 12)
+        policy = HengbotPolicy()
+        safe = Snapshot(
+            player(origin.y, origin.x, hp=600, max_hp=600, level=30),
+            {
+                origin: grid(origin.y, origin.x),
+                abandoned: grid(abandoned.y, abandoned.x),
+                loot: grid(loot.y, loot.x, objects=1),
+            },
+            [],
+            floor_key=floor_key,
+        )
+
+        self.assertEqual(policy.choose_key(safe), "6")
+        self.assertEqual(policy.last_reason, "seek-loot")
+
+        threat = hostile(
+            1,
+            11,
+            12,
+            distance=1,
+            max_melee_damage=80,
+        )
+        dangerous = Snapshot(
+            player(
+                abandoned.y,
+                abandoned.x,
+                hp=600,
+                max_hp=600,
+                level=30,
+                afraid=True,
+            ),
+            {
+                origin: grid(origin.y, origin.x),
+                abandoned: grid(abandoned.y, abandoned.x),
+                loot: grid(loot.y, loot.x, objects=1),
+                threat.position: grid(
+                    threat.position.y, threat.position.x, monster=True
+                ),
+            },
+            [threat],
+            floor_key=floor_key,
+        )
+
+        self.assertEqual(policy.choose_key(dangerous), "4")
+        self.assertEqual(policy.last_reason, "flee")
+        self.assertIn(abandoned, policy._engagement_avoid_cells)
+
+        hidden_again = Snapshot(
+            player(origin.y, origin.x, hp=600, max_hp=600, level=30),
+            safe.grids,
+            [],
+            floor_key=floor_key,
+        )
+        policy.choose_key(hidden_again)
+
+        self.assertNotEqual(policy.last_reason, "seek-loot")
+        self.assertNotEqual(policy._loot_target, loot)
+
+    def test_secret_wall_search_does_not_reverse_threat_retreat(self):
+        abandoned = Position(4, 124)
+        current = Position(4, 125)
+        snapshot = Snapshot(
+            player(current.y, current.x, hp=501, max_hp=501, level=28),
+            {
+                abandoned: grid(abandoned.y, abandoned.x),
+                current: grid(current.y, current.x),
+            },
+            [],
+            floor_key=(1, 30, 0),
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        policy._remembered_wall_t.add((3, 124))
+        policy._engagement_avoid_cells.add(abandoned)
+
+        self.assertIsNone(policy._secret_wall_search_step(snapshot))
 
     def test_multiplier_blocked_loot_stays_deferred_after_threat_leaves_view(self):
         floor_key = (DUNGEON_YEEK_CAVE, 3, 0)
@@ -3683,6 +4181,79 @@ class FixedQuestTest(unittest.TestCase):
         )
         self.assertFalse(policy._fixed_quest_ready(too_early, 18))
 
+    def test_fixed_quest_kill_time_counts_both_dual_wielded_weapons(self):
+        info = QuestInfo(
+            18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),)
+        )
+        target = MonraceKnowledge(
+            300, 110, False, False, max_melee_damage=0
+        )
+        policy = HengbotPolicy(
+            self._town_map(),
+            quest_knowledge={18: info},
+            monrace_knowledge={44: target},
+        )
+        snapshot = replace(
+            self._town_snapshot(
+                26, 97, {Position(26, 97): grid(26, 97)}, 0
+            ),
+            player=replace(
+                player(
+                    26,
+                    97,
+                    level=38,
+                    hp=500,
+                    max_hp=500,
+                    main_hand_blows=2,
+                    main_hand_to_h=100,
+                    main_hand_to_d=10,
+                ),
+                sub_hand_blows=2,
+                sub_hand_to_h=100,
+                sub_hand_to_d=10,
+            ),
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_SWORD,
+                    1,
+                    is_equipment=True,
+                    damage_dice_num=1,
+                    damage_dice_sides=1,
+                ),
+                item(
+                    "sub_hand",
+                    TVAL_SWORD,
+                    1,
+                    is_equipment=True,
+                    damage_dice_num=1,
+                    damage_dice_sides=1,
+                ),
+            ],
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+
+        main_only = replace(
+            snapshot,
+            equipment=[snapshot.equipment[0]],
+            player=replace(snapshot.player, sub_hand_blows=0),
+        )
+        self.assertFalse(policy._fixed_quest_ready(main_only, 18))
+        self.assertEqual(
+            policy.fixed_quest_readiness_state()["reason"],
+            "toughest-kill-time",
+        )
+
+        self.assertTrue(policy._fixed_quest_ready(snapshot, 18))
+        readiness = policy.fixed_quest_readiness_state()
+        self.assertGreater(readiness["sub_hand_melee_output"], 0)
+        self.assertEqual(
+            readiness["melee_output"],
+            readiness["main_hand_melee_output"]
+            + readiness["sub_hand_melee_output"],
+        )
+
     def test_fixed_quest_roster_threat_rejects_despite_level_floor(self):
         info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 3),))
         threat = MonraceKnowledge(100, 110, False, False, max_melee_damage=50)
@@ -4494,6 +5065,239 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:post-wave-light")
 
+    def test_q31_opening_hold_uses_speed_instead_of_generic_teleport(self):
+        profile = replace(
+            self.profiles[31],
+            approved=True,
+            engagement_plan={
+                **self.profiles[31].engagement_plan,
+                "hold_position": [18, 1],
+                "initial_hold_turns": 60,
+                "max_simultaneous_melee": 3,
+            },
+        )
+        policy = HengbotPolicy(quest_strategies={31: profile})
+        enemies = [
+            replace(hostile(1, 17, 1, distance=1), race_id=343),
+            replace(hostile(2, 17, 2, distance=1), race_id=339),
+            replace(hostile(3, 16, 1, distance=2), race_id=205),
+        ]
+        snapshot = Snapshot(
+            player(18, 1, hp=400, max_hp=585),
+            {
+                Position(18, 1): grid(18, 1),
+                Position(17, 1): grid(17, 1, monster=True),
+                Position(17, 2): grid(17, 2, monster=True),
+                Position(16, 1): grid(16, 1, monster=True),
+            },
+            enemies,
+            floor_key=(0, 22, 31),
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+
+        with (
+            patch.object(policy, "_unique_combat_consumable", return_value=None),
+            patch.object(
+                policy,
+                "_predicted_damage",
+                side_effect=lambda *_args, **kwargs: (
+                    156 if kwargs.get("expected") else 511
+                ),
+            ),
+            patch.object(
+                policy,
+                "threat_prediction",
+                return_value={"operational_total": 511},
+            ),
+        ):
+            self.assertEqual(
+                policy._emergency_item(snapshot, enemies),
+                "qs",
+            )
+        self.assertEqual(policy.last_reason, "quest-strategy:quaff-speed")
+
+    def test_q31_opening_hold_heals_before_generic_teleport(self):
+        profile = replace(
+            self.profiles[31],
+            approved=True,
+            engagement_plan={
+                **self.profiles[31].engagement_plan,
+                "hold_position": [18, 1],
+                "initial_hold_turns": 60,
+                "max_simultaneous_melee": 3,
+            },
+        )
+        policy = HengbotPolicy(quest_strategies={31: profile})
+        enemies = [
+            replace(hostile(1, 17, 1, distance=1), race_id=343),
+            replace(hostile(2, 17, 2, distance=1), race_id=339),
+            replace(hostile(3, 16, 1, distance=2), race_id=205),
+        ]
+        snapshot = Snapshot(
+            player(18, 1, hp=200, max_hp=585),
+            {
+                Position(18, 1): grid(18, 1),
+                Position(17, 1): grid(17, 1, monster=True),
+                Position(17, 2): grid(17, 2, monster=True),
+                Position(16, 1): grid(16, 1, monster=True),
+            },
+            enemies,
+            floor_key=(0, 22, 31),
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+
+        with (
+            patch.object(policy, "_unique_combat_consumable", return_value=None),
+            patch.object(
+                policy,
+                "_predicted_damage",
+                side_effect=lambda *_args, **kwargs: (
+                    156 if kwargs.get("expected") else 511
+                ),
+            ),
+            patch.object(
+                policy,
+                "threat_prediction",
+                return_value={"operational_total": 511},
+            ),
+        ):
+            self.assertEqual(policy._emergency_item(snapshot, enemies), "qs")
+            self.assertEqual(policy.last_reason, "quest-strategy:quaff-speed")
+            self.assertEqual(policy._emergency_item(snapshot, enemies), "qh")
+        self.assertEqual(policy.last_reason, "quest-strategy:opening-heal")
+
+    def test_q31_stationary_sweep_does_not_recall_at_full_hp(self):
+        profile = replace(
+            self.profiles[31],
+            approved=True,
+            engagement_plan={
+                **self.profiles[31].engagement_plan,
+                "max_simultaneous_melee": 3,
+            },
+            abort_conditions={"allowed": True, "hp_ratio": 0.25},
+        )
+        stationary = MonraceKnowledge(
+            100, 110, False, False, flags=frozenset({"NEVER_MOVE"})
+        )
+        policy = HengbotPolicy(
+            quest_strategies={31: profile},
+            monrace_knowledge={206: stationary, 329: stationary},
+        )
+        policy._fixed_quest_speed_attempted = True
+        enemies = [
+            replace(hostile(1, 8, 14, distance=5), race_id=329),
+            replace(hostile(2, 6, 6, distance=3), race_id=329),
+            replace(hostile(3, 5, 7, distance=2), race_id=206),
+            replace(hostile(4, 4, 2, distance=7), race_id=329),
+            replace(hostile(5, 5, 10, distance=1), race_id=329),
+        ]
+        snapshot = Snapshot(
+            player(4, 9, hp=414, max_hp=414),
+            {Position(4, 9): grid(4, 9)},
+            enemies,
+            floor_key=(0, 22, 31),
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+        )
+
+        with (
+            patch.object(policy, "_unique_combat_consumable", return_value=None),
+            patch.object(
+                policy,
+                "_predicted_damage",
+                side_effect=lambda *_args, **kwargs: (
+                    154 if kwargs.get("expected") else 893
+                ),
+            ),
+        ):
+            self.assertIsNone(policy._emergency_item(snapshot, enemies))
+
+    def test_q31_stationary_sweep_can_recall_at_abort_threshold(self):
+        profile = replace(
+            self.profiles[31],
+            approved=True,
+            engagement_plan={
+                **self.profiles[31].engagement_plan,
+                "max_simultaneous_melee": 3,
+            },
+            abort_conditions={"allowed": True, "hp_ratio": 0.25},
+        )
+        policy = HengbotPolicy(
+            quest_strategies={31: profile},
+            monrace_knowledge={
+                329: MonraceKnowledge(
+                    100, 110, False, False,
+                    flags=frozenset({"NEVER_MOVE"}),
+                )
+            },
+        )
+        policy._fixed_quest_speed_attempted = True
+        enemy = replace(hostile(1, 5, 10, distance=1), race_id=329)
+        snapshot = Snapshot(
+            player(4, 9, hp=100, max_hp=414),
+            {Position(4, 9): grid(4, 9)},
+            [enemy],
+            floor_key=(0, 22, 31),
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+            quests={
+                31: QuestState(
+                    31, status=QUEST_STATUS_TAKEN, fixed=True
+                )
+            },
+        )
+
+        with (
+            patch.object(policy, "_unique_combat_consumable", return_value=None),
+            patch.object(policy, "_predicted_damage", return_value=893),
+        ):
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rr")
+        self.assertEqual(policy.last_reason, "emergency:recall-quest-fail")
+
+    def test_q31_defers_fixed_target_ammo_recovery_during_opening_wave(self):
+        profile = replace(
+            self.profiles[31],
+            approved=True,
+            engagement_plan={
+                **self.profiles[31].engagement_plan,
+                "hold_position": [18, 1],
+                "initial_hold_turns": 60,
+            },
+        )
+        policy = HengbotPolicy(quest_strategies={31: profile})
+        recovery_plan = profile.engagement_plan["throwing_points"][0]
+        recovery_key = (
+            int(recovery_plan["race_id"]),
+            int(recovery_plan["target"][0]),
+            int(recovery_plan["target"][1]),
+        )
+        policy._quest_strategy_pending_recovery[31] = recovery_plan
+        policy._quest_strategy_cleared_targets[31] = {recovery_key}
+        rushing = replace(hostile(1, 17, 1, distance=1), race_id=343)
+        snapshot = Snapshot(
+            player(18, 1, hp=585, max_hp=585),
+            {
+                Position(18, 1): grid(18, 1),
+                Position(17, 1): grid(17, 1, monster=True),
+                Position(17, 2): grid(17, 2, objects=1),
+                Position(16, 3): grid(16, 3, objects=1),
+            },
+            [rushing],
+            floor_key=(0, 22, 31),
+        )
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [rushing], [rushing]),
+            "8",
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:melee")
+        self.assertIn(31, policy._quest_strategy_pending_recovery)
+
     def test_q22_restart_at_light_point_latches_used_scroll_phase(self):
         battlefield = QuestBattlefield(
             terrain={(1, x): "floor" for x in range(1, 7)},
@@ -4585,6 +5389,154 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._quest_strategy_opening_phase[22], 3)
         self.assertEqual(policy._quest_strategy_hold_positions[22], hold)
 
+    def test_q22_first_entry_uses_player_start_not_exit_stair(self):
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(29, 34)},
+            monster_placements=(),
+            player_start=(1, 33),
+            entrance=(1, 29),
+            exit=(1, 29),
+        )
+        profile = replace(self.profiles[22], approved=True)
+        start = Position(*battlefield.player_start)
+        snapshot = Snapshot(
+            player(start.y, start.x),
+            {start: grid(start.y, start.x)},
+            [],
+            floor_key=(0, 15, 22),
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+        policy = HengbotPolicy(
+            quest_strategies={22: profile},
+            quest_knowledge={
+                22: QuestInfo(22, "Orc Camp", 6, 15, 6, battlefield=battlefield)
+            },
+        )
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), "qs"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-speed")
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), "rt"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-teleport")
+
+    def test_q22_emergency_preserves_speed_then_teleport_opening_order(self):
+        profile = replace(self.profiles[22], approved=True)
+        policy = HengbotPolicy(quest_strategies={22: profile})
+        enemy = replace(hostile(1, 1, 2, distance=1), race_id=215)
+        snapshot = Snapshot(
+            player(1, 1, hp=100, max_hp=358),
+            {
+                Position(1, 1): grid(1, 1),
+                Position(1, 2): grid(1, 2, monster=True),
+            },
+            [enemy],
+            floor_key=(0, 15, 22),
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+
+        with patch.object(policy, "_predicted_damage", return_value=432):
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "qs")
+            self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-speed")
+            self.assertFalse(policy._fixed_quest_speed_attempted)
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rt")
+            self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-teleport")
+            self.assertFalse(policy._fixed_quest_speed_attempted)
+
+    def test_q22_reposition_heals_only_below_55_percent_with_adjacent_enemy(self):
+        profile = replace(self.profiles[22], approved=True)
+        policy = HengbotPolicy(quest_strategies={22: profile})
+        policy._quest_strategy_opening_phase[22] = 2
+        enemy = replace(hostile(1, 1, 2, distance=1), race_id=215)
+        inventory = [
+            item("h", TVAL_POTION, SV_POTION_HEALING),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+        ]
+        below_threshold = Snapshot(
+            player(1, 1, hp=54, max_hp=100),
+            {
+                Position(1, 1): grid(1, 1),
+                Position(1, 2): grid(1, 2, monster=True),
+            },
+            [enemy], floor_key=(0, 15, 22), inventory=inventory,
+        )
+
+        def damage(_snapshot, _hostiles, *, turns=3, expected=False):
+            return 40 if turns == 1 and expected else 10
+
+        with patch.object(policy, "_predicted_damage", side_effect=damage):
+            self.assertEqual(policy._emergency_item(below_threshold, [enemy]), "qh")
+            self.assertEqual(policy.last_reason, "quest-strategy:q22-reposition-heal")
+
+        at_threshold = replace(
+            below_threshold, player=player(1, 1, hp=55, max_hp=100)
+        )
+        with patch.object(policy, "_predicted_damage", side_effect=damage):
+            self.assertIsNone(policy._emergency_item(at_threshold, [enemy]))
+
+        distant_enemy = replace(enemy, position=Position(1, 3), distance=2)
+        distant = replace(
+            below_threshold,
+            grids={
+                Position(1, 1): grid(1, 1),
+                Position(1, 3): grid(1, 3, monster=True),
+            },
+            visible_monsters=[distant_enemy],
+        )
+        with patch.object(policy, "_predicted_damage", side_effect=damage):
+            self.assertIsNone(policy._emergency_item(distant, [distant_enemy]))
+
+    def test_q22_reposition_does_not_heal_when_effective_healing_is_too_small(self):
+        profile = replace(self.profiles[22], approved=True)
+        policy = HengbotPolicy(quest_strategies={22: profile})
+        policy._quest_strategy_opening_phase[22] = 2
+        enemy = replace(hostile(1, 1, 2, distance=1), race_id=215)
+        snapshot = Snapshot(
+            player(1, 1, hp=54, max_hp=100),
+            {
+                Position(1, 1): grid(1, 1),
+                Position(1, 2): grid(1, 2, monster=True),
+            },
+            [enemy], floor_key=(0, 15, 22),
+            inventory=[item("h", TVAL_POTION, SV_POTION_HEALING)],
+        )
+
+        def damage(_snapshot, _hostiles, *, turns=3, expected=False):
+            return 47 if turns == 1 and expected else 10
+
+        with patch.object(policy, "_predicted_damage", side_effect=damage):
+            self.assertIsNone(policy._emergency_item(snapshot, [enemy]))
+
+    def test_q22_reposition_lethality_does_not_create_an_extra_heal_rule(self):
+        profile = replace(self.profiles[22], approved=True)
+        policy = HengbotPolicy(quest_strategies={22: profile})
+        policy._quest_strategy_opening_phase[22] = 2
+        enemy = replace(hostile(1, 1, 2, distance=1), race_id=215)
+        snapshot = Snapshot(
+            player(1, 1, hp=90, max_hp=100),
+            {
+                Position(1, 1): grid(1, 1),
+                Position(1, 2): grid(1, 2, monster=True),
+            },
+            [enemy], floor_key=(0, 15, 22),
+            inventory=[
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+
+        with patch.object(policy, "_predicted_damage", return_value=100):
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
     def test_q22_restart_off_entrance_routes_without_reusing_consumables(self):
         battlefield = QuestBattlefield(
             terrain={(1, x): "floor" for x in range(1, 8)},
@@ -4622,7 +5574,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         key = policy._approved_quest_strategy_key(snapshot, [], [])
 
         self.assertEqual(key, "6")
-        self.assertEqual(policy.last_reason, "quest-strategy:opening-reposition")
+        self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-reposition")
         self.assertEqual(policy._quest_strategy_opening_phase[22], 2)
 
     def test_q31_profile_launcher_fires_standard_bolts(self):
@@ -5160,6 +6112,31 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             )
             self.assertFalse(policy._approved_strategy_force_ready(short_ammo, profile))
 
+    def test_q14_no_healing_tier_accepts_no_supplies_only_at_four_warg_line(self):
+        policy = self._policy()
+        profile = policy.approved_quest_strategy(14)
+        no_supplies = replace(
+            self._force_snapshot(14, hp=150, torches=0, speed=0, healing=0),
+            inventory=[],
+        )
+        with patch("hengbot.policy.weapon_expected_dps", return_value=36):
+            self.assertTrue(
+                policy._approved_strategy_force_ready(no_supplies, profile)
+            )
+            self.assertFalse(
+                policy._approved_strategy_force_ready(
+                    replace(
+                        no_supplies,
+                        player=replace(no_supplies.player, hp=149, max_hp=149),
+                    ),
+                    profile,
+                )
+            )
+        with patch("hengbot.policy.weapon_expected_dps", return_value=35.99):
+            self.assertFalse(
+                policy._approved_strategy_force_ready(no_supplies, profile)
+            )
+
     def test_cure_critical_does_not_satisfy_strategy_healing_potions(self):
         policy = self._policy()
         profile = policy.approved_quest_strategy(1)
@@ -5343,6 +6320,89 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertFalse(policy._start_fundraising(snapshot))
         self.assertIsNone(policy._fundraising_mode)
 
+    def test_fresh_q34_stockout_waits_and_retries_only_general_store(self):
+        policy = self._policy()
+        quest = QuestState(
+            id=34, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+        )
+        snapshot = Snapshot(
+            player(
+                10, 10, level=1, class_id=PLAYER_CLASS_WARRIOR, gold=100
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(11, 10): grid(11, 10, building_special=34),
+            },
+            [],
+            turn=100,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            quests={34: quest},
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=6, fuel=5000)
+            ],
+        )
+        policy._town_store_attempted[STORE_GENERAL] = snapshot.turn
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_GENERAL], index=1
+        )
+
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        wait_until = policy._town_restock_wait_until
+        self.assertEqual(
+            policy._town_special_key(replace(snapshot, turn=snapshot.turn + 1)),
+            RESTOCK_WAIT_MACRO,
+        )
+        self.assertEqual(policy.last_reason, "town:wait-restock")
+        self.assertEqual(
+            policy._next_required_store_type(replace(snapshot, turn=wait_until)),
+            STORE_GENERAL,
+        )
+        self.assertNotIn(STORE_GENERAL, policy._town_store_attempted)
+
+        # A second genuine stockout starts another bounded wait rather than
+        # falling through to unrelated shops or waiting forever without a
+        # General Store re-check.
+        retry = replace(snapshot, turn=wait_until)
+        policy._town_store_attempted[STORE_GENERAL] = retry.turn
+        self.assertIsNone(policy._next_required_store_type(retry))
+        second_wait_until = policy._town_restock_wait_until
+        self.assertEqual(
+            policy._next_required_store_type(
+                replace(retry, turn=second_wait_until)
+            ),
+            STORE_GENERAL,
+        )
+
+    def test_fresh_q34_precedes_same_level_q1_transaction_head(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(10, 10, level=1, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(11, 10): grid(11, 10, building_special=1),
+                Position(12, 10): grid(12, 10, building_special=34),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+                ),
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+                ),
+            },
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+            ],
+        )
+
+        self.assertEqual(policy._fixed_quest_head(snapshot).id, 34)
+
     def test_fresh_q34_acceptance_does_not_require_dungeon_departure_kit(self):
         policy = self._policy()
         policy._quest_knowledge[34] = replace(
@@ -5500,7 +6560,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             )
             variants = {
                 "launcher": replace(base, equipment=base.equipment[:1]),
-                "throwing_items.bolt": replace(
+                "throwing_items.launcher_ammo": replace(
                     base, inventory=[replace(base.inventory[0], count=44), *base.inventory[1:]]
                 ),
                 "required_scrolls.light": replace(
@@ -5637,7 +6697,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         navigator = self._q2_breach_navigator()
         grids = {
             Position(6, 47): grid(6, 47),
-            Position(11, 47): grid(11, 47, passable=False, can_dig=True),
+            **{
+                Position(y, 47): grid(y, 47, passable=False, can_dig=True)
+                for y in range(7, 12)
+            },
         }
         snapshot = Snapshot(
             player(6, 47), grids, [], floor_key=(0, 1, 2),
@@ -5646,15 +6709,27 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(policy._q2_breach_key(snapshot, navigator), "aw2")
         self.assertFalse(policy._q2_breach_complete)
-        opened = replace(
+        still_closed = replace(
             snapshot,
-            grids={**grids, Position(11, 47): grid(11, 47)},
             inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)],
         )
-        self.assertEqual(policy._q2_breach_key(opened, navigator), "aw2")
+        self.assertEqual(policy._q2_breach_key(still_closed, navigator), "aw2")
         self.assertFalse(policy._q2_breach_complete)
+        opened = replace(
+            still_closed,
+            grids={**grids, Position(7, 47): grid(7, 47)},
+        )
+        self.assertEqual(policy._q2_breach_key(opened, navigator), "2")
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-approach")
+        next_wall = replace(opened, player=player(7, 47))
+        self.assertEqual(policy._q2_breach_key(next_wall, navigator), "aw2")
         confirmed = replace(
-            opened,
+            next_wall,
+            player=player(10, 47),
+            grids={
+                Position(y, 47): grid(y, 47)
+                for y in range(6, 12)
+            },
             inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=1)],
         )
         self.assertIsNone(policy._q2_breach_key(confirmed, navigator))
@@ -5685,6 +6760,32 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             equipment=[replace(weak.equipment[0], pval=3)],
         )
         self.assertEqual(policy._q2_breach_key(strong, navigator), "T2")
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-dig")
+
+    def test_q2_breach_advances_after_opening_adjacent_wall_before_digging_again(self):
+        policy = self._policy()
+        navigator = self._q2_breach_navigator()
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            is_equipment=True, pval=3,
+        )
+        grids = {
+            Position(6, 47): grid(6, 47),
+            Position(7, 47): grid(7, 47),
+            Position(8, 47): grid(8, 47, passable=False, can_dig=True),
+            Position(9, 47): grid(9, 47, passable=False, can_dig=True),
+            Position(10, 47): grid(10, 47, passable=False, can_dig=True),
+            Position(11, 47): grid(11, 47, passable=False, can_dig=True),
+        }
+        snapshot = Snapshot(
+            player(6, 47), grids, [], floor_key=(0, 1, 2), equipment=[tool],
+        )
+
+        self.assertEqual(policy._q2_breach_key(snapshot, navigator), "2")
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-approach")
+
+        advanced = replace(snapshot, player=player(7, 47))
+        self.assertEqual(policy._q2_breach_key(advanced, navigator), "T2")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-dig")
 
     def test_q2_real_map_phase_replay_clears_every_placement_via_breach(self):
@@ -5740,7 +6841,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             player(6, 47, hp=300, max_hp=300),
             {
                 Position(6, 47): grid(6, 47),
-                Position(11, 47): grid(11, 47, passable=False, can_dig=True),
+                **{
+                    Position(y, 47): grid(y, 47, passable=False, can_dig=True)
+                    for y in range(7, 12)
+                },
             },
             [], floor_key=(0, 1, 2), inventory=[wand],
         )
@@ -5752,13 +6856,30 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             player(6, 47, hp=300, max_hp=300),
             {
                 Position(6, 47): grid(6, 47),
-                Position(11, 47): grid(11, 47),
+                Position(7, 47): grid(7, 47),
+                **{
+                    Position(y, 47): grid(y, 47, passable=False, can_dig=True)
+                    for y in range(8, 12)
+                },
             },
             [], floor_key=(0, 1, 2), inventory=[replace(wand, charges=2)],
         )
-        self.assertEqual(policy._q2_phase_key(opened, profile, navigator), "aw2")
-        opened = replace(opened, inventory=[replace(wand, charges=1)])
-        policy._q2_phase_key(opened, profile, navigator)
+        self.assertEqual(policy._q2_phase_key(opened, profile, navigator), "2")
+        next_wall = replace(
+            opened,
+            player=player(7, 47, hp=300, max_hp=300),
+        )
+        self.assertEqual(policy._q2_phase_key(next_wall, profile, navigator), "aw2")
+        confirmed = replace(
+            next_wall,
+            player=player(10, 47, hp=300, max_hp=300),
+            grids={
+                Position(y, 47): grid(y, 47)
+                for y in range(6, 12)
+            },
+            inventory=[replace(wand, charges=1)],
+        )
+        policy._q2_phase_key(confirmed, profile, navigator)
         self.assertTrue(policy._q2_breach_complete)
 
         blue_confirmed = Snapshot(
@@ -6045,6 +7166,65 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:q2-light-after-opening"
         )
 
+    def test_q2_normal_entry_does_not_mistake_known_later_map_for_reconnect(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(4, 8)},
+            monster_placements=(((1, 7), 153),),
+            player_start=(1, 4),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        later = policy_module.Q2_POST_BLUE_SEQUENCE[-1][2][0]
+        snapshot = Snapshot(
+            player(1, 5),
+            {
+                Position(1, 5): grid(1, 5),
+                later: grid(later.y, later.x),
+            },
+            [], floor_key=(0, 15, 2),
+            inventory=[item("i", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)],
+        )
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "ri"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-light-after-opening"
+        )
+        self.assertNotIn(153, policy._q2_cleared_races)
+        self.assertFalse(policy._q2_breach_complete)
+
+    def test_q2_reconnect_can_restore_progress_from_known_later_map(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(4, 8)},
+            monster_placements=(((1, 7), 153),),
+            player_start=(1, 4),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        later = policy_module.Q2_POST_BLUE_SEQUENCE[-1][2][0]
+        snapshot = Snapshot(
+            player(1, 5),
+            {
+                Position(1, 5): grid(1, 5),
+                later: grid(later.y, later.x),
+            },
+            [], floor_key=(0, 15, 2),
+            inventory=[item("i", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)],
+        )
+        policy._q2_reconnect_recovery_floor = snapshot.floor_key
+
+        policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertIn(153, policy._q2_cleared_races)
+        self.assertTrue(policy._q2_breach_complete)
+
     def test_q2_real_map_routes_to_observation_cell_for_isolated_gremlin(self):
         definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
         if not definitions.is_file():
@@ -6064,6 +7244,49 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._q2_phase_key(snapshot, self.profiles[2], navigator), "6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-phase-153")
+
+    def test_q2_phase_reroutes_after_repeated_static_step_does_not_move(self):
+        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
+        if not definitions.is_file():
+            self.skipTest("real Hengband quest definitions are unavailable")
+        q2 = load_quest_knowledge(definitions)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153, 252, 213, 270, 175, 42})
+        policy._q2_breach_complete = True
+        policy._q2_blue_recovery_complete = True
+        policy._q2_surveyed_placements.update(
+            placement
+            for _, _, placements in policy_module.Q2_POST_BLUE_SEQUENCE
+            for placement in placements
+        )
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        # The live Q2 run opened this static wall, then Hengband rejected the
+        # diagonal step to (7, 24) without changing the player position.
+        navigator.opened.add(Position(6, 25))
+        snapshot = Snapshot(
+            player(6, 25, hp=382, max_hp=382),
+            {
+                Position(6, 25): grid(6, 25),
+                Position(7, 24): grid(7, 24),
+            },
+            [],
+            floor_key=(0, 15, 2),
+        )
+
+        attempts = [
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+            for _ in range(4)
+        ]
+
+        self.assertEqual(attempts[:3], ["1", "1", "1"])
+        self.assertNotEqual(attempts[3], "1")
+        self.assertNotEqual(attempts[3], WAIT_KEY)
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-phase-120")
+        self.assertIn(
+            Position(7, 24),
+            policy._q2_phase_blocked_steps[((0, 15, 2), 120)],
+        )
 
     def test_q2_white_crocodile_route_does_not_reverse_between_opened_cells(self):
         definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
@@ -6320,6 +7543,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             [],
             floor_key=(0, 15, 2),
         )
+        policy._q2_reconnect_recovery_floor = snapshot.floor_key
 
         key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
 
@@ -6411,7 +7635,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertIsNotNone(strategy)
         self.assertEqual(strategy.quest_id, 2)
-        self.assertEqual(strategy.required_force["throwing_items"]["bolt"], 45)
+        self.assertEqual(
+            strategy.required_force["throwing_items"]["launcher_ammo"], 45
+        )
 
     def test_q2_carry_procurement_buys_and_reserves_exact_shortages(self):
         policy = self._policy()
@@ -6446,11 +7672,68 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         carried_bolts = item("b", TVAL_BOLT, 0, count=45)
         carried_light = item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)
         carried_wand = item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)
-        retained = replace(base, inventory=[carried_bolts, carried_light, carried_wand])
+        retained = replace(
+            base,
+            inventory=[carried_bolts, carried_light, carried_wand],
+            equipment=[
+                *base.equipment,
+                item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True),
+            ],
+        )
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             self.assertEqual(policy._retention_reservation(retained, carried_bolts), 45)
             self.assertEqual(policy._retention_reservation(retained, carried_light), 6)
             self.assertEqual(policy._retention_reservation(retained, carried_wand), 1)
+
+    def test_q22_accepts_any_launcher_meeting_damage_and_matching_ammo(self):
+        policy = self._policy()
+        profile = self.profiles[22]
+        strong_sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING,
+            name="Strong Sling", is_equipment=True, to_h=10, to_d=19,
+        )
+        shots = item("s", TVAL_SHOT, 0, count=99)
+        sling_snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=10000),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True, town_id=0,
+            inventory=[shots], equipment=[strong_sling],
+        )
+        sling_status = policy._quest_carry_status(
+            sling_snapshot, profile.required_force
+        )
+        self.assertTrue(sling_status["launcher"]["ready"])
+        self.assertEqual(
+            sling_status["launcher.average_damage"]["measured"], 42.0
+        )
+        self.assertTrue(
+            sling_status["throwing_items.launcher_ammo"]["ready"]
+        )
+
+        weak_sling = replace(strong_sling, to_d=0)
+        weak_status = policy._quest_carry_status(
+            replace(sling_snapshot, equipment=[weak_sling]),
+            profile.required_force,
+        )
+        self.assertFalse(weak_status["launcher"]["ready"])
+        self.assertFalse(weak_status["launcher.average_damage"]["ready"])
+
+        crossbow = item(
+            "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="Light Crossbow", is_equipment=True, to_h=3, to_d=3,
+        )
+        bolts = item("b", TVAL_BOLT, 0, count=99)
+        crossbow_status = policy._quest_carry_status(
+            replace(sling_snapshot, inventory=[bolts], equipment=[crossbow]),
+            profile.required_force,
+        )
+        self.assertTrue(crossbow_status["launcher"]["ready"])
+        self.assertEqual(
+            crossbow_status["launcher.average_damage"]["measured"], 18.0
+        )
+        self.assertTrue(
+            crossbow_status["throwing_items.launcher_ammo"]["ready"]
+        )
 
     def test_q2_prefers_superior_home_crossbow_over_store_plain_crossbow(self):
         policy = self._policy()
@@ -6485,9 +7768,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         weapon_store = replace(
             base, store=StoreState(STORE_WEAPON, [plain, bolts])
         )
-        self.assertEqual(
-            policy._quest_carry_purchase(weapon_store, profile), bolts
-        )
+        self.assertIsNone(policy._quest_carry_purchase(weapon_store, profile))
 
     def test_q2_lights_dark_shooting_area_before_firing_fixed_undead(self):
         policy = self._policy()
@@ -6529,22 +7810,29 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
     def test_q2_approaches_visible_residual_multiplier_after_placement_clear(self):
         policy = self._policy()
         battlefield = QuestBattlefield(
-            terrain={(1, x): "floor" for x in range(1, 12)},
-            monster_placements=(((1, 10), 202),),
+            terrain={(1, x): "floor" for x in range(1, 16)},
+            monster_placements=(((1, 14), 202),),
         )
         policy._quest_knowledge[2] = QuestInfo(
             2, "The Sewer", 6, 15, 0, battlefield=battlefield
         )
         policy._q2_cleared_races.update(self.profiles[2].priority_targets)
-        target = replace(hostile(1, 1, 10, distance=9), race_id=202)
+        target = replace(hostile(1, 1, 14, distance=13), race_id=202)
         snapshot = Snapshot(
             player(1, 1),
             {
-                Position(1, x): grid(1, x, monster=x == 10)
-                for x in range(1, 12)
+                Position(1, x): grid(1, x, monster=x == 14)
+                for x in range(1, 16)
             },
             [target],
             floor_key=(0, 15, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=10)],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
         )
         navigator = QuestFloorNavigator(2, battlefield)
 
@@ -6554,6 +7842,228 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason,
             "quest-strategy:q2-approach-residual-multiplier",
+        )
+
+    def test_q2_holds_ranged_distance_from_visible_residual_multiplier(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 12)},
+            monster_placements=(((1, 10), 153),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_cleared_races.update(self.profiles[2].priority_targets)
+        target = replace(hostile(1, 1, 10, distance=2), race_id=153)
+        bolts = item("b", TVAL_BOLT, 0, count=10)
+        snapshot = Snapshot(
+            player(1, 8),
+            {
+                Position(1, x): grid(1, x, monster=x == 10)
+                for x in range(1, 12)
+            },
+            [target],
+            floor_key=(0, 15, 2),
+            inventory=[bolts],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-hold-residual-multiplier-vantage",
+        )
+
+    def test_q2_closes_on_mobile_residual_multiplier_after_ammo_exhaustion(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 16)},
+            monster_placements=(((1, 14), 153),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_cleared_races.update(self.profiles[2].priority_targets)
+        targets = [
+            replace(hostile(index, 1, x, distance=x - 1), race_id=153)
+            for index, x in enumerate((13, 14), start=1)
+        ]
+        snapshot = Snapshot(
+            player(1, 1),
+            {
+                Position(1, x): grid(1, x, monster=x in {13, 14})
+                for x in range(1, 16)
+            },
+            targets,
+            floor_key=(0, 15, 2),
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "6"
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-close-residual-multiplier-no-ammo",
+        )
+
+    def test_q2_recovers_dry_floor_ammo_candidate_for_corpse_masses(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 16)},
+            monster_placements=(((1, 14), 202),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        target = replace(hostile(1, 1, 14, distance=13), race_id=202)
+        snapshot = Snapshot(
+            player(1, 1),
+            {
+                Position(1, x): grid(
+                    1, x,
+                    monster=x == 14,
+                    objects=1 if x == 3 else 0,
+                    object_tvals=(TVAL_BOLT,) if x == 3 else (),
+                )
+                for x in range(1, 16)
+            },
+            [target],
+            floor_key=(0, 15, 2),
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "6"
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-recover-dry-ammo-candidate",
+        )
+
+    def test_q2_ammo_recovery_persists_when_corpse_masses_leave_view(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 16)},
+            monster_placements=(((1, 14), 202),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_ammo_recovery_floor = (0, 15, 2)
+        snapshot = Snapshot(
+            player(1, 1),
+            {
+                Position(1, x): grid(
+                    1, x,
+                    objects=1 if x == 3 else 0,
+                    object_tvals=(TVAL_BOLT,) if x == 3 else (),
+                )
+                for x in range(1, 16)
+            },
+            [],
+            floor_key=(0, 15, 2),
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "6"
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-recover-dry-ammo-candidate",
+        )
+
+    def test_q2_residual_multiplier_route_never_steps_into_breeder_buffer(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 12)},
+            monster_placements=(((1, 6), 153),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_cleared_races.update(self.profiles[2].priority_targets)
+        target = replace(hostile(1, 1, 6, distance=3), race_id=153)
+        snapshot = Snapshot(
+            player(1, 3),
+            {
+                Position(1, x): grid(1, x, monster=x == 6)
+                for x in range(1, 12)
+            },
+            [target],
+            floor_key=(0, 15, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=10)],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertNotEqual(key, "6")
+        self.assertNotEqual(policy.last_reason, "quest-strategy:q2-approach-residual-multiplier")
+
+    def test_q2_does_not_rest_between_engagements_while_hostile_is_visible(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 12)},
+            monster_placements=(((1, 10), 1044),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_cleared_races.update(policy_module.Q2_BREEDER_RACES)
+        target = replace(
+            hostile(1, 1, 10, distance=9, max_ranged_damage=24),
+            race_id=1044,
+        )
+        snapshot = Snapshot(
+            player(1, 1, hp=80, max_hp=100),
+            {
+                Position(1, x): grid(1, x, monster=x == 10)
+                for x in range(1, 12)
+            },
+            [target],
+            floor_key=(0, 15, 2),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertNotEqual(key, REST_MACRO)
+        self.assertNotEqual(
+            policy.last_reason, "quest-strategy:q2-rest-between-engagements"
         )
 
     def test_q2_rechecks_corpse_mass_area_instead_of_generic_final_target(self):
@@ -6609,6 +8119,13 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             },
             [target],
             floor_key=(0, 15, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=10)],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
         )
         upper = replace(lower, player=player(3, 22))
 
@@ -6900,6 +8417,88 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "fb2",
         )
 
+    def test_q2_wererat_lock_hunts_out_of_range_before_next_phase(self):
+        policy = self._policy()
+        policy._fixed_quest_speed_attempted = True
+        battlefield = QuestBattlefield(
+            terrain={(17, x): "floor" for x in range(27, 46)},
+            monster_placements=(((17, 27), 270), ((17, 40), 42)),
+            player_start=(17, 45),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        wererat = replace(
+            hostile(19, 17, 27, distance=18, can_summon=True),
+            race_id=270,
+        )
+        snapshot = Snapshot(
+            player(17, 45, hp=330, max_hp=330),
+            {
+                Position(17, x): grid(
+                    17, x, monster=x == 27, lit=True, in_view=True
+                )
+                for x in range(27, 46)
+            },
+            [wererat], floor_key=(0, 15, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=45)],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [wererat], []), "4"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-hunt-priority-270"
+        )
+
+    def test_q2_lone_wererat_commitment_preempts_summoner_escape(self):
+        policy = self._policy()
+        wererat = replace(
+            hostile(19, 10, 15, distance=5, can_summon=True),
+            race_id=270,
+        )
+        grids = {
+            Position(y, x): grid(
+                y, x, monster=(y, x) == (10, 15), lit=True, in_view=True
+            )
+            for y in range(7, 16)
+            for x in range(7, 17)
+        }
+        snapshot = Snapshot(
+            player(10, 10, hp=330, max_hp=330),
+            grids,
+            [wererat], floor_key=(0, 15, 2),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
+        )
+
+        with (
+            patch.object(policy, "_open_neighbor_count", return_value=8),
+            patch.object(policy, "_summoner_cover_in_one_step", return_value=False),
+        ):
+            self.assertIsNone(policy._emergency_item(snapshot, [wererat]))
+
+            summoned = [
+                replace(hostile(20, 10, 11), race_id=156),
+                replace(hostile(21, 11, 10), race_id=156),
+            ]
+            swarm_snapshot = replace(
+                snapshot,
+                visible_monsters=[wererat, *summoned],
+            )
+            self.assertEqual(
+                policy._emergency_item(
+                    swarm_snapshot, [wererat, *summoned]
+                ),
+                "rt",
+            )
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
     def test_q2_surround_uses_teleport_reset_before_fighting(self):
         policy = self._policy()
         adjacent = [
@@ -6925,6 +8524,45 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(snapshot, adjacent, adjacent), "rt"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-teleport-reset")
+
+    def test_q2_disengages_from_corpse_cluster_to_recover_ammo(self):
+        policy = self._policy()
+        adjacent = [
+            replace(hostile(index, y, x, distance=1), race_id=202)
+            for index, (y, x) in enumerate(((2, 3), (3, 3)), 1)
+        ]
+        snapshot = Snapshot(
+            player(2, 2, hp=300, max_hp=300),
+            {
+                Position(y, x): grid(
+                    y, x, monster=Position(y, x) in {
+                        monster.position for monster in adjacent
+                    }
+                )
+                for y in range(1, 5)
+                for x in range(1, 5)
+            },
+            adjacent,
+            floor_key=(0, 15, 2),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        policy._build_grid_index(snapshot)
+
+        key = policy._q2_encounter_key(
+            snapshot, self.profiles[2], adjacent, adjacent
+        )
+
+        self.assertIn(key, {"1", "4", "7", "8"})
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-disengage-corpse-no-ammo",
+        )
 
     def test_completed_mining_rearms_normal_maintenance_restock(self):
         policy = self._policy()
@@ -8801,6 +10439,331 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "rt")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
+    def test_escapes_before_ranged_blindness_forces_a_lethal_cure_turn(self):
+        # Live 2026-07-24 regression: Dokuro's ordinary three-turn operational
+        # damage (228) was below 326 HP, so the bot repositioned until BA_LITE
+        # dealt 234 and blinded it.  Cure Critical then consumed the only turn
+        # in which a teleport scroll could have been read, and the next cast
+        # killed the character.  Budget that forced cure turn before the status
+        # lands: 228 + 103 >= 326.
+        monster = replace(
+            hostile(
+                1,
+                7,
+                48,
+                distance=9,
+                max_melee_damage=120,
+                max_ranged_damage=170,
+            ),
+            race_id=1124,
+            speed=115,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=900,
+            average_hp=900,
+            speed=115,
+            can_summon=False,
+            friendly=False,
+            level=30,
+            max_melee_damage=120,
+            max_ranged_damage=170,
+            abilities=frozenset(
+                {
+                    "CONF",
+                    "ANIM_DEAD",
+                    "BLINK",
+                    "HOLD",
+                    "CAUSE_3",
+                    "BLIND",
+                    "SHRIEK",
+                    "BA_LITE",
+                }
+            ),
+            spell_frequency=16,
+        )
+        grids = {
+            Position(7, x): grid(7, x, monster=(x == 48))
+            for x in range(39, 49)
+        }
+        snapshot = Snapshot(
+            player(
+                7,
+                39,
+                hp=326,
+                max_hp=533,
+                abilities=frozenset(
+                    {"free_action", "resist_conf", "resist_chaos"}
+                ),
+            ),
+            grids,
+            [monster],
+            floor_key=(DUNGEON_ANGBAND, 40, 0),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={1124: knowledge})
+
+        with patch.object(
+            policy,
+            "_predicted_damage",
+            side_effect=lambda _snapshot, _hostiles, turns, **_kwargs: {
+                3: 228,
+                1: 103,
+            }[turns],
+        ):
+            self.assertEqual(policy.choose_key(snapshot), "rt")
+
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertEqual(
+            policy._last_return_trigger, "emergency-ranged-status-lock"
+        )
+
+    def test_does_not_escape_when_ranged_status_cure_turn_is_survivable(self):
+        monster = replace(
+            hostile(
+                1, 10, 14, distance=4, max_melee_damage=0, max_ranged_damage=20
+            ),
+            race_id=6000,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=5,
+            max_ranged_damage=20,
+            abilities=frozenset({"BA_LITE"}),
+            spell_frequency=20,
+        )
+        snapshot = self._line_snapshot(
+            monster,
+            hp=100,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={6000: knowledge})
+
+        with patch.object(
+            policy,
+            "_predicted_damage",
+            side_effect=lambda _snapshot, _hostiles, turns, **_kwargs: {
+                3: 40,
+                1: 20,
+            }[turns],
+        ):
+            self.assertIsNone(
+                policy._emergency_item(snapshot, snapshot.visible_monsters)
+            )
+
+    def test_unresisted_adjacent_confusion_blow_triggers_retreat(self):
+        monster = replace(
+            hostile(1, 10, 11, distance=1, max_melee_damage=1),
+            race_id=6001,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=10,
+            max_melee_damage=1,
+            blows=(MonsterBlow("HIT", "CONFUSE", 1, 1),),
+        )
+        snap = self._line_snapshot(
+            monster,
+            hp=100,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={6001: knowledge})
+
+        self.assertEqual(policy.choose_key(snap), "rt")
+        self.assertEqual(policy.last_reason, "status-threat:scroll")
+
+        protected = replace(
+            snap,
+            player=replace(snap.player, abilities=frozenset({"resist_conf"})),
+        )
+        protected_policy = HengbotPolicy(monrace_knowledge={6001: knowledge})
+        self.assertEqual(protected_policy.choose_key(protected), "6")
+        self.assertEqual(protected_policy.last_reason, "melee")
+
+    def test_unresisted_adjacent_paralysis_blow_triggers_retreat(self):
+        monster = replace(
+            hostile(1, 10, 11, distance=1, max_melee_damage=1),
+            race_id=6002,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=10,
+            max_melee_damage=1,
+            blows=(MonsterBlow("TOUCH", "PARALYZE", 1, 1),),
+        )
+        snap = self._line_snapshot(
+            monster,
+            hp=100,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={6002: knowledge})
+
+        self.assertEqual(policy.choose_key(snap), "rt")
+        self.assertEqual(policy.last_reason, "status-threat:scroll")
+
+        protected = replace(
+            snap,
+            player=replace(snap.player, abilities=frozenset({"free_action"})),
+        )
+        protected_policy = HengbotPolicy(monrace_knowledge={6002: knowledge})
+        self.assertEqual(protected_policy.choose_key(protected), "6")
+        self.assertEqual(protected_policy.last_reason, "melee")
+
+    def test_status_threat_retreat_vetoes_immediate_explore_return(self):
+        monster = replace(
+            hostile(1, 9, 10, distance=1, max_melee_damage=0),
+            race_id=6003,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=10,
+            max_melee_damage=0,
+            flags=frozenset({"NEVER_MOVE"}),
+            blows=(MonsterBlow("GAZE", "PARALYZE", 0, 0),),
+        )
+        grids = {
+            Position(y, x): grid(y, x, monster=(y == 9 and x == 10))
+            for y in range(8, 13)
+            for x in range(8, 13)
+        }
+        danger = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            grids,
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6003: knowledge})
+        policy._explore_path = [Position(10, 10), Position(9, 10)]
+
+        policy.choose_key(danger)
+
+        self.assertEqual(policy.last_reason, "status-threat:retreat")
+        self.assertIn(Position(10, 10), policy._engagement_avoid_cells)
+        self.assertEqual(policy._explore_path, [])
+
+        retreated = replace(
+            danger,
+            player=player(11, 10, hp=100, max_hp=100),
+            visible_monsters=[replace(monster, distance=2)],
+        )
+        policy._explore_path = [Position(10, 10), Position(9, 10)]
+        policy._build_grid_index(retreated)
+        self.assertNotEqual(
+            policy._explore_step(retreated), Position(10, 10)
+        )
+
+    def test_status_threat_retreat_vetoes_loot_across_full_melee_ring(self):
+        monster = replace(
+            hostile(1, 5, 47, distance=1, max_melee_damage=0),
+            race_id=6004,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=10,
+            max_melee_damage=0,
+            flags=frozenset({"NEVER_MOVE"}),
+            blows=(MonsterBlow("GAZE", "PARALYZE", 0, 0),),
+        )
+        grids = {
+            Position(y, x): grid(
+                y,
+                x,
+                monster=(y == 5 and x == 47),
+                objects=1 if (y, x) in {(5, 48), (8, 50)} else 0,
+                unsafe=(y, x) == (5, 48),
+            )
+            for y in range(4, 10)
+            for x in range(44, 52)
+        }
+        danger = Snapshot(
+            player(6, 47, hp=197, max_hp=197, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
+                item("d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL),
+            ],
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                ),
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge={6004: knowledge})
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = danger.floor_key
+
+        self.assertEqual(policy.choose_key(danger), "1")
+        self.assertEqual(policy.last_reason, "status-threat:retreat")
+        self.assertIn(Position(5, 48), policy._engagement_avoid_cells)
+
+        retreated = replace(
+            danger,
+            player=replace(danger.player, position=Position(7, 46)),
+            visible_monsters=[replace(monster, distance=2)],
+        )
+        policy.choose_key(retreated)
+
+        self.assertEqual(policy.last_reason, "fundraise:seek-loot")
+        self.assertEqual(policy._loot_target, Position(8, 50))
+
+        # The phase-1 mining sweep uses _nearest_goal_and_step rather than the
+        # ordinary exploration planner. It must share the same persistent veto,
+        # or it walks from the retreat cell straight back into the eye's ring.
+        result = policy._nearest_goal_and_step(
+            retreated,
+            lambda candidate: candidate.position
+            in {Position(6, 46), Position(7, 48)},
+        )
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result[0], Position(7, 48))
+        self.assertNotIn(result[1], policy._engagement_avoid_cells)
+
+    def test_healing_potion_is_status_cure_when_cure_critical_is_exhausted(self):
+        monster = hostile(1, 10, 11, distance=1, max_melee_damage=50)
+        snap = self._line_snapshot(
+            monster,
+            hp=30,
+            inventory=[item("h", TVAL_POTION, SV_POTION_HEALING)],
+        )
+        snap = replace(snap, player=replace(snap.player, confused=True))
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "qh")
+        self.assertEqual(policy.last_reason, "emergency:cure-status-healing")
+
     def test_threat_prediction_records_per_monster_damage_breakdown(self):
         monster = replace(
             hostile(
@@ -9003,6 +10966,43 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertEqual(prediction["total"], 32)
         self.assertLess(prediction["expected_total"], prediction["total"])
         self.assertLess(detail["expected_melee_prediction"], 5)
+
+    def test_threat_prediction_excludes_hunger_dice_from_hp_damage(self):
+        monster = replace(
+            hostile(
+                1,
+                10,
+                11,
+                distance=1,
+                max_melee_damage=516,
+            ),
+            name="Polygon Spin",
+            race_id=1386,
+        )
+        snap = self._line_snapshot(monster)
+        knowledge = MonraceKnowledge(
+            max_hp=264,
+            average_hp=149,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=15,
+            max_melee_damage=16,
+            blows=(
+                MonsterBlow("HIT", "HURT", 4, 4),
+                MonsterBlow("SHOW", "HUNGRY", 500, 1),
+            ),
+        )
+
+        prediction = HengbotPolicy(
+            monrace_knowledge={1386: knowledge}
+        ).threat_prediction(snap, [monster], turns=3)
+
+        detail = prediction["monsters"][0]
+        self.assertEqual(detail["actions"], 4)
+        self.assertEqual(detail["melee_prediction"], 64)
+        self.assertEqual(detail["operational_contribution"], 64)
+        self.assertLessEqual(detail["expected_contribution"], 64)
 
     def test_cause_spell_participates_in_aggregate_operational_danger(self):
         monster = replace(
@@ -9375,6 +11375,60 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(policy._next_required_store_type(snap), STORE_MAGIC)
         self.assertIsNone(policy._town_blocked_reason)
 
+    def test_deep_mana_fundraising_downgrades_when_device_food_is_unavailable(self):
+        snap = Snapshot(
+            player(
+                38,
+                106,
+                hp=401,
+                max_hp=401,
+                food=5000,
+                food_type=FOOD_TYPE_MANA,
+                gold=7818,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(38, 106): grid(38, 106)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                item("e", TVAL_WAND, 15, charges=14),
+                item(
+                    "d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=17
+                ),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN,
+                    is_equipment=True, fuel=5000,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._town_store_attempted.update(
+            {
+                STORE_HOME: snap.turn,
+                STORE_GENERAL: snap.turn,
+                STORE_ALCHEMIST: snap.turn,
+                STORE_MAGIC: snap.turn,
+            }
+        )
+
+        with patch.object(
+            policy,
+            "_deep_fundraising_active",
+            side_effect=lambda _snapshot: not policy._shallow_fundraising_trip,
+        ), patch.object(
+            policy, "_activate_shallow_fundraising_trip", return_value=False
+        ):
+            policy._next_required_store_type(snap)
+
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertTrue(policy._shallow_fundraising_trip)
+        self.assertIsNone(policy._town_blocked_reason)
+
     def test_fundraising_checks_home_before_buying_treasure_detection(self):
         snap = Snapshot(
             player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
@@ -9486,6 +11540,37 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy._shop(with_scrolls), "pb\r")
         self.assertEqual(policy.last_reason, "home:withdraw-digging-tool")
+
+    def test_failed_digger_withdrawal_is_not_retried_after_home_ejects_to_town(self):
+        digger = store_item(
+            "b", TVAL_DIGGING, 1, name="shovel", is_equipment=True
+        )
+        inventory = self._strict_supplies(detection=5)
+        snap = Snapshot(
+            player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=inventory,
+            store=StoreState(STORE_HOME, [digger]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        signature = policy._item_signature(digger)
+        policy._home_withdraw_inflight = (
+            signature,
+            len(inventory),
+            policy._inventory_signature_count(snap, signature),
+        )
+        policy._home_digger_withdraw_pending = True
+        # The failed command left Home, town navigation ran, and this is a new
+        # entry.  Replaying the item letter here created the live town loop.
+        policy._last_snapshot_was_store = False
+
+        key = policy._shop(snap)
+
+        self.assertFalse(key.startswith(BUY_KEY))
+        self.assertIsNone(policy._home_withdraw_inflight)
+        self.assertIn(signature, policy._deferred_home_items)
 
     def test_fundraising_empty_torch_waits_for_general_store_restock(self):
         snap = Snapshot(
@@ -9606,14 +11691,145 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
+        pol._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_ALCHEMIST, STORE_HOME]
+        )
 
         self.assertEqual(pol._shop(snap), "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-mining-supplies")
         self.assertEqual(pol._town_store_attempted[STORE_HOME], 123)
+        self.assertEqual(pol._town_errand_plan.index, 1)
 
         outside = replace(snap, store=None)
         self.assertNotEqual(pol._next_required_store_type(outside), STORE_HOME)
         self.assertNotEqual(pol._shopping_approach_step(outside), Position(10, 11))
+
+    def test_completed_single_home_plan_does_not_rearm_same_owner(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_HOME
+                ),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._town_errand_plan = TownErrandPlan([STORE_HOME])
+        pol._enumerate_town_needs = lambda _snapshot: [
+            TownNeed(STORE_HOME, "same-home-owner", "home-first")
+        ]
+
+        self.assertEqual(pol._shop(snap), "\x1b")
+        self.assertEqual(pol._town_errand_plan.index, 1)
+
+        outside = replace(snap, store=None)
+        self.assertNotEqual(pol._next_required_store_type(outside), STORE_HOME)
+        self.assertEqual(pol._town_errand_plan.index, 1)
+
+    def test_mining_fast_exit_does_not_preempt_pending_equipment_catalog(self):
+        stored_weapon = store_item(
+            "a", TVAL_SWORD, 1, name="stored sword", is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, [stored_weapon]),
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._equipment_catalog.observe_home_page(
+            [stored_weapon], allow_wrap=False
+        )
+
+        key = pol._shop(snap)
+
+        self.assertNotEqual(key, LEAVE_STORE_KEY)
+        self.assertNotEqual(pol.last_reason, "home:leave-with-mining-supplies")
+
+    def test_deep_fundraising_deposits_loot_before_mining_kit_fast_exit(self):
+        spare = item(
+            "q",
+            TVAL_RING,
+            1,
+            name="known spare ring",
+            known=True,
+            fully_known=True,
+            is_equipment=True,
+        )
+        snap = self._deep_fundraising_town_snapshot(detection=20)
+        snap = replace(
+            snap,
+            inventory=[
+                *self._strict_supplies(
+                    recall=10, detection=20, teleport=15, critical=10
+                ),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+                spare,
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = MINING_RUNS_PER_SET
+
+        self.assertTrue(policy._deep_fundraising_active(snap))
+        self.assertEqual(policy._shop(snap), "dq\r")
+        self.assertEqual(policy.last_reason, "home:deposit")
+
+    def test_mining_home_completion_does_not_consume_post_alchemist_home_phase(self):
+        """The first Home stop must advance before its attempted latch is set."""
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_ALCHEMIST, STORE_HOME]
+        )
+
+        self.assertEqual(pol._shop(snap), "\x1b")
+        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(pol._town_errand_plan.completed_this_visit, [STORE_HOME])
+
+        active = [
+            TownNeed(STORE_ALCHEMIST, "identification-source", "before-withdrawal"),
+            TownNeed(STORE_HOME, "identification-withdrawal", "post-alchemist-home"),
+        ]
+        pol._enumerate_town_needs = lambda snapshot: list(active)
+        pol._legacy_town_router_terminal = lambda snapshot: None
+        outside = replace(snap, store=None)
+
+        self.assertEqual(pol._next_required_store_type(outside), STORE_ALCHEMIST)
+        self.assertEqual(pol._town_errand_plan.index, 1)
 
     def test_fundraising_does_not_revisit_home_for_unrelated_deposit(self):
         spare = item(
@@ -9699,6 +11915,57 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         pol._town_special_key(snap)
         self.assertEqual(pol._fundraising_mode, "mine")
+
+    def test_suppressed_store_routes_do_not_freeze_ready_scavenge_mode(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "scavenge"
+        pol._town_restock_suppressed = True
+
+        with patch.object(
+            pol, "_fundraising_departure_ready", return_value=True
+        ):
+            pol._town_special_key(snap)
+
+        self.assertEqual(pol._fundraising_mode, "mine")
+        self.assertTrue(pol._town_restock_suppressed)
+
+    def test_fundraising_promotion_preserves_just_visited_store_latch(self):
+        snap = Snapshot(
+            player(10, 10, gold=268, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_ALCHEMIST]
+        )
+
+        policy._town_special_key(snap)
+
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertNotEqual(
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
+        )
 
     def test_fundraising_buys_treasure_detection_before_identify(self):
         pol = HengbotPolicy()
@@ -10573,9 +12840,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             inventory=[withdrawn],
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
+        pol._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_ALCHEMIST]
+        )
 
         self.assertEqual(pol.choose_key(snap), "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-item")
+        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(
+            pol._town_errand_plan.completed_this_visit, [STORE_HOME]
+        )
 
     def test_failed_home_withdrawal_is_deferred_instead_of_looping(self):
         candidate = store_item(
@@ -10596,6 +12870,34 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "home:withdraw-failed-deferred")
         self.assertIsNone(pol._home_pending_item)
         self.assertIn(pol._item_signature(candidate), pol._deferred_home_items)
+
+    def test_failed_home_withdrawal_preempts_mining_supply_exit(self):
+        """A stale Q22 launcher request must clear before mining leaves Home."""
+        candidate = store_item(
+            "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="a Light Crossbow", is_equipment=True,
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        signature = pol._item_signature(candidate)
+        pol._home_pending_item = signature
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+
+        self.assertEqual(pol.choose_key(snap), "\x1b")
+        self.assertEqual(pol.last_reason, "home:withdraw-failed-deferred")
+        self.assertIsNone(pol._home_pending_item)
+        self.assertIn(signature, pol._deferred_home_items)
 
     def test_prime_restores_fundraising_from_multiple_detection_scrolls(self):
         snap = Snapshot(
@@ -11128,6 +13430,22 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(retry), STORE_ALCHEMIST)
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
+        # The one permitted turnover re-check also found no *Identify*.
+        # Do not start another 1000-turn wait cycle for the same candidate.
+        second_failure = replace(retry, turn=1301)
+        policy._town_store_attempted[STORE_ALCHEMIST] = second_failure.turn
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_ALCHEMIST],
+            index=1,
+            completed_this_visit=[STORE_ALCHEMIST],
+        )
+        self.assertNotEqual(
+            policy._next_required_store_type(second_failure), STORE_ALCHEMIST
+        )
+        self.assertIsNone(policy._town_restock_wait_until)
+        self.assertIsNone(policy._identification_need)
+        self.assertIn(signature, policy._deferred_home_items)
+
     def test_returns_home_after_buying_star_identify_for_stored_candidate(self):
         target = item(
             "a",
@@ -11646,6 +13964,44 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._shallow_fundraising_trip)
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
+    def test_home_only_identification_wait_does_not_block_shallow_mining(self):
+        # Live trace shape: all mining consumables were carried, while the sole
+        # *Identify* candidate was already in Home and the Alchemist had none.
+        # The wielded digger is unsuitable for a deep trip but is exactly the
+        # correct tool for the safe 1F fallback.
+        snap = self._deep_fundraising_town_snapshot(digger=False)
+        snap = replace(
+            snap,
+            inventory=[
+                *self._strict_supplies(
+                    recall=10,
+                    detection=20,
+                    teleport=15,
+                    critical=10,
+                ),
+            ],
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = MINING_RUNS_PER_SET
+        policy._identification_need = "full"
+        policy._home_candidate_waiting = True
+
+        self.assertFalse(policy._fundraising_departure_ready(snap))
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertEqual(policy.last_reason, "fundraise:fallback-shallow")
+        self.assertTrue(policy._shallow_fundraising_trip)
+        self.assertTrue(policy._fundraising_departure_ready(snap))
+
     def test_blocked_deep_campaign_without_shallow_kit_still_scavenges(self):
         snap = self._deep_fundraising_town_snapshot(
             detection=0, digger=False, gold=0
@@ -11866,6 +14222,18 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(home), "de\r")
         self.assertEqual(policy.last_reason, "home:deposit")
 
+        # The next snapshot acknowledges that the candidate is safely at Home.
+        # The full-identification need remains latched for the post-mining retry,
+        # but must not strand an otherwise-ready fundraising trip at the dungeon
+        # entrance.
+        secured = replace(
+            snap,
+            inventory=[owned for owned in inventory if owned.slot != "e"],
+        )
+        self.assertTrue(policy._fundraising_departure_ready(secured))
+        self.assertEqual(policy._town_special_key(secured), "rrb")
+        self.assertEqual(policy.last_reason, "town:recall-to-yeek-cave-mining")
+
     def test_blocked_fundraising_steps_off_store_instead_of_reentering(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -11888,6 +14256,68 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "fundraise:departure-blocked-step-off"
         )
+
+    def test_completed_town_plan_immediately_downgrades_blocked_fundraising(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST], index=3
+        )
+
+        with patch.object(
+            policy, "_fundraising_departure_ready", return_value=False
+        ), patch.object(
+            policy, "_activate_shallow_fundraising_trip", return_value=False
+        ):
+            self.assertIsNone(policy._town_special_key(snap))
+
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertTrue(policy._town_restock_suppressed)
+        self.assertEqual(
+            policy.last_reason, "fundraise:fallback-exhausted-plan"
+        )
+
+    def test_shallow_fundraising_transition_does_not_reopen_home_each_turn(self):
+        """A shallow-trip procurement plan must survive its next readiness check."""
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=15745),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=self._strict_supplies(detection=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._shallow_fundraising_trip = True
+        policy._planned_mining_runs = 4
+        policy._town_store_attempted.update(
+            {STORE_HOME: snap.turn, STORE_ALCHEMIST: snap.turn}
+        )
+        plan = TownErrandPlan([STORE_HOME], index=1)
+        policy._town_errand_plan = plan
+
+        with patch.object(
+            policy, "_deep_fundraising_eligible", return_value=True
+        ), patch.object(
+            policy, "_fundraising_departure_ready", return_value=False
+        ), patch.object(
+            policy, "_shallow_fundraising_available", return_value=True
+        ):
+            self.assertFalse(policy._activate_shallow_fundraising_trip(snap))
+
+        self.assertIs(policy._town_errand_plan, plan)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertEqual(policy._planned_mining_runs, 4)
 
     def test_full_pack_fundraising_block_falls_through_to_disposal(self):
         snap = Snapshot(
@@ -11959,6 +14389,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "shop:travel:await-entry")
 
+        retry_step = policy._shopping_approach_step(snap)
+        self.assertEqual(retry_step, Position(9, 11))
+
     def test_store_exit_snapshot_still_steps_off_for_reentry(self):
         entrance = Position(10, 10)
         snap = Snapshot(
@@ -11979,6 +14412,34 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._build_grid_index(snap)
 
         self.assertEqual(policy._shopping_approach_step(snap), Position(9, 11))
+
+    def test_home_page_advance_surface_snapshot_waits_without_step_off(self):
+        entrance = Position(10, 10)
+        snap = Snapshot(
+            player(entrance.y, entrance.x, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                entrance: replace(
+                    grid(entrance.y, entrance.x), store_number=STORE_HOME
+                ),
+                Position(9, 11): grid(9, 11),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda snapshot: STORE_HOME
+        policy._last_snapshot_was_store = True
+        policy._home_page_advance_pending = True
+        policy._build_grid_index(snap)
+
+        step = policy._shopping_approach_step(snap)
+
+        self.assertEqual(step, entrance)
+        self.assertEqual(
+            policy._shopping_approach_key(snap, step, "shop:travel"), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
 
     def test_recall_wait_steps_off_home_entrance(self):
         snap = Snapshot(
@@ -12185,6 +14646,88 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy.last_reason, "fundraise:pursue-last-material-hostile"
         )
 
+    def test_emergency_return_preempts_stale_fundraising_pursuit(self):
+        snap = Snapshot(
+            player(38, 27, hp=240, max_hp=408, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(38, x): grid(38, x) for x in range(27, 32)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._fundraising_pursuit_target = Position(38, 31)
+        policy._returning_to_town = True
+
+        with patch.object(
+            policy, "_leave_fundraising_floor", return_value="LEAVE"
+        ) as leave:
+            self.assertEqual(policy._fundraising_key(snap, []), "LEAVE")
+
+        leave.assert_called_once_with(snap)
+        self.assertIsNone(policy._fundraising_pursuit_target)
+
+    def test_low_escape_supply_preempts_fundraising_before_generic_return(self):
+        snap = Snapshot(
+            player(38, 27, hp=408, max_hp=408, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(38, x): grid(38, x) for x in range(27, 32)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3)],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._fundraising_pursuit_target = Position(38, 31)
+
+        with patch.object(
+            policy, "_leave_fundraising_floor", return_value="LEAVE"
+        ) as leave:
+            self.assertEqual(policy._fundraising_key(snap, []), "LEAVE")
+
+        leave.assert_called_once_with(snap)
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(policy._last_return_trigger, "teleport-low")
+        self.assertIsNone(policy._fundraising_pursuit_target)
+
+    def test_fundraising_emergency_teleport_discards_pursuit_target(self):
+        threat = hostile(
+            3,
+            38,
+            31,
+            hp=20,
+            max_hp=20,
+            distance=5,
+            can_multiply=True,
+            max_ranged_damage=500,
+        )
+        snap = Snapshot(
+            player(38, 27, hp=240, max_hp=408, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(38, 27): grid(38, 27),
+                Position(38, 31): grid(38, 31, monster=True),
+            },
+            [threat],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._fundraising_pursuit_target = threat.position
+
+        with patch.object(policy, "_predicted_damage", return_value=500):
+            self.assertEqual(policy._emergency_item(snap, [threat]), "rt")
+
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertTrue(policy._returning_to_town)
+        self.assertIsNone(policy._fundraising_pursuit_target)
+
     def test_deep_mining_redetects_after_leaving_previous_detection_radius(self):
         floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
         snap = Snapshot(
@@ -12346,7 +14889,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             },
             [monster],
             floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=self._strict_supplies(recall=5, detection=1)
+            inventory=self._strict_supplies(recall=5, teleport=15, detection=1)
             + [item("u", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
             equipment=[
                 item("main_hand", 23, 11, is_equipment=True, name="Saber"),
@@ -12642,6 +15185,35 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
+    def test_town_restore_after_restart_skips_unknown_and_cursed_weapons(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="shovel", is_equipment=True,
+        )
+        unknown = item(
+            "u", 21, 5, name="unknown mace", is_equipment=True, known=False,
+        )
+        cursed = item(
+            "c", 23, 1, name="cursed sword", is_equipment=True,
+            known=True, is_cursed=True,
+        )
+        safe = item(
+            "s", 23, 2, name="known safe sword", is_equipment=True, known=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[unknown, cursed, safe],
+            equipment=[tool, self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._normal_weapon_name = None
+
+        self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
+        self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
+
     def test_town_restore_weapon_is_a_noop_without_any_combat_weapon(self):
         # Digger equipped but no real weapon anywhere to restore: don't hang the town
         # routine WAITing for one that will never appear — return None and carry on.
@@ -12693,6 +15265,22 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             equipment=[sword, self._lantern()],
         )
         self.assertTrue(HengbotPolicy()._combat_weapon_ready(snap))
+
+    def test_pre_recall_check_rejects_actionably_cursed_weapon(self):
+        cursed = item(
+            "main_hand", 21, 5, name="cursed mace", is_equipment=True,
+            known=True, is_cursed=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[cursed, self._lantern()],
+            town_flag=True,
+        )
+
+        self.assertFalse(HengbotPolicy()._combat_weapon_ready(snap))
 
     def test_pre_recall_check_rejects_no_teleport_weapon(self):
         weapon = item(
@@ -12888,6 +15476,28 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(pol._home_available(snap))  # Home not in view
         self.assertEqual(pol._next_required_store_type(snap), STORE_HOME)
 
+    def test_routes_home_when_pack_weapons_are_unknown_or_cursed(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="shovel", is_equipment=True,
+        )
+        unknown = item(
+            "u", 21, 5, name="unknown mace", is_equipment=True, known=False,
+        )
+        cursed = item(
+            "c", 23, 1, name="cursed sword", is_equipment=True,
+            known=True, is_cursed=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[unknown, cursed, *self._strict_supplies(recall=1, detection=4)],
+            equipment=[tool, self._lantern()],
+        )
+
+        self.assertEqual(HengbotPolicy()._next_required_store_type(snap), STORE_HOME)
+
     def test_home_rearm_withdraws_best_weapon_before_jewellery_processing(self):
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
@@ -12918,6 +15528,35 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(home), "pc\r")
         self.assertEqual(policy.last_reason, "home:withdraw-combat-weapon")
         self.assertEqual(policy._home_pending_item, policy._item_signature(hammer))
+
+    def test_home_rearm_prefers_remembered_deposited_weapon(self):
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="pick", is_equipment=True,
+        )
+        remembered = store_item(
+            "b", 23, 1, name="remembered sword", is_equipment=True,
+            damage_dice_num=1, damage_dice_sides=6, to_d=3,
+        )
+        stronger = store_item(
+            "c", 21, 12, name="stronger hammer", is_equipment=True,
+            damage_dice_num=2, damage_dice_sides=5, to_h=16, to_d=9,
+        )
+        home = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=list(self._strict_supplies(recall=1)),
+            equipment=[tool, self._lantern()],
+            store=StoreState(store_type=STORE_HOME, items=[remembered, stronger]),
+        )
+        policy = HengbotPolicy()
+        policy._normal_weapon_name = "remembered sword"
+
+        self.assertEqual(policy.choose_key(home), "pb\r")
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(remembered)
+        )
 
     def test_home_rearm_pages_past_jewellery_to_find_weapon(self):
         tool = item(
@@ -13028,6 +15667,45 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "fundraise:scavenge")
+
+    def test_scavenging_confined_cycle_switches_to_floor_exit(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(14, 19)
+            for x in range(48, 53)
+        }
+        snap = Snapshot(
+            player(17, 50, gold=55, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=80,
+            height=30,
+            inventory=self._strict_supplies(recall=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "scavenge"
+        policy._floor_key = snap.floor_key
+        cycle = (
+            Position(15, 50),
+            Position(15, 51),
+            Position(16, 51),
+            Position(17, 50),
+            Position(17, 49),
+            Position(16, 49),
+        )
+        for _ in range(4):
+            policy._recent.extend(cycle)
+        for pos in cycle:
+            policy._visit_counts[pos] = 4
+
+        key = policy.choose_key(snap)
+
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertEqual(policy._explore_path, [])
 
     def test_scavenging_returns_for_a_missing_tool_when_veins_are_known(self):
         grids = {
@@ -13397,6 +16075,25 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._mining_sweep_done)
         self.assertIn(Position(10, 11), policy._mining_swept_dead_targets)
         self.assertEqual(list(policy._recent), [])
+
+    def test_live_six_cell_random_quest_cycle_is_oscillation(self):
+        policy = HengbotPolicy()
+        cycle = [
+            Position(3, 26),
+            Position(4, 26),
+            Position(3, 27),
+            Position(4, 28),
+            Position(5, 28),
+            Position(5, 27),
+        ]
+
+        policy._recent.extend(cycle * 4)
+
+        self.assertTrue(policy._is_oscillating())
+
+        healthy = HengbotPolicy()
+        healthy._recent.extend(Position(10, x) for x in range(24))
+        self.assertFalse(healthy._is_oscillating())
 
     def test_long_mining_sweep_does_not_spend_collection_leash(self):
         policy = HengbotPolicy()
@@ -14296,9 +16993,33 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs")
         self.assertEqual(policy._mining_stall_turns, MINING_STALL_LIMIT)
 
-    def test_prime_restores_scavenging_mode_after_bot_restart(self):
+    def test_prime_resumes_mining_when_main_weapon_is_digger_without_scrolls(self):
         shovel = item(
-            "h", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, passable=False, gold=True),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=self._strict_supplies(recall=1),
+            equipment=[shovel, self._lantern()],
+        )
+        policy = HengbotPolicy()
+
+        policy.prime(snap)
+
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertEqual(policy._mining_scroll_used_floor, snap.floor_key)
+        self.assertEqual(policy.choose_key(snap), "T6")
+        self.assertEqual(policy.last_reason, "fundraise:mine-treasure")
+
+    def test_prime_does_not_infer_interrupted_mining_from_offhand_digger(self):
+        shovel = item(
+            "sub_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
         )
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -14313,6 +17034,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy.prime(snap)
 
         self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertIsNone(policy._mining_scroll_used_floor)
 
     def test_prime_does_not_start_fundraising_for_a_carried_digger(self):
         shovel = item(
@@ -15106,6 +17828,84 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._shopping_approach_step(town)
         self.assertFalse(policy._shopping_stuck)
 
+    def test_unavailable_identify_rearms_blocked_home_for_catalog_scan(self):
+        """A deferred candidate must hand Home from identify to scan ownership."""
+        town = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=12224),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): self._home_tile(10, 11),
+            },
+            [],
+            inventory=self._strict_supplies(recall=1),
+            equipment=[self._lantern()],
+            town_flag=True,
+        )
+        incomplete = store_item(
+            "a", 22, 20, name="unidentified mace", known=False,
+            fully_known=False, is_equipment=True,
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(incomplete)
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page([incomplete])
+        policy._identification_need = "normal"
+        policy._identification_candidate = signature
+        policy._home_candidate_waiting = True
+        policy._town_store_attempted.update(
+            {STORE_HOME: town.turn, STORE_ALCHEMIST: town.turn}
+        )
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_ALCHEMIST],
+            index=2,
+            blocked_this_visit=[STORE_HOME, STORE_ALCHEMIST],
+        )
+
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertIsNone(policy._identification_need)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertNotIn(
+            STORE_HOME, policy._town_errand_plan.blocked_this_visit
+        )
+
+    def test_identification_tier_change_rearms_blocked_alchemist(self):
+        """Plain Identify revealing an ego item must open a *Identify* errand."""
+        candidate = item(
+            "m", 22, 20, name="known ego mace", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        town = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=12224),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): self._home_tile(10, 11),
+            },
+            [],
+            inventory=[candidate, *self._strict_supplies(recall=1)],
+            equipment=[self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._identification_need = "normal"
+        policy._home_pending_item = policy._item_signature(candidate)
+        policy._home_pending_slot = candidate.slot
+        policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_ALCHEMIST],
+            index=1,
+            blocked_this_visit=[STORE_ALCHEMIST],
+        )
+
+        policy._request_identification("full")
+
+        self.assertEqual(policy._identification_need, "full")
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertNotIn(
+            STORE_ALCHEMIST, policy._town_errand_plan.blocked_this_visit
+        )
+        self.assertEqual(policy._next_required_store_type(town), STORE_ALCHEMIST)
+
     def test_complete_home_scan_routes_back_to_incomplete_item_page(self):
         town = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -15408,7 +18208,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
     def test_unavailable_full_identify_keeps_equipped_candidate_blocking(self):
         town = self._ready_home_town(gold=6411)
         policy = HengbotPolicy()
-        owned = SimpleNamespace(id="equipped:ego:0", origin="equipped")
+        equipped = item(
+            "neck", 40, 4, name="unknown amulet", known=False,
+            pseudo_feeling="good", is_equipment=True,
+        )
+        owned = SimpleNamespace(
+            id="equipped:ego:0", origin="equipped", item=equipped
+        )
         policy._equipment_catalog = SimpleNamespace(items=(owned,))
         policy._prepare_equipment_optimization = lambda snapshot: SimpleNamespace(
             blockers=("incomplete-equipment-catalog",),
@@ -15418,6 +18224,27 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertFalse(policy._equipment_departure_ready(town))
+
+    def test_exhausted_identify_stock_allows_deferred_equipped_candidate(self):
+        town = self._ready_home_town(gold=6411)
+        policy = HengbotPolicy()
+        equipped = item(
+            "neck", 40, 4, name="unknown amulet", known=False,
+            pseudo_feeling="good", is_equipment=True,
+        )
+        owned = SimpleNamespace(
+            id="equipped:ego:0", origin="equipped", item=equipped
+        )
+        policy._equipment_catalog = SimpleNamespace(items=(owned,))
+        policy._deferred_home_items.add(policy._item_signature(equipped))
+        policy._prepare_equipment_optimization = lambda snapshot: SimpleNamespace(
+            blockers=("incomplete-equipment-catalog",),
+            result=SimpleNamespace(incomplete_item_ids=frozenset({owned.id})),
+            ready=False,
+            transaction=None,
+        )
+
+        self.assertTrue(policy._equipment_departure_ready(town))
 
     def test_non_mining_town_arrival_preserves_processed_home_items(self):
         # The identification retry boundary is a completed MINING trip only. A
@@ -15516,7 +18343,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(policy.choose_key(snap), "ria")
         self.assertNotEqual(policy.last_reason, "identify:normal")
 
-    def test_identification_prefers_charged_staff_over_scroll(self):
+    def test_identification_prefers_reliable_scroll_over_fallible_staff(self):
         target = item(
             "a", 23, -1, aware=False, known=False, is_equipment=True
         )
@@ -15533,8 +18360,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
-        # Original-keyset use-staff u, then staff slot u and target slot a.
-        self.assertEqual(policy.choose_key(snap), "uua")
+        # A failed device activation never reaches the target prompt, so a
+        # concatenated target letter becomes an unrelated town command.  Use
+        # the scroll, whose read command reliably reaches item selection.
+        self.assertEqual(policy.choose_key(snap), "ria")
         self.assertEqual(policy.last_reason, "identify:normal")
 
     def test_identifies_an_unknown_wand_in_town(self):
@@ -15552,7 +18381,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "ria")
         self.assertEqual(policy.last_reason, "identify:device")
 
-    def test_identifies_wanted_unknown_jewelry_directly_from_pack_in_town(self):
+    def test_unknown_jewelry_with_only_staff_routes_to_buy_identify_scroll(self):
         ring = item(
             "a",
             TVAL_RING,
@@ -15575,8 +18404,45 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "uua")
-        self.assertEqual(policy.last_reason, "identify:normal")
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
+
+    def test_carried_identify_target_is_deferred_after_scroll_stock_failure(self):
+        # Regression for the second 2026-07-23 loop: a low-skill warrior tried
+        # the same Staff of Identify command 30 times, then repeatedly entered
+        # and left an Alchemist that had no Identify scroll.  Once that store is
+        # genuinely exhausted, defer the carried target for this town visit.
+        ring = item(
+            "a",
+            TVAL_RING,
+            -1,
+            name="unknown ring",
+            aware=False,
+            known=False,
+            is_equipment=True,
+        )
+        staff = item(
+            "u", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20, name="staff"
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[ring, staff],
+            equipment=[self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        self.assertNotEqual(
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
+        )
+        self.assertIn(policy._item_signature(ring), policy._deferred_home_items)
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        self.assertIsNone(policy._identification_need)
 
     def test_defers_unknown_device_when_identification_is_unavailable(self):
         wand = item("a", TVAL_WAND, -1, aware=False, known=False, name="unknown wand")
@@ -16065,6 +18931,82 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
 
+    def test_equipped_identify_does_not_append_target_after_fallible_staff_use(self):
+        # Regression for the 2026-07-23 magic-shop loop.  When a Staff of
+        # Identify failed to activate, the appended `/g` equipment selector was
+        # interpreted on the town map and re-entered the shop underfoot.  The
+        # bot then alternated identify:normal-equipped with shop:leave forever.
+        light = item(
+            "light",
+            39,
+            1,
+            name="unidentified lantern",
+            known=False,
+            is_equipment=True,
+        )
+        staff = item(
+            "f",
+            TVAL_STAFF,
+            SV_STAFF_IDENTIFY,
+            name="identify staff",
+            known=True,
+            aware=True,
+            charges=20,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[staff],
+            equipment=[light],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertIsNone(policy._town_equipped_identification_key(snap))
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertTrue(policy._identification_requires_reliable_source(snap))
+        self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
+
+    def test_equipped_identify_buys_scroll_even_when_staff_is_held(self):
+        light = item(
+            "light",
+            39,
+            1,
+            name="unidentified lantern",
+            known=False,
+            is_equipment=True,
+        )
+        staff = item(
+            "f",
+            TVAL_STAFF,
+            SV_STAFF_IDENTIFY,
+            name="identify staff",
+            known=True,
+            aware=True,
+            charges=20,
+        )
+        scroll = store_item(
+            "b", TVAL_SCROLL, SV_SCROLL_IDENTIFY, price=100, name="identify"
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[staff],
+            equipment=[light],
+            store=StoreState(STORE_ALCHEMIST, [scroll]),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._identification_candidate = policy._item_signature(light)
+        policy._identification_need = "normal"
+
+        self.assertEqual(policy.choose_key(snap), "pb\r")
+        self.assertEqual(policy.last_reason, "shop:buy-identify")
+
     def test_carried_ego_weapon_is_fully_identified_before_departure(self):
         # Regression for the 2026-07-20 town deadlock: this known ego lance was
         # incomplete in the optimizer catalog, but only worn gear and selected
@@ -16344,6 +19286,39 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         after = replace(snap, inventory=[withdrawn], store=replace(snap.store, items=[superior]))
         self.assertEqual(policy.choose_key(after), "\x1b")
         self.assertEqual(policy.last_reason, "home:leave-with-dominated")
+
+    def test_does_not_withdraw_dominated_armour_when_pack_is_full(self):
+        superior = store_item(
+            "a", 37, 1, name="superior armour", known=True,
+            fully_known=True, is_equipment=True, ac=10, to_a=5,
+        )
+        inferior = store_item(
+            "b", 37, 1, name="inferior armour", known=True,
+            fully_known=True, is_equipment=True, ac=5, to_a=1,
+        )
+        full_pack = [
+            item(chr(ord("a") + index), 1, index, known=True)
+            for index in range(PACK_CAPACITY)
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=full_pack,
+            equipment=[self._lantern()],
+            store=StoreState(store_type=STORE_HOME, items=[superior, inferior]),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page(snap.store.items)
+        policy._equipment_catalog.observe_home_page(
+            snap.store.items, allow_wrap=True
+        )
+        policy._home_disposal_pass = True
+
+        self.assertIsNone(policy._home_dominated_disposal_key(snap))
+        self.assertIsNone(policy._pending_disposal_item)
+        self.assertIsNone(policy._home_withdraw_inflight)
 
     def test_sells_dominated_armour_at_armoury(self):
         inferior = item("a", 37, 1, known=True, is_equipment=True, ac=1)
@@ -16773,6 +19748,54 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
+    def test_resume_preserves_an_already_active_town_recall(self):
+        pol, snap = self._ready_town(
+            23,
+            DUNGEON_ANGBAND,
+            DUNGEON_ANGBAND,
+            angband_unlocked=True,
+            recall_depth=23,
+        )
+        recalling = replace(snap, player=replace(snap.player, recalling=True))
+
+        # A fresh policy has no Home catalog yet. That startup incompleteness
+        # must not cancel the engine-owned recall before prime/follow attach.
+        self.assertEqual(pol.choose_key(recalling), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:wait-recall")
+        self.assertTrue(pol._startup_town_recall)
+
+    def test_town_recall_does_not_reread_on_stale_or_consumed_snapshot(self):
+        # Live 2026-07-23 regression: redraws at one game turn repeatedly showed
+        # recalling=False, so seven macros consumed five scrolls before the flag
+        # stabilized.  Both the unchanged command-turn snapshot and a reduced
+        # stack are confirmation states, never permission to read again.
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        self.assertEqual(pol._town_special_key(snap), "rra")
+
+        self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:await-recall-confirmation")
+
+        consumed = replace(
+            snap,
+            player=replace(snap.player, position=Position(10, 11)),
+            inventory=[replace(snap.inventory[0], count=8), *snap.inventory[1:]],
+            turn=snap.turn + 8,
+        )
+        self.assertEqual(pol._town_special_key(consumed), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:await-recall-confirmation")
+
+    def test_rejected_town_recall_retries_after_turn_advances_unconsumed(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        self.assertEqual(pol._town_special_key(snap), "rra")
+
+        rejected = replace(snap, turn=snap.turn + 1)
+        self.assertEqual(pol._town_special_key(rejected), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
     def test_departure_block_telemetry_names_failed_gate_and_values(self):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
@@ -17043,10 +20066,11 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     # After a run of such empty dives the bot must recall into the deepest
     # already-unlocked dungeon its level can actually loot instead.
     ALL_ENTERED = (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, 3, 4, 7, 14)
-    # Resistances covering the 20-25F (conf/fire) and 26-30F (pois/cold/elec/acid)
+    # Abilities covering 20F (free action/fire), 21-25F (plus confusion), and
+    # 26-30F (pois/cold/elec/acid)
     # bands, so the Mountain (25F entry) counts as resistance-safe for these tests.
     MOUNTAIN_SAFE = frozenset(
-        {"resist_conf", "resist_fire", "resist_pois", "resist_cold",
+        {"free_action", "resist_conf", "resist_fire", "resist_pois", "resist_cold",
          "resist_elec", "resist_acid"}
     )
 
@@ -17159,7 +20183,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     def test_loadout_fallback_picks_deepest_dungeon_at_or_below_limit(self):
         pol = self._policy()
         snap = self._town(
-            abilities=frozenset({"resist_fire", "resist_conf"})
+            abilities=frozenset({"free_action", "resist_fire", "resist_conf"})
         )
 
         self.assertEqual(
@@ -17169,7 +20193,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             7,
         )
 
-    def test_loadout_fallback_uses_current_safe_depth_above_twenty(self):
+    def test_loadout_fallback_uses_deepest_owned_loadout_above_twenty(self):
         pol = self._policy()
         pol._deepest_level = 31
         pol._target_dungeon_id = DUNGEON_ANGBAND
@@ -17177,18 +20201,28 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             self._town(clvl=30, abilities=self.MOUNTAIN_SAFE),
             dungeon_recall_depths={1: 32, 3: 23, 4: 18, 7: 24, 14: 25},
         )
-        preparation = SimpleNamespace(blockers=("no-valid-loadout",))
+        invalid = SimpleNamespace(
+            blockers=("no-valid-loadout",),
+            result=SimpleNamespace(best=None),
+        )
+        valid_30f = SimpleNamespace(
+            blockers=(),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
+        )
+
+        def prepare(_snapshot, *, depth_override=None):
+            return valid_30f if depth_override == 30 else invalid
 
         with patch.object(
             pol, "_carry_procurement_strategy", return_value=None
         ), patch.object(
-            pol, "_prepare_equipment_optimization", return_value=preparation
+            pol, "_prepare_equipment_optimization", side_effect=prepare
         ), patch.object(
             pol, "_next_required_store_type", return_value=None
         ):
             self.assertEqual(pol._activate_loadout_depth_fallback(snap), 14)
 
-        self.assertEqual(pol._equipment_optimization_depth(snap), 25)
+        self.assertEqual(pol._equipment_optimization_depth(snap), 30)
 
     def test_loadout_fallback_uses_recall_landing_depth_not_entrance_depth(self):
         pol = self._policy()
@@ -17318,6 +20352,38 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_empty_dives, 0)
         self._run_dive(pol, **self.OVEREXTENDED)
         self.assertIsNone(pol._alternate_dungeon)  # streak restarted, no switch yet
+
+    def test_switches_after_five_looted_dives_without_new_depth(self):
+        pol = self._policy()
+        for _ in range(NO_DEPTH_PROGRESS_DIVE_LIMIT):
+            self._run_dive(
+                pol,
+                loot=4,
+                emergencies=0,
+                level=19,
+                recall_depth=19,
+            )
+
+        self.assertEqual(pol._alternate_dungeon, 7)
+        self.assertEqual(pol._target_dungeon_id, 7)
+        self.assertEqual(pol._no_depth_progress_dives, 0)
+
+    def test_new_recall_depth_resets_no_depth_progress_streak(self):
+        pol = self._policy()
+        for _ in range(NO_DEPTH_PROGRESS_DIVE_LIMIT - 1):
+            self._run_dive(pol, loot=4, level=19, recall_depth=19)
+
+        floor19 = self._dungeon(DUNGEON_ANGBAND, 19, recall_depth=19)
+        pol.last_reason = "descend"
+        pol._observe(floor19)
+        floor20 = self._dungeon(DUNGEON_ANGBAND, 20, recall_depth=20)
+        pol.last_reason = "descend"
+        pol._observe(floor20)
+        pol.last_reason = "town:return"
+        pol._observe(self._town(recall_depth=20))
+
+        self.assertEqual(pol._no_depth_progress_dives, 0)
+        self.assertIsNone(pol._alternate_dungeon)
 
     def test_conquest_target_is_demoted_after_over_extended_dives(self):
         pol = self._policy()
@@ -17596,6 +20662,60 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "rt")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
+    def test_stale_emergency_snapshot_does_not_spend_a_second_scroll(self):
+        # Live 2026-07-23 regression: the CLI reconsidered the exact summoner
+        # board after its two-second duplicate interval and emitted ``rd``
+        # twice.  One hazard consumed two teleports and was counted as two
+        # emergencies before the post-teleport return recall began.
+        snap = self._swarm([
+            item("t", TVAL_SCROLL, 9, count=3),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+        ])
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rt")
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), WAIT_KEY)
+        self.assertEqual(
+            pol.last_reason, "emergency:await-consumable-confirmation"
+        )
+
+        relocated = replace(
+            snap,
+            turn=snap.turn + 10,
+            player=replace(snap.player, position=Position(20, 20)),
+            inventory=[
+                replace(snap.inventory[0], count=2),
+                snap.inventory[1],
+            ],
+        )
+        self.assertIsNone(pol._emergency_item(relocated, []))
+        self.assertIsNone(pol._emergency_consumable_issue_watch)
+
+    def test_rejected_emergency_scroll_retries_after_turn_advances_unconsumed(self):
+        snap = self._swarm([
+            item("t", TVAL_SCROLL, 9, count=3),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+        ])
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rt")
+        rejected = replace(snap, turn=snap.turn + 1)
+        self.assertEqual(
+            pol._emergency_item(rejected, rejected.visible_monsters), "rt"
+        )
+        self.assertEqual(pol.last_reason, "emergency:teleport")
+
+    def test_cornered_without_any_escape_attacks_instead_of_waiting(self):
+        # Live Yeek 1F fundraising death: after relocation and recall supplies
+        # were exhausted, a blocked route to the stairs emitted wait on six
+        # consecutive turns while adjacent monsters killed the character.
+        snap = self._swarm([])
+        pol = HengbotPolicy()
+        pol._emergency_escape_pending = True
+
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "7")
+        self.assertEqual(pol.last_reason, "emergency:cornered-attack")
+
 
 
 class TownFrontierTest(unittest.TestCase):
@@ -17779,6 +20899,52 @@ class TownNightNavigationTest(unittest.TestCase):
         self.assertIsNone(pol._descent_step(snap))
         self.assertIsNone(pol._nav_ledger.descent_target)
 
+    def test_cycle_broken_fundraising_routes_to_remembered_night_entrance(self):
+        # Live town repetition after Q34: the first cycle break correctly
+        # suppressed further errands, but the distant/unlit Yeek entrance was
+        # absent from JSON grids.  The bot therefore discarded the static town
+        # map coordinate and resumed stuck:wander instead of departing.
+        entrance = Position(2, 5)
+        tm = TownMap(
+            name="T", width=7, height=5,
+            walkable=self._corridor(), entrance=entrance,
+        )
+        pol, snap = self._night_town(tm)
+        pol._town_restock_suppressed = True
+        pol._fundraising_mode = "mine"
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+
+        with patch.object(pol, "_descent_is_blocked", return_value=False):
+            self.assertEqual(pol._descent_step(snap), Position(2, 2))
+
+        self.assertEqual(pol._descent_target_goal, entrance)
+        self.assertEqual(pol.last_reason, "seek-downstairs")
+
+    def test_cycle_break_rearms_normal_run_remembered_night_entrance(self):
+        # Live 02:00 replay: ordinary routing had already expired the unlit
+        # Angband entrance before the town cycle fired. The repair latched all
+        # stores but inherited that expiry, so town:blocked:repetition could do
+        # nothing except WAIT at (22,128). A cycle break is a new navigation
+        # epoch and its departure owner must be able to use the static entrance.
+        entrance = Position(2, 5)
+        tm = TownMap(
+            name="T", width=7, height=5,
+            walkable=self._corridor(), entrance=entrance,
+        )
+        pol, snap = self._night_town(tm)
+        pol._deepest_level = 40
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        pol._nav_ledger.expire("descend", entrance)
+
+        pol._break_town_cycle(snap)
+
+        self.assertTrue(pol._town_restock_suppressed)
+        self.assertFalse(pol._nav_ledger.is_expired("descend", entrance))
+        with patch.object(pol, "_descent_is_blocked", return_value=False):
+            self.assertEqual(pol._descent_step(snap), Position(2, 2))
+        self.assertEqual(pol._descent_target_goal, entrance)
+        self.assertEqual(pol.last_reason, "seek-downstairs")
+
     def test_deep_run_does_not_route_to_entrance(self):
         # Past the recall threshold the bot returns by Word of Recall from
         # anywhere in town, so it must NOT trudge to the entrance even when it is
@@ -17926,6 +21092,183 @@ class IdentifyStaffTest(unittest.TestCase):
         purchase = pol._next_purchase(snap)
         self.assertIsNotNone(purchase)
         self.assertEqual((purchase.tval, purchase.sval), (TVAL_STAFF, SV_STAFF_IDENTIFY))
+
+    def test_home_staff_is_withdrawn_before_buying_replacement(self):
+        stored = store_item(
+            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=25,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            store=StoreState(STORE_HOME, [stored]),
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+
+        self.assertEqual(pol._shop(snap), "ph\r")
+        self.assertEqual(pol.last_reason, "home:withdraw-identify-staff-reserve")
+        self.assertFalse(pol._home_identify_staff_sale_pending)
+
+    def test_ready_pack_withdraws_home_staff_for_sale(self):
+        stored = store_item(
+            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=3,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[self._staff(25)],
+            store=StoreState(STORE_HOME, [stored]),
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+
+        self.assertEqual(pol._shop(snap), "ph\r")
+        self.assertEqual(pol.last_reason, "home:withdraw-surplus-identify-staff")
+        self.assertTrue(pol._home_identify_staff_sale_pending)
+        self.assertNotIn(STORE_MAGIC, pol._town_store_attempted)
+
+    def test_home_withdrawn_staff_is_sellable_below_normal_pack_cap(self):
+        pol = HengbotPolicy()
+        pol._home_identify_staff_sale_pending = True
+        staff = self._staff(3)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[staff],
+        )
+
+        self.assertEqual(pol._find_device_sale(snap).slot, staff.slot)
+
+    def test_home_staff_sale_rearms_completed_magic_and_home_stops(self):
+        pol = HengbotPolicy()
+        pol._town_errand_plan = policy_module.TownErrandPlan(
+            stops=[STORE_MAGIC, STORE_HOME],
+            index=2,
+            completed_this_visit=[STORE_MAGIC, STORE_HOME],
+            skipped_latched=[STORE_MAGIC, STORE_HOME],
+        )
+        pol._town_store_attempted = {STORE_MAGIC: 10, STORE_HOME: 10}
+
+        pol._rearm_town_store_for_new_work(STORE_MAGIC)
+        self.assertNotIn(STORE_MAGIC, pol._town_store_attempted)
+        self.assertNotIn(
+            STORE_MAGIC, pol._town_errand_plan.completed_this_visit
+        )
+
+        pol._rearm_town_store_for_new_work(STORE_HOME)
+        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
+        self.assertNotIn(STORE_HOME, pol._town_errand_plan.completed_this_visit)
+        self.assertNotIn(STORE_HOME, pol._town_errand_plan.skipped_latched)
+
+    def test_home_cleanup_preserves_departure_pack_space(self):
+        carried = [self._staff(25)]
+        carried.extend(
+            item(
+                chr(ord("a") + index),
+                TVAL_FOOD,
+                35,
+                name=f"filler-{index}",
+            )
+            for index in range(PACK_CAPACITY - MIN_FREE_PACK_SLOTS - 1)
+        )
+        stored = store_item(
+            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=3,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=carried,
+            store=StoreState(STORE_HOME, [stored]),
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+
+        key = pol._shop(snap)
+
+        self.assertNotEqual(key, "ph\r")
+        self.assertFalse(pol._home_identify_staff_sale_pending)
+
+    def test_home_staff_attempt_completes_home_stop_and_routes_to_magic(self):
+        stored = store_item(
+            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=3,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[self._staff(25)],
+            store=StoreState(STORE_HOME, [stored]),
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+        pol._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
+
+        self.assertEqual(pol._shop(snap), "ph\r")
+        # A second snapshot can precede the inventory delta. It must leave Home,
+        # not withdraw another staff from a different letter.
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:leave-after-identify-staff-attempt"
+        )
+        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(
+            pol._next_required_store_type(replace(snap, store=None)),
+            STORE_MAGIC,
+        )
+
+    def test_home_staff_sale_does_not_buy_back_mana_food_same_visit(self):
+        ware = store_item(
+            "z", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=12, price=100,
+        )
+        snap = Snapshot(
+            player(
+                10, 10, class_id=PLAYER_CLASS_WARRIOR,
+                food_type=FOOD_TYPE_MANA, food=5000,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            store=StoreState(STORE_MAGIC, [ware]),
+        )
+        pol = HengbotPolicy()
+        pol._home_identify_staff_sold_this_magic_visit = True
+
+        self.assertIsNone(pol._mana_food_purchase(snap))
+
+    def test_starving_mana_character_may_buy_after_home_staff_sale(self):
+        ware = store_item(
+            "z", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=12, price=100,
+        )
+        snap = Snapshot(
+            player(
+                10, 10, class_id=PLAYER_CLASS_WARRIOR,
+                food_type=FOOD_TYPE_MANA, food=1500,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            store=StoreState(STORE_MAGIC, [ware]),
+        )
+        pol = HengbotPolicy()
+        pol._home_identify_staff_sold_this_magic_visit = True
+
+        self.assertEqual(pol._mana_food_purchase(snap), ware)
 
     def _pressured_pack(self, *extra):
         # 18 aware wand filler + the extras = a nearly-full pack (<= free slots).
@@ -18828,6 +22171,29 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         self.assertEqual(policy._fruitless_disengage_floor, snapshot.floor_key)
 
+    def test_active_recall_teleports_instead_of_waiting_among_breeders(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=20,
+            blow_sides=0,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        breeder = replace(monster, can_multiply=True)
+        snapshot = replace(
+            snapshot,
+            floor_key=(DUNGEON_YEEK_CAVE, 13, 0),
+            player=replace(snapshot.player, recalling=True),
+            visible_monsters=[breeder],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy._fruitless_disengage_floor = snapshot.floor_key
+
+        key = policy._fruitless_disengage_key(snapshot, [breeder])
+
+        self.assertEqual(key, "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
     def test_does_not_disengage_from_current_objective_guardian(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=200,
@@ -18853,6 +22219,28 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertIsNone(
             policy._unprofitable_unique_disengage_key(snapshot, [monster])
         )
+        self.assertIsNone(policy._fruitless_disengage_floor)
+
+    def test_does_not_disengage_from_harmless_unique_on_locked_kill_quest_floor(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=1500,
+            monster_speed=115,
+            blow_sides=0,
+        )
+        snapshot = replace(snapshot, floor_key=(DUNGEON_YEEK_CAVE, 5, 0))
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        with patch.object(
+            policy, "_floor_navigation_exit_locked", return_value=True
+        ):
+            self.assertIsNone(
+                policy._unprofitable_unique_disengage_key(
+                    snapshot, [monster]
+                )
+            )
+
         self.assertIsNone(policy._fruitless_disengage_floor)
 
     def test_does_not_spend_rare_potions_on_an_ordinary_monster(self):
@@ -19606,7 +22994,7 @@ class WeightOverloadTownTest(unittest.TestCase):
             [99, 0, 0],
         )
         self.assertEqual(
-            policy.approved_quest_strategy(31).required_force["throwing_items"]["bolt"],
+            policy.approved_quest_strategy(31).required_force["throwing_items"]["launcher_ammo"],
             99,
         )
 
@@ -19999,7 +23387,9 @@ class TownWanderCircuitBreakerTest(unittest.TestCase):
             )
 
         self.assertFalse(pol._town_cycle_pending)
-        self.assertIsNone(pol._town_blocked_reason)
+        # The first detector now owns departure until town is left; productive
+        # entrance locomotion must not clear that route or accrue old cycle debt.
+        self.assertEqual(pol._town_blocked_reason, "repetition")
         self.assertEqual(
             pol._town_no_progress_count,
             TOWN_NO_PROGRESS_LIMIT - TOWN_WANDER_LIMIT,
@@ -20413,15 +23803,34 @@ class ResistanceDepthGateTest(unittest.TestCase):
         )
 
     def test_blocks_descent_without_the_required_resistance(self):
-        snap = self._at(24, set())  # 24F -> 25F needs confusion + fire
+        snap = self._at(24, set())  # 24F -> 25F needs free action + confusion + fire
         self.assertFalse(
             HengbotPolicy()._is_descent_target(snap, snap.grids[Position(10, 10)])
         )
 
     def test_allows_descent_once_the_requirement_is_met(self):
-        snap = self._at(24, {"resist_conf", "resist_fire"})
+        snap = self._at(24, {"free_action", "resist_conf", "resist_fire"})
         self.assertTrue(
             HengbotPolicy()._is_descent_target(snap, snap.grids[Position(10, 10)])
+        )
+
+    def test_20f_requires_free_action_and_fire_but_not_confusion(self):
+        policy = HengbotPolicy()
+        self.assertEqual(
+            policy._missing_required_abilities(
+                self._at(19, {"free_action", "resist_fire"}), 20
+            ),
+            frozenset(),
+        )
+        self.assertEqual(
+            policy._missing_required_abilities(self._at(19, {"resist_fire"}), 20),
+            frozenset({"free_action"}),
+        )
+        self.assertEqual(
+            policy._missing_required_abilities(
+                self._at(20, {"free_action", "resist_fire"}), 21
+            ),
+            frozenset({"resist_conf"}),
         )
 
     def test_shallow_floors_need_no_resistance(self):
@@ -20773,6 +24182,21 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "home:leave-with-dominated")
         self.assertEqual(key, LEAVE_STORE_KEY)
 
+    def test_new_home_transaction_reopens_a_completed_home_errand(self):
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_HOME] = 512000
+        policy._town_errand_plan = SimpleNamespace(stops=[STORE_HOME], index=1)
+        session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+        )
+
+        policy._set_equipment_transaction_session(session)
+
+        self.assertIs(policy._equipment_transaction_session, session)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertIsNone(policy._town_errand_plan)
+
 
 class TownCycleDetectorTest(unittest.TestCase):
     """User directive: auto-detect and repair town repetition loops as a CLASS.
@@ -20974,12 +24398,37 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(keys[2], WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:blocked:repetition")
 
-    def test_blocked_latch_outside_store_still_waits(self):
+    def test_blocked_latch_outside_store_owns_departure_route(self):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
-        self.assertEqual(pol._town_special_key(self._town_snap()), WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+        snap = self._town_snap()
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+        with patch.object(pol, "_descent_step", return_value=step):
+            self.assertEqual(pol._town_special_key(snap), "6")
+        self.assertEqual(pol.last_reason, "town:repetition-depart")
+
+    def test_blocked_repetition_enters_dungeon_at_departure_goal(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        position = Position(34, 94)
+        snap = replace(
+            self._town_snap(),
+            grids={
+                position: grid(
+                    position.y,
+                    position.x,
+                    entrance=True,
+                    entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+                )
+            },
+        )
+        with patch.object(pol, "_descent_is_blocked", return_value=False):
+            self.assertEqual(
+                pol._town_special_key(snap), policy_module.ENTER_DUNGEON_MACRO
+            )
+        self.assertEqual(pol.last_reason, "town:repetition-depart:enter")
 
     def test_nine_cell_resupply_carousel_hits_no_progress_limit(self):
         # Exact class of the live failure: unaffordable shopping approaches
@@ -21030,7 +24479,24 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertIn(STORE_ALCHEMIST, pol._town_store_attempted)
         self.assertIn(STORE_HOME, pol._town_store_attempted)
         self.assertTrue(pol._shopping_stuck)
-        self.assertIsNone(pol._town_blocked_reason)
+        self.assertEqual(pol._town_blocked_reason, "repetition")
+
+    def test_first_detection_owns_departure_on_the_following_turn(self):
+        # Live 01:00 replay: the first cycle break latched every shop but then
+        # generic navigation emitted 167 stuck:wander decisions. Once no
+        # shortage/fundraising owner remains, the entrance route must take over
+        # immediately after the visible cycle-break turn.
+        pol = HengbotPolicy()
+        pol._town_cycle_pending = True
+        snap = self._town_snap(gold=FUNDRAISING_START_GOLD)
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+
+        self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        with patch.object(pol, "_descent_step", return_value=step):
+            self.assertEqual(pol._town_special_key(snap), "6")
+
+        self.assertEqual(pol.last_reason, "town:repetition-depart")
+        self.assertEqual(pol._town_blocked_reason, "repetition")
 
     def test_pending_cycle_preempts_shopping_approach_in_decide(self):
         # The live carousel always had another shopping approach available.
@@ -21049,16 +24515,19 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:cycle-break")
         self.assertTrue(pol._town_restock_suppressed)
 
-    def test_second_detection_stops_visibly(self):
+    def test_second_detection_reapplies_repair_and_forces_departure(self):
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
         snap = self._town_snap()
         pol._town_special_key(snap)
         pol._town_cycle_pending = True
-        key = pol._town_special_key(snap)
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+        with patch.object(pol, "_descent_step", return_value=step):
+            key = pol._town_special_key(snap)
+        self.assertEqual(key, "6")
+        self.assertEqual(pol.last_reason, "town:repetition-depart")
         self.assertEqual(pol._town_blocked_reason, "repetition")
+        self.assertTrue(pol._town_restock_suppressed)
 
     def test_cycle_break_suppresses_restock_waits_for_the_visit(self):
         # Without this the retry path starts a fresh in-town wait, un-latches
@@ -21745,6 +25214,46 @@ class RangedAttackTest(unittest.TestCase):
             )
             self.assertEqual(policy.choose_key(progressing), "fs*t5\x1b")
 
+    def test_moving_target_without_hp_loss_does_not_reset_failure_guard(self):
+        base = self._snap(
+            monsters=[hostile(1, 11, 14, hp=20, max_hp=20, distance=4)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        attempts = []
+        for y in (11, 12, 11, 12):
+            moving = replace(
+                base,
+                visible_monsters=[
+                    replace(base.visible_monsters[0], position=Position(y, 14))
+                ],
+            )
+            attempts.append(policy.choose_key(moving))
+
+        self.assertEqual(attempts[:3], ["fs*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "fs*t5\x1b")
+
+    def test_changing_pack_indices_do_not_hide_failed_targeting_macro(self):
+        base = self._snap(
+            monsters=[hostile(1, 11, 14, hp=20, max_hp=20, distance=4)],
+            inventory=[self._shots(20)],
+            equipment=[self._sling()],
+        )
+        policy = HengbotPolicy()
+        attempts = []
+        for index in (1, 2, 3, 4):
+            changing_pack = replace(
+                base,
+                visible_monsters=[
+                    replace(base.visible_monsters[0], index=index)
+                ],
+            )
+            attempts.append(policy.choose_key(changing_pack))
+
+        self.assertEqual(attempts[:3], ["fs*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "fs*t5\x1b")
+
     def test_failed_offset_targeting_is_skipped_after_three_attempts(self):
         snap = self._snap(
             monsters=[hostile(1, 7, 2, distance=8)],
@@ -22320,6 +25829,45 @@ class ChestProcessingTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("chest:"))
         self.assertIn(chest_position, policy._processed_chest_positions)
 
+    def test_opened_chest_ignores_preexisting_nearby_quest_loot(self):
+        chest_position = Position(10, 10)
+        old_loot = Position(9, 10)
+        new_content = Position(11, 10)
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(7, 14) for x in range(7, 14)
+        }
+        grids[chest_position] = grid(
+            10, 10, objects=1, object_tvals=(TVAL_CHEST,)
+        )
+        grids[old_loot] = grid(
+            9, 10, objects=1, object_tvals=(TVAL_POTION,)
+        )
+        before = self._snap(grids=grids, player_pos=(10, 11))
+        policy = HengbotPolicy()
+        policy._floor_key = before.floor_key
+        policy._chest_position = chest_position
+        policy._chest_phase_counts = {
+            "search": CHEST_SEARCH_BUDGET,
+            "disarm": CHEST_DISARM_BUDGET,
+        }
+
+        self.assertEqual(policy.choose_key(before), "o4")
+
+        opened_grids = dict(grids)
+        opened_grids[new_content] = grid(
+            11, 10, objects=1, object_tvals=(TVAL_SCROLL,)
+        )
+        opened = replace(before, grids=opened_grids)
+        self.assertEqual(policy.choose_key(opened), "1")
+        self.assertEqual(policy.last_reason, "chest:collect-contents")
+
+        collected_grids = dict(opened_grids)
+        collected_grids[new_content] = grid(11, 10)
+        collected = replace(opened, grids=collected_grids)
+        self.assertIsNone(policy._chest_processing_key(collected, []))
+        self.assertIn(chest_position, policy._processed_chest_positions)
+
     def test_opened_chest_picks_up_contents_when_standing_on_them(self):
         chest_position = Position(10, 10)
         content_position = Position(9, 10)
@@ -22837,6 +26385,53 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
             torch_id, prepare.call_args.kwargs["search_excluded_item_ids"]
         )
 
+    def test_owned_quest_launcher_excludes_incompatible_equipped_launcher(self):
+        from unittest import mock
+
+        sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING, name="sling", is_equipment=True
+        )
+        crossbow = item(
+            "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="light crossbow", is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[crossbow],
+            equipment=[sling],
+        )
+        pol = HengbotPolicy()
+        pol._equipment_catalog.refresh_carried(snap.inventory, snap.equipment)
+        pol._equipment_catalog.observe_home_page(
+            [
+                store_item(
+                    "b", TVAL_BOW, SV_BOW_SHORT,
+                    name="home short bow", is_equipment=True,
+                )
+            ]
+        )
+        strategy = SimpleNamespace(
+            required_force={"launcher": {"ammo": "bolt", "equipped": True}}
+        )
+        with mock.patch.object(
+            pol, "_carry_procurement_strategy", return_value=strategy
+        ), mock.patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            return_value=mock.Mock(ready=False),
+        ) as prepare:
+            pol._prepare_equipment_optimization(snap)
+
+        ids = {
+            owned.item.name: owned.id for owned in pol._equipment_catalog.items
+        }
+        excluded = prepare.call_args.kwargs["search_excluded_item_ids"]
+        self.assertIn(ids["sling"], excluded)
+        self.assertIn(ids["home short bow"], excluded)
+        self.assertNotIn(ids["light crossbow"], excluded)
+
 
 class ResistanceGapReturnTest(unittest.TestCase):
     """_is_descent_target only ever gates the NEXT floor (dungeon_level + 1); nothing
@@ -23263,6 +26858,40 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
         self.assertIsNone(pol._fundraising_mode)  # mining abandoned
 
+    def test_cursed_main_weapon_rejects_digger_wield_immediately(self):
+        snap = Snapshot(
+            player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
+            {Position(12, 126): grid(12, 126), Position(13, 126): grid(13, 126)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            inventory=[
+                item("t", TVAL_SCROLL, 9, count=3),
+                item("j", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[
+                item("g", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True),
+                item(
+                    "main_hand",
+                    21,
+                    5,
+                    is_equipment=True,
+                    is_cursed=True,
+                    name="Cursed Mace",
+                ),
+                item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
+            ],
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._mining_scroll_used_floor = snap.floor_key
+
+        self.assertIsNone(
+            pol._wield_digging_tool_key(
+                snap, "fundraise:wield-digging-tool"
+            )
+        )
+        self.assertEqual(pol._digger_wield_attempts, 0)
+
 
 class DeepKitTest(unittest.TestCase):
     """10F+ departure kit and teleport-return strategy: carry 15 teleport scrolls
@@ -23491,6 +27120,104 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._retention_reservation(snap, torches), 0)
         self.assertEqual(policy._find_home_deposit(snap), torches)
         self.assertEqual(policy._home_deposit_key(snap, torches), "dj10\r")
+
+    def test_matching_ammo_is_limited_to_two_dense_pack_stacks(self):
+        sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING,
+            name="Sling", is_equipment=True,
+        )
+        shots = [
+            item("m", TVAL_SHOT, 1, count=14, name="plain shots"),
+            item("n", TVAL_SHOT, 1, count=51, to_h=2, to_d=4, name="bulk shots"),
+            item("o", TVAL_SHOT, 1, count=3, to_h=5, to_d=3, name="shots +5,+3"),
+            item("p", TVAL_SHOT, 1, count=3, to_h=5, to_d=5, name="shots +5,+5"),
+            item("q", TVAL_SHOT, 1, count=6, to_h=5, to_d=6, name="shots +5,+6"),
+            item("r", TVAL_SHOT, 1, count=6, to_h=4, to_d=2, name="slaying shots"),
+        ]
+        snap = self._town(
+            shots, equipment=[sling], store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            [policy._retention_reservation(snap, shot) for shot in shots],
+            [14, 51, 0, 0, 0, 0],
+        )
+        self.assertEqual(policy._find_home_deposit(snap), shots[2])
+        self.assertEqual(policy._home_deposit_key(snap, shots[2]), "do3\r")
+
+    def test_quest_ammo_target_does_not_reopen_a_third_pack_slot(self):
+        sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING,
+            name="Sling", is_equipment=True,
+        )
+        shots = [
+            item("m", TVAL_SHOT, 1, count=70, name="shots A"),
+            item("n", TVAL_SHOT, 1, count=50, name="shots B"),
+            item("o", TVAL_SHOT, 1, count=30, to_d=9, name="shots C"),
+        ]
+        snap = self._town(shots, equipment=[sling])
+        policy = HengbotPolicy()
+        force = {
+            "launcher": {"ammo": "equipped", "equipped": True},
+            "throwing_items": {"launcher_ammo": 99},
+        }
+        profile = SimpleNamespace(required_force=force)
+
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            self.assertEqual(
+                [policy._retention_reservation(snap, shot) for shot in shots],
+                [70, 29, 0],
+            )
+
+    def test_inferior_crossbow_system_is_deposited_when_sling_is_selected(self):
+        sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING, name="artifact sling",
+            is_equipment=True, is_artifact=True, to_h=11, to_d=14,
+        )
+        crossbow = item(
+            "c", TVAL_BOW, SV_BOW_LIGHT_XBOW, name="light crossbow",
+            is_equipment=True, to_h=4, to_d=8,
+        )
+        bolts = item("b", TVAL_BOLT, 0, count=99, name="bolts")
+        shots = item("s", TVAL_SHOT, 1, count=15, name="iron shots")
+        policy = HengbotPolicy()
+        snap = self._town(
+            [crossbow, bolts, shots], equipment=[sling],
+            store=StoreState(STORE_HOME, []),
+        )
+
+        self.assertEqual(policy._retention_reservation(snap, crossbow), 0)
+        self.assertEqual(policy._retention_reservation(snap, bolts), 0)
+        self.assertEqual(policy._retention_reservation(snap, shots), 15)
+        self.assertEqual(policy._find_home_deposit(snap), crossbow)
+
+        without_crossbow = replace(snap, inventory=[bolts, shots])
+        self.assertEqual(policy._find_home_deposit(without_crossbow), bolts)
+        self.assertEqual(policy._home_deposit_key(without_crossbow, bolts), "db99\r")
+
+    def test_q2_uses_selected_sling_and_does_not_reserve_crossbow_bolts(self):
+        sling = item(
+            "bow", TVAL_BOW, SV_BOW_SLING, name="artifact sling",
+            is_equipment=True, is_artifact=True, to_h=11, to_d=14,
+        )
+        shots = item("s", TVAL_SHOT, 1, count=45, name="iron shots")
+        bolts = item("b", TVAL_BOLT, 0, count=99, name="bolts")
+        snap = self._town([shots, bolts], equipment=[sling])
+        policy = HengbotPolicy()
+        force = {
+            "launcher": {"ammo": "equipped", "equipped": True},
+            "throwing_items": {"launcher_ammo": 45},
+        }
+
+        status = policy._quest_carry_status(snap, force)
+
+        self.assertTrue(status["launcher"]["ready"])
+        self.assertTrue(status["throwing_items.launcher_ammo"]["ready"])
+        profile = SimpleNamespace(required_force=force)
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            self.assertEqual(policy._retention_reservation(snap, shots), 45)
+            self.assertEqual(policy._retention_reservation(snap, bolts), 0)
 
     def test_same_visit_purchase_guard_clears_on_floor_change(self):
         detection = item(
@@ -23911,6 +27638,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
     def test_pending_fixed_quest_does_not_replace_dungeon_objective_depth(self):
         policy = HengbotPolicy()
         policy._deepest_level = 20
+        policy._target_dungeon_id = DUNGEON_ANGBAND
         policy._target_dungeon_id = DUNGEON_YEEK_CAVE
         policy._conquest_committed = DUNGEON_YEEK_CAVE
         policy._dungeon_knowledge[DUNGEON_YEEK_CAVE] = SimpleNamespace(
@@ -23981,39 +27709,89 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ):
             self.assertIsNone(policy._terminal_equipment_blocker(snapshot))
 
-    def test_no_valid_21f_loadout_switches_to_best_shallower_dungeon(self):
+    def test_no_valid_21f_loadout_equips_owned_20f_kit_and_keeps_angband(self):
         policy = HengbotPolicy()
         policy._deepest_level = 20
+        policy._target_dungeon_id = DUNGEON_ANGBAND
         policy._dungeon_knowledge[7] = SimpleNamespace(min_depth=15)
         snapshot = replace(
             self._town(),
             player=replace(
                 self._town().player,
-                abilities=frozenset({"resist_conf", "resist_fire"}),
+                abilities=frozenset({"free_action", "resist_conf", "resist_fire"}),
             ),
         )
-        preparation = SimpleNamespace(blockers=("no-valid-loadout",))
+        invalid = SimpleNamespace(
+            blockers=("no-valid-loadout",),
+            result=SimpleNamespace(best=None),
+        )
+        valid_20f = SimpleNamespace(
+            blockers=(),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
+        )
+
+        def prepare(_snapshot, *, depth_override=None):
+            return valid_20f if depth_override == 20 else invalid
 
         with patch.object(
             policy, "_carry_procurement_strategy", return_value=None
         ), patch.object(
-            policy, "_prepare_equipment_optimization", return_value=preparation
+            policy, "_prepare_equipment_optimization", side_effect=prepare
         ), patch.object(
             policy, "_next_required_store_type", return_value=None
         ), patch.object(
             policy, "_pick_alternate_dungeon", return_value=7
         ) as picker:
-            self.assertEqual(policy._activate_loadout_depth_fallback(snapshot), 7)
-            self.assertEqual(policy._equipment_optimization_depth(snapshot), 15)
+            self.assertEqual(
+                policy._activate_loadout_depth_fallback(snapshot), DUNGEON_ANGBAND
+            )
+            self.assertEqual(policy._equipment_optimization_depth(snapshot), 20)
 
-        picker.assert_called_once_with(
-            snapshot,
-            max_entry_depth=20,
-            prefer_deepest=True,
-            allow_yeek_cave=True,
+        picker.assert_not_called()
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+        self.assertIsNone(policy._alternate_dungeon)
+        self.assertIs(policy._equipment_optimization_preparation, valid_20f)
+
+    def test_no_valid_20f_loadout_equips_owned_19f_kit_and_keeps_angband(self):
+        """The first resistance gate must be able to fall back below 20F."""
+        policy = HengbotPolicy()
+        policy._deepest_level = 19
+        policy._target_dungeon_id = DUNGEON_ANGBAND
+        snapshot = replace(
+            self._town(),
+            recall_depth=19,
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            dungeon_recall_depths={DUNGEON_ANGBAND: 19},
         )
-        self.assertEqual(policy._target_dungeon_id, 7)
-        self.assertEqual(policy._alternate_dungeon, 7)
+        invalid = SimpleNamespace(
+            blockers=("no-valid-loadout",),
+            result=SimpleNamespace(best=None),
+        )
+        valid_19f = SimpleNamespace(
+            blockers=(),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
+        )
+
+        def prepare(_snapshot, *, depth_override=None):
+            return valid_19f if depth_override == 19 else invalid
+
+        with patch.object(
+            policy, "_carry_procurement_strategy", return_value=None
+        ), patch.object(
+            policy, "_prepare_equipment_optimization", side_effect=prepare
+        ), patch.object(
+            policy, "_next_required_store_type", return_value=None
+        ), patch.object(
+            policy, "_pick_alternate_dungeon"
+        ) as picker:
+            self.assertEqual(
+                policy._activate_loadout_depth_fallback(snapshot), DUNGEON_ANGBAND
+            )
+
+        picker.assert_not_called()
+        self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
+        self.assertEqual(policy._loadout_depth_fallback_depth, 19)
+        self.assertIs(policy._equipment_optimization_preparation, valid_19f)
 
     def test_pending_quest_procurement_does_not_create_dungeon_fallback(self):
         policy = HengbotPolicy()
@@ -24062,6 +27840,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
     def test_timed_out_21f_loadout_switches_to_shallower_dungeon(self):
         policy = HengbotPolicy()
         policy._deepest_level = 23
+        policy._target_dungeon_id = DUNGEON_ANGBAND
         policy._dungeon_knowledge[4] = SimpleNamespace(
             id=4, min_depth=10, min_player_level=1
         )
@@ -24070,23 +27849,34 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             entered_dungeon_ids=(DUNGEON_ANGBAND, 3, 4),
             dungeon_recall_depths={DUNGEON_ANGBAND: 31, 3: 23, 4: 18},
         )
-        preparation = SimpleNamespace(blockers=("optimization-timeout",))
+        timed_out = SimpleNamespace(
+            blockers=("optimization-timeout",),
+            result=SimpleNamespace(best=None),
+        )
+        valid_19f = SimpleNamespace(
+            blockers=(),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
+        )
+
+        def prepare(_snapshot, *, depth_override=None):
+            return valid_19f if depth_override == 19 else timed_out
 
         with patch.object(
             policy, "_carry_procurement_strategy", return_value=None
         ), patch.object(
-            policy, "_prepare_equipment_optimization", return_value=preparation
+            policy, "_prepare_equipment_optimization", side_effect=prepare
         ), patch.object(
             policy, "_next_required_store_type", return_value=None
         ):
             self.assertEqual(policy._activate_loadout_depth_fallback(snapshot), 4)
             self.assertIsNone(policy._activate_loadout_depth_fallback(snapshot))
 
-        self.assertEqual(policy._equipment_optimization_depth(snapshot), 18)
+        self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
 
     def test_cancels_deep_recall_when_timeout_activates_shallow_fallback(self):
         policy = HengbotPolicy()
         policy._deepest_level = 23
+        policy._target_dungeon_id = DUNGEON_ANGBAND
         policy._dungeon_knowledge[4] = SimpleNamespace(
             id=4, min_depth=10, min_player_level=1
         )
@@ -24103,12 +27893,22 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             entered_dungeon_ids=(DUNGEON_ANGBAND, 3, 4),
             dungeon_recall_depths={DUNGEON_ANGBAND: 31, 3: 23, 4: 18},
         )
-        preparation = SimpleNamespace(blockers=("optimization-timeout",))
+        timed_out = SimpleNamespace(
+            blockers=("optimization-timeout",),
+            result=SimpleNamespace(best=None),
+        )
+        valid_19f = SimpleNamespace(
+            blockers=(),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
+        )
+
+        def prepare(_snapshot, *, depth_override=None):
+            return valid_19f if depth_override == 19 else timed_out
 
         with patch.object(
             policy, "_carry_procurement_strategy", return_value=None
         ), patch.object(
-            policy, "_prepare_equipment_optimization", return_value=preparation
+            policy, "_prepare_equipment_optimization", side_effect=prepare
         ), patch.object(
             policy, "_next_required_store_type", return_value=None
         ):
@@ -24308,7 +28108,7 @@ class DungeonConquestTest(unittest.TestCase):
         )
 
     ALL_2530 = frozenset(
-        {"resist_conf", "resist_fire", "resist_pois", "resist_cold",
+        {"free_action", "resist_conf", "resist_fire", "resist_pois", "resist_cold",
          "resist_elec", "resist_acid"}
     )
 
@@ -24421,14 +28221,18 @@ class DungeonConquestTest(unittest.TestCase):
             ],
         )
 
-    def test_resistance_limit_without_confusion_stops_below_20(self):
+    def test_resistance_limit_without_free_action_stops_below_20(self):
         self.assertEqual(self._policy()._resistance_depth_limit(self._snap({"resist_fire"})), 19)
 
     def test_resistance_limit_covers_the_bands_the_char_can_pass(self):
-        # conf+fire (20-25F) but nothing for 26-30F -> limit 25.
+        # Free action + confusion + fire cover 20-25F, but nothing covers
+        # 26-30F, so the limit is 25.
         pol = self._policy()
         self.assertEqual(
-            pol._resistance_depth_limit(self._snap({"resist_conf", "resist_fire"})), 25
+            pol._resistance_depth_limit(
+                self._snap({"free_action", "resist_conf", "resist_fire"})
+            ),
+            25,
         )
 
     def test_targets_deepest_conquerable_unconquered_dungeon(self):
@@ -24885,6 +28689,80 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._town_store_attempted.pop(STORE_ALCHEMIST)
         self.assertEqual(policy._next_required_store_type(replace(snapshot, turn=200)), STORE_ALCHEMIST)
 
+    def test_latched_home_rearms_once_for_invalidated_catalog_scan(self):
+        # Live 2026-07-23 sequence: a Home deposit invalidated the page scan,
+        # unavailable full identification exhausted the Home stop, and deferring
+        # that item still left Home latched.  The mandatory rescan was skipped and
+        # town fell through to stuck:wander with departure permanently blocked.
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._equipment_catalog.home_scan_complete = False
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(
+            policy._town_errand_plan.rearmed_home_categories,
+            ["equipment-catalog"],
+        )
+
+        # A failed rescan remains bounded by the normal visit latch instead of
+        # opening a new Home carousel.
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        self.assertEqual(policy._town_errand_plan.skipped_latched, [STORE_HOME])
+
+    def test_latched_home_rearms_for_new_deposit_after_earlier_home_pass(self):
+        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(
+            policy._town_errand_plan.rearmed_home_categories,
+            ["deposit"],
+        )
+
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+
+    def test_new_home_deposit_rebuilds_plan_after_later_shop_finishes(self):
+        # Live 2026-07-24 sequence: Home completed, Black Market then bought a
+        # surplus speed potion, and the resulting deposit could not supersede
+        # the exhausted plan's completed/attempted Home latch.
+        active = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(active)
+        snapshot = self._snapshot()
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
+        active[:] = [TownNeed(STORE_BLACK, "black-market", "normal")]
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_BLACK)
+        policy._report_town_stop_pass(snapshot, STORE_BLACK, goal_satisfied=True)
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        active[:] = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
+
+    def test_new_home_work_does_not_rearm_a_blocked_home(self):
+        active = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(active)
+        snapshot = self._snapshot()
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            index=1,
+            blocked_this_visit=[STORE_HOME],
+        )
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+
     def test_mid_visit_need_is_inserted_after_current_stop(self):
         active = [TownNeed(STORE_GENERAL, "oil", "normal")]
         policy = self._policy(active)
@@ -24919,6 +28797,75 @@ class TownErrandPlanTest(unittest.TestCase):
             set(policy._town_errand_plan.stops),
             {STORE_GENERAL, STORE_MAGIC},
         )
+
+    def test_full_identification_purchase_rearms_post_alchemist_home(self):
+        # Live 2026-07-23 sequence: Home was completed while discovering a
+        # partly-known item, Alchemist then supplied *Identify*, but the shared
+        # completed/attempted Home latch discarded the required withdrawal pass
+        # and town fell through to stuck:wander.
+        active = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(active)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        active[:] = [
+            TownNeed(
+                STORE_ALCHEMIST,
+                "identification-source",
+                "before-withdrawal",
+            )
+        ]
+        self.assertEqual(
+            policy._next_required_store_type(snapshot), STORE_ALCHEMIST
+        )
+        policy._report_town_stop_pass(
+            snapshot, STORE_ALCHEMIST, goal_satisfied=True
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+
+        active[:] = [
+            TownNeed(
+                STORE_HOME,
+                "identification-withdrawal",
+                "post-alchemist-home",
+            )
+        ]
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
+
+    def test_upfront_second_home_stop_ignores_only_first_home_latch(self):
+        active = [
+            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(
+                STORE_ALCHEMIST,
+                "identification-source",
+                "before-withdrawal",
+            ),
+            TownNeed(
+                STORE_HOME,
+                "identification-withdrawal",
+                "post-alchemist-home",
+            ),
+        ]
+        policy = self._policy(active)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        self.assertEqual(
+            policy._next_required_store_type(snapshot), STORE_ALCHEMIST
+        )
+        policy._report_town_stop_pass(
+            snapshot, STORE_ALCHEMIST, goal_satisfied=True
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 
     def test_mid_visit_mandatory_need_is_inserted_before_optional_stop(self):
         active = [
@@ -25018,6 +28965,89 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
+
+    def test_non_home_leave_blocks_reopened_out_of_stock_stop(self):
+        # Regression for the 2026-07-23 Alchemist loop.  A pending *Identify*
+        # request re-opened the attempted latch after every empty visit, while
+        # the errand plan remained pinned at the same stop forever.
+        needs = [TownNeed(STORE_ALCHEMIST, "identification-source", "normal")]
+        policy = self._policy(needs)
+        town = self._snapshot()
+        shop = replace(
+            town,
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[]),
+        )
+        self.assertEqual(
+            policy._next_required_store_type(town), STORE_ALCHEMIST
+        )
+
+        for _ in range(TOWN_STOP_PASS_LIMIT):
+            self.assertEqual(policy.choose_key(shop), LEAVE_STORE_KEY)
+            # Model the identification owner re-opening the normal visit latch.
+            policy._town_store_attempted.pop(STORE_ALCHEMIST, None)
+
+        self.assertEqual(
+            policy._town_errand_plan.blocked_this_visit, [STORE_ALCHEMIST]
+        )
+        self.assertIsNone(policy._next_required_store_type(town))
+
+    def test_terminal_router_honors_completed_identification_stop(self):
+        # The errand plan can finish while a full-identification request remains
+        # (fundraising needs intentionally own the plan).  The terminal router
+        # must not ignore that completed Alchemist visit and reacquire it.
+        policy = HengbotPolicy()
+        town = self._snapshot()
+        policy._identification_need = "full"
+        policy._identification_candidate = ("ego blade", 23, 4)
+        policy._home_candidate_waiting = False
+        policy._fundraising_mode = "prepare"
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_ALCHEMIST],
+            index=1,
+            completed_this_visit=[STORE_ALCHEMIST],
+        )
+
+        self.assertNotEqual(
+            policy._legacy_town_router_terminal(town), STORE_ALCHEMIST
+        )
+
+    def test_terminal_result_cannot_reacquire_any_completed_plan_stop(self):
+        # The live recurrence came through a supply branch rather than the
+        # identification branch.  Gate the terminal result centrally so the
+        # specific owner returning the same store cannot bypass plan state.
+        policy = self._policy([])
+        town = self._snapshot()
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_ALCHEMIST],
+            index=1,
+            completed_this_visit=[STORE_ALCHEMIST],
+        )
+        policy._legacy_town_router_terminal = lambda snapshot: STORE_ALCHEMIST
+
+        self.assertIsNone(policy._next_required_store_type(town))
+        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+    def test_completed_identification_stop_allows_one_restock_recheck(self):
+        # A full-identification candidate must wait for Alchemist turnover when
+        # *Identify* is out of stock.  The completed-plan guard must suppress
+        # ordinary reacquisition without also swallowing the one store visit
+        # explicitly re-armed by the restock timer.
+        policy = self._policy([])
+        town = self._snapshot(turn=2000)
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_ALCHEMIST],
+            index=1,
+            completed_this_visit=[STORE_ALCHEMIST],
+        )
+        policy._town_restock_rechecked.add(STORE_ALCHEMIST)
+        policy._legacy_town_router_terminal = lambda snapshot: STORE_ALCHEMIST
+
+        self.assertEqual(
+            policy._next_required_store_type(town), STORE_ALCHEMIST
+        )
+
+        policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
+        self.assertIsNone(policy._next_required_store_type(town))
 
     def test_logged_single_page_home_episode_advances_within_two_decisions(self):
         needs = [

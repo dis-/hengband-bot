@@ -71,6 +71,11 @@ PLAYER_ABILITY_FLAGS = {
 }
 
 REPRESENTATIVE_CATALOG_THRESHOLD = 48
+# Catalog size alone has a sharp blind spot: the live 40-item catalog at 18F
+# evaluated every loadout against 403 monsters and hit the 25-second timeout
+# after 12,288 loadouts.  Keep the existing terminal-scale guards, but also
+# bound the item/encounter workload before combinatorial loadout expansion.
+REPRESENTATIVE_EVALUATION_WORKLOAD_THRESHOLD = 12_000
 FREE_ACTION_PRESERVE_DEPTH = 10
 TR_FREE_ACT = 46
 
@@ -84,6 +89,8 @@ def optimization_encounters(
     if (
         len(encounters) > 512
         or catalog_size >= REPRESENTATIVE_CATALOG_THRESHOLD
+        or catalog_size * len(encounters)
+        >= REPRESENTATIVE_EVALUATION_WORKLOAD_THRESHOLD
     ):
         return representative_encounters(encounters)
     return encounters

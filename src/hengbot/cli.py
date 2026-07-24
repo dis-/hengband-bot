@@ -67,11 +67,10 @@ def _arm_decision_watchdog() -> None:
         file=sys.stderr,
     )
 # Measured Release-build serialization is ~250 ms even for a 4.5 MB town
-# snapshot (the old "nine seconds" note was Debug-era queue congestion, not
-# emitter cost). The grace now exists for the QUIET periods the game
-# legitimately spends outside the command loop with no snapshot: multi-turn
-# travel legs and store transitions. Prompt recovery must not enqueue Escapes
-# during those.
+# snapshot. This long grace is reserved for native travel, which legitimately
+# runs many turns without a snapshot. Ordinary shop commands must fall back to
+# the configured stall timeout; giving every rejected Home/store command twelve
+# quiet seconds made a single stale slot look like a very long deliberate wait.
 COMMAND_RESPONSE_GRACE = 12.0
 
 # When the character dies, the game leaves the command loop for the tombstone /
@@ -103,7 +102,10 @@ LEVEL_UP_RECOVERY_START = 2
 # same-key livelock guard never trips). Rather than flail forever, STOP the bot
 # so the situation can be investigated from the preserved game state.
 LOOP_WINDOW = 40
-LOOP_MAX_DISTINCT = 4
+# A live random-quest exploration failure cycled through six cells for more
+# than 130 decisions.  Four cells was too narrow to recognize that confined
+# hexagonal route as the same class of non-progress loop.
+LOOP_MAX_DISTINCT = 6
 # Multipliers repeatedly appear and disappear between melee turns as their pack
 # shifts around the player. Give that productive fight longer to resolve, while
 # retaining a finite guard for a genuinely unwinnable engagement.
@@ -134,15 +136,23 @@ def _advance_starving_streak(
 # A genuinely rejected move still needs retries so the policy can break out;
 # throttle exact duplicates instead of dropping them forever.
 DUPLICATE_RETRY_SECONDS = 2.0
-# Town snapshots can advance their turn/message state before a posted movement
-# key is consumed.  A second chest movement then overshoots the adjacent work
-# square (live Q34 alternated 35,119 -> 33,117 -> 35,119).  Hold only chest
-# navigation until its position change is visible; combat remains unthrottled.
+# Snapshots can advance their turn/message state before a posted movement key is
+# consumed.  Sending the next route correction then leaves one direction queued;
+# live failures overshot a Q34 chest and orbited six cells around fundraising loot.
+# Hold deterministic chest/loot navigation until its position change is visible;
+# combat remains unthrottled because an attack legitimately holds position.
 CHEST_MOVE_RESPONSE_SECONDS = 2.0
 CHEST_MOVEMENT_REASONS = frozenset(
     {"chest:step-off", "chest:approach", "chest:collect-contents"}
 )
 DIRECTION_KEYS = frozenset("12346789")
+
+
+def _movement_command_needs_ack(key: str, reason: str) -> bool:
+    """Throttle only direction commands whose success must move the player."""
+    return key in DIRECTION_KEYS and (
+        reason in CHEST_MOVEMENT_REASONS or reason.endswith("seek-loot")
+    )
 # A command that repeatedly returns the same turn, player state, inventory, and
 # equipment consumed no energy and made no useful progress. This catches invalid
 # digs and other rejected commands even when their reason is exempt from the
@@ -178,9 +188,11 @@ TUNNEL_PROMPT_DELAY_SECONDS = 2.0
 # The bot character's pref binds these otherwise-unused control characters to complete
 # tunnelling commands. A single WM_CHAR then lets Hengband's own macro queue
 # supply both ``T`` and the direction without racing the direction prompt.
-BOT_PLAY_MACRO_PREF_MARKER = "HENGBOT_INPUT_MACROS_V2"
+BOT_PLAY_MACRO_PREF_MARKER = "HENGBOT_INPUT_MACROS_V3"
 TUNNEL_MACRO_TRIGGERS = {
-    "1": "\x01",
+    # Ctrl+A is Hengband's built-in repeat-command control.  Use the otherwise
+    # unused Ctrl+Y for southwest tunnelling so it expands atomically too.
+    "1": "\x19",
     "2": "\x02",
     "3": "\x03",
     "4": "\x04",
@@ -190,7 +202,7 @@ TUNNEL_MACRO_TRIGGERS = {
     "9": "\x08",
 }
 TUNNEL_MACRO_PREF_TRIGGERS = {
-    "1": "^A",
+    "1": "^Y",
     "2": "^B",
     "3": "^C",
     "4": "^D",
@@ -235,7 +247,13 @@ STATIONARY_REASONS = frozenset(
     {
         "search",
         "melee",
+        # Walking returns may need SEARCH_LIMIT stationary searches at each
+        # candidate wall before moving to the next one.  The policy bounds that
+        # work with _wall_search_counts; feeding these deliberate holds to the
+        # 40-cell watchdog produces a false loop at five walls (5 * 8).
+        "return:search-upstairs",
         "return:wait-recall",
+        "fundraise:wait-recall",
         "town:wait-recall",
         "town:wait-restock",
         "wilderness:wait-recall",
@@ -443,6 +461,13 @@ def _intentional_action_wait_category(key: str, reason: str) -> str | None:
     return None
 
 
+def _command_response_grace(key: str, reason: str) -> float:
+    """Extra snapshot silence allowed only for genuinely multi-turn commands."""
+    if key in TRAVEL_MACRO_TRIGGERS:
+        return COMMAND_RESPONSE_GRACE
+    return 0.0
+
+
 def _bot_play_macro_pref_path(monrace_path: Path) -> Path | None:
     """Find bot-test.prf beside the lib tree used by the running game.
 
@@ -505,13 +530,6 @@ def _bot_play_macros_ready(
 def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
     if tunnel_macros_ready and key in TRAVEL_MACRO_TRIGGERS:
         return TRAVEL_MACRO_TRIGGERS[key]
-    # Ctrl+A is Hengband's built-in repeat-command control in the live Windows
-    # build.  It can win before the pref macro that maps it to ``T1``, leaving
-    # the game on the same turn while the bot repeats the southwest dig forever.
-    # Keep direction 1 on the paced two-key fallback; the other control triggers
-    # are verified to expand as one-character macros.
-    if tunnel_macros_ready and key == "T1":
-        return key
     if tunnel_macros_ready and len(key) == 2 and key[0] == "T":
         return TUNNEL_MACRO_TRIGGERS.get(key[1], key)
     return key
@@ -870,18 +888,41 @@ def _duplicate_snapshot_ready(
     return line != previous_line or elapsed >= DUPLICATE_RETRY_SECONDS
 
 
+def _movement_destination(position, key: str):
+    """Return the exact adjacent cell requested by a direction command."""
+    offsets = {
+        "1": (1, -1),
+        "2": (1, 0),
+        "3": (1, 1),
+        "4": (0, -1),
+        "6": (0, 1),
+        "7": (-1, -1),
+        "8": (-1, 0),
+        "9": (-1, 1),
+    }
+    dy, dx = offsets[key]
+    return type(position)(position.y + dy, position.x + dx)
+
+
 def _chest_movement_response_pending(
-    pending: tuple[tuple[int, int, int], object, float] | None,
+    pending: tuple[tuple[int, int, int], object, object, float] | None,
     snapshot,
     now: float,
 ) -> bool:
-    """Wait for an acknowledged chest move instead of queueing a duplicate."""
+    """Wait until the requested destination, not merely another cell, is seen.
+
+    A bot restart can inherit one already-posted direction from the previous
+    process.  That stale direction may move the character after the new process
+    sends its first route step.  Treating any position change as acknowledgement
+    leaves every subsequent key one command behind and makes the character orbit
+    a chest or floor item forever.
+    """
     if pending is None:
         return False
-    floor_key, position, sent_at = pending
+    floor_key, _origin, destination, sent_at = pending
     return (
         snapshot.floor_key == floor_key
-        and snapshot.player.position == position
+        and snapshot.player.position != destination
         and now - sent_at < CHEST_MOVE_RESPONSE_SECONDS
     )
 
@@ -1190,7 +1231,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
             initial_snapshot.floor_key if initial_snapshot is not None else None
         )
         last_command_signature: tuple | None = None
-        pending_chest_movement: tuple[tuple[int, int, int], object, float] | None = None
+        pending_chest_movement: tuple[
+            tuple[int, int, int], object, object, float
+        ] | None = None
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
             _arm_decision_watchdog()
@@ -1388,12 +1431,12 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_activity = time.monotonic()
                     if (
                         sent
-                        and policy.last_reason in CHEST_MOVEMENT_REASONS
-                        and key in DIRECTION_KEYS
+                        and _movement_command_needs_ack(key, policy.last_reason)
                     ):
                         pending_chest_movement = (
                             snapshot.floor_key,
                             snapshot.player.position,
+                            _movement_destination(snapshot.player.position, key),
                             last_activity,
                         )
                     action_wait_category = _intentional_action_wait_category(
@@ -1401,7 +1444,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     )
                     if sent and action_wait_category is not None:
                         pending_action_wait = (action_wait_category, last_activity)
-                    quiet_ok_until = last_activity + COMMAND_RESPONSE_GRACE
+                    quiet_ok_until = last_activity + _command_response_grace(
+                        key, policy.last_reason
+                    )
                     # A rest runs many turns emitting no snapshot; give it room so
                     # the stall nudge does not immediately disturb it.
                     if key.startswith("R"):

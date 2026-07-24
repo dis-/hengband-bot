@@ -28,6 +28,7 @@ from hengbot.cli import (
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
+    _command_response_grace,
     _uses_multiplier_combat_grace,
     _delay_after_macro_key,
     _delay_spec_after_macro_key,
@@ -35,6 +36,7 @@ from hengbot.cli import (
     _decision_record,
     _duplicate_snapshot_ready,
     _chest_movement_response_pending,
+    _movement_command_needs_ack,
     _fundraising_state,
     _floor_transition_needs_prompt_clear,
     _deduplicate_consecutive,
@@ -801,7 +803,7 @@ class ChestMovementAcknowledgementTest(unittest.TestCase):
 
     def test_holds_duplicate_move_while_position_is_unchanged(self):
         position = Position(35, 119)
-        pending = ((0, 0, 0), position, 10.0)
+        pending = ((0, 0, 0), position, Position(35, 118), 10.0)
 
         self.assertTrue(
             _chest_movement_response_pending(
@@ -817,13 +819,40 @@ class ChestMovementAcknowledgementTest(unittest.TestCase):
         )
 
     def test_position_change_acknowledges_move_immediately(self):
-        pending = ((0, 0, 0), Position(35, 119), 10.0)
+        pending = (
+            (0, 0, 0),
+            Position(35, 119),
+            Position(34, 118),
+            10.0,
+        )
 
         self.assertFalse(
             _chest_movement_response_pending(
                 pending, self._snapshot(Position(34, 118)), 10.1
             )
         )
+
+    def test_unrelated_stale_move_does_not_acknowledge_current_command(self):
+        pending = (
+            (0, 0, 0),
+            Position(35, 119),
+            Position(35, 118),
+            10.0,
+        )
+
+        self.assertTrue(
+            _chest_movement_response_pending(
+                pending, self._snapshot(Position(34, 119)), 10.1
+            )
+        )
+
+    def test_fundraising_loot_move_waits_for_position_acknowledgement(self):
+        self.assertTrue(
+            _movement_command_needs_ack("4", "fundraise:seek-loot")
+        )
+
+    def test_melee_direction_does_not_wait_for_position_change(self):
+        self.assertFalse(_movement_command_needs_ack("4", "melee"))
 
 
 class LoopDetectionTest(unittest.TestCase):
@@ -836,6 +865,20 @@ class LoopDetectionTest(unittest.TestCase):
         cells = deque(maxlen=LOOP_WINDOW)
         for i in range(LOOP_WINDOW):
             cells.append((self.FLOOR, 15, 43) if i % 2 else (self.FLOOR, 16, 42))
+        self.assertTrue(_is_looping(cells))
+
+    def test_flags_live_six_cell_random_quest_cycle(self):
+        from collections import deque
+
+        cycle = (
+            (3, 26), (4, 26), (3, 27),
+            (4, 28), (5, 28), (5, 27),
+        )
+        cells = deque(maxlen=LOOP_WINDOW)
+        for i in range(LOOP_WINDOW):
+            y, x = cycle[i % len(cycle)]
+            cells.append((self.FLOOR, y, x))
+
         self.assertTrue(_is_looping(cells))
 
     def test_ignores_a_healthy_sweep(self):
@@ -944,9 +987,17 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertTrue(_floor_transition_needs_prompt_clear(town, yeek_one))
         self.assertTrue(_floor_transition_needs_prompt_clear(yeek_one, town))
 
-    def test_command_response_grace_covers_live_snapshot_serialization(self):
+    def test_command_response_grace_is_reserved_for_native_travel(self):
         self.assertGreater(COMMAND_RESPONSE_GRACE, 9.0)
         self.assertLess(COMMAND_RESPONSE_GRACE, REST_STALL_GRACE)
+        self.assertEqual(
+            _command_response_grace("\x1b`n!.", "shop:travel"),
+            COMMAND_RESPONSE_GRACE,
+        )
+        self.assertEqual(_command_response_grace("dj\r", "home:deposit"), 0.0)
+        self.assertEqual(
+            _command_response_grace(" ", "home:seek-processing-page"), 0.0
+        )
 
     def test_partial_snapshot_bytes_refresh_emitter_activity(self):
         self.assertEqual(
@@ -992,13 +1043,9 @@ class StallRecoveryTest(unittest.TestCase):
 
     def test_loaded_tunnel_macro_replaces_each_direction_with_one_character(self):
         for direction, trigger in TUNNEL_MACRO_TRIGGERS.items():
-            if direction == "1":
-                continue
             self.assertEqual(_transport_key(f"T{direction}", True), trigger)
             self.assertEqual(len(_transport_key(f"T{direction}", True)), 1)
-        # Ctrl+A is the game's repeat-command control and was observed failing
-        # to expand on the live build.  Use the existing prompt-paced fallback.
-        self.assertEqual(_transport_key("T1", True), "T1")
+        self.assertEqual(_transport_key("T1", True), "\x19")
         self.assertEqual(_transport_key("T5", True), "T5")
         self.assertEqual(_transport_key("T3", False), "T3")
         self.assertEqual(_transport_key("qf", True), "qf")
@@ -1022,8 +1069,8 @@ class StallRecoveryTest(unittest.TestCase):
             monrace.write_text("{}", encoding="ascii")
             pref = user / "bot-test.prf"
             pref.write_text(
-                "# HENGBOT_INPUT_MACROS_V2\n"
-                "A:T1\nP:^A\nA:T2\nP:^B\nA:T3\nP:^C\nA:T4\nP:^D\n"
+                "# HENGBOT_INPUT_MACROS_V3\n"
+                "A:T1\nP:^Y\nA:T2\nP:^B\nA:T3\nP:^C\nA:T4\nP:^D\n"
                 "A:T6\nP:^E\nA:T7\nP:^F\nA:T8\nP:^G\nA:T9\nP:^H\n"
                 "A:\\e`n!.\nP:^K\nA:\\e`n\".\nP:^L\nA:\\e`n#.\nP:^N\n"
                 "A:\\e`n$.\nP:^O\nA:\\e`n%.\nP:^P\nA:\\e`n&.\nP:^Q\n"
@@ -1046,7 +1093,7 @@ class StallRecoveryTest(unittest.TestCase):
         with TemporaryDirectory() as temp:
             pref = Path(temp) / "bot-test.prf"
             pref.write_text(
-                "# HENGBOT_INPUT_MACROS_V2\nA:T1\nP:^A\n",
+                "# HENGBOT_INPUT_MACROS_V3\nA:T1\nP:^Y\n",
                 encoding="ascii",
             )
             self.assertFalse(_valid_bot_play_macro_pref(pref))
@@ -1108,11 +1155,32 @@ class StationaryReasonsTest(unittest.TestCase):
         # Waiting out a Word of Recall countdown pins the player on one tile for
         # ~15-35 turns; if those decisions fed the detector they could stop the
         # bot mid-return. They must be exempt, alongside search and in-place melee.
+        dungeon = parse_snapshot(json.loads(_snap_line(13, 9, 114)), {})
         self.assertIn("return:wait-recall", STATIONARY_REASONS)
+        # Deep-fundraising uses its own reason for the same bounded recall
+        # countdown. The 01:45 live run waited safely for 32 turns and was
+        # otherwise misclassified as a confined six-cell exploration loop.
+        self.assertIn("fundraise:wait-recall", STATIONARY_REASONS)
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "fundraise:wait-recall")
+        )
         self.assertIn("town:wait-recall", STATIONARY_REASONS)
         self.assertIn("town:wait-restock", STATIONARY_REASONS)
         self.assertIn("search", STATIONARY_REASONS)
         self.assertIn("melee", STATIONARY_REASONS)
+
+    def test_bounded_return_wall_search_is_exempt_but_walking_is_guarded(self):
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+
+        # The policy searches each candidate wall only SEARCH_LIMIT times.  Five
+        # such holds used to fill the generic 40-decision cell window exactly
+        # and stop a legitimate hidden-upstairs sweep before it could finish.
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "return:search-upstairs")
+        )
+        self.assertTrue(
+            _cell_loop_guard_applies(dungeon, "return:seek-secret-wall")
+        )
 
     def test_mining_digs_are_exempt_from_loop_detection(self):
         # Digging breaks rock while standing on ONE tile for many turns, which the

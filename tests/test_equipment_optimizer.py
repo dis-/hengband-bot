@@ -15,6 +15,7 @@ from hengbot.equipment_optimizer import (
     TR_TELEPORT,
     enumerate_loadouts,
     optimize_loadout,
+    operational_equipment_candidate,
     random_teleport_is_suppressed,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
@@ -91,6 +92,24 @@ def metrics(
 class EquipmentOptimizerTest(unittest.TestCase):
     def setUp(self):
         self.light = gear("light", 39)
+
+    def test_carried_known_empty_lantern_is_not_operational_candidate(self):
+        item = InventoryItem(
+            slot="empty-lantern",
+            name="empty lantern",
+            count=1,
+            tval=TVAL_LITE,
+            sval=SV_LITE_LANTERN,
+            aware=True,
+            known=True,
+            fully_known=True,
+            fuel=0,
+            is_equipment=True,
+        )
+        empty_lantern = OwnedEquipment("empty", item, "pack")
+
+        self.assertFalse(operational_equipment_candidate(empty_lantern))
+        self.assertTrue(empty_lantern.exploration_legal)
 
     def test_enumerates_shield_two_hand_and_dual_wield_configs(self):
         sword = gear("sword", 23)
@@ -368,22 +387,31 @@ class EquipmentOptimizerTest(unittest.TestCase):
     def test_depth_requirements_apply_to_complete_loadout_union(self):
         fire = gear("fire-ring", 45, flags={50})
         confusion = gear("confusion-amulet", 40, flags={57})
+        free_action = gear("free-action-gloves", 31, flags={46})
         result = optimize_loadout(
-            [self.light, fire, confusion],
+            [self.light, fire, confusion, free_action],
             lambda loadout: metrics(float(len(loadout.item_ids))),
             depth=21,
         )
-        self.assertEqual(result.best.loadout.item_ids, {"light", "fire-ring", "confusion-amulet"})
+        self.assertEqual(
+            result.best.loadout.item_ids,
+            {"light", "fire-ring", "confusion-amulet", "free-action-gloves"},
+        )
 
-    def test_depth_20_remains_a_valid_fallback_without_21f_resistances(self):
+    def test_depth_20_requires_free_action_and_fire_but_not_confusion(self):
+        fire = gear("fire-ring", 45, flags={50})
+        free_action = gear("free-action-gloves", 31, flags={46})
         result = optimize_loadout(
-            [self.light],
+            [self.light, fire, free_action],
             lambda loadout: metrics(float(len(loadout.item_ids))),
             depth=20,
         )
 
         self.assertIsNotNone(result.best)
-        self.assertEqual(result.best.loadout.item_ids, {"light"})
+        self.assertEqual(
+            result.best.loadout.item_ids,
+            {"light", "fire-ring", "free-action-gloves"},
+        )
 
     def test_no_teleport_is_never_an_exploration_candidate(self):
         blocked = gear("blocked", 23, flags={TR_NO_TELE})

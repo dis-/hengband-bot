@@ -1,0 +1,71 @@
+{
+  "quest_id": 31,
+  "name": {"ja": "柳じじい", "en": "Old Man Willow Quest"},
+  "approved": true,
+  "approved_note": "User approved via manual-test-runner 2026-07-20T05:12:27.444Z.",
+  "engagement_plan": {
+    "opening": "入口兼脱出口[18,1]を保持し、北側通路から来る機動敵を射撃して一体ずつ処理する。",
+    "hold_position": [18,1],
+    "formation": "入口[18,1]は北・北東・東の3セルから同時近接され得る。静穏60ターン後に固定敵へ移る。木は通行可能だが射線を遮るため、指定射撃点以外から柳じじい・フオルンへ接近しない。",
+    "initial_hold_turns": 60,
+    "post_wave_light_steps": 0,
+    "placement_sweep": true,
+    "placement_sweep_scope": "battlefield",
+    "max_sweep_rounds": 12,
+    "placement_sweep_note": "Huorns teleport, so one battlefield pass cannot confirm extermination. Repeat full-map sweeps until the quest completes.",
+    "max_simultaneous_melee": 3,
+    "max_damage_ratio": 1.0,
+    "hold_budget": 2200,
+    "throwing_points": [
+      {"race_id":329,"target":[16,3],"stand":[18,1],"recovery_cells":[[17,2],[16,3]]},
+      {"race_id":329,"target":[3,8],"stand":[10,1],"recovery_cells":[[9,2],[8,3],[7,4],[6,5],[5,6],[4,7],[3,8]]},
+      {"race_id":206,"target":[5,7],"stand":[10,2],"recovery_cells":[[9,3],[8,4],[7,5],[6,6],[5,7]]},
+      {"race_id":329,"target":[3,3],"stand":[10,3],"recovery_cells":[[9,3],[8,3],[7,3],[6,3],[5,3],[4,3],[3,3]]},
+      {"race_id":329,"target":[6,4],"stand":[10,4],"recovery_cells":[[9,4],[8,4],[7,4],[6,4]]},
+      {"race_id":329,"target":[6,9],"stand":[10,5],"recovery_cells":[[9,6],[8,7],[7,8],[6,9]]},
+      {"race_id":329,"target":[5,12],"stand":[10,7],"recovery_cells":[[9,8],[8,9],[7,10],[6,11],[5,12]]},
+      {"race_id":329,"target":[8,14],"stand":[8,7],"recovery_cells":[[8,8],[8,9],[8,10],[8,11],[8,12],[8,13],[8,14]]},
+      {"race_id":329,"target":[2,20],"stand":[4,18],"recovery_cells":[[3,19],[2,20]]}
+    ]
+  },
+  "review_plan": {
+    "acceptance": "宿屋の町移動でアウトポストへ移動し、Q31を受注する。麻痺耐性と全準備条件を満たすまで受注しない。",
+    "entry": "入口兼脱出口[18,1]を保持し、北側通路から来る機動敵を一体ずつ処理する。",
+    "completion": "60静穏ターン後、柳じじい1体とフオルン8体を9組の専用射撃点から順に処理する。各撃破後に指定セルのボルトを回収し、全敵掃討と床上アイテム回収を確認してから退出する。",
+    "reward": "アウトポスト[36,119]の耐混乱の指輪専用位置へ移動し、object_countが0になるまで回収を確認する。",
+    "withdrawal": "最悪時はHP25%以下で脱出口[18,1]から撤収を許可する。"
+  },
+  "priority_targets": [343,339,205,206,329],
+  "consumable_plan": {
+    "light_scroll": "Carry one Scroll of Light and read it after the opening mobile rush has been cleared and the entrance hold is quiet.",
+    "speed_potion": "conditional",
+    "speed_potion_use_when": {
+      "expected_damage_hp_ratio_min": 0.5,
+      "note": "3ターン運用被害が現在HPの50%以上、または回復薬消費を避けられる場合だけ使用する。"
+    },
+    "heal_threshold_ratio": 0.60,
+    "other": "麻痺耐性を必須とし、店売り並ボルト99本を1スタック携行する。固定敵を倒すたび射線上の落下弾を回収確認してから次へ進む。"
+  },
+  "abort_conditions": {"hp_ratio": 0.25, "allowed": true},
+  "required_force": {
+    "min_hp": 280,
+    "min_expected_dps": 55,
+    "level_guideline": 25,
+    "reference_ac": 50,
+    "resists": ["free_action"],
+    "speed_potions": 1,
+    "heal_potions": 2,
+    "healing_plan": "開幕の同時近接3体による損害回復に1服を使用し、残るフォルン8体の掃討用に1服を必ず残す。",
+    "defensive_tiers": [
+      {"min_ac":50,"min_hp":280,"heal_potions":2,"operational_first_turn_damage":279,"operational_three_turn_damage":465},
+      {"min_ac":80,"min_hp":244,"heal_potions":2,"operational_first_turn_damage":243,"operational_three_turn_damage":405}
+    ],
+    "launcher": {"ammo": "equipped", "equipped": true},
+    "throwing_items": {"launcher_ammo": 99},
+    "required_scrolls": {"light": 1, "teleport": 15},
+    "utility_tools": {},
+    "rationale": "機動敵はr_idx 343六体、339二体、205六体で速度120。入口[18,1]は北・北東・東の3セルから同時近接され得る。加速込み運用被害はAC50で初回279・3ターン465、AC80で初回243・3ターン405。heal_potionsは体力回復の薬(300HP)だけを意味する。1服で総被害は吸収できるが、服用前の初回攻撃窓を生存する必要があるため厳格な境界+1をAC50でHP280、AC80でHP244とする。固定敵はr_idx 206一体(529HP、麻痺打撃、TELE_TO)とr_idx 329八体(平均275HP、NEVER_MOVE)。麻痺耐性を必須化し、木越しの接近を避けて9個の専用射撃点から処理する。DPS55は529HPを10ターン以内に処理する基準。"
+  },
+  "generated_by": "Codex Q22/Q31 fixed-map implementation",
+  "generated_at": "2026-07-20T05:30:00+09:00"
+}

@@ -228,7 +228,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
         self.assertEqual(_objective_for_reason(policy.last_reason), "Return to town")
 
-    def test_all_visible_next_depth_vetoes_transfer_to_return_objective(self):
+    def test_all_visible_next_depth_vetoes_keep_exploring_current_floor(self):
         snapshot = parse_snapshot(self._load_jsonl(
             "descend-in-place-2026-07-18-0124-snapshots.jsonl"
         )[0])
@@ -248,10 +248,10 @@ class DescentIncidentReplayTest(unittest.TestCase):
         ))
         key = policy.choose_key(snapshot)
 
-        self.assertTrue(key.startswith("r"))
-        self.assertEqual(policy.last_reason, "return:recall")
-        self.assertEqual(policy._last_return_trigger, "next-depth-resist-gap")
-        self.assertEqual(_objective_for_reason(policy.last_reason), "Return to town")
+        self.assertFalse(key.startswith("r"))
+        self.assertNotEqual(policy.last_reason, "return:recall")
+        self.assertIsNone(policy._last_return_trigger)
+        self.assertFalse(policy._returning_to_town)
 
 
 class StairRejectionInvalidationTest(unittest.TestCase):
@@ -655,6 +655,52 @@ class NavigationInvariantTest(unittest.TestCase):
 
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "combat:disengage-wait-recall")
+
+    def test_fruitless_disengagement_does_not_reread_recall_on_stale_snapshot(self):
+        # Live 2026-07-24 regression: the dungeon return latch alternated
+        # disengage-recall and disengage-wait-recall at one position, issuing
+        # four reads before the process loop detector stopped the bot.  Match
+        # the town recall transaction semantics: same-turn redraws and a
+        # consumed stack are confirmation states, never permission to reread.
+        recall = replace(item("w", SCROLL, SV_SCROLL_WORD_OF_RECALL), count=3)
+        base = self._quiet_room(inventory=(recall,))
+        fighting = replace(base, visible_monsters=[hostile(1, 10, 11)])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = fighting.floor_key
+        policy._returning_to_town = True
+
+        self.assertEqual(policy.choose_key(fighting), "rw")
+
+        self.assertEqual(policy.choose_key(fighting), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "combat:disengage-await-recall-confirmation",
+        )
+
+        consumed = replace(
+            fighting,
+            inventory=[replace(recall, count=2)],
+            turn=fighting.turn + 8,
+        )
+        self.assertEqual(policy.choose_key(consumed), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "combat:disengage-await-recall-confirmation",
+        )
+
+    def test_fruitless_disengagement_retries_rejected_recall_once(self):
+        recall = replace(item("w", SCROLL, SV_SCROLL_WORD_OF_RECALL), count=3)
+        base = self._quiet_room(inventory=(recall,))
+        fighting = replace(base, visible_monsters=[hostile(1, 10, 11)])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = fighting.floor_key
+        policy._returning_to_town = True
+
+        self.assertEqual(policy.choose_key(fighting), "rw")
+
+        rejected = replace(fighting, turn=fighting.turn + 1)
+        self.assertEqual(policy.choose_key(rejected), "rw")
+        self.assertEqual(policy.last_reason, "combat:disengage-recall")
 
     def test_blocked_fruitless_disengagement_reaches_visible_stop(self):
         snapshot = self._quiet_room()
