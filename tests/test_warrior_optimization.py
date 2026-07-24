@@ -30,11 +30,16 @@ from hengbot.model import (
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.warrior_optimization import (
+    INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
     WarriorOptimizationPreparation,
     _base_stat_without_current_gear,
     _conservative_intrinsic_abilities,
     prepare_warrior_optimization,
     weapon_expected_dps,
+)
+from hengbot.warrior_loadout_search import (
+    enumerate_single_slot_variants,
+    enumerate_warrior_loadouts,
 )
 from hengbot.warrior_equipment_evaluator import TR_BLOWS, TR_DEX, TR_STR
 
@@ -184,6 +189,73 @@ class WarriorOptimizationTest(unittest.TestCase):
                 action.kind == "withdraw" and action.item_id == "better"
                 for action in prepared.transaction.actions
             )
+        )
+
+    def test_large_catalog_uses_bounded_incremental_search(self):
+        # Live 2026-07-24: a 51-item catalog at a shallow depth produced ~51,000
+        # candidates that timed out the 25s search and tripped the bot's 90s
+        # decision watchdog inside the evaluator.  At or above
+        # INCREMENTAL_SEARCH_CATALOG_THRESHOLD, prepare must hill-climb one slot
+        # at a time (enumerate_single_slot_variants) instead of the full
+        # combinatorial search.  Revert-proof: the number of loadouts optimize_
+        # loadout considers equals the single-slot count, which this catalog
+        # makes differ from the full-search count.
+        light = gear("light", "equipped", slot="light", tval=39)
+        weapon = gear("weapon", "equipped", slot="main_hand", to_d=8)
+        extras = tuple(
+            gear(f"{tval}-{k}", "home", tval=tval, flags=(48 + k,))
+            for tval in (37, 32, 35, 30, 31, 40, 45)
+            for k in range(7)
+        )
+        items = (light, weapon, *extras)
+        self.assertGreaterEqual(len(items), INCREMENTAL_SEARCH_CATALOG_THRESHOLD)
+        current_ids = frozenset({"light", "weapon"})
+
+        incremental_count = sum(
+            1
+            for _ in enumerate_single_slot_variants(
+                items, current_item_ids=current_ids, require_light=True
+            )
+        )
+        full_count = sum(
+            1
+            for _ in enumerate_warrior_loadouts(
+                items, current_item_ids=current_ids, require_light=True
+            )
+        )
+        # The catalog must actually distinguish the two searches, or the test
+        # proves nothing.
+        self.assertNotEqual(incremental_count, full_count)
+
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR,
+            stat_cur=(18, 10, 10, 18),
+            level=10,
+            shield_skill=0,
+            speed=110,
+            saving_skill=30,
+            abilities=frozenset(),
+            ac=0,
+            melee_skill=60,
+            two_weapon_skill=0,
+            max_hp=100,
+            max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )
+
+        prepared = prepare_warrior_optimization(
+            snapshot, items, {1: monster}, depth=1, home_scan_complete=True,
+        )
+
+        self.assertIsNotNone(prepared.result)
+        self.assertFalse(prepared.result.timed_out)
+        self.assertEqual(
+            prepared.result.combinations_considered, incremental_count
         )
 
     def test_constitution_helm_is_not_replaced_by_small_ac_gain(self):

@@ -44,7 +44,10 @@ from hengbot.warrior_loadout_evaluator import (
     WarriorLoadoutInputs,
     constitution_hp_bonus,
 )
-from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
+from hengbot.warrior_loadout_search import (
+    enumerate_single_slot_variants,
+    enumerate_warrior_loadouts,
+)
 
 
 PLAYER_ABILITY_FLAGS = {
@@ -76,6 +79,14 @@ REPRESENTATIVE_CATALOG_THRESHOLD = 48
 # after 12,288 loadouts.  Keep the existing terminal-scale guards, but also
 # bound the item/encounter workload before combinatorial loadout expansion.
 REPRESENTATIVE_EVALUATION_WORKLOAD_THRESHOLD = 12_000
+# Beyond this owned-catalog size the full combinatorial loadout search explodes:
+# a live 51-item catalog at a shallow mining depth (few required abilities to
+# prune candidates) produced ~51,000 candidates, timed out the 25 s search, and
+# then blew the bot's 90 s decision watchdog inside the evaluator.  At or above
+# this size, hill-climb from the confirmed current loadout one slot at a time
+# instead (enumerate_single_slot_variants).  Below it, keep the exact search so
+# small catalogs still find the global combinatorial optimum.
+INCREMENTAL_SEARCH_CATALOG_THRESHOLD = 44
 FREE_ACTION_PRESERVE_DEPTH = 10
 TR_FREE_ACT = 46
 
@@ -351,7 +362,12 @@ def prepare_warrior_optimization(
     # the flag, but the resulting complete loadout must retain it.
     if depth >= FREE_ACTION_PRESERVE_DEPTH and TR_FREE_ACT in current.flags:
         required_candidate_flags.add(TR_FREE_ACT)
-    candidate_loadouts = enumerate_warrior_loadouts(
+    search_factory = (
+        enumerate_single_slot_variants
+        if len(items) >= INCREMENTAL_SEARCH_CATALOG_THRESHOLD
+        else enumerate_warrior_loadouts
+    )
+    candidate_loadouts = search_factory(
         items,
         current_item_ids=current.item_ids,
         pinned=pinned,

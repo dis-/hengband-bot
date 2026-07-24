@@ -17,6 +17,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_RING,
     Loadout,
     OwnedEquipment,
+    current_loadout,
     hand_configurations,
     light_source_quality,
     slot_for,
@@ -623,6 +624,162 @@ def enumerate_warrior_loadouts(
 ) -> WarriorLoadoutSearch:
     """Yield the exact nondominated Warrior loadout representatives."""
     return WarriorLoadoutSearch(
+        tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
+        require_light, required_flags,
+    )
+
+
+@dataclass
+class WarriorSingleSlotSearch:
+    """Single-slot-swap variants of the confirmed current loadout.
+
+    A large owned catalog makes the full combinatorial WarriorLoadoutSearch
+    exceed the optimizer's time budget: a live 51-item catalog produced ~51,000
+    candidates that both timed out the 25 s search and tripped the bot's 90 s
+    decision watchdog inside the evaluator.  This bounded generator yields the
+    current loadout plus every candidate that differs from it in exactly one
+    slot, reusing the same legality and catalog-compression rules.  It finds
+    one-swap (local) optima; repeated town optimizations hill-climb toward the
+    global best.  Cost is O(slots x catalog) instead of the combinatorial
+    product.
+    """
+
+    items: tuple[OwnedEquipment, ...]
+    current_item_ids: frozenset[str] = frozenset()
+    pinned: Mapping[str, OwnedEquipment] = field(default_factory=dict)
+    excluded_item_ids: frozenset[str] = frozenset()
+    require_light: bool = False
+    required_flags: frozenset[int] = frozenset()
+    truncated: bool = field(default=False, init=False)
+
+    def __iter__(self) -> Iterator[Loadout]:
+        legal_items = [
+            item
+            for item in self.items
+            if item.exploration_legal and item.id not in self.excluded_item_ids
+        ]
+        protected_ids = self.current_item_ids.union(
+            item.id for item in self.pinned.values()
+        )
+        legal = _deduplicate_slot_copies(
+            tuple(
+                [
+                    *legal_items,
+                    *(
+                        item
+                        for item in self.pinned.values()
+                        if item not in legal_items
+                    ),
+                ]
+            ),
+            self.current_item_ids,
+            self.pinned,
+        )
+        legal = _prune_dominated_catalog(legal, protected_ids)
+        legal = _deduplicate_melee_weapons(legal, protected_ids)
+
+        current = current_loadout(self.items)
+        base = {name: item for name, item in current.slots}
+        main0 = base.get(SLOT_MAIN_HAND)
+        sub0 = base.get(SLOT_SUB_HAND)
+        main0_id = main0.id if main0 is not None else None
+        sub0_id = sub0.id if sub0 is not None else None
+        non_hand = {
+            name: item
+            for name, item in current.slots
+            if name not in (SLOT_MAIN_HAND, SLOT_SUB_HAND)
+        }
+
+        seen: set[tuple[frozenset[str], str]] = set()
+
+        def accept(loadout: Loadout) -> Loadout | None:
+            if not self.required_flags.issubset(loadout.flags):
+                return None
+            key = (loadout.item_ids, loadout.hand_mode)
+            if key in seen:
+                return None
+            seen.add(key)
+            return loadout
+
+        # Always keep the current loadout as a candidate so the optimizer can
+        # retain it when no single swap improves on it.
+        kept = accept(current)
+        if kept is not None:
+            yield kept
+
+        # Non-hand single-slot swaps (rings, then the fixed armour/bow/light
+        # slots).  Reuse _slot_choices for per-slot legality and the light
+        # requirement.
+        for slot in GEAR_STAGES:
+            required = self.require_light and slot == SLOT_LIGHT
+            choices = _slot_choices(slot, legal, self.pinned, required=required)
+            occupant = base.get(slot)
+            occupant_id = occupant.id if occupant is not None else None
+            for choice in choices:
+                choice_id = choice.id if choice is not None else None
+                if choice_id == occupant_id:
+                    continue
+                new_slots = dict(base)
+                if choice is None:
+                    new_slots.pop(slot, None)
+                else:
+                    if slot in (SLOT_MAIN_RING, SLOT_SUB_RING):
+                        other = (
+                            SLOT_SUB_RING
+                            if slot == SLOT_MAIN_RING
+                            else SLOT_MAIN_RING
+                        )
+                        other_item = new_slots.get(other)
+                        if other_item is not None and other_item.id == choice_id:
+                            continue
+                    new_slots[slot] = choice
+                variant = accept(Loadout(tuple(new_slots.items()), current.hand_mode))
+                if variant is not None:
+                    yield variant
+
+        # Hand single-slot swaps: change the main weapon or the sub shield/
+        # off-weapon while holding the other hand, reusing hand_configurations
+        # for two-handed/shield/dual-wield legality and the resulting hand_mode.
+        for hands in hand_configurations(legal, self.pinned):
+            hand_main_id = hands.main.id if hands.main is not None else None
+            hand_sub_id = hands.sub.id if hands.sub is not None else None
+            if hand_main_id == main0_id and hand_sub_id == sub0_id:
+                continue
+            main_changed = hand_main_id != main0_id
+            sub_changed = hand_sub_id != sub0_id
+            if main_changed and not sub_changed:
+                single = True
+            elif sub_changed and not main_changed:
+                single = True
+            elif main_changed and sub_changed and hands.sub is None:
+                # A two-handed weapon forces the sub hand empty; treat the swap
+                # as a single main-hand move rather than two changes.
+                single = True
+            else:
+                single = False
+            if not single:
+                continue
+            new_slots = dict(non_hand)
+            if hands.main is not None:
+                new_slots[SLOT_MAIN_HAND] = hands.main
+            if hands.sub is not None:
+                new_slots[SLOT_SUB_HAND] = hands.sub
+            variant = accept(Loadout(tuple(new_slots.items()), hands.mode))
+            if variant is not None:
+                yield variant
+
+
+def enumerate_single_slot_variants(
+    items: Iterable[OwnedEquipment],
+    *,
+    current_item_ids: frozenset[str] = frozenset(),
+    pinned: Mapping[str, OwnedEquipment] | None = None,
+    excluded_item_ids: frozenset[str] = frozenset(),
+    require_light: bool = False,
+    required_flags: frozenset[int] = frozenset(),
+) -> WarriorSingleSlotSearch:
+    """Yield the current loadout plus its single-slot-swap neighbours."""
+    return WarriorSingleSlotSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
         require_light, required_flags,
     )

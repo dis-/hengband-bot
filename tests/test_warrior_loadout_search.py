@@ -5,6 +5,9 @@ from itertools import product
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_optimizer import (
     FIXED_SLOTS,
+    SLOT_BODY,
+    SLOT_LIGHT,
+    SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
     SLOT_SUB_RING,
     TR_AGGRAVATE,
@@ -29,6 +32,7 @@ from hengbot.warrior_loadout_search import (
     _deduplicate_melee_weapons,
     _prune_dominated_catalog,
     disposable_dominated_item_ids,
+    enumerate_single_slot_variants,
     enumerate_warrior_loadouts,
 )
 
@@ -675,6 +679,60 @@ class WarriorLoadoutSearchTest(unittest.TestCase):
         search = enumerate_warrior_loadouts(catalog)
         considered = sum(1 for _ in search)
         self.assertLess(considered, 300)
+        self.assertFalse(search.truncated)
+
+
+class WarriorSingleSlotSearchTest(unittest.TestCase):
+    def _equipped(self, item_id, tval, slot, **kw):
+        return replace(
+            owned(item_id, tval, **kw), origin="equipped", equipped_slot=slot
+        )
+
+    def test_variants_swap_exactly_one_slot_and_stay_bounded(self):
+        light = self._equipped("light", 39, SLOT_LIGHT)
+        weapon = self._equipped("cur-weapon", 23, SLOT_MAIN_HAND, dice=(1, 6))
+        body = self._equipped("cur-body", 37, SLOT_BODY, ac=10)
+        home_weapon = owned("home-weapon", 23, dice=(5, 3), to_h=10, to_d=12)
+        home_ring = owned("home-ring", 45, to_d=5)
+        items = (light, weapon, body, home_weapon, home_ring)
+        current_ids = frozenset({"light", "cur-weapon", "cur-body"})
+
+        variants = list(
+            enumerate_single_slot_variants(
+                items, current_item_ids=current_ids, require_light=True
+            )
+        )
+        id_sets = [v.item_ids for v in variants]
+
+        # The confirmed current loadout is always a candidate.
+        self.assertIn(current_ids, id_sets)
+        # A single main-hand swap to the home weapon.
+        self.assertIn(frozenset({"light", "home-weapon", "cur-body"}), id_sets)
+        # A single ring addition.
+        self.assertIn(
+            frozenset({"light", "cur-weapon", "cur-body", "home-ring"}), id_sets
+        )
+        # But never the two-slot combination (weapon AND ring swapped together).
+        self.assertNotIn(
+            frozenset({"light", "home-weapon", "cur-body", "home-ring"}), id_sets
+        )
+        self.assertLess(len(variants), 20)
+
+    def test_large_ring_catalog_does_not_explode(self):
+        light = self._equipped("light", 39, SLOT_LIGHT)
+        weapon = self._equipped("cur-weapon", 23, SLOT_MAIN_HAND)
+        rings = tuple(owned(f"ring-{i}", 45, to_d=i % 7) for i in range(50))
+        items = (light, weapon, *rings)
+        current_ids = frozenset({"light", "cur-weapon"})
+
+        search = enumerate_single_slot_variants(
+            items, current_item_ids=current_ids, require_light=True
+        )
+        variants = list(search)
+
+        # One swapped slot at a time, never the ~50x50 ring product.
+        self.assertGreater(len(variants), 1)
+        self.assertLess(len(variants), 300)
         self.assertFalse(search.truncated)
 
 
