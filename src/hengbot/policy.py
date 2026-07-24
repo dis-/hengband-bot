@@ -1038,6 +1038,16 @@ IDENTIFY_PRESSURE_FREE_SLOTS = 3
 # unchanged before we give up on a target (the device use did not land) — stops
 # a stalled identify from looping forever.
 IDENTIFY_FAIL_LIMIT = 3
+# Staff of Identify ("Perception", BaseitemDefinitions id 326) base level and the
+# device-use minimum from gamevalue.h (USE_DEVICE).  They model the staff
+# activation success rate per use-execution.cpp: chance = device_skill - level,
+# and the use fails when randint1(chance) < USE_DEVICE, so success is
+# (chance - 2) / chance.  Below STAFF_IDENTIFY_MIN_SUCCESS the town identify
+# errand stays on scrolls, because a staff misfire leaks the pending target key
+# onto the town map (the shop-underfoot identify/leave loop).
+IDENTIFY_STAFF_LEVEL = 10
+USE_DEVICE_MIN = 3
+STAFF_IDENTIFY_MIN_SUCCESS = 0.80
 # A single Identify/*Identify* purchase covers the whole outstanding tier (see
 # _outstanding_identification_count) instead of one scroll per store trip, but
 # is capped so one unusually large Home batch cannot empty the wallet in a
@@ -7777,6 +7787,62 @@ class HengbotPolicy:
             self._home_active_from_batch = True
             self._home_candidate_waiting = False
 
+    def _identify_staff_success_rate(self, snapshot: Snapshot) -> float:
+        """Model a carried Staff of Identify's activation chance (0..1).
+
+        Mirrors use-execution.cpp: chance = skill_dev - item_level, and the use
+        fails when chance < USE_DEVICE or randint1(chance) < USE_DEVICE, so the
+        success probability is (chance - 2) / chance.  Town identification is
+        never confused, so the confusion halving is omitted.
+        """
+        chance = snapshot.player.device_skill - IDENTIFY_STAFF_LEVEL
+        if chance < USE_DEVICE_MIN:
+            return 0.0
+        return (chance - 2) / chance
+
+    def _carried_identify_command(
+        self, snapshot: Snapshot, target: InventoryItem, *, full: bool
+    ) -> str | None:
+        """Key that identifies a non-worn carried item, or None if none is usable.
+
+        The carried Staff of Identify is only allowed when its modelled success
+        rate clears STAFF_IDENTIFY_MIN_SUCCESS; below that a town staff misfire
+        would leak the target selector onto the town map, so only a scroll is
+        accepted.  A full *Identify* always needs a scroll regardless.  A device
+        that repeatedly fails to land (unknown count unchanged) is abandoned via
+        _unidentifiable_sigs so it cannot loop.
+        """
+        reliable_only = (
+            self._identify_staff_success_rate(snapshot) < STAFF_IDENTIFY_MIN_SUCCESS
+        )
+        source = self._find_identification_source(
+            snapshot, full=full, reliable_only=reliable_only
+        )
+        if source is None:
+            return None
+        command, source_item = source
+        if command in (USE_STAFF_KEY, ZAP_ROD_KEY):
+            unknown_count = sum(
+                1 for it in snapshot.inventory if not it.known and not it.is_food
+            )
+            watch = (self._item_signature(target), unknown_count)
+            if watch == self._identify_watch:
+                self._identify_fail_streak += 1
+                if self._identify_fail_streak >= IDENTIFY_FAIL_LIMIT:
+                    self._unidentifiable_sigs.add(self._item_signature(target))
+                    self._identify_watch = None
+                    self._identify_fail_streak = 0
+                    return None
+            else:
+                self._identify_watch = watch
+                self._identify_fail_streak = 0
+        return (
+            command
+            + source_item.slot
+            + target.slot
+            + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
+        )
+
     def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
             return None
@@ -7790,6 +7856,7 @@ class HengbotPolicy:
                 # run, which caused the 2026-07-20 incomplete-catalog deadlock.
                 lambda item: item.is_equipment
                 and self._item_signature(item) not in self._deferred_home_items
+                and self._item_signature(item) not in self._unidentifiable_sigs
                 and (
                     not item.known
                     or (
@@ -7801,23 +7868,17 @@ class HengbotPolicy:
             if target is None:
                 return None
             full = target.known and item_requires_full_identification(target)
-            source = self._find_identification_source(
-                snapshot, full=full, reliable_only=True
-            )
-            if source is None:
+            key = self._carried_identify_command(snapshot, target, full=full)
+            if key is None:
+                if self._item_signature(target) in self._unidentifiable_sigs:
+                    return None
                 self._identification_candidate = self._item_signature(target)
                 self._request_identification("full" if full else "normal")
                 return None
-            command, source_item = source
             self._identification_need = None
             self._identification_candidate = None
             self.last_reason = "identify:full" if full else "identify:normal"
-            return (
-                command
-                + source_item.slot
-                + target.slot
-                + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
-            )
+            return key
         target = self._pending_inventory_item(snapshot)
         if target is None:
             # The Home command can be rejected (for example by a prompt timing
@@ -7844,16 +7905,13 @@ class HengbotPolicy:
             self._home_withdraw_fail_streak = 0
 
         if not target.known and target.pseudo_feeling != "average":
-            source = self._find_identification_source(
-                snapshot, full=False, reliable_only=True
-            )
-            if source is None:
+            key = self._carried_identify_command(snapshot, target, full=False)
+            if key is None:
                 self._request_identification("normal")
                 return None
-            command, item = source
             self._identification_need = None
             self.last_reason = "identify:normal"
-            return command + item.slot + target.slot
+            return key
 
         if item_requires_full_identification(target) and not target.fully_known:
             source = self._find_identification_source(snapshot, full=True)

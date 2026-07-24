@@ -18408,6 +18408,60 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._identification_need, "normal")
         self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
 
+    def test_high_device_skill_uses_carried_staff_to_identify_pack_gear(self):
+        # Live 2026-07-24 deadlock: a warrior carrying Staves of Identify but no
+        # scroll sat in town blocked on an incomplete equipment catalog because
+        # the town identify errand demanded a scroll.  When the modelled staff
+        # success rate is reliable (device_skill 34 -> ~0.92), the carried staff
+        # must be used so the catalog can complete.  Same setup as the only-staff
+        # routing test but with a reliable device skill (revert-proof: the old
+        # scroll-only errand returns None here regardless of skill).
+        ring = item(
+            "a", TVAL_RING, -1, name="unknown ring",
+            aware=False, known=False, is_equipment=True,
+        )
+        staff = item(
+            "u", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=9, name="staff"
+        )
+        snap = Snapshot(
+            replace(
+                player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+                device_skill=34,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[ring, staff],
+            equipment=[self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        key = policy._town_item_processing_key(snap)
+        self.assertIsNotNone(key)
+        self.assertTrue(key.startswith(policy_module.USE_STAFF_KEY))
+        self.assertEqual(policy.last_reason, "identify:normal")
+
+    def test_staff_identify_success_rate_gates_on_device_skill(self):
+        policy = HengbotPolicy()
+        high = Snapshot(
+            replace(player(10, 10), device_skill=34),
+            {Position(10, 10): grid(10, 10)},
+            [],
+        )
+        low = Snapshot(
+            replace(player(10, 10), device_skill=12),
+            {Position(10, 10): grid(10, 10)},
+            [],
+        )
+        self.assertGreaterEqual(
+            policy._identify_staff_success_rate(high),
+            policy_module.STAFF_IDENTIFY_MIN_SUCCESS,
+        )
+        self.assertLess(
+            policy._identify_staff_success_rate(low),
+            policy_module.STAFF_IDENTIFY_MIN_SUCCESS,
+        )
+
     def test_carried_identify_target_is_deferred_after_scroll_stock_failure(self):
         # Regression for the second 2026-07-23 loop: a low-skill warrior tried
         # the same Staff of Identify command 30 times, then repeatedly entered
