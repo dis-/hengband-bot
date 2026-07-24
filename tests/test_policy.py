@@ -507,6 +507,55 @@ class CombatTest(unittest.TestCase):
         self.assertIsNotNone(step)
         self.assertIn(step, neighbours)
 
+    def test_disengage_cuts_through_survivable_swarm_instead_of_oscillating(self):
+        from collections import deque
+        policy = HengbotPolicy()
+        # The last decisions ping-ponged between two corner cells.
+        policy._recent = deque([Position(1, 78), Position(1, 79)] * 6, maxlen=64)
+        snapshot = Snapshot(
+            player(1, 78, hp=264, max_hp=264, level=13),
+            {Position(1, 78): grid(1, 78)},
+            [],
+            floor_key=(2, 5, 0),
+        )
+        swarm = [
+            hostile(1, 1, 79, hp=4, max_hp=4, distance=1,
+                    can_multiply=True, max_melee_damage=4)
+        ]
+        policy._summoner_retreat_step = lambda *a: Position(1, 79)  # a recent cell
+        policy._escape_by_stairs = lambda s: None
+        policy._explore_step = lambda s: Position(2, 78)  # frontier: open floor
+        policy.threat_prediction = lambda *a, **k: {"operational_total": 6}
+
+        key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
+
+        # A retreat into a recent corner cell is refused; cut toward open floor.
+        self.assertEqual(policy.last_reason, "combat:disengage-cut-through")
+        self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
+
+    def test_disengage_retreats_normally_when_not_oscillating(self):
+        from collections import deque
+        policy = HengbotPolicy()
+        policy._recent = deque(maxlen=64)  # empty -> not oscillating
+        snapshot = Snapshot(
+            player(5, 5, hp=264, max_hp=264, level=13),
+            {Position(5, 5): grid(5, 5)},
+            [],
+            floor_key=(2, 5, 0),
+        )
+        swarm = [
+            hostile(1, 5, 6, hp=4, max_hp=4, distance=1,
+                    can_multiply=True, max_melee_damage=4)
+        ]
+        policy._summoner_retreat_step = lambda *a: Position(5, 6)
+        policy._escape_by_stairs = lambda s: None
+
+        key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
+
+        # Not oscillating: the ordinary retreat step is still taken.
+        self.assertEqual(policy.last_reason, "combat:disengage-step")
+        self.assertEqual(key, policy._step_toward(snapshot, Position(5, 6)))
+
     def test_killable_large_brown_snake_is_not_a_material_threat(self):
         snake = hostile(
             1,

@@ -18430,6 +18430,47 @@ class HengbotPolicy:
             self._returning_to_town = True
             self.last_reason = "combat:disengage-armed"
 
+    def _disengage_move_or_escalate(
+        self,
+        snapshot: Snapshot,
+        threats: list[MonsterState],
+        hostiles: list[MonsterState],
+    ) -> str | None:
+        """One deterministic disengage move.
+
+        Retreat only when it makes progress: a retreat step that re-enters a
+        recently occupied cell is corner ping-pong, not an escape, so escalate
+        to stairs, then to cutting a path through a survivable swarm toward open
+        floor, instead of oscillating in a dead end until the loop guard stops
+        the bot. Returns None only when genuinely stuck (caller bounded-waits).
+        """
+        step = self._summoner_retreat_step(snapshot, threats, hostiles)
+        if step is not None and not (
+            self._is_oscillating() and step in set(self._recent)
+        ):
+            self.last_reason = "combat:disengage-step"
+            return self._step_toward(snapshot, step)
+        stairs = self._escape_by_stairs(snapshot)
+        if stairs is not None:
+            self.last_reason = "combat:disengage-stairs"
+            return stairs
+        if hostiles:
+            # Cornered with no retreat or stairs. If the swarm's three-turn
+            # projected damage is well under current HP it cannot kill us while
+            # we leave, so head for open floor (attacking any breeder blocking
+            # that direction) rather than flee deeper into the dead end. The
+            # explore step targets a frontier, so the move makes real positional
+            # progress instead of ping-ponging.
+            threat = self.threat_prediction(
+                snapshot, hostiles, 3
+            )["operational_total"]
+            if threat * 2 < snapshot.player.hp:
+                target = self._explore_step(snapshot)
+                if target is not None and target != snapshot.player.position:
+                    self.last_reason = "combat:disengage-cut-through"
+                    return self._step_toward(snapshot, target)
+        return None
+
     def _fruitless_disengage_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -18480,10 +18521,22 @@ class HengbotPolicy:
                         return self._issue_emergency_consumable(
                             snapshot, scroll, reason
                         )
-                step = self._summoner_retreat_step(snapshot, breeders, hostiles)
-                if step is not None:
-                    self.last_reason = "combat:disengage-step"
-                    return self._step_toward(snapshot, step)
+                # Recall is already counting down. Against a survivable swarm,
+                # standing still costs nothing and holding avoids retreating into
+                # a corner and ping-ponging there until recall lands. Only leave
+                # the tile if staying is actually lethal, and then via a
+                # non-oscillating move.
+                threat = self.threat_prediction(
+                    snapshot, hostiles, 3
+                )["operational_total"]
+                if threat * 2 < snapshot.player.hp:
+                    self.last_reason = "combat:disengage-hold"
+                    return WAIT_KEY
+                move = self._disengage_move_or_escalate(
+                    snapshot, breeders, hostiles
+                )
+                if move is not None:
+                    return move
             key = self._return_to_town_key(snapshot, hostiles)
             if key is not None:
                 if self.last_reason.startswith("return:"):
@@ -18493,10 +18546,9 @@ class HengbotPolicy:
                 return key
 
         if nearby_threat:
-            step = self._summoner_retreat_step(snapshot, threats, hostiles)
-            if step is not None:
-                self.last_reason = "combat:disengage-step"
-                return self._step_toward(snapshot, step)
+            move = self._disengage_move_or_escalate(snapshot, threats, hostiles)
+            if move is not None:
+                return move
 
         # Quest floors must never be abandoned by the fruitless-combat escape
         # path.  Keep attempting local retreat until the visible stop lets an
