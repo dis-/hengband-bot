@@ -20231,14 +20231,22 @@ class HengbotPolicy:
         # neighbor can be the square just abandoned, producing a small cycle at
         # the edge of a faster monster's visibility (live Angband 30F incident,
         # 2026-07-23).
+        if not hostiles:
+            return None
+        walkable = self._walkable_neighbors(snapshot, snapshot.player.position)
         candidates = [
             candidate
-            for candidate in self._walkable_neighbors(
-                snapshot, snapshot.player.position
-            )
+            for candidate in walkable
             if candidate not in self._engagement_avoid_cells
         ]
-        if not candidates or not hostiles:
+        if not candidates:
+            # Fully boxed in by our own accumulated avoid-cells (a stationary
+            # status monster in a narrow passage rings every neighbour). Waiting
+            # here forever until the loop guard stops the bot is worse than
+            # stepping onto a previously-vetoed square, so relax the veto to the
+            # least-bad walkable neighbour and keep the retreat moving.
+            candidates = walkable
+        if not candidates:
             return None
 
         def score(pos: Position) -> tuple[int, int, int, int]:

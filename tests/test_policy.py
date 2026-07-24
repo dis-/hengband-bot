@@ -477,6 +477,36 @@ class CombatTest(unittest.TestCase):
         self.assertNotEqual(step, abandoned)
         self.assertNotIn(step, policy._engagement_avoid_cells)
 
+    def test_flee_step_relaxes_veto_when_fully_boxed_in(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(4, 7)
+            for x in range(9, 12)
+        }
+        monster = hostile(
+            1, 5, 18, hp=100, max_hp=100, distance=8, speed=115,
+            max_melee_damage=88,
+        )
+        snapshot = Snapshot(
+            player(5, 10, hp=501, max_hp=501, level=28),
+            grids,
+            [monster],
+            floor_key=(1, 30, 0),
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        # Veto EVERY walkable neighbour: the retreat has boxed itself in.
+        neighbours = policy._walkable_neighbors(snapshot, Position(5, 10))
+        self.assertTrue(neighbours)
+        policy._engagement_avoid_cells.update(neighbours)
+
+        step = policy._flee_step(snapshot, [monster])
+
+        # Rather than returning None (-> status-threat:wait deadlock), step onto
+        # the least-bad vetoed neighbour to break out of the self-made box.
+        self.assertIsNotNone(step)
+        self.assertIn(step, neighbours)
+
     def test_killable_large_brown_snake_is_not_a_material_threat(self):
         snake = hostile(
             1,
