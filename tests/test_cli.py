@@ -1168,6 +1168,13 @@ class StationaryReasonsTest(unittest.TestCase):
         self.assertIn("town:wait-restock", STATIONARY_REASONS)
         self.assertIn("search", STATIONARY_REASONS)
         self.assertIn("melee", STATIONARY_REASONS)
+        # A breeder-containment disengage reads Recall and then waits it out on
+        # one tile; the 2026-07-24 Galgals louse escape re-tripped the guard on
+        # this wait because it was the only *:wait-recall reason left unexempt.
+        self.assertIn("combat:disengage-wait-recall", STATIONARY_REASONS)
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "combat:disengage-wait-recall")
+        )
 
     def test_bounded_return_wall_search_is_exempt_but_walking_is_guarded(self):
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})

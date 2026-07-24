@@ -257,6 +257,12 @@ STATIONARY_REASONS = frozenset(
         "town:wait-recall",
         "town:wait-restock",
         "wilderness:wait-recall",
+        # Waiting in place for Word of Recall to fire after a breeder disengage
+        # is a bounded, stationary hold (FRUITLESS_DISENGAGE_LIMIT backstops it,
+        # and recall triggers within ~35 turns).  Like the other *:wait-recall
+        # reasons it must not feed the position loop guard, or the very escape
+        # armed by the breeder-containment disengage re-trips it.
+        "combat:disengage-wait-recall",
     }
 )
 
