@@ -2,7 +2,7 @@
   "quest_id": 14,
   "name": {"ja": "ワーグを殲滅せよ", "en": "Warg problem"},
   "approved": true,
-  "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬と実測戦力ゲートを使用し、退却を許可する。2026-07-22 に同時隣接4体を上限とし、RAND_25の不規則移動を被害半減として扱う物資なしTier2（HP 150 / DPS 36）をユーザー承認。実行は Phase 5 まで禁止。",
+  "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬と実測戦力ゲートを使用し、退却を許可する。2026-07-22 に同時隣接4体を上限とし、RAND_25の不規則移動を被害半減として扱う物資なしTier2（HP 150 / DPS 36）をユーザー承認。",
   "engagement_plan": {"opening": "地下5階の到着地点から偵察し、ワーグを一体ずつ引き寄せる。", "hold_position": null, "formation": "現地で確認した最も狭い通路を使う。ランダム階のため固定座標はない。", "max_simultaneous_melee": 4, "random_move_damage_factor": 0.5},
   "priority_targets": [257],
   "consumable_plan": {
