@@ -96,7 +96,7 @@ from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QuestBattlefield, QuestInfo,
     load_quest_knowledge,
 )
-from hengbot.quest_strategies import load_quest_strategies
+from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.policy import (
@@ -4300,6 +4300,92 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(state["hp_healing_budget"], 554)
         self.assertTrue(state["hasted"])
         self.assertTrue(state["verdict"])
+
+    def _rand25_readiness(self, knowledge, factor, *, engagement_extra=None):
+        """Run the fixed-quest readiness gate against an 8-monster roster of
+        ``knowledge`` under an approved profile whose engagement plan declares
+        ``random_move_damage_factor``.  Returns the readiness telemetry."""
+        info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 8),))
+        policy = HengbotPolicy(
+            self._town_map(),
+            quest_knowledge={18: info},
+            monrace_knowledge={44: knowledge},
+        )
+        engagement = {"random_move_damage_factor": factor}
+        if engagement_extra:
+            engagement.update(engagement_extra)
+        profile = StrategyProfile(
+            quest_id=18,
+            name={"ja": "", "en": ""},
+            approved=True,
+            approved_note="",
+            engagement_plan=engagement,
+            priority_targets=(),
+            consumable_plan={},
+            abort_conditions={"hp_ratio": 0.30, "allowed": True},
+            required_force={"min_hp": 1, "min_expected_dps": 0, "reference_ac": 20},
+            generated_by="test",
+            generated_at="test",
+        )
+        policy.approved_quest_strategy = lambda _quest_id, _p=profile: _p
+        policy._combat_weapon_ready = lambda _snapshot: True
+        snapshot = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(26, 97, level=38, hp=200, max_hp=200,
+                          main_hand_blows=4, main_hand_to_d=20),
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                            damage_dice_num=3, damage_dice_sides=6)],
+        )
+        policy._fixed_quest_ready(snapshot, 18)
+        return policy.fixed_quest_readiness_state()
+
+    def test_random_move_damage_factor_halves_rand25_threat(self):
+        rand25 = MonraceKnowledge(
+            100, 110, False, False, level=14,
+            max_melee_damage=50, flags=frozenset({"RAND_25"}),
+        )
+        full = self._rand25_readiness(rand25, 1.0)
+        half = self._rand25_readiness(rand25, 0.5)
+        self.assertEqual(full["random_move_damage_factor"], 1.0)
+        self.assertEqual(half["random_move_damage_factor"], 0.5)
+        # The RAND_25 monster's modeled melee is halved, so its three-turn
+        # adjacent threat must drop.  Reverting the halving makes these equal.
+        self.assertLess(half["worst_adjacent"], full["worst_adjacent"])
+
+    def test_random_move_damage_factor_ignores_non_rand25_monster(self):
+        plain = MonraceKnowledge(
+            100, 110, False, False, level=14, max_melee_damage=50,
+        )
+        full = self._rand25_readiness(plain, 1.0)
+        half = self._rand25_readiness(plain, 0.5)
+        # Without the RAND_25 flag the factor must not touch the threat, so a
+        # blanket (flag-agnostic) halving would fail this equality.
+        self.assertEqual(half["worst_adjacent"], full["worst_adjacent"])
+
+    def test_max_simultaneous_melee_caps_modeled_adjacency(self):
+        rand25 = MonraceKnowledge(
+            100, 110, False, False, level=14,
+            max_melee_damage=50, flags=frozenset({"RAND_25"}),
+        )
+        uncapped = self._rand25_readiness(rand25, 1.0)
+        capped = self._rand25_readiness(
+            rand25, 1.0, engagement_extra={"max_simultaneous_melee": 4}
+        )
+        self.assertEqual(uncapped["simultaneous_melee"], 8)
+        self.assertEqual(capped["simultaneous_melee"], 4)
+        self.assertLess(capped["worst_adjacent"], uncapped["worst_adjacent"])
+
+    def test_quest14_profile_encodes_approved_tier2_engagement(self):
+        # The 2026-07-22 user-approved Tier2 intent (max 4 simultaneous melee,
+        # RAND_25 damage counted at half) must live in the loaded profile, not
+        # only in the prose note.  Dropping either field regresses acceptance.
+        profiles = load_quest_strategies(
+            Path(__file__).resolve().parents[1] / "strategy" / "quests"
+        )
+        q14 = profiles.get(14)
+        self.assertIsNotNone(q14)
+        self.assertEqual(q14.engagement_plan.get("max_simultaneous_melee"), 4)
+        self.assertEqual(q14.engagement_plan.get("random_move_damage_factor"), 0.5)
 
     def test_fixed_quest_healing_budget_is_limited_to_three_quaffs(self):
         info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))

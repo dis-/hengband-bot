@@ -16868,6 +16868,17 @@ class HengbotPolicy:
         telemetry["strategy_controlled_stationary"] = sorted(
             strategy_controlled_stationary
         )
+        # An approved profile may model a random-moving (RAND_25) enemy as
+        # dealing only a fraction of its melee output: its 25% random step keeps
+        # it out of contact part of the time, so full-contact damage overstates
+        # the threat. Q14's Tier2 force gate was derived on exactly this basis
+        # (Warg melee counted at half). Only a reviewed profile opts in.
+        random_move_damage_factor = 1.0
+        if profile is not None:
+            random_move_damage_factor = float(
+                profile.engagement_plan.get("random_move_damage_factor", 1.0)
+            )
+        telemetry["random_move_damage_factor"] = random_move_damage_factor
         player_pos = snapshot.player.position
         positions = [
             Position(player_pos.y + dy, player_pos.x + dx)
@@ -16896,6 +16907,11 @@ class HengbotPolicy:
                 telemetry["toughest_r_idx"] = r_idx
                 return reject("unknown-monster")
             hp = knowledge.average_hp or knowledge.max_hp
+            modeled_melee_damage = knowledge.max_melee_damage
+            if random_move_damage_factor != 1.0 and "RAND_25" in knowledge.flags:
+                modeled_melee_damage = int(
+                    round(knowledge.max_melee_damage * random_move_damage_factor)
+                )
             monster = MonsterState(
                 index=-r_idx,
                 position=positions[0],
@@ -16909,7 +16925,7 @@ class HengbotPolicy:
                 race_id=r_idx,
                 can_summon=knowledge.can_summon,
                 level=knowledge.level,
-                max_melee_damage=knowledge.max_melee_damage,
+                max_melee_damage=modeled_melee_damage,
                 max_ranged_damage=knowledge.max_ranged_damage,
                 can_multiply=knowledge.can_multiply,
             )
