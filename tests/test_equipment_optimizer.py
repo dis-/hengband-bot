@@ -278,7 +278,67 @@ class EquipmentOptimizerTest(unittest.TestCase):
             self.assertIsNotNone(result.best)
             winners.add(result.best.loadout.item_at("main_hand").id)
 
-        self.assertEqual(winners, {"takkion"})
+        # All three weapons survive far longer than SUFFICIENT_SURVIVAL_TURNS,
+        # so under the survival-sufficiency model the offense-first filters pick
+        # the highest-DPS weapon (orson, 124.31).  The property under test is
+        # unchanged: the winner is stable regardless of catalog order.
+        self.assertEqual(winners, {"orson"})
+
+    def test_high_dps_weapon_beats_tankier_weapon_above_survival_floor(self):
+        # Live 2026-07-24 regression: a 西方国の大鎌 with ~40% more melee DPS
+        # (95.30 vs 67.86) lost to a Defender broad axe purely because its
+        # survival was ~6% lower (149 vs 159), tripping the old survival
+        # 5%-of-max pre-filter that culled it before DPS was ever weighed.  Both
+        # weapons survive far above SUFFICIENT_SURVIVAL_TURNS, so the higher-DPS
+        # weapon must now win.
+        scythe = gear("scythe", 22)
+        axe = gear("axe", 22, equipped_slot=SLOT_MAIN_HAND)
+        candidates = (
+            Loadout((("light", self.light), (SLOT_MAIN_HAND, scythe)), "one_handed"),
+            Loadout((("light", self.light), (SLOT_MAIN_HAND, axe)), "one_handed"),
+        )
+
+        def evaluate(loadout):
+            if "scythe" in loadout.item_ids:
+                return metrics(148.0, dps=95.30, survival=149.0)
+            return metrics(158.0, dps=67.86, survival=159.0)
+
+        result = optimize_loadout(
+            [self.light, scythe, axe],
+            evaluate,
+            depth=1,
+            current_item_ids=frozenset({"light", "axe"}),
+            candidate_loadouts=candidates,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertIn("scythe", result.best.loadout.item_ids)
+
+    def test_tankier_weapon_wins_when_no_loadout_clears_survival_floor(self):
+        # Safety net: below the survival-sufficiency floor the field is genuinely
+        # dangerous, so survival must still dominate and the bot must not pick a
+        # fragile glass cannon even though it deals more damage.
+        scythe = gear("scythe", 22)
+        axe = gear("axe", 22, equipped_slot=SLOT_MAIN_HAND)
+        candidates = (
+            Loadout((("light", self.light), (SLOT_MAIN_HAND, scythe)), "one_handed"),
+            Loadout((("light", self.light), (SLOT_MAIN_HAND, axe)), "one_handed"),
+        )
+
+        def evaluate(loadout):
+            if "scythe" in loadout.item_ids:
+                return metrics(9.0, dps=95.30, survival=10.0)
+            return metrics(24.0, dps=67.86, survival=25.0)
+
+        result = optimize_loadout(
+            [self.light, scythe, axe],
+            evaluate,
+            depth=1,
+            candidate_loadouts=candidates,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertIn("axe", result.best.loadout.item_ids)
 
     def test_light_crossbow_is_preferred_over_short_bow(self):
         short = gear("short", 19, sval=12, equipped_slot="bow")

@@ -808,6 +808,16 @@ def _selection_equivalence_key(
     )
 
 
+# Survival-sufficiency floor (approved design 2026-07-24): once a loadout can
+# absorb the representative encounter set for at least this many turns, it is
+# "safe enough" and additional survival margin is not worth sacrificing melee
+# offense.  Above the floor the selection is offense-first (DPS primary); below
+# it (a genuinely dangerous field where nothing is comfortably safe) the
+# selection falls back to survival-first.  survival_turns = player_hp divided by
+# expected incoming damage per turn, i.e. the turns available to disengage/heal.
+SUFFICIENT_SURVIVAL_TURNS = 30.0
+
+
 def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
@@ -843,8 +853,21 @@ def _stable_operational_best(
             or bow.item.pseudo_feeling in {"excellent", "special"}
         ]
 
+    # Survival-sufficiency gate.  Loadouts that survive at least
+    # SUFFICIENT_SURVIVAL_TURNS are all treated as adequately safe, so the DPS
+    # and margin filters below choose offense-first among them (this is why a
+    # higher-DPS weapon is no longer culled merely for a few percent less
+    # survival).  Only when NO loadout clears the floor does survival dominate,
+    # preserving the safety-first behavior for genuinely dangerous fields.
     max_survival = max(entry.metrics.survival_turns for entry in pool)
-    if isfinite(max_survival):
+    safe_enough = [
+        entry
+        for entry in pool
+        if entry.metrics.survival_turns >= SUFFICIENT_SURVIVAL_TURNS
+    ]
+    if safe_enough:
+        pool = safe_enough
+    elif isfinite(max_survival):
         pool = [
             entry
             for entry in pool
