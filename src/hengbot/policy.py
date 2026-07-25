@@ -18454,6 +18454,14 @@ class HengbotPolicy:
         if stairs is not None:
             self.last_reason = "combat:disengage-stairs"
             return stairs
+        # No stairs underfoot: route toward the nearest known up-stairs to leave
+        # the floor entirely. The player outruns a speed-100 breeder swarm, so
+        # reaching the stairs breaks contact where circling the same room never
+        # can — the decisive escape when there is no recall or teleport left.
+        to_stairs = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        if to_stairs is not None:
+            self.last_reason = "combat:disengage-seek-upstairs"
+            return self._step_toward(snapshot, to_stairs)
         if hostiles:
             # Cornered with no retreat or stairs. If the swarm's three-turn
             # projected damage is well under current HP it cannot kill us while

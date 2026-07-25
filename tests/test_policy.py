@@ -524,6 +524,7 @@ class CombatTest(unittest.TestCase):
         ]
         policy._summoner_retreat_step = lambda *a: Position(1, 79)  # a recent cell
         policy._escape_by_stairs = lambda s: None
+        policy._nearest_goal_step = lambda s, pred: None  # no known up-stairs
         policy._explore_step = lambda s: Position(2, 78)  # frontier: open floor
         policy.threat_prediction = lambda *a, **k: {"operational_total": 6}
 
@@ -531,6 +532,31 @@ class CombatTest(unittest.TestCase):
 
         # A retreat into a recent corner cell is refused; cut toward open floor.
         self.assertEqual(policy.last_reason, "combat:disengage-cut-through")
+        self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
+
+    def test_disengage_routes_to_upstairs_when_swarmed(self):
+        from collections import deque
+        policy = HengbotPolicy()
+        policy._recent = deque([Position(1, 78), Position(1, 79)] * 6, maxlen=64)
+        snapshot = Snapshot(
+            player(1, 78, hp=264, max_hp=264, level=13),
+            {Position(1, 78): grid(1, 78)},
+            [],
+            floor_key=(2, 5, 0),
+        )
+        swarm = [
+            hostile(1, 1, 79, hp=4, max_hp=4, distance=1,
+                    can_multiply=True, max_melee_damage=4)
+        ]
+        policy._summoner_retreat_step = lambda *a: Position(1, 79)  # recent -> refused
+        policy._escape_by_stairs = lambda s: None  # not standing on stairs
+        policy._nearest_goal_step = lambda s, pred: Position(2, 78)  # step to up-stairs
+
+        key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
+
+        # With no recall/teleport, leave the floor by routing to the up-stairs
+        # rather than circling the swarm-filled room.
+        self.assertEqual(policy.last_reason, "combat:disengage-seek-upstairs")
         self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
 
     def test_disengage_retreats_normally_when_not_oscillating(self):
