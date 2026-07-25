@@ -8961,6 +8961,7 @@ class HengbotPolicy:
             add(STORE_HOME, "deep-mining-deposit", "home-first")
         if (
             self._home_available(snapshot)
+            and STORE_HOME not in self._town_store_attempted
             and self._inventory_overweight(snapshot)
             and self._find_home_deposit(snapshot) is not None
         ):
@@ -8968,6 +8969,7 @@ class HengbotPolicy:
         elif (
             self._identification_need is None
             and self._home_available(snapshot)
+            and STORE_HOME not in self._town_store_attempted
             and (
                 not fundraising_active
                 or (

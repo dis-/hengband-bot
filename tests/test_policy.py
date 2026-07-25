@@ -24322,6 +24322,36 @@ class WeightOverloadTownTest(unittest.TestCase):
             )
         )
 
+    def test_home_attempt_latch_suppresses_overweight_convenience_deposit(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        self.assertTrue(policy._home_available(snapshot))
+        self.assertTrue(policy._inventory_overweight(snapshot))
+        self.assertIsNotNone(policy._find_home_deposit(snapshot))
+        self.assertFalse(
+            any(
+                need.store_type == STORE_HOME
+                and need.category in {"weight-overload", "deposit"}
+                for need in policy._enumerate_town_needs(snapshot)
+            )
+        )
+
+    def test_home_attempt_latch_preserves_deep_mining_safety_deposit(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        must_stash = snapshot.inventory[0]
+        policy._must_stash_before_deep_mining = (
+            lambda _snapshot, candidate: candidate is must_stash
+        )
+
+        self.assertIn(
+            TownNeed(STORE_HOME, "deep-mining-deposit", "home-first"),
+            policy._enumerate_town_needs(snapshot),
+        )
+
     def test_overweight_blocks_fixed_quest_town_travel(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy()
