@@ -7630,10 +7630,7 @@ class HengbotPolicy:
         if source is None:
             signature = self._item_signature(target)
             if full and STORE_ALCHEMIST in self._town_store_attempted:
-                self._deferred_home_items.add(signature)
-                self._identification_candidate = None
-                if self._identification_need == "full":
-                    self._identification_need = None
+                self._defer_full_identification(signature)
             else:
                 self._identification_candidate = signature
                 self._request_identification("full" if full else "normal")
@@ -8004,10 +8001,7 @@ class HengbotPolicy:
                     return None
                 signature = self._item_signature(target)
                 if full and STORE_ALCHEMIST in self._town_store_attempted:
-                    self._deferred_home_items.add(signature)
-                    self._identification_candidate = None
-                    if self._identification_need == "full":
-                        self._identification_need = None
+                    self._defer_full_identification(signature)
                 else:
                     self._identification_candidate = signature
                     self._request_identification("full" if full else "normal")
@@ -8055,10 +8049,7 @@ class HengbotPolicy:
             if source is None:
                 signature = self._item_signature(target)
                 if STORE_ALCHEMIST in self._town_store_attempted:
-                    self._deferred_home_items.add(signature)
-                    self._identification_candidate = None
-                    if self._identification_need == "full":
-                        self._identification_need = None
+                    self._defer_full_identification(signature)
                 else:
                     self._request_identification("full")
                 return None
@@ -8092,6 +8083,17 @@ class HengbotPolicy:
             return WAIT_KEY
         self.last_reason = "identify:complete"
         return None
+
+    def _defer_full_identification(self, signature: tuple[str, int, int]) -> None:
+        """Defer unavailable *Identify* work without retaining its Home latch."""
+        self._deferred_home_items.add(signature)
+        self._identification_candidate = None
+        if self._identification_need == "full":
+            self._identification_need = None
+        if self._home_pending_item == signature:
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_candidate_waiting = False
 
     def _has_actionable_incomplete_home_item(self) -> bool:
         """Whether the catalog contains incomplete Home gear usable this visit."""

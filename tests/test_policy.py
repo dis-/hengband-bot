@@ -14109,7 +14109,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
         self.assertNotEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
 
-    def test_defers_star_identify_candidate_after_alchemist_attempt(self):
+    def test_defers_star_identify_candidate_and_releases_home_latch(self):
         target = item(
             "a",
             23,
@@ -14136,15 +14136,62 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._identification_need = "full"
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
-        self.assertNotEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
+        self.assertIsNone(policy._town_item_processing_key(snap))
         self.assertNotEqual(policy.last_reason, "home:need-identify")
         self.assertIsNone(policy._identification_need)
-        self.assertEqual(policy._home_pending_item, signature)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertIsNone(policy._home_pending_slot)
+        self.assertFalse(policy._home_candidate_waiting)
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotEqual(
             policy._next_required_store_type(snap), STORE_ALCHEMIST
         )
         self.assertIsNone(policy._town_restock_wait_until)
+
+        home = replace(
+            snap,
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+        policy.choose_key(home)
+        self.assertNotEqual(policy.last_reason, "home:leave-with-item")
+
+    def test_available_star_identify_keeps_home_latch_until_item_is_processed(self):
+        target = item(
+            "a",
+            23,
+            1,
+            name="ego sword",
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+        )
+        star_scroll = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, name="star identify"
+        )
+        snap = Snapshot(
+            player(10, 10, gold=5000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=300,
+            inventory=[*self._strict_supplies(recall=7), target, star_scroll],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(target)
+        policy._home_pending_item = signature
+        policy._home_pending_slot = "a"
+        policy._identification_candidate = signature
+        policy._identification_need = "full"
+        policy._town_store_attempted[STORE_ALCHEMIST] = 0
+
+        key = policy._town_item_processing_key(snap)
+
+        self.assertIsNotNone(key)
+        self.assertEqual(policy.last_reason, "identify:full")
+        self.assertEqual(policy._home_pending_item, signature)
+        self.assertEqual(policy._home_pending_slot, "a")
+        self.assertNotIn(signature, policy._deferred_home_items)
 
     def test_returns_home_after_buying_star_identify_for_stored_candidate(self):
         target = item(
