@@ -633,6 +633,8 @@ class NewestSnapshotTest(unittest.TestCase):
                     # Hengband veins are TUNNEL terrain but do not carry the
                     # narrower CAN_DIG flag currently emitted as `can_dig`.
                     "can_dig": False,
+                    "tunnel": True,
+                    "permanent": False,
                     "has_gold": True,
                     "entrance": False,
                 },
@@ -680,6 +682,10 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertTrue(snapshot.angband_recall_unlocked)
         self.assertTrue(snapshot.grids[Position(5, 6)].has_gold)
         self.assertTrue(snapshot.grids[Position(5, 6)].can_dig)
+        self.assertTrue(snapshot.grids[Position(5, 6)].tunnel)
+        self.assertFalse(snapshot.grids[Position(5, 6)].permanent)
+        self.assertFalse(snapshot.grids[Position(5, 7)].tunnel)
+        self.assertFalse(snapshot.grids[Position(5, 7)].permanent)
         self.assertEqual(snapshot.grids[Position(5, 7)].entrance_dungeon_id, 2)
         self.assertTrue(snapshot.inventory[0].is_ego)
         self.assertEqual(snapshot.inventory[0].known_flags, frozenset({12, 34}))

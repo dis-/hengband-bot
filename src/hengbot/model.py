@@ -526,6 +526,8 @@ class GridState:
     has_entrance: bool = False  # wilderness/town dungeon entrance (enter with '>')
     store_number: int = -1  # -1 = not a store; else the StoreSaleType index
     can_dig: bool = False  # terrain is a dig target (rubble / vein / granite)
+    tunnel: bool = False  # terrain can be tunnelled through (true digging gate)
+    permanent: bool = False  # undiggable permanent rock
     monster_index: int = 0
     has_gold: bool = False
     entrance_dungeon_id: int = -1
@@ -803,6 +805,8 @@ def parse_snapshot(
                 _as_bool(terrain.get("can_dig", False))
                 or _as_bool(terrain.get("has_gold", False))
             ),
+            tunnel=known and _as_bool(terrain.get("tunnel", False)),
+            permanent=known and _as_bool(terrain.get("permanent", False)),
             monster_index=monster_index if known else 0,
             has_gold=known and _as_bool(terrain.get("has_gold", False)),
             entrance_dungeon_id=(

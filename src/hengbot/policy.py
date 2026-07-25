@@ -1447,6 +1447,9 @@ class HengbotPolicy:
         self._mining_dropped_veins: set[Position] = set()
         self._mining_veins_collected = 0
         self._mining_veins_dropped = 0
+        self._mining_target_distance: int | None = None
+        self._mining_target_revealed_grids = 0
+        self._mining_target_collected = 0
         # Gold when scavenge mode was last entered — the scavenge->prepare
         # transition re-checks latched stores only if gold actually rose.
         self._scavenge_entry_gold = 0
@@ -3627,6 +3630,9 @@ class HengbotPolicy:
             self._mining_dropped_veins.clear()
             self._mining_veins_collected = 0
             self._mining_veins_dropped = 0
+            self._mining_target_distance = None
+            self._mining_target_revealed_grids = 0
+            self._mining_target_collected = 0
             self._chest_position = None
             self._chest_phase_counts = {}
             self._chest_drop_origin = None
@@ -13518,6 +13524,131 @@ class HengbotPolicy:
             self._mining_dropped_veins.add(vein)
             self._mining_veins_dropped += 1
 
+    def _dig_reachable_goal_and_step(
+        self, snapshot: Snapshot, goals: set[Position]
+    ) -> tuple[Position, Position] | None:
+        """Return the nearest goal and first step through floor, tunnels, or fog.
+
+        Detection bounds the optimistic unseen search: cells outside every
+        detection radius cannot contain one of this mining pass's targets and
+        must not provide an infinite route around known permanent rock.
+        """
+        if not goals:
+            return None
+        start = snapshot.player.position
+        centers = self._mining_detection_centers or [start]
+        seen = {start}
+        queue: deque[tuple[Position, Position | None, int]] = deque(
+            [(start, None, 0)]
+        )
+        while queue:
+            position, first, distance = queue.popleft()
+            if position in goals and position != start:
+                assert first is not None
+                self._mining_target_distance = distance
+                return position, first
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if (
+                    neighbor in seen
+                    or neighbor in self._engagement_avoid_cells
+                    or not snapshot.in_bounds(neighbor)
+                    or all(
+                        neighbor.distance_to(center)
+                        > DEEP_FUNDRAISING_DETECTION_RADIUS
+                        for center in centers
+                    )
+                ):
+                    continue
+                grid = snapshot.grids.get(neighbor)
+                if grid is None and (snapshot.width <= 0 or snapshot.height <= 0):
+                    # Legacy/synthetic snapshots without map dimensions cannot
+                    # bound an optimistic fog search. Treat absent cells as
+                    # outside their represented map.
+                    continue
+                if grid is not None and grid.known:
+                    if grid.permanent or grid.has_monster:
+                        continue
+                    if not (grid.enterable or grid.tunnel):
+                        continue
+                seen.add(neighbor)
+                queue.append(
+                    (
+                        neighbor,
+                        neighbor if first is None else first,
+                        distance + 1,
+                    )
+                )
+        return None
+
+    def _mining_closure_key(self, snapshot: Snapshot) -> str:
+        """Collect or permanently drop every detected target on this floor."""
+        if self._mining_sweep_steps >= MINING_SWEEP_HARD_LIMIT:
+            result = self._finish_mining_floor(snapshot)
+            self.last_reason = "fundraise:mining-hard-limit"
+            return result
+
+        centers = self._mining_detection_centers
+        targets = {
+            target
+            for target in self._known_treasure - self._mining_dropped_veins
+            if not centers
+            or any(
+                target.distance_to(center) <= DEEP_FUNDRAISING_DETECTION_RADIUS
+                for center in centers
+            )
+        }
+        while targets:
+            previous_distance = self._mining_target_distance
+            route = self._dig_reachable_goal_and_step(snapshot, targets)
+            if route is None:
+                for target in targets:
+                    self._drop_mining_vein(target)
+                self._treasure_target = None
+                self._mining_stall_turns = 0
+                return self._finish_mining_floor(snapshot)
+            target, step = route
+            distance = self._mining_target_distance
+            if target != self._treasure_target:
+                self._treasure_target = target
+                self._mining_stall_turns = 0
+                self._mining_target_revealed_grids = len(snapshot.grids)
+                self._mining_target_collected = self._mining_veins_collected
+                previous_distance = None
+            progressed = (
+                previous_distance is None
+                or (distance is not None and distance < previous_distance)
+                or len(snapshot.grids) > self._mining_target_revealed_grids
+                or self._mining_veins_collected > self._mining_target_collected
+            )
+            if progressed:
+                self._mining_stall_turns = 0
+            else:
+                self._mining_stall_turns += 1
+            self._mining_target_revealed_grids = max(
+                self._mining_target_revealed_grids, len(snapshot.grids)
+            )
+            self._mining_target_collected = self._mining_veins_collected
+            if self._mining_stall_turns >= MINING_STALL_LIMIT:
+                self._drop_mining_vein(target)
+                self._treasure_target = None
+                self._mining_target_distance = None
+                self._mining_stall_turns = 0
+                targets.discard(target)
+                continue
+
+            self._mining_sweep_steps += 1
+            grid = snapshot.grids.get(step)
+            if grid is not None and grid.known and grid.tunnel and not grid.enterable:
+                self.last_reason = "fundraise:dig-to-treasure"
+                return TUNNEL_KEY + self._direction_key(
+                    snapshot.player.position, step
+                )
+            self.last_reason = "fundraise:seek-treasure"
+            return self._step_toward(snapshot, step)
+
+        return self._finish_mining_floor(snapshot)
+
     def _mining_sweep_step(self, snapshot: Snapshot) -> Position | None:
         """One exploration step inside the detected area (phase 1 of the user's
         mining design): mapping the area first gives every cheap vein a known
@@ -13554,6 +13685,9 @@ class HengbotPolicy:
         self._mining_sweep_goal = None
         self._mining_sweep_goal_distance = None
         self._mining_sweep_escape_pairs.clear()
+        self._mining_target_distance = None
+        self._mining_target_revealed_grids = len(snapshot.grids)
+        self._mining_target_collected = self._mining_veins_collected
 
     def _record_mining_sweep_step(self, snapshot: Snapshot) -> None:
         """Account for one sweep move without spending the collection leash."""
@@ -13959,6 +14093,10 @@ class HengbotPolicy:
             if detected_total < MINING_MIN_VIABLE_VEINS:
                 self._mining_stall_turns = MINING_STALL_LIMIT
                 return self._finish_mining_floor(snapshot)
+
+        # Loot, equipment, detection, and combat remain handled above. Consume
+        # the detected set itself as one dig-aware reachable-treasure closure.
+        return self._mining_closure_key(snapshot)
 
         adjacent_gold = min(
             (
