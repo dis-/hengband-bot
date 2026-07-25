@@ -27483,7 +27483,11 @@ class MiningReachableTreasureClosureTest(unittest.TestCase):
             self.assertEqual(policy._mining_closure_key(second), "FINISH")
         self.assertIn(blocked, policy._mining_dropped_veins)
 
-    def test_stalled_target_is_dropped_at_existing_leash(self):
+    def test_actively_digging_target_survives_past_leash(self):
+        # A reachable vein reached by tunnelling a hard tile must NOT be dropped
+        # at the per-target leash: active digging is forward progress. Only the
+        # global MINING_SWEEP_HARD_LIMIT backstop bounds a tile that never breaks
+        # through.
         target = Position(3, 4)
         snap = Snapshot(
             player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
@@ -27495,7 +27499,30 @@ class MiningReachableTreasureClosureTest(unittest.TestCase):
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
         )
         policy = self._policy(target)
-        self.assertEqual(policy._mining_closure_key(snap), TUNNEL_KEY + "6")
+        with patch.object(policy, "_finish_mining_floor", return_value="FINISH"):
+            for _ in range(MINING_STALL_LIMIT + 5):
+                result = policy._mining_closure_key(snap)
+                self.assertEqual(result, TUNNEL_KEY + "6")
+        self.assertNotIn(target, policy._mining_dropped_veins)
+
+    def test_navigation_stall_still_drops_target_at_leash(self):
+        # A target the bot can only WALK toward while making no progress (fixed
+        # position) still burns the per-target leash and is dropped; the digging
+        # exemption must not disable the navigation stall guard.
+        target = Position(3, 5)
+        snap = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(3, 3): grid(3, 3),
+                Position(3, 4): grid(3, 4),
+                target: grid(3, 5, passable=False, gold=True, tunnel=True),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = self._policy(target)
+        policy._mining_closure_key(snap)
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
         with patch.object(policy, "_finish_mining_floor", return_value="FINISH"):
             for _ in range(MINING_STALL_LIMIT):
                 result = policy._mining_closure_key(snap)

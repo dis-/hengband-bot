@@ -13609,14 +13609,27 @@ class HengbotPolicy:
                 return self._finish_mining_floor(snapshot)
             target, step = route
             distance = self._mining_target_distance
+            step_grid = snapshot.grids.get(step)
+            step_is_dig = (
+                step_grid is not None
+                and step_grid.known
+                and step_grid.tunnel
+                and not step_grid.enterable
+            )
             if target != self._treasure_target:
                 self._treasure_target = target
                 self._mining_stall_turns = 0
                 self._mining_target_revealed_grids = len(snapshot.grids)
                 self._mining_target_collected = self._mining_veins_collected
                 previous_distance = None
+            # Actively tunnelling a hard but reachable tile is forward progress
+            # even though position, revealed grids, and collection are unchanged;
+            # only a non-digging navigation stall may burn the per-target leash.
+            # The global MINING_SWEEP_HARD_LIMIT backstop still bounds a tile that
+            # never breaks through.
             progressed = (
-                previous_distance is None
+                step_is_dig
+                or previous_distance is None
                 or (distance is not None and distance < previous_distance)
                 or len(snapshot.grids) > self._mining_target_revealed_grids
                 or self._mining_veins_collected > self._mining_target_collected
@@ -13638,8 +13651,7 @@ class HengbotPolicy:
                 continue
 
             self._mining_sweep_steps += 1
-            grid = snapshot.grids.get(step)
-            if grid is not None and grid.known and grid.tunnel and not grid.enterable:
+            if step_is_dig:
                 self.last_reason = "fundraise:dig-to-treasure"
                 return TUNNEL_KEY + self._direction_key(
                     snapshot.player.position, step
