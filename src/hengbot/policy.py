@@ -5867,9 +5867,22 @@ class HengbotPolicy:
                 and item.item.ammo_tval != required_launcher_ammo
             )
         )
+        search_catalog = tuple(
+            replace(item, random_teleport_suppressed=True)
+            if (
+                item.evaluable
+                and not item.item.fully_known
+                and item_requires_full_identification(item.item)
+            )
+            else item
+            for item in catalog
+        )
+        # Score safe partial-ID candidates as they will exist after `{.}` is
+        # applied. If one wins, the pending blocker below prevents transaction
+        # creation until the town suppression step has changed the real item.
         preparation = prepare_warrior_optimization(
             snapshot,
-            catalog,
+            search_catalog,
             self._monrace_knowledge,
             depth=optimization_depth,
             home_scan_complete=self._equipment_catalog.home_scan_complete,
@@ -5883,6 +5896,25 @@ class HengbotPolicy:
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
         )
+        result = getattr(preparation, "result", None)
+        best = getattr(result, "best", None)
+        loadout = getattr(best, "loadout", None)
+        selected_ids = getattr(loadout, "item_ids", frozenset())
+        if not isinstance(selected_ids, (set, frozenset)):
+            selected_ids = frozenset()
+        if any(
+            item.id in selected_ids
+            and item.evaluable
+            and not item.item.fully_known
+            and item_requires_full_identification(item.item)
+            and not item.random_teleport_suppressed
+            for item in catalog
+        ):
+            preparation = replace(
+                preparation,
+                transaction=None,
+                blockers=("pending-random-teleport-suppression",),
+            )
         self._equipment_optimization_signature = signature
         self._equipment_optimization_pack_items = len(snapshot.inventory)
         self._equipment_optimization_preparation = preparation
@@ -12539,20 +12571,38 @@ class HengbotPolicy:
             return READ_KEY + scroll.slot + "/" + slot_key
         return None
 
-    @staticmethod
-    def _needs_random_teleport_suppression(item) -> bool:
+    def _needs_random_teleport_suppression(self, item) -> bool:
+        preparation = self._equipment_optimization_preparation
+        result = getattr(preparation, "result", None)
+        best = getattr(result, "best", None)
+        loadout = getattr(best, "loadout", None)
+        selected_ids = getattr(loadout, "item_ids", frozenset())
+        if not isinstance(selected_ids, (set, frozenset)):
+            selected_ids = frozenset()
+        selected_partial = any(
+            owned.id in selected_ids
+            and equipment_identity(owned.item) == equipment_identity(item)
+            for owned in self._equipment_catalog.items
+        )
         return (
             item.is_equipment
             and item.known
             and not item.is_cursed
-            and TR_TELEPORT in item.known_flags
+            and (
+                TR_TELEPORT in item.known_flags
+                or (
+                    selected_partial
+                    and not item.fully_known
+                    and item_requires_full_identification(item)
+                )
+            )
             and not random_teleport_is_suppressed(item)
         )
 
     def _town_random_teleport_suppression_key(
         self, snapshot: Snapshot
     ) -> str | None:
-        """Inscribe `{.}` on every known, non-cursed random-teleport item."""
+        """Suppress visible or still-hidden random teleport before equipping."""
         if not snapshot.in_town:
             return None
 

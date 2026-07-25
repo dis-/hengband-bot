@@ -149,9 +149,7 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
     the display name, so require the period inside braces rather than accepting
     an unrelated period elsewhere in the item name.
     """
-    return TR_TELEPORT in item.known_flags and bool(
-        _INSCRIPTION_BLOCK.search(item.name)
-    )
+    return bool(_INSCRIPTION_BLOCK.search(item.name))
 
 
 def required_abilities(depth: int) -> frozenset[str]:
@@ -190,10 +188,7 @@ class OwnedEquipment:
     def evaluable(self) -> bool:
         if self.item.is_broken or self.item.is_cursed or not self.item.known:
             return False
-        return not (
-            item_requires_full_identification(self.item)
-            and not self.item.fully_known
-        )
+        return True
 
     @property
     def identification_incomplete(self) -> bool:
@@ -203,14 +198,19 @@ class OwnedEquipment:
         if not self.item.known:
             return self.item.pseudo_feeling != "average"
         return (
-            item_requires_full_identification(self.item)
-            and not self.item.fully_known
+            not self.item.fully_known
+            and (
+                self.item.is_cursed
+                or item_requires_full_identification(self.item)
+            )
         )
 
     @property
     def exploration_legal(self) -> bool:
         if not self.evaluable or self.flags.intersection(FORBIDDEN_EXPLORATION_FLAGS):
             return False
+        if not self.item.fully_known:
+            return self.random_teleport_suppressed
         return TR_TELEPORT not in self.flags or self.random_teleport_suppressed
 
 
@@ -931,13 +931,14 @@ def optimize_loadout(
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
     incomplete = frozenset(
-        item.id for item in catalog if item.identification_incomplete
+        item.id
+        for item in catalog
+        if item.identification_incomplete and not item.evaluable
     )
     started = monotonic()
-    # An incomplete catalog can never produce an actionable result. Avoid an
-    # expensive exact search whose partial answer prepare_warrior_optimization
-    # must discard anyway; town processing first needs to identify or uncurse
-    # every owned candidate.
+    # Only incomplete items that cannot be evaluated block the exact search.
+    # Known, uncursed candidates retain their eventual full-identification
+    # intent while participating now on their confirmed information.
     if incomplete:
         return OptimizationResult(
             best=None,

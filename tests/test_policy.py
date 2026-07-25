@@ -124,6 +124,7 @@ from hengbot.policy import (
     IDENTIFY_FAIL_LIMIT,
     IDENTIFY_CHARGE_FLOOR,
     IDENTIFY_PURCHASE_MAX,
+    INSCRIBE_KEY,
     RECALL_MIN_DEPTH,
     SUPPLY_THRESHOLDS,
     RESUME_DESCENT_BLOCK_DECISIONS,
@@ -28651,6 +28652,30 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
 
         self.assertEqual(key, "{a.\r")
+        self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
+
+    def test_inscribes_partial_known_uncursed_item_before_equipping(self):
+        glaive = item(
+            "a", 23, 1, name="Animal-Slayer Glaive", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+            known_flags=frozenset(),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried([glaive], [])
+        owned = policy._equipment_catalog.items[0]
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            result=SimpleNamespace(
+                best=SimpleNamespace(
+                    loadout=SimpleNamespace(item_ids=frozenset({owned.id}))
+                )
+            )
+        )
+
+        key = policy._town_random_teleport_suppression_key(
+            self._town(inventory=(glaive,))
+        )
+
+        self.assertEqual(key, INSCRIBE_KEY + "a.\r")
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
 
     def test_withdraws_home_random_teleport_item_before_inscribing(self):

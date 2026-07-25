@@ -495,33 +495,64 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertTrue(all("unsafe" not in loadout.item_ids for loadout in loadouts))
         self.assertTrue(any("safe-teleport" in loadout.item_ids for loadout in loadouts))
 
-    def test_ego_and_artifact_need_full_identification(self):
-        ego = gear("ego", 23, ego=True, fully_known=False)
-        result = optimize_loadout(
-            [self.light, ego], lambda loadout: metrics(1), depth=1
+    def test_known_uncursed_ego_is_evaluated_after_teleport_suppression(self):
+        equipped = gear("equipped", 23, equipped_slot=SLOT_MAIN_HAND)
+        ego = gear(
+            "ego", 23, ego=True, fully_known=False, teleport_suppressed=True
         )
-        self.assertEqual(result.incomplete_item_ids, {"ego"})
-        self.assertEqual(result.combinations_considered, 0)
+        result = optimize_loadout(
+            [self.light, equipped, ego],
+            lambda loadout: metrics(100 if "ego" in loadout.item_ids else 1),
+            depth=1,
+            current_item_ids=frozenset({"light", "equipped"}),
+        )
+        self.assertTrue(ego.evaluable)
+        self.assertTrue(ego.identification_incomplete)
+        self.assertTrue(ego.exploration_legal)
+        self.assertEqual(result.incomplete_item_ids, frozenset())
+        self.assertGreater(result.combinations_considered, 0)
+        self.assertIn("ego", result.best.loadout.item_ids)
         self.assertFalse(result.timed_out)
-        self.assertTrue(all("ego" not in entry.loadout.item_ids for entry in result.pareto_frontier))
 
-    def test_dragon_helm_needs_full_identification_for_random_resistance(self):
+    def test_partial_known_item_requires_hidden_teleport_suppression(self):
         helm = gear(
             "dragon-helm",
             TVAL_HELM,
             sval=SV_DRAGON_HELM,
             fully_known=False,
         )
+        suppressed = gear(
+            "suppressed-dragon-helm",
+            TVAL_HELM,
+            sval=SV_DRAGON_HELM,
+            fully_known=False,
+            teleport_suppressed=True,
+        )
+        self.assertTrue(helm.evaluable)
+        self.assertFalse(helm.exploration_legal)
+        self.assertTrue(suppressed.exploration_legal)
+
+    def test_cursed_partial_known_item_still_blocks_optimization(self):
+        cursed = gear(
+            "cursed-ego", 23, ego=True, fully_known=False, cursed=True
+        )
         result = optimize_loadout(
-            [self.light, helm], lambda loadout: metrics(1), depth=40
+            [self.light, cursed], lambda loadout: metrics(1), depth=1
         )
-        self.assertEqual(result.incomplete_item_ids, {"dragon-helm"})
-        self.assertTrue(
-            all(
-                "dragon-helm" not in entry.loadout.item_ids
-                for entry in result.pareto_frontier
-            )
+        self.assertFalse(cursed.evaluable)
+        self.assertTrue(cursed.identification_incomplete)
+        self.assertEqual(result.incomplete_item_ids, {"cursed-ego"})
+        self.assertEqual(result.combinations_considered, 0)
+
+    def test_not_known_item_still_blocks_optimization(self):
+        unknown = gear("unknown", 23, known=False, fully_known=False)
+        result = optimize_loadout(
+            [self.light, unknown], lambda loadout: metrics(1), depth=1
         )
+        self.assertFalse(unknown.evaluable)
+        self.assertTrue(unknown.identification_incomplete)
+        self.assertEqual(result.incomplete_item_ids, {"unknown"})
+        self.assertEqual(result.combinations_considered, 0)
 
     def test_unidentified_average_item_is_ignored_without_blocking(self):
         average = gear(
@@ -1028,6 +1059,22 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertTrue(random_teleport_is_suppressed(mask))
         self.assertTrue(catalog.items[0].random_teleport_suppressed)
         self.assertTrue(catalog.items[0].exploration_legal)
+
+    def test_dot_inscription_suppresses_hidden_random_teleport(self):
+        weapon = InventoryItem(
+            slot="a",
+            name="Animal-Slayer Glaive {.}",
+            count=1,
+            tval=23,
+            sval=1,
+            aware=True,
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+            known_flags=frozenset(),
+        )
+        self.assertTrue(random_teleport_is_suppressed(weapon))
 
     def test_period_outside_inscription_does_not_suppress_random_teleport(self):
         mask = InventoryItem(
