@@ -8307,28 +8307,36 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "quest-strategy:q2-close-residual-multiplier-no-ammo",
         )
 
-    def test_q2_recovers_dry_floor_ammo_candidate_for_corpse_masses(self):
+    def test_q2_closes_on_corpse_masses_before_recovering_dry_ammo(self):
         policy = self._policy()
         battlefield = QuestBattlefield(
             terrain={(1, x): "floor" for x in range(1, 16)},
-            monster_placements=(((1, 14), 202),),
+            monster_placements=(
+                ((1, 2), 918),
+                ((1, 13), 202),
+                ((1, 14), 202),
+                ((1, 15), 202),
+            ),
         )
         policy._quest_knowledge[2] = QuestInfo(
             2, "The Sewer", 6, 15, 0, battlefield=battlefield
         )
-        target = replace(hostile(1, 1, 14, distance=13), race_id=202)
+        targets = [
+            replace(hostile(index, 1, x, distance=x - 1), race_id=202)
+            for index, x in enumerate((13, 14, 15), start=1)
+        ]
         snapshot = Snapshot(
             player(1, 1),
             {
                 Position(1, x): grid(
                     1, x,
-                    monster=x == 14,
+                    monster=x in {13, 14, 15},
                     objects=1 if x == 3 else 0,
                     object_tvals=(TVAL_BOLT,) if x == 3 else (),
                 )
                 for x in range(1, 16)
             },
-            [target],
+            targets,
             floor_key=(0, 15, 2),
             equipment=[
                 item(
@@ -8344,8 +8352,90 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(
             policy.last_reason,
-            "quest-strategy:q2-recover-dry-ammo-candidate",
+            "quest-strategy:q2-close-residual-multiplier-no-ammo",
         )
+
+    def test_q2_recommits_to_recent_corpse_mass_before_phase_918(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 21)},
+            monster_placements=(((1, 2), 918), ((1, 18), 202)),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_breeder_last_seen = Position(1, 18)
+        policy._q2_breeder_last_seen_floor = (0, 15, 2)
+        phase_918_index = self.profiles[2].priority_targets.index(918)
+        policy._q2_cleared_races.update(
+            self.profiles[2].priority_targets[:phase_918_index]
+        )
+        policy._q2_breach_complete = True
+        policy._q2_blue_recovery_complete = True
+        policy._q2_surveyed_placements.update(
+            placement
+            for _, _, placements in policy_module.Q2_POST_BLUE_SEQUENCE
+            for placement in placements
+        )
+        hidden = Snapshot(
+            player(1, 10),
+            {
+                Position(1, x): grid(1, x, in_view=8 <= x <= 14)
+                for x in range(1, 21)
+            },
+            [],
+            floor_key=(0, 15, 2),
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        key = policy._q2_phase_key(hidden, self.profiles[2], navigator)
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-breeder-recommit",
+        )
+        self.assertEqual(key, "6")
+
+    def test_q2_phase_918_runs_when_no_breeder_was_seen(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 21)},
+            monster_placements=(((1, 2), 918), ((1, 18), 202)),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        phase_918_index = self.profiles[2].priority_targets.index(918)
+        policy._q2_cleared_races.update(
+            self.profiles[2].priority_targets[:phase_918_index]
+        )
+        policy._q2_breach_complete = True
+        policy._q2_blue_recovery_complete = True
+        policy._q2_surveyed_placements.update(
+            placement
+            for _, _, placements in policy_module.Q2_POST_BLUE_SEQUENCE
+            for placement in placements
+        )
+        snapshot = Snapshot(
+            player(1, 10),
+            {
+                Position(1, x): grid(1, x, in_view=8 <= x <= 12)
+                for x in range(1, 21)
+            },
+            [],
+            floor_key=(0, 15, 2),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "4"
+        )
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-phase-918")
 
     def test_q2_ammo_recovery_persists_when_corpse_masses_leave_view(self):
         policy = self._policy()

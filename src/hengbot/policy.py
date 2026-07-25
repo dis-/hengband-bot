@@ -1259,6 +1259,8 @@ class HengbotPolicy:
         self._q2_residual_surveyed_races: set[int] = set()
         self._q2_final_patrol_visited: set[Position] = set()
         self._q2_final_patrol_target: Position | None = None
+        self._q2_breeder_last_seen: Position | None = None
+        self._q2_breeder_last_seen_floor: tuple[int, int, int] | None = None
         self._q2_cleared_races: set[int] = set()
         self._q2_breach_attempts = 0
         self._q2_breach_complete = False
@@ -3574,6 +3576,8 @@ class HengbotPolicy:
             self._q2_residual_surveyed_races.clear()
             self._q2_final_patrol_visited.clear()
             self._q2_final_patrol_target = None
+            self._q2_breeder_last_seen = None
+            self._q2_breeder_last_seen_floor = None
             self._q2_cleared_races.clear()
             self._q2_breach_attempts = 0
             self._q2_breach_complete = False
@@ -14705,6 +14709,8 @@ class HengbotPolicy:
                     monster.position
                 ),
             )
+            self._q2_breeder_last_seen = target.position
+            self._q2_breeder_last_seen_floor = snapshot.floor_key
             # A firing vantage is useful only while compatible ammunition is
             # actually available.  On the live Sewer cleanup, the launcher
             # spent its last bolt before the corpse masses finished
@@ -14714,11 +14720,6 @@ class HengbotPolicy:
             # edge cell and let the normal adjacent-melee block finish them.
             if self._quest_profile_ammo(snapshot, profile) is None:
                 occupied = {monster.position for monster in residual_hostiles}
-                if target.race_id == 202:
-                    self._q2_ammo_recovery_floor = snapshot.floor_key
-                    ammo_recovery = recover_dry_ammo()
-                    if ammo_recovery is not None:
-                        return ammo_recovery
                 melee_goals = {
                     position
                     for position in (
@@ -15053,6 +15054,34 @@ class HengbotPolicy:
                     for placement in phase_placements
                 ):
                     self._q2_cleared_races.add(race_id)
+
+        breeder_target = self._q2_breeder_last_seen
+        if (
+            breeder_target is not None
+            and self._q2_breeder_last_seen_floor == snapshot.floor_key
+        ):
+            target_grid = snapshot.grid_at(breeder_target)
+            target_confirmed_clear = (
+                target_grid is not None
+                and target_grid.known
+                and not target_grid.has_monster
+                and (
+                    target_grid.in_view
+                    or snapshot.player.position.distance_to(breeder_target) <= 1
+                )
+            )
+            if target_confirmed_clear:
+                self._q2_breeder_last_seen = None
+                self._q2_breeder_last_seen_floor = None
+            else:
+                step = navigator.route_to_static_goals(
+                    snapshot.player.position, {breeder_target}
+                )
+                if step is not None:
+                    self.last_reason = "quest-strategy:q2-breeder-recommit"
+                    return self._step_toward(snapshot, step)
+                self.last_reason = "quest:blocked:q2-breeder-recommit"
+                return WAIT_KEY
 
         for race_id in profile.priority_targets:
             if race_id == 252 and not self._q2_breach_complete:
