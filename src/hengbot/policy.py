@@ -13399,6 +13399,11 @@ class HengbotPolicy:
             or snapshot.dungeon_level not in {1, DEEP_FUNDRAISING_DEPTH}
         ):
             return None
+        if self._equipped_digging_tool(snapshot) is not None:
+            adjacent = [monster for monster in hostiles if monster.distance <= 1]
+            ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
+            if ranged is not None:
+                return ranged
         if snapshot.player.class_id == PLAYER_CLASS_WARRIOR and not deep_mining:
             return None
         material_hostiles = (

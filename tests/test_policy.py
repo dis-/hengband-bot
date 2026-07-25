@@ -15561,6 +15561,85 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "fundraise:wield-combat-weapon")
 
+    def test_deep_mining_fires_before_rearming_diggers(self):
+        monster = hostile(1, 10, 12, distance=2)
+        snap = Snapshot(
+            player(
+                10, 10, hp=413, max_hp=413, level=24,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            inventory=[
+                item("p", TVAL_SWORD, 1, name="Saber", is_equipment=True),
+                item("s", TVAL_SHOT, 1, name="iron shots", count=20),
+            ],
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                item(
+                    "sub_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                item(
+                    "bow", TVAL_BOW, SV_BOW_SLING, name="sling",
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_stall_turns = 7
+
+        with patch.object(
+            policy, "_restore_mining_combat_hand_key", wraps=policy._restore_mining_combat_hand_key
+        ) as restore:
+            self.assertEqual(
+                policy._fundraising_combat_equipment_key(snap, [monster]), "fs6"
+            )
+
+        restore.assert_not_called()
+        self.assertEqual(policy.last_reason, "ranged:fire")
+        self.assertEqual(policy._mining_stall_turns, 7)
+
+    def test_shallow_warrior_mining_throws_before_generic_combat(self):
+        monster = hostile(1, 10, 12, distance=2)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
+            ],
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertEqual(
+            policy._fundraising_combat_equipment_key(snap, [monster]), "vt6"
+        )
+        self.assertEqual(policy.last_reason, "ranged:throw-torch")
+
     def test_fundraising_combat_restore_skips_pack_jewelry(self):
         monster = hostile(1, 10, 12, distance=2)
         snap = Snapshot(
