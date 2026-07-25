@@ -18444,6 +18444,24 @@ class HengbotPolicy:
         floor, instead of oscillating in a dead end until the loop guard stops
         the bot. Returns None only when genuinely stuck (caller bounded-waits).
         """
+        # Leaving the floor beats relocating within it: read a carried Word of
+        # Recall (then hold for the countdown) to escape directly. This does NOT
+        # depend on the _returning_to_town latch, which a swarm's fruitless-combat
+        # state can leave unset so _return_to_town_key never issues the scroll
+        # (live: Yeek Cave worm mass, 5 recall scrolls carried yet never read).
+        player = snapshot.player
+        if (
+            snapshot.floor_key[2] == 0
+            and not self._floor_navigation_exit_locked(snapshot)
+            and not player.recalling
+            and not player.blind
+            and not player.confused
+        ):
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                self._returning_to_town = True
+                self.last_reason = "combat:disengage-recall"
+                return READ_KEY + recall.slot
         step = self._summoner_retreat_step(snapshot, threats, hostiles)
         if step is not None and not (
             self._is_oscillating() and step in set(self._recent)

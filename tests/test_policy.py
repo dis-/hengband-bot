@@ -559,6 +559,28 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "combat:disengage-seek-upstairs")
         self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
 
+    def test_disengage_reads_recall_to_leave_the_floor(self):
+        from collections import deque
+        policy = HengbotPolicy()
+        policy._recent = deque(maxlen=64)
+        snapshot = Snapshot(
+            player(5, 5, hp=264, max_hp=264, level=13),
+            {Position(5, 5): grid(5, 5)},
+            [],
+            floor_key=(2, 5, 0),
+            inventory=[item("f", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5)],
+        )
+        swarm = [
+            hostile(1, 5, 6, hp=4, max_hp=4, distance=1,
+                    can_multiply=True, max_melee_damage=4)
+        ]
+        # The live failure: the return latch is unset, so the ordinary recall
+        # path never issues the scroll. The disengage must read it directly.
+        policy._returning_to_town = False
+        key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
+        self.assertEqual(policy.last_reason, "combat:disengage-recall")
+        self.assertEqual(key, "rf")
+
     def test_disengage_retreats_normally_when_not_oscillating(self):
         from collections import deque
         policy = HengbotPolicy()
