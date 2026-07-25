@@ -9074,11 +9074,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-teleport-reset")
 
-    def test_q2_disengages_from_corpse_cluster_to_recover_ammo(self):
+    def test_q2_melee_commits_to_adjacent_corpse_cluster_without_ammo(self):
         policy = self._policy()
         adjacent = [
             replace(hostile(index, y, x, distance=1), race_id=202)
-            for index, (y, x) in enumerate(((2, 3), (3, 3)), 1)
+            for index, (y, x) in enumerate(((1, 2), (2, 3), (3, 3)), 1)
         ]
         snapshot = Snapshot(
             player(2, 2, hp=300, max_hp=300),
@@ -9103,15 +9103,15 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         policy._build_grid_index(snapshot)
 
-        key = policy._q2_encounter_key(
-            snapshot, self.profiles[2], adjacent, adjacent
+        self.assertIsNone(
+            policy._q2_encounter_key(
+                snapshot, self.profiles[2], adjacent, adjacent
+            )
         )
-
-        self.assertIn(key, {"1", "4", "7", "8"})
-        self.assertEqual(
-            policy.last_reason,
-            "quest-strategy:q2-disengage-corpse-no-ammo",
+        self.assertNotEqual(
+            policy.last_reason, "quest-strategy:q2-disengage-corpse-no-ammo"
         )
+        self.assertNotEqual(policy.last_reason, "quest-strategy:q2-teleport-reset")
 
     def test_completed_mining_rearms_normal_maintenance_restock(self):
         policy = self._policy()

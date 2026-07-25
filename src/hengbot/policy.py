@@ -14457,21 +14457,15 @@ class HengbotPolicy:
         hostiles: list[MonsterState],
         adjacent: list[MonsterState],
     ) -> str | None:
-        # Corpse masses are an approved ranged-only Q2 target.  If the last
-        # bolt was just spent while closing on their cluster, do not let the
-        # generic swarm reset teleport us across the map (or fall through to
-        # adjacent melee).  Back out of contact so the phase router can recover
-        # dry-floor ammunition candidates.
-        if (
+        # Leaving an engaged breeder cluster fails Q2.  Once launcher
+        # ammunition is exhausted, suppress the generic swarm reset and let
+        # the caller's normal adjacent-melee path finish the breeders.
+        melee_commit = (
             adjacent
             and all(monster.race_id == 202 for monster in adjacent)
             and self._quest_profile_ammo(snapshot, profile) is None
-        ):
-            step = self._flee_step(snapshot, adjacent)
-            if step is not None:
-                self.last_reason = "quest-strategy:q2-disengage-corpse-no-ammo"
-                return self._step_toward(snapshot, step)
-        if len(adjacent) >= SWARM_COUNT and not (
+        )
+        if not melee_commit and len(adjacent) >= SWARM_COUNT and not (
             snapshot.player.blind or snapshot.player.confused
         ):
             teleport = self._find_teleport_scroll(snapshot)
