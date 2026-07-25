@@ -531,6 +531,16 @@ TOWN_CYCLE_IGNORED_REASONS = frozenset(
         "town:travel-entrance",
     }
 )
+STORE_RESTOCK_REASON_NAMES = {
+    STORE_HOME: "home",
+    STORE_GENERAL: "general",
+    STORE_WEAPON: "weapon",
+    STORE_TEMPLE: "temple",
+    STORE_ALCHEMIST: "alchemist",
+    STORE_MAGIC: "magic",
+    STORE_BLACK: "black-market",
+    STORE_ARMOURY: "armoury",
+}
 # Over-extension: this many dives into the recall-target dungeon that collect ZERO
 # loot means it is too deep for the character (a clvl-24 warrior in Angband, whose
 # recommended level is 30, grabs one trivial item, burns escape scrolls on repeated
@@ -1588,6 +1598,7 @@ class HengbotPolicy:
         self._town_store_attempted: dict[int, int] = {}
         self._completed_home_can_rearm = False
         self._town_restock_wait_until: int | None = None
+        self._town_restock_waiting_for: tuple[int, ...] = ()
         self._town_restock_rechecked: set[int] = set()
         # Normal Remove Curse can fail against a heavy curse.  A confirmed
         # unchanged read records that fact both in the runtime latch and in a
@@ -3174,7 +3185,11 @@ class HengbotPolicy:
                     self._town_cycle_breaks = 0
             if (
                 self.last_reason
-                and self.last_reason not in TOWN_CYCLE_IGNORED_REASONS
+                and not any(
+                    self.last_reason == ignored
+                    or self.last_reason.startswith(f"{ignored}:")
+                    for ignored in TOWN_CYCLE_IGNORED_REASONS
+                )
                 and self.last_reason not in HOME_PLAN_OWNED_PROCESSING_REASONS
             ):
                 position = snapshot.player.position
@@ -8659,27 +8674,40 @@ class HengbotPolicy:
         """Wait for stock turnover, then make the relevant shops eligible again."""
         if self._town_restock_suppressed:
             return None
+        self._town_restock_waiting_for = store_types
         if self._town_restock_wait_until is None:
             self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
             return None
         if snapshot.turn < self._town_restock_wait_until:
             return None
-        eligible = [
-            store_type
-            for store_type in store_types
-            if store_type not in self._town_restock_rechecked
-        ]
-        if not eligible:
-            # Nothing acquired since the wait began and every relevant store
-            # already received its one genuine stock-turnover re-check this
-            # visit.  Keep waiting without re-fuelling the shopping carousel.
-            self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
-            return None
         self._town_restock_wait_until = None
-        for store_type in eligible:
+        self._town_restock_waiting_for = ()
+        for store_type in store_types:
             self._town_store_attempted.pop(store_type, None)
             self._town_restock_rechecked.add(store_type)
-        return eligible[0]
+        return store_types[0]
+
+    def _restock_wait_reason(self, snapshot: Snapshot) -> str:
+        stores = self._town_restock_waiting_for
+        store_name = (
+            STORE_RESTOCK_REASON_NAMES.get(stores[0], str(stores[0]))
+            if stores
+            else "unknown"
+        )
+        missing = None
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            if STORE_GENERAL in stores and not self._has_digging_tool(snapshot):
+                missing = "digging-tool"
+            elif (
+                STORE_ALCHEMIST in stores
+                and self._count_treasure_detection_scrolls(snapshot)
+                < self._mining_detection_scroll_target(snapshot)
+            ):
+                missing = "treasure-detection"
+            elif STORE_GENERAL in stores and not self._fundraising_light_ready(snapshot):
+                missing = "oil-light"
+        suffix = f":{missing}" if missing is not None else ""
+        return f"town:wait-restock:{store_name}{suffix}"
 
     def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return every currently true town errand without changing policy state."""
@@ -12715,20 +12743,8 @@ class HengbotPolicy:
             return self._town_blocked_key(snapshot)
 
         if (
-            not self._town_restock_suppressed
-            and self._town_restock_wait_until is not None
-            and snapshot.turn < self._town_restock_wait_until
-        ):
-            self.last_reason = "town:wait-restock"
-            return RESTOCK_WAIT_MACRO
-
-        if (
             self._fundraising_mode in {"prepare", "scavenge"}
             and self._fundraising_supplies_ready(snapshot)
-            and (
-                not self._town_restock_suppressed
-                or self._fundraising_departure_ready(snapshot)
-            )
         ):
             # Store-route suppression prevents another futile shopping cycle;
             # it must not freeze the activity mode after the complete mining
@@ -12741,6 +12757,14 @@ class HengbotPolicy:
             # current errand plan revisit the same empty/unaffordable shop
             # immediately, producing Alchemist -> entrance -> Alchemist trips.
             # Genuine stock turnover is re-armed by _retry_after_store_restock.
+
+        if (
+            not self._town_restock_suppressed
+            and self._town_restock_wait_until is not None
+            and snapshot.turn < self._town_restock_wait_until
+        ):
+            self.last_reason = self._restock_wait_reason(snapshot)
+            return RESTOCK_WAIT_MACRO
 
         if (
             self._fundraising_mode == "mine"
@@ -12988,7 +13012,7 @@ class HengbotPolicy:
             self._retry_after_store_restock(
                 snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
             )
-            self.last_reason = "town:wait-restock"
+            self.last_reason = self._restock_wait_reason(snapshot)
             return RESTOCK_WAIT_MACRO
         if recall_dest is not None and departure_ok:
             recall_count = sum(

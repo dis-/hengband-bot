@@ -162,6 +162,7 @@ from hengbot.policy import (
     PICKUP_KEY,
     REST_MACRO,
     RESTOCK_WAIT_MACRO,
+    STORE_RESTOCK_WAIT_TURNS,
     STUCK_WINDOW,
     DOOR_OPEN_LIMIT,
     RUBBLE_DIG_LIMIT,
@@ -6739,7 +6740,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._town_special_key(replace(snapshot, turn=snapshot.turn + 1)),
             RESTOCK_WAIT_MACRO,
         )
-        self.assertEqual(policy.last_reason, "town:wait-restock")
+        self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
         self.assertEqual(
             policy._next_required_store_type(replace(snapshot, turn=wait_until)),
             STORE_GENERAL,
@@ -11993,7 +11994,101 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._town_store_attempted[STORE_GENERAL] = 0
         self.assertIsNone(policy._next_required_store_type(snap))
         self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertEqual(policy.last_reason, "town:wait-restock")
+        self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
+
+    def test_mining_restock_wait_names_missing_digging_tool_and_stays_ignored(self):
+        snap = Snapshot(
+            player(10, 10, gold=478, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=100,
+            inventory=self._strict_supplies(detection=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snap.floor_key
+        policy._fundraising_mode = "prepare"
+        policy._town_store_attempted[STORE_GENERAL] = snap.turn
+
+        self.assertIsNone(
+            policy._retry_after_store_restock(snap, (STORE_GENERAL,))
+        )
+        self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
+        self.assertEqual(
+            policy.last_reason,
+            "town:wait-restock:general:digging-tool",
+        )
+
+        policy._observe(snap)
+        self.assertEqual(policy._town_no_progress_count, 0)
+
+    def test_restocked_mining_kit_is_affordable_and_promotes_before_wait(self):
+        base = Snapshot(
+            player(10, 10, gold=478, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=100,
+            inventory=self._strict_supplies(detection=0),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._town_store_attempted[STORE_GENERAL] = base.turn
+
+        self.assertIsNone(
+            policy._retry_after_store_restock(base, (STORE_GENERAL,))
+        )
+        expiry = replace(base, turn=policy._town_restock_wait_until)
+        self.assertEqual(
+            policy._retry_after_store_restock(expiry, (STORE_GENERAL,)),
+            STORE_GENERAL,
+        )
+
+        digger = store_item(
+            "d", TVAL_DIGGING, SV_DIGGING_SHOVEL, price=100
+        )
+        general = replace(
+            expiry,
+            store=StoreState(STORE_GENERAL, [digger]),
+            town_flag=False,
+        )
+        self.assertEqual(policy._next_purchase(general), digger)
+
+        detection = store_item(
+            "t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, price=20
+        )
+        alchemist = replace(
+            expiry,
+            inventory=[
+                *base.inventory,
+                item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            store=StoreState(STORE_ALCHEMIST, [detection]),
+            town_flag=False,
+        )
+        self.assertEqual(policy._next_purchase(alchemist), detection)
+
+        ready = replace(
+            expiry,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+        )
+        policy._town_restock_wait_until = ready.turn + STORE_RESTOCK_WAIT_TURNS
+        policy._town_restock_waiting_for = (STORE_ALCHEMIST,)
+        policy._town_restock_suppressed = True
+        with patch.object(
+            policy, "_fundraising_departure_ready", return_value=False
+        ):
+            policy._town_special_key(ready)
+
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertFalse(policy.last_reason.startswith("town:wait-restock:"))
 
     def test_fundraising_routes_one_flask_oil_shortage_to_general_store(self):
         snap = Snapshot(
@@ -13739,7 +13834,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertFalse(policy._recall_departure_ready(snap))
         self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertEqual(policy.last_reason, "town:wait-restock")
+        self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
 
     def test_departs_instead_of_waiting_when_teleport_is_unavailable(self):
         snap = Snapshot(
@@ -13806,7 +13901,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
         self.assertEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertEqual(policy.last_reason, "town:wait-restock")
+        self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
         self.assertEqual(policy._identification_need, "full")
         self.assertEqual(policy._home_pending_item, signature)
         self.assertNotIn(signature, policy._deferred_home_items)
@@ -24834,12 +24929,13 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol._town_cycle_breaks, 0)
         self.assertEqual(pol._town_no_progress_count, 1)
 
-    def test_restock_timer_unlatches_each_store_only_once_per_visit(self):
+    def test_restock_timer_rechecks_again_only_after_each_full_wait(self):
         pol = HengbotPolicy()
         snap = self._town_snap(gold=102)
         pol._town_store_attempted[STORE_ALCHEMIST] = 0
 
         self.assertIsNone(pol._retry_after_store_restock(snap, (STORE_ALCHEMIST,)))
+        self.assertIn(STORE_ALCHEMIST, pol._town_store_attempted)
         expiry = replace(snap, turn=pol._town_restock_wait_until)
         self.assertEqual(
             pol._retry_after_store_restock(expiry, (STORE_ALCHEMIST,)),
@@ -24847,12 +24943,14 @@ class TownCycleDetectorTest(unittest.TestCase):
         )
         pol._town_store_attempted[STORE_ALCHEMIST] = expiry.turn
         self.assertIsNone(pol._retry_after_store_restock(expiry, (STORE_ALCHEMIST,)))
-        second_expiry = replace(expiry, turn=pol._town_restock_wait_until)
-        self.assertIsNone(
-            pol._retry_after_store_restock(second_expiry, (STORE_ALCHEMIST,))
-        )
         self.assertIn(STORE_ALCHEMIST, pol._town_store_attempted)
-        self.assertIsNotNone(pol._town_restock_wait_until)
+        second_expiry = replace(expiry, turn=pol._town_restock_wait_until)
+        self.assertEqual(
+            pol._retry_after_store_restock(second_expiry, (STORE_ALCHEMIST,)),
+            STORE_ALCHEMIST,
+        )
+        self.assertNotIn(STORE_ALCHEMIST, pol._town_store_attempted)
+        self.assertIsNone(pol._town_restock_wait_until)
 
     def test_live_pingpong_shape_trips_through_observe(self):
         # The exact live shape: travel/approach/leave alternating between the
@@ -25101,7 +25199,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol._fundraising_mode, "scavenge")
         self.assertEqual(pol._scavenge_entry_gold, 102)
 
-    def test_blocked_mining_cycle_break_falls_back_to_scavenge(self):
+    def test_ready_mining_cycle_break_promotes_back_from_scavenge(self):
         from unittest import mock
 
         pol = HengbotPolicy()
@@ -25126,10 +25224,11 @@ class TownCycleDetectorTest(unittest.TestCase):
             self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
             self.assertEqual(pol.last_reason, "town:cycle-break")
             self.assertEqual(pol._fundraising_mode, "scavenge")
-            self.assertIsNone(pol._town_special_key(snap))
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+            self.assertEqual(pol._fundraising_mode, "mine")
 
-        self.assertEqual(pol.last_reason, "town:cycle-break")
-        self.assertEqual(pol._fundraising_mode, "scavenge")
+        self.assertEqual(pol.last_reason, "fundraise:departure-blocked")
+        self.assertEqual(pol._fundraising_mode, "mine")
 
     def test_low_gold_cycle_break_starts_scavenge_and_avoids_immediate_return(self):
         pol = HengbotPolicy()

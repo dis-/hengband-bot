@@ -311,7 +311,10 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
     """
     return (
         not snapshot.in_town
-        and reason not in STATIONARY_REASONS
+        and not any(
+            reason == stationary or reason.startswith(f"{stationary}:")
+            for stationary in STATIONARY_REASONS
+        )
         and reason not in STATIONARY_EXEMPT_REASONS
         and not reason.startswith(QUEST_COMBAT_REASON_PREFIXES)
         and not reason.startswith("item:")
