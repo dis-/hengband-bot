@@ -7530,6 +7530,16 @@ class HengbotPolicy:
                     and item_requires_full_identification(item)
                     and not item.fully_known
                 )
+                if (
+                    needs_normal_identification
+                    and self._find_identification_source(
+                        snapshot, full=False, reliable_only=True
+                    )
+                    is None
+                    and STORE_ALCHEMIST in self._town_store_attempted
+                ):
+                    self._deferred_home_items.add(signature)
+                    continue
                 if needs_normal_identification or needs_full_identification:
                     return item
                 self._processed_home_items.add(signature)
@@ -8167,6 +8177,20 @@ class HengbotPolicy:
                 signature in self._unbuyable_full_identify_sigs
                 and not full_identify_available
             ):
+                continue
+            needs_normal_identification = (
+                not owned.item.known
+                and owned.item.pseudo_feeling != "average"
+            )
+            if (
+                needs_normal_identification
+                and self._find_identification_source(
+                    snapshot, full=False, reliable_only=True
+                )
+                is None
+                and STORE_ALCHEMIST in self._town_store_attempted
+            ):
+                self._deferred_home_items.add(signature)
                 continue
             # Mirror _find_home_candidate's processed-skip EXACTLY: it re-offers a
             # still-UNIDENTIFIED processed twin (a duplicate signature, known via

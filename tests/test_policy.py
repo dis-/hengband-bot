@@ -18787,6 +18787,86 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._has_actionable_incomplete_home_item(town))
         self.assertNotEqual(policy._next_required_store_type(town), STORE_HOME)
 
+    def test_home_normal_identify_defers_after_empty_alchemist_visit(self):
+        town = self._ready_home_town(gold=FUNDRAISING_START_GOLD)
+        candidate = store_item(
+            "a", 23, 4, name="unidentified dagger", known=False,
+            fully_known=False, pseudo_feeling="good", is_equipment=True,
+        )
+        home = replace(
+            town,
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+            town_flag=False,
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(candidate)
+        policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
+
+        self.assertIsNone(policy._find_home_candidate(home))
+        self.assertIn(signature, policy._deferred_home_items)
+
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page([candidate])
+        policy._equipment_catalog.observe_home_page([])
+        policy._equipment_catalog.observe_home_page([candidate])
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertFalse(policy._has_actionable_incomplete_home_item(town))
+        preparation = policy._prepare_equipment_optimization(town)
+        self.assertIsNotNone(preparation)
+        self.assertNotIn("home-scan-incomplete", preparation.blockers)
+        self.assertNotEqual(policy._next_required_store_type(town), STORE_HOME)
+
+        routing_policy = HengbotPolicy()
+        routing_policy._equipment_catalog.refresh_carried(
+            town.inventory, town.equipment
+        )
+        routing_policy._equipment_catalog.observe_home_page([candidate])
+        routing_policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
+        self.assertFalse(
+            routing_policy._has_actionable_incomplete_home_item(town)
+        )
+        self.assertIn(signature, routing_policy._deferred_home_items)
+
+    def test_home_normal_identify_remains_actionable_with_carried_source(self):
+        candidate = store_item(
+            "a", 23, 4, name="unidentified dagger", known=False,
+            fully_known=False, pseudo_feeling="good", is_equipment=True,
+        )
+        source = item(
+            "s", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="scroll of identify", known=True, aware=True,
+        )
+        home = replace(
+            self._ready_home_town(gold=FUNDRAISING_START_GOLD),
+            inventory=[*self._strict_supplies(recall=1), source],
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+            town_flag=False,
+        )
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_ALCHEMIST] = home.turn
+
+        self.assertEqual(policy._find_home_candidate(home), candidate)
+        self.assertNotIn(
+            policy._item_signature(candidate), policy._deferred_home_items
+        )
+
+    def test_home_normal_identify_visits_alchemist_before_deferring(self):
+        candidate = store_item(
+            "a", 23, 4, name="unidentified dagger", known=False,
+            fully_known=False, pseudo_feeling="good", is_equipment=True,
+        )
+        home = replace(
+            self._ready_home_town(gold=FUNDRAISING_START_GOLD),
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+            town_flag=False,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._find_home_candidate(home), candidate)
+        self.assertNotIn(
+            policy._item_signature(candidate), policy._deferred_home_items
+        )
+
     def test_unbuyable_full_identify_home_item_persists_across_town_reentry(self):
         town = self._ready_home_town(gold=FUNDRAISING_START_GOLD)
         candidate = store_item(
