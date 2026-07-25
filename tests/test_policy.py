@@ -8307,6 +8307,72 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "quest-strategy:q2-close-residual-multiplier-no-ammo",
         )
 
+    def test_q2_bump_attacks_adjacent_corpse_mass_without_ammo(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 5)},
+            monster_placements=(((1, 3), 202),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_cleared_races.update(self.profiles[2].priority_targets)
+        target = replace(hostile(1, 1, 3, distance=1), race_id=202)
+        snapshot = Snapshot(
+            player(1, 2),
+            {
+                Position(1, x): grid(1, x, monster=x == 3)
+                for x in range(1, 5)
+            },
+            [target],
+            floor_key=(0, 15, 2),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "6"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-melee-corpse-attack"
+        )
+        self.assertNotEqual(policy.last_reason, "quest:blocked:q2-residual-multiplier-melee")
+
+    def test_q2_approaches_nonadjacent_corpse_mass_without_ammo(self):
+        policy = self._policy()
+        battlefield = QuestBattlefield(
+            terrain={(1, x): "floor" for x in range(1, 7)},
+            monster_placements=(((1, 6), 202),),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_cleared_races.update(self.profiles[2].priority_targets)
+        target = replace(hostile(1, 1, 6, distance=5), race_id=202)
+        snapshot = Snapshot(
+            player(1, 1),
+            {
+                Position(1, x): grid(1, x, monster=x == 6)
+                for x in range(1, 7)
+            },
+            [target],
+            floor_key=(0, 15, 2),
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        decision = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertEqual(decision, "6")
+        self.assertNotEqual(decision, WAIT_KEY)
+        next_position = Position(1, 2)
+        self.assertLess(
+            next_position.distance_to(target.position),
+            snapshot.player.position.distance_to(target.position),
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-close-residual-multiplier-no-ammo",
+        )
+
     def test_q2_closes_on_corpse_masses_before_recovering_dry_ammo(self):
         policy = self._policy()
         battlefield = QuestBattlefield(

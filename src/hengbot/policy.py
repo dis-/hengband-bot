@@ -14711,8 +14711,24 @@ class HengbotPolicy:
             # multiplying.  The phase router then treated its current cell as
             # a valid vantage and waited forever while seven stationary
             # breeders remained visible.  With no ammunition, close to a free
-            # edge cell and let the normal adjacent-melee block finish them.
+            # edge cell, then bump the breeder directly to commit the melee.
             if self._quest_profile_ammo(snapshot, profile) is None:
+                adjacent_breeders = [
+                    monster
+                    for monster in residual_hostiles
+                    if snapshot.player.position.distance_to(monster.position) == 1
+                ]
+                if adjacent_breeders:
+                    melee_target = min(
+                        adjacent_breeders,
+                        key=lambda monster: snapshot.player.position.distance_to(
+                            monster.position
+                        ),
+                    )
+                    self.last_reason = "quest-strategy:q2-melee-corpse-attack"
+                    return self._direction_key(
+                        snapshot.player.position, melee_target.position
+                    )
                 occupied = {monster.position for monster in residual_hostiles}
                 melee_goals = {
                     position
@@ -14733,8 +14749,12 @@ class HengbotPolicy:
                         "quest-strategy:q2-close-residual-multiplier-no-ammo"
                     )
                     return self._step_toward(snapshot, step)
-                self.last_reason = "quest:blocked:q2-residual-multiplier-melee"
-                return WAIT_KEY
+                self.last_reason = (
+                    "quest-strategy:q2-close-residual-multiplier-no-ammo"
+                )
+                return self._direction_key(
+                    snapshot.player.position, target.position
+                )
             # A live multiplier must be pursued from a firing lane, never by
             # routing onto its occupied cell.  The old exact-cell route walked
             # into adjacency whenever a transient LOS failure prevented the
