@@ -209,7 +209,10 @@ class OwnedEquipment:
     def exploration_legal(self) -> bool:
         if not self.evaluable or self.flags.intersection(FORBIDDEN_EXPLORATION_FLAGS):
             return False
-        if not self.item.fully_known:
+        if (
+            not self.item.fully_known
+            and item_requires_full_identification(self.item)
+        ):
             return self.random_teleport_suppressed
         return TR_TELEPORT not in self.flags or self.random_teleport_suppressed
 

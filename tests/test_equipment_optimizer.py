@@ -495,6 +495,50 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertTrue(all("unsafe" not in loadout.item_ids for loadout in loadouts))
         self.assertTrue(any("safe-teleport" in loadout.item_ids for loadout in loadouts))
 
+    def test_plain_partial_known_item_is_exploration_legal_without_suppression(self):
+        plain = gear("plain", 19, fully_known=False)
+
+        self.assertTrue(plain.exploration_legal)
+
+    def test_partial_known_ego_requires_verified_suppression(self):
+        unsafe = gear("unsafe-ego", 23, ego=True, fully_known=False)
+        safe = gear(
+            "safe-ego",
+            23,
+            ego=True,
+            fully_known=False,
+            teleport_suppressed=True,
+        )
+
+        self.assertFalse(unsafe.exploration_legal)
+        self.assertTrue(safe.exploration_legal)
+
+    def test_partial_known_artifact_requires_verified_suppression(self):
+        artifact = gear("artifact", 23, artifact=True, fully_known=False)
+
+        self.assertFalse(artifact.exploration_legal)
+
+    def test_fully_known_random_teleport_requires_verified_suppression(self):
+        unsafe = gear("unsafe-teleport", 23, flags={TR_TELEPORT})
+        safe = gear(
+            "safe-teleport",
+            23,
+            flags={TR_TELEPORT},
+            teleport_suppressed=True,
+        )
+
+        self.assertFalse(unsafe.exploration_legal)
+        self.assertTrue(safe.exploration_legal)
+
+    def test_unevaluable_items_are_not_exploration_legal(self):
+        cursed = gear("cursed", 23, cursed=True)
+        broken = gear("broken", 23, broken=True)
+        unknown = gear("unknown", 23, known=False, fully_known=False)
+
+        self.assertFalse(cursed.exploration_legal)
+        self.assertFalse(broken.exploration_legal)
+        self.assertFalse(unknown.exploration_legal)
+
     def test_known_uncursed_ego_is_evaluated_after_teleport_suppression(self):
         equipped = gear("equipped", 23, equipped_slot=SLOT_MAIN_HAND)
         ego = gear(
