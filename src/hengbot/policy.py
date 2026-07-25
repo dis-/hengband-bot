@@ -1639,6 +1639,10 @@ class HengbotPolicy:
         # (device use stalls), plus a watch on the last attempt to detect that
         # the pack's unknown count did not change afterwards.
         self._unidentifiable_sigs: set[tuple[str, int, int]] = set()
+        # Full-*Identify* scrolls may not exist in a game. Remember equipment
+        # proven unobtainable across town visits, but retry it if a source later
+        # appears in the pack.
+        self._unbuyable_full_identify_sigs: set[tuple[str, int, int]] = set()
         self._identify_watch: tuple[tuple[str, int, int], int] | None = None
         self._identify_fail_streak = 0
         # Town device identification uses the same staff/scroll flow; guard it the
@@ -7472,6 +7476,9 @@ class HengbotPolicy:
         queued = set(self._home_pending_batch)
         if self._home_withdraw_inflight is not None:
             queued.add(self._home_withdraw_inflight[0])
+        full_identify_available = (
+            self._find_identification_source(snapshot, full=True) is not None
+        )
         for item in store.items:
             if self._is_ammunition(item):
                 continue
@@ -7491,7 +7498,18 @@ class HengbotPolicy:
                 if slot_occupied:
                     self._processed_home_items.add(signature)
                     continue
-            if signature in self._deferred_home_items:
+            if (
+                signature in self._deferred_home_items
+                and not (
+                    signature in self._unbuyable_full_identify_sigs
+                    and full_identify_available
+                )
+            ):
+                continue
+            if (
+                signature in self._unbuyable_full_identify_sigs
+                and not full_identify_available
+            ):
                 continue
             # The (name, tval, sval) signature cannot tell two duplicate
             # UNIDENTIFIED equipment items apart, so a processed twin must not
@@ -8119,6 +8137,7 @@ class HengbotPolicy:
     def _defer_full_identification(self, signature: tuple[str, int, int]) -> None:
         """Defer unavailable *Identify* work without retaining its Home latch."""
         self._deferred_home_items.add(signature)
+        self._unbuyable_full_identify_sigs.add(signature)
         self._identification_candidate = None
         if self._identification_need == "full":
             self._identification_need = None
@@ -8127,13 +8146,27 @@ class HengbotPolicy:
             self._home_pending_slot = None
             self._home_candidate_waiting = False
 
-    def _has_actionable_incomplete_home_item(self) -> bool:
+    def _has_actionable_incomplete_home_item(self, snapshot: Snapshot) -> bool:
         """Whether the catalog contains incomplete Home gear usable this visit."""
+        full_identify_available = (
+            self._find_identification_source(snapshot, full=True) is not None
+        )
         for owned in self._equipment_catalog.items:
             if owned.origin != "home" or not owned.identification_incomplete:
                 continue
             signature = self._item_signature(owned.item)
-            if signature in self._deferred_home_items:
+            if (
+                signature in self._deferred_home_items
+                and not (
+                    signature in self._unbuyable_full_identify_sigs
+                    and full_identify_available
+                )
+            ):
+                continue
+            if (
+                signature in self._unbuyable_full_identify_sigs
+                and not full_identify_available
+            ):
                 continue
             # Mirror _find_home_candidate's processed-skip EXACTLY: it re-offers a
             # still-UNIDENTIFIED processed twin (a duplicate signature, known via
@@ -9140,7 +9173,7 @@ class HengbotPolicy:
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and (
                 not self._equipment_catalog.home_scan_complete
-                or self._has_actionable_incomplete_home_item()
+                or self._has_actionable_incomplete_home_item(snapshot)
             )
             and bool(self._equipment_catalog.items)
         ):
@@ -9894,7 +9927,7 @@ class HengbotPolicy:
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and (
                 not self._equipment_catalog.home_scan_complete
-                or self._has_actionable_incomplete_home_item()
+                or self._has_actionable_incomplete_home_item(snapshot)
             )
             and bool(self._equipment_catalog.items)
         ):
@@ -9927,9 +9960,14 @@ class HengbotPolicy:
         """Keep unavailable identification from blocking a viable guardian run."""
         pending = self._pending_inventory_item(snapshot)
         if pending is not None:
-            self._deferred_home_items.add(self._item_signature(pending))
+            signature = self._item_signature(pending)
+            self._deferred_home_items.add(signature)
+            self._unbuyable_full_identify_sigs.add(signature)
         elif self._identification_candidate is not None:
             self._deferred_home_items.add(self._identification_candidate)
+            self._unbuyable_full_identify_sigs.add(
+                self._identification_candidate
+            )
         elif self._device_identification_candidate is not None:
             self._deferred_device_items.add(self._device_identification_candidate)
         self._home_pending_item = None
@@ -11462,7 +11500,7 @@ class HengbotPolicy:
                     snapshot.player.class_id == PLAYER_CLASS_WARRIOR
                     and (
                         not self._equipment_catalog.home_scan_complete
-                        or self._has_actionable_incomplete_home_item()
+                        or self._has_actionable_incomplete_home_item(snapshot)
                     )
                     and bool(self._equipment_catalog.items)
                 )
@@ -11563,8 +11601,10 @@ class HengbotPolicy:
                 if needs_full and self._find_identification_source(
                     snapshot, full=True
                 ) is None:
+                    signature = self._item_signature(candidate)
+                    self._unbuyable_full_identify_sigs.add(signature)
                     self._request_identification("full")
-                    self._identification_candidate = self._item_signature(candidate)
+                    self._identification_candidate = signature
                     self._home_candidate_waiting = True
                     self.last_reason = "home:need-full-identify"
                     return LEAVE_STORE_KEY

@@ -18784,8 +18784,72 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._home_candidate_waiting = False
 
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
-        self.assertFalse(policy._has_actionable_incomplete_home_item())
+        self.assertFalse(policy._has_actionable_incomplete_home_item(town))
         self.assertNotEqual(policy._next_required_store_type(town), STORE_HOME)
+
+    def test_unbuyable_full_identify_home_item_persists_across_town_reentry(self):
+        town = self._ready_home_town(gold=FUNDRAISING_START_GOLD)
+        candidate = store_item(
+            "a", 23, 4, name="partly known ego blade", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        home = replace(
+            town,
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+            town_flag=False,
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(candidate)
+
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:need-full-identify")
+        self.assertIn(signature, policy._unbuyable_full_identify_sigs)
+
+        # A changed floor key exercises the fresh-town reset that clears the
+        # visit-scoped deferral set. The permanent no-source fact must survive.
+        policy._deferred_home_items.add(signature)
+        policy._floor_key = (DUNGEON_YEEK_CAVE, 1, 0)
+        policy._observe(town)
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(signature, policy._unbuyable_full_identify_sigs)
+        self.assertIsNone(policy._find_home_candidate(home))
+
+        policy._equipment_catalog.observe_home_page([candidate], allow_wrap=False)
+        self.assertEqual(policy._shop(home), " ")
+        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        policy._equipment_catalog.observe_home_page([candidate], allow_wrap=True)
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        preparation = policy._prepare_equipment_optimization(town)
+        self.assertIsNotNone(preparation)
+        self.assertNotIn("home-scan-incomplete", preparation.blockers)
+
+    def test_persistent_full_identify_skip_rearms_when_source_appears(self):
+        candidate = store_item(
+            "a", 23, 4, name="partly known ego blade", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        source = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name="scroll of star identify", known=True, aware=True,
+        )
+        town = replace(
+            self._ready_home_town(gold=FUNDRAISING_START_GOLD),
+            inventory=[*self._strict_supplies(recall=1), source],
+        )
+        home = replace(
+            town,
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+            town_flag=False,
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(candidate)
+        policy._unbuyable_full_identify_sigs.add(signature)
+        policy._deferred_home_items.add(signature)
+
+        self.assertEqual(policy._find_home_candidate(home), candidate)
+        self.assertEqual(policy._shop(home), BUY_KEY + "a\r")
+        self.assertEqual(policy.last_reason, "home:batch-withdraw")
 
     def test_deferred_home_item_does_not_block_equipment_departure(self):
         town = Snapshot(
@@ -18849,11 +18913,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._equipment_catalog.observe_home_page([])
         policy._equipment_catalog.observe_home_page([incomplete])
 
-        self.assertTrue(policy._has_actionable_incomplete_home_item())
+        self.assertTrue(policy._has_actionable_incomplete_home_item(town))
         self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
 
         policy._processed_home_items.add(policy._item_signature(incomplete))
-        self.assertFalse(policy._has_actionable_incomplete_home_item())
+        self.assertFalse(policy._has_actionable_incomplete_home_item(town))
         self.assertNotEqual(policy._next_required_store_type(town), STORE_HOME)
 
     def test_deferred_home_item_is_rearmed_by_a_mining_return(self):
@@ -18949,7 +19013,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         # The stranded item is non-actionable: no Home route masks the deadlock,
         # and the ordinary gold-floor fundraiser refuses at this gold level.
-        self.assertFalse(policy._has_actionable_incomplete_home_item())
+        self.assertFalse(policy._has_actionable_incomplete_home_item(town))
         self.assertFalse(policy._start_fundraising(town))
         # The driver converts the block into a productive fundraising entry.
         self.assertTrue(policy._start_identification_fundraising(town))
@@ -19891,6 +19955,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._town_item_processing_key(snap), "rsa")
         self.assertNotIn(
             policy._item_signature(weapon), policy._deferred_home_items
+        )
+        self.assertNotIn(
+            policy._item_signature(weapon),
+            policy._unbuyable_full_identify_sigs,
         )
         self.assertEqual(policy.last_reason, "identify:normal")
 
