@@ -14109,7 +14109,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
         self.assertNotEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
 
-    def test_waits_for_star_identify_restock_without_dropping_candidate(self):
+    def test_defers_star_identify_candidate_after_alchemist_attempt(self):
         target = item(
             "a",
             23,
@@ -14136,31 +14136,15 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._identification_need = "full"
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
-        self.assertEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
-        self.assertEqual(policy._identification_need, "full")
+        self.assertNotEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
+        self.assertNotEqual(policy.last_reason, "home:need-identify")
+        self.assertIsNone(policy._identification_need)
         self.assertEqual(policy._home_pending_item, signature)
-        self.assertNotIn(signature, policy._deferred_home_items)
-
-        retry = replace(snap, turn=1300)
-        self.assertEqual(policy._next_required_store_type(retry), STORE_ALCHEMIST)
-        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
-
-        # The one permitted turnover re-check also found no *Identify*.
-        # Do not start another 1000-turn wait cycle for the same candidate.
-        second_failure = replace(retry, turn=1301)
-        policy._town_store_attempted[STORE_ALCHEMIST] = second_failure.turn
-        policy._town_errand_plan = TownErrandPlan(
-            [STORE_ALCHEMIST],
-            index=1,
-            completed_this_visit=[STORE_ALCHEMIST],
-        )
+        self.assertIn(signature, policy._deferred_home_items)
         self.assertNotEqual(
-            policy._next_required_store_type(second_failure), STORE_ALCHEMIST
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
         )
         self.assertIsNone(policy._town_restock_wait_until)
-        self.assertIsNone(policy._identification_need)
-        self.assertIn(signature, policy._deferred_home_items)
 
     def test_returns_home_after_buying_star_identify_for_stored_candidate(self):
         target = item(
@@ -18666,8 +18650,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             STORE_HOME, policy._town_errand_plan.blocked_this_visit
         )
 
-    def test_identification_tier_change_rearms_blocked_alchemist(self):
-        """Plain Identify revealing an ego item must open a *Identify* errand."""
+    def test_full_identification_tier_preserves_blocked_alchemist(self):
+        """A *Identify* escalation must not re-arm a shop that cannot sell it."""
         candidate = item(
             "m", 22, 20, name="known ego mace", known=True,
             fully_known=False, is_equipment=True, is_ego=True,
@@ -18697,11 +18681,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._request_identification("full")
 
         self.assertEqual(policy._identification_need, "full")
-        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
-        self.assertNotIn(
+        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertIn(
             STORE_ALCHEMIST, policy._town_errand_plan.blocked_this_visit
         )
-        self.assertEqual(policy._next_required_store_type(town), STORE_ALCHEMIST)
 
     def test_complete_home_scan_routes_back_to_incomplete_item_page(self):
         town = Snapshot(
@@ -19781,6 +19764,87 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._identification_candidate, policy._item_signature(weapon)
         )
         self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
+
+    def test_unbuyable_full_identify_is_deferred_after_alchemist_attempt(self):
+        lantern = item(
+            "light",
+            39,
+            1,
+            name="ego lantern",
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+        )
+        home_weapon = store_item(
+            "a",
+            23,
+            4,
+            name="unidentified dagger",
+            known=False,
+            fully_known=False,
+            is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=12570),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[lantern],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snap.inventory, snap.equipment
+        )
+        policy._equipment_catalog.observe_home_page([home_weapon])
+        policy._home_candidate_waiting = True
+        policy._identification_need = "normal"
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+
+        self.assertIsNone(policy._town_equipped_identification_key(snap))
+
+        signature = policy._item_signature(lantern)
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertIsNone(policy._identification_candidate)
+        self.assertIsNone(policy._town_equipped_identification_key(snap))
+        self.assertNotEqual(
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
+        )
+
+        policy._identification_need = "full"
+        self.assertTrue(policy._identification_need_unsatisfiable(snap))
+
+    def test_obtainable_basic_identify_is_used_not_deferred(self):
+        weapon = item(
+            "a",
+            23,
+            4,
+            name="unidentified dagger",
+            known=False,
+            pseudo_feeling="good",
+            is_equipment=True,
+        )
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="identify")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[weapon, scroll],
+            equipment=[self._lantern()],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+
+        self.assertEqual(policy._town_item_processing_key(snap), "rsa")
+        self.assertNotIn(
+            policy._item_signature(weapon), policy._deferred_home_items
+        )
+        self.assertEqual(policy.last_reason, "identify:normal")
 
     def test_equipped_identify_does_not_append_target_after_fallible_staff_use(self):
         # Regression for the 2026-07-23 magic-shop loop.  When a Staff of

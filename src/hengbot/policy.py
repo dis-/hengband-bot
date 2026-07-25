@@ -6367,9 +6367,14 @@ class HengbotPolicy:
         )
         if source is not None:
             return False
-        if STORE_ALCHEMIST not in self._town_store_attempted:
+        full = self._identification_need == "full"
+        if not full and STORE_ALCHEMIST not in self._town_store_attempted:
             return False
-        if self._home_candidate_waiting and self._home_available(snapshot):
+        if (
+            not full
+            and self._home_candidate_waiting
+            and self._home_available(snapshot)
+        ):
             return False
         return True
 
@@ -7623,8 +7628,15 @@ class HengbotPolicy:
             snapshot, full=full, reliable_only=True
         )
         if source is None:
-            self._identification_candidate = self._item_signature(target)
-            self._request_identification("full" if full else "normal")
+            signature = self._item_signature(target)
+            if full and STORE_ALCHEMIST in self._town_store_attempted:
+                self._deferred_home_items.add(signature)
+                self._identification_candidate = None
+                if self._identification_need == "full":
+                    self._identification_need = None
+            else:
+                self._identification_candidate = signature
+                self._request_identification("full" if full else "normal")
             return None
         command, source_item = source
         self._identification_need = None
@@ -7890,14 +7902,11 @@ class HengbotPolicy:
         )
 
     def _request_identification(self, kind: str) -> None:
-        if self._identification_need != kind:
-            # Normal Identify can reveal that the same item now needs *Identify*.
-            # That is a new procurement phase, not another failed pass of the old
-            # one.  Releasing only the coarse attempted latch is insufficient when
-            # the bounded errand plan has already put the Alchemist in its blocked
-            # set: the plan suppresses the newly requested tier and the terminal
-            # equipment blocker wins on the same decision.  Re-arm both layers so
-            # the next decision can procure the stronger scroll.
+        if kind == "normal" and self._identification_need != kind:
+            # Basic Identify is ordinary Alchemist stock. Re-arm both the coarse
+            # attempted latch and the bounded errand plan for newly requested
+            # normal-tier work. *Identify* is not sold there, so a full-tier
+            # escalation must preserve the exhausted-store latch.
             self._rearm_town_store_for_new_work(STORE_ALCHEMIST)
         self._identification_need = kind
 
@@ -7993,8 +8002,15 @@ class HengbotPolicy:
             if key is None:
                 if self._item_signature(target) in self._unidentifiable_sigs:
                     return None
-                self._identification_candidate = self._item_signature(target)
-                self._request_identification("full" if full else "normal")
+                signature = self._item_signature(target)
+                if full and STORE_ALCHEMIST in self._town_store_attempted:
+                    self._deferred_home_items.add(signature)
+                    self._identification_candidate = None
+                    if self._identification_need == "full":
+                        self._identification_need = None
+                else:
+                    self._identification_candidate = signature
+                    self._request_identification("full" if full else "normal")
                 return None
             self._identification_need = None
             self._identification_candidate = None
@@ -8037,7 +8053,14 @@ class HengbotPolicy:
         if item_requires_full_identification(target) and not target.fully_known:
             source = self._find_identification_source(snapshot, full=True)
             if source is None:
-                self._request_identification("full")
+                signature = self._item_signature(target)
+                if STORE_ALCHEMIST in self._town_store_attempted:
+                    self._deferred_home_items.add(signature)
+                    self._identification_candidate = None
+                    if self._identification_need == "full":
+                        self._identification_need = None
+                else:
+                    self._request_identification("full")
                 return None
             command, item = source
             self._identification_need = None
