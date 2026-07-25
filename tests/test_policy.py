@@ -3007,7 +3007,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "01ka")
+        self.assertEqual(policy.choose_key(snap), "01kb")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_town_compacts_ammo_when_no_launcher_is_owned(self):
@@ -12796,7 +12796,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(pol._next_purchase(snap), digger)
 
-    def test_fundraising_does_not_buy_digger_with_one_withdrawable_from_home(self):
+    def test_fundraising_buys_optional_second_digger_with_one_at_home(self):
         pol = HengbotPolicy()
         pol._fundraising_mode = "prepare"
         home_digger = store_item(
@@ -12813,7 +12813,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(STORE_GENERAL, [shop_digger]),
         )
 
-        self.assertIsNone(pol._next_purchase(snap))
+        self.assertEqual(pol._next_purchase(snap), shop_digger)
 
     def test_identify_errand_still_buys_departure_teleport_scrolls(self):
         # An identify errand must not short-circuit _next_purchase: while at the
@@ -24594,7 +24594,7 @@ class IdleItemDepositTest(unittest.TestCase):
         dead_wand = item("k", TVAL_WAND, 0, charges=0, name="Magic Missile (0)")
         self.assertTrue(HengbotPolicy()._home_deposit_candidate(dead_wand))
 
-    def test_surplus_digging_tools_are_stashed_keeping_one(self):
+    def test_surplus_digging_tools_are_stashed_keeping_two(self):
         # Fundraising needs ONE digger; the rest are dead weight (the 5-slot haul the
         # user saw). Keep the best, stash the others.
         pol = HengbotPolicy()
@@ -24605,7 +24605,8 @@ class IdleItemDepositTest(unittest.TestCase):
         ]
         snap = self._town(diggers)
         surplus = [it for it in diggers if pol._is_surplus_digging_tool(snap, it)]
-        self.assertEqual({it.slot for it in surplus}, {"a", "b"})  # keep "c"
+        self.assertEqual({it.slot for it in surplus}, {"a"})
+        self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[1]))
         self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[2]))
 
     def test_surplus_diggers_keep_dwarven_shovel_over_plain_pick(self):
@@ -24617,7 +24618,7 @@ class IdleItemDepositTest(unittest.TestCase):
         snap = self._town([dwarven_shovel, plain_pick])
 
         self.assertFalse(pol._is_surplus_digging_tool(snap, dwarven_shovel))
-        self.assertTrue(pol._is_surplus_digging_tool(snap, plain_pick))
+        self.assertFalse(pol._is_surplus_digging_tool(snap, plain_pick))
 
     def test_surplus_diggers_prefer_ego_when_digging_power_is_equal(self):
         pol = HengbotPolicy()
@@ -24630,7 +24631,7 @@ class IdleItemDepositTest(unittest.TestCase):
         snap = self._town([ego_shovel, dwarven_shovel])
 
         self.assertFalse(pol._is_surplus_digging_tool(snap, ego_shovel))
-        self.assertTrue(pol._is_surplus_digging_tool(snap, dwarven_shovel))
+        self.assertFalse(pol._is_surplus_digging_tool(snap, dwarven_shovel))
 
 
 class ResistanceDepthGateTest(unittest.TestCase):
@@ -27889,6 +27890,92 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertTrue(all(k == "wja" for k in keys[:-1]))  # kept trying, then...
         self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
         self.assertIsNone(pol._fundraising_mode)  # mining abandoned
+
+    def test_mining_wields_two_carried_diggers_in_both_hands(self):
+        pol = HengbotPolicy()
+        first = Snapshot(
+            player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000),
+            {Position(12, 126): grid(12, 126)},
+            [],
+            inventory=[
+                item("j", TVAL_DIGGING, 1, name="Shovel"),
+                item("k", TVAL_DIGGING, 4, name="Pick"),
+            ],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True, name="Sword"),
+                item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
+            ],
+        )
+        self.assertEqual(
+            pol._wield_digging_tool_key(first, "mine:wield"), "wja"
+        )
+        second = Snapshot(
+            first.player,
+            first.grids,
+            [],
+            inventory=[item("k", TVAL_DIGGING, 4, name="Pick")],
+            equipment=[
+                item("main_hand", TVAL_DIGGING, 1, is_equipment=True, name="Shovel"),
+                item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
+            ],
+        )
+        self.assertEqual(
+            pol._wield_digging_tool_key(second, "mine:wield"), "wkb"
+        )
+        self.assertEqual(pol._normal_sub_hand_name, "Shield")
+
+    def test_one_digger_is_ready_and_only_targets_main_hand(self):
+        snap = Snapshot(
+            player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000),
+            {Position(12, 126): grid(12, 126)},
+            [],
+            inventory=[item("j", TVAL_DIGGING, 1, name="Shovel")],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True, name="Sword"),
+                item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
+            ],
+        )
+        pol = HengbotPolicy()
+        with patch.object(pol, "_fundraising_food_ready", return_value=True), \
+             patch.object(pol, "_mining_detection_scroll_target", return_value=0):
+            self.assertTrue(pol._fundraising_supplies_ready(snap))
+        self.assertEqual(
+            pol._wield_digging_tool_key(snap, "mine:wield"), "wja"
+        )
+
+    def test_mining_end_restores_both_combat_hands(self):
+        pol = HengbotPolicy()
+        pol._normal_weapon_name = "Sword"
+        pol._normal_sub_hand_name = "Shield"
+        first = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[
+                item("w", 23, 1, is_equipment=True, name="Sword"),
+                item("s", 34, 2, is_equipment=True, name="Shield"),
+            ],
+            equipment=[
+                item("main_hand", TVAL_DIGGING, 1, is_equipment=True),
+                item("sub_hand", TVAL_DIGGING, 4, is_equipment=True),
+            ],
+        )
+        self.assertEqual(
+            pol._restore_mining_combat_hand_key(first, "restore"), "wwa"
+        )
+        second = Snapshot(
+            first.player,
+            first.grids,
+            [],
+            inventory=[item("s", 34, 2, is_equipment=True, name="Shield")],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True, name="Sword"),
+                item("sub_hand", TVAL_DIGGING, 4, is_equipment=True),
+            ],
+        )
+        self.assertEqual(
+            pol._restore_mining_combat_hand_key(second, "restore"), "ws"
+        )
 
     def test_cursed_main_weapon_rejects_digger_wield_immediately(self):
         snap = Snapshot(

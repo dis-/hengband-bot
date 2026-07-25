@@ -489,9 +489,8 @@ def slot_for(item: EquipmentItem) -> str | None:
 
 
 def _is_weapon(item: EquipmentItem) -> bool:
-    # TV_DIGGING (20) occupies a hand while mining, but it is not a combat
-    # weapon. Including it here lets the optimizer equip a shovel, while the
-    # town re-arm gate immediately restores a real weapon, creating a cycle.
+    # TV_DIGGING (20) is reserved separately for the temporary two-hand mining
+    # loadout; it remains excluded from combat-loadout optimization.
     return item.tval in {21, 22, 23}
 
 
