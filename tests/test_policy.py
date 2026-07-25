@@ -8386,6 +8386,79 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "quest-strategy:q2-recover-dry-ammo-candidate",
         )
 
+    def test_q2_abandons_oscillating_dry_ammo_route_and_engages_cluster(self):
+        policy = self._policy()
+        cluster = (
+            (6, 29), (6, 30), (6, 31),
+            (7, 29), (7, 30), (7, 31),
+            (8, 29), (8, 30), (8, 31),
+            (9, 29), (9, 30), (9, 31),
+        )
+        battlefield = QuestBattlefield(
+            terrain={
+                (y, x): "floor"
+                for y in range(5, 11)
+                for x in range(24, 36)
+            },
+            monster_placements=tuple((position, 202) for position in cluster),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_ammo_recovery_floor = (0, 15, 2)
+        current = Position(7, 27)
+        bounce = Position(6, 26)
+        policy._recent.extend(
+            [bounce, current] * (STUCK_WINDOW // 2)
+        )
+        targets = [
+            replace(
+                hostile(index, y, x, distance=current.distance_to(Position(y, x))),
+                race_id=202,
+            )
+            for index, (y, x) in enumerate(cluster, start=1)
+        ]
+        snapshot = Snapshot(
+            player(current.y, current.x),
+            {
+                Position(y, x): grid(
+                    y,
+                    x,
+                    monster=(y, x) in cluster,
+                    objects=1 if (y, x) == (7, 34) else 0,
+                    object_tvals=(TVAL_BOLT,) if (y, x) == (7, 34) else (),
+                )
+                for y in range(5, 11)
+                for x in range(24, 36)
+            },
+            targets,
+            floor_key=(0, 15, 2),
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        navigator = QuestFloorNavigator(2, battlefield)
+
+        def live_route(_start, goals, *, blocked=None):
+            if Position(7, 34) in goals:
+                return bounce
+            return Position(7, 28)
+
+        with patch.object(
+            navigator, "route_to_static_goals", side_effect=live_route
+        ):
+            key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertEqual(key, "6")
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-close-residual-multiplier-no-ammo",
+        )
+        self.assertIsNone(policy._q2_ammo_recovery_floor)
+
     def test_q2_residual_multiplier_route_never_steps_into_breeder_buffer(self):
         policy = self._policy()
         battlefield = QuestBattlefield(

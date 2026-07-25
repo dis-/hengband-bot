@@ -14661,6 +14661,15 @@ class HengbotPolicy:
                 if here.object_count > 1:
                     return PICKUP_KEY + ("a" * here.object_count)
                 return PICKUP_KEY
+            # The corpse buffer can make the static route alternate across the
+            # edge of a live corpse-mass cluster without ever getting closer to
+            # the spent ammunition.  Recovery outranks residual-hostile combat,
+            # so repeating that route would prevent us from engaging the very
+            # cluster blocking it.  Drop the floor latch and let the caller's
+            # ranged-then-melee residual handling take ownership.
+            if recovery_goals and self._is_oscillating():
+                self._q2_ammo_recovery_floor = None
+                return None
             step = navigator.route_to_static_goals(
                 snapshot.player.position,
                 recovery_goals,
@@ -14710,8 +14719,6 @@ class HengbotPolicy:
                     ammo_recovery = recover_dry_ammo()
                     if ammo_recovery is not None:
                         return ammo_recovery
-                    self.last_reason = "quest:blocked:q2-ammo-exhausted"
-                    return WAIT_KEY
                 melee_goals = {
                     position
                     for position in (
