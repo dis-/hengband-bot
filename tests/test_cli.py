@@ -1201,8 +1201,15 @@ class StationaryReasonsTest(unittest.TestCase):
         # must be exempt (the policy's MINING_STALL_LIMIT leash bounds them instead), so
         # a long tunnel-to-a-vein or dig-out is never mistaken for a stuck loop.
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+        self.assertIn("fundraise:dig-to-treasure", STATIONARY_EXEMPT_REASONS)
         self.assertIn("fundraise:mine-treasure", STATIONARY_EXEMPT_REASONS)
         self.assertIn("fundraise:tunnel-out", STATIONARY_EXEMPT_REASONS)
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "fundraise:dig-to-treasure")
+        )
+        self.assertFalse(
+            _cell_loop_guard_applies(dungeon, "fundraise:mine-treasure")
+        )
         self.assertFalse(
             _cell_loop_guard_applies(dungeon, "breakout:dig-to-stairs")
         )
@@ -1210,6 +1217,10 @@ class StationaryReasonsTest(unittest.TestCase):
         # two-phase design never tunnels toward far veins, so the old
         # tunnel-to-treasure reason no longer exists at all.
         self.assertNotIn("fundraise:seek-treasure", STATIONARY_EXEMPT_REASONS)
+        self.assertTrue(
+            _cell_loop_guard_applies(dungeon, "fundraise:seek-treasure")
+        )
+        self.assertTrue(_cell_loop_guard_applies(dungeon, "explore"))
 
     def test_fixed_quest_hold_is_exempt_from_loop_detection(self):
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
