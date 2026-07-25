@@ -125,6 +125,7 @@ from hengbot.policy import (
     IDENTIFY_CHARGE_FLOOR,
     IDENTIFY_PURCHASE_MAX,
     INSCRIBE_KEY,
+    RECALL_ISSUE_CONFIRM_TURNS,
     RECALL_MIN_DEPTH,
     SUPPLY_THRESHOLDS,
     RESUME_DESCENT_BLOCK_DECISIONS,
@@ -21121,6 +21122,63 @@ class TownRecallReturnTest(unittest.TestCase):
         snapshot = replace(snapshot, player=replace(snapshot.player, recalling=True))
 
         self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.last_reason, "return:wait-recall")
+
+    @staticmethod
+    def _pending_dungeon_recall(*, turn, recall_count=1, recalling=False):
+        floor_key = (DUNGEON_YEEK_CAVE, 5, 0)
+        recall = item(
+            "r",
+            TVAL_SCROLL,
+            SV_SCROLL_WORD_OF_RECALL,
+            count=recall_count,
+        )
+        recall_player = replace(player(10, 10), recalling=recalling)
+        snapshot = Snapshot(
+            recall_player,
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=turn,
+            floor_key=floor_key,
+            inventory=[recall] if recall_count else [],
+        )
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+        policy._dungeon_recall_issue_watch = (floor_key, 100, 2)
+        return policy, snapshot
+
+    def test_consumed_recall_confirmation_expires_and_retries(self):
+        policy, snapshot = self._pending_dungeon_recall(
+            turn=100 + RECALL_ISSUE_CONFIRM_TURNS + 1,
+        )
+
+        self.assertEqual(policy._return_to_town_key(snapshot, []), "rr")
+        self.assertEqual(policy.last_reason, "return:recall")
+
+    def test_consumed_recall_confirmation_waits_within_window(self):
+        policy, snapshot = self._pending_dungeon_recall(
+            turn=100 + RECALL_ISSUE_CONFIRM_TURNS,
+        )
+
+        self.assertEqual(policy._return_to_town_key(snapshot, []), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "return:await-recall-confirmation")
+
+    def test_recall_confirmation_waits_on_same_turn_redraw(self):
+        policy, snapshot = self._pending_dungeon_recall(
+            turn=100,
+            recall_count=2,
+        )
+
+        self.assertEqual(policy._return_to_town_key(snapshot, []), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "return:await-recall-confirmation")
+
+    def test_active_recall_still_waits_before_issue_watch(self):
+        policy, snapshot = self._pending_dungeon_recall(
+            turn=100 + RECALL_ISSUE_CONFIRM_TURNS + 1,
+            recalling=True,
+        )
+
+        self.assertEqual(policy._return_to_town_key(snapshot, []), WAIT_KEY)
         self.assertEqual(policy.last_reason, "return:wait-recall")
 
     def test_taken_q14_exhausted_floor_regenerates_up_instead_of_descending(self):

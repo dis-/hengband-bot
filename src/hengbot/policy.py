@@ -964,6 +964,7 @@ TELEPORT_REQUIRED_DEPTH = 2
 # than walking to the wilderness entrance and re-descending from level 1.
 RECALL_MIN_DEPTH = 5
 RECALL_RETURN_THRESHOLD = 3
+RECALL_ISSUE_CONFIRM_TURNS = 10
 # Below this floor every ledger item is a convenience: if its suppliers are
 # exhausted (or the item is unaffordable), walking out is safer than bouncing.
 WALK_OUT_MAX_DEPTH = RECALL_MIN_DEPTH - 1
@@ -18600,11 +18601,14 @@ class HengbotPolicy:
             watched_floor, issue_turn, pre_read_count = issue_watch
             if watched_floor != snapshot.floor_key:
                 self._dungeon_recall_issue_watch = None
-            elif recall_count < pre_read_count or snapshot.turn <= issue_turn:
+            elif snapshot.turn <= issue_turn or (
+                recall_count < pre_read_count
+                and snapshot.turn <= issue_turn + RECALL_ISSUE_CONFIRM_TURNS
+            ):
                 # Treat both the unchanged command-turn redraw and a consumed
-                # scroll as confirmation states.  The exported recalling flag
-                # can lag behind either, so reading again here can consume a
-                # second scroll and keep the character on the same floor.
+                # scroll within the confirmation window as pending states. The
+                # exported recalling flag can lag behind either, so reading
+                # again here can consume a second scroll.
                 self.last_reason = "return:await-recall-confirmation"
                 return WAIT_KEY
             else:
