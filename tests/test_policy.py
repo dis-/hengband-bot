@@ -382,6 +382,72 @@ def hostile(
 
 
 class CombatTest(unittest.TestCase):
+    def test_hunt_approaches_large_pack_when_aggregate_threat_is_immaterial(self):
+        monsters = [
+            hostile(i, 10, 10 + i, hp=40, max_hp=40, distance=i,
+                    max_melee_damage=10)
+            for i in range(2, 6)
+        ]
+        snapshot = Snapshot(
+            player(10, 10, hp=232, max_hp=232, level=11),
+            {Position(10, 10): grid(10, 10)},
+            monsters,
+            floor_key=(2, 5, 0),
+        )
+        policy = HengbotPolicy()
+        approach = Position(10, 11)
+
+        with (
+            patch.object(policy, "_predicted_damage", return_value=48) as predicted,
+            patch.object(policy, "_nearest_goal_step", return_value=approach),
+        ):
+            step = policy._hunt_step(snapshot, monsters)
+
+        self.assertEqual(step, approach)
+        predicted.assert_called_once_with(snapshot, monsters, 3)
+
+    def test_hunt_bails_from_large_pack_when_aggregate_threat_is_material(self):
+        monsters = [
+            hostile(i, 10, 10 + i, hp=40, max_hp=40, distance=i,
+                    max_melee_damage=10)
+            for i in range(2, 6)
+        ]
+        snapshot = Snapshot(
+            player(10, 10, hp=200, max_hp=200, level=11),
+            {Position(10, 10): grid(10, 10)},
+            monsters,
+            floor_key=(2, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with (
+            patch.object(policy, "_predicted_damage", return_value=100),
+            patch.object(policy, "_nearest_goal_step") as nearest,
+        ):
+            step = policy._hunt_step(snapshot, monsters)
+
+        self.assertIsNone(step)
+        nearest.assert_not_called()
+
+    def test_hunt_still_rejects_individually_dangerous_target(self):
+        monster = hostile(
+            1, 10, 13, hp=300, max_hp=300, distance=3, speed=121,
+            max_melee_damage=1,
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=400, max_hp=200, level=11, speed=110),
+            {Position(10, 10): grid(10, 10)},
+            [monster],
+            floor_key=(2, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(policy, "_nearest_goal_step") as nearest:
+            step = policy._hunt_step(snapshot, [monster])
+
+        self.assertIsNone(step)
+        nearest.assert_not_called()
+
     def test_hunt_does_not_close_with_material_sleeping_threat(self):
         grids = {
             Position(y, x): grid(y, x)

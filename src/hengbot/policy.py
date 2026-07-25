@@ -20862,7 +20862,11 @@ class HengbotPolicy:
         player = snapshot.player
         if player.hp_ratio < HUNT_HP_RATIO or not hostiles:
             return None
-        if len(hostiles) > HUNT_MAX_HOSTILES:
+        if (
+            len(hostiles) > HUNT_MAX_HOSTILES
+            and self._predicted_damage(snapshot, hostiles, 3)
+            >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
+        ):
             return None
 
         def easy(m: MonsterState) -> bool:
