@@ -12231,6 +12231,41 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._shop(with_scrolls), "pb\r")
         self.assertEqual(policy.last_reason, "home:withdraw-digging-tool")
 
+    def test_fundraising_withdraws_second_digger_from_home(self):
+        held_digger = item("p", TVAL_DIGGING, 1, name="held shovel")
+        stored_digger = store_item(
+            "b", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                held_digger,
+            ],
+            store=StoreState(STORE_HOME, [stored_digger]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertEqual(policy._shop(snap), "pb\r")
+        self.assertEqual(policy.last_reason, "home:withdraw-digging-tool")
+
+        with_second = replace(
+            snap,
+            inventory=[
+                *snap.inventory,
+                item("q", TVAL_DIGGING, 4, name="stored pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        self.assertEqual(policy._shop(with_second), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-with-digging-tool")
+        self.assertEqual(policy._digging_tool_count(with_second), 2)
+
     def test_failed_digger_withdrawal_is_not_retried_after_home_ejects_to_town(self):
         digger = store_item(
             "b", TVAL_DIGGING, 1, name="shovel", is_equipment=True
@@ -13248,6 +13283,62 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         requirements = policy.procurement_requirements(snap)
 
         self.assertEqual([entry["item"] for entry in requirements], ["Digging tool"])
+
+    def test_procurement_requires_second_digger_known_in_home(self):
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._equipment_catalog.observe_home_page(
+            [
+                store_item(
+                    "a",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    name="stored shovel",
+                    is_equipment=True,
+                )
+            ]
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[
+                *self._strict_supplies(recall=1, detection=42),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[self._lantern()],
+        )
+
+        requirements = policy.procurement_requirements(snap)
+
+        self.assertIn(
+            {"item": "Digging tool", "current": 1, "target": 2, "missing": 1},
+            requirements,
+        )
+
+    def test_unobtainable_second_digger_does_not_block_mining_readiness(self):
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[
+                *self._strict_supplies(recall=1, detection=42),
+                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[self._lantern()],
+        )
+
+        requirements = policy.procurement_requirements(snap)
+
+        self.assertNotIn(
+            "Digging tool", [entry["item"] for entry in requirements]
+        )
+        with patch.object(policy, "_fundraising_food_ready", return_value=True):
+            self.assertTrue(policy._fundraising_supplies_ready(snap))
 
     def test_duplicate_unidentified_home_gear_is_not_skipped_by_a_processed_twin(self):
         # Two identical unidentified weapons share a (name, tval, sval) signature.

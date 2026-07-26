@@ -5681,10 +5681,19 @@ class HengbotPolicy:
             )
             obtainable_second_digger = (
                 self._digging_tool_count(snapshot) == 1
-                and snapshot.store is not None
-                and any(
-                    item.is_digging_tool and item.price <= snapshot.player.gold
-                    for item in snapshot.store.items
+                and (
+                    any(
+                        owned.origin == "home" and owned.item.is_digging_tool
+                        for owned in self._equipment_catalog.items
+                    )
+                    or (
+                        snapshot.store is not None
+                        and any(
+                            item.is_digging_tool
+                            and item.price <= snapshot.player.gold
+                            for item in snapshot.store.items
+                        )
+                    )
                 )
             )
             require(
@@ -11522,7 +11531,7 @@ class HengbotPolicy:
                     suffix = f"{quantity}\r" if stored_scrolls.count > 1 else "\r"
                     return BUY_KEY + stored_scrolls.letter + suffix
 
-                if not self._has_digging_tool(snapshot):
+                if self._digging_tool_count(snapshot) < 2:
                     digger = max(
                         (
                             item
@@ -11546,7 +11555,18 @@ class HengbotPolicy:
                         self.last_reason = "home:withdraw-digging-tool"
                         return BUY_KEY + digger.letter + "\r"
 
-                if scrolls_missing or not self._has_digging_tool(snapshot):
+                withdrawable_digger_missing = (
+                    self._digging_tool_count(snapshot) < 2
+                    and any(
+                        owned.origin == "home" and owned.item.is_digging_tool
+                        for owned in self._equipment_catalog.items
+                    )
+                )
+                if (
+                    scrolls_missing
+                    or not self._has_digging_tool(snapshot)
+                    or withdrawable_digger_missing
+                ):
                     page = tuple(
                         (item.letter, item.name, item.tval, item.sval)
                         for item in store.items
