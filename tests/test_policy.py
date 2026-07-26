@@ -16114,6 +16114,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             + [item("u", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
             equipment=[
                 item("main_hand", 23, 11, is_equipment=True, name="Saber"),
+                item(
+                    "sub_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
                 self._lantern(),
             ],
             recall_depth=DEEP_FUNDRAISING_DEPTH,
@@ -16126,6 +16132,40 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertIsNone(policy._fundraising_key(snap, [monster]))
         self.assertNotEqual(policy.last_reason, "fundraise:wield-digging-tool")
+
+    def test_deep_fundraising_rewields_second_digger_after_hostiles_clear(self):
+        floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
+        snap = Snapshot(
+            player(
+                10, 10, level=24, hp=413, max_hp=413,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=floor_key,
+            inventory=self._strict_supplies(recall=5, teleport=15, detection=1)
+            + [item("u", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
+            equipment=[
+                item("main_hand", 23, 11, is_equipment=True, name="Saber"),
+                item(
+                    "sub_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+            recall_depth=DEEP_FUNDRAISING_DEPTH,
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            yeek_cave_conquered=True,
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = floor_key
+
+        self.assertEqual(policy._fundraising_key(snap, []), "wua")
+        self.assertEqual(policy.last_reason, "fundraise:wield-digging-tool")
 
     def test_deep_mining_recalls_only_after_the_floor_has_no_frontier(self):
         snap = Snapshot(
