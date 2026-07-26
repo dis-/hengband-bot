@@ -5961,12 +5961,12 @@ class HengbotPolicy:
         selected_ids = getattr(loadout, "item_ids", frozenset())
         if not isinstance(selected_ids, (set, frozenset)):
             selected_ids = frozenset()
+        selected_ids = frozenset(selected_ids)
         if any(
             item.id in selected_ids
-            and item.evaluable
             and not item.item.fully_known
             and item_requires_full_identification(item.item)
-            and not item.random_teleport_suppressed
+            and self._needs_random_teleport_suppression(item, selected_ids)
             for item in catalog
         ):
             preparation = replace(
@@ -6511,6 +6511,19 @@ class HengbotPolicy:
             # depth resistances, supplies, HP, and status.  Keep it unchanged
             # instead of turning search cost into an endless town wander.  Never
             # execute the optimizer's partial result.
+            return True
+        if (
+            preparation is not None
+            and "pending-random-teleport-suppression" in preparation.blockers
+            and self._equipment_transaction_session is None
+            and not self._random_teleport_suppression_actionable(
+                snapshot, preparation
+            )
+        ):
+            # Suppression prepares a preferred future loadout. If its selected
+            # item cannot be inscribed or withdrawn this visit, retain the
+            # current legal loadout and retry next visit instead of blocking
+            # departure forever. This blocker never owns a partial transaction.
             return True
         if (
             preparation is not None
@@ -9275,6 +9288,7 @@ class HengbotPolicy:
             and (
                 not self._equipment_catalog.home_scan_complete
                 or self._has_actionable_incomplete_home_item(snapshot)
+                or self._has_selected_home_random_teleport_suppression(snapshot)
             )
             and bool(self._equipment_catalog.items)
         ):
@@ -12737,32 +12751,69 @@ class HengbotPolicy:
             return READ_KEY + scroll.slot + "/" + slot_key
         return None
 
-    def _needs_random_teleport_suppression(self, item) -> bool:
-        preparation = self._equipment_optimization_preparation
+    @staticmethod
+    def _equipment_preparation_selected_ids(preparation) -> frozenset[str]:
         result = getattr(preparation, "result", None)
         best = getattr(result, "best", None)
         loadout = getattr(best, "loadout", None)
         selected_ids = getattr(loadout, "item_ids", frozenset())
         if not isinstance(selected_ids, (set, frozenset)):
-            selected_ids = frozenset()
-        selected_partial = any(
-            owned.id in selected_ids
-            and equipment_identity(owned.item) == equipment_identity(item)
-            for owned in self._equipment_catalog.items
-        )
+            return frozenset()
+        return frozenset(selected_ids)
+
+    def _needs_random_teleport_suppression(
+        self, owned, selected_ids: frozenset[str]
+    ) -> bool:
+        item = owned.item
         return (
             item.is_equipment
             and item.known
             and not item.is_cursed
+            and not owned.random_teleport_suppressed
             and (
                 TR_TELEPORT in item.known_flags
                 or (
-                    selected_partial
+                    owned.id in selected_ids
+                    and owned.evaluable
                     and not item.fully_known
                     and item_requires_full_identification(item)
                 )
             )
-            and not random_teleport_is_suppressed(item)
+        )
+
+    def _selected_random_teleport_suppressions(self, preparation) -> tuple:
+        selected_ids = self._equipment_preparation_selected_ids(preparation)
+        return tuple(
+            owned
+            for owned in self._equipment_catalog.items
+            if owned.id in selected_ids
+            and self._needs_random_teleport_suppression(owned, selected_ids)
+        )
+
+    def _has_selected_home_random_teleport_suppression(
+        self, snapshot: Snapshot
+    ) -> bool:
+        preparation = self._prepare_equipment_optimization(snapshot)
+        return any(
+            owned.origin == "home"
+            for owned in self._selected_random_teleport_suppressions(preparation)
+        )
+
+    def _random_teleport_suppression_actionable(
+        self, snapshot: Snapshot, preparation
+    ) -> bool:
+        return any(
+            owned.origin == "pack"
+            or (
+                owned.origin == "equipped"
+                and owned.equipped_slot in EQUIPMENT_SLOT_KEY
+            )
+            or (
+                owned.origin == "home"
+                and self._home_available(snapshot)
+                and STORE_HOME not in self._town_store_attempted
+            )
+            for owned in self._selected_random_teleport_suppressions(preparation)
         )
 
     def _town_random_teleport_suppression_key(
@@ -12772,30 +12823,37 @@ class HengbotPolicy:
         if not snapshot.in_town:
             return None
 
-        pack_item = next(
-            (
-                item
-                for item in snapshot.inventory
-                if self._needs_random_teleport_suppression(item)
-            ),
-            None,
+        # choose_key normally performs this synchronization before dispatch,
+        # but keeping the action self-contained ensures its catalog predicate
+        # is evaluated against this exact observation.
+        self._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
         )
-        equipped_item = next(
-            (
-                item
-                for item in snapshot.equipment
-                if self._needs_random_teleport_suppression(item)
-            ),
-            None,
+        if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            self._equipment_catalog.observe_home_page(
+                snapshot.store.items, allow_wrap=False
+            )
+        preparation = self._prepare_equipment_optimization(snapshot)
+        selected_ids = self._equipment_preparation_selected_ids(preparation)
+        pending = tuple(
+            owned
+            for owned in self._equipment_catalog.items
+            if self._needs_random_teleport_suppression(owned, selected_ids)
         )
-        if pack_item is not None or equipped_item is not None:
+        pack_owned = next(
+            (owned for owned in pending if owned.origin == "pack"), None
+        )
+        equipped_owned = next(
+            (owned for owned in pending if owned.origin == "equipped"), None
+        )
+        if pack_owned is not None or equipped_owned is not None:
             if snapshot.store is not None:
                 self.last_reason = "equipment:leave-store-to-suppress-random-teleport"
                 return LEAVE_STORE_KEY
-            if pack_item is not None:
+            if pack_owned is not None:
                 self.last_reason = "equipment:suppress-random-teleport"
-                return INSCRIBE_KEY + pack_item.slot + ".\r"
-            slot_key = EQUIPMENT_SLOT_KEY.get(equipped_item.slot)
+                return INSCRIBE_KEY + pack_owned.item.slot + ".\r"
+            slot_key = EQUIPMENT_SLOT_KEY.get(equipped_owned.equipped_slot)
             if slot_key is not None:
                 self.last_reason = "equipment:suppress-equipped-random-teleport"
                 return INSCRIBE_KEY + "/" + slot_key + ".\r"
@@ -12803,11 +12861,15 @@ class HengbotPolicy:
         store = snapshot.store
         if store is None or store.store_type != STORE_HOME:
             return None
+        home_owned = next(
+            (owned for owned in pending if owned.origin == "home"), None
+        )
+        if home_owned is None:
+            return None
         home_item = next(
             (
-                item
-                for item in store.items
-                if self._needs_random_teleport_suppression(item)
+                item for item in store.items
+                if equipment_identity(item) == equipment_identity(home_owned.item)
             ),
             None,
         )

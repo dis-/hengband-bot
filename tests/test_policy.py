@@ -29534,6 +29534,9 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 )
             )
         )
+        policy._prepare_equipment_optimization = (
+            lambda _snapshot: policy._equipment_optimization_preparation
+        )
 
         key = policy._town_random_teleport_suppression_key(
             self._town(inventory=(glaive,))
@@ -29541,6 +29544,130 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         self.assertEqual(key, INSCRIBE_KEY + "a.\r")
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
+
+    def test_fresh_selected_partial_artifact_suppression_matches_blocker(self):
+        artifact = item(
+            "a", 23, 17, name="Werewindle", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        snapshot = self._town(inventory=(artifact,))
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        selected_id = policy._equipment_catalog.items[0].id
+        current = SimpleNamespace()
+        result = SimpleNamespace(
+            best=SimpleNamespace(
+                loadout=SimpleNamespace(item_ids=frozenset({selected_id}))
+            )
+        )
+        transaction = policy_module.EquipmentTransactionPlan((), (), 1)
+        fresh = policy_module.WarriorOptimizationPreparation(
+            current, result, transaction, (),
+        )
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            return_value=fresh,
+        ):
+            key = policy._town_random_teleport_suppression_key(snapshot)
+            preparation = policy._prepare_equipment_optimization(snapshot)
+
+        self.assertEqual(
+            preparation.blockers,
+            ("pending-random-teleport-suppression",),
+        )
+        self.assertEqual(key, INSCRIBE_KEY + "a.\r")
+
+    def test_inscribed_selected_partial_artifact_clears_departure_blocker(self):
+        artifact = item(
+            "a", 23, 17, name="Werewindle {.}", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        snapshot = self._town(inventory=(artifact,))
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        selected_id = policy._equipment_catalog.items[0].id
+        fresh = policy_module.WarriorOptimizationPreparation(
+            SimpleNamespace(),
+            SimpleNamespace(
+                best=SimpleNamespace(
+                    loadout=SimpleNamespace(item_ids=frozenset({selected_id}))
+                )
+            ),
+            policy_module.EquipmentTransactionPlan((), (), 1),
+            (),
+        )
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            return_value=fresh,
+        ):
+            preparation = policy._prepare_equipment_optimization(snapshot)
+            ready = policy._equipment_departure_ready(snapshot)
+
+        self.assertNotIn(
+            "pending-random-teleport-suppression", preparation.blockers
+        )
+        self.assertTrue(ready)
+
+    def test_unactionable_suppression_keeps_current_loadout_and_departs(self):
+        stored = store_item(
+            "b", 23, 17, name="Werewindle", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([stored])
+        owned = policy._equipment_catalog.items[0]
+        blocked = policy_module.WarriorOptimizationPreparation(
+            SimpleNamespace(),
+            SimpleNamespace(
+                best=SimpleNamespace(
+                    loadout=SimpleNamespace(item_ids=frozenset({owned.id}))
+                )
+            ),
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: blocked
+
+        self.assertTrue(policy._equipment_departure_ready(self._town()))
+
+    def test_selected_home_suppression_creates_home_errand(self):
+        stored = store_item(
+            "b", 23, 17, name="Werewindle", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([stored])
+        policy._equipment_catalog.observe_home_page([stored])
+        owned = policy._equipment_catalog.items[0]
+        blocked = policy_module.WarriorOptimizationPreparation(
+            SimpleNamespace(),
+            SimpleNamespace(
+                best=SimpleNamespace(
+                    loadout=SimpleNamespace(item_ids=frozenset({owned.id}))
+                )
+            ),
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: blocked
+
+        needs = policy._enumerate_town_needs(self._town())
+
+        self.assertTrue(any(
+            need.store_type == STORE_HOME
+            and need.category == "equipment-catalog"
+            for need in needs
+        ))
 
     def test_withdraws_home_random_teleport_item_before_inscribing(self):
         mask = store_item(
