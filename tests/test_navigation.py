@@ -1056,7 +1056,9 @@ class SurvivalGateTest(unittest.TestCase):
         from hengbot.model import QuestState
 
         info = QuestInfo(14, "Warg problem", 5, 5, 0, num_mon=16)
-        quest = QuestState(id=14, status=1, type=5, cur_num=2, max_num=16)
+        quest = QuestState(
+            id=14, status=1, type=5, cur_num=2, num_mon=16, max_num=0,
+        )
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 9): grid(10, 9),
@@ -1084,7 +1086,9 @@ class SurvivalGateTest(unittest.TestCase):
         from hengbot.model import QuestState
 
         info = QuestInfo(14, "Warg problem", 5, 5, 0, num_mon=16)
-        quest = QuestState(id=14, status=1, type=5, cur_num=2, max_num=16)
+        quest = QuestState(
+            id=14, status=1, type=5, cur_num=2, num_mon=16, max_num=0,
+        )
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 9): grid(10, 9),

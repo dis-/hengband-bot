@@ -17270,6 +17270,11 @@ class HengbotPolicy:
         """Return an incomplete runtime kill quest occupying the current floor."""
         dungeon_id, level, floor_quest_id = snapshot.floor_key
         for quest in snapshot.quests.values():
+            target = (
+                quest.num_mon
+                if quest.type == QUEST_TYPE_KILL_NUMBER
+                else quest.max_num
+            )
             if (
                 quest.status == QUEST_STATUS_TAKEN
                 and quest.type
@@ -17278,8 +17283,8 @@ class HengbotPolicy:
                     QUEST_TYPE_KILL_NUMBER,
                     QUEST_TYPE_RANDOM,
                 }
-                and quest.max_num > 0
-                and quest.cur_num < quest.max_num
+                and target > 0
+                and quest.cur_num < target
                 and (
                     floor_quest_id == quest.id
                     or (

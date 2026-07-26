@@ -93,7 +93,8 @@ from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
 from hengbot.quest_knowledge import (
-    QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM,
+    QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER,
+    QUEST_TYPE_RANDOM,
     QuestBattlefield, QuestInfo,
     load_quest_knowledge,
 )
@@ -4838,6 +4839,23 @@ class FixedQuestTest(unittest.TestCase):
         quest = QuestState(id=28, status=1, type=1, cur_num=1, max_num=1, num_mon=99)
         snap = Snapshot(player(10, 10), {}, [], floor_key=(0, 70, 28), quests={28: quest})
         self.assertIsNone(HengbotPolicy(quest_knowledge={28: info})._active_kill_quest_id(snap))
+
+    def test_kill_number_uses_num_mon_when_max_num_is_zero(self):
+        quest = QuestState(
+            id=14, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_KILL_NUMBER,
+            level=5, dungeon_id=0, cur_num=15, num_mon=16, max_num=0,
+        )
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(0, 5, 14),
+            quests={14: quest},
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._active_kill_quest_id(snap), 14)
+        self.assertTrue(policy._quest_floor_exit_locked(snap))
+        self.assertIsNone(policy._active_kill_quest_id(
+            replace(snap, quests={14: replace(quest, cur_num=16)})
+        ))
 
     def test_runtime_random_quest_locks_floor_exit_without_static_knowledge(self):
         quest = QuestState(
