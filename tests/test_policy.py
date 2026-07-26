@@ -25297,6 +25297,49 @@ class WieldHandSuffixTest(unittest.TestCase):
             HengbotPolicy._wield_hand_suffix(lone_shield, "main_hand"), ""
         )
 
+    def test_shield_restore_replaces_the_sub_hand_melee_weapon(self):
+        shield = item("o", 34, 3, is_equipment=True, name="Shield")
+        before = self._snap(
+            [
+                self._weapon("main_hand"),
+                item(
+                    "sub_hand",
+                    TVAL_DIGGING,
+                    1,
+                    is_equipment=True,
+                    name="Shovel",
+                ),
+            ]
+        )
+        self.assertEqual(
+            HengbotPolicy._equip_macro(before, shield, "sub_hand"), "wob"
+        )
+
+        after = self._snap(
+            [
+                self._weapon("main_hand"),
+                item("sub_hand", 34, 3, is_equipment=True, name="Shield"),
+            ]
+        )
+        self.assertFalse(
+            any(
+                equipped.slot == "sub_hand" and equipped.is_digging_tool
+                for equipped in after.equipment
+            )
+        )
+
+    def test_ring_restore_answers_replace_which_ring(self):
+        ring = item("r", TVAL_RING, 1, is_equipment=True, name="New Ring")
+        snap = self._snap(
+            [
+                item("main_ring", TVAL_RING, 2, is_equipment=True),
+                item("sub_ring", TVAL_RING, 3, is_equipment=True),
+            ]
+        )
+        self.assertEqual(
+            HengbotPolicy._equip_macro(snap, ring, "sub_ring"), "wre"
+        )
+
 
 class ThreatPredictionMemoTest(unittest.TestCase):
     """One decision asks for the same threat prediction up to six times (the
@@ -28467,7 +28510,40 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(second, "restore"), "ws"
+            pol._restore_mining_combat_hand_key(second, "restore"), "wsb"
+        )
+
+    def test_combat_restore_abandons_when_target_identity_never_appears(self):
+        from hengbot.policy import DIGGER_WIELD_LIMIT
+
+        pol = HengbotPolicy()
+        pol._normal_sub_hand_name = "Shield"
+        stuck = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[
+                item("s", 34, 2, is_equipment=True, name="Shield"),
+            ],
+            equipment=[
+                item("main_hand", 23, 1, is_equipment=True, name="Sword"),
+                item(
+                    "sub_hand",
+                    TVAL_DIGGING,
+                    4,
+                    is_equipment=True,
+                    name="Pick",
+                ),
+            ],
+        )
+        keys = [
+            pol._restore_mining_combat_hand_key(stuck, "restore")
+            for _ in range(DIGGER_WIELD_LIMIT)
+        ]
+        self.assertEqual(keys[:-1], ["wsb"] * (DIGGER_WIELD_LIMIT - 1))
+        self.assertIsNone(keys[-1])
+        self.assertEqual(
+            pol.last_reason, "restore:abandon-unconfirmed-equip"
         )
 
     def test_cursed_main_weapon_rejects_digger_wield_immediately(self):
