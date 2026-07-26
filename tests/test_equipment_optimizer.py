@@ -958,6 +958,24 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertTrue(catalog.observe_home_page(first))
         self.assertTrue(catalog.home_scan_complete)
 
+    def test_completed_home_scan_ignores_changed_page_observations(self):
+        catalog = OwnedEquipmentCatalog()
+        first = self._full_page("sword")
+        second = self._full_page("armour")
+        catalog.observe_home_page(first)
+        catalog.observe_home_page(second)
+        catalog.observe_home_page(first)
+        home_size = len(catalog._home)
+        seen_pages = catalog._home_seen_pages.copy()
+        occurrences = catalog._home_occurrences.copy()
+
+        self.assertTrue(catalog.observe_home_page(second[:-1]))
+
+        self.assertTrue(catalog.home_scan_complete)
+        self.assertEqual(len(catalog._home), home_size)
+        self.assertEqual(catalog._home_seen_pages, seen_pages)
+        self.assertEqual(catalog._home_occurrences, occurrences)
+
     def test_single_short_home_page_requires_confirmed_wrap(self):
         catalog = OwnedEquipmentCatalog()
         page = [

@@ -401,6 +401,8 @@ class OwnedEquipmentCatalog:
         allow_wrap: bool = True,
     ) -> bool:
         """Record one page; return True after an intentional page turn wraps."""
+        if self.home_scan_complete:
+            return True
         all_page_items = tuple(items)
         page_items = tuple(
             item
