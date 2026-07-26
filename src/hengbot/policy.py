@@ -12829,10 +12829,6 @@ class HengbotPolicy:
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
-        if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
-            self._equipment_catalog.observe_home_page(
-                snapshot.store.items, allow_wrap=False
-            )
         preparation = self._prepare_equipment_optimization(snapshot)
         selected_ids = self._equipment_preparation_selected_ids(preparation)
         pending = tuple(

@@ -29676,6 +29676,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             known_flags=frozenset({TR_TELEPORT}),
         )
         policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([mask], allow_wrap=False)
 
         key = policy._town_random_teleport_suppression_key(
             self._town(store=StoreState(STORE_HOME, [mask]))
@@ -29685,6 +29686,32 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "home:withdraw-random-teleport-for-inscription"
         )
+
+    def test_repeated_home_suppression_actions_do_not_grow_catalog(self):
+        stored = store_item(
+            "b", 23, 17, name="Werewindle", known=True,
+            fully_known=False, is_equipment=True, is_artifact=True,
+            known_flags=frozenset({38, 74}),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([stored], allow_wrap=False)
+        catalog_size = len(policy._equipment_catalog.items)
+        policy._prepare_equipment_optimization = (
+            lambda _snapshot: SimpleNamespace(
+                result=SimpleNamespace(
+                    best=SimpleNamespace(
+                        loadout=SimpleNamespace(item_ids=frozenset())
+                    )
+                )
+            )
+        )
+
+        for inscription in ("{.}", "{.} ", "{.}  "):
+            visible = replace(stored, name=f"Werewindle {inscription}")
+            policy._town_random_teleport_suppression_key(
+                self._town(store=StoreState(STORE_HOME, [visible]))
+            )
+            self.assertEqual(len(policy._equipment_catalog.items), catalog_size)
 
     def test_leaves_store_before_inscribing_carried_item(self):
         mask = item(
