@@ -31070,5 +31070,86 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
 
+class TownDepartureConvenienceDepositTest(unittest.TestCase):
+    def _snapshot(self, inventory):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory,
+        )
+
+    @staticmethod
+    def _make_other_departure_gates_ready(policy):
+        policy._recall_departure_ready = lambda _snapshot: True
+        policy._food_ready = lambda _snapshot: True
+        policy._light_ready = lambda _snapshot: True
+        policy._teleport_ready = lambda _snapshot: True
+        policy._cure_critical_ready = lambda _snapshot: True
+        policy._identify_staff_ready = lambda _snapshot: True
+        policy._inventory_overweight = lambda _snapshot: False
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._fundraising_departure_ready = lambda _snapshot: True
+
+    def test_convenience_deposit_does_not_block_departure_or_diagnostic(self):
+        arrows = item("a", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        fillers = [
+            item(chr(ord("b") + index), TVAL_FOOD, 35, name=f"ration-{index}")
+            for index in range(13)
+        ]
+        snapshot = self._snapshot([arrows, *fillers])
+        policy = HengbotPolicy()
+        self._make_other_departure_gates_ready(policy)
+
+        self.assertEqual(PACK_CAPACITY - len(snapshot.inventory), 9)
+        self.assertIs(policy._find_home_deposit(snapshot), arrows)
+        self.assertTrue(policy._home_deposit_candidate(arrows, snapshot))
+        self.assertTrue(policy._town_departure_ready(snapshot))
+        block = policy._departure_block_state(snapshot, deep_fundraising=False)
+        self.assertFalse(block["values"]["pending_home_deposit"])
+        self.assertNotIn("pending_home_deposit", block["failed"])
+
+    def test_mandatory_deep_mining_stash_still_blocks_departure(self):
+        unsecured = item(
+            "a",
+            TVAL_SWORD,
+            1,
+            name="unsecured ego sword",
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+        )
+        snapshot = self._snapshot([unsecured])
+        policy = HengbotPolicy()
+        self._make_other_departure_gates_ready(policy)
+        policy._fundraising_mode = "mine"
+        policy._deep_fundraising_active = lambda _snapshot: True
+
+        self.assertTrue(
+            policy._must_stash_before_deep_mining(snapshot, unsecured)
+        )
+        self.assertIs(policy._mandatory_home_deposit(snapshot), unsecured)
+        self.assertFalse(policy._town_departure_ready(snapshot))
+
+    def test_pack_pressure_still_blocks_with_convenience_deposit(self):
+        arrows = item("a", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        fillers = [
+            item(chr(ord("b") + index), TVAL_FOOD, 35, name=f"ration-{index}")
+            for index in range(PACK_CAPACITY - MIN_FREE_PACK_SLOTS)
+        ]
+        snapshot = self._snapshot([arrows, *fillers])
+        policy = HengbotPolicy()
+        self._make_other_departure_gates_ready(policy)
+
+        self.assertLess(
+            PACK_CAPACITY - len(snapshot.inventory), MIN_FREE_PACK_SLOTS
+        )
+        self.assertTrue(policy._home_deposit_candidate(arrows, snapshot))
+        self.assertFalse(policy._town_departure_ready(snapshot))
+
+
 if __name__ == "__main__":
     unittest.main()

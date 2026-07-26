@@ -6338,7 +6338,7 @@ class HengbotPolicy:
             and player.hp >= player.max_hp
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
-            and self._find_home_deposit(snapshot) is None
+            and self._mandatory_home_deposit(snapshot) is None
             and (
                 not self._home_available(snapshot)
                 or (
@@ -7188,6 +7188,28 @@ class HengbotPolicy:
             self._fundraising_mode in {"prepare", "mine"}
             and self._deep_fundraising_active(snapshot)
             and self._is_unsecured_full_identification_candidate(item)
+        )
+
+    def _mandatory_home_deposit(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        """Return only a safety-critical deposit that must precede departure."""
+        if self._home_full or self._home_deposit_abandoned:
+            return None
+        return self._first_item(
+            snapshot,
+            lambda item: (
+                self._must_stash_before_deep_mining(snapshot, item)
+                and not self._is_wanted_jewelry(snapshot, item)
+                and self._item_signature(item) not in self._home_rejected_deposits
+                and self._item_signature(item) not in self._home_pending_batch
+                and (
+                    self._home_withdraw_inflight is None
+                    or self._item_signature(item) != self._home_withdraw_inflight[0]
+                )
+                and item.slot != self._home_pending_slot
+                and item.slot != self._pending_disposal_slot
+            ),
         )
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
@@ -13303,7 +13325,7 @@ class HengbotPolicy:
             "home_available": home_available,
             "home_candidate_waiting": self._home_candidate_waiting,
             "home_scan_complete": self._equipment_catalog.home_scan_complete,
-            "pending_home_deposit": self._find_home_deposit(snapshot) is not None,
+            "pending_home_deposit": self._mandatory_home_deposit(snapshot) is not None,
             "equipment_departure_ready": (
                 self._equipment_departure_ready(snapshot) if home_available else True
             ),
