@@ -22603,6 +22603,114 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "emergency:cornered-attack")
 
 
+class EmergencyHealBeforeFleeTest(unittest.TestCase):
+    def _quest_emergency(self, *, hp=100, inventory=()):
+        position = Position(10, 10)
+        hostile = MonsterState(
+            index=1,
+            position=Position(10, 11),
+            hp=200,
+            max_hp=200,
+            distance=1,
+            friendly=False,
+            pet=False,
+            speed=120,
+            max_melee_damage=400,
+        )
+        quest = QuestState(id=99, status=1, fixed=True)
+        return Snapshot(
+            player(10, 10, hp=hp, max_hp=500, word_recall=10),
+            {
+                position: grid(10, 10),
+                Position(9, 10): grid(9, 10),
+                hostile.position: grid(10, 11, monster=True),
+            },
+            [hostile],
+            floor_key=(0, 10, 99),
+            quests={99: quest},
+            inventory=list(inventory),
+        )
+
+    @staticmethod
+    def _predicted_damage(
+        _snapshot, _hostiles, *, turns, expected=False
+    ):
+        return 250 if expected and turns == 1 else 500
+
+    def test_quest_floor_lethal_emergency_heals_before_fleeing(self):
+        snap = self._quest_emergency(
+            inventory=[item("h", TVAL_POTION, SV_POTION_HEALING)]
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage", side_effect=self._predicted_damage
+        ):
+            self.assertEqual(
+                policy._emergency_item(snap, snap.visible_monsters), "qh"
+            )
+        self.assertEqual(policy.last_reason, "emergency:heal")
+
+    def test_instant_escape_still_wins_over_emergency_heal(self):
+        snap = self._quest_emergency(
+            inventory=[
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ]
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage", side_effect=self._predicted_damage
+        ):
+            self.assertEqual(
+                policy._emergency_item(snap, snap.visible_monsters), "rt"
+            )
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
+    def test_outpaced_heal_falls_through_to_existing_escape(self):
+        snap = self._quest_emergency(
+            hp=250,
+            inventory=[item("h", TVAL_POTION, SV_POTION_HEALING)],
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy,
+            "_predicted_damage",
+            side_effect=lambda _snapshot, _hostiles, *, turns, expected=False:
+                350 if expected and turns == 1 else 500,
+        ):
+            key = policy._emergency_item(snap, snap.visible_monsters)
+        self.assertIsNone(
+            policy._find_heal_potion(snap, expected_damage=350)
+        )
+        self.assertNotEqual(policy.last_reason, "emergency:heal")
+        self.assertIn(
+            policy.last_reason,
+            {"emergency:seek-upstairs", "emergency:cornered-attack"},
+        )
+        self.assertIsNotNone(key)
+
+    def test_healthy_lethal_emergency_does_not_heal(self):
+        snap = self._quest_emergency(
+            hp=400,
+            inventory=[item("h", TVAL_POTION, SV_POTION_HEALING)],
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage", side_effect=self._predicted_damage
+        ):
+            key = policy._emergency_item(snap, snap.visible_monsters)
+        self.assertNotEqual(policy.last_reason, "emergency:heal")
+        self.assertIn(
+            policy.last_reason,
+            {"emergency:seek-upstairs", "emergency:cornered-attack"},
+        )
+        self.assertIsNotNone(key)
+
+
 
 class TownFrontierTest(unittest.TestCase):
     def _lone_town(self, town_map):

@@ -20333,6 +20333,18 @@ class HengbotPolicy:
                 snapshot, profile, hostiles
             )
         )
+        heal_ratio = (
+            float(
+                profile.consumable_plan.get(
+                    "heal_threshold_ratio", FIXED_QUEST_HEAL_HP_RATIO
+                )
+            )
+            if profile is not None
+            else FIXED_QUEST_HEAL_HP_RATIO
+            if self._active_fixed_quest_id(snapshot) is not None
+            or self._active_kill_quest_id(snapshot) is not None
+            else HEAL_HP_RATIO
+        )
         lethal = (
             bool(hostiles)
             and (predicted >= player.hp or ranged_scroll_lock)
@@ -20419,6 +20431,16 @@ class HengbotPolicy:
                             return self._issue_emergency_consumable(
                                 snapshot, recall, self.last_reason
                             )
+                if player.hp_ratio < heal_ratio:
+                    expected = self._predicted_damage(
+                        snapshot, hostiles, turns=1, expected=True
+                    )
+                    potion = self._find_heal_potion(
+                        snapshot, expected_damage=expected
+                    )
+                    if potion is not None:
+                        self.last_reason = "emergency:heal"
+                        return QUAFF_KEY + potion.slot
                 step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
                 if step is None:
                     step = self._flee_step(snapshot, hostiles)
@@ -20463,14 +20485,6 @@ class HengbotPolicy:
                 return QUAFF_KEY + potion.slot
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
-        heal_ratio = (
-            float(profile.consumable_plan.get("heal_threshold_ratio", FIXED_QUEST_HEAL_HP_RATIO))
-            if (profile := self.approved_quest_strategy(snapshot.floor_key[2])) is not None
-            else FIXED_QUEST_HEAL_HP_RATIO
-            if self._active_fixed_quest_id(snapshot) is not None
-            or self._active_kill_quest_id(snapshot) is not None
-            else HEAL_HP_RATIO
-        )
         if (
             hostiles
             and not q22_reposition_active
