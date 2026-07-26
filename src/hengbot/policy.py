@@ -1845,11 +1845,36 @@ class HengbotPolicy:
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
-            and (key.startswith(BUY_KEY) or key.startswith(SELL_KEY))
+            and key.startswith(BUY_KEY)
         ):
-            # A withdrawal/deposit changes Home ordering and page boundaries.
-            # Require a fresh complete scan before optimization or departure.
+            # A withdrawal removes an entry and can change Home ordering and page
+            # boundaries, so its exact post-command contents require a rescan.
             self._equipment_catalog.invalidate_home()
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and key.startswith(SELL_KEY)
+            and len(key) > 1
+        ):
+            deposited = next(
+                (item for item in snapshot.inventory if item.slot == key[1]),
+                None,
+            )
+            if deposited is not None:
+                # Deposits are additive. Preserve the completed scan that the
+                # withdrawal batch is consuming and add the new physical item
+                # once, even if the same pre-command snapshot is observed again.
+                self._equipment_catalog.record_home_deposit(
+                    deposited,
+                    intent=(
+                        snapshot.turn,
+                        deposited.slot,
+                        self._item_signature(deposited),
+                        deposited.count,
+                        deposited.charges,
+                        len(snapshot.inventory),
+                    ),
+                )
         self._capture_home_history_intent(snapshot, key)
         if (
             snapshot.store is not None

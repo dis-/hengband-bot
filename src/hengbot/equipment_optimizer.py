@@ -365,6 +365,7 @@ class OwnedEquipmentCatalog:
         self._home: dict[str, OwnedEquipment] = {}
         self._home_seen_pages: set[tuple[tuple, ...]] = set()
         self._home_occurrences: dict[tuple, int] = {}
+        self._home_deposit_intents: set[tuple] = set()
         self.home_scan_complete = False
 
     def refresh_carried(
@@ -436,10 +437,34 @@ class OwnedEquipmentCatalog:
             )
         return self.home_scan_complete
 
+    def record_home_deposit(
+        self,
+        item: InventoryItem,
+        *,
+        intent: tuple,
+    ) -> None:
+        """Add one commanded deposit without discarding a completed Home scan."""
+        if intent in self._home_deposit_intents:
+            return
+        self._home_deposit_intents.add(intent)
+        if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+            return
+        signature = _catalog_signature(item)
+        occurrence = self._home_occurrences.get(signature, 0)
+        self._home_occurrences[signature] = occurrence + 1
+        item_id = f"home:{_catalog_digest(signature)}:{occurrence}"
+        self._home[item_id] = OwnedEquipment(
+            item_id,
+            item,
+            "home",
+            random_teleport_suppressed=random_teleport_is_suppressed(item),
+        )
+
     def invalidate_home(self) -> None:
         self._home.clear()
         self._home_seen_pages.clear()
         self._home_occurrences.clear()
+        self._home_deposit_intents.clear()
         self.home_scan_complete = False
 
     @property

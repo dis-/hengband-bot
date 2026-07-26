@@ -18359,6 +18359,44 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "da\r")
         self.assertEqual(policy.last_reason, "home:deposit")
 
+    def test_home_deposit_does_not_restart_batch_scan_at_same_turn(self):
+        # Regression for turn 817417: a near-full pack deposited one equipment
+        # item between batch-withdraw decisions. Repeating that command must not
+        # erase the completed scan or append duplicate catalog entries.
+        surplus = item(
+            "q", 23, 4, name="unidentified ego flail", aware=True,
+            known=False, fully_known=False, is_equipment=True,
+        )
+        filler = [
+            item(chr(ord("a") + index), TVAL_STAFF, index, charges=1)
+            for index in range(16)
+        ]
+        home_item = store_item(
+            "a", 31, 1, name="withdrawal gloves", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        home = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=817417,
+            inventory=[*filler, surplus],
+            equipment=[self._lantern()],
+            store=StoreState(store_type=STORE_HOME, items=[home_item]),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([home_item])
+        policy._equipment_catalog.observe_home_page([home_item])
+
+        self.assertEqual(policy.choose_key(home), "dq\r")
+        self.assertEqual(policy.last_reason, "home:deposit")
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        catalog_size = len(policy._equipment_catalog.items)
+
+        self.assertEqual(policy.choose_key(home), "dq\r")
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertEqual(len(policy._equipment_catalog.items), catalog_size)
+
     def test_home_withdraws_one_unknown_item_then_identifies_it(self):
         identify_scroll = item(
             "i", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"

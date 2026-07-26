@@ -1067,6 +1067,32 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertFalse(catalog.home_scan_complete)
         self.assertEqual(catalog.items, ())
 
+    def test_deposit_increment_preserves_complete_scan_and_is_idempotent(self):
+        catalog = OwnedEquipmentCatalog()
+        page = [self._home_item("a", "home sword")]
+        catalog.observe_home_page(page)
+        catalog.observe_home_page(page)
+        deposited = InventoryItem(
+            slot="q",
+            name="deposited flail",
+            count=1,
+            tval=23,
+            sval=4,
+            aware=True,
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+        )
+
+        catalog.record_home_deposit(deposited, intent=(817417, "q"))
+        catalog.record_home_deposit(deposited, intent=(817417, "q"))
+
+        self.assertTrue(catalog.home_scan_complete)
+        self.assertEqual(
+            [owned.item.name for owned in catalog.items],
+            ["home sword", "deposited flail"],
+        )
+
     def test_refresh_carried_preserves_equipped_slot(self):
         catalog = OwnedEquipmentCatalog()
         worn = InventoryItem(
