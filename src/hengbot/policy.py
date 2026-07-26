@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, deque
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
@@ -250,6 +250,16 @@ class TownNeed:
     store_type: int
     category: str
     ordering_class: str
+
+
+@dataclass
+class TownVisitLedger:
+    store_visits: Counter[int] = field(default_factory=Counter)
+    need_attempts: dict[str, int] = field(default_factory=dict)
+    approach_fails: Counter[int] = field(default_factory=Counter)
+    passes_since_progress: int = 0
+    drift_warnings: list[str] = field(default_factory=list)
+    satisfied_needs: set[tuple[int, str]] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -1466,6 +1476,8 @@ class HengbotPolicy:
         )
         self._town_progress_marker: tuple | None = None
         self._town_no_progress_count = 0
+        self._town_visit_ledger = TownVisitLedger()
+        self._town_was_in_town = False
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
         self._observed_town_id: int | None = None
@@ -3170,6 +3182,9 @@ class HengbotPolicy:
         self._observe_remove_curse(snapshot)
         self._observe_launcher_enchant(snapshot)
         previous_floor = self._floor_key
+        if snapshot.in_town and not self._town_was_in_town:
+            self._town_visit_ledger = TownVisitLedger()
+        self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
         current_town_id = (
@@ -3302,6 +3317,7 @@ class HengbotPolicy:
                 self._town_progress_marker = marker
                 self._town_signature_history.clear()
                 self._town_no_progress_count = 0
+                self._town_visit_ledger.passes_since_progress = 0
                 if had_marker:
                     # Completing an identification/home-scan/errand stage is
                     # real workflow progress even when gold and pack counts do
@@ -3324,6 +3340,7 @@ class HengbotPolicy:
                     (self.last_reason, position.y, position.x)
                 )
                 self._town_no_progress_count += 1
+                self._town_visit_ledger.passes_since_progress += 1
                 if (
                     self._town_cycle_detected()
                     or self._town_no_progress_count >= TOWN_NO_PROGRESS_LIMIT
@@ -9603,6 +9620,19 @@ class HengbotPolicy:
         ):
             self._start_fundraising(snapshot)
         needs = self._enumerate_town_needs(snapshot)
+        warned = set(self._town_visit_ledger.drift_warnings)
+        for need in needs:
+            satisfied = (need.store_type, need.category)
+            warning = (
+                f"drift:{STORE_RESTOCK_REASON_NAMES.get(need.store_type, need.store_type)}"
+                f":{need.category}"
+            )
+            if (
+                satisfied in self._town_visit_ledger.satisfied_needs
+                and warning not in warned
+            ):
+                self._town_visit_ledger.drift_warnings.append(warning)
+                warned.add(warning)
         post_alchemist_home_needed = any(
             need.store_type == STORE_HOME
             and need.ordering_class == "post-alchemist-home"
@@ -9729,6 +9759,11 @@ class HengbotPolicy:
                         # newly actionable phase. Re-arm once per need category;
                         # TOWN_STOP_PASS_LIMIT still bounds a stuck handler.
                         plan.rearmed_home_categories.extend(newly_actionable)
+                        for category in newly_actionable:
+                            self._town_visit_ledger.need_attempts[category] = (
+                                self._town_visit_ledger.need_attempts.get(category, 0)
+                                + 1
+                            )
                         self._town_store_attempted.pop(STORE_HOME, None)
                         return STORE_HOME
                 if (
@@ -9787,6 +9822,20 @@ class HengbotPolicy:
         self, snapshot: Snapshot, store_type: int, *, goal_satisfied: bool
     ) -> None:
         """Report one handler pass to the plan that owns this town objective."""
+        self._town_visit_ledger.store_visits[store_type] += 1
+        store_needs = [
+            need
+            for need in self._enumerate_town_needs(snapshot)
+            if need.store_type == store_type
+        ]
+        for need in store_needs:
+            self._town_visit_ledger.need_attempts[need.category] = (
+                self._town_visit_ledger.need_attempts.get(need.category, 0) + 1
+            )
+        if goal_satisfied:
+            self._town_visit_ledger.satisfied_needs.update(
+                (need.store_type, need.category) for need in store_needs
+            )
         plan = self._town_errand_plan
         if (
             plan is None
@@ -12266,6 +12315,7 @@ class HengbotPolicy:
         if self._shop_approach_stuck_count >= SHOP_APPROACH_STUCK_LIMIT:
             self._shopping_stuck = True
             self._town_store_attempted[store_type] = snapshot.turn
+            self._town_visit_ledger.approach_fails[store_type] += 1
             self._shop_approach_stuck_count = 0
             return None
         return step
@@ -13612,6 +13662,13 @@ class HengbotPolicy:
     ) -> dict[str, object]:
         """Expose every recall AND-gate value instead of an opaque false."""
         home_available = self._home_available(snapshot)
+        town_ledger = {
+            "store_visits": dict(self._town_visit_ledger.store_visits),
+            "need_attempts": dict(self._town_visit_ledger.need_attempts),
+            "approach_fails": dict(self._town_visit_ledger.approach_fails),
+            "passes_since_progress": self._town_visit_ledger.passes_since_progress,
+            "drift_warnings": list(self._town_visit_ledger.drift_warnings),
+        }
         values: dict[str, object] = {
             "home_pending_item": self._home_pending_item,
             "home_pending_batch": list(self._home_pending_batch),
@@ -13663,9 +13720,12 @@ class HengbotPolicy:
             )
             if failed
         ]
-        return {"failed": failures, "values": values, "gate": (
-            selected_gate
-        )}
+        return {
+            "failed": failures,
+            "values": values,
+            "gate": selected_gate,
+            "town_ledger": town_ledger,
+        }
 
     def departure_block_state(self) -> dict[str, object]:
         return self._departure_block

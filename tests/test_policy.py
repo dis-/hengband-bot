@@ -31710,6 +31710,96 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._legacy_town_router_terminal = lambda snapshot: None
         return policy
 
+    def test_visit_ledger_survives_plan_rebuild(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False
+        )
+        before = (
+            dict(policy._town_visit_ledger.store_visits),
+            dict(policy._town_visit_ledger.need_attempts),
+        )
+        policy._town_errand_plan = None
+        policy._next_required_store_type(snapshot)
+
+        self.assertEqual(
+            (
+                dict(policy._town_visit_ledger.store_visits),
+                dict(policy._town_visit_ledger.need_attempts),
+            ),
+            before,
+        )
+        self.assertEqual(policy._town_errand_plan.current_stop_passes, 0)
+
+    def test_visit_ledger_resets_only_on_town_entry(self):
+        policy = self._policy([])
+        town = replace(self._snapshot(), town_flag=True)
+        dungeon = replace(town, town_flag=False, floor_key=(1, 1, 0))
+        policy._observe(town)
+        policy._town_visit_ledger.store_visits[STORE_HOME] = 2
+        policy._town_errand_plan = TownErrandPlan([STORE_HOME])
+        policy._town_errand_plan = None
+        policy._observe(town)
+        self.assertEqual(policy._town_visit_ledger.store_visits[STORE_HOME], 2)
+
+        policy._observe(dungeon)
+        self.assertEqual(policy._town_visit_ledger.store_visits[STORE_HOME], 2)
+        policy._observe(town)
+        self.assertEqual(dict(policy._town_visit_ledger.store_visits), {})
+
+    def test_shadow_drift_warning_is_once_and_requires_reemission(self):
+        needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
+
+        policy._next_required_store_type(snapshot)
+        policy._next_required_store_type(snapshot)
+        self.assertEqual(
+            policy._town_visit_ledger.drift_warnings,
+            ["drift:home:idle-consumable-scan"],
+        )
+
+        cleared = self._policy(
+            [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
+        )
+        self.assertEqual(cleared._next_required_store_type(snapshot), STORE_HOME)
+        cleared._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=True
+        )
+        cleared._enumerate_town_needs = lambda candidate: []
+        cleared._next_required_store_type(snapshot)
+        self.assertEqual(cleared._town_visit_ledger.drift_warnings, [])
+
+    def test_departure_telemetry_contains_visit_ledger(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_errand_plan = TownErrandPlan([STORE_HOME])
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False
+        )
+
+        block = policy._departure_block_state(
+            snapshot, deep_fundraising=False
+        )
+
+        self.assertEqual(
+            block["town_ledger"],
+            {
+                "store_visits": {STORE_HOME: 1},
+                "need_attempts": {"equipment-catalog": 1},
+                "approach_fails": {},
+                "passes_since_progress": 0,
+                "drift_warnings": [],
+            },
+        )
+
     def test_multi_errand_circuit_is_home_first_and_nearest_neighbor(self):
         stores = {
             STORE_HOME: Position(10, 9),
