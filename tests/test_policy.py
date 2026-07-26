@@ -13238,7 +13238,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             TownNeed(STORE_HOME, "identification-withdrawal", "post-alchemist-home"),
         ]
         pol._enumerate_town_needs = lambda snapshot: list(active)
-        pol._legacy_town_router_terminal = lambda snapshot: None
+        pol._town_terminal_transitions = lambda snapshot: None
         outside = replace(snap, store=None)
 
         self.assertEqual(pol._next_required_store_type(outside), STORE_ALCHEMIST)
@@ -14518,7 +14518,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
         policy._conquest_target = lambda snapshot: 1
 
-        policy._legacy_town_router_terminal(snap)
+        policy._town_terminal_transitions(snap)
 
         self.assertIsNone(policy._identification_need)
         self.assertEqual(policy._fundraising_mode, "prepare")
@@ -23319,7 +23319,7 @@ class IdentifyStaffTest(unittest.TestCase):
         pol._town_store_attempted[STORE_MAGIC] = snap.turn
 
         self.assertTrue(pol._identify_staff_ready(snap))
-        self.assertNotEqual(pol._legacy_town_router_terminal(snap), STORE_MAGIC)
+        self.assertNotEqual(pol._town_terminal_transitions(snap), STORE_MAGIC)
         self.assertIsNone(pol._town_restock_wait_until)
 
     def test_empty_staff_still_blocks_after_magic_shop_is_exhausted(self):
@@ -31636,7 +31636,7 @@ class DungeonConquestTest(unittest.TestCase):
         # Exercise the terminal identification branch directly: the top-level
         # router's new poverty source otherwise activates fundraising before
         # this already-in-flight defer can be serviced.
-        next_store = policy._legacy_town_router_terminal(snapshot)
+        next_store = policy._town_terminal_transitions(snapshot)
 
         self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
@@ -31907,7 +31907,7 @@ class TownErrandPlanTest(unittest.TestCase):
     def _policy(self, needs, town_map=None):
         policy = HengbotPolicy(town_map=town_map)
         policy._enumerate_town_needs = lambda snapshot: list(needs)
-        policy._legacy_town_router_terminal = lambda snapshot: None
+        policy._town_terminal_transitions = lambda snapshot: None
         return policy
 
     def test_visit_ledger_survives_plan_rebuild(self):
@@ -32525,30 +32525,29 @@ class TownErrandPlanTest(unittest.TestCase):
         )
 
         self.assertNotEqual(
-            policy._legacy_town_router_terminal(town), STORE_ALCHEMIST
+            policy._town_terminal_transitions(town), STORE_ALCHEMIST
         )
 
-    def test_terminal_result_cannot_reacquire_any_completed_plan_stop(self):
-        # The live recurrence came through a supply branch rather than the
-        # identification branch.  Gate the terminal result centrally so the
-        # specific owner returning the same store cannot bypass plan state.
-        policy = self._policy([])
+    def test_registry_cannot_reacquire_a_completed_plan_stop(self):
+        # Revert-proof T4 regression: the only live producer still names the
+        # completed stop, but the visit ledger/plan authority suppresses it.
+        policy = HengbotPolicy()
         town = self._snapshot()
         policy._town_errand_plan = TownErrandPlan(
-            [STORE_ALCHEMIST],
+            [STORE_BLACK],
             index=1,
-            completed_this_visit=[STORE_ALCHEMIST],
+            completed_this_visit=[STORE_BLACK],
         )
-        policy._legacy_town_router_terminal = lambda snapshot: STORE_ALCHEMIST
+        policy._town_need_candidates = lambda snapshot: [
+            TownNeed(STORE_BLACK, "black-market", "normal")
+        ]
 
         self.assertIsNone(policy._next_required_store_type(town))
-        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertNotIn(STORE_BLACK, policy._town_store_attempted)
 
-    def test_completed_identification_stop_allows_one_restock_recheck(self):
-        # A full-identification candidate must wait for Alchemist turnover when
-        # *Identify* is out of stock.  The completed-plan guard must suppress
-        # ordinary reacquisition without also swallowing the one store visit
-        # explicitly re-armed by the restock timer.
+    def test_completed_stop_has_no_terminal_router_recheck(self):
+        # Restock rechecks must now be exposed by a registry producer after the
+        # transition step; a second routing result cannot bypass the registry.
         policy = self._policy([])
         town = self._snapshot(turn=2000)
         policy._town_errand_plan = TownErrandPlan(
@@ -32557,11 +32556,9 @@ class TownErrandPlanTest(unittest.TestCase):
             completed_this_visit=[STORE_ALCHEMIST],
         )
         policy._town_restock_rechecked.add(STORE_ALCHEMIST)
-        policy._legacy_town_router_terminal = lambda snapshot: STORE_ALCHEMIST
+        policy._town_terminal_transitions = lambda snapshot: STORE_ALCHEMIST
 
-        self.assertEqual(
-            policy._next_required_store_type(town), STORE_ALCHEMIST
-        )
+        self.assertIsNone(policy._next_required_store_type(town))
 
         policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
         self.assertIsNone(policy._next_required_store_type(town))
@@ -32662,6 +32659,44 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertEqual(policy._town_errand_plan.current_stop_passes, 1)
+
+    def test_registry_keeps_still_produced_need_unsatisfied_after_handler_pass(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot()
+        policy._home_disposal_pass = True
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=True
+        )
+
+        self.assertEqual(policy._town_errand_plan.index, 0)
+        self.assertNotIn(
+            (STORE_HOME, "idle-consumable-scan"),
+            policy._town_visit_ledger.satisfied_needs,
+        )
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 1
+        )
+
+    def test_registry_enumerator_matches_extracted_predicates(self):
+        snapshots = [
+            self._snapshot(),
+            replace(self._snapshot(), player=replace(self._snapshot().player, class_id=-1)),
+        ]
+        policies = [HengbotPolicy(), HengbotPolicy()]
+        policies[0]._home_disposal_pass = True
+        policies[1]._fundraising_mode = "prepare"
+
+        for policy, snapshot in zip(policies, snapshots):
+            with self.subTest(
+                fundraising=policy._fundraising_mode,
+                class_id=snapshot.player.class_id,
+            ):
+                self.assertEqual(
+                    policy._enumerate_town_needs(snapshot),
+                    policy._town_need_candidates(snapshot),
+                )
 
 
 class SupplyLedgerInvariantTest(unittest.TestCase):

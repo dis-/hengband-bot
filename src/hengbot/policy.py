@@ -6,7 +6,7 @@ from heapq import heappop, heappush
 from itertools import count
 from math import ceil
 import re
-from typing import Literal
+from typing import Callable, Literal
 from pathlib import Path
 
 from hengbot.town_maps import TownMap
@@ -245,11 +245,27 @@ class TownTravelProgress:
         return "reissue"
 
 
+TOWN_STOP_PASS_LIMIT = 3
+
+
 @dataclass(frozen=True)
 class TownNeed:
     store_type: int
     category: str
     ordering_class: str
+
+
+@dataclass(frozen=True)
+class NeedSpec:
+    category: str
+    store_type: int | Callable[[Snapshot], int]
+    ordering_class: str
+    produces: Callable[[Snapshot], bool]
+    satisfied: Callable[[Snapshot], bool]
+    budget: int = TOWN_STOP_PASS_LIMIT
+
+    def resolve_store_type(self, snapshot: Snapshot) -> int:
+        return self.store_type(snapshot) if callable(self.store_type) else self.store_type
 
 
 @dataclass
@@ -278,6 +294,7 @@ class SupplyStatus:
 @dataclass
 class TownErrandPlan:
     stops: list[int]
+    need_categories: dict[int, tuple[str, ...]] = field(default_factory=dict)
     index: int = 0
     inserted_this_visit: list[int] | None = None
     skipped_latched: list[int] | None = None
@@ -895,7 +912,6 @@ STORE_STUCK_LIMIT = 8
 # bounded visit-local attempt: after that, exclude the failed item and optimize
 # the loadout that is actually achievable this visit so departure cannot stall.
 EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = 3
-TOWN_STOP_PASS_LIMIT = 3
 # Oscillating store-approach turns (while _is_oscillating) tolerated before giving
 # up an unreachable store and diving with what we have. Above STUCK_WINDOW so a
 # reachable store one tile on is still pursued; below the cli loop guard's window
@@ -9150,8 +9166,8 @@ class HengbotPolicy:
         suffix = f":{missing}" if missing is not None else ""
         return f"town:wait-restock:{store_name}{suffix}"
 
-    def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
-        """Return every currently true town errand without changing policy state."""
+    def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
+        """Mechanically evaluate the predicates backing the town need registry."""
         needs: list[TownNeed] = []
         fundraising_active = (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
@@ -9493,6 +9509,134 @@ class HengbotPolicy:
             add(STORE_BLACK, "black-market")
         return needs
 
+    def _candidate_need(
+        self,
+        snapshot: Snapshot,
+        category: str,
+        ordering_class: str,
+        occurrence: int,
+    ) -> TownNeed | None:
+        evaluated_snapshot = getattr(
+            self, "_town_need_evaluation_snapshot", None
+        )
+        evaluated_candidates = getattr(
+            self, "_town_need_evaluation_candidates", None
+        )
+        candidates = (
+            evaluated_candidates
+            if evaluated_snapshot is snapshot and evaluated_candidates is not None
+            else self._town_need_candidates(snapshot)
+        )
+        matches = [
+            need
+            for need in candidates
+            if need.category == category and need.ordering_class == ordering_class
+        ]
+        return matches[occurrence] if occurrence < len(matches) else None
+
+    def _town_need_registry(self) -> tuple[NeedSpec, ...]:
+        """Build the single ordered producer/satisfaction registry once."""
+        cached = getattr(self, "_town_need_specs", None)
+        if cached is not None:
+            return cached
+        entries = (
+            ("idle-consumable-scan", "home-first", 1),
+            ("home-disposal-identify", "normal", 1),
+            ("home-disposal-sale", "normal", 1),
+            ("birth-supplies", "normal", 2),
+            ("quest-throwing-items", "opening-quest", 1),
+            ("disposal", "normal", 1),
+            ("safe-weapon", "home-first", 1),
+            ("combat-weapon", "home-first", 1),
+            ("book-sale", "normal", 1),
+            ("deep-mining-deposit", "home-first", 1),
+            ("weight-overload", "home-first", 1),
+            ("deposit", "home-first", 1),
+            ("stat-restore", "normal", 1),
+            ("low-level-sale", "normal", 1),
+            ("mana-food-sale", "normal", 1),
+            ("device-sale", "normal", 1),
+            ("weapon-sale", "normal", 1),
+            ("light-sale", "normal", 1),
+            ("fundraising-kit", "home-first", 1),
+            ("fundraising-digger", "normal", 1),
+            ("fundraising-detection", "normal", 1),
+            ("fundraising-food", "normal", 1),
+            ("stored-detection", "home-first", 1),
+            ("mining-detection", "normal", 1),
+            ("stored-digger", "home-first", 1),
+            ("mining-digger", "normal", 1),
+            ("fundraising-light", "normal", 1),
+            ("fundraising-oil", "normal", 1),
+            ("identification-source", "before-withdrawal", 1),
+            ("identification-withdrawal", "post-alchemist-home", 1),
+            ("recall", "normal", 2),
+            ("teleport", "normal", 1),
+            ("cure-critical", "normal", 2),
+            ("oil", "normal", 1),
+            ("food", "normal", 2),
+            ("quest-throwing-items", "normal", 1),
+            ("quest-launcher", "home-first", 1),
+            ("quest-ranged-kit", "normal", 1),
+            ("quest-scrolls", "normal", 1),
+            ("quest-wall-breach", "normal", 1),
+            ("quest-speed", "normal", 1),
+            ("quest-healing", "normal", 2),
+            ("light", "normal", 1),
+            ("identify-staff", "normal", 1),
+            ("ammo", "normal", 1),
+            ("throwing-torches", "normal", 1),
+            ("remove-curse", "normal", 1),
+            ("star-remove-curse", "normal", 1),
+            ("launcher-enchant", "normal", 1),
+            ("equipment-catalog", "home-first", 1),
+            ("black-market", "normal", 1),
+        )
+        specs: list[NeedSpec] = []
+        for category, ordering_class, count in entries:
+            for occurrence in range(count):
+                lookup = (
+                    lambda snapshot, category=category,
+                    ordering_class=ordering_class, occurrence=occurrence:
+                    self._candidate_need(
+                        snapshot, category, ordering_class, occurrence
+                    )
+                )
+                produces = lambda snapshot, lookup=lookup: lookup(snapshot) is not None
+                specs.append(
+                    NeedSpec(
+                        category=category,
+                        store_type=lambda snapshot, lookup=lookup: (
+                            lookup(snapshot).store_type  # type: ignore[union-attr]
+                        ),
+                        ordering_class=ordering_class,
+                        produces=produces,
+                        satisfied=lambda snapshot, produces=produces: not produces(snapshot),
+                    )
+                )
+        self._town_need_specs = tuple(specs)
+        return self._town_need_specs
+
+    def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
+        """Return every currently true town errand from the shared registry."""
+        needs: list[TownNeed] = []
+        self._town_need_evaluation_snapshot = snapshot
+        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
+        try:
+            for spec in self._town_need_registry():
+                if spec.produces(snapshot):
+                    needs.append(
+                        TownNeed(
+                            spec.resolve_store_type(snapshot),
+                            spec.category,
+                            spec.ordering_class,
+                        )
+                    )
+        finally:
+            self._town_need_evaluation_snapshot = None
+            self._town_need_evaluation_candidates = None
+        return needs
+
     def _order_town_stops(
         self, snapshot: Snapshot, stores: list[int], start: Position | None = None
     ) -> list[int]:
@@ -9602,7 +9746,21 @@ class HengbotPolicy:
         elif post_home:
             ordered.append(STORE_HOME)
         stops.extend(ordered)
-        return TownErrandPlan(stops) if stops else None
+        return (
+            TownErrandPlan(
+                stops,
+                need_categories={
+                    store_type: tuple(
+                        need.category
+                        for need in needs
+                        if need.store_type == store_type
+                    )
+                    for store_type in dict.fromkeys(stops)
+                },
+            )
+            if stops
+            else None
+        )
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
         departure_ready: bool | None = None
@@ -9792,6 +9950,14 @@ class HengbotPolicy:
                 plan.stops[plan.index + 1 :] = reordered
                 plan.inserted_this_visit.extend(sorted(additions))
 
+        if plan is not None:
+            for store_type in needed_stores:
+                plan.need_categories[store_type] = tuple(
+                    need.category
+                    for need in needs
+                    if need.store_type == store_type
+                )
+
         while plan is not None and plan.index < len(plan.stops):
             store_type = plan.stops[plan.index]
             if store_type not in needed_stores:
@@ -9860,33 +10026,39 @@ class HengbotPolicy:
             self._town_restock_rechecked.discard(STORE_GENERAL)
             return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
 
-        legacy_store = self._legacy_town_router_terminal(snapshot)
-        if legacy_store in ledger_blocked:
-            self._town_store_attempted[legacy_store] = snapshot.turn
+        if "_enumerate_town_needs" in self.__dict__:
+            # Plan tests and specialized owners may supply an explicit registry
+            # view.  Once that view is exhausted there is no second router to
+            # invent work outside it.
             return None
-        if legacy_store is not None and plan is not None:
-            exhausted_stores = (
-                set(plan.completed_this_visit)
-                | set(plan.blocked_this_visit)
-                | ledger_blocked
-            )
-            restock_recheck = (
-                legacy_store in self._town_restock_rechecked
-                and legacy_store not in self._town_store_attempted
-            )
-            if legacy_store in exhausted_stores and not restock_recheck:
-                # The plan is the visit-scoped authority.  Letting the terminal
-                # fallback reacquire a stop it already completed/blocked caused
-                # an endless Alchemist enter/leave loop through a different
-                # supply branch after identification routing had finished.  A
-                # store deliberately re-armed by _retry_after_store_restock is
-                # the one exception: permit exactly that one stock-turnover
-                # recheck, then the normal attempted latch closes it again.
-                if legacy_store not in plan.skipped_latched:
-                    plan.skipped_latched.append(legacy_store)
-                self._town_store_attempted[legacy_store] = snapshot.turn
-                return None
-        return legacy_store
+
+        self._town_terminal_transitions(snapshot)
+        refreshed_needs = self._enumerate_town_needs(snapshot)
+        if refreshed_needs:
+            refreshed_plan = self._build_town_errand_plan(snapshot, refreshed_needs)
+            if refreshed_plan is not None:
+                exhausted_stores = (
+                    (
+                        set(plan.completed_this_visit)
+                        | set(plan.blocked_this_visit)
+                    )
+                    if plan is not None
+                    else set()
+                ) | ledger_blocked
+                for store_type in refreshed_plan.stops:
+                    restock_recheck = (
+                        store_type in self._town_restock_rechecked
+                        and store_type not in self._town_store_attempted
+                    )
+                    if (
+                        (
+                            store_type not in exhausted_stores
+                            or restock_recheck
+                        )
+                        and store_type not in self._town_store_attempted
+                    ):
+                        return store_type
+        return None
 
     def _report_town_stop_pass(
         self, snapshot: Snapshot, store_type: int, *, goal_satisfied: bool
@@ -9898,15 +10070,48 @@ class HengbotPolicy:
             for need in self._enumerate_town_needs(snapshot)
             if need.store_type == store_type
         ]
-        for need in store_needs:
-            self._town_visit_ledger.need_attempts[need.category] = (
-                self._town_visit_ledger.need_attempts.get(need.category, 0) + 1
+        plan = self._town_errand_plan
+        owned_categories = (
+            plan.need_categories.get(store_type, ())
+            if plan is not None
+            else tuple(need.category for need in store_needs)
+        )
+        if (
+            not owned_categories
+            and "_enumerate_town_needs" in self.__dict__
+        ):
+            owned_categories = tuple(need.category for need in store_needs)
+        registry_satisfied = True
+        if (
+            owned_categories
+            and "_enumerate_town_needs" not in self.__dict__
+        ):
+            self._town_need_evaluation_snapshot = snapshot
+            self._town_need_evaluation_candidates = self._town_need_candidates(
+                snapshot
+            )
+            try:
+                registry_satisfied = all(
+                    spec.satisfied(snapshot)
+                    for spec in self._town_need_registry()
+                    if spec.category in set(owned_categories)
+                    and (
+                        not spec.produces(snapshot)
+                        or spec.resolve_store_type(snapshot) == store_type
+                    )
+                )
+            finally:
+                self._town_need_evaluation_snapshot = None
+                self._town_need_evaluation_candidates = None
+        goal_satisfied = goal_satisfied and registry_satisfied
+        for category in owned_categories:
+            self._town_visit_ledger.need_attempts[category] = (
+                self._town_visit_ledger.need_attempts.get(category, 0) + 1
             )
         if goal_satisfied:
             self._town_visit_ledger.satisfied_needs.update(
-                (need.store_type, need.category) for need in store_needs
+                (store_type, category) for category in owned_categories
             )
-        plan = self._town_errand_plan
         if (
             plan is None
             or plan.index >= len(plan.stops)
@@ -9982,23 +10187,11 @@ class HengbotPolicy:
             for need in self._enumerate_town_needs(snapshot)
         )
 
-    def _legacy_town_router_terminal(self, snapshot: Snapshot) -> int | None:
-        if self._town_restock_suppressed:
-            # Post-cycle-break the visit is departure-only (_break_town_cycle):
-            # gating the router's OUTPUT is the choke point that covers every
-            # errand route at once — chasing the individual un-latched branches
-            # (sales, retries, sessions) left a new cycle fuel line each time.
-            return None
-        if snapshot.player.class_id < 0:
-            if self._shopping_abandoned or snapshot.player.gold < LANTERN_MIN_GOLD:
-                return None
-            if not self._owns_lantern(snapshot) or self._needs_food_restock(snapshot):
-                return STORE_GENERAL
-            return None
-        if (
-            self._fundraising_mode in {"prepare", "mine", "scavenge"}
-            and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
-        ):
+    def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
+        """Apply ordered state changes only after the plan walk is exhausted."""
+        if self._town_restock_suppressed or snapshot.player.class_id < 0:
+            return
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"} and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET:
             self._fundraising_mode = None
             self._planned_mining_runs = None
             self._town_store_attempted.clear()
@@ -10008,230 +10201,56 @@ class HengbotPolicy:
                 self._clear_pending_disposal()
             else:
                 store_type = self._dominated_disposal_store(target)
-                if store_type is not None and store_type not in self._disposal_store_attempts:
-                    return store_type
-                self._destroy_pending = True
-                return None
-        equipped_weapon = next(
-            (item for item in snapshot.equipment if item.slot == "main_hand"), None
-        )
-        blocked_weapon_in_pack = any(
-            item.is_melee_weapon and self._blocks_teleport(item)
-            for item in snapshot.inventory
-        )
-        safe_weapon_equipped = (
-            equipped_weapon is not None
-            and equipped_weapon.is_melee_weapon
-            and not self._blocks_teleport(equipped_weapon)
-        )
-        if (
-            (
-                self._no_teleport_rearm_pending
-                or (
-                    equipped_weapon is not None
-                    and self._blocks_teleport(equipped_weapon)
-                )
-                or (blocked_weapon_in_pack and not safe_weapon_equipped)
-            )
-            and not self._pack_has_safe_melee_weapon(snapshot)
-        ):
-            return STORE_HOME
-        # Re-arm before diving: a mining pickaxe is wielded but no real weapon is in the
-        # pack — the combat weapon is stashed in the Home. Route there to withdraw it (the
-        # Home processing then trials/wields it) so we never recall into a fighting dungeon
-        # on a digger. Do NOT require the Home to be currently visible: _shopping_approach_
-        # step walks to it via the static town map (an unlit Home is absent from the grids,
-        # which otherwise left the character wandering the town unable to re-arm). Skipped
-        # once the streak backstop fires (own no weapon → just depart).
-        if (
-            self._equipped_digging_tool(snapshot) is not None
-            and not self._pack_has_safe_melee_weapon(snapshot)
-            and not self._combat_weapon_ready(snapshot)
-        ):
-            return STORE_HOME
-        book_sale = self._find_book_sale(snapshot)
-        if book_sale is not None:
-            return self._book_sale_store_type(book_sale)
-        if (
-            self._home_available(snapshot)
-            and any(
-                self._must_stash_before_deep_mining(snapshot, item)
-                for item in snapshot.inventory
-            )
-        ):
-            # Deep-mining candidates are protected at Home even when item
-            # processing has already requested a *Identify* source. Buying that
-            # source is optional; carrying the candidate to 13F is forbidden.
-            return STORE_HOME
-        if (
-            self._identification_need is None
-            and self._home_available(snapshot)
-            and (
-                self._fundraising_mode not in {"prepare", "mine", "scavenge"}
-                or (
-                    self._fundraising_mode in {"prepare", "mine"}
-                    and self._deep_fundraising_active(snapshot)
-                )
-            )
-            and self._find_home_deposit(snapshot) is not None
-        ):
-            return STORE_HOME
-        if (
-            self._needs_stat_restore(snapshot)
-            and STORE_ALCHEMIST not in self._town_store_attempted
-        ):
-            # A drained stat with no restore potion in the pack: the Alchemist
-            # stocks Restore-* potions. Gated on _town_store_attempted so a store
-            # that happens not to stock the one we need is not revisited forever.
-            return STORE_ALCHEMIST
-        if self._find_low_level_sale(snapshot) is not None:
-            return STORE_ALCHEMIST
-        if self._town_device_processing_key(snapshot) is None:
-            if (
-                self._find_device_sale(snapshot) is not None
-                and STORE_MAGIC not in self._town_store_attempted
-            ):
-                return STORE_MAGIC
-        # Sale routes honor the attempted latches like every purchase route: a
-        # store that just proved it will not complete the sale (left with the
-        # item still in the pack, gold unchanged) must not be re-picked until
-        # the latch expires — an unsellable candidate otherwise re-routes the
-        # bot there forever, immune even to the town-cycle break.
-        if (
-            self._find_weapon_sale(snapshot) is not None
-            and STORE_WEAPON not in self._town_store_attempted
-        ):
-            return STORE_WEAPON
-        if (
-            self._find_light_sale(snapshot) is not None
-            and STORE_GENERAL not in self._town_store_attempted
-        ):
-            return STORE_GENERAL
+                if store_type is None or store_type in self._disposal_store_attempts:
+                    self._destroy_pending = True
+            return
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
-            # Secure the minimum income engine before topping up food or the
-            # remaining multi-run detection batch.  Home is searched once for
-            # either component before scarce gold is spent in town.
-            if not self._fundraising_kit_secured(snapshot):
-                if STORE_HOME not in self._town_store_attempted:
-                    return STORE_HOME
-                if not self._has_withdrawable_digging_tool(snapshot):
-                    if STORE_GENERAL not in self._town_store_attempted:
-                        return STORE_GENERAL
-                if not self._has_withdrawable_treasure_detection(snapshot):
-                    if STORE_ALCHEMIST not in self._town_store_attempted:
-                        return STORE_ALCHEMIST
             if not self._fundraising_food_ready(snapshot):
-                food_store = (
-                    STORE_MAGIC
-                    if snapshot.player.food_type == FOOD_TYPE_MANA
-                    else STORE_GENERAL
-                )
-                if food_store in self._town_store_attempted:
-                    # The preferred deep-mining reserve is not a terminal town
-                    # requirement once its only supplier has proved empty or
-                    # unaffordable.  Convert to a safe carried-kit 1F run when
-                    # possible; otherwise scavenge at 1F.  Leaving a sticky
-                    # blocked reason here made a non-hungry MANA character with
-                    # 14/15 usable charges wait forever outside the Magic shop.
+                store_type = STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
+                if store_type in self._town_store_attempted:
                     if self._activate_shallow_fundraising_trip(snapshot):
                         self._town_blocked_reason = None
-                        return self._next_required_store_type(snapshot)
-                    self._fundraising_mode = "scavenge"
-                    self._shallow_fundraising_trip = True
-                    self._scavenge_entry_gold = snapshot.player.gold
-                    self._town_blocked_reason = None
-                    return self._next_required_store_type(snapshot)
-                return food_store
+                    else:
+                        self._fundraising_mode = "scavenge"
+                        self._shallow_fundraising_trip = True
+                        self._scavenge_entry_gold = snapshot.player.gold
+                        self._town_blocked_reason = None
+                    return
             if self._planned_mining_runs is None:
                 self._activate_partial_mining_plan(snapshot)
-            scrolls_needed = self._mining_detection_scroll_target(snapshot)
-            if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
-                # Mining supplies kept at Home are already owned. Search every
-                # Home page before spending scarce gold on replacement scrolls.
-                if STORE_HOME not in self._town_store_attempted:
-                    return STORE_HOME
-                if STORE_ALCHEMIST in self._town_store_attempted:
-                    if self._activate_partial_deep_mining_plan(snapshot):
-                        return self._next_required_store_type(snapshot)
-                    if self._try_normal_expedition_after_detection_stockout(
-                        snapshot
-                    ):
-                        return self._next_required_store_type(snapshot)
-                    self._fundraising_mode = "scavenge"
-                    self._scavenge_entry_gold = snapshot.player.gold
-                else:
-                    return STORE_ALCHEMIST
-            if (
-                self._fundraising_mode != "scavenge"
-                and not self._has_digging_tool(snapshot)
-            ):
-                # Reuse a stored tool before buying another. Home routing works
-                # from the static town map even when the entrance is not visible.
-                if STORE_HOME not in self._town_store_attempted:
-                    return STORE_HOME
-                if STORE_GENERAL in self._town_store_attempted:
-                    self._fundraising_mode = "scavenge"
-                    self._scavenge_entry_gold = snapshot.player.gold
-                else:
-                    return STORE_GENERAL
-            if not self._fundraising_light_ready(snapshot):
-                if STORE_GENERAL in self._town_store_attempted:
-                    return self._retry_after_store_restock(
-                        snapshot, (STORE_GENERAL,)
-                    )
-                return STORE_GENERAL
-            return None
-
+            detection_low = self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_scroll_target(snapshot)
+            if detection_low and STORE_HOME in self._town_store_attempted and STORE_ALCHEMIST in self._town_store_attempted:
+                if self._activate_partial_deep_mining_plan(snapshot) or self._try_normal_expedition_after_detection_stockout(snapshot):
+                    return
+                self._fundraising_mode = "scavenge"
+                self._scavenge_entry_gold = snapshot.player.gold
+            if self._fundraising_mode != "scavenge" and not self._has_digging_tool(snapshot) and STORE_HOME in self._town_store_attempted and STORE_GENERAL in self._town_store_attempted:
+                self._fundraising_mode = "scavenge"
+                self._scavenge_entry_gold = snapshot.player.gold
+            if not self._fundraising_light_ready(snapshot) and STORE_GENERAL in self._town_store_attempted:
+                self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
+            return
         if self._identification_need is not None:
             plan = self._town_errand_plan
-            plan_exhausted_stores = (
-                set(plan.completed_this_visit) | set(plan.blocked_this_visit)
-                if plan is not None
-                else set()
-            )
-            alchemist_exhausted = (
-                STORE_ALCHEMIST in self._town_store_attempted
-                or STORE_ALCHEMIST in plan_exhausted_stores
-            )
-            if not alchemist_exhausted:
-                if self._find_identification_source(
-                    snapshot,
-                    full=self._identification_need == "full",
-                    reliable_only=self._identification_requires_reliable_source(
-                        snapshot
-                    ),
-                ) is None:
-                    return STORE_ALCHEMIST
-                # The identify source was bought for a candidate that is still
-                # in the Home. Return there to withdraw it; revisiting the
-                # Alchemist cannot make progress and creates a restock loop.
-                if self._home_candidate_waiting and self._home_available(snapshot):
-                    return STORE_HOME
-                return None
+            exhausted = set(plan.completed_this_visit) | set(plan.blocked_this_visit) if plan is not None else set()
+            if STORE_ALCHEMIST not in self._town_store_attempted and STORE_ALCHEMIST not in exhausted:
+                return
             if self._identification_need == "full":
                 if self._find_identification_source(snapshot, full=True) is not None:
-                    if self._home_candidate_waiting and self._home_available(snapshot):
-                        return STORE_HOME
-                    return None
+                    return
                 if self._conquest_target(snapshot) is not None:
                     self._defer_identification_for_conquest(snapshot)
                     if snapshot.player.gold < FUNDRAISING_START_GOLD:
                         self._start_fundraising(snapshot)
-                    return self._next_required_store_type(snapshot)
+                    return
                 if self._start_fundraising(snapshot):
-                    return self._next_required_store_type(snapshot)
-                # Full identification is required for ego/artifact equipment.
-                # Keep the candidate intact for one genuine stock turnover.
-                # If that re-check also found no *Identify*, defer this item for
-                # the current expedition.  Re-arming the wait at that point
-                # burns R300 forever without creating any new store state.
+                    return
                 if STORE_ALCHEMIST in self._town_restock_rechecked:
                     self._defer_identification_for_conquest(snapshot)
                     self._town_restock_wait_until = None
-                    return self._next_required_store_type(snapshot)
-                return self._retry_after_store_restock(
-                    snapshot, (STORE_ALCHEMIST,)
-                )
+                    return
+                self._retry_after_store_restock(snapshot, (STORE_ALCHEMIST,))
+                return
             pending = self._pending_inventory_item(snapshot)
             if pending is not None:
                 self._deferred_home_items.add(self._item_signature(pending))
@@ -10245,114 +10264,39 @@ class HengbotPolicy:
             self._identification_candidate = None
             self._device_identification_candidate = None
             self._home_candidate_waiting = True
-            # The bounded errand plan may have blocked Home after repeatedly
-            # finding this same candidate without a reliable Identify source.
-            # Deferring the candidate creates *new* Home work: skip that item and
-            # finish the invalidated multi-page catalog scan.  If the old blocked
-            # latch survives, the legacy router can name Home here but the plan
-            # immediately suppresses it, leaving home_candidate_waiting and an
-            # incomplete scan with no owner; generic town wandering follows.
-            # Re-arm the stop at the exact handoff from identification to catalog
-            # scanning so the plan remains the single routing authority.
-            if (
-                self._home_available(snapshot)
-                and not self._equipment_catalog.home_scan_complete
-            ):
+            if self._home_available(snapshot) and not self._equipment_catalog.home_scan_complete:
                 self._rearm_town_store_for_new_work(STORE_HOME)
-        if self._home_candidate_waiting and self._home_available(snapshot):
-            return STORE_HOME
-
-        recall_status = self._supply_ledger(
-            snapshot, self._planned_depth()
-        )["recall"]
-        if not self._recall_ready(snapshot) or not self._recall_departure_ready(snapshot):
-            for store_type in (STORE_TEMPLE, STORE_ALCHEMIST):
-                if store_type not in self._town_store_attempted:
-                    return store_type
-            if recall_status.count == 0:
-                return self._retry_after_store_restock(
-                    snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
-                )
+            return
+        recall = self._supply_ledger(snapshot, self._planned_depth())["recall"]
+        recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
+        if (not self._recall_ready(snapshot) or not self._recall_departure_ready(snapshot)) and all(store in self._town_store_attempted for store in recall_stores):
+            if recall.count == 0:
+                self._retry_after_store_restock(snapshot, recall_stores)
+                return
             if not self._recall_departure_ready(snapshot):
-                if self._activate_partial_deep_mining_plan(snapshot):
-                    return self._next_required_store_type(snapshot)
-                if self._start_fundraising(snapshot):
-                    return self._next_required_store_type(snapshot)
-                return self._retry_after_store_restock(
-                    snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
-                )
-        if not self._food_ready(snapshot):
-            food_store = (
-                STORE_MAGIC
-                if snapshot.player.food_type == FOOD_TYPE_MANA
-                else STORE_GENERAL
-            )
-            if food_store in self._town_store_attempted:
-                if self._start_fundraising(snapshot):
-                    return self._next_required_store_type(snapshot)
-                return self._retry_after_store_restock(snapshot, (food_store,))
-            return food_store
-        if not self._light_ready(snapshot):
-            if STORE_GENERAL in self._town_store_attempted:
-                if self._start_fundraising(snapshot):
-                    return self._next_required_store_type(snapshot)
-                return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
-            return STORE_GENERAL
-        if not self._teleport_ready(snapshot):
-            if STORE_ALCHEMIST in self._town_store_attempted:
-                if self._start_fundraising(snapshot):
-                    return self._next_required_store_type(snapshot)
-                return self._retry_after_store_restock(snapshot, (STORE_ALCHEMIST,))
-            return STORE_ALCHEMIST
-        if not self._cure_critical_ready(snapshot):
-            for store_type in (STORE_TEMPLE, STORE_ALCHEMIST):
-                if store_type not in self._town_store_attempted:
-                    return store_type
-            if self._start_fundraising(snapshot):
-                return self._next_required_store_type(snapshot)
-            return self._retry_after_store_restock(
-                snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
-            )
-        if not self._identify_staff_ready(snapshot):
-            # A Staff of Identify is stocked by the Magic shop; recharge/replace
-            # there before diving to 10F+.
-            if STORE_MAGIC not in self._town_store_attempted:
-                return STORE_MAGIC
-            if self._start_fundraising(snapshot):
-                return self._next_required_store_type(snapshot)
-            return self._retry_after_store_restock(snapshot, (STORE_MAGIC,))
-        if (
-            snapshot.player.class_id == PLAYER_CLASS_WARRIOR
-            and (
-                not self._equipment_catalog.home_scan_complete
-                or self._has_actionable_incomplete_home_item(snapshot)
-            )
-            and bool(self._equipment_catalog.items)
-        ):
-            # Home mutations invalidate the duplicate-preserving catalog. A full
-            # scan can also discover incomplete gear on a page after the current
-            # one; revisit Home so the processing pass can page back to it.
-            return STORE_HOME
-        if STORE_BLACK not in self._town_store_attempted:
-            # Visit once per town stay for emergency potions and Stone-to-Mud.
-            # Black Market purchases remain uncapped; the Home deposit pass
-            # shelves emergency potions above the field carry target afterward.
-            # There is no restock wait or fundraising for optional stock.
-            return STORE_BLACK
-        # All actionable deep-restock routes are exhausted.  If the carried
-        # minimum 1F kit is already safe, downgrade now; do not spend a cycle of
-        # departure-blocked waits before the town-cycle repair notices.
-        if self._activate_shallow_fundraising_trip(snapshot):
-            return self._next_required_store_type(snapshot)
-        if self._retry_processed_home_identification(snapshot):
-            return self._next_required_store_type(snapshot)
-        if self._start_identification_fundraising(snapshot):
-            # Every ordinary errand is exhausted but departure is still blocked by
-            # Home gear stranded in _processed_home_items. Mine to reach the retry
-            # boundary that re-arms it instead of falling through to town wander.
-            return self._next_required_store_type(snapshot)
+                if self._activate_partial_deep_mining_plan(snapshot) or self._start_fundraising(snapshot):
+                    return
+                self._retry_after_store_restock(snapshot, recall_stores)
+                return
+        shortages = (
+            (not self._food_ready(snapshot), STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL),
+            (not self._light_ready(snapshot), STORE_GENERAL),
+            (not self._teleport_ready(snapshot), STORE_ALCHEMIST),
+            (not self._identify_staff_ready(snapshot), STORE_MAGIC),
+        )
+        for missing, store_type in shortages:
+            if missing and store_type in self._town_store_attempted:
+                if not self._start_fundraising(snapshot):
+                    self._retry_after_store_restock(snapshot, (store_type,))
+                return
+        cure_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
+        if not self._cure_critical_ready(snapshot) and all(store in self._town_store_attempted for store in cure_stores):
+            if not self._start_fundraising(snapshot):
+                self._retry_after_store_restock(snapshot, cure_stores)
+            return
+        if self._activate_shallow_fundraising_trip(snapshot) or self._retry_processed_home_identification(snapshot) or self._start_identification_fundraising(snapshot):
+            return
         self._town_restock_wait_until = None
-        return None
 
     def _defer_identification_for_conquest(self, snapshot: Snapshot) -> None:
         """Keep unavailable identification from blocking a viable guardian run."""
