@@ -11458,9 +11458,23 @@ class HengbotPolicy:
                 self.last_reason = reason
                 return BUY_KEY + candidate.letter + "\r"
 
+            additional_home_digger = next(
+                (
+                    item
+                    for item in store.items
+                    if item.is_digging_tool
+                    and self._item_signature(item)
+                    not in self._deferred_home_items
+                ),
+                None,
+            )
             if (
                 self._home_digger_withdraw_pending
                 and self._has_digging_tool(snapshot)
+                and (
+                    self._digging_tool_count(snapshot) >= 2
+                    or additional_home_digger is None
+                )
             ):
                 self._home_digger_withdraw_pending = False
                 self.last_reason = "home:leave-with-digging-tool"
@@ -17506,13 +17520,9 @@ class HengbotPolicy:
             + [FIXED_QUEST_CURE_CRITICAL_HP]
             * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
         )
-        healing_budget = sum(
-            sorted(healing_doses, reverse=True)[:FIXED_QUEST_THREAT_TURNS]
-        )
         speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
         hasted = speed_potion is not None
         modeled_speed = snapshot.player.speed + (SPEED_POTION_BONUS if hasted else 0)
-        telemetry["hp_healing_budget"] = snapshot.player.max_hp + healing_budget
         telemetry["hasted"] = hasted
 
         candidates: list[tuple[int, int, MonsterState]] = []
@@ -17628,6 +17638,20 @@ class HengbotPolicy:
             combat_snapshot, simultaneous, FIXED_QUEST_THREAT_TURNS
         )["operational_total"]
         telemetry["worst_adjacent"] = worst_adjacent
+        per_turn_damage = self._predicted_damage(
+            combat_snapshot, simultaneous, turns=1
+        )
+        healing_budget = sum(
+            sorted(
+                (
+                    heal_amount
+                    for heal_amount in healing_doses
+                    if heal_amount >= per_turn_damage
+                ),
+                reverse=True,
+            )[:FIXED_QUEST_THREAT_TURNS]
+        )
+        telemetry["hp_healing_budget"] = snapshot.player.max_hp + healing_budget
         max_damage_ratio = FIXED_QUEST_MAX_DAMAGE_RATIO
         if profile is not None:
             max_damage_ratio = float(
@@ -19288,6 +19312,14 @@ class HengbotPolicy:
             snapshot,
             player=replace(snapshot.player, speed=player_speed),
         )
+        per_turn_damage = self._predicted_damage(
+            speed_snapshot, hostiles, turns=1
+        )
+        healing_doses = [
+            heal_amount
+            for heal_amount in healing_doses
+            if heal_amount >= per_turn_damage
+        ]
         # Each dose costs a turn. As in the fixed-quest threat budget, value the
         # strongest realizable doses first and never credit more doses than the
         # fight's attack window.
@@ -19413,11 +19445,27 @@ class HengbotPolicy:
         if chosen_plan is None:
             return None
 
-        healing = self._find_exact_potion(
-            snapshot, SV_POTION_HEALING
-        ) or self._find_exact_potion(snapshot, SV_POTION_CURE_CRITICAL)
+        next_one = self._predicted_damage(snapshot, hostiles, turns=1)
+        healing = next(
+            (
+                potion
+                for potion in (
+                    self._find_exact_potion(snapshot, SV_POTION_HEALING),
+                    self._find_exact_potion(
+                        snapshot, SV_POTION_CURE_CRITICAL
+                    ),
+                )
+                if potion is not None
+                and (
+                    HEALING_POTION_HP
+                    if potion.sval == SV_POTION_HEALING
+                    else FIXED_QUEST_CURE_CRITICAL_HP
+                )
+                >= next_one
+            ),
+            None,
+        )
         if chosen_plan["healing_uses"] > 0 and healing is not None:
-            next_one = self._predicted_damage(snapshot, hostiles, turns=1)
             missing_hp = player.max_hp - player.hp
             heal_amount = min(
                 (

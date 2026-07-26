@@ -135,6 +135,7 @@ from hengbot.policy import (
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
+    FIXED_QUEST_CURE_CRITICAL_HP,
     FIXED_QUEST_LEVEL_MARGIN,
     QUEST_STATUS_COMPLETED,
     QUEST_STATUS_FINISHED,
@@ -4547,7 +4548,7 @@ class FixedQuestTest(unittest.TestCase):
         ])
         self.assertTrue(policy._fixed_quest_ready(stocked, 18))
         state = policy.fixed_quest_readiness_state()
-        self.assertEqual(state["hp_healing_budget"], 554)
+        self.assertEqual(state["hp_healing_budget"], 500)
         self.assertTrue(state["hasted"])
         self.assertTrue(state["verdict"])
 
@@ -4722,6 +4723,40 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertTrue(policy._fixed_quest_ready(snapshot, 18))
         self.assertEqual(policy.fixed_quest_readiness_state()["hp_healing_budget"], 1100)
+
+    def test_fixed_quest_budget_excludes_outpaced_cure_critical(self):
+        info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
+        threat = MonraceKnowledge(
+            1, 110, False, False, max_melee_damage=100
+        )
+        policy = HengbotPolicy(
+            self._town_map(),
+            quest_knowledge={18: info},
+            monrace_knowledge={44: threat},
+        )
+        snapshot = replace(
+            self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
+            player=player(
+                26, 97, level=38, hp=200, max_hp=200,
+                main_hand_blows=4, main_hand_to_d=20,
+            ),
+            inventory=[
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=99)
+            ],
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, is_equipment=True,
+                    damage_dice_num=3, damage_dice_sides=6,
+                )
+            ],
+        )
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._town_departure_ready = lambda _snapshot: True
+
+        self.assertFalse(policy._fixed_quest_ready(snapshot, 18))
+        self.assertEqual(
+            policy.fixed_quest_readiness_state()["hp_healing_budget"], 200
+        )
 
     def test_kill_number_readiness_uses_q_line_roster(self):
         info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
@@ -12453,13 +12488,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snap), STORE_GENERAL)
 
-    def test_fundraising_withdraws_best_digger_from_home_and_leaves(self):
+    def test_fundraising_withdraws_two_of_three_home_diggers_before_leaving(self):
         inventory = self._strict_supplies(detection=5)
-        store = StoreState(
+        first_store = StoreState(
             STORE_HOME,
             [
                 store_item("a", TVAL_DIGGING, 1, name="shovel", is_equipment=True),
                 store_item("b", TVAL_DIGGING, 4, name="pick", is_equipment=True),
+                store_item("c", TVAL_DIGGING, 5, name="mattock", is_equipment=True),
             ],
         )
         snap = Snapshot(
@@ -12469,25 +12505,62 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             town_flag=True,
             inventory=inventory,
-            store=store,
+            store=first_store,
         )
         pol = HengbotPolicy()
         pol._fundraising_mode = "prepare"
 
-        self.assertEqual(pol._shop(snap), "pb\r")
+        self.assertEqual(pol._shop(snap), "pc\r")
         self.assertEqual(pol.last_reason, "home:withdraw-digging-tool")
 
-        with_pick = Snapshot(
-            snap.player,
-            snap.grids,
-            [],
-            floor_key=snap.floor_key,
-            town_flag=True,
-            inventory=[*inventory, item("z", TVAL_DIGGING, 4, name="pick")],
-            store=store,
+        with_mattock = replace(
+            snap,
+            inventory=[*inventory, item("z", TVAL_DIGGING, 5, name="mattock")],
+            store=StoreState(STORE_HOME, first_store.items[:2]),
         )
-        self.assertEqual(pol._shop(with_pick), "\x1b")
+        self.assertEqual(pol._shop(with_mattock), "pb\r")
+        self.assertEqual(pol.last_reason, "home:withdraw-digging-tool")
+
+        with_two = replace(
+            with_mattock,
+            inventory=[
+                *with_mattock.inventory,
+                item("y", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, first_store.items[:1]),
+        )
+        self.assertEqual(pol._shop(with_two), "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-digging-tool")
+        self.assertEqual(pol._digging_tool_count(with_two), 2)
+
+    def test_fundraising_with_one_home_digger_withdraws_once_then_leaves(self):
+        inventory = self._strict_supplies(detection=5)
+        digger = store_item(
+            "a", TVAL_DIGGING, 1, name="shovel", is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory,
+            store=StoreState(STORE_HOME, [digger]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertEqual(policy._shop(snap), "pa\r")
+        with_digger = replace(
+            snap,
+            inventory=[
+                *inventory,
+                item("z", TVAL_DIGGING, 1, name="shovel"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        self.assertEqual(policy._shop(with_digger), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-with-digging-tool")
 
     def test_fundraising_leave_with_mining_supplies_latches_home(self):
         snap = Snapshot(
@@ -23440,13 +23513,15 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         return snapshot, monster, knowledge
 
-    def _cure_critical_guardian(self, *, hp=463, cure_count=20):
+    def _cure_critical_guardian(
+        self, *, hp=463, cure_count=20, monster_speed=115, blow_sides=14
+    ):
         snapshot, monster, knowledge = self._snapshot(
             hp=hp,
             max_hp=463,
             monster_hp=181,
-            monster_speed=115,
-            blow_sides=14,
+            monster_speed=monster_speed,
+            blow_sides=blow_sides,
             inventory=(
                 [item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=cure_count)]
                 if cure_count
@@ -23457,9 +23532,11 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             snapshot,
             player=replace(snapshot.player, main_hand_blows=1),
         )
-        return snapshot, monster, replace(knowledge, max_melee_damage=14)
+        return snapshot, monster, replace(
+            knowledge, max_melee_damage=blow_sides
+        )
 
-    def test_guardian_projection_is_viable_only_with_cure_critical_doses(self):
+    def test_cure_critical_does_not_sustain_outpaced_guardian(self):
         snapshot, monster, knowledge = self._cure_critical_guardian()
         dungeon = DungeonInfo(44, "Regression guardian", 1, 18, 1, guardian_id=9001)
         policy = HengbotPolicy(
@@ -23471,28 +23548,41 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             snapshot, [monster], monster, player_speed=snapshot.player.speed
         )
 
-        self.assertIsNotNone(plan)
-        self.assertGreater(plan["healing_uses"], 0)
-        self.assertTrue(policy._guardian_fight_viable(snapshot, dungeon))
-        no_cures = replace(snapshot, inventory=[])
-        self.assertFalse(policy._guardian_fight_viable(no_cures, dungeon))
-        self.assertIsNone(
-            policy._unique_fight_projection(
-                no_cures, [monster], monster, player_speed=no_cures.player.speed
-            )
+        self.assertGreater(
+            policy._predicted_damage(snapshot, [monster], turns=1),
+            FIXED_QUEST_CURE_CRITICAL_HP,
         )
+        self.assertIsNone(plan)
+        self.assertFalse(policy._guardian_fight_viable(snapshot, dungeon))
 
-    def test_committed_viable_guardian_quaffs_cure_critical_when_low(self):
+    def test_outpaced_cure_is_not_quaffed_or_committed_viable(self):
         snapshot, monster, knowledge = self._cure_critical_guardian(hp=400)
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
         policy._unique_combat_committed_race_id = 9001
 
-        self.assertEqual(
-            policy._unique_combat_consumable(snapshot, [monster]),
-            "qc",
+        self.assertIsNone(policy._unique_combat_consumable(snapshot, [monster]))
+        self.assertFalse(
+            policy._committed_unique_fight_viable(snapshot, [monster])
         )
-        self.assertEqual(policy.last_reason, "unique:quaff-cure-critical")
-        self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
+
+    def test_cure_critical_sustains_weaker_unique(self):
+        snapshot, monster, knowledge = self._cure_critical_guardian(
+            hp=100, monster_speed=110, blow_sides=4
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertLessEqual(
+            policy._predicted_damage(snapshot, [monster], turns=1),
+            FIXED_QUEST_CURE_CRITICAL_HP,
+        )
+        plan = policy._unique_fight_projection(
+            snapshot, [monster], monster, player_speed=snapshot.player.speed
+        )
+        self.assertIsNotNone(plan)
+        self.assertGreater(plan["healing_uses"], 0)
+        self.assertEqual(
+            policy._unique_combat_consumable(snapshot, [monster]), "qc"
+        )
 
     def test_guardian_without_healing_doses_remains_nonviable(self):
         snapshot, _, knowledge = self._cure_critical_guardian(cure_count=0)
