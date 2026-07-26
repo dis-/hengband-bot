@@ -19455,6 +19455,12 @@ class HengbotPolicy:
                 if target is not None and target != snapshot.player.position:
                     self.last_reason = "combat:disengage-cut-through"
                     return self._step_toward(snapshot, target)
+        adjacent = self._adjacent_hostiles(snapshot)
+        if adjacent:
+            self.last_reason = "combat:disengage-melee"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
         return None
 
     def _fruitless_disengage_key(
@@ -19464,6 +19470,8 @@ class HengbotPolicy:
             return None
 
         breeders = [monster for monster in hostiles if monster.can_multiply]
+        if not breeders and self._fruitless_fight_is_winnable(snapshot, hostiles):
+            return None
         threats = breeders or hostiles
         nearby_threat = bool(threats) and min(
             monster.distance for monster in threats
@@ -19547,6 +19555,43 @@ class HengbotPolicy:
                 return key
         self.last_reason = "combat:disengage-wait"
         return WAIT_KEY
+
+    def _fruitless_fight_is_winnable(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """Whether ordinary combat can finish the nearest threat survivably."""
+        if not hostiles or any(monster.can_multiply for monster in hostiles):
+            return False
+
+        target = min(hostiles, key=lambda monster: (monster.distance, monster.hp))
+        knowledge = self._monrace_knowledge.get(target.race_id)
+        if knowledge is not None and "UNIQUE" in knowledge.flags:
+            # Unprofitable uniques have their own bounded attack-budget policy.
+            # Do not let a harmless high-HP unique undo that disengage decision.
+            return False
+        damage = 0.0
+        if target.distance <= 1:
+            weapon = next(
+                (
+                    item
+                    for item in snapshot.equipment
+                    if item.slot == "main_hand"
+                    and (item.is_melee_weapon or item.is_digging_tool)
+                ),
+                None,
+            )
+            if weapon is not None:
+                damage = self._main_hand_dps(snapshot, weapon)
+        elif self._summoner_ranged_attack_available(snapshot, target):
+            damage = self._estimated_ranged_damage_per_shot(snapshot)
+        if damage <= 0:
+            return False
+
+        turns_to_kill = max(1, ceil(target.hp / damage))
+        incoming = self.threat_prediction(
+            snapshot, hostiles, turns=turns_to_kill
+        )["operational_total"]
+        return incoming < snapshot.player.hp
 
     def _unprofitable_unique_disengage_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

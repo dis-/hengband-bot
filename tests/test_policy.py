@@ -24161,6 +24161,111 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(key, "rt")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
+    def test_armed_fruitless_latch_fights_beatable_single_nonbreeder(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=507,
+            max_hp=616,
+            monster_hp=80,
+            blow_sides=49,
+        )
+        snapshot = replace(
+            snapshot,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            visible_monsters=[
+                replace(monster, race_id=492, name="Ivory monk")
+            ],
+        )
+        policy = HengbotPolicy(
+            monrace_knowledge={
+                492: replace(knowledge, flags=frozenset())
+            }
+        )
+        policy._fruitless_disengage_floor = snapshot.floor_key
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "melee")
+
+    def test_cornered_disengage_melees_weakest_adjacent_instead_of_waiting(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=20,
+            blow_sides=0,
+        )
+        monster = replace(monster, can_multiply=True)
+        weaker = replace(
+            monster, index=2, hp=5, max_hp=20, can_multiply=True
+        )
+        snapshot = replace(
+            snapshot,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            visible_monsters=[monster, weaker],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy._fruitless_disengage_floor = snapshot.floor_key
+
+        with (
+            patch.object(policy, "_return_to_town_key", return_value=None),
+            patch.object(policy, "_summoner_retreat_step", return_value=None),
+            patch.object(policy, "_escape_by_stairs", return_value=None),
+            patch.object(policy, "_nearest_goal_step", return_value=None),
+            patch.object(policy, "_explore_step", return_value=None),
+        ):
+            key = policy._fruitless_disengage_key(
+                snapshot, snapshot.visible_monsters
+            )
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "combat:disengage-melee")
+
+    def test_armed_fruitless_latch_still_disengages_from_breeder_swarm(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=50,
+            max_hp=200,
+            monster_hp=200,
+            blow_sides=30,
+        )
+        breeders = [
+            replace(monster, index=index, can_multiply=True)
+            for index in range(1, 4)
+        ]
+        snapshot = replace(
+            snapshot,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            visible_monsters=breeders,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy._fruitless_disengage_floor = snapshot.floor_key
+
+        key = policy._fruitless_disengage_key(snapshot, breeders)
+
+        self.assertNotEqual(key, "6")
+        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+
+    def test_lethal_single_threat_still_uses_emergency_escape(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=50,
+            max_hp=200,
+            monster_hp=20,
+            blow_sides=100,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        snapshot = replace(
+            snapshot,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy._fruitless_disengage_floor = snapshot.floor_key
+
+        with patch.object(
+            policy,
+            "threat_prediction",
+            return_value={"operational_total": snapshot.player.hp},
+        ):
+            self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
     def test_breeder_containment_disengages_before_multiplier_loop_guard(self):
         # Live 2026-07-24 loop: a full-HP warrior surrounded by ~44 giant white
         # lice (harmless multipliers) never tripped the damage-gated swarm flee
