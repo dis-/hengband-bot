@@ -31803,6 +31803,75 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertIsNone(policy._next_required_store_type(snapshot))
         self.assertEqual(policy._town_errand_plan.skipped_latched, [STORE_HOME])
 
+    def test_departure_ready_keeps_persistent_home_need_latched(self):
+        needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._home_disposal_pass = True
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        policy._town_departure_ready = lambda candidate: True
+
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_errand_plan.skipped_latched, [STORE_HOME])
+
+    def test_departure_block_preserves_persistent_home_rearm(self):
+        needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._home_disposal_pass = True
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        policy._town_departure_ready = lambda candidate: False
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(
+            policy._town_errand_plan.rearmed_home_categories,
+            ["idle-consumable-scan"],
+        )
+
+    def test_departure_ready_does_not_skip_first_home_visit(self):
+        needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._home_disposal_pass = True
+        policy._town_departure_ready = lambda candidate: True
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+    def test_departure_ready_preserves_post_alchemist_home_rearm(self):
+        needs = [
+            TownNeed(
+                STORE_HOME,
+                "identification-withdrawal",
+                "post-alchemist-home",
+            )
+        ]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        policy._town_departure_ready = lambda candidate: True
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+
+    def test_departure_ready_does_not_rebuild_exhausted_plan_for_home(self):
+        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            index=1,
+            completed_this_visit=[STORE_HOME],
+        )
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        policy._completed_home_can_rearm = True
+        policy._town_departure_ready = lambda candidate: True
+
+        self.assertIsNone(policy._next_required_store_type(snapshot))
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
+
     def test_latched_home_rearms_for_new_deposit_after_earlier_home_pass(self):
         needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
         policy = self._policy(needs)

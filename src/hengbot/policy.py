@@ -9559,6 +9559,14 @@ class HengbotPolicy:
         return TownErrandPlan(stops) if stops else None
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        departure_ready: bool | None = None
+
+        def town_departure_ready() -> bool:
+            nonlocal departure_ready
+            if departure_ready is None:
+                departure_ready = self._town_departure_ready(snapshot)
+            return departure_ready
+
         if (
             snapshot.in_town
             and snapshot.player.hungry
@@ -9629,6 +9637,7 @@ class HengbotPolicy:
                 self._completed_home_can_rearm
                 and STORE_HOME in self._town_store_attempted
                 and bool(home_categories.difference(plan.rearmed_home_categories))
+                and not town_departure_ready()
             )
             if fresh_home_work:
                 # A later shop can create a new Home obligation after Home was
@@ -9712,7 +9721,7 @@ class HengbotPolicy:
                         for category in home_categories
                         if category not in plan.rearmed_home_categories
                     ]
-                    if newly_actionable:
+                    if newly_actionable and not town_departure_ready():
                         # Home work can emerge after an earlier Home pass: a
                         # deposit invalidates the catalog, a later purchase
                         # creates a new deposit, or identification exposes a
