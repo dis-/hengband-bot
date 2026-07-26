@@ -26,6 +26,7 @@ from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
 from hengbot.policy import (
     BREEDER_CONTAINMENT_WINDOW,
     COMBAT_OUTCOME_WINDOW,
+    EXTENDED_STUCK_WINDOW,
     FRUITLESS_DISENGAGE_LIMIT,
     NAV_NO_PROGRESS_LIMIT,
     RESUME_DESCENT_BLOCK_DECISIONS,
@@ -505,6 +506,133 @@ class NavigationInvariantTest(unittest.TestCase):
             height=40,
             inventory=list(inventory),
         )
+
+    def _scripted_policy(self, reasons):
+        class ScriptedPolicy(HengbotPolicy):
+            def __init__(self):
+                super().__init__()
+                self._reasons = iter(reasons)
+
+            def _decide(self, snapshot):
+                self.last_reason = next(self._reasons)
+                return "6" if snapshot.player.position.x == 10 else "4"
+
+        return ScriptedPolicy()
+
+    def test_combat_interspersed_two_cell_ping_pong_breaks_out(self):
+        cells = {
+            Position(10, 9): grid(10, 9),
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(11, 10): grid(11, 10),
+        }
+        reasons = [
+            "melee" if decision % 3 == 1 else "seek-loot"
+            for decision in range(EXTENDED_STUCK_WINDOW + 2)
+        ]
+        policy = self._scripted_policy(reasons)
+        policy._floor_key = DUNGEON_FLOOR
+        policy._visit_counts.update(
+            {Position(10, 10): 2, Position(10, 11): 2}
+        )
+        policy._loot_target = Position(10, 9)
+        policy._shopping_approach_goal = Position(11, 10)
+        policy._shopping_approach_store_type = 1
+        policy._descent_target_goal = Position(12, 10)
+        policy._nav_ledger.commit_descent_route(
+            policy._descent_target_goal, [policy._descent_target_goal]
+        )
+        policy._explore_path = [Position(11, 10)]
+        keys = []
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            x = 10 + decision % 2
+            snapshot = Snapshot(
+                player(10, x, food=12000),
+                cells,
+                [hostile(1, 20, 20, hp=50)],
+                floor_key=DUNGEON_FLOOR,
+                width=40,
+                height=40,
+            )
+            keys.append(policy.choose_key(snapshot))
+            if policy.last_reason == "nav:break-oscillation":
+                break
+
+        self.assertEqual(policy.last_reason, "nav:break-oscillation")
+        self.assertIn(keys[-1], {"1", "2", "3", "4", "7", "8", "9"})
+        self.assertIsNone(policy._loot_target)
+        self.assertIsNone(policy._shopping_approach_goal)
+        self.assertIsNone(policy._descent_target_goal)
+        self.assertEqual(policy._explore_path, [])
+
+    def test_mining_dig_confinement_is_exempt(self):
+        cells = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(11, 10): grid(11, 10),
+        }
+        policy = self._scripted_policy(
+            ["fundraise:dig-to-treasure"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            snapshot = Snapshot(
+                player(10, 10 + decision % 2, food=12000),
+                cells,
+                [],
+                floor_key=DUNGEON_FLOOR,
+                width=40,
+                height=40,
+            )
+            policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
+
+    def test_quest_hold_wait_confinement_is_exempt(self):
+        snapshot = self._quiet_room()
+        policy = self._scripted_policy(
+            ["quest-strategy:hold"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        for _ in range(EXTENDED_STUCK_WINDOW + 2):
+            policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "quest-strategy:hold")
+
+    def test_in_place_damaging_fight_is_exempt(self):
+        base = self._quiet_room()
+        policy = self._scripted_policy(
+            ["melee"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            fighting = replace(
+                base,
+                visible_monsters=[
+                    hostile(1, 10, 11, hp=100 - decision)
+                ],
+            )
+            policy.choose_key(fighting)
+
+        self.assertNotEqual(policy.last_reason, "nav:break-oscillation")
+
+    def test_fresh_tile_exploration_is_not_confinement(self):
+        cells = {
+            Position(10, x): grid(10, x)
+            for x in range(10, 10 + EXTENDED_STUCK_WINDOW + 2)
+        }
+        policy = self._scripted_policy(
+            ["explore"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            snapshot = Snapshot(
+                player(10, 10 + decision, food=12000),
+                cells,
+                [],
+                floor_key=DUNGEON_FLOOR,
+                width=80,
+                height=40,
+            )
+            policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "explore")
 
     def test_no_progress_counter_trips_the_invariant(self):
         snapshot = self._quiet_room()

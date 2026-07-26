@@ -1558,6 +1558,7 @@ class HengbotPolicy:
         self._nav_escape_steps = 0
         self._nav_known_high = 0
         self._nav_progress_marker: tuple[int, int, int] | None = None
+        self._oscillation_outcome_marker: tuple | None = None
         self._combat_outcomes: deque[tuple] = deque(maxlen=COMBAT_OUTCOME_WINDOW + 1)
         self._combat_outcome_floor: tuple[int, int, int] | None = None
         self._combat_fruitful = True
@@ -1838,6 +1839,7 @@ class HengbotPolicy:
             self._report_town_stop_pass(
                 snapshot, store_type, goal_satisfied=goal_satisfied
             )
+        key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
         self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
@@ -3713,6 +3715,7 @@ class HengbotPolicy:
             self._nav_escape_steps = 0
             self._nav_known_high = 0
             self._nav_progress_marker = None
+            self._oscillation_outcome_marker = None
 
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1
@@ -18950,6 +18953,139 @@ class HengbotPolicy:
 
         self.last_reason = "return:wait"
         return WAIT_KEY
+
+    def _break_positional_oscillation(
+        self, snapshot: Snapshot, key: str
+    ) -> str:
+        """Break a combat-interspersed small-cell navigation oscillation."""
+        if snapshot.in_town or snapshot.store is not None:
+            self._oscillation_outcome_marker = None
+            return key
+
+        hostile_hp = {
+            monster.index: monster.hp
+            for monster in snapshot.visible_monsters
+            if monster.hostile
+        }
+        quest_kills = tuple(
+            sorted(
+                (quest_id, quest.cur_num)
+                for quest_id, quest in snapshot.quests.items()
+            )
+        )
+        carried = tuple(
+            sorted(
+                (item.slot, item.name, item.count, item.charges)
+                for item in (*snapshot.inventory, *snapshot.equipment)
+            )
+        )
+        marker = (
+            snapshot.player.gold,
+            snapshot.player.exp,
+            carried,
+            hostile_hp,
+            quest_kills,
+        )
+        previous = self._oscillation_outcome_marker
+        self._oscillation_outcome_marker = marker
+        hp_progress = bool(
+            previous is not None
+            and any(
+                index in previous[3] and hp < previous[3][index]
+                for index, hp in hostile_hp.items()
+            )
+        )
+        kill_progress = bool(
+            previous is not None
+            and (
+                snapshot.player.exp > previous[1]
+                or any(
+                    cur_num > dict(previous[4]).get(quest_id, cur_num)
+                    for quest_id, cur_num in quest_kills
+                )
+            )
+        )
+        inventory_progress = bool(
+            previous is not None
+            and (snapshot.player.gold != previous[0] or carried != previous[2])
+        )
+        fresh_cell = (
+            self._position_changed
+            and self._visit_counts[snapshot.player.position] <= 1
+        )
+        stationary_by_design = (
+            self.last_reason == "fundraise:dig-to-treasure"
+            or self.last_reason.startswith("fundraise:sweep-")
+            or self.last_reason in {
+                "quest-strategy:hold",
+                "quest:blocked:hold",
+                "rest",
+                "recover",
+            }
+            or self.last_reason.endswith(":hold")
+            or self.last_reason.endswith(":recover")
+        )
+        if (
+            previous is None
+            or fresh_cell
+            or inventory_progress
+            or hp_progress
+            or kill_progress
+            or stationary_by_design
+        ):
+            self._recent.clear()
+            return key
+
+        recent = list(self._recent)
+        if len(recent) < EXTENDED_STUCK_WINDOW:
+            return key
+        confined = set(recent[-EXTENDED_STUCK_WINDOW:])
+        position_changes = sum(
+            first != second
+            for first, second in zip(
+                recent[-EXTENDED_STUCK_WINDOW:],
+                recent[-EXTENDED_STUCK_WINDOW + 1 :],
+            )
+        )
+        if len(confined) > 2 or position_changes < STUCK_WINDOW:
+            return key
+
+        self._loot_target = None
+        self._shopping_approach_goal = None
+        self._shopping_approach_store_type = None
+        self._descent_target_goal = None
+        self._nav_ledger.clear_descent_route()
+        self._explore_path = []
+        origin = snapshot.player.position
+        candidates = []
+        for dy, dx in NEIGHBOR_OFFSETS:
+            neighbor = Position(origin.y + dy, origin.x + dx)
+            grid = snapshot.grid_at(neighbor)
+            if (
+                neighbor not in confined
+                and grid is not None
+                and grid.passable
+                and not grid.is_door
+                and not grid.has_monster
+            ):
+                candidates.append(neighbor)
+        self._recent.clear()
+        if candidates:
+            step = min(
+                candidates,
+                key=lambda candidate: (
+                    self._visit_counts[candidate],
+                    candidate.y,
+                    candidate.x,
+                ),
+            )
+            self.last_reason = "nav:break-oscillation"
+            return self._step_toward(snapshot, step)
+
+        # Let the existing bounded recall/upstairs/visible-stop escape own the
+        # no-neighbor case on the immediately following livelock pass.
+        self._nav_exhausted = True
+        return key
 
     def _navigation_livelock_key(self, snapshot: Snapshot) -> str | None:
         """Leave (or visibly stop on) a floor where navigation is exhausted (R1).
