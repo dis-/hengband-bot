@@ -1374,6 +1374,9 @@ class HengbotPolicy:
         self._grid_memory: dict[Position, GridState] = {}
         self._last_position: Position | None = None
         self._recent: deque[Position] = deque(maxlen=EXTENDED_STUCK_WINDOW)
+        self._osc_positions: deque[Position] = deque(
+            maxlen=EXTENDED_STUCK_WINDOW
+        )
         self._explore_path: list[Position] = []
         # Cells from which the material-engagement gate deliberately retreated.
         # Generic exploration/hunting must not immediately route back onto them.
@@ -3643,6 +3646,7 @@ class HengbotPolicy:
             self._fundraising_pursuit_target = None
             self._visit_counts.clear()
             self._recent.clear()
+            self._osc_positions.clear()
             self._explore_path = []
             self._engagement_avoid_cells.clear()
             self._probe_counts.clear()
@@ -18961,6 +18965,7 @@ class HengbotPolicy:
         if snapshot.in_town or snapshot.store is not None:
             self._oscillation_outcome_marker = None
             return key
+        self._osc_positions.append(snapshot.player.position)
 
         hostile_hp = {
             monster.index: monster.hp
@@ -19033,10 +19038,10 @@ class HengbotPolicy:
             or kill_progress
             or stationary_by_design
         ):
-            self._recent.clear()
+            self._osc_positions.clear()
             return key
 
-        recent = list(self._recent)
+        recent = list(self._osc_positions)
         if len(recent) < EXTENDED_STUCK_WINDOW:
             return key
         confined = set(recent[-EXTENDED_STUCK_WINDOW:])
@@ -19069,7 +19074,7 @@ class HengbotPolicy:
                 and not grid.has_monster
             ):
                 candidates.append(neighbor)
-        self._recent.clear()
+        self._osc_positions.clear()
         if candidates:
             step = min(
                 candidates,

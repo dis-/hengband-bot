@@ -633,6 +633,11 @@ class NavigationInvariantTest(unittest.TestCase):
             policy.choose_key(snapshot)
 
         self.assertEqual(policy.last_reason, "explore")
+        expected = [
+            Position(10, x)
+            for x in range(12, 10 + EXTENDED_STUCK_WINDOW + 2)
+        ]
+        self.assertEqual(list(policy._recent), expected)
 
     def test_no_progress_counter_trips_the_invariant(self):
         snapshot = self._quiet_room()
