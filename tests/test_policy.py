@@ -2242,6 +2242,9 @@ class ExplorationTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
+        self.assertEqual(policy.choose_key(snap), "s")
+        for _ in range(SEARCH_LIMIT - 1):
+            self.assertEqual(policy.choose_key(snap), "s")
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "explore")
 
@@ -2293,7 +2296,8 @@ class ExplorationTest(unittest.TestCase):
         snap = Snapshot(player(10, 10), walls, [], floor_key=(1, 5, 0), width=20, height=20)
         policy = HengbotPolicy()
         keys = [policy.choose_key(snap) for _ in range(DOOR_OPEN_LIMIT + 20)]
-        self.assertEqual(keys[0], "o6")  # tries to open at first
+        self.assertEqual(keys[:SEARCH_LIMIT], ["s"] * SEARCH_LIMIT)
+        self.assertIn("o6", keys[SEARCH_LIMIT:])
         self.assertIn("s", keys)  # boxed in with a jammed door → searches for a secret way
         self.assertIn((10, 11), policy._blocked_doors)  # eventually abandons the door
 
@@ -10755,7 +10759,7 @@ class ProbeTest(unittest.TestCase):
             player(10, 10), grids, [], width=30, height=30, floor_key=(2, 4, 0)
         )
 
-    def test_probes_when_standing_on_the_only_remaining_frontier(self):
+    def test_searches_when_standing_at_dead_end_before_probing_frontier(self):
         policy = HengbotPolicy()
         snap = self._sole_frontier_snapshot()
         policy._floor_key = snap.floor_key
@@ -10763,8 +10767,8 @@ class ProbeTest(unittest.TestCase):
             {Position(10, x): 1 for x in range(10, 13)}
         )
 
-        self.assertEqual(policy.choose_key(snap), "4")
-        self.assertEqual(policy.last_reason, "probe")
+        self.assertEqual(policy.choose_key(snap), "s")
+        self.assertEqual(policy.last_reason, "search")
 
     def test_searches_last_frontier_after_unknown_edge_rejects_probes(self):
         policy = HengbotPolicy()
@@ -10777,6 +10781,78 @@ class ProbeTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(snap), "s")
         self.assertEqual(policy.last_reason, "search")
+
+    def _corridor_snapshot(self, *, branch=False, town=False):
+        grids = {
+            Position(y, x): grid(y, x, passable=False)
+            for y in range(9, 12)
+            for x in range(9, 14)
+        }
+        grids[Position(10, 10)] = grid(10, 10)
+        grids[Position(10, 11)] = grid(10, 11)
+        grids[Position(10, 12)] = grid(10, 12, downstairs=not town)
+        if branch:
+            grids[Position(9, 10)] = grid(9, 10)
+        return Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            width=30,
+            height=30,
+            floor_key=(0, 0, 0) if town else (2, 4, 0),
+        )
+
+    def test_searches_corridor_dead_end_with_downstairs_known(self):
+        policy = HengbotPolicy()
+        snap = self._corridor_snapshot()
+
+        with (
+            patch.object(policy, "_descent_step", return_value=None),
+            patch.object(policy, "_explore_step", return_value=Position(10, 11)),
+        ):
+            self.assertEqual(policy.choose_key(snap), "s")
+
+        self.assertEqual(policy.last_reason, "search")
+
+    def test_corridor_dead_end_search_is_self_bounded(self):
+        policy = HengbotPolicy()
+        snap = self._corridor_snapshot()
+        policy._floor_key = snap.floor_key
+        policy._build_grid_index(snap)
+        policy._wall_search_counts.update(
+            {wall: SEARCH_LIMIT for wall in policy._remembered_wall_t}
+        )
+
+        with (
+            patch.object(policy, "_descent_step", return_value=None),
+            patch.object(policy, "_explore_step", return_value=Position(10, 11)),
+        ):
+            self.assertEqual(policy.choose_key(snap), "6")
+
+        self.assertEqual(policy.last_reason, "explore")
+
+    def test_does_not_search_outside_corridor_dead_end(self):
+        policy = HengbotPolicy()
+        snap = self._corridor_snapshot(branch=True)
+
+        with (
+            patch.object(policy, "_descent_step", return_value=None),
+            patch.object(policy, "_explore_step", return_value=Position(10, 11)),
+        ):
+            self.assertEqual(policy.choose_key(snap), "6")
+
+        self.assertEqual(policy.last_reason, "explore")
+
+    def test_does_not_search_corridor_dead_end_in_town(self):
+        policy = HengbotPolicy()
+        snap = self._corridor_snapshot(town=True)
+
+        with patch.object(
+            policy, "_explore_step", return_value=Position(10, 11)
+        ):
+            self.assertEqual(policy.choose_key(snap), "6")
+
+        self.assertEqual(policy.last_reason, "explore")
 
     def test_probe_step_targets_orthogonal_unknown(self):
         grids = {

@@ -2965,6 +2965,19 @@ class HengbotPolicy:
                 self.last_reason = "breakout:least-visited"
                 return self._step_toward(snapshot, step)
 
+        # Search a corridor dead-end before ordinary exploration routes us away.
+        # This is opportunistic only: never detour toward a remote dead-end.
+        if (
+            not snapshot.in_town
+            and snapshot.dungeon_level > 0
+            and not forgetting_maze
+            and self._open_neighbor_count(snapshot, player.position) <= 1
+            and self._undersearched_walls(player.position)
+        ):
+            self._record_wall_search(player.position)
+            self.last_reason = "search"
+            return SEARCH_KEY
+
         # 9. Explore toward the unknown (door- and edge-aware).
         step = self._explore_step(snapshot)
         if step is not None:
