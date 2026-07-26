@@ -93,7 +93,8 @@ from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
 from hengbot.quest_knowledge import (
-    QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QuestBattlefield, QuestInfo,
+    QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM,
+    QuestBattlefield, QuestInfo,
     load_quest_knowledge,
 )
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
@@ -4774,7 +4775,7 @@ class FixedQuestTest(unittest.TestCase):
 
     def test_active_kill_floor_locks_healthy_exit_but_allows_teleport(self):
         info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
-        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, num_mon=16, fixed=True)
+        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, max_num=16, num_mon=16, fixed=True)
         snap = Snapshot(
             player(10, 10, hp=100, max_hp=100),
             {Position(10, 10): grid(10, 10, upstairs=True)},
@@ -4793,7 +4794,7 @@ class FixedQuestTest(unittest.TestCase):
 
     def test_dying_kill_quest_with_no_teleport_may_take_stairs(self):
         info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
-        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, num_mon=16, fixed=True)
+        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, max_num=16, num_mon=16, fixed=True)
         snap = Snapshot(
             player(10, 10, hp=10, max_hp=100),
             {Position(10, 10): grid(10, 10, upstairs=True)},
@@ -4805,7 +4806,7 @@ class FixedQuestTest(unittest.TestCase):
 
     def test_non_once_kill_quest_releases_after_stuck_budget(self):
         info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
-        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, cur_num=15, num_mon=16, fixed=True)
+        quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, cur_num=15, max_num=16, num_mon=16, fixed=True)
         snap = Snapshot(
             player(10, 10, hp=100, max_hp=100),
             {Position(10, 10): grid(10, 10, upstairs=True)},
@@ -4837,6 +4838,68 @@ class FixedQuestTest(unittest.TestCase):
         quest = QuestState(id=28, status=1, type=1, cur_num=1, max_num=1, num_mon=99)
         snap = Snapshot(player(10, 10), {}, [], floor_key=(0, 70, 28), quests={28: quest})
         self.assertIsNone(HengbotPolicy(quest_knowledge={28: info})._active_kill_quest_id(snap))
+
+    def test_runtime_random_quest_locks_floor_exit_without_static_knowledge(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {Position(10, 10): grid(10, 10, upstairs=True)},
+            [], floor_key=(1, 6, 49), quests={49: quest},
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._active_kill_quest_id(snap), 49)
+        self.assertTrue(policy._quest_floor_exit_locked(snap))
+        self.assertIsNone(policy._return_to_town_key(snap, []))
+        self.assertIsNone(policy._escape_by_stairs(snap))
+
+    def test_runtime_random_quest_lock_releases_when_complete_or_off_floor(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(1, 6, 49),
+            quests={49: quest},
+        )
+        policy = HengbotPolicy()
+
+        self.assertFalse(policy._quest_floor_exit_locked(
+            replace(snap, quests={49: replace(quest, cur_num=1)})
+        ))
+        self.assertFalse(policy._quest_floor_exit_locked(
+            replace(snap, floor_key=(1, 7, 0))
+        ))
+
+    def test_runtime_random_quest_panic_release_survives(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10, hp=10, max_hp=100), {}, [],
+            floor_key=(1, 6, 49), quests={49: quest},
+        )
+
+        self.assertFalse(HengbotPolicy()._quest_floor_exit_locked(snap))
+
+    def test_runtime_random_quest_releases_after_stuck_budget(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(1, 6, 49),
+            quests={49: quest},
+        )
+        policy = HengbotPolicy()
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+
+        self.assertFalse(policy._quest_floor_exit_locked(snap))
 
     def test_descent_guard_selects_kill_quest_in_current_dungeon(self):
         other = QuestInfo(14, "Other", 5, 3, 0, dungeon=1, num_mon=16)

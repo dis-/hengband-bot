@@ -17267,18 +17267,26 @@ class HengbotPolicy:
         return quest_id
 
     def _active_kill_quest_id(self, snapshot: Snapshot) -> int | None:
-        """Return an incomplete KILL_NUMBER quest occupying this dungeon floor."""
+        """Return an incomplete runtime kill quest occupying the current floor."""
         dungeon_id, level, floor_quest_id = snapshot.floor_key
         for quest in snapshot.quests.values():
-            info = self._quest_knowledge.get(quest.id)
             if (
-                info is not None
-                and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
-                and quest.status == QUEST_STATUS_TAKEN
-                and quest.cur_num < self._kill_quest_completion_target(quest, info)
-                and dungeon_id == info.dungeon
-                and level == info.level
-                and floor_quest_id in {0, quest.id}
+                quest.status == QUEST_STATUS_TAKEN
+                and quest.type
+                in {
+                    QUEST_TYPE_KILL_LEVEL,
+                    QUEST_TYPE_KILL_NUMBER,
+                    QUEST_TYPE_RANDOM,
+                }
+                and quest.max_num > 0
+                and quest.cur_num < quest.max_num
+                and (
+                    floor_quest_id == quest.id
+                    or (
+                        dungeon_id == quest.dungeon_id
+                        and level == quest.level
+                    )
+                )
             ):
                 return quest.id
         return None
