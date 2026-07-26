@@ -2026,17 +2026,7 @@ class HengbotPolicy:
                 self._home_pending_item
             } if self._home_pending_item is not None else set()
             for item in snapshot.inventory:
-                if (
-                    not item.is_equipment
-                    or (
-                        item.known
-                        and not (
-                            item_requires_full_identification(item)
-                            and not item.fully_known
-                        )
-                    )
-                    or (not item.known and item.pseudo_feeling == "average")
-                ):
+                if not self._identification_flow_candidate(item):
                     continue
                 signature = self._item_signature(item)
                 if signature in seen:
@@ -6036,7 +6026,8 @@ class HengbotPolicy:
             for item in catalog
             if item.origin == "pack"
             and (
-                self._retention_reservation(snapshot, item.item) > 0
+                self._identification_flow_owns(item.item)
+                or self._retention_reservation(snapshot, item.item) > 0
                 or (
                     item.item.is_digging_tool
                     and self._fundraising_mode in {"prepare", "mine", "scavenge"}
@@ -6378,6 +6369,14 @@ class HengbotPolicy:
                 self._abandon_blocked_equipment_transaction()
                 self.last_reason = "equipment-transaction:retain-reserved"
                 return LEAVE_STORE_KEY
+            if self._identification_flow_owns(target):
+                # Identification owns this item until its hidden equipment
+                # properties are known.  Discard the stale plan and let the
+                # remaining Home handlers withdraw/identify it instead of
+                # issuing the deposit that would restart the carousel.
+                self._abandon_blocked_equipment_transaction()
+                self.last_reason = "equipment-transaction:defer-identification"
+                return None
             main_hand = next(
                 (item for item in snapshot.equipment if item.slot == "main_hand"),
                 None,
@@ -7582,6 +7581,33 @@ class HengbotPolicy:
     @staticmethod
     def _item_signature(item: InventoryItem | StoreItem) -> tuple[str, int, int]:
         return (item.name, item.tval, item.sval)
+
+    @staticmethod
+    def _identification_flow_candidate(
+        item: InventoryItem | StoreItem,
+    ) -> bool:
+        """Return whether the town identification scan should own an item."""
+        return (
+            item.is_equipment
+            and (
+                (
+                    item.known
+                    and item_requires_full_identification(item)
+                    and not item.fully_known
+                )
+                or (not item.known and item.pseudo_feeling != "average")
+            )
+        )
+
+    def _identification_flow_owns(
+        self, item: InventoryItem | StoreItem
+    ) -> bool:
+        signature = self._item_signature(item)
+        return (
+            self._identification_flow_candidate(item)
+            or signature == self._home_pending_item
+            or signature in self._home_pending_batch
+        )
 
     def _observe_home_history(self, snapshot: Snapshot) -> None:
         """Persist only a Home command whose inventory delta confirms success."""

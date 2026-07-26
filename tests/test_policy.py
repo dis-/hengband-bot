@@ -30633,6 +30633,126 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             [policy._item_signature(lamp)],
         )
 
+    def test_identification_owner_predicate_matches_prime_queue(self):
+        items = (
+            item(
+                "a", 23, 1, name="unknown ego", known=False,
+                fully_known=False, is_equipment=True, pseudo_feeling="excellent",
+            ),
+            item(
+                "b", 23, 2, name="average unknown", known=False,
+                fully_known=False, is_equipment=True, pseudo_feeling="average",
+            ),
+            item(
+                "c", 23, 3, name="partial ego", known=True,
+                fully_known=False, is_equipment=True, is_ego=True,
+            ),
+            item(
+                "d", 23, 4, name="complete ego", known=True,
+                fully_known=True, is_equipment=True, is_ego=True,
+            ),
+            item("e", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="scroll"),
+        )
+        policy = HengbotPolicy()
+
+        policy.prime(self._town(inventory=items))
+
+        expected = [
+            policy._item_signature(candidate)
+            for candidate in items
+            if policy._identification_flow_candidate(candidate)
+        ]
+        self.assertEqual(policy._home_pending_batch, expected)
+
+    def test_optimizer_preserves_identification_owned_pack_item(self):
+        pending = item(
+            "a", 23, 3, name="partial ego", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        policy = HengbotPolicy()
+        snapshot = self._town(inventory=(pending,))
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        policy._home_pending_batch = [policy._item_signature(pending)]
+        captured = {}
+
+        def fake_prepare(*args, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(ready=False, transaction=None)
+
+        with patch("hengbot.policy.prepare_warrior_optimization", fake_prepare):
+            policy._prepare_equipment_optimization(snapshot)
+
+        owned = next(iter(policy._equipment_catalog.items))
+        self.assertIn(owned.id, captured["preserve_pack_item_ids"])
+
+    def test_withdraw_transaction_cycle_falls_through_without_redeposit(self):
+        pending = item(
+            "k", 23, 3, name="partial ego", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            "pack:pending",
+            item_identity=policy_module.equipment_identity(pending),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._home_pending_batch = [policy._item_signature(pending)]
+        policy._prepare_equipment_optimization = lambda _snapshot: None
+        snapshot = self._town(
+            inventory=(pending,), store=StoreState(STORE_HOME, [])
+        )
+
+        transaction_key = policy._equipment_transaction_home_key(snapshot)
+        next_home_handler_called = False
+        if transaction_key is None:
+            next_home_handler_called = True
+            transaction_key = "identify-next"
+
+        self.assertEqual(transaction_key, "identify-next")
+        self.assertTrue(next_home_handler_called)
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:defer-identification",
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertIn(
+            "pack:pending", policy._equipment_transaction_failed_items
+        )
+
+    def test_transaction_deposits_fully_known_item_unchanged(self):
+        known = item(
+            "k", 23, 3, name="complete ego", known=True,
+            fully_known=True, is_equipment=True, is_ego=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            "pack:known",
+            item_identity=policy_module.equipment_identity(known),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: None
+
+        key = policy._equipment_transaction_home_key(
+            self._town(inventory=(known,), store=StoreState(STORE_HOME, []))
+        )
+
+        self.assertEqual(key, "dk\r")
+        self.assertEqual(policy.last_reason, "equipment-transaction:deposit")
+
     def test_optimizer_preserves_inferior_pack_weapon_for_smith_sale(self):
         policy = HengbotPolicy()
         spare = item(
