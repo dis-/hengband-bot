@@ -31995,6 +31995,9 @@ class TownErrandPlanTest(unittest.TestCase):
                 "store_visits": {STORE_HOME: 1},
                 "need_attempts": {"equipment-catalog": 1},
                 "approach_fails": {},
+                "unsatisfied_passes": {STORE_HOME: 1},
+                "rearmed_categories": [],
+                "blocked_stores": [],
                 "passes_since_progress": 0,
                 "drift_warnings": [],
             },
@@ -32414,6 +32417,71 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
+
+    def test_unsatisfied_stop_blocks_across_plan_rebuild(self):
+        needs = [
+            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(STORE_GENERAL, "food", "normal"),
+        ]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        for _ in range(TOWN_STOP_PASS_LIMIT - 1):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+        policy._town_errand_plan = None
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False
+        )
+
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+
+    def test_home_category_rearms_once_per_visit_and_resets_next_visit(self):
+        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(needs)
+        town = replace(self._snapshot(), town_flag=True)
+        dungeon = replace(town, town_flag=False, floor_key=(1, 1, 0))
+        policy._observe(town)
+        policy._town_store_attempted[STORE_HOME] = town.turn
+
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
+        self.assertEqual(
+            policy._town_visit_ledger.rearmed_categories, {"deposit"}
+        )
+        policy._town_store_attempted[STORE_HOME] = town.turn
+        policy._town_errand_plan = None
+        self.assertIsNone(policy._next_required_store_type(town))
+
+        policy._observe(dungeon)
+        policy._observe(town)
+        policy._town_store_attempted[STORE_HOME] = town.turn
+        policy._town_errand_plan = None
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
+
+    def test_approach_failure_bound_survives_rearm_until_next_visit(self):
+        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(needs)
+        town = replace(self._snapshot(), town_flag=True)
+        dungeon = replace(town, town_flag=False, floor_key=(1, 1, 0))
+        policy._observe(town)
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        policy._town_store_attempted.pop(STORE_HOME, None)
+
+        self.assertIsNone(policy._next_required_store_type(town))
+        policy._town_store_attempted.pop(STORE_HOME, None)
+        self.assertIsNone(policy._shopping_approach_step(town))
+
+        policy._observe(dungeon)
+        policy._observe(town)
+        policy._town_errand_plan = None
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
 
     def test_non_home_leave_blocks_reopened_out_of_stock_stop(self):
         # Regression for the 2026-07-23 Alchemist loop.  A pending *Identify*

@@ -257,6 +257,9 @@ class TownVisitLedger:
     store_visits: Counter[int] = field(default_factory=Counter)
     need_attempts: dict[str, int] = field(default_factory=dict)
     approach_fails: Counter[int] = field(default_factory=Counter)
+    unsatisfied_passes: Counter[int] = field(default_factory=Counter)
+    rearmed_categories: set[str] = field(default_factory=set)
+    blocked_stores: set[int] = field(default_factory=set)
     passes_since_progress: int = 0
     drift_warnings: list[str] = field(default_factory=list)
     satisfied_needs: set[tuple[int, str]] = field(default_factory=set)
@@ -9620,7 +9623,14 @@ class HengbotPolicy:
                 if snapshot.player.food_type == FOOD_TYPE_MANA
                 else STORE_GENERAL
             )
-            return None if food_store in self._town_store_attempted else food_store
+            return (
+                None
+                if food_store in self._town_store_attempted
+                or food_store in self._town_visit_ledger.blocked_stores
+                or self._town_visit_ledger.approach_fails[food_store]
+                >= TOWN_STOP_PASS_LIMIT
+                else food_store
+            )
         opening_q34 = self._opening_q34_torch_shortage(snapshot) > 0
         if opening_q34 and self._fundraising_mode in {
             "prepare", "mine", "scavenge"
@@ -9645,7 +9655,16 @@ class HengbotPolicy:
             and not opening_q34
         ):
             self._start_fundraising(snapshot)
-        needs = self._enumerate_town_needs(snapshot)
+        ledger_blocked = self._town_visit_ledger.blocked_stores | {
+            store
+            for store, failures in self._town_visit_ledger.approach_fails.items()
+            if failures >= TOWN_STOP_PASS_LIMIT
+        }
+        needs = [
+            need
+            for need in self._enumerate_town_needs(snapshot)
+            if need.store_type not in ledger_blocked
+        ]
         warned = set(self._town_visit_ledger.drift_warnings)
         for need in needs:
             satisfied = (need.store_type, need.category)
@@ -9683,16 +9702,21 @@ class HengbotPolicy:
             # Rebuild for newly actionable stores instead of falling into the
             # legacy terminal router, whose first shortage can monopolize town
             # with an endless one-store restock cycle.
-            completed = set(plan.completed_this_visit) | set(
-                plan.blocked_this_visit
+            completed = (
+                set(plan.completed_this_visit)
+                | set(plan.blocked_this_visit)
+                | ledger_blocked
             )
             home_categories = {
                 need.category for need in needs if need.store_type == STORE_HOME
             }
+            fresh_home_categories = home_categories.difference(
+                self._town_visit_ledger.rearmed_categories
+            ).difference(plan.rearmed_home_categories)
             fresh_home_work = (
                 self._completed_home_can_rearm
                 and STORE_HOME in self._town_store_attempted
-                and bool(home_categories.difference(plan.rearmed_home_categories))
+                and bool(fresh_home_categories)
                 and not town_departure_ready()
             )
             if fresh_home_work:
@@ -9704,6 +9728,12 @@ class HengbotPolicy:
                 # A blocked Home remains latched; only a successfully completed
                 # pass can be superseded by newly visible work.
                 self._rearm_town_store_for_new_work(STORE_HOME)
+                plan.rearmed_home_categories.extend(
+                    sorted(fresh_home_categories)
+                )
+                self._town_visit_ledger.rearmed_categories.update(
+                    fresh_home_categories
+                )
                 completed.discard(STORE_HOME)
             remaining_needs = [
                 need for need in needs
@@ -9739,7 +9769,11 @@ class HengbotPolicy:
                 self._town_errand_plan = plan
         elif plan.index < len(plan.stops):
             pending = set(plan.stops[plan.index + 1 :])
-            finished = set(plan.completed_this_visit) | set(plan.blocked_this_visit)
+            finished = (
+                set(plan.completed_this_visit)
+                | set(plan.blocked_this_visit)
+                | ledger_blocked
+            )
             additions = needed_stores - pending - finished - {plan.stops[plan.index]}
             if additions:
                 current_store = plan.stops[plan.index]
@@ -9775,7 +9809,9 @@ class HengbotPolicy:
                     newly_actionable = [
                         category
                         for category in home_categories
-                        if category not in plan.rearmed_home_categories
+                        if category
+                        not in self._town_visit_ledger.rearmed_categories
+                        and category not in plan.rearmed_home_categories
                     ]
                     if newly_actionable and not town_departure_ready():
                         # Home work can emerge after an earlier Home pass: a
@@ -9785,6 +9821,9 @@ class HengbotPolicy:
                         # newly actionable phase. Re-arm once per need category;
                         # TOWN_STOP_PASS_LIMIT still bounds a stuck handler.
                         plan.rearmed_home_categories.extend(newly_actionable)
+                        self._town_visit_ledger.rearmed_categories.update(
+                            newly_actionable
+                        )
                         for category in newly_actionable:
                             self._town_visit_ledger.need_attempts[category] = (
                                 self._town_visit_ledger.need_attempts.get(category, 0)
@@ -9822,9 +9861,14 @@ class HengbotPolicy:
             return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
 
         legacy_store = self._legacy_town_router_terminal(snapshot)
+        if legacy_store in ledger_blocked:
+            self._town_store_attempted[legacy_store] = snapshot.turn
+            return None
         if legacy_store is not None and plan is not None:
-            exhausted_stores = set(plan.completed_this_visit) | set(
-                plan.blocked_this_visit
+            exhausted_stores = (
+                set(plan.completed_this_visit)
+                | set(plan.blocked_this_visit)
+                | ledger_blocked
             )
             restock_recheck = (
                 legacy_store in self._town_restock_rechecked
@@ -9888,9 +9932,14 @@ class HengbotPolicy:
             plan.index += 1
             return
         plan.current_stop_passes += 1
-        if plan.current_stop_passes < TOWN_STOP_PASS_LIMIT:
+        self._town_visit_ledger.unsatisfied_passes[store_type] += 1
+        if (
+            self._town_visit_ledger.unsatisfied_passes[store_type]
+            < TOWN_STOP_PASS_LIMIT
+        ):
             return
         plan.blocked_this_visit.append(store_type)
+        self._town_visit_ledger.blocked_stores.add(store_type)
         if store_type == STORE_HOME:
             self._completed_home_can_rearm = False
         plan.current_stop_passes = 0
@@ -12257,6 +12306,13 @@ class HengbotPolicy:
         if store_type is None:
             self._shop_approach_stuck_count = 0
             return None
+        if (
+            self._town_visit_ledger.approach_fails[store_type]
+            >= TOWN_STOP_PASS_LIMIT
+        ):
+            self._town_store_attempted[store_type] = snapshot.turn
+            self._shop_approach_stuck_count = 0
+            return None
         self._shopping_approach_store_type = store_type
         if self._town_map_active(snapshot):
             self._shopping_approach_goal = self._town_map.store_position(store_type)
@@ -13694,6 +13750,13 @@ class HengbotPolicy:
             "store_visits": dict(self._town_visit_ledger.store_visits),
             "need_attempts": dict(self._town_visit_ledger.need_attempts),
             "approach_fails": dict(self._town_visit_ledger.approach_fails),
+            "unsatisfied_passes": dict(
+                self._town_visit_ledger.unsatisfied_passes
+            ),
+            "rearmed_categories": sorted(
+                self._town_visit_ledger.rearmed_categories
+            ),
+            "blocked_stores": sorted(self._town_visit_ledger.blocked_stores),
             "passes_since_progress": self._town_visit_ledger.passes_since_progress,
             "drift_warnings": list(self._town_visit_ledger.drift_warnings),
         }
