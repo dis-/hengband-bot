@@ -13653,6 +13653,8 @@ class HengbotPolicy:
             and not self._curse_unremovable(weapon)
         ):
             return False
+        if weapon is not None and weapon.is_melee_weapon:
+            return True
         if self._equipped_digging_tool(snapshot) is None:
             return True
         return self._weapon_block_streak >= WEAPON_BLOCK_LIMIT

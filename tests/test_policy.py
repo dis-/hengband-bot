@@ -16729,6 +16729,61 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertTrue(HengbotPolicy()._combat_weapon_ready(snap))
 
+    def test_pre_recall_check_is_ready_with_main_hand_weapon_and_sub_hand_digger(self):
+        sword = item(
+            "main_hand", TVAL_SWORD, 1, name="long sword", is_equipment=True
+        )
+        shovel = item(
+            "sub_hand",
+            TVAL_DIGGING,
+            SV_DIGGING_SHOVEL,
+            name="shovel",
+            is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[sword, shovel, self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._weapon_block_streak = 0
+
+        self.assertTrue(policy._combat_weapon_ready(snap))
+
+    def test_main_hand_weapon_with_sub_hand_digger_needs_no_home_combat_weapon(self):
+        sword = item(
+            "main_hand", TVAL_SWORD, 1, name="long sword", is_equipment=True
+        )
+        shovel = item(
+            "sub_hand",
+            TVAL_DIGGING,
+            SV_DIGGING_SHOVEL,
+            name="shovel",
+            is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[sword, shovel, self._lantern()],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._weapon_block_streak = 0
+
+        needs = policy._enumerate_town_needs(snap)
+
+        self.assertFalse(
+            any(
+                need.store_type == STORE_HOME and need.category == "combat-weapon"
+                for need in needs
+            )
+        )
+
     def test_pre_recall_check_rejects_actionably_cursed_weapon(self):
         cursed = item(
             "main_hand", 21, 5, name="cursed mace", is_equipment=True,
