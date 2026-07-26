@@ -24185,6 +24185,86 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "melee")
 
+    def test_overlevel_winnable_nonbreeder_does_not_flee(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=616,
+            max_hp=616,
+            monster_hp=80,
+            monster_level=33,
+            blow_sides=49,
+        )
+        snapshot = replace(snapshot, player=replace(snapshot.player, level=27))
+        knowledge = replace(knowledge, flags=frozenset())
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertTrue(
+            policy._fruitless_fight_is_winnable(snapshot, [monster])
+        )
+        self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
+
+    def test_overlevel_unwinnable_monster_still_flees(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=500,
+            monster_level=33,
+            blow_sides=100,
+        )
+        snapshot = replace(snapshot, player=replace(snapshot.player, level=27))
+        knowledge = replace(knowledge, flags=frozenset())
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertFalse(
+            policy._fruitless_fight_is_winnable(snapshot, [monster])
+        )
+        self.assertTrue(policy._should_flee(snapshot, [monster], [monster]))
+
+    def test_low_hp_still_flees_from_overlevel_winnable_nonbreeder(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=79,
+            max_hp=200,
+            monster_hp=20,
+            monster_level=33,
+            blow_sides=1,
+        )
+        snapshot = replace(snapshot, player=replace(snapshot.player, level=27))
+        knowledge = replace(knowledge, flags=frozenset())
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertTrue(
+            policy._fruitless_fight_is_winnable(snapshot, [monster])
+        )
+        self.assertTrue(policy._should_flee(snapshot, [monster], [monster]))
+
+    def test_overlevel_breeder_and_unique_still_flee(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=616,
+            max_hp=616,
+            monster_hp=20,
+            monster_level=33,
+            blow_sides=1,
+        )
+        snapshot = replace(snapshot, player=replace(snapshot.player, level=27))
+
+        breeder = replace(monster, can_multiply=True)
+        breeder_policy = HengbotPolicy(
+            monrace_knowledge={9001: replace(knowledge, flags=frozenset())}
+        )
+        self.assertFalse(
+            breeder_policy._fruitless_fight_is_winnable(snapshot, [breeder])
+        )
+        self.assertTrue(
+            breeder_policy._should_flee(snapshot, [breeder], [breeder])
+        )
+
+        unique_policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        self.assertFalse(
+            unique_policy._fruitless_fight_is_winnable(snapshot, [monster])
+        )
+        self.assertTrue(
+            unique_policy._should_flee(snapshot, [monster], [monster])
+        )
+
     def test_cornered_disengage_melees_weakest_adjacent_instead_of_waiting(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=200,

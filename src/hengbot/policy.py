@@ -4722,7 +4722,13 @@ class HengbotPolicy:
             return False
         if player.hp_ratio < FLEE_HP_RATIO:
             return True
-        if any(monster.level > player.level + OVERLEVEL_FLEE_MARGIN for monster in hostiles):
+        if (
+            any(
+                monster.level > player.level + OVERLEVEL_FLEE_MARGIN
+                for monster in hostiles
+            )
+            and not self._fruitless_fight_is_winnable(snapshot, hostiles)
+        ):
             return True
         # Surrounded: flee only if the swarm could take a big share of HP soon.
         # A raw adjacent count fled full-HP characters from weak (often sleeping)
