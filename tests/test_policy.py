@@ -12124,6 +12124,164 @@ class PredictiveEscapeTest(unittest.TestCase):
 
 
 class SummonerMeleeTest(unittest.TestCase):
+    def test_killable_distant_summoner_is_shot_before_open_terrain_escape(self):
+        grids = {
+            Position(y, x): grid(
+                y, x, monster=(y, x) == (10, 14)
+            )
+            for y in range(7, 14)
+            for x in range(7, 15)
+        }
+        summoner = hostile(
+            1, 10, 14, hp=24, max_hp=24, distance=4, can_summon=True
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            grids,
+            [summoner],
+            inventory=[
+                item(
+                    "b", TVAL_ARROW, 1, count=20,
+                    damage_dice_num=1, damage_dice_sides=4,
+                ),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+            equipment=[
+                item(
+                    "a", TVAL_BOW, SV_BOW_SHORT,
+                    is_equipment=True, to_d=2,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snapshot), "fb6")
+        self.assertEqual(policy.last_reason, "summoner:ranged-kill")
+
+    def test_unkillable_summoner_retreats_with_exactly_four_open_neighbors(self):
+        grids = {
+            Position(y, x): grid(y, x, monster=(y, x) == (10, 14))
+            for y in range(7, 14)
+            for x in range(7, 15)
+        }
+        summoner = hostile(
+            1, 10, 14, hp=100, max_hp=100, distance=4, can_summon=True
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100), grids, [summoner],
+            inventory=[
+                item("b", TVAL_ARROW, 1, count=20,
+                     damage_dice_num=1, damage_dice_sides=4),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+            equipment=[
+                item("a", TVAL_BOW, SV_BOW_SHORT,
+                     is_equipment=True, to_d=2),
+            ],
+            floor_key=(1, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with (
+            patch.object(policy, "_open_neighbor_count", return_value=4),
+            patch.object(policy, "_summoner_cover_in_one_step", return_value=False),
+        ):
+            self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
+    def test_lethal_direct_damage_still_escapes_killable_summoner(self):
+        grids = {
+            Position(y, x): grid(y, x, monster=(y, x) == (10, 14))
+            for y in range(7, 14)
+            for x in range(7, 15)
+        }
+        summoner = hostile(
+            1, 10, 14, hp=24, max_hp=24, distance=4, can_summon=True,
+            max_ranged_damage=100,
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=50, max_hp=100), grids, [summoner],
+            inventory=[
+                item("b", TVAL_ARROW, 1, count=20,
+                     damage_dice_num=1, damage_dice_sides=4),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+            equipment=[
+                item("a", TVAL_BOW, SV_BOW_SHORT,
+                     is_equipment=True, to_d=2),
+            ],
+            floor_key=(1, 5, 0),
+        )
+
+        self.assertEqual(HengbotPolicy().choose_key(snapshot), "rt")
+
+    def test_unkillable_summoner_is_shot_from_a_choke(self):
+        grids = {
+            Position(y, x): grid(y, x, monster=(y, x) == (10, 14))
+            for y in range(7, 14)
+            for x in range(7, 15)
+        }
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            grids,
+            [hostile(1, 10, 14, hp=100, max_hp=100,
+                     distance=4, can_summon=True)],
+            inventory=[
+                item("b", TVAL_ARROW, 1, count=20,
+                     damage_dice_num=1, damage_dice_sides=4),
+            ],
+            equipment=[
+                item("a", TVAL_BOW, SV_BOW_SHORT,
+                     is_equipment=True, to_d=2),
+            ],
+            floor_key=(1, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(policy, "_open_neighbor_count", return_value=3):
+            self.assertEqual(
+                policy.choose_key(snapshot), "fb6", policy.last_reason
+            )
+        self.assertEqual(policy.last_reason, "ranged:fire")
+
+    def test_distant_summoner_without_ranged_attack_is_not_chased(self):
+        grids = {
+            Position(y, x): grid(y, x, monster=(y, x) == (10, 14))
+            for y in range(7, 14)
+            for x in range(7, 15)
+        }
+        snapshot = Snapshot(
+            player(10, 10), grids,
+            [hostile(1, 10, 14, hp=100, max_hp=100,
+                     distance=4, can_summon=True)],
+            floor_key=(1, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(policy, "_open_neighbor_count", return_value=3):
+            self.assertEqual(policy.choose_key(snapshot), "5", policy.last_reason)
+        self.assertEqual(policy.last_reason, "summoner:hold-choke")
+
+    def test_summoner_within_two_cells_may_be_approached(self):
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(10, 12): grid(10, 12, monster=True),
+        }
+        snapshot = Snapshot(
+            player(10, 10), grids,
+            [hostile(1, 10, 12, hp=100, max_hp=100,
+                     distance=2, can_summon=True)],
+            floor_key=(1, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with (
+            patch.object(policy, "_open_neighbor_count", return_value=3),
+            patch.object(policy, "_hunt_step", return_value=Position(10, 11)),
+        ):
+            self.assertEqual(policy.choose_key(snapshot), "6")
+
     def test_teleports_from_adjacent_summoner_in_open_terrain(self):
         # Open terrain would normally trigger the retreat, but walking away from
         # an ALREADY-ADJACENT summoner just donates free hits — kill it.

@@ -407,6 +407,8 @@ SEARCH_LIMIT = 8
 FRONTIER_EXHAUST_VISITS = 8
 
 # Combat / survival thresholds
+SUMMONER_RANGED_KILL_SHOTS = 3
+SUMMONER_EXPOSED_NEIGHBORS = 4
 FLEE_HP_RATIO = 0.40  # below this, break off and run from any hostile
 OVERLEVEL_FLEE_MARGIN = 5  # static race level this far above clvl is overwhelming
 SWARM_COUNT = 3  # a swarm starts at this many adjacent hostiles...
@@ -2140,6 +2142,11 @@ class HengbotPolicy:
             if profile is not None
             else hostiles
         )
+        summoner_ranged = self._summoner_ranged_kill_key(
+            snapshot, emergency_hostiles
+        )
+        if summoner_ranged is not None:
+            return summoner_ranged
         emergency = self._emergency_item(snapshot, emergency_hostiles)
         if emergency is not None:
             return emergency
@@ -2350,7 +2357,13 @@ class HengbotPolicy:
             corridor_threats
             and not summoner_adjacent
             and self._open_neighbor_count(snapshot, player.position)
-            >= SUMMONER_OPEN_NEIGHBORS
+            >= SUMMONER_EXPOSED_NEIGHBORS
+            and not any(
+                (shots := self._summoner_shots_to_kill(snapshot, monster))
+                is not None and shots <= SUMMONER_RANGED_KILL_SHOTS
+                and self._summoner_ranged_attack_available(snapshot, monster)
+                for monster in summoners
+            )
         ):
             current = snapshot.grid_at(player.position)
             if current is not None and self._is_upstairs_target(current) and not self._quest_floor_exit_locked(snapshot):
@@ -2393,6 +2406,10 @@ class HengbotPolicy:
         )
         if ranged is not None:
             return ranged
+
+        if summoners and all(monster.distance > 2 for monster in summoners):
+            self.last_reason = "summoner:hold-choke"
+            return WAIT_KEY
 
         # A material threat that cannot be attacked from the current square
         # must not fall through to descent or exploration.  Live on Orc cave
@@ -3811,6 +3828,76 @@ class HengbotPolicy:
             (it for it in snapshot.inventory if it.tval == launcher.ammo_tval),
             None,
         )
+
+    def _estimated_ranged_damage_per_shot(self, snapshot: Snapshot) -> float:
+        launcher = self._equipped_launcher(snapshot)
+        ammo = self._matching_ammo(snapshot)
+        if (
+            launcher is None
+            or ammo is None
+            or launcher.sval not in LAUNCHER_PROPERTIES
+            or ammo.damage_dice_num <= 0
+            or ammo.damage_dice_sides <= 0
+        ):
+            return 0.0
+        _ammo_tval, _energy, multiplier = LAUNCHER_PROPERTIES[launcher.sval]
+        ammo_average = ammo.damage_dice_num * (ammo.damage_dice_sides + 1) / 2
+        return max(
+            0.0,
+            (ammo_average + ammo.to_d + launcher.to_d) * multiplier,
+        )
+
+    def _summoner_shots_to_kill(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> int | None:
+        damage = self._estimated_ranged_damage_per_shot(snapshot)
+        if damage <= 0:
+            return None
+        return max(1, ceil(monster.hp / damage))
+
+    def _summoner_ranged_attack_available(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        player = snapshot.player
+        distance = player.position.distance_to(monster.position)
+        return (
+            self._matching_ammo(snapshot) is not None
+            and not player.blind
+            and not player.confused
+            and 2 <= distance <= RANGED_MAX_DISTANCE
+            and not (
+                monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE
+            )
+        )
+
+    def _summoner_ranged_kill_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Finish a summoner in at most three shots before summoning-space flee."""
+        summoners = [
+            monster for monster in hostiles
+            if monster.can_summon and not monster.asleep
+        ]
+        candidates = [
+            (shots, monster)
+            for monster in summoners
+            if (shots := self._summoner_shots_to_kill(snapshot, monster)) is not None
+            and shots <= SUMMONER_RANGED_KILL_SHOTS
+            and self._summoner_ranged_attack_available(snapshot, monster)
+        ]
+        if not candidates:
+            return None
+        _shots, target = min(
+            candidates, key=lambda pair: (pair[0], pair[1].distance)
+        )
+        # Direct damage that can kill before the three-shot finish retains the
+        # ordinary emergency escape priority.
+        if self._predicted_damage(snapshot, hostiles, turns=3) >= snapshot.player.hp:
+            return None
+        ranged = self._ranged_attack_key(snapshot, [target], [])
+        if ranged is not None:
+            self.last_reason = "summoner:ranged-kill"
+        return ranged
 
     def _count_throwing_torches(self, snapshot: Snapshot) -> int:
         # ``is_equipment`` describes a wearable kind, not its current location.
@@ -20132,8 +20219,14 @@ class HengbotPolicy:
             bool(summoners)
             and not committed_summoner_engagement
             and self._open_neighbor_count(snapshot, player.position)
-            >= SUMMONER_OPEN_NEIGHBORS
+            >= SUMMONER_EXPOSED_NEIGHBORS
             and not self._summoner_cover_in_one_step(snapshot)
+            and not any(
+                (shots := self._summoner_shots_to_kill(snapshot, monster))
+                is not None and shots <= SUMMONER_RANGED_KILL_SHOTS
+                and self._summoner_ranged_attack_available(snapshot, monster)
+                for monster in summoners
+            )
         )
         guardian_reposition = (
             summoner_open
