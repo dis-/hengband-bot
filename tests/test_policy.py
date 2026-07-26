@@ -367,6 +367,7 @@ def hostile(
     can_multiply=False,
     max_melee_damage=0,
     max_ranged_damage=0,
+    race_id=0,
 ):
     return MonsterState(
         index=index,
@@ -382,6 +383,7 @@ def hostile(
         can_multiply=can_multiply,
         max_melee_damage=max_melee_damage,
         max_ranged_damage=max_ranged_damage,
+        race_id=race_id,
     )
 
 
@@ -4918,6 +4920,86 @@ class FixedQuestTest(unittest.TestCase):
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
 
         self.assertFalse(policy._quest_floor_exit_locked(snap))
+
+    def test_statically_known_random_quest_releases_after_stuck_budget(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, r_idx=777, cur_num=0, max_num=1,
+        )
+        info = QuestInfo(
+            49, "Random quest", QUEST_TYPE_RANDOM, 6, 0,
+            dungeon=1, max_num=1, monrace_id=777,
+        )
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(1, 6, 49),
+            quests={49: quest},
+        )
+        policy = HengbotPolicy(quest_knowledge={49: info})
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+
+        self.assertTrue(policy._kill_quest_exit_would_fail(snap))
+        self.assertFalse(policy._quest_floor_exit_locked(snap))
+
+    def test_random_quest_remains_locked_below_consecutive_stuck_budget(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, r_idx=777, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(1, 6, 49),
+            quests={49: quest},
+        )
+        policy = HengbotPolicy()
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+
+        self.assertTrue(policy._quest_floor_exit_locked(snap))
+
+    def test_locked_random_quest_melees_visible_quest_race_first(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, r_idx=777, cur_num=0, max_num=1,
+        )
+        bystander = hostile(1, 9, 10, hp=1, max_hp=1, race_id=111)
+        target = hostile(2, 10, 11, hp=10, max_hp=10, race_id=777)
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(9, 10): grid(9, 10, monster=True),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            [bystander, target],
+            floor_key=(1, 6, 49),
+            quests={49: quest},
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "6")
+        self.assertEqual(policy.last_reason, "melee")
+
+    def test_locked_random_quest_pursues_visible_quest_race(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=6, dungeon_id=1, r_idx=777, cur_num=0, max_num=1,
+        )
+        target = hostile(
+            2, 10, 12, hp=10, max_hp=10, distance=2, race_id=777
+        )
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [target],
+            floor_key=(1, 6, 49),
+            quests={49: quest},
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "6")
+        self.assertEqual(policy.last_reason, "hunt:quest-target")
 
     def test_descent_guard_selects_kill_quest_in_current_dungeon(self):
         other = QuestInfo(14, "Other", 5, 3, 0, dungeon=1, num_mon=16)

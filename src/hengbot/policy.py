@@ -2361,15 +2361,27 @@ class HengbotPolicy:
         if combat_equip is not None:
             return combat_equip
 
+        # With no approved fixed-map profile, a visible runtime quest race owns
+        # ordinary combat selection after all emergency/flee/reposition gates.
+        quest_targets = self._locked_kill_quest_targets(snapshot, hostiles)
+        combat_hostiles = quest_targets or hostiles
+        combat_adjacent = [
+            monster for monster in adjacent if monster in combat_hostiles
+        ]
+
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
-        if adjacent and not player.afraid:
+        if combat_adjacent and not player.afraid:
             self.last_reason = "melee"
-            return self._direction_key(player.position, self._weakest(adjacent).position)
+            return self._direction_key(
+                player.position, self._weakest(combat_adjacent).position
+            )
 
         # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
         # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,
         # so an afraid archer still fights back while it retreats.
-        ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
+        ranged = self._ranged_attack_key(
+            snapshot, combat_hostiles, combat_adjacent
+        )
         if ranged is not None:
             return ranged
 
@@ -2397,6 +2409,12 @@ class HengbotPolicy:
                 return READ_KEY + scroll.slot
             self.last_reason = "threat:wait"
             return WAIT_KEY
+
+        if quest_targets:
+            step = self._hunt_step(snapshot, quest_targets)
+            if step is not None:
+                self.last_reason = "hunt:quest-target"
+                return self._step_toward(snapshot, step)
 
         # 2s. Survival gate (R1): starvation safety is mode- and objective-
         # independent. It runs ABOVE fundraising/quests/descent because every
@@ -17318,7 +17336,8 @@ class HengbotPolicy:
 
     def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
         """Protect an incomplete kill attempt, with bounded survival releases."""
-        if self._active_kill_quest_id(snapshot) is None:
+        quest_id = self._active_kill_quest_id(snapshot)
+        if quest_id is None:
             return False
         # Once relocation is exhausted, dying on the floor is worse than the
         # visible loss of even an ONCE/RANDOM quest.
@@ -17333,13 +17352,32 @@ class HengbotPolicy:
         ):
             return False
         # Depth quests that Hengband does not fail on leave may regenerate a bad
-        # floor after the ordinary stuck budget is exhausted.
+        # floor after the ordinary stuck budget is exhausted. Runtime RANDOM
+        # quests deliberately accept the loss at that same genuine-stall
+        # boundary, independent of static quest knowledge.
+        runtime_random = snapshot.quests[quest_id].type == QUEST_TYPE_RANDOM
         if (
-            not self._kill_quest_exit_would_fail(snapshot)
+            (runtime_random or not self._kill_quest_exit_would_fail(snapshot))
             and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
         ):
             return False
         return True
+
+    def _locked_kill_quest_targets(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> list[MonsterState]:
+        """Return visible runtime quest targets that ordinary combat should own."""
+        quest_id = self._active_kill_quest_id(snapshot)
+        if (
+            quest_id is None
+            or not self._quest_floor_exit_locked(snapshot)
+            or self.approved_quest_strategy(quest_id) is not None
+        ):
+            return []
+        race_id = snapshot.quests[quest_id].r_idx
+        if race_id <= 0:
+            return []
+        return [monster for monster in hostiles if monster.race_id == race_id]
 
     def _floor_navigation_exit_locked(self, snapshot: Snapshot) -> bool:
         """Gate exhausted-floor stair navigation for every active quest kind."""
