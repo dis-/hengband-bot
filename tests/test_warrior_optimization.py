@@ -709,6 +709,90 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         self.assertTrue(policy._home_page_advance_pending)
 
+    def test_policy_bounds_home_page_wait_on_consecutive_town_snapshots(self):
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+            observe=lambda observation: None,
+            complete=False,
+            block=lambda reason: None,
+        )
+        policy._home_page_advance_pending = True
+        policy._prepare_equipment_optimization = lambda snapshot: None
+        policy._shopping_approach_step = lambda snapshot: None
+        policy._decide = policy._equipment_transaction_town_key
+        snapshot = SimpleNamespace(
+            in_town=True,
+            store=None,
+            inventory=(),
+            equipment=(),
+            grids={},
+        )
+        policy._with_grid_memory = lambda current: current
+        policy._observe_home_history = lambda current: None
+        policy._observe = lambda current: None
+        policy._periodic_character_dump_key = (
+            lambda current, key: key
+        )
+        policy._break_positional_oscillation = (
+            lambda current, key: key
+        )
+        policy._break_livelock = lambda current, key: key
+        policy._remember_stair_command = lambda current, key: None
+        policy._update_combat_outcome = lambda current: None
+        policy._update_navigation_progress = lambda current: None
+        policy._capture_home_history_intent = (
+            lambda current, key: None
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:await-home-page"
+        )
+        self.assertTrue(policy._home_page_advance_pending)
+
+        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertIn(
+            policy.last_reason,
+            {
+                "equipment-transaction:approach-home",
+                "equipment-transaction:home-unreachable",
+            },
+        )
+        self.assertFalse(policy._home_page_advance_pending)
+
+    def test_policy_home_snapshot_still_clears_page_advance_pending(self):
+        policy = HengbotPolicy()
+        policy._home_page_advance_pending = True
+        snapshot = SimpleNamespace(
+            store=SimpleNamespace(store_type=STORE_HOME, items=()),
+            inventory=(),
+            equipment=(),
+        )
+        policy._with_grid_memory = lambda current: current
+        policy._observe_home_history = lambda current: None
+        policy._observe = lambda current: None
+        policy._decide = lambda current: "5"
+        policy._periodic_character_dump_key = (
+            lambda current, key: key
+        )
+        policy._break_positional_oscillation = (
+            lambda current, key: key
+        )
+        policy._break_livelock = lambda current, key: key
+        policy._remember_stair_command = lambda current, key: None
+        policy._update_combat_outcome = lambda current: None
+        policy._update_navigation_progress = lambda current: None
+        policy._capture_home_history_intent = (
+            lambda current, key: None
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertFalse(policy._home_page_advance_pending)
+
     def test_policy_abandons_unconfirmed_home_withdraw_for_replanning(self):
         store_item = StoreItem(
             letter="a", name="stored", count=1, tval=23, sval=1,

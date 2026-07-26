@@ -1801,6 +1801,12 @@ class HengbotPolicy:
                 ),
             )
             self._home_page_advance_pending = False
+        if (
+            snapshot.store is None
+            and self._home_page_advance_pending
+            and self.last_reason == "equipment-transaction:await-home-page"
+        ):
+            self._home_page_advance_pending = False
         if self._equipment_transaction_session is not None:
             self._equipment_transaction_session.observe(
                 observe_equipment_transactions(snapshot)
