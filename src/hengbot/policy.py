@@ -1544,6 +1544,10 @@ class HengbotPolicy:
         # shot landed and must not reset the failed-targeting guard.
         self._ranged_target_signatures: dict[int, int] = {}
         self._emergency_escape_pending = False
+        # Once an emergency escape fires, routine return looting stays disabled
+        # for the rest of this floor visit even after relocation makes the
+        # immediate threat look safe.
+        self._emergency_return_active = False
         # Speed-potion state for the currently engaged unique.  The baseline is
         # the speed observed before quaffing; after the bonus expires we may dose
         # again, while a failed command is not blindly repeated forever.
@@ -2553,6 +2557,7 @@ class HengbotPolicy:
         if (
             (return_starting or self._returning_to_town)
             and not player.recalling
+            and not self._emergency_return_active
             and self._last_return_trigger in RETURN_LOOT_SWEEP_TRIGGERS
         ):
             return_loot = self._normal_loot_key(
@@ -3119,6 +3124,7 @@ class HengbotPolicy:
         self._observe_stair_command(snapshot)
         if not snapshot.in_town and snapshot.player.recalling:
             self._saw_dungeon_recall = True
+            self._emergency_return_active = False
         if (
             snapshot.in_town
             and previous_floor is not None
@@ -3614,6 +3620,7 @@ class HengbotPolicy:
                 self._yeek_conquest_processed = True
 
         if snapshot.floor_key != self._floor_key:
+            self._emergency_return_active = False
             self._q2_reconnect_recovery_floor = (
                 snapshot.floor_key
                 if previous_floor is None and snapshot.floor_key[2] == 2
@@ -19977,6 +19984,7 @@ class HengbotPolicy:
     def _issue_emergency_consumable(
         self, snapshot: Snapshot, item: InventoryItem, reason: str
     ) -> str:
+        self._emergency_return_active = True
         signature = self._item_signature(item)
         pre_use_count = sum(
             candidate.count
@@ -20058,6 +20066,7 @@ class HengbotPolicy:
             and not hostiles
             and not snapshot.in_town
         ):
+            self._emergency_return_active = True
             self._unseen_recall_damage_streak += 1
             self._returning_to_town = True
             self._last_return_trigger = "unseen-attacker"
@@ -20188,6 +20197,7 @@ class HengbotPolicy:
         )
         if lethal or summoner_open:
             self._emergency_escape_pending = True
+            self._emergency_return_active = True
             if (
                 not guardian_reposition
                 and self._dive_emergencies + 1 >= EMERGENCY_RETURN_COUNT

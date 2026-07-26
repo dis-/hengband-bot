@@ -3549,6 +3549,30 @@ class PickupTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "return:seek-loot")
 
+    def test_emergency_return_does_not_resume_routine_loot_sweep(self):
+        grids = {
+            Position(10, 10): grid(10, 10, upstairs=True),
+            Position(10, 11): grid(10, 11, objects=1),
+            Position(10, 12): grid(10, 12),
+            Position(10, 13): grid(10, 13, monster=True),
+        }
+        snapshot = Snapshot(
+            player(10, 10),
+            grids,
+            [hostile(10, 13, 1, distance=3, asleep=True, max_melee_damage=1)],
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+        )
+        policy = HengbotPolicy()
+        policy._observe(snapshot)
+        policy._emergency_return_active = True
+        policy._returning_to_town = True
+        policy._last_return_trigger = "cure-low"
+
+        self.assertEqual(policy.choose_key(snapshot), "<")
+        self.assertEqual(policy.last_reason, "return:ascend")
+        self.assertNotEqual(policy.last_reason, "return:seek-loot")
+
     def test_critical_return_does_not_detour_for_loot(self):
         grids = {
             Position(10, 10): grid(10, 10),
