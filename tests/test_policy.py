@@ -26969,6 +26969,58 @@ class TownCycleDetectorTest(unittest.TestCase):
             self.assertEqual(pol._town_special_key(snap), "6")
         self.assertEqual(pol.last_reason, "town:repetition-depart")
 
+    def test_blocked_repetition_recalls_when_entrance_route_is_unavailable(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(self._town_snap(), inventory=[recall])
+
+        with patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "r")
+
+        self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
+
+    def test_blocked_repetition_without_route_or_recall_still_waits(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        snap = self._town_snap()
+
+        with patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+
+        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+
+    def test_blocked_repetition_walks_before_using_recall(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(self._town_snap(), inventory=[recall])
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+
+        with patch.object(pol, "_descent_step", return_value=step):
+            self.assertEqual(pol._town_special_key(snap), "6")
+
+        self.assertEqual(pol.last_reason, "town:repetition-depart")
+
+    def test_first_cycle_offense_does_not_use_recall_fallback(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_cycle_pending = True
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(
+            self._town_snap(gold=FUNDRAISING_START_GOLD),
+            inventory=[recall],
+        )
+
+        with patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+
+        self.assertEqual(pol.last_reason, "town:cycle-break")
+        self.assertEqual(pol._town_cycle_breaks, 1)
+
     def test_blocked_repetition_enters_dungeon_at_departure_goal(self):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)

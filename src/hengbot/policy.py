@@ -13199,6 +13199,11 @@ class HengbotPolicy:
                     return travel
                 self.last_reason = "town:repetition-depart"
                 return self._step_toward(snapshot, step)
+            if not snapshot.player.recalling:
+                recall = self._find_recall_scroll(snapshot)
+                if recall is not None:
+                    self.last_reason = "town:repetition-depart:recall"
+                    return READ_KEY + recall.slot
         return WAIT_KEY
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
