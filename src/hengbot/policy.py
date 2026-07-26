@@ -2653,9 +2653,10 @@ class HengbotPolicy:
         if equipment_transaction is not None:
             return equipment_transaction
 
-        loot = self._normal_loot_key(snapshot, hostiles)
-        if loot is not None:
-            return loot
+        if not self._emergency_return_active:
+            loot = self._normal_loot_key(snapshot, hostiles)
+            if loot is not None:
+                return loot
 
         # Keep a light lit before any town errand can approach a store or the
         # dungeon entrance: native town travel is rejected at night unless a

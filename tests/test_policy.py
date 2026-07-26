@@ -3353,6 +3353,26 @@ class PickupTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "seek-loot")
 
+    def test_emergency_return_active_suppresses_normal_loot_seek(self):
+        loot = Position(10, 11)
+        snapshot = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                loot: grid(10, 11, objects=1),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+        )
+        policy = HengbotPolicy()
+        policy._observe(snapshot)
+        policy._emergency_return_active = True
+
+        policy.choose_key(snapshot)
+
+        self.assertNotEqual(policy.last_reason, "seek-loot")
+        self.assertIsNone(policy._loot_target)
+
     def test_material_ranged_threat_blocks_loot(self):
         monster = hostile(1, 10, 13, distance=3, max_ranged_damage=100)
         grids = {
