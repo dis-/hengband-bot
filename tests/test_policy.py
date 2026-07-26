@@ -23311,6 +23311,70 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         return snapshot, monster, knowledge
 
+    def _cure_critical_guardian(self, *, hp=463, cure_count=20):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=hp,
+            max_hp=463,
+            monster_hp=181,
+            monster_speed=115,
+            blow_sides=14,
+            inventory=(
+                [item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=cure_count)]
+                if cure_count
+                else []
+            ),
+        )
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, main_hand_blows=1),
+        )
+        return snapshot, monster, replace(knowledge, max_melee_damage=14)
+
+    def test_guardian_projection_is_viable_only_with_cure_critical_doses(self):
+        snapshot, monster, knowledge = self._cure_critical_guardian()
+        dungeon = DungeonInfo(44, "Regression guardian", 1, 18, 1, guardian_id=9001)
+        policy = HengbotPolicy(
+            dungeon_knowledge={44: dungeon},
+            monrace_knowledge={9001: knowledge},
+        )
+
+        plan = policy._unique_fight_projection(
+            snapshot, [monster], monster, player_speed=snapshot.player.speed
+        )
+
+        self.assertIsNotNone(plan)
+        self.assertGreater(plan["healing_uses"], 0)
+        self.assertTrue(policy._guardian_fight_viable(snapshot, dungeon))
+        no_cures = replace(snapshot, inventory=[])
+        self.assertFalse(policy._guardian_fight_viable(no_cures, dungeon))
+        self.assertIsNone(
+            policy._unique_fight_projection(
+                no_cures, [monster], monster, player_speed=no_cures.player.speed
+            )
+        )
+
+    def test_committed_viable_guardian_quaffs_cure_critical_when_low(self):
+        snapshot, monster, knowledge = self._cure_critical_guardian(hp=400)
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy._unique_combat_committed_race_id = 9001
+
+        self.assertEqual(
+            policy._unique_combat_consumable(snapshot, [monster]),
+            "qc",
+        )
+        self.assertEqual(policy.last_reason, "unique:quaff-cure-critical")
+        self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
+
+    def test_guardian_without_healing_doses_remains_nonviable(self):
+        snapshot, _, knowledge = self._cure_critical_guardian(cure_count=0)
+        dungeon = DungeonInfo(44, "Regression guardian", 1, 18, 1, guardian_id=9001)
+        policy = HengbotPolicy(
+            dungeon_knowledge={44: dungeon},
+            monrace_knowledge={9001: knowledge},
+        )
+
+        self.assertFalse(policy._guardian_fight_viable(snapshot, dungeon))
+
     def test_does_not_quaff_speed_for_damage_reduction_without_healing_use(self):
         snapshot, _, knowledge = self._snapshot(
             monster_level=30,

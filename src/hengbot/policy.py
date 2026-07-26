@@ -19229,19 +19229,30 @@ class HengbotPolicy:
         if attacks > UNIQUE_COMBAT_MAX_ATTACKS:
             return None
 
-        healing_count = self._exact_potion_count(snapshot, SV_POTION_HEALING)
+        healing_doses = sorted(
+            (
+                [HEALING_POTION_HP]
+                * self._exact_potion_count(snapshot, SV_POTION_HEALING)
+                + [FIXED_QUEST_CURE_CRITICAL_HP]
+                * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
+            ),
+            reverse=True,
+        )
         reserve = max(1, ceil(snapshot.player.max_hp * UNIQUE_COMBAT_HP_RESERVE_RATIO))
         speed_snapshot = replace(
             snapshot,
             player=replace(snapshot.player, speed=player_speed),
         )
-        heal_amount = min(HEALING_POTION_HP, snapshot.player.max_hp)
-        for healing_uses in range(healing_count + 1):
+        # Each dose costs a turn. As in the fixed-quest threat budget, value the
+        # strongest realizable doses first and never credit more doses than the
+        # fight's attack window.
+        healing_doses = healing_doses[:attacks]
+        for healing_uses in range(len(healing_doses) + 1):
             turns = attacks + healing_uses + extra_turns
             operational = self._predicted_damage(
                 speed_snapshot, hostiles, turns=turns
             )
-            capacity = snapshot.player.hp + healing_uses * heal_amount
+            capacity = snapshot.player.hp + sum(healing_doses[:healing_uses])
             if operational <= capacity - reserve:
                 return {
                     "attacks": attacks,
@@ -19316,7 +19327,10 @@ class HengbotPolicy:
             target,
             player_speed=player.speed,
         )
-        healing_count = self._exact_potion_count(snapshot, SV_POTION_HEALING)
+        healing_count = (
+            self._exact_potion_count(snapshot, SV_POTION_HEALING)
+            + self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
+        )
         speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
         speed_plan = None
         if (
@@ -19342,7 +19356,7 @@ class HengbotPolicy:
                 and speed_plan["healing_uses"] < normal_plan["healing_uses"]
             )
             or (
-                # The normal projection tried every carried Healing potion and
+                # The normal projection tried every realizable healing dose and
                 # still failed; haste is worthwhile only if it makes the fight
                 # viable while consuming fewer than that entire stock.
                 normal_plan is None
@@ -19354,25 +19368,33 @@ class HengbotPolicy:
         if chosen_plan is None:
             return None
 
-        healing = self._find_exact_potion(snapshot, SV_POTION_HEALING)
+        healing = self._find_exact_potion(
+            snapshot, SV_POTION_HEALING
+        ) or self._find_exact_potion(snapshot, SV_POTION_CURE_CRITICAL)
         if chosen_plan["healing_uses"] > 0 and healing is not None:
             next_one = self._predicted_damage(snapshot, hostiles, turns=1)
-            expected_next_one = self._predicted_damage(
-                snapshot, hostiles, turns=1, expected=True
-            )
             missing_hp = player.max_hp - player.hp
-            heal_amount = min(HEALING_POTION_HP, player.max_hp)
+            heal_amount = min(
+                (
+                    HEALING_POTION_HP
+                    if healing.sval == SV_POTION_HEALING
+                    else FIXED_QUEST_CURE_CRITICAL_HP
+                ),
+                player.max_hp,
+            )
             if (
                 missing_hp > 0
-                and self._healing_potion_effective_hp(snapshot, healing)
-                >= expected_next_one
                 and (
                     next_one >= player.hp - chosen_plan["reserve"]
                     or missing_hp * 4 >= heal_amount * 3
                 )
             ):
                 self._unique_combat_committed_race_id = target.race_id
-                self.last_reason = "unique:quaff-healing"
+                self.last_reason = (
+                    "unique:quaff-healing"
+                    if healing.sval == SV_POTION_HEALING
+                    else "unique:quaff-cure-critical"
+                )
                 return QUAFF_KEY + healing.slot
 
         if speed_is_material and speed_potion is not None:
@@ -19819,6 +19841,7 @@ class HengbotPolicy:
             and (predicted >= player.hp or ranged_scroll_lock)
             and not protected_q31_hold
             and not protected_q31_stationary_engagement
+            and not self._committed_unique_fight_viable(snapshot, hostiles)
         )
         if lethal or summoner_open:
             self._emergency_escape_pending = True
