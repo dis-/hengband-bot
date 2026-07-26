@@ -19097,6 +19097,66 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
         self.assertEqual(len(policy._equipment_catalog.items), catalog_size)
 
+    def test_home_equipment_withdrawal_preserves_completed_scan(self):
+        home_item = store_item(
+            "a", 23, 1, name="withdrawal sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        home = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=817418,
+            inventory=self._strict_supplies(recall=1),
+            equipment=[self._lantern()],
+            store=StoreState(store_type=STORE_HOME, items=[home_item]),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([home_item])
+        policy._equipment_catalog.observe_home_page([home_item])
+
+        with patch.object(policy, "_decide", return_value=BUY_KEY + "a\r"):
+            policy.choose_key(home)
+
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertFalse(any(
+            owned.origin == "home"
+            for owned in policy._equipment_catalog.items
+        ))
+
+    def test_home_unsafe_or_unresolved_withdrawal_invalidates_scan(self):
+        cases = (
+            store_item(
+                "a", TVAL_FOOD, 1, name="ration", is_equipment=False,
+            ),
+            store_item(
+                "a", TVAL_ARROW, 1, name="arrows", is_equipment=True,
+            ),
+        )
+        for home_item in cases:
+            with self.subTest(item=home_item.name):
+                home = Snapshot(
+                    player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+                    {Position(10, 10): grid(10, 10)},
+                    [],
+                    turn=817418,
+                    inventory=self._strict_supplies(recall=1),
+                    equipment=[self._lantern()],
+                    store=StoreState(store_type=STORE_HOME, items=[home_item]),
+                )
+                policy = HengbotPolicy()
+                policy._equipment_catalog.home_scan_complete = True
+                with patch.object(policy, "_decide", return_value=BUY_KEY + "a\r"):
+                    policy.choose_key(home)
+                self.assertFalse(policy._equipment_catalog.home_scan_complete)
+
+        home = replace(home, store=StoreState(store_type=STORE_HOME, items=[]))
+        policy = HengbotPolicy()
+        policy._equipment_catalog.home_scan_complete = True
+        with patch.object(policy, "_decide", return_value=BUY_KEY + "z\r"):
+            policy.choose_key(home)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+
     def test_home_withdraws_one_unknown_item_then_identifies_it(self):
         identify_scroll = item(
             "i", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"

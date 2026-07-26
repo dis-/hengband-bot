@@ -366,6 +366,7 @@ class OwnedEquipmentCatalog:
         self._home_seen_pages: set[tuple[tuple, ...]] = set()
         self._home_occurrences: dict[tuple, int] = {}
         self._home_deposit_intents: set[tuple] = set()
+        self._home_withdrawal_intents: set[tuple] = set()
         self.home_scan_complete = False
 
     def refresh_carried(
@@ -460,11 +461,43 @@ class OwnedEquipmentCatalog:
             random_teleport_suppressed=random_teleport_is_suppressed(item),
         )
 
+    def record_home_withdrawal(
+        self,
+        item: StoreItem,
+        *,
+        intent: tuple,
+    ) -> None:
+        """Remove one commanded withdrawal without discarding a completed scan."""
+        if intent in self._home_withdrawal_intents:
+            return
+        self._home_withdrawal_intents.add(intent)
+        if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+            return
+        signature = _catalog_signature(item)
+        matching_ids = [
+            item_id
+            for item_id, owned in self._home.items()
+            if _catalog_signature(owned.item) == signature
+        ]
+        if not matching_ids:
+            return
+        item_id = max(
+            matching_ids,
+            key=lambda matching_id: int(matching_id.rsplit(":", 1)[1]),
+        )
+        del self._home[item_id]
+        occurrence = max(0, self._home_occurrences.get(signature, 0) - 1)
+        if occurrence:
+            self._home_occurrences[signature] = occurrence
+        else:
+            self._home_occurrences.pop(signature, None)
+
     def invalidate_home(self) -> None:
         self._home.clear()
         self._home_seen_pages.clear()
         self._home_occurrences.clear()
         self._home_deposit_intents.clear()
+        self._home_withdrawal_intents.clear()
         self.home_scan_complete = False
 
     @property

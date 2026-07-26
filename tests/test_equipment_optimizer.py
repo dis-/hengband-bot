@@ -1093,6 +1093,35 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
             ["home sword", "deposited flail"],
         )
 
+    def test_withdrawal_increment_preserves_complete_scan_and_removes_one(self):
+        catalog = OwnedEquipmentCatalog()
+        first = self._home_item("a", "matching sword")
+        second = self._home_item("b", "matching sword")
+        page = [first, second]
+        catalog.observe_home_page(page)
+        catalog.observe_home_page(page)
+
+        catalog.record_home_withdrawal(first, intent=(817418, "a"))
+
+        self.assertTrue(catalog.home_scan_complete)
+        self.assertEqual(len(catalog.items), 1)
+        signature = next(iter(catalog._home_occurrences))
+        self.assertEqual(catalog._home_occurrences[signature], 1)
+        self.assertTrue(catalog.items[0].id.endswith(":0"))
+
+    def test_withdrawal_increment_is_idempotent(self):
+        catalog = OwnedEquipmentCatalog()
+        first = self._home_item("a", "matching sword")
+        second = self._home_item("b", "matching sword")
+        page = [first, second]
+        catalog.observe_home_page(page)
+        catalog.observe_home_page(page)
+
+        catalog.record_home_withdrawal(first, intent=(817418, "a"))
+        catalog.record_home_withdrawal(first, intent=(817418, "a"))
+
+        self.assertEqual(len(catalog.items), 1)
+
     def test_refresh_carried_preserves_equipped_slot(self):
         catalog = OwnedEquipmentCatalog()
         worn = InventoryItem(

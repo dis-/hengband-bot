@@ -13,6 +13,7 @@ from hengbot.town_maps import TownMap
 from hengbot.wilderness_map import WildernessMap
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
+    AMMUNITION_TVALS,
     TR_TELEPORT,
     OwnedEquipmentCatalog,
     equipment_identity,
@@ -1858,9 +1859,31 @@ class HengbotPolicy:
             and snapshot.store.store_type == STORE_HOME
             and key.startswith(BUY_KEY)
         ):
-            # A withdrawal removes an entry and can change Home ordering and page
-            # boundaries, so its exact post-command contents require a rescan.
-            self._equipment_catalog.invalidate_home()
+            withdrawn = next(
+                (
+                    item
+                    for item in snapshot.store.items
+                    if len(key) > 1 and item.letter == key[1]
+                ),
+                None,
+            )
+            if (
+                withdrawn is None
+                or not withdrawn.is_equipment
+                or withdrawn.tval in AMMUNITION_TVALS
+            ):
+                self._equipment_catalog.invalidate_home()
+            else:
+                self._equipment_catalog.record_home_withdrawal(
+                    withdrawn,
+                    intent=(
+                        snapshot.floor_key,
+                        snapshot.turn,
+                        withdrawn.letter,
+                        self._item_signature(withdrawn),
+                        withdrawn.count,
+                    ),
+                )
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
