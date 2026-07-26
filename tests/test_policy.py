@@ -13037,6 +13037,86 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(pol._next_required_store_type(outside), STORE_HOME)
         self.assertNotEqual(pol._shopping_approach_step(outside), Position(10, 11))
 
+    def test_mining_fast_exit_does_not_preempt_idle_consumable_disposal(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._home_disposal_pass = True
+        pol._home_disposal_pending = (("missing", TVAL_FOOD, 1), "destroy")
+        pol._town_errand_plan = TownErrandPlan([STORE_HOME])
+
+        key = pol._shop(snap)
+
+        self.assertNotEqual(pol.last_reason, "home:leave-with-mining-supplies")
+        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
+        self.assertEqual(pol._town_errand_plan.index, 0)
+        self.assertTrue(pol._home_disposal_pass)
+        self.assertNotEqual(key, LEAVE_STORE_KEY)
+
+    def test_idle_consumable_disposal_does_not_trigger_shadow_drift(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        outside = replace(snap, store=None)
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._home_disposal_pass = True
+        pol._home_disposal_pending = (("missing", TVAL_FOOD, 1), "destroy")
+
+        self.assertEqual(pol._next_required_store_type(outside), STORE_HOME)
+        pol._shop(snap)
+        pol._next_required_store_type(outside)
+
+        self.assertEqual(pol._town_visit_ledger.drift_warnings, [])
+
+    def test_idle_consumable_disposal_completion_releases_mining_fast_exit(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            turn=123,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("z", TVAL_DIGGING, 4, name="pick"),
+            ],
+            store=StoreState(STORE_HOME, []),
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._home_disposal_pass = True
+
+        self.assertEqual(pol._shop(snap), " ")
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home-disposal:scan-complete")
+        self.assertFalse(pol._home_disposal_pass)
+
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:leave-with-mining-supplies")
+
     def test_completed_single_home_plan_does_not_rearm_same_owner(self):
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),

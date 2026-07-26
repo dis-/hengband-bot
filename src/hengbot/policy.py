@@ -11852,12 +11852,14 @@ class HengbotPolicy:
                     )
                     and bool(self._equipment_catalog.items)
                 )
-                if catalog_work_pending:
+                disposal_work_pending = self._home_disposal_pass
+                if catalog_work_pending or disposal_work_pending:
                     # The town router entered Home to finish the equipment
-                    # catalog.  Mining supplies being complete does not satisfy
-                    # that separate owner: fall through to the normal Home page
-                    # processor instead of escaping and immediately routing
-                    # back through the door forever.
+                    # catalog or idle-consumable disposal pass. Mining supplies
+                    # being complete does not satisfy either separate owner:
+                    # fall through to the normal Home page processor instead of
+                    # escaping and immediately routing back through the door
+                    # forever.
                     pass
                 else:
                     # This Home stop is complete for the current town visit.
