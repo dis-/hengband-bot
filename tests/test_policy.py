@@ -2552,6 +2552,45 @@ class ReturnToTownTest(unittest.TestCase):
             Position(10, 10): grid(10, 10),
         }
 
+    def _exit_owner_snapshot(self, x, *, block_upstairs=False, turn=1):
+        floors = {Position(10, column) for column in range(8, 15)}
+        grids = {
+            position: grid(
+                position.y, position.x, upstairs=position == Position(10, 14)
+            )
+            for position in floors
+        }
+        for position in floors:
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor not in grids:
+                    grids[neighbor] = grid(neighbor.y, neighbor.x, passable=False)
+        if block_upstairs:
+            grids[Position(10, 12)] = grid(10, 12, monster=True)
+        return Snapshot(
+            player(10, x, food=6000),
+            grids,
+            [],
+            turn=turn,
+            floor_key=self.FLOOR,
+            inventory=self._pack(PACK_CAPACITY),
+            width=40,
+            height=40,
+        )
+
+    def _prepare_exit_owner_policy(self, snapshot):
+        policy = HengbotPolicy()
+        policy._floor_key = self.FLOOR
+        policy._returning_to_town = True
+        policy._build_grid_index(snapshot)
+        policy._visit_counts.update(
+            {Position(10, column): 1 for column in range(8, 15)}
+        )
+        for y, x in policy._remembered_wall_t:
+            if x >= 9:
+                policy._wall_search_counts[(y, x)] = SEARCH_LIMIT
+        return policy
+
     def test_reads_an_identified_recall_scroll_when_pack_is_full(self):
         inventory = self._pack(PACK_CAPACITY - 1)
         inventory.append(item("w", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL))
@@ -2578,6 +2617,49 @@ class ReturnToTownTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(snap), "4")
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+
+    def test_return_exit_owners_do_not_alternate_when_a_monster_blocks_the_corridor(self):
+        clear = self._exit_owner_snapshot(10, turn=1)
+        blocked = self._exit_owner_snapshot(11, block_upstairs=True, turn=2)
+        clear_again = self._exit_owner_snapshot(10, turn=3)
+        policy = self._prepare_exit_owner_policy(clear)
+
+        results = []
+        for snapshot in (clear, blocked, clear_again):
+            policy._build_grid_index(snapshot)
+            policy._return_to_town_key(snapshot, [])
+            results.append(policy.last_reason)
+
+        self.assertEqual(
+            results,
+            [
+                "return:seek-upstairs",
+                "return:seek-secret-wall",
+                "return:seek-secret-wall",
+            ],
+        )
+
+    def test_plainly_reachable_upstairs_ignore_the_exit_owner_latch(self):
+        snapshot = self._exit_owner_snapshot(10)
+        policy = self._prepare_exit_owner_policy(snapshot)
+
+        self.assertEqual(policy._return_to_town_key(snapshot, []), "6")
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+
+    def test_exit_owner_latch_releases_after_two_stable_upstairs_steps(self):
+        blocked = self._exit_owner_snapshot(11, block_upstairs=True, turn=1)
+        first_clear = self._exit_owner_snapshot(10, turn=2)
+        second_clear = self._exit_owner_snapshot(9, turn=3)
+        policy = self._prepare_exit_owner_policy(blocked)
+
+        self.assertEqual(policy._return_to_town_key(blocked, []), "4")
+        self.assertEqual(policy.last_reason, "return:seek-secret-wall")
+        policy._build_grid_index(first_clear)
+        self.assertEqual(policy._return_to_town_key(first_clear, []), "4")
+        self.assertEqual(policy.last_reason, "return:seek-secret-wall")
+        policy._build_grid_index(second_clear)
+        self.assertEqual(policy._return_to_town_key(second_clear, []), "6")
         self.assertEqual(policy.last_reason, "return:seek-upstairs")
 
     def test_return_ignores_a_nonadjacent_weak_enemy_and_keeps_seeking_upstairs(self):

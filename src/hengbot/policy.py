@@ -1556,6 +1556,8 @@ class HengbotPolicy:
         self._descent_block_countdown = 0
         self._returning_to_town = False
         self._last_return_trigger: str | None = None  # why the last town return began
+        self._return_exit_wall_owner = False
+        self._return_upstairs_step_streak = 0
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         # threat_prediction results for the CURRENT snapshot, keyed by object
@@ -3838,6 +3840,8 @@ class HengbotPolicy:
             self._blocked_rubble.clear()
             self._search_counts.clear()
             self._wall_search_counts.clear()
+            self._return_exit_wall_owner = False
+            self._return_upstairs_step_streak = 0
             self._remembered_floor_t.clear()
             self._remembered_door_t.clear()
             self._remembered_rubble_t.clear()
@@ -19059,10 +19063,45 @@ class HengbotPolicy:
             self.last_reason = "return:recall"
             return READ_KEY + recall.slot
 
-        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-        if step is not None:
+        upstairs_step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        if self._return_exit_wall_owner:
+            if upstairs_step is None:
+                self._return_upstairs_step_streak = 0
+            else:
+                self._return_upstairs_step_streak += 1
+                if self._return_upstairs_step_streak >= 2:
+                    self._return_exit_wall_owner = False
+                    self._return_upstairs_step_streak = 0
+                    self.last_reason = "return:seek-upstairs"
+                    return self._step_toward(snapshot, upstairs_step)
+
+            # A temporary occupant can split a one-tile corridor in the
+            # remembered movement graph for one decision. Once that hands the
+            # exit search to the wall owner, keep consuming its existing search
+            # budgets instead of letting a single clear redraw reverse course.
+            if (
+                not self._is_forgetting_maze(snapshot)
+                and not player.blind
+                and not player.confused
+            ):
+                if self._undersearched_walls(player.position):
+                    self._record_wall_search(player.position)
+                    self.last_reason = "return:search-upstairs"
+                    return SEARCH_KEY
+                step = self._secret_wall_search_step(snapshot)
+                if step is not None:
+                    self.last_reason = "return:seek-secret-wall"
+                    return self._step_toward(snapshot, step)
+
+            # No wall-search budget remains reachable. Release ownership so the
+            # normal return rungs (including a currently valid stair path) can
+            # make progress.
+            self._return_exit_wall_owner = False
+            self._return_upstairs_step_streak = 0
+
+        if upstairs_step is not None:
             self.last_reason = "return:seek-upstairs"
-            return self._step_toward(snapshot, step)
+            return self._step_toward(snapshot, upstairs_step)
 
         if self._is_oscillating():
             # The ordinary exploration owner has an oscillation breakout below,
@@ -19106,6 +19145,8 @@ class HengbotPolicy:
                 return SEARCH_KEY
             step = self._secret_wall_search_step(snapshot)
             if step is not None:
+                self._return_exit_wall_owner = True
+                self._return_upstairs_step_streak = 0
                 self.last_reason = "return:seek-secret-wall"
                 return self._step_toward(snapshot, step)
 
