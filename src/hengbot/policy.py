@@ -13982,10 +13982,18 @@ class HengbotPolicy:
         sub_hand = next(
             (it for it in snapshot.equipment if it.slot == "sub_hand"), None
         )
+        cursed_main_stays_wielded = (
+            main_hand is not None
+            and not main_hand.is_digging_tool
+            and main_hand.is_cursed
+            and self._curse_unremovable(main_hand)
+        )
         target_slot = (
-            "main_hand"
-            if main_hand is None or not main_hand.is_digging_tool
-            else "sub_hand"
+            "sub_hand"
+            if cursed_main_stays_wielded or (
+                main_hand is not None and main_hand.is_digging_tool
+            )
+            else "main_hand"
         )
         tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
         if tool is None:
@@ -13994,18 +14002,11 @@ class HengbotPolicy:
         if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
             self._digger_wield_attempts = 0
             return None
-        # A confirmed cursed main-hand weapon cannot be replaced in the
-        # dungeon.  Retrying the same wield macro only burns seven decisions
-        # before the generic transaction leash gives up, so reject it before
-        # issuing even the first command.
         if (
             main_hand is not None
             and not main_hand.is_digging_tool
-            and main_hand.is_cursed
+            and not cursed_main_stays_wielded
         ):
-            self._digger_wield_attempts = 0
-            return None
-        if main_hand is not None and not main_hand.is_digging_tool:
             self._normal_weapon_name = main_hand.name
         if (
             target_slot == "sub_hand"

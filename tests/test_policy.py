@@ -29990,14 +29990,24 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol.last_reason, "restore:abandon-unconfirmed-equip"
         )
 
-    def test_cursed_main_weapon_rejects_digger_wield_immediately(self):
+    def test_heavy_cursed_main_weapon_wields_digger_offhand_and_mines(self):
         snap = Snapshot(
             player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
-            {Position(12, 126): grid(12, 126), Position(13, 126): grid(13, 126)},
+            {
+                Position(12, 126): grid(12, 126),
+                Position(12, 127): grid(
+                    12, 127, passable=False, gold=True, can_dig=True
+                ),
+            },
             [],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=[
-                item("t", TVAL_SCROLL, 9, count=3),
+                item(
+                    "s",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=3,
+                ),
                 item("j", TVAL_DIGGING, SV_DIGGING_SHOVEL),
             ],
             equipment=[
@@ -30008,20 +30018,80 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                     5,
                     is_equipment=True,
                     is_cursed=True,
+                    inscription="HEAVY_CURSE",
                     name="Cursed Mace",
                 ),
-                item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
             ],
         )
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
+        pol._known_treasure = {Position(12, 127)}
 
-        self.assertIsNone(
+        self.assertEqual(
             pol._wield_digging_tool_key(
                 snap, "fundraise:wield-digging-tool"
-            )
+            ),
+            "wjy",
         )
+        self.assertIsNone(pol._normal_weapon_name)
+
+        wielded = replace(
+            snap,
+            inventory=[
+                item(
+                    "s",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=3,
+                )
+            ],
+            equipment=[
+                *snap.equipment,
+                item(
+                    "sub_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+            ],
+        )
+        self.assertIsNotNone(pol._equipped_digging_tool(wielded))
+        with patch.object(pol, "_fundraising_food_ready", return_value=True), \
+             patch.object(pol, "_mining_detection_scroll_target", return_value=0):
+            self.assertTrue(pol._fundraising_supplies_ready(wielded))
+        self.assertTrue(pol._combat_weapon_ready(wielded))
+        self.assertEqual(pol._fundraising_key(wielded, []), TUNNEL_KEY + "6")
+        self.assertEqual(pol.last_reason, "fundraise:dig-to-treasure")
+
+    def test_heavy_cursed_main_offhand_digger_wield_is_bounded(self):
+        from hengbot.policy import DIGGER_WIELD_LIMIT
+
+        snap = Snapshot(
+            player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000),
+            {Position(12, 126): grid(12, 126)},
+            [],
+            inventory=[item("j", TVAL_DIGGING, SV_DIGGING_SHOVEL)],
+            equipment=[
+                item(
+                    "main_hand",
+                    21,
+                    5,
+                    is_equipment=True,
+                    is_cursed=True,
+                    inscription="HEAVY_CURSE",
+                    name="Cursed Mace",
+                ),
+            ],
+        )
+        pol = HengbotPolicy()
+
+        keys = [
+            pol._wield_digging_tool_key(snap, "mine:wield")
+            for _ in range(DIGGER_WIELD_LIMIT)
+        ]
+        self.assertEqual(keys[:-1], ["wjy"] * (DIGGER_WIELD_LIMIT - 1))
+        self.assertIsNone(keys[-1])
         self.assertEqual(pol._digger_wield_attempts, 0)
 
 
