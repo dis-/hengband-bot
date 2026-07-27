@@ -22225,6 +22225,8 @@ class HengbotPolicy:
         )
 
     def _undersearched_walls(self, position: Position) -> list[tuple[int, int]]:
+        if self._search_counts[(position.y, position.x)] >= SEARCH_LIMIT:
+            return []
         return [
             key
             for dy, dx in NEIGHBOR_OFFSETS
@@ -22234,7 +22236,11 @@ class HengbotPolicy:
         ]
 
     def _record_wall_search(self, position: Position) -> None:
-        for key in self._undersearched_walls(position):
+        walls = self._undersearched_walls(position)
+        if not walls:
+            return
+        self._search_counts[(position.y, position.x)] += 1
+        for key in walls:
             self._wall_search_counts[key] += 1
 
     def _secret_wall_search_step(self, snapshot: Snapshot) -> Position | None:

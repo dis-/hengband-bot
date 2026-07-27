@@ -1686,6 +1686,54 @@ class SearchTest(unittest.TestCase):
         self.assertEqual(policy._return_to_town_key(snapshot, []), "s")
         self.assertEqual(policy.last_reason, "return:search-upstairs")
 
+    def test_disengage_search_upstairs_yields_after_the_tile_budget(self):
+        snapshot = self._sealed_dead_end((DUNGEON_ANGBAND, 20, 0))
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._fruitless_disengage_floor = snapshot.floor_key
+        ordinary_searches = 3
+        policy._search_counts[(10, 10)] = ordinary_searches
+        policy._build_grid_index(snapshot)
+
+        with patch.object(
+            policy, "_least_visited_neighbor", return_value=Position(10, 11)
+        ):
+            keys = [
+                policy._fruitless_disengage_key(snapshot, [])
+                for _ in range(SEARCH_LIMIT - ordinary_searches + 1)
+            ]
+
+        remaining_budget = SEARCH_LIMIT - ordinary_searches
+        self.assertEqual(keys[:remaining_budget], ["s"] * remaining_budget)
+        self.assertEqual(keys[remaining_budget], "6")
+        self.assertEqual(policy.last_reason, "combat:disengage-wander")
+
+    def test_disengage_search_upstairs_still_searches_within_budget(self):
+        snapshot = self._sealed_dead_end((DUNGEON_ANGBAND, 20, 0))
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._fruitless_disengage_floor = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(policy._fruitless_disengage_key(snapshot, []), "s")
+        self.assertEqual(policy.last_reason, "combat:disengage-search-upstairs")
+
+    def test_return_wall_search_shares_the_ordinary_tile_budget(self):
+        snapshot = self._sealed_dead_end((DUNGEON_ANGBAND, 20, 0))
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._returning_to_town = True
+        policy._search_counts[(10, 10)] = SEARCH_LIMIT
+        policy._build_grid_index(snapshot)
+
+        with patch.object(
+            policy, "_least_visited_neighbor", return_value=Position(10, 11)
+        ):
+            self.assertEqual(policy._return_to_town_key(snapshot, []), "6")
+
+        self.assertEqual(policy.last_reason, "return:wander")
+        self.assertEqual(policy._wall_search_counts.total(), 0)
+
     def test_secret_search_prefers_corridor_end_over_room_perimeter(self):
         floors = {
             Position(10, 10),
