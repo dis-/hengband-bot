@@ -14113,6 +14113,18 @@ class HengbotPolicy:
         assert macro is not None
         return macro
 
+    def _cursed_main_stays_wielded(self, snapshot: Snapshot) -> bool:
+        """Return whether a confirmed unremovable non-digger locks the main hand."""
+        main_hand = next(
+            (it for it in snapshot.equipment if it.slot == "main_hand"), None
+        )
+        return (
+            main_hand is not None
+            and not main_hand.is_digging_tool
+            and main_hand.is_cursed
+            and self._curse_unremovable(main_hand)
+        )
+
     def _wield_digging_tool_key(
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
@@ -14123,12 +14135,7 @@ class HengbotPolicy:
         sub_hand = next(
             (it for it in snapshot.equipment if it.slot == "sub_hand"), None
         )
-        cursed_main_stays_wielded = (
-            main_hand is not None
-            and not main_hand.is_digging_tool
-            and main_hand.is_cursed
-            and self._curse_unremovable(main_hand)
-        )
+        cursed_main_stays_wielded = self._cursed_main_stays_wielded(snapshot)
         target_slot = (
             "sub_hand"
             if cursed_main_stays_wielded or (
@@ -14974,7 +14981,12 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, step)
             return self._leave_fundraising_floor(snapshot)
 
-        desired_diggers = min(2, self._digging_tool_count(snapshot))
+        wieldable_diggers = (
+            1 if self._cursed_main_stays_wielded(snapshot) else 2
+        )
+        desired_diggers = min(
+            wieldable_diggers, self._digging_tool_count(snapshot)
+        )
         equipped_diggers = sum(
             1 for item in snapshot.equipment if item.is_digging_tool
         )

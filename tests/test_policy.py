@@ -30168,7 +30168,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol.last_reason, "restore:abandon-unconfirmed-equip"
         )
 
-    def test_heavy_cursed_main_weapon_wields_digger_offhand_and_mines(self):
+    def test_cursed_locked_main_with_offhand_digger_ignores_second_digger(self):
         snap = Snapshot(
             player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
             {
@@ -30222,7 +30222,13 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                     TVAL_SCROLL,
                     SV_SCROLL_DETECT_TREASURE,
                     count=3,
-                )
+                ),
+                item(
+                    "k",
+                    TVAL_DIGGING,
+                    4,
+                    name="Pick",
+                ),
             ],
             equipment=[
                 *snap.equipment,
@@ -30241,6 +30247,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertTrue(pol._combat_weapon_ready(wielded))
         self.assertEqual(pol._fundraising_key(wielded, []), TUNNEL_KEY + "6")
         self.assertEqual(pol.last_reason, "fundraise:dig-to-treasure")
+        self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")
 
     def test_heavy_cursed_main_offhand_digger_wield_is_bounded(self):
         from hengbot.policy import DIGGER_WIELD_LIMIT
