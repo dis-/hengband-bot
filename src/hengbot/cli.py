@@ -325,10 +325,8 @@ def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
 
 
 def _uses_multiplier_combat_grace(reason: str) -> bool:
-    """Recognize both the legacy and current deep-fundraising combat labels."""
-    return reason.startswith(
-        ("fundraise:eliminate-multiplier", "fundraise:clear-hostile")
-    )
+    """Recognize the fundraising multiplier-combat label."""
+    return reason.startswith("fundraise:eliminate-multiplier")
 
 
 def _advance_town_blocked_streak(streak: int, reason: str) -> int:

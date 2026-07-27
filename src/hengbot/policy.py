@@ -1118,11 +1118,7 @@ FUNDRAISING_KIT_MARGIN = (
     - FUNDRAISING_DIGGER_BASE_PRICE
     - FUNDRAISING_DETECTION_BASE_PRICE
 )
-DEEP_FUNDRAISING_DEPTH = 13
-DEEP_FUNDRAISING_MIN_LEVEL = 20
-DEEP_FUNDRAISING_MIN_MAX_HP = 250
-DEEP_FUNDRAISING_DETECTION_RADIUS = 30
-DEEP_FUNDRAISING_SCROLLS_PER_RUN = 4
+MINING_DETECTION_RADIUS = 30
 INN_BUILDING_TYPE = 0
 HUNTER_OFFICE_BUILDING_TYPE = 13
 RUMOR_KEY = "u"
@@ -1711,14 +1707,8 @@ class HengbotPolicy:
         self._fundraising_mode: str | None = None
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
-        # A deep-eligible fundraiser may still be unable to afford the safe 13F
-        # departure kit.  In that case one trip is explicitly downgraded to the
-        # proven 1F mining route; keep the choice latched until that trip returns
-        # so ordinary town promotion cannot turn it deep again mid-visit.
-        self._shallow_fundraising_trip = False
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
         self._mining_detection_centers: list[Position] = []
-        self._fundraising_pursuit_target: Position | None = None
         self._sell_scavenged_consumables = False
         self._normal_weapon_name: str | None = None
         self._normal_sub_hand_name: str | None = None
@@ -2022,7 +2012,6 @@ class HengbotPolicy:
             return key
         safe_exploration = self.last_reason in {
             "explore",
-            "fundraise:deep-explore",
             "fundraise:sweep-explore",
         }
         safe_q2_patrol = (
@@ -2118,14 +2107,7 @@ class HengbotPolicy:
             and snapshot.player.gold < FUNDRAISING_START_GOLD
         ):
             self._fundraising_mode = "prepare"
-        deep_fundraising_restart = (
-            snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
-            and self._deep_fundraising_active(snapshot)
-            and self._has_digging_tool(snapshot)
-        )
-        resumable_fundraising_floor = (
-            snapshot.dungeon_level == 1 or deep_fundraising_restart
-        )
+        resumable_fundraising_floor = snapshot.dungeon_level == 1
         main_hand_digger = next(
             (
                 item
@@ -3740,7 +3722,7 @@ class HengbotPolicy:
             snapshot.in_town
             and previous_floor is not None
             and previous_floor[0] == DUNGEON_YEEK_CAVE
-            and previous_floor[1] in {1, DEEP_FUNDRAISING_DEPTH}
+            and previous_floor[1] == 1
             and self._fundraising_mode in {"mine", "scavenge"}
         )
         if returned_from_fundraising:
@@ -3767,7 +3749,6 @@ class HengbotPolicy:
             self._processed_home_items.clear()
             self._equipment_optimization_signature = None
             self._equipment_optimization_preparation = None
-            self._shallow_fundraising_trip = False
 
         if snapshot.in_town:
             self._returning_to_town = False
@@ -3828,7 +3809,6 @@ class HengbotPolicy:
             self._q2_blue_recovery_complete = False
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
-            self._fundraising_pursuit_target = None
             self._visit_counts.clear()
             self._recent.clear()
             self._osc_positions.clear()
@@ -5669,8 +5649,6 @@ class HengbotPolicy:
         """Allow a shallow cash run when town cannot sell the preferred reserve."""
         if self._food_ready(snapshot):
             return True
-        if self._deep_fundraising_active(snapshot):
-            return False
         food_store = (
             STORE_MAGIC
             if snapshot.player.food_type == FOOD_TYPE_MANA
@@ -5732,20 +5710,6 @@ class HengbotPolicy:
         return status.required_departure
 
     def _recall_required_target(self, snapshot: Snapshot) -> int:
-        if (
-            snapshot.in_town
-            and self._fundraising_mode in {"prepare", "mine"}
-            and self._deep_fundraising_active(snapshot)
-        ):
-            remaining_runs = max(
-                1,
-                self._effective_mining_run_target()
-                - self._mining_runs_completed,
-            )
-            # Each deep floor consumes one recall to enter and one to return.
-            # Finish the batch with the normal emergency reserve still intact.
-            return RECALL_RETURN_THRESHOLD + 2 * remaining_runs
-
         target = self._recall_target(self._planned_depth())
         # A town departure by recall consumes one scroll before the expedition
         # starts.  Buy that scroll in addition to the in-dungeon reserve, or the
@@ -5819,36 +5783,6 @@ class HengbotPolicy:
     def _teleport_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["teleport"]
         return status.count >= status.required_departure
-
-    def _deep_fundraising_teleport_ready(self, snapshot: Snapshot) -> bool:
-        """Allow a partial mining batch with a bounded escape budget.
-
-        Fifteen scrolls remains the preferred shop target.  Once the relevant
-        stores have no more stock, however, requiring the exact target can hold
-        the bot in town forever after a single emergency use.  Keep the normal
-        low reserve plus one additional teleport for every planned run.
-        """
-        required = min(
-            TELEPORT_SCROLL_DEEP_TARGET,
-            TELEPORT_RETURN_THRESHOLD + self._effective_mining_run_target(),
-        )
-        return self._supply_ledger(snapshot, self._planned_depth())["teleport"].count >= required
-
-    def _deep_fundraising_escape_reserve_low(self, snapshot: Snapshot) -> bool:
-        """End a 13F income run once its normal teleport reserve is spent.
-
-        Fundraising deliberately owns its return policy and is therefore
-        exempt from ``_should_start_town_return``'s ordinary supply checks.
-        That exemption must not also waive the deep-floor escape reserve.  Use
-        the same ledger threshold as a normal 10F+ expedition so reconnecting
-        a bot cannot forget that the run was already exhausted.
-        """
-        if snapshot.dungeon_level != DEEP_FUNDRAISING_DEPTH:
-            return False
-        teleport = self._supply_ledger(
-            snapshot, snapshot.dungeon_level
-        )["teleport"]
-        return teleport.count < teleport.required_return
 
     def _cure_critical_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["cure"]
@@ -6675,7 +6609,6 @@ class HengbotPolicy:
             and player.hp >= player.max_hp
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
-            and self._mandatory_home_deposit(snapshot) is None
             and (
                 not self._home_available(snapshot)
                 or (
@@ -7528,8 +7461,7 @@ class HengbotPolicy:
         return self._first_item(
             snapshot,
             lambda item: (
-                self._must_stash_before_deep_mining(snapshot, item)
-                or self._home_deposit_candidate(item, snapshot)
+                self._home_deposit_candidate(item, snapshot)
                 or self._is_surplus_digging_tool(snapshot, item)
             )
             and not self._is_wanted_jewelry(snapshot, item)
@@ -7552,54 +7484,6 @@ class HengbotPolicy:
             )
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot,
-        )
-
-    @staticmethod
-    def _is_unsecured_full_identification_candidate(item: InventoryItem) -> bool:
-        """Gear whose hidden traits make carrying it into a deep mine unsafe."""
-        return (
-            item.known
-            and item_requires_full_identification(item)
-            and not item.fully_known
-        )
-
-    def _has_unsecured_full_identification_candidate(
-        self, snapshot: Snapshot
-    ) -> bool:
-        return any(
-            self._is_unsecured_full_identification_candidate(item)
-            for item in snapshot.inventory
-        )
-
-    def _must_stash_before_deep_mining(
-        self, snapshot: Snapshot, item: InventoryItem
-    ) -> bool:
-        return (
-            self._fundraising_mode in {"prepare", "mine"}
-            and self._deep_fundraising_active(snapshot)
-            and self._is_unsecured_full_identification_candidate(item)
-        )
-
-    def _mandatory_home_deposit(
-        self, snapshot: Snapshot
-    ) -> InventoryItem | None:
-        """Return only a safety-critical deposit that must precede departure."""
-        if self._home_full or self._home_deposit_abandoned:
-            return None
-        return self._first_item(
-            snapshot,
-            lambda item: (
-                self._must_stash_before_deep_mining(snapshot, item)
-                and not self._is_wanted_jewelry(snapshot, item)
-                and self._item_signature(item) not in self._home_rejected_deposits
-                and self._item_signature(item) not in self._home_pending_batch
-                and (
-                    self._home_withdraw_inflight is None
-                    or self._item_signature(item) != self._home_withdraw_inflight[0]
-                )
-                and item.slot != self._home_pending_slot
-                and item.slot != self._pending_disposal_slot
-            ),
         )
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
@@ -9066,39 +8950,8 @@ class HengbotPolicy:
     def _effective_mining_run_target(self) -> int:
         return self._planned_mining_runs or MINING_RUNS_PER_SET
 
-    def _activate_partial_deep_mining_plan(self, snapshot: Snapshot) -> bool:
-        """Use every complete safe deep-mining run when a full batch is unavailable."""
-        if not self._deep_fundraising_active(snapshot):
-            return False
-        remaining_cap = max(
-            0, MINING_RUNS_PER_SET - self._mining_runs_completed
-        )
-        scroll_runs = (
-            self._count_treasure_detection_scrolls(snapshot)
-            // DEEP_FUNDRAISING_SCROLLS_PER_RUN
-        )
-        recall_runs = max(
-            0,
-            (
-                self._supply_ledger(snapshot, self._planned_depth())["recall"].count
-                - RECALL_RETURN_THRESHOLD
-            )
-            // 2,
-        )
-        additional_runs = min(remaining_cap, scroll_runs, recall_runs)
-        if additional_runs < 1:
-            return False
-        planned_total = self._mining_runs_completed + additional_runs
-        if planned_total >= self._effective_mining_run_target():
-            return False
-        self._planned_mining_runs = planned_total
-        self._fundraising_mode = "mine"
-        return True
-
     def _activate_partial_mining_plan(self, snapshot: Snapshot) -> bool:
         """Use the mining runs supported by detection scrolls already carried."""
-        if self._deep_fundraising_active(snapshot):
-            return self._activate_partial_deep_mining_plan(snapshot)
         remaining_cap = max(
             0, MINING_RUNS_PER_SET - self._mining_runs_completed
         )
@@ -9120,143 +8973,7 @@ class HengbotPolicy:
             0,
             self._effective_mining_run_target() - self._mining_runs_completed,
         )
-        per_run = (
-            DEEP_FUNDRAISING_SCROLLS_PER_RUN
-            if self._deep_fundraising_active(snapshot)
-            else 1
-        )
-        return remaining_runs * per_run
-
-    def _deep_fundraising_eligible(self, snapshot: Snapshot) -> bool:
-        """Whether Yeek Cave 13F is a suitably safe, directly recallable mine."""
-        return (
-            snapshot.player.class_id == PLAYER_CLASS_WARRIOR
-            and snapshot.player.level >= DEEP_FUNDRAISING_MIN_LEVEL
-            and snapshot.player.max_hp >= DEEP_FUNDRAISING_MIN_MAX_HP
-            and snapshot.yeek_cave_conquered
-            and DUNGEON_YEEK_CAVE in snapshot.entered_dungeon_ids
-            and snapshot.recall_depth >= DEEP_FUNDRAISING_DEPTH
-            and not self._missing_required_abilities(
-                snapshot, DEEP_FUNDRAISING_DEPTH
-            )
-        )
-
-    def _deep_fundraising_active(self, snapshot: Snapshot) -> bool:
-        """Whether this campaign trip should use the deep mining contract."""
-        return (
-            not self._shallow_fundraising_trip
-            and self._deep_fundraising_eligible(snapshot)
-        )
-
-    def _shallow_fundraising_ready(self, snapshot: Snapshot) -> bool:
-        """The minimum safe 1F mining kit, independent of deep eligibility."""
-        player = snapshot.player
-        return (
-            self._shallow_fundraising_food_ready(snapshot)
-            and self._fundraising_light_ready(snapshot)
-            and self._has_digging_tool(snapshot)
-            and self._count_treasure_detection_scrolls(snapshot) >= 1
-            and player.hp >= player.max_hp
-            and player.mp >= player.max_mp
-            and self._temporary_status_clear(snapshot)
-        )
-
-    def _shallow_fundraising_food_ready(self, snapshot: Snapshot) -> bool:
-        player = snapshot.player
-        food_store = (
-            STORE_MAGIC if player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
-        )
-        return self._food_ready(snapshot) or (
-            not player.hungry and food_store in self._town_store_attempted
-        )
-
-    def _shallow_fundraising_available(self, snapshot: Snapshot) -> bool:
-        """Whether the 1F kit is carried or its missing mining pieces are affordable."""
-        if self._shallow_fundraising_ready(snapshot):
-            return True
-        if self._town_restock_suppressed:
-            return False
-        player = snapshot.player
-        return (
-            self._fundraising_light_ready(snapshot)
-            and self._shallow_fundraising_food_ready(snapshot)
-            and player.hp >= player.max_hp
-            and player.mp >= player.max_mp
-            and self._temporary_status_clear(snapshot)
-            and snapshot.player.gold >= self._fundraising_kit_reserve(snapshot)
-        )
-
-    def _activate_shallow_fundraising_trip(self, snapshot: Snapshot) -> bool:
-        """Convert an unmeetable deep trip directly to one carried-scroll 1F run."""
-        if self._shallow_fundraising_trip:
-            # This method is a one-way campaign transition, not a per-decision
-            # readiness check. Re-running it while the shallow kit is still being
-            # procured clears the errand plan and reopens Home/Alchemist every
-            # turn; an empty Home then becomes an enter/leave loop. Preserve the
-            # first transition's plan and visit latches until procurement either
-            # succeeds or the ordinary bounded fallback takes over.
-            return False
-        shallow_ready = self._shallow_fundraising_ready(snapshot)
-        deep_kit_ready = (
-            self._fundraising_supplies_ready(snapshot)
-            and self._recall_ready(snapshot)
-            and self._deep_fundraising_teleport_ready(snapshot)
-            and self._cure_critical_ready(snapshot)
-        )
-        if (
-            self._fundraising_mode != "mine"
-            or not self._deep_fundraising_eligible(snapshot)
-            or self._fundraising_departure_ready(snapshot)
-            # Preserve a deep trip only when a carried item still has actionable
-            # Home work.  A candidate that already lives in Home (for example
-            # while *Identify* is out of stock) cannot be advanced by waiting in
-            # town and must not delay an otherwise-safe 1F mining trip.
-            or (
-                deep_kit_ready
-                and not self._home_deposit_abandoned
-                and (
-                    self._has_unsecured_full_identification_candidate(snapshot)
-                    or self._find_home_deposit(snapshot) is not None
-                )
-            )
-            or not self._shallow_fundraising_available(snapshot)
-            # These are deep-trip gates, not 1F mining requirements.  Preserve
-            # their owners while the shallow kit still needs shopping, but do
-            # not let them reject an already-carried safe shallow kit: the old
-            # scavenge cycle recovery bypasses them too, only much later.
-            or (
-                not shallow_ready
-                and (
-                    self._has_unsecured_full_identification_candidate(snapshot)
-                    or self._find_home_deposit(snapshot) is not None
-                    or not any(
-                        item.slot == "main_hand"
-                        and item.is_melee_weapon
-                        and not item.is_digging_tool
-                        for item in snapshot.equipment
-                    )
-                    or any(
-                        self._blocks_teleport(item)
-                        for item in (*snapshot.inventory, *snapshot.equipment)
-                    )
-                )
-            )
-        ):
-            return False
-        self._shallow_fundraising_trip = True
-        self._planned_mining_runs = min(
-            MINING_RUNS_PER_SET,
-            self._mining_runs_completed
-            + max(1, self._count_treasure_detection_scrolls(snapshot)),
-        )
-        self._town_errand_plan = None
-        if not self._has_digging_tool(snapshot):
-            self._town_store_attempted.pop(STORE_HOME, None)
-            self._town_store_attempted.pop(STORE_GENERAL, None)
-        if self._count_treasure_detection_scrolls(snapshot) < 1:
-            self._town_store_attempted.pop(STORE_HOME, None)
-            self._town_store_attempted.pop(STORE_ALCHEMIST, None)
-        return True
+        return remaining_runs
 
     def _fundraising_light_ready(self, snapshot: Snapshot) -> bool:
         """Whether level-one fundraising can start with a working light."""
@@ -9397,11 +9114,6 @@ class HengbotPolicy:
         book_sale = self._find_book_sale(snapshot)
         if book_sale is not None:
             add(self._book_sale_store_type(book_sale), "book-sale")
-        if self._home_available(snapshot) and any(
-            self._must_stash_before_deep_mining(snapshot, item)
-            for item in snapshot.inventory
-        ):
-            add(STORE_HOME, "deep-mining-deposit", "home-first")
         if (
             self._home_available(snapshot)
             and STORE_HOME not in self._town_store_attempted
@@ -9413,13 +9125,7 @@ class HengbotPolicy:
             self._identification_need is None
             and self._home_available(snapshot)
             and STORE_HOME not in self._town_store_attempted
-            and (
-                not fundraising_active
-                or (
-                    self._fundraising_mode in {"prepare", "mine"}
-                    and self._deep_fundraising_active(snapshot)
-                )
-            )
+            and not fundraising_active
             and self._find_home_deposit(snapshot) is not None
         ):
             add(STORE_HOME, "deposit", "home-first")
@@ -9478,27 +9184,14 @@ class HengbotPolicy:
                     add(food_store, "fundraising-food")
             if self._planned_mining_runs is None:
                 remaining_cap = max(0, MINING_RUNS_PER_SET - self._mining_runs_completed)
-                per_run = DEEP_FUNDRAISING_SCROLLS_PER_RUN if self._deep_fundraising_active(snapshot) else 1
                 additional_runs = min(
                     remaining_cap,
-                    self._count_treasure_detection_scrolls(snapshot) // per_run,
-                    max(
-                        0,
-                        (
-                            self._supply_ledger(snapshot, self._planned_depth())["recall"].count
-                            - RECALL_RETURN_THRESHOLD
-                        )
-                        // 2,
-                    )
-                    if self._deep_fundraising_active(snapshot)
-                    else remaining_cap,
+                    self._count_treasure_detection_scrolls(snapshot),
                 )
                 planned_runs = self._mining_runs_completed + max(0, additional_runs)
             else:
                 planned_runs = self._planned_mining_runs
-            scrolls_needed = max(0, planned_runs - self._mining_runs_completed) * (
-                DEEP_FUNDRAISING_SCROLLS_PER_RUN if self._deep_fundraising_active(snapshot) else 1
-            )
+            scrolls_needed = max(0, planned_runs - self._mining_runs_completed)
             if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
                 if STORE_HOME not in self._town_store_attempted:
                     add(STORE_HOME, "stored-detection", "home-first")
@@ -9719,7 +9412,6 @@ class HengbotPolicy:
             ("safe-weapon", "home-first", 1, True),  # A teleport-safe weapon is a departure safety gate.
             ("combat-weapon", "home-first", 1, True),  # Combat weapon readiness gates departure.
             ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
-            ("deep-mining-deposit", "home-first", 1, True),  # Unsafe deep-mining cargo must be deposited.
             ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
             ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
             ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
@@ -10411,19 +10103,15 @@ class HengbotPolicy:
             if not self._fundraising_food_ready(snapshot):
                 store_type = STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
                 if store_type in self._town_store_attempted:
-                    if self._activate_shallow_fundraising_trip(snapshot):
-                        self._town_blocked_reason = None
-                    else:
-                        self._fundraising_mode = "scavenge"
-                        self._shallow_fundraising_trip = True
-                        self._scavenge_entry_gold = snapshot.player.gold
-                        self._town_blocked_reason = None
+                    self._fundraising_mode = "scavenge"
+                    self._scavenge_entry_gold = snapshot.player.gold
+                    self._town_blocked_reason = None
                     return
             if self._planned_mining_runs is None:
                 self._activate_partial_mining_plan(snapshot)
             detection_low = self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_scroll_target(snapshot)
             if detection_low and STORE_HOME in self._town_store_attempted and STORE_ALCHEMIST in self._town_store_attempted:
-                if self._activate_partial_deep_mining_plan(snapshot) or self._try_normal_expedition_after_detection_stockout(snapshot):
+                if self._activate_partial_mining_plan(snapshot) or self._try_normal_expedition_after_detection_stockout(snapshot):
                     return
                 self._fundraising_mode = "scavenge"
                 self._scavenge_entry_gold = snapshot.player.gold
@@ -10477,7 +10165,7 @@ class HengbotPolicy:
                 self._retry_after_store_restock(snapshot, recall_stores)
                 return
             if not self._recall_departure_ready(snapshot):
-                if self._activate_partial_deep_mining_plan(snapshot) or self._start_fundraising(snapshot):
+                if self._start_fundraising(snapshot):
                     return
                 self._retry_after_store_restock(snapshot, recall_stores)
                 return
@@ -10497,7 +10185,7 @@ class HengbotPolicy:
             if not self._start_fundraising(snapshot):
                 self._retry_after_store_restock(snapshot, cure_stores)
             return
-        if self._activate_shallow_fundraising_trip(snapshot) or self._retry_processed_home_identification(snapshot) or self._start_identification_fundraising(snapshot):
+        if self._retry_processed_home_identification(snapshot) or self._start_identification_fundraising(snapshot):
             return
         self._town_restock_wait_until = None
 
@@ -10530,7 +10218,6 @@ class HengbotPolicy:
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False
         self._planned_mining_runs = None
-        self._shallow_fundraising_trip = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
@@ -10552,7 +10239,6 @@ class HengbotPolicy:
 
         self._fundraising_mode = None
         self._planned_mining_runs = None
-        self._shallow_fundraising_trip = False
         self._scavenge_entry_gold = None
         self._town_restock_suppressed = False
         self._town_restock_wait_until = None
@@ -11823,24 +11509,9 @@ class HengbotPolicy:
                 )
 
         if store.store_type == STORE_HOME:
-            mandatory_deposit = self._first_item(
-                snapshot,
-                lambda item: self._must_stash_before_deep_mining(snapshot, item),
-            )
-            if mandatory_deposit is not None:
-                return self._home_deposit_key(snapshot, mandatory_deposit)
-
             rearm = self._home_rearm_key(snapshot)
             if rearm is not None:
                 return rearm
-
-            if (
-                self._fundraising_mode in {"prepare", "mine"}
-                and self._deep_fundraising_active(snapshot)
-            ):
-                deep_mining_deposit = self._find_home_deposit(snapshot)
-                if deep_mining_deposit is not None:
-                    return self._home_deposit_key(snapshot, deep_mining_deposit)
 
             if self._home_withdraw_inflight is not None:
                 signature, before_length, before_count = self._home_withdraw_inflight
@@ -13423,27 +13094,7 @@ class HengbotPolicy:
         if not base_ready:
             return False
         if self._fundraising_mode == "mine":
-            mining_ready = self._fundraising_supplies_ready(snapshot)
-            if not self._deep_fundraising_active(snapshot):
-                return mining_ready
-            return (
-                mining_ready
-                and self._recall_ready(snapshot)
-                and self._deep_fundraising_teleport_ready(snapshot)
-                and self._cure_critical_ready(snapshot)
-                and any(
-                    item.slot == "main_hand"
-                    and item.is_melee_weapon
-                    and not item.is_digging_tool
-                    for item in snapshot.equipment
-                )
-                and not any(
-                    self._blocks_teleport(item)
-                    for item in (*snapshot.inventory, *snapshot.equipment)
-                )
-                and not self._has_unsecured_full_identification_candidate(snapshot)
-                and self._find_home_deposit(snapshot) is None
-            )
+            return self._fundraising_supplies_ready(snapshot)
         return True
 
     def _town_cycle_detected(self) -> bool:
@@ -13526,9 +13177,8 @@ class HengbotPolicy:
             self._fundraising_mode == "mine"
             and not self._fundraising_departure_ready(snapshot)
         ):
-            if not self._activate_shallow_fundraising_trip(snapshot):
-                self._fundraising_mode = "scavenge"
-                self._scavenge_entry_gold = snapshot.player.gold
+            self._fundraising_mode = "scavenge"
+            self._scavenge_entry_gold = snapshot.player.gold
         # After a cycle the goal is DEPARTURE, not errands: without this, a
         # restock-retry path starts a fresh in-town wait, un-latches the very
         # stores above when it expires, and the cycle resumes.
@@ -13600,13 +13250,7 @@ class HengbotPolicy:
                     selection = ""
                     if snapshot.in_town:
                         recall_dest, recall_dungeon_id = (
-                            self._town_recall_destination(
-                                snapshot,
-                                deep_fundraising=(
-                                    self._fundraising_mode == "mine"
-                                    and self._deep_fundraising_active(snapshot)
-                                ),
-                            )
+                            self._town_recall_destination(snapshot)
                         )
                         if recall_dest is None:
                             return WAIT_KEY
@@ -13620,15 +13264,12 @@ class HengbotPolicy:
         return WAIT_KEY
 
     def _town_recall_destination(
-        self, snapshot: Snapshot, *, deep_fundraising: bool
+        self, snapshot: Snapshot
     ) -> tuple[str | None, int]:
         """Choose the voluntary town-recall destination without issuing it."""
         recall_dest = None
         recall_dungeon_id = self._target_dungeon_id
-        if deep_fundraising:
-            recall_dest = "yeek-cave-mining"
-            recall_dungeon_id = DUNGEON_YEEK_CAVE
-        elif (
+        if (
             self._target_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
             and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
@@ -13724,16 +13365,11 @@ class HengbotPolicy:
             self._fundraising_mode = None
             self._mining_runs_completed = 0
             self._planned_mining_runs = None
-            self._shallow_fundraising_trip = False
             self._town_store_attempted.clear()
             self._town_restock_suppressed = False
             self._town_errand_plan = None
             return None
 
-        deep_fundraising = (
-            self._fundraising_mode == "mine"
-            and self._deep_fundraising_active(snapshot)
-        )
         # A resumed bot does not retain the in-memory partial batch selected
         # after shop stock ran out. Reconstruct it from supplies already carried
         # before applying the departure gate.
@@ -13750,10 +13386,6 @@ class HengbotPolicy:
 
         if self._fundraising_mode in {"mine", "scavenge"}:
             if not self._fundraising_departure_ready(snapshot):
-                if self._activate_shallow_fundraising_trip(snapshot):
-                    if self._fundraising_departure_ready(snapshot):
-                        self.last_reason = "fundraise:fallback-shallow"
-                        return None
                 # Do not let this early fundraising wait starve the ordinary
                 # town pack-pressure pipeline below.  Descent deliberately
                 # rejects a completely full pack, so waiting here can only
@@ -13790,8 +13422,7 @@ class HengbotPolicy:
                         return self._step_toward(snapshot, neighbors[0])
                 self.last_reason = "fundraise:departure-blocked"
                 return WAIT_KEY
-            if not deep_fundraising:
-                return None
+            return None
 
         rumor_needed = (
             self._rumor_unlock_pending and not snapshot.angband_recall_unlocked
@@ -13871,9 +13502,7 @@ class HengbotPolicy:
                 return WAIT_KEY
             self.last_reason = "town:blocked:no-safe-recall-destination"
             return WAIT_KEY
-        recall_dest, recall_dungeon_id = self._town_recall_destination(
-            snapshot, deep_fundraising=deep_fundraising
-        )
+        recall_dest, recall_dungeon_id = self._town_recall_destination(snapshot)
         # A consumed/moved item can leave the old in-memory pointer behind even
         # though there is no longer an errand capable of clearing it.  Do this
         # immediately before the departure gate so an inert latch cannot turn a
@@ -13901,9 +13530,7 @@ class HengbotPolicy:
         # unreachable shop must not become permission to Recall over-packed.
         # Combat readiness remains an independent hard gate as well.
         departure_ok = (
-            self._fundraising_departure_ready(snapshot)
-            if deep_fundraising
-            else self._town_departure_ready(snapshot)
+            self._town_departure_ready(snapshot)
         ) and self._combat_weapon_ready(snapshot)
         departure_ok = (
             departure_ok
@@ -13917,11 +13544,11 @@ class HengbotPolicy:
             # handoff is complete, the remembered identification need describes
             # work safely waiting at Home; treating it as a second departure
             # gate strands the miner outside the dungeon entrance forever.
-            and (self._identification_need is None or deep_fundraising)
+            and self._identification_need is None
         )
         if recall_dest is not None and not departure_ok:
             self._departure_block = self._departure_block_state(
-                snapshot, deep_fundraising=deep_fundraising
+                snapshot
             )
         else:
             self._departure_block = {}
@@ -14012,7 +13639,7 @@ class HengbotPolicy:
         return None
 
     def _departure_block_state(
-        self, snapshot: Snapshot, *, deep_fundraising: bool
+        self, snapshot: Snapshot
     ) -> dict[str, object]:
         """Expose every recall AND-gate value instead of an opaque false."""
         home_available = self._home_available(snapshot)
@@ -14043,7 +13670,6 @@ class HengbotPolicy:
             "home_available": home_available,
             "home_candidate_waiting": self._home_candidate_waiting,
             "home_scan_complete": self._equipment_catalog.home_scan_complete,
-            "pending_home_deposit": self._mandatory_home_deposit(snapshot) is not None,
             "equipment_departure_ready": (
                 self._equipment_departure_ready(snapshot) if home_available else True
             ),
@@ -14059,11 +13685,7 @@ class HengbotPolicy:
             "mp_full": snapshot.player.mp >= snapshot.player.max_mp,
             "temporary_status_clear": self._temporary_status_clear(snapshot),
         }
-        selected_gate = (
-            "fundraising_departure_ready"
-            if deep_fundraising
-            else "town_departure_ready"
-        )
+        selected_gate = "town_departure_ready"
         failures = [
             name
             for name, failed in (
@@ -14074,7 +13696,6 @@ class HengbotPolicy:
                 ("home_batch_review_items", bool(values["home_batch_review_items"])),
                 ("home_withdraw_inflight", values["home_withdraw_inflight"] is not None),
                 ("identification_need", values["identification_need"] is not None),
-                ("pending_home_deposit", bool(values["pending_home_deposit"])),
                 ("home_candidate_waiting", home_available and values["home_candidate_waiting"]),
                 ("home_scan_complete", home_available and not values["home_scan_complete"]),
                 ("equipment_departure_ready", home_available and not values["equipment_departure_ready"]),
@@ -14334,14 +13955,10 @@ class HengbotPolicy:
     def _fundraising_combat_equipment_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
-        deep_mining = (
-            snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
-            and snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
-        )
         if (
             self._fundraising_mode not in {"mine", "scavenge"}
             or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE
-            or snapshot.dungeon_level not in {1, DEEP_FUNDRAISING_DEPTH}
+            or snapshot.dungeon_level != 1
         ):
             return None
         if self._equipped_digging_tool(snapshot) is not None:
@@ -14349,72 +13966,18 @@ class HengbotPolicy:
             ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
             if ranged is not None:
                 return ranged
-        if snapshot.player.class_id == PLAYER_CLASS_WARRIOR and not deep_mining:
+        if snapshot.player.class_id == PLAYER_CLASS_WARRIOR:
             return None
-        material_hostiles = (
-            [
-                monster
-                for monster in hostiles
-                if monster.can_summon or monster.can_multiply
-            ]
-            if deep_mining
-            else []
-        )
-        material_target = (
-            min(material_hostiles, key=lambda monster: monster.distance)
-            if material_hostiles
-            else None
-        )
-        if material_target is not None:
-            self._fundraising_pursuit_target = material_target.position
-        if not hostiles and self._fundraising_pursuit_target is None:
+        if not hostiles:
             return None
         restore = self._restore_mining_combat_hand_key(
             snapshot, "fundraise:wield-combat-weapon"
         )
         if restore is not None:
             return restore
-        if deep_mining:
-            if material_target is None and self._fundraising_pursuit_target is None:
-                return None
-            target_position = (
-                material_target.position
-                if material_target is not None
-                else self._fundraising_pursuit_target
-            )
-            if target_position == snapshot.player.position:
-                self._fundraising_pursuit_target = None
-                return None
-            if (
-                material_target is not None
-                and target_position.distance_to(snapshot.player.position) <= 1
-            ):
-                self.last_reason = "fundraise:clear-hostile"
-                return self._direction_key(snapshot.player.position, target_position)
-            step = self._nearest_goal_step(
-                snapshot,
-                lambda grid: (
-                    grid.position.distance_to(target_position) <= 1
-                    if material_target is not None
-                    else grid.position == target_position
-                ),
-            )
-            if step is not None:
-                self.last_reason = (
-                    "fundraise:clear-hostile"
-                    if material_target is not None
-                    else "fundraise:pursue-last-material-hostile"
-                )
-                return self._step_toward(snapshot, step)
-            self._fundraising_pursuit_target = None
         return None
 
     def _finish_mining_floor(self, snapshot: Snapshot) -> str:
-        if snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH:
-            step = self._explore_step(snapshot)
-            if step is not None:
-                self.last_reason = "fundraise:deep-explore"
-                return self._step_toward(snapshot, step)
         return self._leave_fundraising_floor(snapshot)
 
     def _leave_fundraising_floor(self, snapshot: Snapshot) -> str:
@@ -14600,7 +14163,7 @@ class HengbotPolicy:
                     or not snapshot.in_bounds(neighbor)
                     or all(
                         neighbor.distance_to(center)
-                        > DEEP_FUNDRAISING_DETECTION_RADIUS
+                        > MINING_DETECTION_RADIUS
                         for center in centers
                     )
                 ):
@@ -14639,7 +14202,7 @@ class HengbotPolicy:
             for target in self._known_treasure - self._mining_dropped_veins
             if not centers
             or any(
-                target.distance_to(center) <= DEEP_FUNDRAISING_DETECTION_RADIUS
+                target.distance_to(center) <= MINING_DETECTION_RADIUS
                 for center in centers
             )
         }
@@ -14721,7 +14284,7 @@ class HengbotPolicy:
             and self._is_frontier(snapshot, grid)
             and any(
                 grid.position.distance_to(center)
-                <= DEEP_FUNDRAISING_DETECTION_RADIUS
+                <= MINING_DETECTION_RADIUS
                 for center in centers
             ),
         )
@@ -14919,19 +14482,18 @@ class HengbotPolicy:
             return None
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
-            and snapshot.dungeon_level not in {1, DEEP_FUNDRAISING_DEPTH}
+            and snapshot.dungeon_level != 1
         ):
             self._returning_to_town = True
             return self._return_to_town_key(snapshot, hostiles)
         if (
             snapshot.floor_key[0] != DUNGEON_YEEK_CAVE
-            or snapshot.dungeon_level not in {1, DEEP_FUNDRAISING_DEPTH}
+            or snapshot.dungeon_level != 1
         ):
             return None
         if (
             self._returning_to_town
             or self._should_start_town_return(snapshot)
-            or self._deep_fundraising_escape_reserve_low(snapshot)
         ):
             # Fundraising normally owns dungeon movement before the generic
             # town-return router.  Once an emergency latches a return, or normal
@@ -14941,19 +14503,9 @@ class HengbotPolicy:
             # combat destination and let the fundraising floor-exit procedure
             # carry out the return.
             self._returning_to_town = True
-            if self._deep_fundraising_escape_reserve_low(snapshot):
-                self._last_return_trigger = "teleport-low"
-            self._fundraising_pursuit_target = None
             return self._leave_fundraising_floor(snapshot)
         if (
-            snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
-            and not self._deep_fundraising_eligible(snapshot)
-        ):
-            self._returning_to_town = True
-            return self._return_to_town_key(snapshot, hostiles)
-        if (
             snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
-            and snapshot.dungeon_level != DEEP_FUNDRAISING_DEPTH
             and (
                 self._fundraising_mode == "scavenge"
                 or not self._known_treasure
@@ -14983,17 +14535,6 @@ class HengbotPolicy:
         combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
         if combat_equip is not None:
             return combat_equip
-        if (
-            snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
-            and hostiles
-        ):
-            # Once combat equipment is on, leave the visible hostile to the
-            # ordinary combat policy.  This also applies when the other hand
-            # still holds a digger: re-wielding the second digger here makes
-            # the next snapshot re-arm again, producing an endless
-            # weapon/digger toggle while a hostile remains in view.
-            return None
-
         multipliers = [monster for monster in hostiles if monster.can_multiply]
         if multipliers:
             target = min(multipliers, key=lambda monster: monster.distance)
@@ -15108,16 +14649,7 @@ class HengbotPolicy:
         self._digger_wield_attempts = 0
 
         needs_initial_detection = self._mining_scroll_used_floor != snapshot.floor_key
-        outside_detected_area = (
-            snapshot.dungeon_level == DEEP_FUNDRAISING_DEPTH
-            and bool(self._mining_detection_centers)
-            and all(
-                snapshot.player.position.distance_to(center)
-                > DEEP_FUNDRAISING_DETECTION_RADIUS
-                for center in self._mining_detection_centers
-            )
-        )
-        if needs_initial_detection or outside_detected_area:
+        if needs_initial_detection:
             scroll = self._first_item(
                 snapshot, lambda it: it.is_treasure_detection_scroll
             )
@@ -15141,11 +14673,7 @@ class HengbotPolicy:
                 self._mining_swept_dead_targets.clear()
                 self._mining_grids_at_sweep_done = 0
                 self._mining_dropped_veins.clear()
-                self.last_reason = (
-                    "fundraise:detect-treasure"
-                    if needs_initial_detection
-                    else "fundraise:redetect-treasure"
-                )
+                self.last_reason = "fundraise:detect-treasure"
                 return READ_KEY + scroll.slot
 
         # The detection command's snapshot does not contain its effect yet.  Assess
@@ -20895,12 +20423,6 @@ class HengbotPolicy:
                             self.last_reason = "guardian:teleport-to-cover"
                         else:
                             if self._fundraising_mode in {"mine", "scavenge"}:
-                                # The relocation invalidates the remembered
-                                # monster cell.  Retaining it causes the
-                                # fundraising owner (which runs before the
-                                # generic return router) to retrace the entire
-                                # path into the same lethal multiplier pack.
-                                self._fundraising_pursuit_target = None
                                 self._returning_to_town = True
                             self.last_reason = (
                                 "emergency:teleport"

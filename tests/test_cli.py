@@ -1251,15 +1251,11 @@ class StationaryReasonsTest(unittest.TestCase):
             _cell_loop_guard_applies(dungeon, "quest-strategy:position")
         )
 
-    def test_deep_fundraising_combat_uses_multiplier_grace_reason(self):
-        """The live deep-mining policy calls multiplier/summoner combat
-        ``fundraise:clear-hostile``.  Keep that current reason tied to the
-        extended combat window instead of stopping at the generic 40 turns.
-        """
-        self.assertTrue(_uses_multiplier_combat_grace("fundraise:clear-hostile"))
+    def test_fundraising_multiplier_combat_uses_grace_reason(self):
         self.assertTrue(
             _uses_multiplier_combat_grace("fundraise:eliminate-multiplier")
         )
+        self.assertFalse(_uses_multiplier_combat_grace("fundraise:clear-hostile"))
         self.assertFalse(_uses_multiplier_combat_grace("fundraise:sweep-explore"))
         self.assertNotIn("fundraise:tunnel-to-treasure", STATIONARY_EXEMPT_REASONS)
 

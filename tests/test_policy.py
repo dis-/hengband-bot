@@ -132,9 +132,6 @@ from hengbot.policy import (
     RECALL_MIN_DEPTH,
     SUPPLY_THRESHOLDS,
     RESUME_DESCENT_BLOCK_DECISIONS,
-    DEEP_FUNDRAISING_DEPTH,
-    DEEP_FUNDRAISING_DETECTION_RADIUS,
-    DEEP_FUNDRAISING_SCROLLS_PER_RUN,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
@@ -12563,59 +12560,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(policy._next_required_store_type(snap), STORE_MAGIC)
         self.assertIsNone(policy._town_blocked_reason)
 
-    def test_deep_mana_fundraising_downgrades_when_device_food_is_unavailable(self):
-        snap = Snapshot(
-            player(
-                38,
-                106,
-                hp=401,
-                max_hp=401,
-                food=5000,
-                food_type=FOOD_TYPE_MANA,
-                gold=7818,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(38, 106): grid(38, 106)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[
-                item("e", TVAL_WAND, 15, charges=14),
-                item(
-                    "d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=17
-                ),
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL),
-            ],
-            equipment=[
-                item(
-                    "light", TVAL_LITE, SV_LITE_LANTERN,
-                    is_equipment=True, fuel=5000,
-                )
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._town_store_attempted.update(
-            {
-                STORE_HOME: snap.turn,
-                STORE_GENERAL: snap.turn,
-                STORE_ALCHEMIST: snap.turn,
-                STORE_MAGIC: snap.turn,
-            }
-        )
-
-        with patch.object(
-            policy,
-            "_deep_fundraising_active",
-            side_effect=lambda _snapshot: not policy._shallow_fundraising_trip,
-        ), patch.object(
-            policy, "_activate_shallow_fundraising_trip", return_value=False
-        ):
-            policy._next_required_store_type(snap)
-
-        self.assertEqual(policy._fundraising_mode, "scavenge")
-        self.assertTrue(policy._shallow_fundraising_trip)
-        self.assertIsNone(policy._town_blocked_reason)
 
     def test_fundraising_checks_home_before_buying_treasure_detection(self):
         snap = Snapshot(
@@ -13248,35 +13192,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(key, LEAVE_STORE_KEY)
         self.assertNotEqual(pol.last_reason, "home:leave-with-mining-supplies")
 
-    def test_deep_fundraising_deposits_loot_before_mining_kit_fast_exit(self):
-        spare = item(
-            "q",
-            TVAL_RING,
-            1,
-            name="known spare ring",
-            known=True,
-            fully_known=True,
-            is_equipment=True,
-        )
-        snap = self._deep_fundraising_town_snapshot(detection=20)
-        snap = replace(
-            snap,
-            inventory=[
-                *self._strict_supplies(
-                    recall=10, detection=20, teleport=15, critical=10
-                ),
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-                spare,
-            ],
-            store=StoreState(STORE_HOME, []),
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = MINING_RUNS_PER_SET
-
-        self.assertTrue(policy._deep_fundraising_active(snap))
-        self.assertEqual(policy._shop(snap), "dq\r")
-        self.assertEqual(policy.last_reason, "home:deposit")
 
     def test_mining_home_completion_does_not_consume_post_alchemist_home_phase(self):
         """The first Home stop must advance before its attempted latch is set."""
@@ -15363,240 +15278,18 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._mining_detection_scroll_target(snap), MINING_RUNS_PER_SET
         )
 
-    def test_deep_fundraising_requires_a_large_batch_of_scrolls_and_recalls(self):
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "prepare"
 
-        self.assertTrue(policy._deep_fundraising_eligible(snap))
-        self.assertFalse(
-            policy._deep_fundraising_eligible(
-                replace(
-                    snap,
-                    player=player(
-                        10,
-                        10,
-                        hp=249,
-                        max_hp=249,
-                        level=19,
-                        class_id=PLAYER_CLASS_WARRIOR,
-                    ),
-                )
-            )
-        )
-        self.assertEqual(
-            policy._mining_detection_scroll_target(snap),
-            MINING_RUNS_PER_SET * DEEP_FUNDRAISING_SCROLLS_PER_RUN,
-        )
-        self.assertEqual(
-            policy._recall_required_target(snap),
-            3 + 2 * MINING_RUNS_PER_SET,
-        )
-        self.assertGreaterEqual(
-            FUNDRAISING_GOLD_TARGET - FUNDRAISING_START_GOLD, 10000
-        )
 
-    def _deep_fundraising_town_snapshot(
-        self, *, detection=1, digger=True, gold=10000
-    ):
-        inventory = self._strict_supplies(recall=0, detection=detection)
-        if digger:
-            inventory.append(
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)
-            )
-        return Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                gold=gold,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=inventory,
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
 
-    def test_blocked_deep_campaign_with_shallow_kit_falls_back_and_departs(self):
-        snap = self._deep_fundraising_town_snapshot()
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = MINING_RUNS_PER_SET
 
-        self.assertIsNone(policy._town_special_key(snap))
-        self.assertTrue(policy._shallow_fundraising_trip)
-        self.assertEqual(policy._fundraising_mode, "mine")
-        self.assertEqual(policy._planned_mining_runs, 1)
-        self.assertFalse(policy._deep_fundraising_active(snap))
-        self.assertTrue(policy._fundraising_departure_ready(snap))
-        self.assertFalse(policy._descent_is_blocked(snap))
 
-    def test_promoted_deep_campaign_with_live_shallow_kit_departs_immediately(self):
-        # Live trace shape: Home completed the two-run detection batch, which
-        # promoted prepare -> mine, but recall remained below the deep reserve.
-        # A partly identified item is also still carried; that is a deep-trip
-        # gate, not a reason to wait before a safe 1F mining departure.
-        candidate = item(
-            "e",
-            31,
-            1,
-            name="partly known ego gloves",
-            known=True,
-            fully_known=False,
-            is_equipment=True,
-            is_ego=True,
-        )
-        snap = self._deep_fundraising_town_snapshot(detection=8, gold=10666)
-        snap = replace(
-            snap,
-            inventory=[
-                item("f", TVAL_FOOD, 35, count=5),
-                item("o", TVAL_FLASK, SV_FLASK_OIL, count=2, fuel=500),
-                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
-                item(
-                    "d",
-                    TVAL_SCROLL,
-                    SV_SCROLL_DETECT_TREASURE,
-                    count=8,
-                ),
-                item("p", TVAL_DIGGING, 6, is_equipment=True),
-                candidate,
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "prepare"
-        policy._planned_mining_runs = 2
 
-        policy._fundraising_mode = "mine"
-        self.assertFalse(policy._fundraising_departure_ready(snap))
-        policy._fundraising_mode = "prepare"
-        self.assertIsNone(policy._town_special_key(snap))
-        self.assertEqual(policy.last_reason, "fundraise:fallback-shallow")
-        self.assertEqual(policy._fundraising_mode, "mine")
-        self.assertTrue(policy._shallow_fundraising_trip)
-        self.assertTrue(policy._fundraising_departure_ready(snap))
-        self.assertNotEqual(policy._fundraising_mode, "scavenge")
 
-    def test_abandoned_home_deposit_falls_back_to_shallow_mining(self):
-        snap = self._deep_fundraising_town_snapshot()
-        snap = replace(
-            snap,
-            inventory=[
-                *self._strict_supplies(
-                    recall=10,
-                    detection=20,
-                    teleport=15,
-                    critical=10,
-                ),
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-                item("q", TVAL_RING, 8, is_equipment=True, known=True),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = MINING_RUNS_PER_SET
-        policy._home_deposit_abandoned = True
 
-        self.assertTrue(policy._fundraising_supplies_ready(snap))
-        self.assertFalse(policy._fundraising_departure_ready(snap))
-        self.assertIsNone(policy._town_special_key(snap))
-        self.assertTrue(policy._shallow_fundraising_trip)
-        self.assertTrue(policy._fundraising_departure_ready(snap))
-
-    def test_home_only_identification_wait_does_not_block_shallow_mining(self):
-        # Live trace shape: all mining consumables were carried, while the sole
-        # *Identify* candidate was already in Home and the Alchemist had none.
-        # The wielded digger is unsuitable for a deep trip but is exactly the
-        # correct tool for the safe 1F fallback.
-        snap = self._deep_fundraising_town_snapshot(digger=False)
-        snap = replace(
-            snap,
-            inventory=[
-                *self._strict_supplies(
-                    recall=10,
-                    detection=20,
-                    teleport=15,
-                    critical=10,
-                ),
-            ],
-            equipment=[
-                item(
-                    "main_hand",
-                    TVAL_DIGGING,
-                    SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = MINING_RUNS_PER_SET
-        policy._identification_need = "full"
-        policy._home_candidate_waiting = True
-
-        self.assertFalse(policy._fundraising_departure_ready(snap))
-        self.assertIsNone(policy._town_special_key(snap))
-        self.assertEqual(policy.last_reason, "fundraise:fallback-shallow")
-        self.assertTrue(policy._shallow_fundraising_trip)
-        self.assertTrue(policy._fundraising_departure_ready(snap))
-
-    def test_blocked_deep_campaign_without_shallow_kit_still_scavenges(self):
-        snap = self._deep_fundraising_town_snapshot(
-            detection=0, digger=False, gold=0
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._town_cycle_pending = True
-
-        self.assertEqual(policy._town_special_key(snap), WAIT_KEY)
-        self.assertEqual(policy._fundraising_mode, "scavenge")
-        self.assertFalse(policy._shallow_fundraising_trip)
-
-    def test_shallow_fallback_cannot_promote_deep_while_restock_suppressed(self):
-        snap = self._deep_fundraising_town_snapshot()
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._town_restock_suppressed = True
-
-        self.assertIsNone(policy._town_special_key(snap))
-        self.assertFalse(policy._deep_fundraising_active(snap))
-        self.assertIsNone(policy._town_special_key(snap))
-        self.assertTrue(policy._shallow_fundraising_trip)
-
-    def test_deep_fundraising_recalls_to_yeek_cave_with_safe_supplies(self):
+    def test_deep_eligible_fundraising_walks_into_l1_instead_of_recalling(self):
         inventory = self._strict_supplies(
             recall=13,
-            detection=MINING_RUNS_PER_SET * DEEP_FUNDRAISING_SCROLLS_PER_RUN,
+            detection=MINING_RUNS_PER_SET,
             teleport=15,
             critical=10,
         )
@@ -15621,7 +15314,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 item("main_hand", 23, 1, is_equipment=True),
                 self._lantern(),
             ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
+            recall_depth=13,
             recall_dungeon_id=DUNGEON_ANGBAND,
             entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
             conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
@@ -15632,175 +15325,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._fundraising_mode = "mine"
         policy._char_dump_done_this_visit = True
 
-        self.assertEqual(policy._town_special_key(snap), "rrb")
-        self.assertEqual(policy.last_reason, "town:recall-to-yeek-cave-mining")
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertFalse(hasattr(policy, "_deep_fundraising_active"))
+        self.assertNotEqual(policy.last_reason, "town:recall-to-yeek-cave-mining")
 
-    def test_deep_fundraising_uses_the_affordable_partial_batch(self):
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[
-                *self._strict_supplies(
-                    recall=10, detection=20, teleport=15, critical=10
-                ),
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-            ],
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "prepare"
 
-        self.assertTrue(policy._activate_partial_deep_mining_plan(snap))
-        self.assertEqual(policy._planned_mining_runs, 3)
-        self.assertEqual(policy._mining_detection_scroll_target(snap), 12)
-        self.assertEqual(policy._recall_required_target(snap), 9)
-        self.assertTrue(policy._fundraising_supplies_ready(snap))
-        self.assertNotIn(
-            "mining-detection",
-            [reason for _, reason in policy._enumerate_town_needs(snap)],
-        )
 
-        policy._planned_mining_runs = None
-        policy._fundraising_mode = "mine"
-        policy._char_dump_done_this_visit = True
-        self.assertEqual(policy._town_special_key(snap), "rrb")
-        self.assertEqual(policy._planned_mining_runs, 3)
-
-    def test_partial_deep_batch_can_depart_below_preferred_teleport_stock(self):
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[
-                *self._strict_supplies(
-                    recall=10, detection=20, teleport=14, critical=10
-                ),
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-            ],
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = 3
-        policy._deepest_level = DEEP_FUNDRAISING_DEPTH
-        policy._char_dump_done_this_visit = True
-
-        self.assertFalse(policy._teleport_ready(snap))
-        self.assertTrue(policy._deep_fundraising_teleport_ready(snap))
-        self.assertEqual(policy._town_special_key(snap), "rrb")
-        self.assertEqual(policy.last_reason, "town:recall-to-yeek-cave-mining")
-
-    def test_deep_fundraising_deposits_full_identification_candidate_first(self):
-        candidate = item(
-            "e",
-            31,
-            1,
-            name="partly known ego gloves",
-            known=True,
-            fully_known=False,
-            is_equipment=True,
-            is_ego=True,
-        )
-        inventory = [
-            *self._strict_supplies(
-                recall=10, detection=20, teleport=15, critical=10
-            ),
-            candidate,
-            item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-        ]
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): replace(
-                    grid(10, 11), store_number=STORE_HOME
-                ),
-            },
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=inventory,
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            recall_dungeon_id=DUNGEON_ANGBAND,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-            angband_recall_unlocked=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = 3
-        policy._char_dump_done_this_visit = True
-
-        self.assertFalse(policy._fundraising_departure_ready(snap))
-        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
-        policy._identification_need = "full"
-        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
-        self.assertEqual(policy._town_special_key(snap), WAIT_KEY)
-        self.assertEqual(policy.last_reason, "fundraise:departure-blocked")
-
-        home = replace(
-            snap,
-            store=StoreState(store_type=STORE_HOME, items=[]),
-        )
-        self.assertEqual(policy.choose_key(home), "de\r")
-        self.assertEqual(policy.last_reason, "home:deposit")
-
-        # The next snapshot acknowledges that the candidate is safely at Home.
-        # The full-identification need remains latched for the post-mining retry,
-        # but must not strand an otherwise-ready fundraising trip at the dungeon
-        # entrance.
-        secured = replace(
-            snap,
-            inventory=[owned for owned in inventory if owned.slot != "e"],
-        )
-        self.assertTrue(policy._fundraising_departure_ready(secured))
-        self.assertEqual(policy._town_special_key(secured), "rrb")
-        self.assertEqual(policy.last_reason, "town:recall-to-yeek-cave-mining")
 
     def test_blocked_fundraising_steps_off_store_instead_of_reentering(self):
         snap = Snapshot(
@@ -15841,8 +15372,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         with patch.object(
             policy, "_fundraising_departure_ready", return_value=False
-        ), patch.object(
-            policy, "_activate_shallow_fundraising_trip", return_value=False
         ):
             self.assertIsNone(policy._town_special_key(snap))
 
@@ -15852,40 +15381,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy.last_reason, "fundraise:fallback-exhausted-plan"
         )
 
-    def test_shallow_fundraising_transition_does_not_reopen_home_each_turn(self):
-        """A shallow-trip procurement plan must survive its next readiness check."""
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=15745),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=self._strict_supplies(detection=0),
-            equipment=[self._lantern()],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._shallow_fundraising_trip = True
-        policy._planned_mining_runs = 4
-        policy._town_store_attempted.update(
-            {STORE_HOME: snap.turn, STORE_ALCHEMIST: snap.turn}
-        )
-        plan = TownErrandPlan([STORE_HOME], index=1)
-        policy._town_errand_plan = plan
-
-        with patch.object(
-            policy, "_deep_fundraising_eligible", return_value=True
-        ), patch.object(
-            policy, "_fundraising_departure_ready", return_value=False
-        ), patch.object(
-            policy, "_shallow_fundraising_available", return_value=True
-        ):
-            self.assertFalse(policy._activate_shallow_fundraising_trip(snap))
-
-        self.assertIs(policy._town_errand_plan, plan)
-        self.assertIn(STORE_HOME, policy._town_store_attempted)
-        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
-        self.assertEqual(policy._planned_mining_runs, 4)
 
     def test_full_pack_fundraising_block_falls_through_to_disposal(self):
         snap = Snapshot(
@@ -15902,7 +15397,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
         policy._fundraising_departure_ready = lambda snapshot: False
-        policy._activate_shallow_fundraising_trip = lambda snapshot: False
 
         self.assertIsNone(policy._town_special_key(snap))
 
@@ -16009,458 +15503,17 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "shop:travel:await-entry")
 
-    def test_recall_wait_steps_off_home_entrance(self):
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-                word_recall=10,
-            ),
-            {
-                Position(10, 10): replace(
-                    grid(10, 10), store_number=STORE_HOME
-                ),
-                Position(10, 11): grid(10, 11),
-            },
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[
-                *self._strict_supplies(
-                    recall=10, detection=20, teleport=15, critical=10
-                ),
-                item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-            ],
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            recall_dungeon_id=DUNGEON_YEEK_CAVE,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._planned_mining_runs = 3
-        policy._char_dump_done_this_visit = True
-        policy._floor_t = {(10, 10), (10, 11)}
 
-        self.assertEqual(policy._town_special_key(snap), "6")
-        self.assertEqual(policy.last_reason, "town:wait-recall-step-off")
 
-    def test_deep_mining_does_not_chase_a_weak_evasive_hostile(self):
-        monster = hostile(
-            3,
-            14,
-            27,
-            hp=18,
-            max_hp=18,
-            distance=1,
-            max_melee_damage=2,
-        )
-        snap = Snapshot(
-            player(
-                13,
-                26,
-                hp=427,
-                max_hp=427,
-                level=25,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(13, 26): grid(13, 26),
-                Position(14, 26): grid(14, 26),
-                Position(14, 27): grid(14, 27, monster=True),
-            },
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=self._strict_supplies(recall=9, detection=10),
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._build_grid_index(snap)
 
-        self.assertIsNone(
-            policy._fundraising_combat_equipment_key(snap, [monster])
-        )
 
-    def test_deep_mining_attacks_an_adjacent_material_hostile_diagonally(self):
-        monster = hostile(
-            3,
-            14,
-            14,
-            hp=40,
-            max_hp=40,
-            distance=1,
-            max_melee_damage=60,
-            can_summon=True,
-        )
-        snap = Snapshot(
-            player(
-                15,
-                15,
-                hp=321,
-                max_hp=427,
-                level=25,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(15, 15): grid(15, 15),
-                Position(14, 14): grid(14, 14, monster=True),
-            },
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._build_grid_index(snap)
 
-        self.assertEqual(
-            policy._fundraising_combat_equipment_key(snap, [monster]), "7"
-        )
-        self.assertEqual(policy.last_reason, "fundraise:clear-hostile")
 
-    def test_deep_mining_does_not_chase_a_damaging_evasive_normal_hostile(self):
-        monster = hostile(
-            3,
-            37,
-            27,
-            hp=40,
-            max_hp=40,
-            distance=1,
-            max_melee_damage=60,
-        )
-        snap = Snapshot(
-            player(
-                38,
-                26,
-                hp=321,
-                max_hp=427,
-                level=25,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(38, 26): grid(38, 26),
-                Position(37, 27): grid(37, 27, monster=True),
-            },
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._build_grid_index(snap)
 
-        self.assertIsNone(
-            policy._fundraising_combat_equipment_key(snap, [monster])
-        )
 
-    def test_deep_mining_keeps_pursuing_last_seen_multiplier_before_digging(self):
-        monster = hostile(
-            3,
-            38,
-            31,
-            hp=20,
-            max_hp=20,
-            distance=5,
-            can_multiply=True,
-        )
-        grids = {
-            Position(38, x): grid(38, x, monster=x == 31)
-            for x in range(26, 32)
-        }
-        seen = Snapshot(
-            player(38, 26, hp=321, max_hp=427, class_id=PLAYER_CLASS_WARRIOR),
-            grids,
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            equipment=[item("main_hand", 23, 1, is_equipment=True), self._lantern()],
-        )
-        hidden = replace(
-            seen,
-            player=replace(seen.player, position=Position(38, 27)),
-            visible_monsters=[],
-            grids={Position(38, x): grid(38, x) for x in range(27, 32)},
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._build_grid_index(seen)
 
-        self.assertEqual(
-            policy._fundraising_combat_equipment_key(seen, [monster]), "6"
-        )
-        policy._build_grid_index(hidden)
-        self.assertEqual(
-            policy._fundraising_combat_equipment_key(hidden, []), "6"
-        )
-        self.assertEqual(
-            policy.last_reason, "fundraise:pursue-last-material-hostile"
-        )
 
-    def test_emergency_return_preempts_stale_fundraising_pursuit(self):
-        snap = Snapshot(
-            player(38, 27, hp=240, max_hp=408, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(38, x): grid(38, x) for x in range(27, 32)},
-            [],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._fundraising_pursuit_target = Position(38, 31)
-        policy._returning_to_town = True
 
-        with patch.object(
-            policy, "_leave_fundraising_floor", return_value="LEAVE"
-        ) as leave:
-            self.assertEqual(policy._fundraising_key(snap, []), "LEAVE")
-
-        leave.assert_called_once_with(snap)
-        self.assertIsNone(policy._fundraising_pursuit_target)
-
-    def test_low_escape_supply_preempts_fundraising_before_generic_return(self):
-        snap = Snapshot(
-            player(38, 27, hp=408, max_hp=408, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(38, x): grid(38, x) for x in range(27, 32)},
-            [],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3)],
-            equipment=[
-                item("main_hand", 23, 1, is_equipment=True),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._fundraising_pursuit_target = Position(38, 31)
-
-        with patch.object(
-            policy, "_leave_fundraising_floor", return_value="LEAVE"
-        ) as leave:
-            self.assertEqual(policy._fundraising_key(snap, []), "LEAVE")
-
-        leave.assert_called_once_with(snap)
-        self.assertTrue(policy._returning_to_town)
-        self.assertEqual(policy._last_return_trigger, "teleport-low")
-        self.assertIsNone(policy._fundraising_pursuit_target)
-
-    def test_fundraising_emergency_teleport_discards_pursuit_target(self):
-        threat = hostile(
-            3,
-            38,
-            31,
-            hp=20,
-            max_hp=20,
-            distance=5,
-            can_multiply=True,
-            max_ranged_damage=500,
-        )
-        snap = Snapshot(
-            player(38, 27, hp=240, max_hp=408, class_id=PLAYER_CLASS_WARRIOR),
-            {
-                Position(38, 27): grid(38, 27),
-                Position(38, 31): grid(38, 31, monster=True),
-            },
-            [threat],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._fundraising_pursuit_target = threat.position
-
-        with patch.object(policy, "_predicted_damage", return_value=500):
-            self.assertEqual(policy._emergency_item(snap, [threat]), "rt")
-
-        self.assertEqual(policy.last_reason, "emergency:teleport")
-        self.assertTrue(policy._returning_to_town)
-        self.assertIsNone(policy._fundraising_pursuit_target)
-
-    def test_deep_mining_redetects_after_leaving_previous_detection_radius(self):
-        floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
-        snap = Snapshot(
-            player(
-                10,
-                10 + DEEP_FUNDRAISING_DETECTION_RADIUS + 1,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10 + DEEP_FUNDRAISING_DETECTION_RADIUS + 1): grid(
-                    10, 10 + DEEP_FUNDRAISING_DETECTION_RADIUS + 1
-                )
-            },
-            [],
-            floor_key=floor_key,
-            inventory=self._strict_supplies(
-                recall=5, detection=2, teleport=15, critical=10
-            ),
-            equipment=[
-                item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._floor_key = floor_key
-        policy._mining_scroll_used_floor = floor_key
-        policy._mining_detection_centers.append(Position(10, 10))
-
-        self.assertEqual(policy.choose_key(snap), "rd")
-        self.assertEqual(policy.last_reason, "fundraise:redetect-treasure")
-
-    def obsolete_deep_mining_explores_unknown_area_before_recalling(self):
-        floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                gold=FUNDRAISING_GOLD_TARGET,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): grid(10, 11),
-                Position(10, 12): grid(10, 12, known=False),
-            },
-            [],
-            floor_key=floor_key,
-            inventory=self._strict_supplies(
-                recall=5, detection=1, teleport=15, critical=10
-            ),
-            equipment=[
-                item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._floor_key = floor_key
-        policy._mining_scroll_used_floor = floor_key
-        policy._mining_detection_centers.append(Position(10, 10))
-
-        # The sweep phase owns pre-recall exploration now: the unknown area sits
-        # inside the detected radius, so it is mapped before the floor is left.
-        self.assertEqual(policy.choose_key(snap), "6", policy.last_reason)
-        self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
-
-    def test_deep_mining_rearms_before_engaging_a_visible_hostile(self):
-        floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
-        monster = hostile(1, 10, 12, distance=2)
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): grid(10, 11),
-                Position(10, 12): grid(10, 12, monster=True),
-            },
-            [monster],
-            floor_key=floor_key,
-            inventory=[item("p", 23, 1, is_equipment=True)],
-            equipment=[
-                item("main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-
-        # Digger in the main hand, sub hand free: `w` raises the "Dual wielding?"
-        # prompt and the trailing n replaces the main hand (wield_slot suggests
-        # the free sub hand for a weapon whenever only the main hand is occupied).
-        self.assertEqual(
-            policy._fundraising_combat_equipment_key(snap, [monster]), "wpn"
-        )
-        self.assertEqual(policy.last_reason, "fundraise:wield-combat-weapon")
-
-    def test_deep_mining_fires_before_rearming_diggers(self):
-        monster = hostile(1, 10, 12, distance=2)
-        snap = Snapshot(
-            player(
-                10, 10, hp=413, max_hp=413, level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): grid(10, 11),
-                Position(10, 12): grid(10, 12, monster=True),
-            },
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=[
-                item("p", TVAL_SWORD, 1, name="Saber", is_equipment=True),
-                item("s", TVAL_SHOT, 1, name="iron shots", count=20),
-            ],
-            equipment=[
-                item(
-                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-                item(
-                    "sub_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-                item(
-                    "bow", TVAL_BOW, SV_BOW_SLING, name="sling",
-                    is_equipment=True,
-                ),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._mining_stall_turns = 7
-
-        with patch.object(
-            policy, "_restore_mining_combat_hand_key", wraps=policy._restore_mining_combat_hand_key
-        ) as restore:
-            self.assertEqual(
-                policy._fundraising_combat_equipment_key(snap, [monster]), "fs6"
-            )
-
-        restore.assert_not_called()
-        self.assertEqual(policy.last_reason, "ranged:fire")
-        self.assertEqual(policy._mining_stall_turns, 7)
 
     def test_shallow_warrior_mining_throws_before_generic_combat(self):
         monster = hostile(1, 10, 12, distance=2)
@@ -16492,154 +15545,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
 
-    def test_fundraising_combat_restore_skips_pack_jewelry(self):
-        monster = hostile(1, 10, 12, distance=2)
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 12): grid(10, 12, monster=True),
-            },
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=[
-                item("n", 45, 1, is_equipment=True, name="Rusty Ring"),
-                item("o", 23, 1, is_equipment=True, name="Saber"),
-            ],
-            equipment=[
-                item(
-                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-                item("sub_hand", 23, 5, is_equipment=True, name="Main Gauche"),
-                self._lantern(),
-            ],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
 
-        self.assertEqual(
-            policy._fundraising_combat_equipment_key(snap, [monster]), "woa"
-        )
-        self.assertEqual(policy.last_reason, "fundraise:wield-combat-weapon")
 
-    def test_deep_fundraising_does_not_rewield_digger_with_hostile_visible(self):
-        monster = hostile(1, 10, 12, distance=2)
-        snap = Snapshot(
-            player(
-                10, 10, level=24, hp=413, max_hp=413,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 12): grid(10, 12, monster=True),
-            },
-            [monster],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=self._strict_supplies(recall=5, teleport=15, detection=1)
-            + [item("u", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
-            equipment=[
-                item("main_hand", 23, 11, is_equipment=True, name="Saber"),
-                item(
-                    "sub_hand",
-                    TVAL_DIGGING,
-                    SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
 
-        self.assertIsNone(policy._fundraising_key(snap, [monster]))
-        self.assertNotEqual(policy.last_reason, "fundraise:wield-digging-tool")
 
-    def test_deep_fundraising_rewields_second_digger_after_hostiles_clear(self):
-        floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
-        snap = Snapshot(
-            player(
-                10, 10, level=24, hp=413, max_hp=413,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=floor_key,
-            inventory=self._strict_supplies(recall=5, teleport=15, detection=1)
-            + [item("u", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
-            equipment=[
-                item("main_hand", 23, 11, is_equipment=True, name="Saber"),
-                item(
-                    "sub_hand",
-                    TVAL_DIGGING,
-                    SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-                self._lantern(),
-            ],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "mine"
-        policy._mining_scroll_used_floor = floor_key
-
-        self.assertEqual(policy._fundraising_key(snap, []), "wua")
-        self.assertEqual(policy.last_reason, "fundraise:wield-digging-tool")
-
-    def test_deep_mining_recalls_only_after_the_floor_has_no_frontier(self):
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=self._strict_supplies(recall=5),
-            equipment=[self._lantern()],
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy._finish_mining_floor(snap), "rr")
-        self.assertEqual(policy.last_reason, "fundraise:recall")
-
-    def test_new_treasure_found_during_deep_exploration_resets_mining_stall(self):
-        floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                hp=413,
-                max_hp=413,
-                level=24,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 12): grid(10, 12, passable=False, gold=True),
-            },
-            [],
-            floor_key=floor_key,
-        )
-        policy = HengbotPolicy()
-        policy._floor_key = floor_key
-        policy._mining_stall_turns = MINING_STALL_LIMIT
-
-        policy._observe(snap)
-
-        self.assertEqual(policy._mining_stall_turns, 0)
-        self.assertIn(Position(10, 12), policy._known_treasure)
 
     def test_mining_eats_when_hungry_before_continuing(self):
         tool = item(
@@ -18816,36 +17725,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy._fundraising_mode, "mine")
 
-    def test_prime_restores_deep_mining_after_gold_target_is_reached(self):
-        shovel = item(
-            "h", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
-        )
-        snap = Snapshot(
-            player(
-                10,
-                10,
-                gold=FUNDRAISING_GOLD_TARGET + 1,
-                level=28,
-                max_hp=648,
-                hp=648,
-                class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0),
-            inventory=self._strict_supplies(recall=4, detection=1),
-            equipment=[shovel, self._lantern()],
-            recall_depth=DEEP_FUNDRAISING_DEPTH,
-            entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE),
-            conquered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            yeek_cave_conquered=True,
-            angband_recall_unlocked=True,
-        )
-        policy = HengbotPolicy()
-
-        policy.prime(snap)
-
-        self.assertEqual(policy._fundraising_mode, "mine")
 
     def test_conquest_collects_visible_drop_before_returning(self):
         grids = {Position(10, 10): grid(10, 10, upstairs=True, objects=1)}
@@ -20032,7 +18911,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertIsNone(pol._find_home_candidate(home))
 
-        pol._floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
+        pol._floor_key = (DUNGEON_YEEK_CAVE, 1, 0)
         pol._fundraising_mode = "mine"
         pol._observe(self._ready_home_town())
 
@@ -20061,7 +18940,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertIsNone(pol._find_home_candidate(home))
 
-        pol._floor_key = (DUNGEON_YEEK_CAVE, DEEP_FUNDRAISING_DEPTH, 0)
+        pol._floor_key = (DUNGEON_YEEK_CAVE, 1, 0)
         pol._fundraising_mode = "mine"
         pol._observe(self._ready_home_town())
 
@@ -25916,19 +24795,6 @@ class WeightOverloadTownTest(unittest.TestCase):
             )
         )
 
-    def test_home_attempt_latch_preserves_deep_mining_safety_deposit(self):
-        snapshot = self._snapshot()
-        policy = HengbotPolicy()
-        policy._town_store_attempted[STORE_HOME] = snapshot.turn
-        must_stash = snapshot.inventory[0]
-        policy._must_stash_before_deep_mining = (
-            lambda _snapshot, candidate: candidate is must_stash
-        )
-
-        self.assertIn(
-            TownNeed(STORE_HOME, "deep-mining-deposit", "home-first"),
-            policy._enumerate_town_needs(snapshot),
-        )
 
     def test_overweight_blocks_fixed_quest_town_travel(self):
         snapshot = self._snapshot()
@@ -32539,7 +31405,7 @@ class TownErrandPlanTest(unittest.TestCase):
         )
 
         block = policy._departure_block_state(
-            snapshot, deep_fundraising=False
+            snapshot
         )
 
         self.assertEqual(
@@ -32686,7 +31552,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertTrue(policy._town_claims_active(snapshot))
         block = policy._departure_block_state(
-            snapshot, deep_fundraising=False
+            snapshot
         )
         self.assertEqual(block["town_claims"], ["food"])
 
@@ -32695,7 +31561,7 @@ class TownErrandPlanTest(unittest.TestCase):
         ]
         self.assertFalse(policy._town_claims_active(snapshot))
         block = policy._departure_block_state(
-            snapshot, deep_fundraising=False
+            snapshot
         )
         self.assertEqual(block["town_claims"], [])
 
@@ -33148,7 +32014,6 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._identify_staff_ready = lambda candidate: True
         policy._town_pack_space_ready = lambda candidate: True
         policy._inventory_overweight = lambda candidate: False
-        policy._mandatory_home_deposit = lambda candidate: None
         policy._home_available = lambda candidate: True
         policy._equipment_departure_ready = lambda candidate: True
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
@@ -33167,7 +32032,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertNotIn(
             "home_candidate_waiting",
             policy._departure_block_state(
-                snapshot, deep_fundraising=False
+                snapshot
             )["failed"],
         )
 
@@ -33932,32 +32797,10 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
         self.assertIs(policy._find_home_deposit(snapshot), arrows)
         self.assertTrue(policy._home_deposit_candidate(arrows, snapshot))
         self.assertTrue(policy._town_departure_ready(snapshot))
-        block = policy._departure_block_state(snapshot, deep_fundraising=False)
-        self.assertFalse(block["values"]["pending_home_deposit"])
+        block = policy._departure_block_state(snapshot)
+        self.assertNotIn("pending_home_deposit", block["values"])
         self.assertNotIn("pending_home_deposit", block["failed"])
 
-    def test_mandatory_deep_mining_stash_still_blocks_departure(self):
-        unsecured = item(
-            "a",
-            TVAL_SWORD,
-            1,
-            name="unsecured ego sword",
-            known=True,
-            fully_known=False,
-            is_equipment=True,
-            is_ego=True,
-        )
-        snapshot = self._snapshot([unsecured])
-        policy = HengbotPolicy()
-        self._make_other_departure_gates_ready(policy)
-        policy._fundraising_mode = "mine"
-        policy._deep_fundraising_active = lambda _snapshot: True
-
-        self.assertTrue(
-            policy._must_stash_before_deep_mining(snapshot, unsecured)
-        )
-        self.assertIs(policy._mandatory_home_deposit(snapshot), unsecured)
-        self.assertFalse(policy._town_departure_ready(snapshot))
 
     def test_pack_pressure_still_blocks_with_convenience_deposit(self):
         arrows = item("a", TVAL_ARROW, 1, count=40, name="surplus arrows")
