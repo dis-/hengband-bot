@@ -5624,11 +5624,9 @@ class HengbotPolicy:
         return status.count >= status.required_departure
 
     def _recall_departure_ready(self, snapshot: Snapshot) -> bool:
-        """Minimum recall stock allowed when preferred restocking is unavailable."""
+        """Whether recall stock meets the depth-banded departure requirement."""
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
-        return status.count > 0 and not (
-            status.count < status.required_departure and status.obtainable
-        )
+        return status.count >= status.required_departure
 
     def _recall_destination_safe(
         self, snapshot: Snapshot, dungeon_id: int
@@ -13340,6 +13338,8 @@ class HengbotPolicy:
             if not snapshot.player.recalling:
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
+                    # Sole sanctioned recall-stock exception: the cycle breaker
+                    # may spend its last scroll to avoid a permanent town freeze.
                     self.last_reason = "town:repetition-depart:recall"
                     return READ_KEY + recall.slot
         return WAIT_KEY

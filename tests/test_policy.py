@@ -12631,7 +12631,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
 
-    def test_deep_recall_can_depart_below_preferred_stock_after_stores_fail(self):
+    def test_deep_recall_cannot_depart_below_requirement_after_stores_fail(self):
         snap = Snapshot(
             player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -12661,14 +12661,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertFalse(policy._recall_ready(snap))
-        self.assertTrue(policy._recall_departure_ready(snap))
-        self.assertNotIn(
-            policy._next_required_store_type(snap),
-            (STORE_TEMPLE, STORE_ALCHEMIST),
-        )
+        self.assertFalse(policy._recall_departure_ready(snap))
+        policy._next_required_store_type(snap)
         self.assertEqual(policy._fundraising_mode, "prepare")
 
-    def test_unobtainable_deep_recall_does_not_block_departure(self):
+    def test_unobtainable_recall_below_requirement_blocks_departure(self):
         snap = Snapshot(
             player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -12686,9 +12683,57 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._target_dungeon_id = DUNGEON_YEEK_CAVE
         policy._town_store_attempted.update({STORE_TEMPLE: 0, STORE_ALCHEMIST: 0})
 
-        self.assertTrue(policy._recall_departure_ready(snap))
-        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        status = policy._supply_ledger(snap, policy._planned_depth())["recall"]
+        self.assertLess(status.count, status.required_departure)
+        self.assertFalse(status.obtainable)
+        self.assertFalse(policy._recall_departure_ready(snap))
+        policy._next_required_store_type(snap)
         self.assertEqual(policy._fundraising_mode, "prepare")
+
+    def test_recall_at_departure_requirement_is_ready(self):
+        snap = Snapshot(
+            player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=self._strict_supplies(recall=5),
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 13
+
+        status = policy._supply_ledger(snap, policy._planned_depth())["recall"]
+        snap = replace(
+            snap,
+            inventory=self._strict_supplies(recall=status.required_departure),
+        )
+
+        self.assertTrue(policy._recall_departure_ready(snap))
+
+    def test_low_gold_bootstrap_can_use_walk_based_fundraising_departure(self):
+        snap = Snapshot(
+            player(
+                10,
+                10,
+                gold=0,
+                hp=20,
+                max_hp=20,
+                mp=0,
+                max_mp=0,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[item("f", TVAL_FOOD, 35, count=5)],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "scavenge"
+
+        self.assertFalse(policy._recall_departure_ready(snap))
+        self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_fundraising_withdraws_stored_detection_before_digger(self):
         inventory = self._strict_supplies(detection=0)
@@ -14750,7 +14795,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._should_start_town_return(dungeon_snapshot(3)))
         self.assertEqual(policy._last_return_trigger, "recall-low")
 
-    def test_town_prefers_fifth_recall_but_departs_after_shops_are_exhausted(self):
+    def test_town_requires_fifth_recall_after_shops_are_exhausted(self):
         snap = Snapshot(
             player(10, 10, gold=8599, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -14775,9 +14820,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._town_store_attempted.update(
             {STORE_TEMPLE: 0, STORE_ALCHEMIST: 0, STORE_BLACK: 0}
         )
-        self.assertTrue(policy._recall_departure_ready(snap))
-        self.assertIsNone(policy._next_required_store_type(snap))
-        self.assertIsNone(policy._town_restock_wait_until)
+        self.assertFalse(policy._recall_departure_ready(snap))
 
     def test_deeper_stairs_do_not_restore_the_old_depth_based_recall_threshold(self):
         snap = Snapshot(
