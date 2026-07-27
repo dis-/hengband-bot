@@ -242,6 +242,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
         )
         # Isolate the prospective-depth owner from unrelated supply returns.
         policy._should_start_town_return = lambda _snapshot: False
+        policy._recall_departure_shortage = lambda _snapshot: False
 
         self.assertTrue(all(
             not policy._is_descent_target(snapshot, grid)

@@ -14836,7 +14836,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertFalse(HengbotPolicy()._next_depth_supply_shortage(snap))
 
-    def test_departs_instead_of_waiting_when_recall_is_unavailable(self):
+    def test_waits_when_required_recall_is_unavailable(self):
         snap = Snapshot(
             player(10, 10, gold=8000, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -14850,7 +14850,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy.prime(snap)
         policy._town_store_attempted.update({STORE_TEMPLE: 0, STORE_ALCHEMIST: 0})
 
-        self.assertNotEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
+        self.assertEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
         self.assertIn(STORE_TEMPLE, policy._town_store_attempted)
 
     def test_zero_recall_scrolls_waits_for_restock_instead_of_town_wander(self):
@@ -33356,6 +33356,132 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         self.assertIn(STORE_ALCHEMIST, policy._town_errand_plan.stops)
         self.assertIn(STORE_GENERAL, policy._town_errand_plan.stops)
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+
+class RecallShortageBehaviorRestrictionTest(unittest.TestCase):
+    @staticmethod
+    def _snapshot(depth, recall_count, *, town=False, downstairs=False):
+        inventory = [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=recall_count),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            item("f", TVAL_FOOD, 35, count=5),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=5),
+        ]
+        if recall_count == 0:
+            inventory = inventory[1:]
+        return Snapshot(
+            player(10, 10, gold=5000, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(
+                    10, 10, downstairs=downstairs, upstairs=not town
+                )
+            },
+            [],
+            floor_key=(0, 0, 0) if town else (DUNGEON_YEEK_CAVE, depth, 0),
+            town_flag=town,
+            inventory=inventory,
+            equipment=[
+                item(
+                    "L", TVAL_LITE, SV_LITE_LANTERN,
+                    fuel=7000, known=True, is_equipment=True,
+                )
+            ],
+        )
+
+    @staticmethod
+    def _ordinary_policy():
+        policy = HengbotPolicy()
+        policy._deepest_level = 4
+        policy._equipment_catalog.home_scan_complete = True
+        policy._fixed_quest_key = lambda _snapshot, _hostiles: None
+        policy._conquest_loot_key = lambda _snapshot: None
+        policy._victory_loot_key = lambda _snapshot: None
+        return policy
+
+    def test_town_shortage_waits_instead_of_ordinary_departure(self):
+        policy = self._ordinary_policy()
+        town = self._snapshot(0, 0, town=True, downstairs=True)
+
+        key = policy.choose_key(town)
+
+        self.assertEqual(key, RESTOCK_WAIT_MACRO)
+        self.assertIn("restock", policy.last_reason)
+        self.assertNotEqual(policy.last_reason, "town:travel-entrance")
+        self.assertNotEqual(key, policy_module.ENTER_DUNGEON_MACRO)
+
+    def test_shortage_blocks_downstairs_in_ordinary_dive(self):
+        policy = self._ordinary_policy()
+        dungeon = self._snapshot(1, 0, downstairs=True)
+
+        self.assertTrue(policy._recall_departure_shortage(dungeon))
+        self.assertTrue(policy._descent_is_blocked(dungeon))
+        self.assertNotEqual(policy.choose_key(dungeon), policy_module.DOWN_STAIRS_KEY)
+
+    def test_mid_dive_shortage_latches_return_and_ascends(self):
+        policy = self._ordinary_policy()
+        dungeon = self._snapshot(2, 0)
+
+        key = policy.choose_key(dungeon)
+
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(key, policy_module.UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "return:ascend")
+
+    def test_sufficient_recall_preserves_departure_and_descent(self):
+        policy = self._ordinary_policy()
+        dungeon = self._snapshot(1, 5, downstairs=True)
+
+        self.assertFalse(policy._recall_departure_shortage(dungeon))
+        self.assertFalse(policy._descent_is_blocked(dungeon))
+        self.assertEqual(policy.choose_key(dungeon), policy_module.DOWN_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "descend")
+
+    def test_shortage_does_not_change_active_shallow_mining(self):
+        policy = self._ordinary_policy()
+        policy._fundraising_mode = "mine"
+        dungeon = self._snapshot(1, 0, downstairs=True)
+        expected = "mining-owner"
+        policy._fundraising_key = lambda _snapshot, _hostiles: expected
+
+        self.assertTrue(policy._recall_departure_shortage(dungeon))
+        self.assertEqual(policy.choose_key(dungeon), expected)
+        self.assertFalse(policy._returning_to_town)
+
+    def test_shortage_does_not_restrict_character_creation_or_opening_q34(self):
+        policy = self._ordinary_policy()
+        birth = self._snapshot(0, 0, town=True)
+        birth = replace(
+            birth,
+            player=replace(birth.player, class_id=-1),
+        )
+
+        self.assertTrue(policy._recall_departure_shortage(birth))
+        self.assertTrue(policy._recall_shortage_opening_exempt(birth))
+
+        quest = QuestState(
+            id=34, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5
+        )
+        opening = replace(
+            self._snapshot(0, 0, town=True),
+            player=replace(
+                self._snapshot(0, 0, town=True).player,
+                level=1,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            town_id=0,
+            quests={34: quest},
+        )
+        policy.approved_quest_strategy = (
+            lambda quest_id: object() if quest_id == 34 else None
+        )
+        policy._fixed_quest_is_offered = (
+            lambda _snapshot, quest_id: quest_id == 34
+        )
+
+        self.assertTrue(policy._recall_departure_shortage(opening))
+        self.assertTrue(policy._opening_q34_active(opening))
+        self.assertTrue(policy._recall_shortage_opening_exempt(opening))
 
 
 class TownDepartureConvenienceDepositTest(unittest.TestCase):

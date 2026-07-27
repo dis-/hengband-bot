@@ -2594,6 +2594,18 @@ class HengbotPolicy:
         if fundraising is not None:
             return fundraising
 
+        if (
+            self._recall_departure_shortage(snapshot)
+            and not self._recall_shortage_opening_exempt(snapshot)
+            and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
+            and not snapshot.in_town
+        ):
+            # Preserve quest-floor exit locks below: setting the ordinary
+            # return latch is sufficient, and the existing return owner
+            # decides whether walking upward is currently legal.
+            self._returning_to_town = True
+            self._last_return_trigger = "recall-shortage"
+
         identify = self._pack_pressure_identify_key(snapshot)
         if identify is not None:
             return identify
@@ -2782,6 +2794,26 @@ class HengbotPolicy:
         town_special = self._town_special_key(snapshot)
         if town_special is not None:
             return town_special
+
+        if (
+            snapshot.in_town
+            and self._recall_departure_shortage(snapshot)
+            and not self._recall_shortage_opening_exempt(snapshot)
+            and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
+            and not self._town_cycle_pending
+            and self._town_blocked_reason != "repetition"
+        ):
+            # Existing shopping, processing, and restock owners above get their
+            # normal opportunity. At the ordinary departure boundary, shortage
+            # permits only the established fundraising or restock-wait flow.
+            if self._start_fundraising(snapshot):
+                fundraising = self._fundraising_key(snapshot, hostiles)
+                if fundraising is not None:
+                    return fundraising
+            recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
+            self._retry_after_store_restock(snapshot, recall_stores)
+            self.last_reason = self._restock_wait_reason(snapshot)
+            return RESTOCK_WAIT_MACRO
 
         here = snapshot.grid_at(player.position)
         # 3b. Losing HP with nothing hostile in view means an attacker we cannot
@@ -5627,6 +5659,16 @@ class HengbotPolicy:
         """Whether recall stock meets the depth-banded departure requirement."""
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         return status.count >= status.required_departure
+
+    def _recall_departure_shortage(self, snapshot: Snapshot) -> bool:
+        status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
+        return status.count < status.required_departure
+
+    def _recall_shortage_opening_exempt(self, snapshot: Snapshot) -> bool:
+        return (
+            snapshot.player.class_id < 0
+            or self._opening_q34_active(snapshot)
+        )
 
     def _recall_destination_safe(
         self, snapshot: Snapshot, dungeon_id: int
@@ -21328,6 +21370,12 @@ class HengbotPolicy:
 
     def _descent_is_blocked(self, snapshot: Snapshot) -> bool:
         if self._returning_to_town or len(snapshot.inventory) >= PACK_CAPACITY:
+            return True
+        if (
+            self._recall_departure_shortage(snapshot)
+            and not self._recall_shortage_opening_exempt(snapshot)
+            and self._fundraising_mode not in {"mine", "scavenge"}
+        ):
             return True
         if self._next_depth_supply_shortage(snapshot):
             # Defence in depth: the return policy should already be taking us
