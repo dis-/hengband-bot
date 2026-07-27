@@ -2711,6 +2711,82 @@ class ReturnToTownTest(unittest.TestCase):
         self.assertEqual(policy._return_to_town_key(second_clear, []), "6")
         self.assertEqual(policy.last_reason, "return:seek-upstairs")
 
+    def test_escape_decision_ledger_reads_reachability_once(self):
+        snapshot = self._exit_owner_snapshot(10)
+        policy = self._prepare_exit_owner_policy(snapshot)
+        calls = 0
+
+        def reachable():
+            nonlocal calls
+            calls += 1
+            return Position(10, 11)
+
+        first = policy._escape_state.read_once(snapshot, "reachable", reachable)
+        second = policy._escape_state.read_once(snapshot, "reachable", reachable)
+
+        self.assertEqual(first, Position(10, 11))
+        self.assertEqual(second, first)
+        self.assertEqual(calls, 1)
+
+    def test_emergency_owner_releases_to_disengage_immediately(self):
+        snapshot = self._exit_owner_snapshot(10)
+        policy = self._prepare_exit_owner_policy(snapshot)
+        emergency_results = iter(("t", None))
+
+        def emergency(_snapshot, _hostiles):
+            result = next(emergency_results)
+            if result is not None:
+                policy.last_reason = "emergency:teleport"
+            return result
+
+        disengage = Mock(return_value=WAIT_KEY)
+        with (
+            patch.object(policy, "_emergency_item", side_effect=emergency),
+            patch.object(policy, "_fruitless_disengage_key", disengage),
+        ):
+            policy.choose_key(snapshot)
+            policy.choose_key(replace(snapshot, turn=2))
+
+        self.assertNotEqual(policy._escape_state.owner, "emergency")
+        disengage.assert_called_once()
+
+    def test_escape_state_tolerates_store_snapshot_without_floor_key(self):
+        policy = HengbotPolicy()
+        policy._escape_state.floor = (DUNGEON_YEEK_CAVE, 2, 0)
+        store_snapshot = SimpleNamespace(store=StoreState(STORE_HOME, []))
+
+        policy._escape_state.begin_decision(store_snapshot)
+
+        self.assertEqual(
+            policy._escape_state.floor, (DUNGEON_YEEK_CAVE, 2, 0)
+        )
+        self.assertEqual(
+            policy._escape_state.decision_token, (None, id(store_snapshot))
+        )
+
+    def test_fruitless_budget_survives_breeder_los_flicker(self):
+        snapshot = self._exit_owner_snapshot(10)
+        breeder = hostile(1, 10, 12, distance=2, can_multiply=True)
+        fighting = replace(snapshot, visible_monsters=[breeder])
+        policy = self._prepare_exit_owner_policy(fighting)
+        policy._escape_state.budgets["fruitless-disengage"] = 37
+        policy._breeder_engagement_floor = fighting.floor_key
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW - 1
+        )
+
+        policy._update_combat_outcome(fighting)
+        policy._update_combat_outcome(replace(fighting, visible_monsters=[], turn=2))
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW - 1
+        )
+        policy._update_combat_outcome(replace(fighting, turn=3))
+
+        self.assertEqual(policy._fruitless_disengage_decisions, 37)
+        self.assertEqual(
+            policy._escape_state.budgets["fruitless-disengage"], 37
+        )
+
     def test_return_ignores_a_nonadjacent_weak_enemy_and_keeps_seeking_upstairs(self):
         grids = self._stairs()
         grids[Position(10, 12)] = grid(10, 12, monster=True)

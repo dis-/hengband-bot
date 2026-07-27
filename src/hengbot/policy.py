@@ -284,6 +284,52 @@ class TownVisitLedger:
     satisfied_needs: set[tuple[int, str]] = field(default_factory=set)
 
 
+@dataclass
+class EscapeState:
+    """Single owner and decision ledger for escape-family policy."""
+
+    floor: tuple[int, int, int] | None = None
+    owner: str | None = None
+    rung: str | None = None
+    stable_decisions: int = 0
+    budgets: Counter[str] = field(default_factory=Counter)
+    decision_token: tuple[tuple[int, int, int] | None, int] | None = None
+    ledger: dict[str, object] = field(default_factory=dict)
+
+    def begin_decision(self, snapshot: Snapshot) -> None:
+        floor_key = getattr(snapshot, "floor_key", None)
+        if floor_key is not None and self.floor != floor_key:
+            self.floor = floor_key
+            self.owner = None
+            self.rung = None
+            self.stable_decisions = 0
+            self.budgets.clear()
+        # Minimal store snapshots may omit both map identity and turn. Object
+        # identity still gives them safe per-snapshot ledger semantics.
+        token = (floor_key, getattr(snapshot, "turn", id(snapshot)))
+        if token != self.decision_token:
+            self.decision_token = token
+            self.ledger.clear()
+
+    def read_once(
+        self, snapshot: Snapshot, key: str, producer: Callable[[], object]
+    ) -> object:
+        self.begin_decision(snapshot)
+        if key not in self.ledger:
+            self.ledger[key] = producer()
+        return self.ledger[key]
+
+    def enter(self, owner: str, rung: str) -> None:
+        self.owner = owner
+        self.rung = rung
+        self.stable_decisions = 0
+
+    def release(self) -> None:
+        self.owner = None
+        self.rung = None
+        self.stable_decisions = 0
+
+
 @dataclass(frozen=True)
 class SupplyStatus:
     kind: str
@@ -1566,8 +1612,7 @@ class HengbotPolicy:
         self._descent_block_countdown = 0
         self._returning_to_town = False
         self._last_return_trigger: str | None = None  # why the last town return began
-        self._return_exit_wall_owner = False
-        self._return_upstairs_step_streak = 0
+        self._escape_state = EscapeState()
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         # threat_prediction results for the CURRENT snapshot, keyed by object
@@ -1896,6 +1941,7 @@ class HengbotPolicy:
                 self._equipment_transaction_home_pages.clear()
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
+        self._escape_state.begin_decision(snapshot)
         self.escape_ladder_telemetry = None
         key = self._decide(snapshot)
         key = self._periodic_character_dump_key(snapshot, key)
@@ -2323,7 +2369,16 @@ class HengbotPolicy:
             return summoner_ranged
         emergency = self._emergency_item(snapshot, emergency_hostiles)
         if emergency is not None:
+            if self.last_reason.startswith(
+                ("emergency:", "unseen-recall:", "guardian:")
+            ):
+                # Survival may always pre-empt a lower-priority owner.
+                self._escape_state.enter("emergency", self.last_reason)
             return emergency
+        if self._escape_state.owner == "emergency":
+            # The emergency ladder is exempt from sibling hysteresis: the
+            # established post-teleport handoff must happen immediately.
+            self._escape_state.release()
 
         if (
             self._breakout_dig_floor is not None
@@ -2420,6 +2475,10 @@ class HengbotPolicy:
         disengage = self._fruitless_disengage_key(snapshot, hostiles)
         if disengage is not None:
             return disengage
+        if self._escape_state.owner == "disengage":
+            self._escape_state.stable_decisions += 1
+            if self._escape_state.stable_decisions >= 2:
+                self._escape_state.release()
 
         # A harmless but extremely durable unique can otherwise fall through
         # the consumable projection and into ordinary melee forever.  Arm a
@@ -2786,8 +2845,13 @@ class HengbotPolicy:
 
         # Low supplies and a full pack are expedition-ending conditions. Once
         # triggered, keep heading upward even if using an item opens a pack slot.
-        town_return = self._return_to_town_key(snapshot, hostiles)
+        town_return = (
+            None
+            if self._escape_state.owner not in {None, "return"}
+            else self._return_to_town_key(snapshot, hostiles)
+        )
         if town_return is not None:
+            self._escape_state.enter("return", self.last_reason)
             return town_return
 
         # Identification can consume the same scarce gold as the mining setup.
@@ -3926,8 +3990,7 @@ class HengbotPolicy:
             self._blocked_rubble.clear()
             self._search_counts.clear()
             self._wall_search_counts.clear()
-            self._return_exit_wall_owner = False
-            self._return_upstairs_step_streak = 0
+            self._escape_state.release()
             self._remembered_floor_t.clear()
             self._remembered_door_t.clear()
             self._remembered_rubble_t.clear()
@@ -19149,16 +19212,26 @@ class HengbotPolicy:
             self.last_reason = "return:recall"
             return READ_KEY + recall.slot
 
-        upstairs_step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-        if self._return_exit_wall_owner:
+        upstairs_step = self._escape_state.read_once(
+            snapshot,
+            "return:upstairs-step",
+            lambda: self._nearest_goal_step(snapshot, self._is_upstairs_target),
+        )
+        assert upstairs_step is None or isinstance(upstairs_step, Position)
+        wall_owner = (
+            self._escape_state.owner == "return"
+            and self._escape_state.rung == "return:seek-secret-wall"
+        )
+        if wall_owner:
             if upstairs_step is None:
-                self._return_upstairs_step_streak = 0
+                self._escape_state.stable_decisions = 0
             else:
-                self._return_upstairs_step_streak += 1
-                if self._return_upstairs_step_streak >= 2:
-                    self._return_exit_wall_owner = False
-                    self._return_upstairs_step_streak = 0
+                self._escape_state.stable_decisions += 1
+                if self._escape_state.stable_decisions >= 2:
+                    self._escape_state.release()
                     self.last_reason = "return:seek-upstairs"
+                    if self._escape_state.owner != "disengage":
+                        self._escape_state.enter("return", self.last_reason)
                     return self._step_toward(snapshot, upstairs_step)
 
             # A temporary occupant can split a one-tile corridor in the
@@ -19182,11 +19255,12 @@ class HengbotPolicy:
             # No wall-search budget remains reachable. Release ownership so the
             # normal return rungs (including a currently valid stair path) can
             # make progress.
-            self._return_exit_wall_owner = False
-            self._return_upstairs_step_streak = 0
+            self._escape_state.release()
 
         if upstairs_step is not None:
             self.last_reason = "return:seek-upstairs"
+            if self._escape_state.owner != "disengage":
+                self._escape_state.enter("return", self.last_reason)
             return self._step_toward(snapshot, upstairs_step)
 
         if self._is_oscillating():
@@ -19231,9 +19305,9 @@ class HengbotPolicy:
                 return SEARCH_KEY
             step = self._secret_wall_search_step(snapshot)
             if step is not None:
-                self._return_exit_wall_owner = True
-                self._return_upstairs_step_streak = 0
                 self.last_reason = "return:seek-secret-wall"
+                if self._escape_state.owner != "disengage":
+                    self._escape_state.enter("return", self.last_reason)
                 return self._step_toward(snapshot, step)
 
         step = self._least_visited_neighbor(snapshot)
@@ -19462,6 +19536,7 @@ class HengbotPolicy:
             "ladder": reason.split(":", 1)[0],
             "rung": reason,
             "budget_remaining": remaining,
+            "owner": self._escape_state.owner,
         }
         if reason == "combat:disengage-wait":
             # The next policy decision emits the ladder's established visible
@@ -19551,7 +19626,9 @@ class HengbotPolicy:
             self._combat_fruitful = False
             if self._fruitless_disengage_floor != snapshot.floor_key:
                 self._fruitless_disengage_floor = snapshot.floor_key
-                self._fruitless_disengage_decisions = 0
+                self._fruitless_disengage_decisions = self._escape_state.budgets[
+                    "fruitless-disengage"
+                ]
                 self._returning_to_town = True
                 self.last_reason = "combat:disengage-armed"
             return
@@ -19618,7 +19695,9 @@ class HengbotPolicy:
             and self._fruitless_disengage_floor != snapshot.floor_key
         ):
             self._fruitless_disengage_floor = snapshot.floor_key
-            self._fruitless_disengage_decisions = 0
+            self._fruitless_disengage_decisions = self._escape_state.budgets[
+                "fruitless-disengage"
+            ]
             self._returning_to_town = True
             self.last_reason = "combat:disengage-armed"
 
@@ -19719,8 +19798,13 @@ class HengbotPolicy:
 
         if self._fruitless_disengage_decisions >= FRUITLESS_DISENGAGE_LIMIT:
             self.last_reason = "combat:fruitless"
+            self._escape_state.release()
             return WAIT_KEY
         self._fruitless_disengage_decisions += 1
+        self._escape_state.budgets["fruitless-disengage"] = (
+            self._fruitless_disengage_decisions
+        )
+        self._escape_state.enter("disengage", "combat:disengage")
         self._returning_to_town = True
 
         # On an ordinary floor, the latched return is the single owner of the
@@ -19769,6 +19853,7 @@ class HengbotPolicy:
                     self.last_reason = (
                         "combat:disengage-" + self.last_reason[7:]
                     )
+                self._escape_state.enter("disengage", self.last_reason)
                 return key
 
         if nearby_threat:
@@ -19784,6 +19869,7 @@ class HengbotPolicy:
             if key is not None:
                 if self.last_reason.startswith("return:"):
                     self.last_reason = "combat:disengage-" + self.last_reason[7:]
+                self._escape_state.enter("disengage", self.last_reason)
                 return key
         self.last_reason = "combat:disengage-wait"
         return WAIT_KEY
@@ -19877,7 +19963,9 @@ class HengbotPolicy:
             return None
 
         self._fruitless_disengage_floor = snapshot.floor_key
-        self._fruitless_disengage_decisions = 0
+        self._fruitless_disengage_decisions = self._escape_state.budgets[
+            "fruitless-disengage"
+        ]
         self._returning_to_town = True
         key = self._fruitless_disengage_key(snapshot, hostiles)
         if self.last_reason.startswith("combat:disengage-"):
