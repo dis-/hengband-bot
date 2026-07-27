@@ -230,6 +230,7 @@ def grid(
     lit=False,
     in_view=False,
     allows_los=None,
+    terrain_id=-1,
 ):
     pos = Position(y, x)
     walkable = (passable and not closed_door and not rubble) or open_door
@@ -264,6 +265,7 @@ def grid(
         lit=known and lit,
         in_view=known and in_view,
         allows_los=(known and walkable) if allows_los is None else allows_los,
+        terrain_id=terrain_id,
     )
 
 

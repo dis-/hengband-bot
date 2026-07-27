@@ -1234,6 +1234,7 @@ class HengbotPolicy:
         wilderness_map: "WildernessMap | None" = None,
         dungeon_knowledge: "dict[int, DungeonInfo] | None" = None,
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
+        damaging_terrain_ids: frozenset[int] | None = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
         quest_strategies: "dict[int, StrategyProfile] | None" = None,
         home_disposal_state: HomeDisposalState | None = None,
@@ -1251,6 +1252,7 @@ class HengbotPolicy:
         # one is too deep to loot. See _pick_alternate_dungeon.
         self._dungeon_knowledge = dungeon_knowledge or {}
         self._monrace_knowledge = monrace_knowledge or {}
+        self._damaging_terrain_ids = damaging_terrain_ids or frozenset()
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
@@ -21641,7 +21643,14 @@ class HengbotPolicy:
         self._rubble_t = rubble
         self._known_t = known
 
-    def _walkable_neighbors(self, snapshot: Snapshot, pos: Position) -> list[Position]:
+    def _walkable_neighbors(
+        self,
+        snapshot: Snapshot,
+        pos: Position,
+        *,
+        allow_damaging: bool | None = None,
+        goal: Callable[[GridState], bool] | None = None,
+    ) -> list[Position]:
         floor = self._floor_t
         door = self._door_t
         rubble = self._rubble_t
@@ -21659,12 +21668,27 @@ class HengbotPolicy:
                     grid is not None and grid.has_entrance
                 ):
                     continue
+                if (
+                    allow_damaging is False
+                    and self._is_damaging_grid(grid)
+                    and not (grid is not None and goal is not None and goal(grid))
+                ):
+                    continue
                 neighbors.append(neighbor)
             elif key in door:
                 neighbors.append(Position(ny, nx))
             elif (dy == 0 or dx == 0) and key in rubble:
                 # Rubble is tunnelled from an orthogonally adjacent tile.
                 neighbors.append(Position(ny, nx))
+        if allow_damaging is None:
+            safe = [
+                neighbor
+                for neighbor in neighbors
+                if not self._is_damaging_grid(snapshot.grids.get(neighbor))
+            ]
+            # Immediate movement selectors prefer every safe option, but retain
+            # emergency/corridor progress when all available steps are harmful.
+            return safe or neighbors
         return neighbors
 
     def _breakout_step(self, snapshot: Snapshot, avoid_key: str) -> Position | None:
@@ -21686,6 +21710,12 @@ class HengbotPolicy:
         pool = orthogonal or diagonal
         if not pool:
             return None
+        safe = [
+            candidate
+            for candidate in pool
+            if not self._is_damaging_grid(snapshot.grids.get(candidate))
+        ]
+        pool = safe or pool
         return min(pool, key=lambda p: self._visit_counts[p])
 
     def _nearest_goal_step(self, snapshot: Snapshot, predicate) -> Position | None:
@@ -21697,18 +21727,23 @@ class HengbotPolicy:
         a normal floor).
         """
         start = snapshot.player.position
-        seen = {start}
-        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
-        while queue:
-            pos, first_step = queue.popleft()
-            grid = snapshot.grids.get(pos)
-            if pos != start and grid is not None and predicate(grid):
-                return first_step
-            for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
-                    continue
-                seen.add(neighbor)
-                queue.append((neighbor, neighbor if first_step is None else first_step))
+        for allow_damaging in (False, True):
+            seen = {start}
+            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+            while queue:
+                pos, first_step = queue.popleft()
+                grid = snapshot.grids.get(pos)
+                if pos != start and grid is not None and predicate(grid):
+                    return first_step
+                for neighbor in self._walkable_neighbors(
+                    snapshot, pos, allow_damaging=allow_damaging, goal=predicate
+                ):
+                    if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                        continue
+                    seen.add(neighbor)
+                    queue.append(
+                        (neighbor, neighbor if first_step is None else first_step)
+                    )
         return None
 
     def _nearest_goal_and_step(
@@ -21716,19 +21751,24 @@ class HengbotPolicy:
     ) -> tuple[Position, Position] | None:
         """Return both the selected BFS goal and its first approach step."""
         start = snapshot.player.position
-        seen = {start}
-        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
-        while queue:
-            pos, first_step = queue.popleft()
-            grid = snapshot.grids.get(pos)
-            if pos != start and grid is not None and predicate(grid):
-                assert first_step is not None
-                return pos, first_step
-            for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
-                    continue
-                seen.add(neighbor)
-                queue.append((neighbor, neighbor if first_step is None else first_step))
+        for allow_damaging in (False, True):
+            seen = {start}
+            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+            while queue:
+                pos, first_step = queue.popleft()
+                grid = snapshot.grids.get(pos)
+                if pos != start and grid is not None and predicate(grid):
+                    assert first_step is not None
+                    return pos, first_step
+                for neighbor in self._walkable_neighbors(
+                    snapshot, pos, allow_damaging=allow_damaging, goal=predicate
+                ):
+                    if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                        continue
+                    seen.add(neighbor)
+                    queue.append(
+                        (neighbor, neighbor if first_step is None else first_step)
+                    )
         return None
 
     def _town_map_goal_step(
@@ -22000,6 +22040,14 @@ class HengbotPolicy:
     def _plan_explore_path(self, snapshot: Snapshot) -> list[Position]:
         """Dijkstra to the nearest (visit-penalised) frontier, returning the full
         step path so we can commit to it."""
+        path = self._plan_explore_path_pass(snapshot, allow_damaging=False)
+        if path:
+            return path
+        return self._plan_explore_path_pass(snapshot, allow_damaging=True)
+
+    def _plan_explore_path_pass(
+        self, snapshot: Snapshot, *, allow_damaging: bool
+    ) -> list[Position]:
         start = snapshot.player.position
         previous = self._recent[-2] if len(self._recent) >= 2 else None
         sequence = count()
@@ -22027,7 +22075,9 @@ class HengbotPolicy:
                 if self._is_remembered_frontier(snapshot, pos):
                     goal = pos
                     break
-            for neighbor in self._walkable_neighbors(snapshot, pos):
+            for neighbor in self._walkable_neighbors(
+                snapshot, pos, allow_damaging=allow_damaging
+            ):
                 if neighbor in self._engagement_avoid_cells:
                     continue
                 penalty = VISIT_PENALTY * self._visit_counts[neighbor]
@@ -22050,9 +22100,25 @@ class HengbotPolicy:
         path.reverse()
         return path
 
-    def _is_step_open(self, snapshot: Snapshot, start: Position, pos: Position) -> bool:
+    def _is_damaging_grid(self, grid: GridState | None) -> bool:
+        return (
+            grid is not None
+            and grid.terrain_id >= 0
+            and grid.terrain_id in self._damaging_terrain_ids
+        )
+
+    def _is_step_open(
+        self,
+        snapshot: Snapshot,
+        start: Position,
+        pos: Position,
+        *,
+        allow_damaging: bool = True,
+    ) -> bool:
         grid = snapshot.grids.get(pos)
         if grid is None or grid.has_monster:
+            return False
+        if not allow_damaging and self._is_damaging_grid(grid):
             return False
         if grid.is_door:
             return grid.passable or grid.is_closed_door

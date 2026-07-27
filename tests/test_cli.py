@@ -447,6 +447,18 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertEqual(floor_grid.object_count, 2)
         self.assertEqual(floor_grid.object_tvals, (65, 55))
 
+    def test_parses_terrain_id_and_defaults_for_older_emitters(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {"y": 5, "x": 6, "known": True, "terrain_id": 85,
+             "terrain": {"move": True}},
+            {"y": 5, "x": 7, "known": True, "terrain": {"move": True}},
+        ]
+
+        grids = parse_snapshot(data, {}).grids
+        self.assertEqual(grids[Position(5, 6)].terrain_id, 85)
+        self.assertEqual(grids[Position(5, 7)].terrain_id, -1)
+
     def test_parses_walkable_line_of_fire_blocker(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["nearby_grids"] = [

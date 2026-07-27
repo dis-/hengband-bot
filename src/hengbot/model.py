@@ -516,6 +516,7 @@ class GridState:
     has_down_stairs: bool
     has_up_stairs: bool
     unsafe: bool
+    terrain_id: int = -1
     is_closed_door: bool = False
     is_door: bool = False  # any door, open or closed (only enterable orthogonally)
     trap: bool = False
@@ -793,6 +794,7 @@ def parse_snapshot(
             has_down_stairs=known and _as_bool(terrain.get("down_stairs", False)),
             has_up_stairs=known and _as_bool(terrain.get("up_stairs", False)),
             unsafe=known and _as_bool(flags.get("unsafe", False)),
+            terrain_id=int(grid_data.get("terrain_id", -1)),
             is_closed_door=door and not move,
             is_door=door,
             trap=known and _as_bool(terrain.get("trap", False)),
