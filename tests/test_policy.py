@@ -26425,6 +26425,78 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.last_reason, "town:blocked:repetition")
 
+    def test_blocked_equipment_transaction_yields_to_restock_wait(self):
+        pol = HengbotPolicy()
+        snap = self._town_snap()
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "pack:upgrade"
+        )
+        pol._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        pol._block_equipment_transaction("incomplete-catalog")
+        pol._town_restock_wait_until = snap.turn + 100
+        pol._town_restock_wait_stores = (STORE_TEMPLE,)
+
+        self.assertIsNone(pol._town_special_key(snap))
+        self.assertIsNone(pol._equipment_transaction_session)
+        self.assertIsNone(pol._town_blocked_reason)
+        self.assertIn("pack:upgrade", pol._equipment_transaction_failed_items)
+
+        self.assertEqual(pol._town_special_key(snap), RESTOCK_WAIT_MACRO)
+        self.assertTrue(pol.last_reason.startswith("town:wait-restock:"))
+
+    def test_non_equipment_blocked_reasons_keep_existing_behavior(self):
+        snap = self._town_snap()
+        repetition = HengbotPolicy()
+        repetition._town_blocked_reason = "repetition"
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+        with patch.object(repetition, "_descent_step", return_value=step):
+            self.assertEqual(repetition._town_blocked_key(snap), "6")
+        self.assertEqual(repetition.last_reason, "town:repetition-depart")
+
+        no_light = HengbotPolicy()
+        no_light._town_blocked_reason = "departure-no-light"
+        self.assertEqual(no_light._town_blocked_key(snap), WAIT_KEY)
+        self.assertEqual(
+            no_light.last_reason, "town:blocked:departure-no-light"
+        )
+        self.assertEqual(no_light._town_blocked_reason, "departure-no-light")
+
+    def test_abandoned_equipment_item_is_excluded_for_rest_of_visit(self):
+        upgrade = item(
+            "a", 23, 1, name="upgrade", known=True, fully_known=True,
+            is_equipment=True,
+        )
+        snap = replace(self._town_snap(), inventory=[upgrade])
+        pol = HengbotPolicy()
+        pol._equipment_catalog.refresh_carried(
+            snap.inventory, snap.equipment
+        )
+        upgrade_id = next(iter(pol._equipment_catalog.items)).id
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", upgrade_id
+        )
+        pol._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        pol._block_equipment_transaction("incomplete-catalog")
+        self.assertIsNone(pol._town_blocked_key(snap))
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            return_value=SimpleNamespace(ready=False, transaction=None),
+        ) as prepare:
+            pol._prepare_equipment_optimization(snap)
+
+        retried_ids = {owned.id for owned in prepare.call_args.args[1]}
+        self.assertNotIn(upgrade_id, retried_ids)
+        self.assertIn(upgrade_id, pol._equipment_transaction_failed_items)
+
     def test_blocked_repetition_walks_before_using_recall(self):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)

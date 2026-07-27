@@ -13197,7 +13197,7 @@ class HengbotPolicy:
             and here.is_store
         )
 
-    def _town_blocked_key(self, snapshot: Snapshot) -> str:
+    def _town_blocked_key(self, snapshot: Snapshot) -> str | None:
         """Leave an open/interleaved store UI before handling a town block.
 
         A repeated town cycle is recoverable once its shopping fuel lines have
@@ -13207,6 +13207,12 @@ class HengbotPolicy:
         Other blocked reasons remain visible terminal waits.
         """
         self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        if (
+            self._town_blocked_reason is not None
+            and self._town_blocked_reason.startswith("equipment-transaction:")
+        ):
+            self._abandon_blocked_equipment_transaction()
+            return None
         if snapshot.store is None:
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.is_store:
