@@ -23504,6 +23504,186 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         return snapshot, monster, knowledge
 
+    @staticmethod
+    def _active_quest_target(snapshot, knowledge):
+        quest = QuestState(
+            41,
+            status=QUEST_STATUS_TAKEN,
+            type=QUEST_TYPE_RANDOM,
+            level=24,
+            dungeon_id=1,
+            r_idx=9001,
+            max_num=1,
+        )
+        return (
+            replace(snapshot, floor_key=(1, 24, 41), quests={41: quest}),
+            replace(knowledge, flags=frozenset()),
+        )
+
+    @staticmethod
+    def _live_damage(*args, **kwargs):
+        snapshot = args[0]
+        turns = kwargs.get("turns", 3)
+        per_turn = 120 if snapshot.player.speed >= 120 else 190
+        if kwargs.get("expected"):
+            per_turn = 130
+        return per_turn * turns
+
+    def test_active_quest_target_commits_speed_and_suppresses_lethal_escape(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=528,
+            max_hp=528,
+            monster_hp=250,
+            monster_speed=120,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED, count=9),
+                item("h", TVAL_POTION, SV_POTION_HEALING, count=6),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+        snapshot = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                main_hand_to_h=11,
+                main_hand_to_d=5,
+            ),
+            equipment=[
+                item(
+                    "main_hand",
+                    22,
+                    7,
+                    is_equipment=True,
+                    damage_dice_num=1,
+                    damage_dice_sides=9,
+                    to_h=11,
+                    to_d=5,
+                )
+            ],
+        )
+        snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        with patch.object(policy, "_predicted_damage", side_effect=self._live_damage):
+            self.assertIsNone(
+                policy._unique_fight_projection(
+                    snapshot, [monster], monster, player_speed=110
+                )
+            )
+            self.assertIsNotNone(
+                policy._unique_fight_projection(
+                    snapshot,
+                    [monster],
+                    monster,
+                    player_speed=120,
+                    extra_turns=1,
+                )
+            )
+            self.assertEqual(policy.choose_key(snapshot), "qs")
+            self.assertEqual(policy.last_reason, "unique:quaff-speed")
+
+            continued_monster = replace(monster, hp=200, max_hp=250)
+            continued = replace(
+                snapshot,
+                player=replace(snapshot.player, hp=372, speed=120),
+                visible_monsters=[continued_monster],
+                inventory=[
+                    item("h", TVAL_POTION, SV_POTION_HEALING, count=6),
+                    item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                ],
+            )
+            self.assertTrue(
+                policy._committed_unique_fight_viable(
+                    continued, [continued_monster]
+                )
+            )
+            self.assertIsNone(
+                policy._emergency_item(continued, [continued_monster])
+            )
+
+    def test_nonquest_nonunique_does_not_use_combat_consumables(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=100,
+            monster_speed=120,
+            blow_sides=30,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING, count=3),
+            ],
+        )
+        policy = HengbotPolicy(
+            monrace_knowledge={9001: replace(knowledge, flags=frozenset())}
+        )
+
+        self.assertIsNone(policy._unique_combat_consumable(snapshot, [monster]))
+        self.assertIsNone(policy._unique_combat_committed_race_id)
+
+    def test_unique_target_eligibility_remains_unchanged(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=100,
+            monster_speed=120,
+            blow_sides=30,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING, count=3),
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertTrue(policy._consumable_fight_target(snapshot, monster))
+        self.assertEqual(policy._unique_combat_consumable(snapshot, [monster]), "qs")
+
+    def test_unwinnable_quest_target_still_teleports(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=80,
+            monster_hp=900,
+            blow_sides=50,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+        snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertIsNone(policy._unique_combat_committed_race_id)
+
+    def test_two_adjacent_quest_targets_do_not_commit(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=200,
+            max_hp=200,
+            monster_hp=100,
+            monster_speed=120,
+            blow_sides=30,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING, count=3),
+            ],
+        )
+        second = replace(monster, index=2, position=Position(11, 10))
+        snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        snapshot = replace(
+            snapshot,
+            grids={
+                **snapshot.grids,
+                Position(11, 10): grid(11, 10, monster=True),
+            },
+            visible_monsters=[monster, second],
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertIsNone(
+            policy._unique_combat_consumable(snapshot, [monster, second])
+        )
+        self.assertIsNone(policy._unique_combat_committed_race_id)
+
     def _cure_critical_guardian(
         self, *, hp=463, cure_count=20, monster_speed=115, blow_sides=14
     ):

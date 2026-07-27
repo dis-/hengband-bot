@@ -19779,6 +19779,18 @@ class HengbotPolicy:
                 }
         return None
 
+    def _consumable_fight_target(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        if knowledge is not None and "UNIQUE" in knowledge.flags:
+            return True
+        quest_id = self._active_kill_quest_id(snapshot)
+        if quest_id is None:
+            return False
+        quest = snapshot.quests.get(quest_id)
+        return quest is not None and quest.r_idx > 0 and monster.race_id == quest.r_idx
+
     def _unique_combat_consumable(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -19786,11 +19798,7 @@ class HengbotPolicy:
         unique_hostiles = [
             monster
             for monster in hostiles
-            if (
-                (knowledge := self._monrace_knowledge.get(monster.race_id))
-                is not None
-                and "UNIQUE" in knowledge.flags
-            )
+            if self._consumable_fight_target(snapshot, monster)
         ]
         adjacent_uniques = [
             monster for monster in unique_hostiles if monster.distance <= 1
