@@ -115,6 +115,7 @@ from hengbot.policy import (
     SELL_KEY,
     SELL_CONFIRM_SUFFIX,
     READ_KEY,
+    WAIT_KEY,
     STUCK_ESCAPE_LIMIT,
     TOWN_WANDER_LIMIT,
     STORE_RETRY_TURNS,
@@ -23563,6 +23564,99 @@ class HighValueBookSaleTest(unittest.TestCase):
 
         self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:leave-with-book-sale")
+
+
+class NoWaitUnderFireTest(unittest.TestCase):
+    def _snapshot(self, *, inventory=(), include_escape=True):
+        attacker = hostile(
+            1,
+            10,
+            13,
+            max_ranged_damage=13,
+        )
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(9, 12)
+            for x in range(9, 14)
+        }
+        grids[attacker.position] = grid(
+            attacker.position.y,
+            attacker.position.x,
+            monster=True,
+        )
+        return Snapshot(
+            player(10, 10, hp=228, max_hp=593),
+            grids,
+            [attacker],
+            inventory=(
+                [item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
+                if include_escape
+                else list(inventory)
+            ),
+        )
+
+    def test_ranged_disengage_wait_under_fire_uses_escape_scroll(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+
+        def disengage_wait(_snapshot):
+            policy.last_reason = "combat:disengage-wait"
+            return WAIT_KEY
+
+        with patch.object(policy, "_decide", side_effect=disengage_wait):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, READ_KEY + "t")
+        self.assertEqual(policy.last_reason, "no-wait:escape-scroll")
+
+    def test_sanctioned_waits_are_preserved(self):
+        snapshot = self._snapshot(include_escape=False)
+        policy = HengbotPolicy()
+        policy._took_damage = True
+
+        for reason in (
+            "return:wait-recall",
+            "quest-strategy:hold",
+            "rest",
+        ):
+            with self.subTest(reason=reason):
+                policy.last_reason = reason
+                self.assertEqual(
+                    policy._forbid_wait_under_fire(snapshot, WAIT_KEY),
+                    WAIT_KEY,
+                )
+                self.assertEqual(policy.last_reason, reason)
+
+    def test_wait_without_damage_or_hostile_line_of_fire_is_untouched(self):
+        snapshot = replace(
+            self._snapshot(include_escape=False),
+            visible_monsters=[],
+        )
+        policy = HengbotPolicy()
+        policy.last_reason = "return:wait"
+
+        self.assertEqual(
+            policy._forbid_wait_under_fire(snapshot, WAIT_KEY),
+            WAIT_KEY,
+        )
+        self.assertEqual(policy.last_reason, "return:wait")
+
+    def test_true_dead_end_under_fire_keeps_wait(self):
+        snapshot = self._snapshot(include_escape=False)
+        policy = HengbotPolicy()
+        policy._took_damage = True
+        policy.last_reason = "emergency:wait"
+
+        with (
+            patch.object(policy, "_flee_step", return_value=None),
+            patch.object(policy, "_least_visited_neighbor", return_value=None),
+            patch.object(policy, "_adjacent_hostiles", return_value=[]),
+        ):
+            self.assertEqual(
+                policy._forbid_wait_under_fire(snapshot, WAIT_KEY),
+                WAIT_KEY,
+            )
+        self.assertEqual(policy.last_reason, "emergency:wait")
 
 
 class UniqueCombatConsumableTest(unittest.TestCase):

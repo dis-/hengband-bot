@@ -1923,6 +1923,7 @@ class HengbotPolicy:
             )
         key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
+        key = self._forbid_wait_under_fire(snapshot, key)
         self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
@@ -2203,6 +2204,76 @@ class HengbotPolicy:
                 self.last_reason = "breakout"
                 key = self._direction_key(position, alternate)
                 self._last_move_key = key
+        return key
+
+    def _forbid_wait_under_fire(self, snapshot: Snapshot, key: str) -> str:
+        """Replace an unsanctioned WAIT when an attacker can hurt the player."""
+        if key != WAIT_KEY or snapshot.store is not None:
+            return key
+
+        reason = self.last_reason
+        # Keep this aligned with cli.STATIONARY_REASONS and the
+        # stationary_by_design cases in _break_positional_oscillation. Importing
+        # the CLI set here would introduce a policy/CLI cycle; these are the
+        # bounded recall/confirmation waits and deliberate quest/rest holds.
+        sanctioned = (
+            reason
+            in {
+                "return:wait-recall",
+                "fundraise:wait-recall",
+                "town:wait-recall",
+                "town:wait-restock",
+                "wilderness:wait-recall",
+                "combat:disengage-wait-recall",
+                "quest-strategy:hold",
+                "quest:blocked:hold",
+                "rest",
+                "recover",
+            }
+            or (":await-" in reason and reason.endswith("-confirmation"))
+            or reason.endswith(":hold")
+            or reason.endswith(":recover")
+        )
+        if sanctioned:
+            return key
+
+        hostiles = (
+            self._hostiles(snapshot)
+            if hasattr(snapshot, "visible_monsters")
+            else []
+        )
+        under_fire = self._took_damage or any(
+            self._has_line_of_fire(
+                snapshot, monster.position, snapshot.player.position
+            )
+            and self._predicted_damage(snapshot, [monster], turns=1) > 0
+            for monster in hostiles
+        )
+        if not under_fire:
+            return key
+
+        scroll = self._escape_scroll(snapshot)
+        if scroll is not None:
+            self.last_reason = "no-wait:escape-scroll"
+            return READ_KEY + scroll.slot
+
+        step = self._flee_step(snapshot, hostiles)
+        if step is not None:
+            self.last_reason = "no-wait:flee"
+            return self._direction_key(snapshot.player.position, step)
+
+        step = self._least_visited_neighbor(snapshot)
+        if step is not None:
+            self.last_reason = "no-wait:least-visited"
+            return self._direction_key(snapshot.player.position, step)
+
+        adjacent = self._adjacent_hostiles(snapshot)
+        if adjacent and not snapshot.player.afraid:
+            self.last_reason = "no-wait:melee"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
+
         return key
 
     def _decide(self, snapshot: Snapshot) -> str:
