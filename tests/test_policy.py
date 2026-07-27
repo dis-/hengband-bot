@@ -24038,6 +24038,83 @@ class RemoveCurseTest(unittest.TestCase):
         self.assertEqual(policy._shop(home), "ds\r")
         self.assertEqual(policy.last_reason, "home:deposit")
 
+    def test_star_remove_curse_reserve_buy_waits_for_inventory_delta(self):
+        ware = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, price=500
+        )
+        temple = replace(
+            self._town([]),
+            player=player(
+                10, 10, gold=FUNDRAISING_GOLD_TARGET,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            store=StoreState(STORE_TEMPLE, [ware]),
+        )
+        policy = HengbotPolicy()
+        policy._home_star_remove_curse_count = 0
+        with (
+            patch.object(policy, "_recall_departure_shortage", return_value=False),
+            patch.object(policy, "_next_purchase", return_value=ware),
+            patch.object(policy, "_purchase_quantity", return_value=1),
+        ):
+            first = policy._shop(temple)
+            second = policy._shop(temple)
+            self.assertEqual([first, second].count("pz\r"), 1)
+            self.assertIsNotNone(
+                policy._star_remove_curse_reserve_buy_inflight
+            )
+
+            carried = item(
+                "s", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+                name=ware.name,
+            )
+            self.assertEqual(
+                policy._shop(replace(temple, inventory=[carried])),
+                "pz\r",
+            )
+        self.assertIsNone(policy._star_remove_curse_reserve_buy_inflight)
+
+        policy._star_remove_curse_reserve_buy_inflight = (
+            policy._item_signature(ware),
+            0,
+        )
+        policy._observe_star_remove_curse_reserve_inflight(self._town([]))
+        self.assertIsNone(policy._star_remove_curse_reserve_buy_inflight)
+
+    def test_star_remove_curse_reserve_deposit_waits_for_inventory_delta(self):
+        carried = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+            name="star remove curse",
+        )
+        home = replace(
+            self._town([], [carried]),
+            store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+        policy._home_star_remove_curse_count = 0
+        policy._star_remove_curse_reserve_deposit_pending = True
+
+        first = policy._shop(home)
+        second = policy._shop(home)
+        self.assertEqual([first, second].count("ds\r"), 1)
+        self.assertIsNotNone(
+            policy._star_remove_curse_reserve_deposit_inflight
+        )
+
+        policy._shop(replace(home, inventory=[]))
+        self.assertIsNone(
+            policy._star_remove_curse_reserve_deposit_inflight
+        )
+        self.assertFalse(policy._star_remove_curse_reserve_deposit_pending)
+        self.assertEqual(policy._home_star_remove_curse_count, 1)
+
+        signature = policy._item_signature(carried)
+        policy._star_remove_curse_reserve_deposit_inflight = (signature, 1)
+        policy._observe_star_remove_curse_reserve_inflight(self._town([]))
+        self.assertIsNone(
+            policy._star_remove_curse_reserve_deposit_inflight
+        )
+
     def test_star_remove_curse_reserve_cap_counts_home_and_carried_copy(self):
         ware = store_item(
             "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, price=500

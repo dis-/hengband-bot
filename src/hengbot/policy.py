@@ -1758,6 +1758,12 @@ class HengbotPolicy:
         self._star_remove_curse_shelf_seen = False
         self._star_remove_curse_reserve_deposit_pending = False
         self._star_remove_curse_reserve_withdraw_pending = False
+        self._star_remove_curse_reserve_buy_inflight: tuple[
+            tuple[str, int, int], int
+        ] | None = None
+        self._star_remove_curse_reserve_deposit_inflight: tuple[
+            tuple[str, int, int], int
+        ] | None = None
         # Full, duplicate-preserving catalog for the complete-loadout optimizer.
         # The legacy dict above remains temporarily for old sale/deposit paths;
         # it is not authoritative for global optimization because its short
@@ -1827,6 +1833,7 @@ class HengbotPolicy:
     def choose_key(self, snapshot: Snapshot) -> str:
         snapshot = self._with_grid_memory(snapshot)
         self._observe_home_history(snapshot)
+        self._observe_star_remove_curse_reserve_inflight(snapshot)
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -1972,15 +1979,6 @@ class HengbotPolicy:
                 None,
             )
             if deposited is not None:
-                if (
-                    deposited.tval == TVAL_SCROLL
-                    and deposited.sval == SV_SCROLL_STAR_REMOVE_CURSE
-                    and self._star_remove_curse_reserve_deposit_pending
-                ):
-                    self._home_star_remove_curse_count = (
-                        self._home_star_remove_curse_count or 0
-                    ) + 1
-                    self._star_remove_curse_reserve_deposit_pending = False
                 # Deposits are additive. Preserve the completed scan that the
                 # withdrawal batch is consuming and add the new physical item
                 # once, even if the same pre-command snapshot is observed again.
@@ -7351,6 +7349,7 @@ class HengbotPolicy:
             item.tval == TVAL_SCROLL
             and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
             and self._star_remove_curse_reserve_deposit_pending
+            and self._star_remove_curse_reserve_deposit_inflight is None
             and not self._star_remove_curse_reserve_withdraw_pending
         ):
             return True
@@ -7504,6 +7503,16 @@ class HengbotPolicy:
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
         deposit_count = self._retention_surplus(snapshot, deposit)
+        if (
+            deposit.tval == TVAL_SCROLL
+            and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            and self._star_remove_curse_reserve_deposit_pending
+        ):
+            signature = self._item_signature(deposit)
+            self._star_remove_curse_reserve_deposit_inflight = (
+                signature,
+                self._inventory_signature_count(snapshot, signature),
+            )
         quantity = f"{deposit_count}" if deposit_count > 1 else ""
         return SELL_KEY + deposit.slot + quantity + "\r"
 
@@ -11682,8 +11691,15 @@ class HengbotPolicy:
 
     def _shop(self, snapshot: Snapshot) -> str:
         store = snapshot.store
+        self._observe_star_remove_curse_reserve_inflight(snapshot)
         if store is None:
             self.last_reason = "shop:invalid"
+            return LEAVE_STORE_KEY
+        if (
+            store.store_type == STORE_TEMPLE
+            and self._star_remove_curse_reserve_buy_inflight is not None
+        ):
+            self.last_reason = "shop:await-star-remove-curse-purchase"
             return LEAVE_STORE_KEY
         if (
             store.store_type == STORE_MAGIC
@@ -12396,6 +12412,11 @@ class HengbotPolicy:
                     and self._star_remove_curse_reserve_purchase_needed(snapshot)
                 ):
                     self._star_remove_curse_reserve_deposit_pending = True
+                    signature = self._item_signature(item)
+                    self._star_remove_curse_reserve_buy_inflight = (
+                        signature,
+                        self._inventory_signature_count(snapshot, signature),
+                    )
                 self.last_reason = "shop:buy-star-remove-curse"
             elif (
                 item.tval == TVAL_SCROLL
@@ -12965,6 +12986,7 @@ class HengbotPolicy:
             self._star_remove_curse_shelf_seen = True
         if (
             ware is None
+            or self._star_remove_curse_reserve_buy_inflight is not None
             or (
                 not self._has_unremovable_curse_target(snapshot)
                 and not self._star_remove_curse_reserve_purchase_needed(snapshot)
@@ -12996,6 +13018,35 @@ class HengbotPolicy:
             and self._carried_star_remove_curse_count(snapshot) == 0
             and not self._star_remove_curse_reserve_deposit_pending
         )
+
+    def _observe_star_remove_curse_reserve_inflight(
+        self, snapshot: Snapshot
+    ) -> None:
+        buy_watch = self._star_remove_curse_reserve_buy_inflight
+        if buy_watch is not None:
+            signature, before_count = buy_watch
+            if self._inventory_signature_count(snapshot, signature) > before_count:
+                self._star_remove_curse_reserve_buy_inflight = None
+            elif (
+                snapshot.store is None
+                or snapshot.store.store_type != STORE_TEMPLE
+            ):
+                self._star_remove_curse_reserve_buy_inflight = None
+
+        deposit_watch = self._star_remove_curse_reserve_deposit_inflight
+        if deposit_watch is not None:
+            signature, before_count = deposit_watch
+            if self._inventory_signature_count(snapshot, signature) < before_count:
+                self._star_remove_curse_reserve_deposit_inflight = None
+                self._star_remove_curse_reserve_deposit_pending = False
+                self._home_star_remove_curse_count = (
+                    self._home_star_remove_curse_count or 0
+                ) + 1
+            elif (
+                snapshot.store is None
+                or snapshot.store.store_type != STORE_HOME
+            ):
+                self._star_remove_curse_reserve_deposit_inflight = None
 
     def _observe_remove_curse(self, snapshot: Snapshot) -> None:
         cursed_signatures = {
