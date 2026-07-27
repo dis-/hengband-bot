@@ -10054,6 +10054,14 @@ class HengbotPolicy:
                         return store_type
         return None
 
+    def _release_blocked_store_latches(self, store_type: int) -> None:
+        """Release flow state that a blocked store can no longer service."""
+        if store_type == STORE_HOME:
+            self._home_candidate_waiting = False
+            self._home_pending_item = None
+            self._home_pending_batch.clear()
+            self._home_withdraw_inflight = None
+
     def _report_town_stop_pass(
         self, snapshot: Snapshot, store_type: int, *, goal_satisfied: bool
     ) -> None:
@@ -10133,6 +10141,7 @@ class HengbotPolicy:
             return
         plan.blocked_this_visit.append(store_type)
         self._town_visit_ledger.blocked_stores.add(store_type)
+        self._release_blocked_store_latches(store_type)
         if store_type == STORE_HOME:
             self._completed_home_can_rearm = False
         plan.current_stop_passes = 0

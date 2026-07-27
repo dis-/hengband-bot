@@ -32463,6 +32463,95 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
 
+    def test_blocked_home_releases_departure_latches(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        pending = ("unknown sword", 23, 2)
+        policy._home_candidate_waiting = True
+        policy._home_pending_item = pending
+        policy._home_pending_batch = [pending]
+        policy._home_withdraw_inflight = (pending, 0, 0)
+        policy._equipment_catalog.home_scan_complete = True
+        policy._recall_departure_ready = lambda candidate: True
+        policy._food_ready = lambda candidate: True
+        policy._light_ready = lambda candidate: True
+        policy._teleport_ready = lambda candidate: True
+        policy._cure_critical_ready = lambda candidate: True
+        policy._identify_staff_ready = lambda candidate: True
+        policy._town_pack_space_ready = lambda candidate: True
+        policy._inventory_overweight = lambda candidate: False
+        policy._mandatory_home_deposit = lambda candidate: None
+        policy._home_available = lambda candidate: True
+        policy._equipment_departure_ready = lambda candidate: True
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertFalse(policy._town_departure_ready(snapshot))
+
+        for _ in range(TOWN_STOP_PASS_LIMIT):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertEqual(policy._home_pending_batch, [])
+        self.assertIsNone(policy._home_withdraw_inflight)
+        self.assertTrue(policy._town_departure_ready(snapshot))
+        self.assertNotIn(
+            "home_candidate_waiting",
+            policy._departure_block_state(
+                snapshot, deep_fundraising=False
+            )["failed"],
+        )
+
+    def test_unblocked_home_pass_preserves_departure_latches(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        pending = ("unknown sword", 23, 2)
+        inflight = (pending, 0, 0)
+        policy._home_candidate_waiting = True
+        policy._home_pending_item = pending
+        policy._home_pending_batch = [pending]
+        policy._home_withdraw_inflight = inflight
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        for _ in range(TOWN_STOP_PASS_LIMIT - 1):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+
+        self.assertTrue(policy._home_candidate_waiting)
+        self.assertEqual(policy._home_pending_item, pending)
+        self.assertEqual(policy._home_pending_batch, [pending])
+        self.assertEqual(policy._home_withdraw_inflight, inflight)
+
+    def test_next_town_visit_rebuilds_blocked_home_identification_batch(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        town = replace(self._snapshot(), town_flag=True)
+        dungeon = replace(town, town_flag=False, floor_key=(1, 1, 0))
+        pending = item(
+            "b", 23, 2, name="unknown sword", aware=False, known=False,
+            is_equipment=True,
+        )
+        policy._home_pending_batch = [policy._item_signature(pending)]
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
+        for _ in range(TOWN_STOP_PASS_LIMIT):
+            policy._report_town_stop_pass(
+                town, STORE_HOME, goal_satisfied=False
+            )
+        self.assertEqual(policy._home_pending_batch, [])
+
+        policy._observe(dungeon)
+        next_visit = replace(town, inventory=(pending,), turn=town.turn + 1)
+        policy.prime(next_visit)
+
+        self.assertEqual(
+            policy._home_pending_batch,
+            [policy._item_signature(pending)],
+        )
+
     def test_unsatisfied_stop_blocks_across_plan_rebuild(self):
         needs = [
             TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
