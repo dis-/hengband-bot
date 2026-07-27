@@ -32072,6 +32072,75 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._town_claim_categories, ["food"])
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
 
+    def test_blocked_store_ledger_kills_departure_blocking_claim(self):
+        needs = [TownNeed(STORE_GENERAL, "light", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_visit_ledger.blocked_stores.add(STORE_GENERAL)
+        policy._shopping_approach_step = Mock(
+            side_effect=AssertionError("blocked claim reached errand router")
+        )
+        policy._town_special_key = Mock(return_value="DEPART")
+
+        self.assertFalse(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._decide(snapshot), "DEPART")
+        policy._shopping_approach_step.assert_not_called()
+        policy._town_special_key.assert_called()
+
+    def test_exhausted_need_budget_kills_departure_blocking_claim(self):
+        needs = [TownNeed(STORE_MAGIC, "identify-staff", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_visit_ledger.need_attempts["identify-staff"] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        policy._shopping_approach_step = Mock(
+            side_effect=AssertionError("exhausted claim reached errand router")
+        )
+        policy._town_special_key = Mock(return_value="DEPART")
+
+        self.assertFalse(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._decide(snapshot), "DEPART")
+        policy._shopping_approach_step.assert_not_called()
+        policy._town_special_key.assert_called()
+
+    def test_exhausted_approach_failures_kill_departure_blocking_claim(self):
+        needs = [TownNeed(STORE_TEMPLE, "recall", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_visit_ledger.approach_fails[STORE_TEMPLE] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        policy._shopping_approach_step = Mock(
+            side_effect=AssertionError("unreachable claim reached errand router")
+        )
+        policy._town_special_key = Mock(return_value="DEPART")
+
+        self.assertFalse(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._decide(snapshot), "DEPART")
+        policy._shopping_approach_step.assert_not_called()
+        policy._town_special_key.assert_called()
+
+    def test_claimless_town_turn_runs_terminal_bookkeeping(self):
+        policy = self._policy([])
+        snapshot = replace(
+            self._snapshot(),
+            player=replace(
+                self._snapshot().player,
+                gold=FUNDRAISING_GOLD_TARGET,
+            ),
+        )
+        policy._town_terminal_transitions = (
+            HengbotPolicy._town_terminal_transitions.__get__(policy)
+        )
+        policy._fundraising_mode = "prepare"
+        policy._planned_mining_runs = 2
+        policy._town_special_key = Mock(return_value="DEPART")
+
+        self.assertEqual(policy._decide(snapshot), "DEPART")
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertIsNone(policy._planned_mining_runs)
+
     def test_opportunistic_need_claims_only_while_departure_is_blocked(self):
         needs = [TownNeed(STORE_WEAPON, "disposal", "normal")]
         policy = self._policy(needs)
