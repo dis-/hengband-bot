@@ -27371,11 +27371,38 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_ANGBAND
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
-        snap = replace(self._town_snap(), inventory=[recall])
+        snap = replace(
+            self._town_snap(),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE, DUNGEON_ANGBAND),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            angband_recall_unlocked=True,
+        )
+
+        with patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ), patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "rb")
+
+        self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
+
+    def test_blocked_repetition_dungeon_recall_keeps_bare_read_macro(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (DUNGEON_ANGBAND, 10, 0)
+        pol._town_blocked_reason = "repetition"
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(
+            self._town_snap(),
+            floor_key=(DUNGEON_ANGBAND, 10, 0),
+            town_flag=False,
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE, DUNGEON_ANGBAND),
+        )
 
         with patch.object(pol, "_descent_step", return_value=None):
-            self.assertEqual(pol._town_special_key(snap), READ_KEY + "r")
+            self.assertEqual(pol._town_blocked_key(snap), READ_KEY + "r")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
 
@@ -30851,6 +30878,58 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
 
         self.assertTrue(policy._equipment_departure_ready(self._town()))
+
+    def test_blocked_home_releases_home_dependent_equipment_departure(self):
+        policy = HengbotPolicy()
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        blocked = SimpleNamespace(
+            blockers=("home-withdrawal-required",),
+            result=None,
+            ready=False,
+            transaction=None,
+        )
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=blocked
+        ):
+            self.assertTrue(policy._equipment_departure_ready(self._town()))
+
+    def test_pending_home_equipment_work_blocks_when_home_is_available(self):
+        policy = HengbotPolicy()
+        blocked = SimpleNamespace(
+            blockers=("home-withdrawal-required",),
+            result=None,
+            ready=False,
+            transaction=None,
+        )
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=blocked
+        ):
+            self.assertFalse(policy._equipment_departure_ready(self._town()))
+
+    def test_blocked_home_does_not_steal_outside_home_transaction(self):
+        policy = HengbotPolicy()
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "pack:upgrade"
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        blocked = SimpleNamespace(
+            blockers=("home-withdrawal-required",),
+            result=None,
+            ready=False,
+            transaction=None,
+        )
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=blocked
+        ):
+            self.assertFalse(policy._equipment_departure_ready(self._town()))
 
     def test_selected_home_suppression_creates_home_errand(self):
         stored = store_item(

@@ -25,6 +25,7 @@ from hengbot.equipment_transaction_session import (
     observe_equipment_transactions,
 )
 from hengbot.equipment_transaction_planner import (
+    PHASE_EQUIP,
     PHASE_HOME_PREPARE,
     EquipmentTransaction,
     EquipmentTransactionPlan,
@@ -6767,6 +6768,28 @@ class HengbotPolicy:
             # exclusion here instead of retaining a permanently-false gate.
             self._abandon_blocked_equipment_transaction()
             preparation = self._prepare_equipment_optimization(snapshot)
+        if (
+            STORE_HOME in self._town_visit_ledger.blocked_stores
+            and not (
+                self._equipment_transaction_session is not None
+                and self._equipment_transaction_session.executable
+                and (
+                    self._equipment_transaction_session.required_context
+                    == "outside_home"
+                    or (
+                        self._equipment_transaction_session.pending_action
+                        is not None
+                        and self._equipment_transaction_session.pending_action.phase
+                        == PHASE_EQUIP
+                    )
+                )
+            )
+        ):
+            # T3 has proved that Home work cannot advance again this visit.
+            # Keep the current legal loadout and dive; a fresh town ledger will
+            # retry the optimizer's Home-dependent work on the next visit.  A
+            # live transaction in another store must retain ownership instead.
+            return True
         if (
             preparation is not None
             and preparation.blockers
@@ -13523,9 +13546,59 @@ class HengbotPolicy:
                 if recall is not None:
                     # Sole sanctioned recall-stock exception: the cycle breaker
                     # may spend its last scroll to avoid a permanent town freeze.
+                    selection = ""
+                    if snapshot.in_town:
+                        recall_dest, recall_dungeon_id = (
+                            self._town_recall_destination(
+                                snapshot,
+                                deep_fundraising=(
+                                    self._fundraising_mode == "mine"
+                                    and self._deep_fundraising_active(snapshot)
+                                ),
+                            )
+                        )
+                        if recall_dest is None:
+                            return WAIT_KEY
+                        selection = self._recall_selection_key(
+                            snapshot, recall_dungeon_id
+                        )
+                        if selection is None:
+                            return WAIT_KEY
                     self.last_reason = "town:repetition-depart:recall"
-                    return READ_KEY + recall.slot
+                    return READ_KEY + recall.slot + selection
         return WAIT_KEY
+
+    def _town_recall_destination(
+        self, snapshot: Snapshot, *, deep_fundraising: bool
+    ) -> tuple[str | None, int]:
+        """Choose the voluntary town-recall destination without issuing it."""
+        recall_dest = None
+        recall_dungeon_id = self._target_dungeon_id
+        if deep_fundraising:
+            recall_dest = "yeek-cave-mining"
+            recall_dungeon_id = DUNGEON_YEEK_CAVE
+        elif (
+            self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+            and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+        ):
+            recall_dest = "angband"
+        elif (
+            self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
+            and self._target_dungeon_id in snapshot.entered_dungeon_ids
+            and self._recall_destination_safe(snapshot, self._target_dungeon_id)
+        ):
+            recall_dest = "alt-dungeon"
+        elif (
+            self._target_dungeon_id == DUNGEON_YEEK_CAVE
+            and self._fundraising_mode not in {"mine", "scavenge"}
+            and not self._taken_kill_quest_requires_walk_in(snapshot)
+            and self._deepest_level >= RECALL_MIN_DEPTH
+            and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
+            and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
+        ):
+            recall_dest = "yeek-cave"
+        return recall_dest, recall_dungeon_id
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.player.class_id < 0:
@@ -13737,8 +13810,6 @@ class HengbotPolicy:
             self.last_reason = "town:loadout-depth-fallback"
             return WAIT_KEY
 
-        recall_dest = None
-        recall_dungeon_id = self._target_dungeon_id
         if (
             self._target_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
@@ -13749,33 +13820,9 @@ class HengbotPolicy:
                 return WAIT_KEY
             self.last_reason = "town:blocked:no-safe-recall-destination"
             return WAIT_KEY
-        if deep_fundraising:
-            recall_dest = "yeek-cave-mining"
-            recall_dungeon_id = DUNGEON_YEEK_CAVE
-        elif (
-            self._target_dungeon_id == DUNGEON_ANGBAND
-            and snapshot.angband_recall_unlocked
-            and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
-        ):
-            recall_dest = "angband"
-        elif (
-            self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
-            and self._target_dungeon_id in snapshot.entered_dungeon_ids
-            and self._recall_destination_safe(snapshot, self._target_dungeon_id)
-        ):
-            # A resistance-safe already-unlocked dungeon: the priority CONQUEST target
-            # (clear it for the guardian's gear), or the over-extension fallback when
-            # Angband was too deep to loot. Recall straight into it.
-            recall_dest = "alt-dungeon"
-        elif (
-            self._target_dungeon_id == DUNGEON_YEEK_CAVE
-            and self._fundraising_mode not in {"mine", "scavenge"}
-            and not self._taken_kill_quest_requires_walk_in(snapshot)
-            and self._deepest_level >= RECALL_MIN_DEPTH
-            and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
-            and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
-        ):
-            recall_dest = "yeek-cave"
+        recall_dest, recall_dungeon_id = self._town_recall_destination(
+            snapshot, deep_fundraising=deep_fundraising
+        )
         # A consumed/moved item can leave the old in-memory pointer behind even
         # though there is no longer an errand capable of clearing it.  Do this
         # immediately before the departure gate so an inert latch cannot turn a
