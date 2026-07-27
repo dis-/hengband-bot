@@ -52,6 +52,7 @@ from hengbot.cli import (
     _bot_play_macros_ready,
     _valid_bot_play_macro_pref,
 )
+from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
@@ -1159,6 +1160,40 @@ class StallRecoveryTest(unittest.TestCase):
 
 
 class StationaryReasonsTest(unittest.TestCase):
+    def test_only_registered_budgeted_escape_waits_are_exempt(self):
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+
+        for reason in ESCAPE_BUDGETED_WAIT_LIMITS:
+            with self.subTest(reason=reason):
+                self.assertIn(reason, STATIONARY_EXEMPT_REASONS)
+                self.assertFalse(_cell_loop_guard_applies(dungeon, reason))
+
+        for reason in (
+            "combat:disengage-step",
+            "return:wander",
+            "emergency:seek-upstairs",
+            "flee",
+            "status-threat:retreat",
+        ):
+            with self.subTest(reason=reason):
+                self.assertNotIn(reason, STATIONARY_EXEMPT_REASONS)
+                self.assertTrue(_cell_loop_guard_applies(dungeon, reason))
+
+    def test_escape_ladder_telemetry_is_written_to_decision_record(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+        telemetry = {
+            "ladder": "return",
+            "rung": "return:wait",
+            "budget_remaining": 17,
+            "reason": "return:wait",
+        }
+
+        record = _decision_record(
+            snapshot, "5", "return:wait", escape_ladder=telemetry
+        )
+
+        self.assertEqual(record["escape_ladder"], telemetry)
+
     def test_town_uses_policy_cycle_guard_instead_of_cell_guard(self):
         town = parse_snapshot(
             json.loads(_snap_line(1, 10, 10).replace('"level": 1', '"level": 0')),

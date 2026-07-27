@@ -23567,6 +23567,36 @@ class HighValueBookSaleTest(unittest.TestCase):
 
 
 class NoWaitUnderFireTest(unittest.TestCase):
+    def test_each_registered_escape_wait_has_a_visible_policy_terminal(self):
+        from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS
+
+        snapshot = replace(self._snapshot(include_escape=False), visible_monsters=[])
+        for reason, limit in ESCAPE_BUDGETED_WAIT_LIMITS.items():
+            with self.subTest(reason=reason):
+                policy = HengbotPolicy()
+                policy.last_reason = reason
+                if reason == "combat:disengage-wait":
+                    policy._fruitless_disengage_decisions = limit
+                else:
+                    policy._escape_wait_budget_floor = snapshot.floor_key
+                    policy._escape_wait_decisions[reason] = limit - 1
+                self.assertEqual(policy._bound_escape_wait(snapshot, WAIT_KEY), WAIT_KEY)
+                self.assertEqual(
+                    policy.escape_ladder_telemetry["budget_remaining"], 0
+                )
+                if reason == "combat:disengage-wait":
+                    self.assertEqual(policy.last_reason, reason)
+                    policy._fruitless_disengage_floor = snapshot.floor_key
+                    with patch.object(
+                        policy, "_fruitless_fight_is_winnable", return_value=False
+                    ):
+                        self.assertEqual(
+                            policy._fruitless_disengage_key(snapshot, []), WAIT_KEY
+                        )
+                    self.assertEqual(policy.last_reason, "combat:fruitless")
+                else:
+                    self.assertEqual(policy.last_reason, "livelock:exhausted")
+
     def _snapshot(self, *, inventory=(), include_escape=True):
         attacker = hostile(
             1,

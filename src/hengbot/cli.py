@@ -24,6 +24,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy import (
+    ESCAPE_BUDGETED_WAIT_LIMITS,
     FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
     ConservativePolicy,
@@ -279,6 +280,10 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
         "quest-strategy:hold",
+        # Exact policy-registered escape WAIT terminals. Each owns the existing
+        # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as
+        # livelock:exhausted; no other escape reason bypasses the outer guard.
+        *ESCAPE_BUDGETED_WAIT_LIMITS,
     }
 )
 
@@ -561,6 +566,7 @@ def _decision_record(
     fixedquest_readiness: dict | None = None,
     departure_block: dict | None = None,
     quest_strategy: dict | None = None,
+    escape_ladder: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -617,6 +623,7 @@ def _decision_record(
         **({"fixedquest_readiness": fixedquest_readiness} if fixedquest_readiness else {}),
         **({"departure_block": departure_block} if departure_block else {}),
         **({"quest_strategy": quest_strategy} if quest_strategy is not None else {}),
+        **({"escape_ladder": escape_ladder} if escape_ladder else {}),
     }
 
 
@@ -857,6 +864,11 @@ def _write_decision(
                     fixedquest_readiness,
                     departure_block,
                     quest_strategy,
+                    (
+                        policy.escape_ladder_telemetry
+                        if policy is not None
+                        else None
+                    ),
                 ),
                 file,
                 ensure_ascii=False,

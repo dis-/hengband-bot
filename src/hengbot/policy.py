@@ -515,6 +515,16 @@ COMBAT_OUTCOME_WINDOW = 300
 # never did, and the multiplier-combat loop guard stopped the bot instead.
 BREEDER_CONTAINMENT_WINDOW = 60
 FRUITLESS_DISENGAGE_LIMIT = 100
+# WAIT terminals which are deliberately allowed to outlive the CLI's positional
+# guard.  Each entry names an existing policy bound; cli imports this registry
+# rather than maintaining a broader reason-prefix exemption.
+ESCAPE_BUDGETED_WAIT_LIMITS = {
+    "status-threat:wait": NAV_ESCAPE_STEP_LIMIT,
+    "flee:wait": NAV_ESCAPE_STEP_LIMIT,
+    "return:wait": NAV_ESCAPE_STEP_LIMIT,
+    "combat:disengage-wait": FRUITLESS_DISENGAGE_LIMIT,
+    "emergency:wait": NAV_ESCAPE_STEP_LIMIT,
+}
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of
 # the map, so cli's position-based loop guard never fires on wandering alone — a
@@ -1615,6 +1625,9 @@ class HengbotPolicy:
         self._breeder_engagement_score = 0
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
+        self._escape_wait_budget_floor: tuple[int, int, int] | None = None
+        self._escape_wait_decisions: Counter[str] = Counter()
+        self.escape_ladder_telemetry: dict[str, object] | None = None
         self._town_wander_streak = 0
         self._deepest_level = 0
         self._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -1883,6 +1896,7 @@ class HengbotPolicy:
                 self._equipment_transaction_home_pages.clear()
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
+        self.escape_ladder_telemetry = None
         key = self._decide(snapshot)
         key = self._periodic_character_dump_key(snapshot, key)
         if (
@@ -1924,6 +1938,7 @@ class HengbotPolicy:
         key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
         key = self._forbid_wait_under_fire(snapshot, key)
+        key = self._bound_escape_wait(snapshot, key)
         self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
@@ -19421,6 +19436,44 @@ class HengbotPolicy:
                 return READ_KEY + teleport.slot
         self.last_reason = "livelock:exhausted"
         return WAIT_KEY
+
+    def _bound_escape_wait(self, snapshot: Snapshot, key: str) -> str:
+        """Let registered escape WAITs spend their policy budget, then stop.
+
+        Counts are floor-scoped and are intentionally not reset by intervening
+        ladder rungs: an escape ladder that alternates WAIT with rejected moves
+        must still reach its visible terminal.
+        """
+        reason = self.last_reason
+        limit = ESCAPE_BUDGETED_WAIT_LIMITS.get(reason)
+        if key != WAIT_KEY or limit is None:
+            return key
+        if self._escape_wait_budget_floor != snapshot.floor_key:
+            self._escape_wait_budget_floor = snapshot.floor_key
+            self._escape_wait_decisions.clear()
+
+        if reason == "combat:disengage-wait":
+            used = self._fruitless_disengage_decisions
+        else:
+            self._escape_wait_decisions[reason] += 1
+            used = self._escape_wait_decisions[reason]
+        remaining = max(0, limit - used)
+        self.escape_ladder_telemetry = {
+            "ladder": reason.split(":", 1)[0],
+            "rung": reason,
+            "budget_remaining": remaining,
+        }
+        if reason == "combat:disengage-wait":
+            # The next policy decision emits the ladder's established visible
+            # terminal, combat:fruitless. Preserve that public reason.
+            self.escape_ladder_telemetry["reason"] = reason
+            return key
+        if used >= limit:
+            self.last_reason = "livelock:exhausted"
+            self.escape_ladder_telemetry["reason"] = self.last_reason
+        else:
+            self.escape_ladder_telemetry["reason"] = reason
+        return key
 
     def _update_navigation_progress(self, snapshot: Snapshot) -> None:
         """Advance the mode-independent no-progress invariant (R1).
