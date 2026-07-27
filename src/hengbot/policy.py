@@ -570,6 +570,7 @@ ESCAPE_BUDGETED_WAIT_LIMITS = {
     "return:wait": NAV_ESCAPE_STEP_LIMIT,
     "combat:disengage-wait": FRUITLESS_DISENGAGE_LIMIT,
     "emergency:wait": NAV_ESCAPE_STEP_LIMIT,
+    "town:blocked:repetition": NAV_ESCAPE_STEP_LIMIT,
 }
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # Town circuit breaker: unlike a dungeon floor, town positions vary across most of
@@ -3080,6 +3081,16 @@ class HengbotPolicy:
             )
             and player.hp_ratio >= DESCEND_MIN_HP_RATIO
             and not self._descent_is_blocked(snapshot)
+            and (
+                not static_entrance_here
+                or self._dungeon_entry_allowed(
+                    snapshot,
+                    via_recall=False,
+                    destination_depth=self._dungeon_entry_depth(
+                        snapshot, self._active_dungeon_target(), via_recall=False
+                    ),
+                )
+            )
         ):
             self.last_reason = "descend"
             return (
@@ -5686,6 +5697,39 @@ class HengbotPolicy:
                 obtainable, stores,
             )
         return statuses
+
+    def _dungeon_entry_allowed(
+        self,
+        snapshot: Snapshot,
+        *,
+        via_recall: bool,
+        destination_depth: int,
+    ) -> bool:
+        """Enforce recall stock after every action that enters a dungeon."""
+        mining_walk_in = (
+            not via_recall
+            and destination_depth == 1
+            and self._active_dungeon_target() == DUNGEON_YEEK_CAVE
+            and self._fundraising_mode in {"mine", "scavenge"}
+        )
+        if mining_walk_in:
+            return True
+        recall = self._supply_ledger(snapshot, destination_depth)["recall"]
+        stock_after_entry = recall.count - int(via_recall)
+        return stock_after_entry >= max(1, recall.required_return)
+
+    def _dungeon_entry_depth(
+        self, snapshot: Snapshot, dungeon_id: int, *, via_recall: bool
+    ) -> int:
+        dungeon = self._dungeon_knowledge.get(dungeon_id)
+        if not via_recall:
+            return max(1, dungeon.min_depth if dungeon is not None else 1)
+        depth = snapshot.dungeon_recall_depths.get(dungeon_id, 0)
+        if snapshot.recall_dungeon_id == dungeon_id:
+            depth = max(depth, snapshot.recall_depth)
+        if depth <= 0 and dungeon is not None:
+            depth = dungeon.min_depth
+        return max(1, depth)
 
     @staticmethod
     def _ledger_return_shortages(
@@ -12521,6 +12565,14 @@ class HengbotPolicy:
         approach — the existing explore-toward path handles that)."""
         if snapshot.dungeon_level != 0 or goal is None:
             return None
+        if not self._dungeon_entry_allowed(
+            snapshot,
+            via_recall=False,
+            destination_depth=self._dungeon_entry_depth(
+                snapshot, self._active_dungeon_target(), via_recall=False
+            ),
+        ):
+            return None
         entrance = snapshot.grids.get(goal)
         if entrance is None or not self._is_active_dungeon_entrance(entrance):
             return None
@@ -13413,6 +13465,13 @@ class HengbotPolicy:
                 here is not None
                 and self._is_active_dungeon_entrance(here)
                 and not self._descent_is_blocked(snapshot)
+                and self._dungeon_entry_allowed(
+                    snapshot,
+                    via_recall=False,
+                    destination_depth=self._dungeon_entry_depth(
+                        snapshot, self._active_dungeon_target(), via_recall=False
+                    ),
+                )
             ):
                 self.last_reason = "town:repetition-depart:enter"
                 return ENTER_DUNGEON_MACRO
@@ -13433,14 +13492,20 @@ class HengbotPolicy:
             if not snapshot.player.recalling:
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
-                    # Sole sanctioned recall-stock exception: the cycle breaker
-                    # may spend its last scroll to avoid a permanent town freeze.
                     selection = ""
                     if snapshot.in_town:
                         recall_dest, recall_dungeon_id = (
                             self._town_recall_destination(snapshot)
                         )
                         if recall_dest is None:
+                            return WAIT_KEY
+                        if not self._dungeon_entry_allowed(
+                            snapshot,
+                            via_recall=True,
+                            destination_depth=self._dungeon_entry_depth(
+                                snapshot, recall_dungeon_id, via_recall=True
+                            ),
+                        ):
                             return WAIT_KEY
                         selection = self._recall_selection_key(
                             snapshot, recall_dungeon_id
@@ -13801,7 +13866,13 @@ class HengbotPolicy:
                 return CHARACTER_DUMP_MACRO
             if not snapshot.player.blind and not snapshot.player.confused:
                 recall = self._find_recall_scroll(snapshot)
-                if recall is not None:
+                if recall is not None and self._dungeon_entry_allowed(
+                    snapshot,
+                    via_recall=True,
+                    destination_depth=self._dungeon_entry_depth(
+                        snapshot, recall_dungeon_id, via_recall=True
+                    ),
+                ):
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )

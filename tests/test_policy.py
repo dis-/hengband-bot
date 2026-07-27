@@ -26827,7 +26827,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
         pol._target_dungeon_id = DUNGEON_ANGBAND
-        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
         snap = replace(
             self._town_snap(),
             inventory=[recall],
@@ -26844,12 +26844,74 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
         self.assertTrue(pol._emergency_recall_sanctioned)
 
+    def test_last_scroll_repetition_recall_is_forbidden_and_stops_visibly(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(
+            self._town_snap(),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_ANGBAND,),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            recall_depth=24,
+            dungeon_recall_depths={DUNGEON_ANGBAND: 24},
+            angband_recall_unlocked=True,
+        )
+
+        with patch.object(
+            pol, "_descent_step", return_value=None
+        ), patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ):
+            for _ in range(policy_module.NAV_ESCAPE_STEP_LIMIT):
+                key = pol._town_blocked_key(snap)
+                key = pol._bound_escape_wait(snap, key)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(pol.last_reason, "livelock:exhausted")
+        self.assertFalse(pol._emergency_recall_sanctioned)
+
+    def test_mining_walk_in_is_the_only_zero_recall_entry(self):
+        snap = replace(self._town_snap(), inventory=[])
+        mining = HengbotPolicy()
+        mining._target_dungeon_id = DUNGEON_YEEK_CAVE
+        mining._fundraising_mode = "mine"
+        self.assertTrue(
+            mining._dungeon_entry_allowed(
+                snap, via_recall=False, destination_depth=1
+            )
+        )
+
+        ordinary = HengbotPolicy()
+        ordinary._target_dungeon_id = DUNGEON_YEEK_CAVE
+        self.assertFalse(
+            ordinary._dungeon_entry_allowed(
+                snap, via_recall=False, destination_depth=1
+            )
+        )
+
+    def test_last_scroll_return_to_town_is_unchanged(self):
+        pol = HengbotPolicy()
+        pol._returning_to_town = True
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(
+            self._town_snap(),
+            floor_key=(DUNGEON_ANGBAND, 24, 0),
+            town_flag=False,
+            inventory=[recall],
+        )
+
+        self.assertEqual(pol._return_to_town_key(snap, []), READ_KEY + "r")
+        self.assertEqual(pol.last_reason, "return:recall")
+
     def test_sanctioned_repetition_recall_ignores_readiness_cancel(self):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
         pol._target_dungeon_id = DUNGEON_ANGBAND
-        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10)
         snap = replace(
             self._town_snap(),
             inventory=[recall],
@@ -26997,7 +27059,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
         pol._target_dungeon_id = DUNGEON_ANGBAND
-        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
         snap = replace(
             self._town_snap(),
             inventory=[recall],
@@ -27157,6 +27219,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         position = Position(34, 94)
         snap = replace(
             self._town_snap(),
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
             grids={
                 position: grid(
                     position.y,
@@ -28954,7 +29017,7 @@ class EntranceTravelTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 0),
             turn=turn,
-            inventory=[],
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
             equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
@@ -28977,6 +29040,13 @@ class EntranceTravelTest(unittest.TestCase):
         key = self._travel(pol, self._surface_snap())
         self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
+
+    def test_zero_recall_ordinary_surface_goal_does_not_enter(self):
+        pol = HengbotPolicy()
+        snap = replace(self._surface_snap(), inventory=[])
+
+        self.assertIsNone(self._travel(pol, snap))
+        self.assertEqual(pol.last_reason, "seek-downstairs")
 
     def test_surface_goal_without_equipped_light_walks_instead(self):
         pol = HengbotPolicy()
