@@ -2975,6 +2975,11 @@ class HengbotPolicy:
                 self._returning_to_town = True
                 self.last_reason = "stuck:recall-escape"
                 return READ_KEY + recall.slot
+            teleport = self._find_teleport_scroll(snapshot)
+            if teleport is not None:
+                self._stuck_escape_streak = 0
+                self.last_reason = "stuck:teleport-escape"
+                return READ_KEY + teleport.slot
 
         # 8. If we are circling the same few tiles (frontiers whose unknown side
         #    the pathfinder can't reach), break out by stepping directly into an

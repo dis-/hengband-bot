@@ -46,6 +46,7 @@ from hengbot.model import (
     SV_SCROLL_HOLY_CHANT,
     SV_SCROLL_IDENTIFY,
     SV_SCROLL_LIGHT,
+    SV_SCROLL_PHASE_DOOR,
     SV_SCROLL_STAR_IDENTIFY,
     SV_SCROLL_TELEPORT,
     SV_SCROLL_STAR_DESTRUCTION,
@@ -25782,6 +25783,75 @@ class StuckEscapeTest(unittest.TestCase):
 
         self.assertEqual(pol.choose_key(snap), READ_KEY + "r")
         self.assertEqual(pol.last_reason, "stuck:recall-escape")
+
+    def test_stuck_teleport_escape_without_recall_or_known_downstairs(self):
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[teleport],
+            floor_key=(2, 3, 0),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        self.assertEqual(pol.choose_key(snap), READ_KEY + "t")
+        self.assertEqual(pol.last_reason, "stuck:teleport-escape")
+
+    def test_stuck_recall_escape_is_preferred_over_teleport(self):
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[teleport, recall],
+            floor_key=(2, 3, 0),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        self.assertEqual(pol.choose_key(snap), READ_KEY + "r")
+        self.assertEqual(pol.last_reason, "stuck:recall-escape")
+
+    def test_stuck_escape_does_not_burn_phase_door(self):
+        phase = item("p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[phase],
+            floor_key=(2, 3, 0),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        key = pol.choose_key(snap)
+
+        self.assertNotEqual(key, READ_KEY + "p")
+        self.assertNotEqual(pol.last_reason, "stuck:teleport-escape")
+
+    def test_stuck_teleport_escape_is_locked_on_quest_floor(self):
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[teleport],
+            floor_key=(2, 3, 40),
+        )
+        pol = HengbotPolicy()
+        pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        pol.last_reason = "search"
+
+        key = pol.choose_key(snap)
+
+        self.assertNotEqual(key, READ_KEY + "t")
+        self.assertNotEqual(pol.last_reason, "stuck:teleport-escape")
 
     def test_stuck_uses_walkable_downstairs_route_without_tunnelling(self):
         digger = item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)
