@@ -24001,6 +24001,184 @@ class RemoveCurseTest(unittest.TestCase):
         policy._observe(self._town([uncursed], []))
         self.assertNotIn(signature, policy._heavy_cursed_items)
 
+    def test_surplus_star_scroll_is_bought_once_and_deposited_at_home(self):
+        ware = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, price=500
+        )
+        temple = replace(
+            self._town([]),
+            player=player(
+                10, 10, gold=FUNDRAISING_GOLD_TARGET,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            store=StoreState(STORE_TEMPLE, [ware]),
+        )
+        policy = HengbotPolicy()
+        policy._home_star_remove_curse_count = 0
+        with (
+            patch.object(policy, "_recall_departure_shortage", return_value=False),
+        ):
+            self.assertIs(policy._affordable_star_remove_curse(temple), ware)
+            with (
+                patch.object(policy, "_next_purchase", return_value=ware),
+                patch.object(policy, "_purchase_quantity", return_value=1),
+            ):
+                self.assertEqual(policy._shop(temple), "pz\r")
+        self.assertTrue(policy._star_remove_curse_reserve_deposit_pending)
+
+        carried = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+            name="star remove curse",
+        )
+        home = replace(
+            temple,
+            inventory=[carried],
+            store=StoreState(STORE_HOME, []),
+        )
+        self.assertEqual(policy._shop(home), "ds\r")
+        self.assertEqual(policy.last_reason, "home:deposit")
+
+    def test_star_remove_curse_reserve_cap_counts_home_and_carried_copy(self):
+        ware = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, price=500
+        )
+        temple = replace(
+            self._town([]),
+            player=player(
+                10, 10, gold=FUNDRAISING_GOLD_TARGET,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            store=StoreState(STORE_TEMPLE, [ware]),
+        )
+        for home_count, inventory in (
+            (1, []),
+            (0, [item("s", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE)]),
+        ):
+            with self.subTest(home_count=home_count):
+                policy = HengbotPolicy()
+                policy._home_star_remove_curse_count = home_count
+                snap = replace(temple, inventory=inventory)
+                with patch.object(
+                    policy, "_recall_departure_shortage", return_value=False
+                ):
+                    self.assertIsNone(
+                        policy._affordable_star_remove_curse(snap)
+                    )
+
+    def test_star_remove_curse_reserve_needs_surplus_and_live_shelf(self):
+        ware = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, price=500
+        )
+        policy = HengbotPolicy()
+        policy._home_star_remove_curse_count = 0
+        for gold, stock in (
+            (FUNDRAISING_GOLD_TARGET - 1, [ware]),
+            (FUNDRAISING_GOLD_TARGET, []),
+        ):
+            with self.subTest(gold=gold, stock=bool(stock)):
+                temple = replace(
+                    self._town([]),
+                    player=player(
+                        10, 10, gold=gold, class_id=PLAYER_CLASS_WARRIOR
+                    ),
+                    store=StoreState(STORE_TEMPLE, stock),
+                )
+                with patch.object(
+                    policy, "_recall_departure_shortage", return_value=False
+                ):
+                    self.assertIsNone(
+                        policy._affordable_star_remove_curse(temple)
+                    )
+
+    def test_star_reserve_is_opportunistic_and_suppressed_by_recall_shortage(self):
+        policy = HengbotPolicy()
+        policy._home_star_remove_curse_count = 0
+        policy._star_remove_curse_shelf_seen = True
+        town = replace(
+            self._town([]),
+            player=player(
+                10, 10, gold=FUNDRAISING_GOLD_TARGET,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+        )
+        with (
+            patch.object(policy, "_recall_departure_shortage", return_value=False),
+            patch.object(policy, "_town_departure_ready", return_value=True),
+            patch.object(
+                policy,
+                "_town_need_candidates",
+                return_value=[
+                    TownNeed(
+                        STORE_TEMPLE,
+                        "home-star-remove-curse-stock",
+                        "normal",
+                    )
+                ],
+            ),
+        ):
+            self.assertFalse(policy._town_claims_active(town))
+        with patch.object(
+            policy, "_recall_departure_shortage", return_value=True
+        ):
+            self.assertFalse(any(
+                need.category.startswith("home-star-remove-curse")
+                for need in policy._enumerate_town_needs(town)
+            ))
+
+    def test_heavy_curse_withdraws_and_reads_home_reserve_then_clears_latch(self):
+        cursed = item(
+            "main_ring", 23, 0, is_equipment=True, is_cursed=True,
+            inscription="HEAVY_CURSE", name="incident cursed ring",
+        )
+        reserve = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+            name="star remove curse",
+        )
+        policy = HengbotPolicy()
+        policy._home_star_remove_curse_count = 1
+        home = replace(
+            self._town([cursed]),
+            store=StoreState(STORE_HOME, [reserve]),
+        )
+        with patch.object(
+            policy, "_recall_departure_shortage", return_value=False
+        ):
+            self.assertEqual(policy._shop(home), "pz\r")
+        self.assertTrue(policy._star_remove_curse_reserve_withdraw_pending)
+
+        carried = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+            name="star remove curse",
+        )
+        self.assertEqual(
+            policy._town_remove_curse_key(self._town([cursed], [carried])),
+            "rs",
+        )
+        cured = replace(cursed, is_cursed=False)
+        policy._observe(self._town([cured], []))
+        self.assertIsNone(policy._remove_curse_watch)
+        self.assertEqual(
+            policy._heavy_curse_inscription_key(self._town([cured])),
+            "}/d",
+        )
+
+    def test_heavy_curse_checks_unknown_home_before_shop_service(self):
+        cursed = item(
+            "main_ring", 23, 0, is_equipment=True, is_cursed=True,
+            inscription="HEAVY_CURSE",
+        )
+        policy = HengbotPolicy()
+        town = self._town([cursed])
+        with patch.object(
+            policy, "_recall_departure_shortage", return_value=False
+        ):
+            self.assertIn(
+                TownNeed(
+                    STORE_HOME, "home-star-remove-curse-use", "home-first"
+                ),
+                policy._enumerate_town_needs(town),
+            )
+
     def test_heavy_curse_missing_star_scroll_never_creates_temple_wait(self):
         cursed = item(
             "a", 23, 0, is_equipment=True, is_cursed=True,

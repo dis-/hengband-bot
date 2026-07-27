@@ -1749,6 +1749,14 @@ class HengbotPolicy:
         self._deferred_home_items: set[tuple[str, int, int]] = set()
         self._retried_home_identification_items: set[tuple[str, int, int]] = set()
         self._home_catalog: dict[tuple[str, int, int], StoreItem] = {}
+        # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
+        # the one Home consumable whose exact stock matters in a small
+        # duplicate-preserving page scan alongside that catalog.
+        self._home_star_remove_curse_count: int | None = None
+        self._home_star_remove_curse_scan_pages: dict[tuple, int] = {}
+        self._star_remove_curse_shelf_seen = False
+        self._star_remove_curse_reserve_deposit_pending = False
+        self._star_remove_curse_reserve_withdraw_pending = False
         # Full, duplicate-preserving catalog for the complete-loadout optimizer.
         # The legacy dict above remains temporarily for old sale/deposit paths;
         # it is not authoritative for global optimization because its short
@@ -1822,6 +1830,20 @@ class HengbotPolicy:
             snapshot.inventory, snapshot.equipment
         )
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            page_identity = tuple(
+                (item.name, item.tval, item.sval, item.count)
+                for item in snapshot.store.items
+            )
+            page_star_count = sum(
+                item.count
+                for item in snapshot.store.items
+                if item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            )
+            if not self._equipment_catalog.home_scan_complete:
+                self._home_star_remove_curse_scan_pages[page_identity] = (
+                    page_star_count
+                )
             pending_advance = self._home_page_advance_pending and not (
                 self._last_snapshot_was_store
                 and self.last_reason not in HOME_PAGE_ADVANCE_REASONS
@@ -1833,6 +1855,10 @@ class HengbotPolicy:
                     or self.last_reason in HOME_PAGE_ADVANCE_REASONS
                 ),
             )
+            if self._equipment_catalog.home_scan_complete:
+                self._home_star_remove_curse_count = sum(
+                    self._home_star_remove_curse_scan_pages.values()
+                )
             self._home_page_advance_pending = False
         if (
             snapshot.store is None
@@ -1912,6 +1938,17 @@ class HengbotPolicy:
                 or withdrawn.tval in AMMUNITION_TVALS
             ):
                 self._equipment_catalog.invalidate_home()
+                self._home_star_remove_curse_scan_pages.clear()
+                if (
+                    withdrawn is not None
+                    and withdrawn.tval == TVAL_SCROLL
+                    and withdrawn.sval == SV_SCROLL_STAR_REMOVE_CURSE
+                ):
+                    self._home_star_remove_curse_count = max(
+                        0, (self._home_star_remove_curse_count or 1) - 1
+                    )
+                else:
+                    self._home_star_remove_curse_count = None
             else:
                 self._equipment_catalog.record_home_withdrawal(
                     withdrawn,
@@ -1934,6 +1971,15 @@ class HengbotPolicy:
                 None,
             )
             if deposited is not None:
+                if (
+                    deposited.tval == TVAL_SCROLL
+                    and deposited.sval == SV_SCROLL_STAR_REMOVE_CURSE
+                    and self._star_remove_curse_reserve_deposit_pending
+                ):
+                    self._home_star_remove_curse_count = (
+                        self._home_star_remove_curse_count or 0
+                    ) + 1
+                    self._star_remove_curse_reserve_deposit_pending = False
                 # Deposits are additive. Preserve the completed scan that the
                 # withdrawal batch is consuming and add the new physical item
                 # once, even if the same pre-command snapshot is observed again.
@@ -7278,6 +7324,13 @@ class HengbotPolicy:
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
     ) -> bool:
+        if (
+            item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            and self._star_remove_curse_reserve_deposit_pending
+            and not self._star_remove_curse_reserve_withdraw_pending
+        ):
+            return True
         if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
             return False
         # A GOOD melee weapon — identified ego/artifact or one with real +to-hit/+to-dam/
@@ -9228,6 +9281,10 @@ class HengbotPolicy:
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and snapshot.player.gold < FUNDRAISING_GOLD_TARGET
         )
+        star_reserve_surplus = (
+            snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+            and not self._recall_departure_shortage(snapshot)
+        )
 
         def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
             needs.append(TownNeed(store_type, category, ordering_class))
@@ -9537,6 +9594,32 @@ class HengbotPolicy:
             if STORE_TEMPLE in self._town_store_attempted:
                 return needs
             add(STORE_TEMPLE, "remove-curse")
+        carried_star_reserve = self._carried_star_remove_curse_count(snapshot) > 0
+        if (
+            self._has_unremovable_curse_target(snapshot)
+            # A fresh policy must inspect Home before considering a new shop
+            # purchase; otherwise it can buy while the reserve already sits on
+            # an unobserved Home page.
+            and self._home_star_remove_curse_count != 0
+            and not carried_star_reserve
+            and not self._recall_departure_shortage(snapshot)
+        ):
+            add(STORE_HOME, "home-star-remove-curse-use", "home-first")
+        if (
+            star_reserve_surplus
+            and self._star_remove_curse_shelf_seen
+            and self._home_star_remove_curse_count is None
+            and not carried_star_reserve
+        ):
+            add(STORE_HOME, "home-star-remove-curse-check", "home-first")
+        if (
+            star_reserve_surplus
+            and self._star_remove_curse_shelf_seen
+            and self._home_star_remove_curse_count == 0
+            and not carried_star_reserve
+            and not self._star_remove_curse_reserve_deposit_pending
+        ):
+            add(STORE_TEMPLE, "home-star-remove-curse-stock")
         # A latched heavy curse never creates a speculative Temple trip.  Keep
         # the stop only when the live shelf proves that an affordable *Remove
         # Curse* is available; this makes the attempt opportunistic and gives
@@ -9642,6 +9725,9 @@ class HengbotPolicy:
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
             ("remove-curse", "normal", 1, True),  # An actionable carried curse makes departure unsafe.
+            ("home-star-remove-curse-use", "home-first", 1, True),
+            ("home-star-remove-curse-check", "home-first", 1, False),
+            ("home-star-remove-curse-stock", "normal", 1, False),
             ("star-remove-curse", "normal", 1, False),  # Shelf-proven heavy-curse service is opportunistic.
             ("launcher-enchant", "normal", 1, False),  # Launcher enchanting is an optimization.
             ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
@@ -11628,6 +11714,23 @@ class HengbotPolicy:
         if store.store_type == STORE_HOME:
             for stored in store.items:
                 self._home_catalog[self._item_signature(stored)] = stored
+            reserve = next(
+                (
+                    item
+                    for item in store.items
+                    if item.tval == TVAL_SCROLL
+                    and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+                ),
+                None,
+            )
+            if (
+                reserve is not None
+                and self._has_unremovable_curse_target(snapshot)
+                and not self._recall_departure_shortage(snapshot)
+            ):
+                self._star_remove_curse_reserve_withdraw_pending = True
+                self.last_reason = "home:withdraw-star-remove-curse-reserve"
+                return BUY_KEY + reserve.letter + "\r"
             # An active transaction session OWNS the Home visit: its town-side
             # dispatcher keeps walking back in while it has Home work, so a
             # disposal leave that preempts it just bounces the bot in and out of
@@ -12265,6 +12368,11 @@ class HengbotPolicy:
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
                 self.last_reason = "shop:buy-remove-curse"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+                if (
+                    not self._has_unremovable_curse_target(snapshot)
+                    and self._star_remove_curse_reserve_purchase_needed(snapshot)
+                ):
+                    self._star_remove_curse_reserve_deposit_pending = True
                 self.last_reason = "shop:buy-star-remove-curse"
             elif (
                 item.tval == TVAL_SCROLL
@@ -12819,13 +12927,9 @@ class HengbotPolicy:
 
     def _affordable_star_remove_curse(self, snapshot: Snapshot) -> StoreItem | None:
         store = snapshot.store
-        if (
-            store is None
-            or store.store_type != STORE_TEMPLE
-            or not self._has_unremovable_curse_target(snapshot)
-        ):
+        if store is None or store.store_type != STORE_TEMPLE:
             return None
-        return next(
+        ware = next(
             (
                 item for item in store.items
                 if item.tval == TVAL_SCROLL
@@ -12833,6 +12937,41 @@ class HengbotPolicy:
                 and item.price <= snapshot.player.gold
             ),
             None,
+        )
+        if ware is not None:
+            self._star_remove_curse_shelf_seen = True
+        if (
+            ware is None
+            or (
+                not self._has_unremovable_curse_target(snapshot)
+                and not self._star_remove_curse_reserve_purchase_needed(snapshot)
+            )
+            or (
+                self._has_unremovable_curse_target(snapshot)
+                and bool(self._home_star_remove_curse_count)
+            )
+        ):
+            return None
+        return ware
+
+    @staticmethod
+    def _carried_star_remove_curse_count(snapshot: Snapshot) -> int:
+        return sum(
+            item.count
+            for item in snapshot.inventory
+            if item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+        )
+
+    def _star_remove_curse_reserve_purchase_needed(
+        self, snapshot: Snapshot
+    ) -> bool:
+        return (
+            snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+            and not self._recall_departure_shortage(snapshot)
+            and self._home_star_remove_curse_count == 0
+            and self._carried_star_remove_curse_count(snapshot) == 0
+            and not self._star_remove_curse_reserve_deposit_pending
         )
 
     def _observe_remove_curse(self, snapshot: Snapshot) -> None:
@@ -12964,6 +13103,8 @@ class HengbotPolicy:
                 if item.is_scroll and item.aware and item.sval == scroll.sval
             ),
         )
+        if scroll.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+            self._star_remove_curse_reserve_withdraw_pending = False
         self.last_reason = "town:remove-curse"
         return READ_KEY + scroll.slot
 
