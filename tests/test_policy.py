@@ -2,7 +2,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import hengbot.policy as policy_module
 
@@ -32031,6 +32031,80 @@ class TownErrandPlanTest(unittest.TestCase):
                 "drift_warnings": [],
             },
         )
+
+    def test_departure_ready_opportunistic_need_has_no_claim(self):
+        needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_departure_ready = lambda candidate: True
+
+        self.assertFalse(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._town_claim_categories, [])
+        policy._shopping_approach_step = Mock(
+            side_effect=AssertionError("opportunistic errand owned departure turn")
+        )
+        policy._town_special_key = Mock(return_value="DEPART")
+
+        self.assertEqual(policy._decide(snapshot), "DEPART")
+        policy._town_special_key.assert_called()
+
+    def test_claim_terminal_bookkeeping_never_runs_in_dungeon(self):
+        policy = self._policy([])
+        dungeon = replace(
+            self._snapshot(),
+            town_flag=False,
+            floor_key=(1, 1, 1),
+        )
+        policy._town_terminal_transitions = Mock(
+            side_effect=AssertionError("town transition ran in dungeon")
+        )
+
+        policy._decide(dungeon)
+        policy._town_terminal_transitions.assert_not_called()
+
+    def test_departure_blocking_supply_need_keeps_claim(self):
+        needs = [TownNeed(STORE_GENERAL, "food", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_departure_ready = lambda candidate: False
+
+        self.assertTrue(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._town_claim_categories, ["food"])
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
+
+    def test_opportunistic_need_claims_only_while_departure_is_blocked(self):
+        needs = [TownNeed(STORE_WEAPON, "disposal", "normal")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_departure_ready = lambda candidate: False
+
+        self.assertTrue(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._town_claim_categories, ["disposal"])
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_WEAPON)
+
+    def test_town_claim_telemetry_lists_claims_and_empty_default(self):
+        needs = [
+            TownNeed(STORE_GENERAL, "food", "normal"),
+            TownNeed(STORE_BLACK, "black-market", "normal"),
+        ]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._town_departure_ready = lambda candidate: True
+
+        self.assertTrue(policy._town_claims_active(snapshot))
+        block = policy._departure_block_state(
+            snapshot, deep_fundraising=False
+        )
+        self.assertEqual(block["town_claims"], ["food"])
+
+        policy._town_need_candidates = lambda candidate: [
+            TownNeed(STORE_BLACK, "black-market", "normal")
+        ]
+        self.assertFalse(policy._town_claims_active(snapshot))
+        block = policy._departure_block_state(
+            snapshot, deep_fundraising=False
+        )
+        self.assertEqual(block["town_claims"], [])
 
     def test_multi_errand_circuit_is_home_first_and_nearest_neighbor(self):
         stores = {

@@ -262,6 +262,7 @@ class NeedSpec:
     ordering_class: str
     produces: Callable[[Snapshot], bool]
     satisfied: Callable[[Snapshot], bool]
+    departure_blocking: bool
     budget: int = TOWN_STOP_PASS_LIMIT
 
     def resolve_store_type(self, snapshot: Snapshot) -> int:
@@ -2740,10 +2741,18 @@ class HengbotPolicy:
         # 2a. Before diving: while in town with money and no lantern, walk to the
         #     General Store to buy one. A brass lantern lights radius 2 vs a torch's
         #     radius 1 — seeing the dark is what the Half-Troll lacked when it died.
-        step = self._shopping_approach_step(snapshot)
-        if step is not None:
-            self.last_reason = "shop:approach"
-            return self._shopping_approach_key(snapshot, step, "shop:travel")
+        if snapshot.in_town:
+            claims_active = self._town_claims_active(snapshot)
+            if not claims_active:
+                # The former router performed terminal bookkeeping before it
+                # returned None. Preserve those latch releases and pending-disposal
+                # handoffs without letting the errand plan own this departure turn.
+                self._town_terminal_transitions(snapshot)
+            if claims_active:
+                step = self._shopping_approach_step(snapshot)
+                if step is not None:
+                    self.last_reason = "shop:approach"
+                    return self._shopping_approach_key(snapshot, step, "shop:travel")
 
         destroy = self._town_destroy_key(snapshot)
         if destroy is not None:
@@ -9540,60 +9549,60 @@ class HengbotPolicy:
         if cached is not None:
             return cached
         entries = (
-            ("idle-consumable-scan", "home-first", 1),
-            ("home-disposal-identify", "normal", 1),
-            ("home-disposal-sale", "normal", 1),
-            ("birth-supplies", "normal", 2),
-            ("quest-throwing-items", "opening-quest", 1),
-            ("disposal", "normal", 1),
-            ("safe-weapon", "home-first", 1),
-            ("combat-weapon", "home-first", 1),
-            ("book-sale", "normal", 1),
-            ("deep-mining-deposit", "home-first", 1),
-            ("weight-overload", "home-first", 1),
-            ("deposit", "home-first", 1),
-            ("stat-restore", "normal", 1),
-            ("low-level-sale", "normal", 1),
-            ("mana-food-sale", "normal", 1),
-            ("device-sale", "normal", 1),
-            ("weapon-sale", "normal", 1),
-            ("light-sale", "normal", 1),
-            ("fundraising-kit", "home-first", 1),
-            ("fundraising-digger", "normal", 1),
-            ("fundraising-detection", "normal", 1),
-            ("fundraising-food", "normal", 1),
-            ("stored-detection", "home-first", 1),
-            ("mining-detection", "normal", 1),
-            ("stored-digger", "home-first", 1),
-            ("mining-digger", "normal", 1),
-            ("fundraising-light", "normal", 1),
-            ("fundraising-oil", "normal", 1),
-            ("identification-source", "before-withdrawal", 1),
-            ("identification-withdrawal", "post-alchemist-home", 1),
-            ("recall", "normal", 2),
-            ("teleport", "normal", 1),
-            ("cure-critical", "normal", 2),
-            ("oil", "normal", 1),
-            ("food", "normal", 2),
-            ("quest-throwing-items", "normal", 1),
-            ("quest-launcher", "home-first", 1),
-            ("quest-ranged-kit", "normal", 1),
-            ("quest-scrolls", "normal", 1),
-            ("quest-wall-breach", "normal", 1),
-            ("quest-speed", "normal", 1),
-            ("quest-healing", "normal", 2),
-            ("light", "normal", 1),
-            ("identify-staff", "normal", 1),
-            ("ammo", "normal", 1),
-            ("throwing-torches", "normal", 1),
-            ("remove-curse", "normal", 1),
-            ("star-remove-curse", "normal", 1),
-            ("launcher-enchant", "normal", 1),
-            ("equipment-catalog", "home-first", 1),
-            ("black-market", "normal", 1),
+            ("idle-consumable-scan", "home-first", 1, False),  # Idle Home scans are opportunistic.
+            ("home-disposal-identify", "normal", 1, False),  # Disposal identification is opportunistic.
+            ("home-disposal-sale", "normal", 1, False),  # Disposal sales are opportunistic.
+            ("birth-supplies", "normal", 2, True),  # Birth supplies are required before the opening departure.
+            ("quest-throwing-items", "opening-quest", 1, True),  # Opening Q34 stock gates quest acceptance.
+            ("disposal", "normal", 1, False),  # Dominated-item disposal is opportunistic.
+            ("safe-weapon", "home-first", 1, True),  # A teleport-safe weapon is a departure safety gate.
+            ("combat-weapon", "home-first", 1, True),  # Combat weapon readiness gates departure.
+            ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
+            ("deep-mining-deposit", "home-first", 1, True),  # Unsafe deep-mining cargo must be deposited.
+            ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
+            ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
+            ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
+            ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
+            ("mana-food-sale", "normal", 1, False),  # Surplus food sales are opportunistic.
+            ("device-sale", "normal", 1, False),  # Device sales are opportunistic.
+            ("weapon-sale", "normal", 1, False),  # Inferior weapon sales are opportunistic.
+            ("light-sale", "normal", 1, False),  # Surplus light sales are opportunistic.
+            ("fundraising-kit", "home-first", 1, True),  # The mining kit gates a fundraising run.
+            ("fundraising-digger", "normal", 1, True),  # A digger gates a fundraising run.
+            ("fundraising-detection", "normal", 1, True),  # Detection gates a fundraising run.
+            ("fundraising-food", "normal", 1, True),  # Food gates a fundraising run.
+            ("stored-detection", "home-first", 1, True),  # Stored detection gates a fundraising run.
+            ("mining-detection", "normal", 1, True),  # Purchased detection gates a fundraising run.
+            ("stored-digger", "home-first", 1, True),  # A stored digger gates a fundraising run.
+            ("mining-digger", "normal", 1, True),  # A purchased digger gates a fundraising run.
+            ("fundraising-light", "normal", 1, True),  # Light gates a fundraising run.
+            ("fundraising-oil", "normal", 1, True),  # Oil gates a fundraising run.
+            ("identification-source", "before-withdrawal", 1, True),  # Identification is consumed by departure readiness.
+            ("identification-withdrawal", "post-alchemist-home", 1, True),  # The identification handoff gates departure.
+            ("recall", "normal", 2, True),  # Recall supply feeds the departure ledger.
+            ("teleport", "normal", 1, True),  # Teleport supply feeds the departure ledger.
+            ("cure-critical", "normal", 2, True),  # Critical cures feed the departure ledger.
+            ("oil", "normal", 1, True),  # Oil supply feeds the departure ledger.
+            ("food", "normal", 2, True),  # Food supply feeds the departure ledger.
+            ("quest-throwing-items", "normal", 1, True),  # Required throwing stock gates the quest departure.
+            ("quest-launcher", "home-first", 1, True),  # A required launcher gates the quest departure.
+            ("quest-ranged-kit", "normal", 1, True),  # Required ranged gear gates the quest departure.
+            ("quest-scrolls", "normal", 1, True),  # Required scrolls gate the quest departure.
+            ("quest-wall-breach", "normal", 1, True),  # Required wall breach gates the quest departure.
+            ("quest-speed", "normal", 1, True),  # Required speed potions gate the quest departure.
+            ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
+            ("light", "normal", 1, True),  # Expedition light gates departure.
+            ("identify-staff", "normal", 1, True),  # Identification capacity gates departure.
+            ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
+            ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
+            ("remove-curse", "normal", 1, True),  # An actionable carried curse makes departure unsafe.
+            ("star-remove-curse", "normal", 1, False),  # Shelf-proven heavy-curse service is opportunistic.
+            ("launcher-enchant", "normal", 1, False),  # Launcher enchanting is an optimization.
+            ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
+            ("black-market", "normal", 1, False),  # Black Market browsing is opportunistic.
         )
         specs: list[NeedSpec] = []
-        for category, ordering_class, count in entries:
+        for category, ordering_class, count, departure_blocking in entries:
             for occurrence in range(count):
                 lookup = (
                     lambda snapshot, category=category,
@@ -9612,10 +9621,43 @@ class HengbotPolicy:
                         ordering_class=ordering_class,
                         produces=produces,
                         satisfied=lambda snapshot, produces=produces: not produces(snapshot),
+                        departure_blocking=departure_blocking,
                     )
                 )
         self._town_need_specs = tuple(specs)
         return self._town_need_specs
+
+    def _town_claims_active(self, snapshot: Snapshot) -> bool:
+        """Record and report registry needs with a live town-turn claim."""
+        claims: list[str] = []
+        departure_ready: bool | None = None
+        self._town_need_evaluation_snapshot = snapshot
+        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
+        try:
+            for spec in self._town_need_registry():
+                if not spec.produces(snapshot):
+                    continue
+                store_type = spec.resolve_store_type(snapshot)
+                if (
+                    store_type in self._town_visit_ledger.blocked_stores
+                    or self._town_visit_ledger.approach_fails[store_type]
+                    >= TOWN_STOP_PASS_LIMIT
+                    or self._town_visit_ledger.need_attempts.get(spec.category, 0)
+                    >= spec.budget
+                ):
+                    continue
+                if not spec.departure_blocking:
+                    if departure_ready is None:
+                        departure_ready = self._town_departure_ready(snapshot)
+                    if departure_ready:
+                        continue
+                if spec.category not in claims:
+                    claims.append(spec.category)
+        finally:
+            self._town_need_evaluation_snapshot = None
+            self._town_need_evaluation_candidates = None
+        self._town_claim_categories = claims
+        return bool(claims)
 
     def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return every currently true town errand from the shared registry."""
@@ -13701,6 +13743,7 @@ class HengbotPolicy:
             "passes_since_progress": self._town_visit_ledger.passes_since_progress,
             "drift_warnings": list(self._town_visit_ledger.drift_warnings),
         }
+        town_claims = list(getattr(self, "_town_claim_categories", ()))
         values: dict[str, object] = {
             "home_pending_item": self._home_pending_item,
             "home_pending_batch": list(self._home_pending_batch),
@@ -13756,6 +13799,7 @@ class HengbotPolicy:
             "failed": failures,
             "values": values,
             "gate": selected_gate,
+            "town_claims": town_claims,
             "town_ledger": town_ledger,
         }
 
