@@ -1052,7 +1052,7 @@ SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
 SUPPLY_STORES: dict[str, tuple[int, ...]] = {
     "recall": (STORE_TEMPLE, STORE_ALCHEMIST),
     "teleport": (STORE_ALCHEMIST,),
-    "cure": (STORE_TEMPLE,),
+    "cure": (STORE_TEMPLE, STORE_ALCHEMIST),
     "oil": (STORE_GENERAL,),
     "food": (STORE_GENERAL,),  # MANA races are replaced with Magic in ledger.
 }
@@ -10026,12 +10026,6 @@ class HengbotPolicy:
             self._town_restock_rechecked.discard(STORE_GENERAL)
             return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
 
-        if "_enumerate_town_needs" in self.__dict__:
-            # Plan tests and specialized owners may supply an explicit registry
-            # view.  Once that view is exhausted there is no second router to
-            # invent work outside it.
-            return None
-
         self._town_terminal_transitions(snapshot)
         refreshed_needs = self._enumerate_town_needs(snapshot)
         if refreshed_needs:
@@ -10076,16 +10070,10 @@ class HengbotPolicy:
             if plan is not None
             else tuple(need.category for need in store_needs)
         )
-        if (
-            not owned_categories
-            and "_enumerate_town_needs" in self.__dict__
-        ):
+        if not owned_categories:
             owned_categories = tuple(need.category for need in store_needs)
         registry_satisfied = True
-        if (
-            owned_categories
-            and "_enumerate_town_needs" not in self.__dict__
-        ):
+        if owned_categories:
             self._town_need_evaluation_snapshot = snapshot
             self._town_need_evaluation_candidates = self._town_need_candidates(
                 snapshot

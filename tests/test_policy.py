@@ -12432,6 +12432,27 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             )
         return supplies
 
+    def test_cure_shortage_falls_back_to_alchemist_after_temple(self):
+        snap = Snapshot(
+            player(10, 10, gold=8000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=self._strict_supplies(
+                recall=5, teleport=15, critical=0
+            ),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 4
+        policy._town_store_attempted[STORE_TEMPLE] = snap.turn
+
+        self.assertFalse(policy._cure_critical_ready(snap))
+        self.assertEqual(
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
+        )
+
     def test_fundraising_checks_home_for_digger_before_general_store(self):
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
@@ -13138,9 +13159,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
-        pol._town_errand_plan = TownErrandPlan([STORE_HOME])
-        pol._enumerate_town_needs = lambda _snapshot: [
-            TownNeed(STORE_HOME, "same-home-owner", "home-first")
+        pol._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("completed-home-owner",)},
+        )
+        pol._town_need_candidates = lambda _snapshot: [
+            TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")
         ]
 
         self.assertEqual(pol._shop(snap), "\x1b")
@@ -13237,7 +13261,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             TownNeed(STORE_ALCHEMIST, "identification-source", "before-withdrawal"),
             TownNeed(STORE_HOME, "identification-withdrawal", "post-alchemist-home"),
         ]
-        pol._enumerate_town_needs = lambda snapshot: list(active)
+        pol._town_need_candidates = lambda snapshot: list(active)
         pol._town_terminal_transitions = lambda snapshot: None
         outside = replace(snap, store=None)
 
@@ -23482,7 +23506,10 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
         pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
-        pol._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
+        pol._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("identify-staff-withdrawal",)},
+        )
 
         self.assertEqual(pol._shop(snap), "ph\r")
         # A second snapshot can precede the inventory delta. It must leave Home,
@@ -31906,7 +31933,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
     def _policy(self, needs, town_map=None):
         policy = HengbotPolicy(town_map=town_map)
-        policy._enumerate_town_needs = lambda snapshot: list(needs)
+        policy._town_need_candidates = lambda snapshot: list(needs)
         policy._town_terminal_transitions = lambda snapshot: None
         return policy
 
@@ -31956,7 +31983,9 @@ class TownErrandPlanTest(unittest.TestCase):
         policy = self._policy(needs)
         snapshot = self._snapshot()
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-        policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
+        policy._town_visit_ledger.satisfied_needs.add(
+            (STORE_HOME, "idle-consumable-scan")
+        )
 
         policy._next_required_store_type(snapshot)
         policy._next_required_store_type(snapshot)
@@ -31969,10 +31998,10 @@ class TownErrandPlanTest(unittest.TestCase):
             [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
         )
         self.assertEqual(cleared._next_required_store_type(snapshot), STORE_HOME)
-        cleared._report_town_stop_pass(
-            snapshot, STORE_HOME, goal_satisfied=True
+        cleared._town_visit_ledger.satisfied_needs.add(
+            (STORE_HOME, "idle-consumable-scan")
         )
-        cleared._enumerate_town_needs = lambda candidate: []
+        cleared._town_need_candidates = lambda candidate: []
         cleared._next_required_store_type(snapshot)
         self.assertEqual(cleared._town_visit_ledger.drift_warnings, [])
 
@@ -32015,7 +32044,7 @@ class TownErrandPlanTest(unittest.TestCase):
         needs = [
             TownNeed(STORE_HOME, "deposit", "home-first"),
             TownNeed(STORE_ALCHEMIST, "teleport", "normal"),
-            TownNeed(STORE_TEMPLE, "cure", "normal"),
+            TownNeed(STORE_TEMPLE, "cure-critical", "normal"),
             TownNeed(STORE_GENERAL, "oil", "normal"),
             TownNeed(STORE_BLACK, "black-market", "normal"),
         ]
@@ -32190,9 +32219,11 @@ class TownErrandPlanTest(unittest.TestCase):
         snapshot = self._snapshot()
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        active[:] = []
         policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
         active[:] = [TownNeed(STORE_BLACK, "black-market", "normal")]
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_BLACK)
+        active[:] = []
         policy._report_town_stop_pass(snapshot, STORE_BLACK, goal_satisfied=True)
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
 
@@ -32226,12 +32257,19 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._town_errand_plan.inserted_this_visit, [STORE_ALCHEMIST])
 
     def test_new_supply_needs_rebuild_an_exhausted_identification_plan(self):
-        active = [TownNeed(STORE_ALCHEMIST, "identification-source", "normal")]
+        active = [
+            TownNeed(
+                STORE_ALCHEMIST,
+                "identification-source",
+                "before-withdrawal",
+            )
+        ]
         policy = self._policy(active)
         snapshot = self._snapshot()
         self.assertEqual(
             policy._next_required_store_type(snapshot), STORE_ALCHEMIST
         )
+        active[:] = []
         policy._report_town_stop_pass(
             snapshot, STORE_ALCHEMIST, goal_satisfied=True
         )
@@ -32259,6 +32297,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy = self._policy(active)
         snapshot = self._snapshot()
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        active[:] = []
         policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
 
@@ -32272,6 +32311,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(
             policy._next_required_store_type(snapshot), STORE_ALCHEMIST
         )
+        active[:] = []
         policy._report_town_stop_pass(
             snapshot, STORE_ALCHEMIST, goal_satisfied=True
         )
@@ -32305,12 +32345,17 @@ class TownErrandPlanTest(unittest.TestCase):
         policy = self._policy(active)
         snapshot = self._snapshot()
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._town_errand_plan.need_categories[STORE_HOME] = (
+            "equipment-catalog",
+        )
+        active.pop(0)
         policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=True)
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
 
         self.assertEqual(
             policy._next_required_store_type(snapshot), STORE_ALCHEMIST
         )
+        active.pop(0)
         policy._report_town_stop_pass(
             snapshot, STORE_ALCHEMIST, goal_satisfied=True
         )
@@ -32392,10 +32437,10 @@ class TownErrandPlanTest(unittest.TestCase):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-
-        policy._report_town_stop_pass(
-            snapshot, STORE_HOME, goal_satisfied=True
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            index=1,
+            completed_this_visit=[STORE_HOME],
         )
 
         self.assertIsNone(policy._next_required_store_type(snapshot))
@@ -32487,7 +32532,13 @@ class TownErrandPlanTest(unittest.TestCase):
         # Regression for the 2026-07-23 Alchemist loop.  A pending *Identify*
         # request re-opened the attempted latch after every empty visit, while
         # the errand plan remained pinned at the same stop forever.
-        needs = [TownNeed(STORE_ALCHEMIST, "identification-source", "normal")]
+        needs = [
+            TownNeed(
+                STORE_ALCHEMIST,
+                "identification-source",
+                "before-withdrawal",
+            )
+        ]
         policy = self._policy(needs)
         town = self._snapshot()
         shop = replace(
@@ -32548,7 +32599,7 @@ class TownErrandPlanTest(unittest.TestCase):
     def test_completed_stop_has_no_terminal_router_recheck(self):
         # Restock rechecks must now be exposed by a registry producer after the
         # transition step; a second routing result cannot bypass the registry.
-        policy = self._policy([])
+        policy = HengbotPolicy()
         town = self._snapshot(turn=2000)
         policy._town_errand_plan = TownErrandPlan(
             [STORE_ALCHEMIST],
@@ -32556,19 +32607,41 @@ class TownErrandPlanTest(unittest.TestCase):
             completed_this_visit=[STORE_ALCHEMIST],
         )
         policy._town_restock_rechecked.add(STORE_ALCHEMIST)
-        policy._town_terminal_transitions = lambda snapshot: STORE_ALCHEMIST
+        transition_calls = []
+        candidate_calls = []
 
-        self.assertIsNone(policy._next_required_store_type(town))
+        def transition(snapshot):
+            transition_calls.append(snapshot.turn)
 
+        def candidates(snapshot):
+            candidate_calls.append(snapshot.turn)
+            return [
+                TownNeed(STORE_ALCHEMIST, "teleport", "normal")
+            ] if transition_calls else []
+
+        policy._town_terminal_transitions = transition
+        policy._town_need_candidates = candidates
         policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
+
         self.assertIsNone(policy._next_required_store_type(town))
+        self.assertEqual(transition_calls, [town.turn])
+        self.assertGreaterEqual(len(candidate_calls), 2)
 
     def test_logged_single_page_home_episode_advances_within_two_decisions(self):
-        needs = [
-            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+        policy = HengbotPolicy()
+        policy._town_terminal_transitions = lambda snapshot: None
+        policy._town_need_candidates = lambda snapshot: [
+            *(
+                []
+                if policy._equipment_catalog.home_scan_complete
+                else [
+                    TownNeed(
+                        STORE_HOME, "equipment-catalog", "home-first"
+                    )
+                ]
+            ),
             TownNeed(STORE_GENERAL, "food", "normal"),
         ]
-        policy = self._policy(needs)
         town = self._snapshot(turn=131482)
         self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
         page = [
@@ -32680,19 +32753,49 @@ class TownErrandPlanTest(unittest.TestCase):
         )
 
     def test_registry_enumerator_matches_extracted_predicates(self):
-        snapshots = [
-            self._snapshot(),
-            replace(self._snapshot(), player=replace(self._snapshot().player, class_id=-1)),
-        ]
-        policies = [HengbotPolicy(), HengbotPolicy()]
-        policies[0]._home_disposal_pass = True
-        policies[1]._fundraising_mode = "prepare"
+        base = self._snapshot()
+        cases = []
 
-        for policy, snapshot in zip(policies, snapshots):
-            with self.subTest(
-                fundraising=policy._fundraising_mode,
-                class_id=snapshot.player.class_id,
-            ):
+        disposal_pass = HengbotPolicy()
+        disposal_pass._home_disposal_pass = True
+        cases.append(("disposal-pass", disposal_pass, base))
+
+        pending_item = item(
+            "q", TVAL_POTION, SV_POTION_CURE_CRITICAL,
+            name="known surplus cure", known=True,
+        )
+        disposal_pending = HengbotPolicy()
+        disposal_pending._home_disposal_pending = (
+            disposal_pending._item_signature(pending_item),
+            "sell",
+        )
+        cases.append((
+            "disposal-pending",
+            disposal_pending,
+            replace(base, inventory=[pending_item]),
+        ))
+
+        opening = HengbotPolicy()
+        opening._opening_q34_torch_shortage = lambda snapshot: 1
+        cases.append(("opening-q34-torch-shortage", opening, base))
+
+        post_alchemist = HengbotPolicy()
+        post_alchemist._home_candidate_waiting = True
+        cases.append(("post-alchemist-home", post_alchemist, base))
+
+        cases.append((
+            "birth",
+            HengbotPolicy(),
+            replace(base, player=replace(base.player, class_id=-1)),
+        ))
+
+        for mode in ("prepare", "mine", "scavenge"):
+            fundraising = HengbotPolicy()
+            fundraising._fundraising_mode = mode
+            cases.append((f"fundraising-{mode}", fundraising, base))
+
+        for label, policy, snapshot in cases:
+            with self.subTest(case=label):
                 self.assertEqual(
                     policy._enumerate_town_needs(snapshot),
                     policy._town_need_candidates(snapshot),
