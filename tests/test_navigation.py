@@ -565,6 +565,168 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertIsNone(policy._descent_target_goal)
         self.assertEqual(policy._explore_path, [])
 
+    def test_live_six_cell_upstairs_cycle_breaks_outside_confinement(self):
+        cycle = [
+            Position(34, 72),
+            Position(34, 73),
+            Position(35, 71),
+            Position(35, 73),
+            Position(36, 71),
+            Position(36, 72),
+        ]
+        cells = {
+            Position(y, x): grid(y, x)
+            for y in range(33, 38)
+            for x in range(70, 75)
+        }
+        policy = self._scripted_policy(
+            ["fundraise:seek-upstairs"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        policy._floor_key = DUNGEON_FLOOR
+        policy._visit_counts.update({position: 2 for position in cycle})
+
+        key = ""
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            position = cycle[decision % len(cycle)]
+            snapshot = Snapshot(
+                player(position.y, position.x, food=12000),
+                cells,
+                [],
+                floor_key=DUNGEON_FLOOR,
+                width=80,
+                height=80,
+            )
+            key = policy.choose_key(snapshot)
+            if policy.last_reason == "nav:break-oscillation":
+                break
+
+        self.assertEqual(policy.last_reason, "nav:break-oscillation")
+        self.assertEqual(key, "7")
+        self.assertNotIn(Position(33, 71), cycle)
+
+    def test_seven_cell_cycle_is_outside_confinement_bound(self):
+        cycle = [
+            Position(20, 20),
+            Position(20, 21),
+            Position(20, 22),
+            Position(21, 22),
+            Position(22, 22),
+            Position(22, 21),
+            Position(22, 20),
+        ]
+        cells = {
+            Position(y, x): grid(y, x)
+            for y in range(19, 24)
+            for x in range(19, 24)
+        }
+        policy = self._scripted_policy(
+            ["seek-upstairs"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        policy._floor_key = DUNGEON_FLOOR
+        policy._visit_counts.update({position: 2 for position in cycle})
+
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            position = cycle[decision % len(cycle)]
+            snapshot = Snapshot(
+                player(position.y, position.x, food=12000),
+                cells,
+                [],
+                floor_key=DUNGEON_FLOOR,
+                width=40,
+                height=40,
+            )
+            policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "seek-upstairs")
+
+    def test_six_cell_cycle_with_outcome_progress_is_exempt(self):
+        cycle = [
+            Position(34, 72),
+            Position(34, 73),
+            Position(35, 71),
+            Position(35, 73),
+            Position(36, 71),
+            Position(36, 72),
+        ]
+        cells = {
+            Position(y, x): grid(y, x)
+            for y in range(33, 38)
+            for x in range(70, 75)
+        }
+        cases = {
+            "kill": lambda decision: {
+                "player": replace(
+                    player(0, 0, food=12000), exp=decision
+                ),
+                "monsters": [],
+            },
+            "hp": lambda decision: {
+                "player": player(0, 0, food=12000),
+                "monsters": [hostile(1, 35, 72, hp=100 - decision)],
+            },
+            "inventory": lambda decision: {
+                "player": player(0, 0, food=12000, gold=1000 + decision),
+                "monsters": [],
+            },
+        }
+        for name, outcome in cases.items():
+            with self.subTest(name=name):
+                policy = self._scripted_policy(
+                    ["seek-upstairs"] * (EXTENDED_STUCK_WINDOW + 2)
+                )
+                policy._floor_key = DUNGEON_FLOOR
+                policy._visit_counts.update(
+                    {position: 2 for position in cycle}
+                )
+                for decision in range(EXTENDED_STUCK_WINDOW + 2):
+                    position = cycle[decision % len(cycle)]
+                    state = outcome(decision)
+                    snapshot = Snapshot(
+                        replace(state["player"], position=position),
+                        cells,
+                        state["monsters"],
+                        floor_key=DUNGEON_FLOOR,
+                        width=80,
+                        height=80,
+                    )
+                    policy.choose_key(snapshot)
+
+                self.assertEqual(policy.last_reason, "seek-upstairs")
+
+    def test_six_cell_stationary_by_design_cycle_is_exempt(self):
+        cycle = [
+            Position(34, 72),
+            Position(34, 73),
+            Position(35, 71),
+            Position(35, 73),
+            Position(36, 71),
+            Position(36, 72),
+        ]
+        cells = {
+            Position(y, x): grid(y, x)
+            for y in range(33, 38)
+            for x in range(70, 75)
+        }
+        policy = self._scripted_policy(
+            ["quest-strategy:hold"] * (EXTENDED_STUCK_WINDOW + 2)
+        )
+        policy._floor_key = DUNGEON_FLOOR
+        policy._visit_counts.update({position: 2 for position in cycle})
+
+        for decision in range(EXTENDED_STUCK_WINDOW + 2):
+            position = cycle[decision % len(cycle)]
+            snapshot = Snapshot(
+                player(position.y, position.x, food=12000),
+                cells,
+                [],
+                floor_key=DUNGEON_FLOOR,
+                width=80,
+                height=80,
+            )
+            policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "quest-strategy:hold")
+
     def test_mining_dig_confinement_is_exempt(self):
         cells = {
             Position(10, 10): grid(10, 10),

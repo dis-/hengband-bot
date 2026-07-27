@@ -32,6 +32,7 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonraceKnowledge
 from hengbot.navigation import NavigationLedger
+from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
@@ -19352,7 +19353,10 @@ class HengbotPolicy:
                 recent[-EXTENDED_STUCK_WINDOW + 1 :],
             )
         )
-        if len(confined) > 2 or position_changes < STUCK_WINDOW:
+        if (
+            len(confined) > LOOP_MAX_DISTINCT
+            or position_changes < STUCK_WINDOW
+        ):
             return key
 
         self._loot_target = None

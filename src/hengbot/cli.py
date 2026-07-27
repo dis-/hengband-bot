@@ -18,6 +18,7 @@ from hengbot.quest_strategies import find_quest_strategies, load_quest_strategie
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.wait_telemetry import WaitTelemetry
+from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy import (
     FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
@@ -102,10 +103,6 @@ LEVEL_UP_RECOVERY_START = 2
 # same-key livelock guard never trips). Rather than flail forever, STOP the bot
 # so the situation can be investigated from the preserved game state.
 LOOP_WINDOW = 40
-# A live random-quest exploration failure cycled through six cells for more
-# than 130 decisions.  Four cells was too narrow to recognize that confined
-# hexagonal route as the same class of non-progress loop.
-LOOP_MAX_DISTINCT = 6
 # Multipliers repeatedly appear and disappear between melee turns as their pack
 # shifts around the player. Give that productive fight longer to resolve, while
 # retaining a finite guard for a genuinely unwinnable engagement.
