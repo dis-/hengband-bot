@@ -364,6 +364,8 @@ class OwnedEquipmentCatalog:
         self._carried: dict[str, OwnedEquipment] = {}
         self._home: dict[str, OwnedEquipment] = {}
         self._home_seen_pages: set[tuple[tuple, ...]] = set()
+        self._home_scan_staging: dict[int, tuple[StoreItem | InventoryItem, ...]] = {}
+        self._home_scan_current_page: int | None = None
         self._home_occurrences: dict[tuple, int] = {}
         self._home_deposit_intents: set[tuple] = set()
         self._home_withdrawal_intents: set[tuple] = set()
@@ -404,11 +406,6 @@ class OwnedEquipmentCatalog:
         if self.home_scan_complete:
             return True
         all_page_items = tuple(items)
-        page_items = tuple(
-            item
-            for item in all_page_items
-            if item.is_equipment and item.tval not in AMMUNITION_TVALS
-        )
         # Page identity must include everything visible in the Home. Distinct
         # consumable-only or ammunition-only pages otherwise both collapse to
         # (), falsely completing the scan before later weapon pages are seen.
@@ -421,13 +418,52 @@ class OwnedEquipmentCatalog:
         # page advance, including genuinely single-page Homes.
         if not all_page_items:
             self.home_scan_complete = True
-        if page in self._home_seen_pages:
+            staged_pages = tuple(self._home_scan_staging.values())
+            self._home_scan_staging.clear()
+            self._home_scan_current_page = None
+            self._rebuild_home(staged_pages)
+            return True
+        matching_page = next(
+            (
+                page_number
+                for page_number, staged_items in self._home_scan_staging.items()
+                if tuple(_catalog_signature(item) for item in staged_items) == page
+            ),
+            None,
+        )
+        if matching_page is not None:
+            self._home_scan_current_page = matching_page
             if not allow_wrap:
+                self._home_scan_staging[matching_page] = all_page_items
+                self._rebuild_home(self._home_scan_staging.values())
                 return self.home_scan_complete
             self.home_scan_complete = True
+            self._rebuild_home(self._home_scan_staging.values())
+            self._home_scan_staging.clear()
+            self._home_scan_current_page = None
             return True
+        if self._home_scan_current_page is None:
+            page_number = 0
+        elif not allow_wrap:
+            page_number = self._home_scan_current_page
+        else:
+            page_number = max(self._home_scan_staging) + 1
+        self._home_scan_current_page = page_number
+        self._home_scan_staging[page_number] = all_page_items
         self._home_seen_pages.add(page)
-        for item in page_items:
+        self._rebuild_home(self._home_scan_staging.values())
+        return self.home_scan_complete
+
+    def _rebuild_home(
+        self,
+        pages: Iterable[Iterable[StoreItem | InventoryItem]],
+    ) -> None:
+        """Replace the Home catalog with the exact contents of staged pages."""
+        self._home.clear()
+        self._home_occurrences.clear()
+        for item in (item for page_items in pages for item in page_items):
+            if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+                continue
             signature = _catalog_signature(item)
             occurrence = self._home_occurrences.get(signature, 0)
             self._home_occurrences[signature] = occurrence + 1
@@ -438,7 +474,34 @@ class OwnedEquipmentCatalog:
                 "home",
                 random_teleport_suppressed=random_teleport_is_suppressed(item),
             )
-        return self.home_scan_complete
+
+    def _update_staged_home_item(
+        self,
+        item: StoreItem | InventoryItem,
+        *,
+        add: bool,
+    ) -> None:
+        """Apply one commanded mutation to the currently visible staged page."""
+        if self.home_scan_complete or self._home_scan_current_page is None:
+            return
+        page_number = self._home_scan_current_page
+        page_items = list(self._home_scan_staging[page_number])
+        if add:
+            page_items.append(item)
+        else:
+            signature = _catalog_signature(item)
+            matching_index = next(
+                (
+                    index
+                    for index, staged_item in enumerate(page_items)
+                    if _catalog_signature(staged_item) == signature
+                ),
+                None,
+            )
+            if matching_index is not None:
+                page_items.pop(matching_index)
+        self._home_scan_staging[page_number] = tuple(page_items)
+        self._rebuild_home(self._home_scan_staging.values())
 
     def record_home_deposit(
         self,
@@ -451,6 +514,9 @@ class OwnedEquipmentCatalog:
             return
         self._home_deposit_intents.add(intent)
         if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+            return
+        if not self.home_scan_complete:
+            self._update_staged_home_item(item, add=True)
             return
         signature = _catalog_signature(item)
         occurrence = self._home_occurrences.get(signature, 0)
@@ -475,6 +541,9 @@ class OwnedEquipmentCatalog:
         self._home_withdrawal_intents.add(intent)
         if not item.is_equipment or item.tval in AMMUNITION_TVALS:
             return
+        if not self.home_scan_complete:
+            self._update_staged_home_item(item, add=False)
+            return
         signature = _catalog_signature(item)
         matching_ids = [
             item_id
@@ -497,6 +566,8 @@ class OwnedEquipmentCatalog:
     def invalidate_home(self) -> None:
         self._home.clear()
         self._home_seen_pages.clear()
+        self._home_scan_staging.clear()
+        self._home_scan_current_page = None
         self._home_occurrences.clear()
         self._home_deposit_intents.clear()
         self._home_withdrawal_intents.clear()

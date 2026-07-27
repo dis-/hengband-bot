@@ -949,6 +949,70 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         self.assertEqual(len(catalog.items), 2)
         self.assertEqual(len({item.id for item in catalog.items}), 2)
 
+    def test_changed_page_replaces_staging_after_mid_scan_deposit(self):
+        catalog = OwnedEquipmentCatalog()
+        page = [self._home_item(letter, f"item-{letter}") for letter in "abc"]
+        deposited = InventoryItem(
+            slot="q",
+            name="deposited flail",
+            count=1,
+            tval=23,
+            sval=4,
+            aware=True,
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+        )
+
+        catalog.observe_home_page(page, allow_wrap=False)
+        catalog.record_home_deposit(deposited, intent=(817419, "q"))
+        changed_page = [*page, self._home_item("d", "deposited flail")]
+        catalog.observe_home_page(changed_page, allow_wrap=False)
+
+        self.assertEqual(len(catalog.items), 4)
+        self.assertEqual(len(catalog._home), 4)
+
+    def test_wrap_rebuilds_exact_final_staged_pages_after_mutation(self):
+        catalog = OwnedEquipmentCatalog()
+        first = [self._home_item(letter, f"first-{letter}") for letter in "abc"]
+        second = [self._home_item(letter, f"second-{letter}") for letter in "abc"]
+        deposited = InventoryItem(
+            slot="q",
+            name="deposited flail",
+            count=1,
+            tval=23,
+            sval=4,
+            aware=True,
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+        )
+
+        catalog.observe_home_page(first, allow_wrap=False)
+        catalog.record_home_deposit(deposited, intent=(817420, "q"))
+        changed_first = [*first, self._home_item("d", "deposited flail")]
+        catalog.observe_home_page(changed_first, allow_wrap=False)
+        catalog.observe_home_page(second, allow_wrap=True)
+        self.assertTrue(catalog.observe_home_page(changed_first, allow_wrap=True))
+
+        self.assertEqual(
+            [owned.item.name for owned in catalog.items],
+            [*(item.name for item in changed_first), *(item.name for item in second)],
+        )
+        self.assertEqual(sum(catalog._home_occurrences.values()), 7)
+        self.assertEqual(catalog._home_scan_staging, {})
+
+    def test_wrap_rebuild_preserves_real_identical_duplicates(self):
+        catalog = OwnedEquipmentCatalog()
+        page = [self._home_item("a"), self._home_item("b")]
+
+        catalog.observe_home_page(page, allow_wrap=False)
+        self.assertTrue(catalog.observe_home_page(page, allow_wrap=True))
+
+        self.assertEqual(len(catalog._home), 2)
+        signature = next(iter(catalog._home_occurrences))
+        self.assertEqual(catalog._home_occurrences[signature], 2)
+
     def test_home_scan_completes_only_when_a_page_repeats(self):
         catalog = OwnedEquipmentCatalog()
         first = self._full_page("sword")
