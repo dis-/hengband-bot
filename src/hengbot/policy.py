@@ -1515,6 +1515,7 @@ class HengbotPolicy:
         self._multiplier_target: Position | None = None
         self._multiplier_target_grace = 0
         self._probe_counts: Counter[tuple[int, int]] = Counter()
+        self._floor_trap_disarm_attempts: Counter[tuple[int, int]] = Counter()
         self._door_attempts: Counter[tuple[int, int]] = Counter()
         self._blocked_doors: set[tuple[int, int]] = set()
         self._dig_attempts: Counter[tuple[int, int]] = Counter()
@@ -3817,6 +3818,7 @@ class HengbotPolicy:
             self._explore_path = []
             self._engagement_avoid_cells.clear()
             self._probe_counts.clear()
+            self._floor_trap_disarm_attempts.clear()
             self._door_attempts.clear()
             self._blocked_doors.clear()
             self._blocked_unknown.clear()
@@ -21670,7 +21672,7 @@ class HengbotPolicy:
                     continue
                 if (
                     allow_damaging is False
-                    and self._is_damaging_grid(grid)
+                    and self._is_avoidable_hazard_grid(grid)
                     and not (grid is not None and goal is not None and goal(grid))
                 ):
                     continue
@@ -21684,7 +21686,9 @@ class HengbotPolicy:
             safe = [
                 neighbor
                 for neighbor in neighbors
-                if not self._is_damaging_grid(snapshot.grids.get(neighbor))
+                if not self._is_avoidable_hazard_grid(
+                    snapshot.grids.get(neighbor)
+                )
             ]
             # Immediate movement selectors prefer every safe option, but retain
             # emergency/corridor progress when all available steps are harmful.
@@ -21713,7 +21717,7 @@ class HengbotPolicy:
         safe = [
             candidate
             for candidate in pool
-            if not self._is_damaging_grid(snapshot.grids.get(candidate))
+            if not self._is_avoidable_hazard_grid(snapshot.grids.get(candidate))
         ]
         pool = safe or pool
         return min(pool, key=lambda p: self._visit_counts[p])
@@ -22107,6 +22111,12 @@ class HengbotPolicy:
             and grid.terrain_id in self._damaging_terrain_ids
         )
 
+    def _is_avoidable_hazard_grid(self, grid: GridState | None) -> bool:
+        """A visible hazard excluded by the primary navigation pass."""
+        return self._is_damaging_grid(grid) or (
+            grid is not None and grid.trap
+        )
+
     def _is_step_open(
         self,
         snapshot: Snapshot,
@@ -22118,7 +22128,7 @@ class HengbotPolicy:
         grid = snapshot.grids.get(pos)
         if grid is None or grid.has_monster:
             return False
-        if not allow_damaging and self._is_damaging_grid(grid):
+        if not allow_damaging and self._is_avoidable_hazard_grid(grid):
             return False
         if grid.is_door:
             return grid.passable or grid.is_closed_door
@@ -22403,6 +22413,13 @@ class HengbotPolicy:
         Doors that refuse to open (jammed / hard lock) are abandoned."""
         key = self._direction_key(snapshot.player.position, step)
         grid = snapshot.grids.get(step)
+        if grid is not None and grid.trap:
+            yx = (step.y, step.x)
+            if self._floor_trap_disarm_attempts[yx] < CHEST_DISARM_BUDGET:
+                self._floor_trap_disarm_attempts[yx] += 1
+                return CHEST_DISARM_KEY + key
+        elif grid is not None:
+            self._floor_trap_disarm_attempts.pop((step.y, step.x), None)
         if grid is not None and grid.is_closed_door:
             yx = (step.y, step.x)
             self._door_attempts[yx] += 1
