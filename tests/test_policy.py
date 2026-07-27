@@ -26512,6 +26512,118 @@ class TownCycleDetectorTest(unittest.TestCase):
             self.assertEqual(pol._town_special_key(snap), READ_KEY + "rb")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
+        self.assertTrue(pol._emergency_recall_sanctioned)
+
+    def test_sanctioned_repetition_recall_ignores_readiness_cancel(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        snap = replace(
+            self._town_snap(),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_ANGBAND,),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            dungeon_recall_depths={DUNGEON_ANGBAND: 31},
+            angband_recall_unlocked=True,
+        )
+        with patch.object(
+            pol, "_descent_step", return_value=None
+        ), patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ):
+            self.assertEqual(pol._town_blocked_key(snap), READ_KEY + "ra")
+
+        recalling = replace(
+            snap, player=replace(snap.player, recalling=True)
+        )
+        with patch.object(
+            pol, "_activate_loadout_depth_fallback", return_value=None
+        ), patch.object(
+            pol, "_equipment_departure_ready", return_value=False
+        ):
+            self.assertIsNone(pol._town_cancel_unsafe_recall_key(recalling))
+
+        self.assertTrue(pol._emergency_recall_sanctioned)
+        self.assertNotEqual(pol.last_reason, "town:cancel-unready-recall")
+
+    def test_sanctioned_repetition_recall_hard_hazard_still_cancels(self):
+        pol = HengbotPolicy()
+        pol._emergency_recall_sanctioned = True
+        pol._pending_recall_dungeon_id = DUNGEON_YEEK_CAVE
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        snap = replace(
+            self._town_snap(),
+            player=replace(self._town_snap().player, recalling=True),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_ANGBAND,),
+            recall_dungeon_id=DUNGEON_YEEK_CAVE,
+            angband_recall_unlocked=True,
+        )
+        with patch.object(pol, "_recall_destination_safe", return_value=True):
+            self.assertEqual(
+                pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "r"
+            )
+
+        self.assertEqual(
+            pol.last_reason, "town:cancel-wrong-recall-destination"
+        )
+        self.assertFalse(pol._emergency_recall_sanctioned)
+
+    def test_ordinary_unready_recall_still_cancels(self):
+        pol = HengbotPolicy()
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        snap = replace(
+            self._town_snap(),
+            player=replace(self._town_snap().player, recalling=True),
+            inventory=[recall],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            dungeon_recall_depths={DUNGEON_ANGBAND: 31},
+        )
+        with patch.object(
+            pol, "_activate_loadout_depth_fallback", return_value=None
+        ), patch.object(
+            pol, "_equipment_departure_ready", return_value=False
+        ):
+            self.assertEqual(
+                pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "r"
+            )
+
+        self.assertEqual(pol.last_reason, "town:cancel-unready-recall")
+        self.assertFalse(pol._emergency_recall_sanctioned)
+
+    def test_sanction_does_not_leak_after_recall_floor_change(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._emergency_recall_sanctioned = True
+        dungeon = replace(
+            self._town_snap(),
+            floor_key=(DUNGEON_ANGBAND, 31, 0),
+            town_flag=False,
+        )
+        pol._observe(dungeon)
+        self.assertFalse(pol._emergency_recall_sanctioned)
+
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        ordinary = replace(
+            self._town_snap(),
+            player=replace(self._town_snap().player, recalling=True),
+            inventory=[recall],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            dungeon_recall_depths={DUNGEON_ANGBAND: 31},
+        )
+        with patch.object(
+            pol, "_activate_loadout_depth_fallback", return_value=None
+        ), patch.object(
+            pol, "_equipment_departure_ready", return_value=False
+        ):
+            self.assertEqual(
+                pol._town_cancel_unsafe_recall_key(ordinary), READ_KEY + "r"
+            )
+        self.assertEqual(pol.last_reason, "town:cancel-unready-recall")
 
     def test_live_blocked_repetition_with_nine_scrolls_recalls_to_angband(self):
         pol = HengbotPolicy()

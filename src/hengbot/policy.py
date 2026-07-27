@@ -1336,6 +1336,10 @@ class HengbotPolicy:
         # exported; without an issue watch each stale redraw consumes another
         # Word of Recall scroll.
         self._town_recall_issue_watch: tuple[int, int, int] | None = None
+        # A repetition fallback recall is the sole sanctioned exception to
+        # ordinary town departure readiness.  Keep its ownership explicit so
+        # the readiness cancel path cannot fight the cycle breaker's read.
+        self._emergency_recall_sanctioned = False
         # floor, command turn, and pre-read stack count.  Dungeon recalls can
         # produce the same stale/interleaved recalling=False snapshots as town
         # recalls.  Without a transaction watch the latched return reads a new
@@ -3268,6 +3272,14 @@ class HengbotPolicy:
         self._observe_remove_curse(snapshot)
         self._observe_launcher_enchant(snapshot)
         previous_floor = self._floor_key
+        if self._emergency_recall_sanctioned:
+            if previous_floor is not None and previous_floor != snapshot.floor_key:
+                self._emergency_recall_sanctioned = False
+            elif (
+                self._town_blocked_reason != "repetition"
+                and not snapshot.player.recalling
+            ):
+                self._emergency_recall_sanctioned = False
         if snapshot.in_town and not self._town_was_in_town:
             self._town_visit_ledger = TownVisitLedger()
         self._town_was_in_town = snapshot.in_town
@@ -12497,6 +12509,12 @@ class HengbotPolicy:
             # that Hengband already owns.  Wrong destination and NO_TELE are
             # observable hard hazards, so they retain normal cancellation.
             return None
+        if (
+            self._emergency_recall_sanctioned
+            and not destination_changed
+            and not blocks_teleport
+        ):
+            return None
         if not any(
             (
                 destination_changed,
@@ -12511,6 +12529,8 @@ class HengbotPolicy:
         recall = self._find_recall_scroll(snapshot)
         if recall is None:
             return None
+        if destination_changed or blocks_teleport:
+            self._emergency_recall_sanctioned = False
         if destination_changed:
             self._pending_recall_dungeon_id = None
             self.last_reason = "town:cancel-wrong-recall-destination"
@@ -13275,6 +13295,7 @@ class HengbotPolicy:
                         if selection is None:
                             return WAIT_KEY
                     self.last_reason = "town:repetition-depart:recall"
+                    self._emergency_recall_sanctioned = True
                     return READ_KEY + recall.slot + selection
         return WAIT_KEY
 
