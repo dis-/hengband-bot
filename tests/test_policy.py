@@ -26331,6 +26331,71 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
 
+    def test_live_blocked_repetition_with_nine_scrolls_recalls_to_angband(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9)
+        snap = replace(
+            self._town_snap(),
+            player=replace(
+                self._town_snap().player,
+                abilities=frozenset({"free_action", "resist_fire"}),
+            ),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_ANGBAND,),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            recall_depth=20,
+            angband_recall_unlocked=True,
+        )
+
+        self.assertEqual(
+            pol._town_recall_destination(snap), ("angband", DUNGEON_ANGBAND)
+        )
+        self.assertEqual(
+            pol._recall_selection_key(snap, DUNGEON_ANGBAND), "a"
+        )
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+        with patch.object(
+            pol, "_descent_step", return_value=step
+        ), patch.object(
+            pol, "_entrance_travel_key", return_value=WAIT_KEY
+        ), patch.object(
+            pol, "_step_toward", return_value=WAIT_KEY
+        ):
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "da")
+
+        self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
+
+    def test_blocked_repetition_stalled_entrance_leg_yields_to_recall(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_ANGBAND
+        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snap = replace(
+            self._town_snap(),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_ANGBAND,),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            angband_recall_unlocked=True,
+        )
+
+        step = Position(snap.player.position.y, snap.player.position.x + 1)
+        with patch.object(
+            pol, "_descent_step", return_value=step
+        ), patch.object(
+            pol, "_entrance_travel_key", return_value=WAIT_KEY
+        ), patch.object(
+            pol, "_step_toward", return_value=WAIT_KEY
+        ), patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ):
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "da")
+
+        self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
+
     def test_blocked_repetition_dungeon_recall_keeps_bare_read_macro(self):
         pol = HengbotPolicy()
         pol._floor_key = (DUNGEON_ANGBAND, 10, 0)

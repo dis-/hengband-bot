@@ -13238,10 +13238,15 @@ class HengbotPolicy:
                 travel = self._entrance_travel_key(
                     snapshot, self._descent_target_goal
                 )
-                if travel is not None:
+                # Every departure rung must yield when it cannot advance.
+                # In particular, a rejected native-travel command or a
+                # degenerate BFS step must not hide the recall rung below.
+                if travel not in (None, WAIT_KEY):
                     return travel
-                self.last_reason = "town:repetition-depart"
-                return self._step_toward(snapshot, step)
+                walk = self._step_toward(snapshot, step)
+                if walk != WAIT_KEY:
+                    self.last_reason = "town:repetition-depart"
+                    return walk
             if not snapshot.player.recalling:
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
