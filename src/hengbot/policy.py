@@ -19900,6 +19900,29 @@ class HengbotPolicy:
             return None
 
         breeders = [monster for monster in hostiles if monster.can_multiply]
+        mining_preemption = (
+            breeders
+            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
+            and snapshot.dungeon_level == 1
+            and self.threat_prediction(snapshot, hostiles, 3)[
+                "operational_total"
+            ]
+            * 2
+            < snapshot.player.hp
+        )
+        if (
+            mining_preemption
+            and self._breeder_engagement_score
+            < BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT
+        ):
+            # Mining owns a bounded first attempt at clearing weak multipliers.
+            # The engagement score keeps advancing while breeders remain visible,
+            # so a swarm whose count never trends down still falls back to the
+            # unchanged disengage episode and its visible terminal.
+            self._returning_to_town = False
+            self._escape_state.release()
+            return None
         if not breeders and self._fruitless_fight_is_winnable(snapshot, hostiles):
             return None
         threats = breeders or hostiles

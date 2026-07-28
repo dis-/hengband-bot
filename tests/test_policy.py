@@ -16763,6 +16763,89 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy.last_reason, "fundraise:eliminate-multiplier-last-seen"
         )
 
+    def _latched_mining_breeder(self):
+        grids = {
+            Position(10, 8): grid(10, 8, gold=True),
+            Position(10, 9): grid(10, 9),
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(10, 12): grid(10, 12, monster=True),
+        }
+        breeder = hostile(1, 10, 12, distance=2, can_multiply=True)
+        snapshot = Snapshot(
+            player(
+                10,
+                10,
+                hp=177,
+                max_hp=177,
+                level=7,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            grids,
+            [breeder],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=self._strict_supplies(recall=0, detection=1),
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_DIGGING,
+                    SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                self._lantern(),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snapshot.floor_key
+        policy._fruitless_disengage_floor = snapshot.floor_key
+        policy._breeder_engagement_floor = snapshot.floor_key
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW
+        )
+        policy._returning_to_town = True
+        return policy, snapshot
+
+    def test_survivable_mining_breeder_preempts_latched_disengage(self):
+        policy, snapshot = self._latched_mining_breeder()
+
+        with patch.object(
+            policy,
+            "threat_prediction",
+            return_value={"operational_total": 1.0},
+        ):
+            self.assertEqual(policy.choose_key(snapshot), "6")
+
+        self.assertEqual(policy.last_reason, "fundraise:eliminate-multiplier")
+
+    def test_dangerous_mining_breeder_keeps_latched_disengage(self):
+        policy, snapshot = self._latched_mining_breeder()
+
+        with patch.object(
+            policy,
+            "threat_prediction",
+            return_value={"operational_total": 90.0},
+        ):
+            policy.choose_key(snapshot)
+
+        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+
+    def test_mining_breeder_stalemate_falls_back_after_existing_budget(self):
+        policy, snapshot = self._latched_mining_breeder()
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW
+            + policy_module.FRUITLESS_DISENGAGE_LIMIT
+        )
+
+        with patch.object(
+            policy,
+            "threat_prediction",
+            return_value={"operational_total": 1.0},
+        ):
+            policy.choose_key(snapshot)
+
+        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+
     def test_mining_keeps_tracking_treasure_when_its_display_flickers(self):
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
