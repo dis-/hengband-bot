@@ -18368,12 +18368,29 @@ class HengbotPolicy:
             bool(info.flags & QUEST_FLAG_ONCE) or info.type == QUEST_TYPE_RANDOM
         )
 
+    def _deepest_floor_escape_kit_empty(self, snapshot: Snapshot) -> bool:
+        """Return whether this deepest floor has no usable scroll escape rung."""
+        recall_max_depth = snapshot.dungeon_recall_depths.get(
+            snapshot.floor_key[0], snapshot.dungeon_level
+        )
+        return (
+            snapshot.player.class_id >= 0
+            and snapshot.dungeon_level >= recall_max_depth
+            and self._find_phase_scroll(snapshot) is None
+            and self._count_teleport_scrolls(snapshot) == 0
+        )
+
     def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
         """Protect an incomplete kill attempt, with bounded survival releases."""
         if self._unviable_quest_floor == snapshot.floor_key:
             return False
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None:
+            return False
+        # A deepest-floor quest is not worth continuing after both usable
+        # escape-scroll rungs are gone.  Release the lock so the ordinary
+        # escape-kit return can read recall (or walk out).
+        if self._deepest_floor_escape_kit_empty(snapshot):
             return False
         # Once relocation is exhausted, dying on the floor is worse than the
         # visible loss of even an ONCE/RANDOM quest.
@@ -19671,16 +19688,10 @@ class HengbotPolicy:
         # launched scavenge or mining run straight back to town.
         if self._fundraising_mode in {"mine", "scavenge"}:
             return False
-        dungeon_id = snapshot.floor_key[0]
-        recall_max_depth = snapshot.dungeon_recall_depths.get(
-            dungeon_id, snapshot.dungeon_level
-        )
         ledger = self._supply_ledger(snapshot, snapshot.dungeon_level)
         if snapshot.player.class_id >= 0:
             if (
-                snapshot.dungeon_level >= recall_max_depth
-                and self._find_phase_scroll(snapshot) is None
-                and self._count_teleport_scrolls(snapshot) == 0
+                self._deepest_floor_escape_kit_empty(snapshot)
                 and (
                     ledger["teleport"].obtainable
                     or snapshot.dungeon_level > WALK_OUT_MAX_DEPTH

@@ -1398,6 +1398,7 @@ class SurvivalGateTest(unittest.TestCase):
             width=40,
             height=40,
             quests={14: quest},
+            inventory=[item("t", SCROLL, SV_SCROLL_TELEPORT)],
         )
         policy = HengbotPolicy(quest_knowledge={14: info})
         policy.choose_key(snap)

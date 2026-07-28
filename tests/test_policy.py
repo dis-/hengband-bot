@@ -5486,6 +5486,55 @@ class FixedQuestTest(unittest.TestCase):
         self.assertIsNone(policy._return_to_town_key(snap, []))
         self.assertIsNone(policy._escape_by_stairs(snap))
 
+    def test_deepest_random_quest_with_empty_escape_kit_reads_recall(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=24, dungeon_id=DUNGEON_ANGBAND, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_ANGBAND, 24, 49),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 24},
+            quests={49: quest},
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=7),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            ],
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(policy, "_missing_required_abilities", return_value=()):
+            self.assertEqual(policy.choose_key(snap), READ_KEY + "r")
+        self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
+        self.assertEqual(policy.last_reason, "return:recall")
+
+    def test_deepest_random_quest_with_teleport_keeps_exit_locked(self):
+        quest = QuestState(
+            id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
+            level=24, dungeon_id=DUNGEON_ANGBAND, cur_num=0, max_num=1,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_ANGBAND, 24, 49),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 24},
+            quests={49: quest},
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=7),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=1),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            ],
+        )
+        policy = HengbotPolicy()
+
+        self.assertTrue(policy._quest_floor_exit_locked(snap))
+        with patch.object(policy, "_missing_required_abilities", return_value=()):
+            self.assertNotEqual(policy.choose_key(snap), READ_KEY + "r")
+        self.assertNotEqual(policy.last_reason, "return:recall")
+
     def test_runtime_random_quest_lock_releases_when_complete_or_off_floor(self):
         quest = QuestState(
             id=49, status=QUEST_STATUS_TAKEN, type=QUEST_TYPE_RANDOM,
@@ -22191,6 +22240,7 @@ class TownRecallReturnTest(unittest.TestCase):
             {Position(10, 10): here}, [],
             floor_key=(DUNGEON_YEEK_CAVE, depth, 0), quests={14: quest},
             entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
         )
         pol = HengbotPolicy(quest_knowledge={14: info})
         pol._explore_step = lambda _snapshot: None
