@@ -18783,6 +18783,51 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._home_candidate_waiting)
         self.assertEqual(policy.last_reason, "town:recall-to-angband")
 
+    def test_incomplete_empty_home_catalog_routes_or_defers_by_visit_state(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=self._strict_supplies(recall=2),
+            equipment=[self._lantern()],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            yeek_cave_conquered=True,
+            angband_recall_unlocked=True,
+        )
+        for candidate_waiting in (False, True):
+            with self.subTest(
+                home_attempted=False,
+                candidate_waiting=candidate_waiting,
+            ):
+                policy = HengbotPolicy()
+                policy._equipment_catalog.home_scan_complete = False
+                policy._home_candidate_waiting = candidate_waiting
+                policy._home_available = lambda candidate_snapshot: True
+
+                needs = policy._enumerate_town_needs(snap)
+
+                self.assertIn(
+                    TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+                    needs,
+                )
+
+            with self.subTest(
+                home_attempted=True,
+                candidate_waiting=candidate_waiting,
+            ):
+                policy = HengbotPolicy()
+                policy._char_dump_done_this_visit = True
+                policy.prime(snap)
+                policy._equipment_catalog.home_scan_complete = False
+                policy._home_candidate_waiting = candidate_waiting
+                policy._town_store_attempted[STORE_HOME] = snap.turn
+                policy._home_available = lambda candidate_snapshot: True
+                policy._equipment_departure_ready = lambda candidate_snapshot: True
+
+                self.assertEqual(policy._town_special_key(snap), "rra")
+                self.assertFalse(policy._home_candidate_waiting)
+                self.assertEqual(policy.last_reason, "town:recall-to-angband")
+
     def test_real_pending_home_candidate_still_defers_ready_recall(self):
         candidate = item(
             "w", 23, 2, name="awaited sword", known=True, is_equipment=True
@@ -18800,7 +18845,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._char_dump_done_this_visit = True
         pending = policy._item_signature(candidate)
-        policy._equipment_catalog.home_scan_complete = True
+        policy._equipment_catalog.home_scan_complete = False
         policy._home_candidate_waiting = True
         policy._home_pending_item = pending
         policy._home_available = lambda candidate_snapshot: True

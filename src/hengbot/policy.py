@@ -7004,7 +7004,7 @@ class HengbotPolicy:
                     # the currently legal loadout; a fresh visit will rescan it.
                     and (
                         self._equipment_catalog.home_scan_complete
-                        or STORE_HOME in self._town_visit_ledger.blocked_stores
+                        or not self._home_catalog_routable(snapshot)
                     )
                     and self._home_pending_item is None
                     and not self._home_pending_batch
@@ -7352,6 +7352,14 @@ class HengbotPolicy:
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             return True
         return any(grid.store_number == STORE_HOME for grid in snapshot.grids.values())
+
+    def _home_catalog_routable(self, snapshot: Snapshot) -> bool:
+        """Whether this visit can still advance the Home catalog."""
+        return (
+            self._home_available(snapshot)
+            and STORE_HOME not in self._town_store_attempted
+            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+        )
 
     def _retention_reservation(
         self, snapshot: Snapshot, item: InventoryItem
@@ -9336,19 +9344,27 @@ class HengbotPolicy:
             self._pending_disposal_slot = item.slot
         return item
 
-    def _release_stale_home_candidate_waiting(self) -> None:
-        """Release a completed Home scan that has no remaining work owner."""
+    def _release_stale_home_candidate_waiting(
+        self, snapshot: Snapshot | None = None
+    ) -> None:
+        """Release a Home latch with no owner or executable scan this visit."""
         if (
             self._home_candidate_waiting
-            and self._equipment_catalog.home_scan_complete
             and self._home_pending_item is None
             and not self._home_pending_batch
             and not self._home_batch_review_items
             and self._home_withdraw_inflight is None
             and self._identification_need is None
+            and (
+                self._equipment_catalog.home_scan_complete
+                or (
+                    snapshot is not None
+                    and not self._home_catalog_routable(snapshot)
+                )
+            )
         ):
-            # 2026-07-28: disposing the last awaited Home candidate left this
-            # visit-scoped latch set and blocked an otherwise-ready recall.
+            # 2026-07-28/29: a consumed candidate or an exhausted Home pass can
+            # leave this visit-scoped latch with no claim capable of clearing it.
             self._home_candidate_waiting = False
 
     def _clear_pending_disposal(self) -> None:
@@ -9841,11 +9857,13 @@ class HengbotPolicy:
         if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and (
-                not self._equipment_catalog.home_scan_complete
+                (
+                    not self._equipment_catalog.home_scan_complete
+                    and self._home_catalog_routable(snapshot)
+                )
                 or self._has_actionable_incomplete_home_item(snapshot)
                 or self._has_selected_home_random_teleport_suppression(snapshot)
             )
-            and bool(self._equipment_catalog.items)
         ):
             add(STORE_HOME, "equipment-catalog", "home-first")
         if STORE_BLACK not in self._town_store_attempted:
@@ -14053,7 +14071,7 @@ class HengbotPolicy:
         # A completed scan with no pending Home or identification owner cannot
         # legitimately defer departure.  This also repairs old visit state
         # created before disposal completion released the latch at its source.
-        self._release_stale_home_candidate_waiting()
+        self._release_stale_home_candidate_waiting(snapshot)
         # A consumed/moved item can leave the old in-memory pointer behind even
         # though there is no longer an errand capable of clearing it.  Do this
         # immediately before the departure gate so an inert latch cannot turn a
