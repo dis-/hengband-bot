@@ -2418,7 +2418,6 @@ class HengbotPolicy:
                     "combat:disengage-",
                     "combat:avoid-unprofitable-unique-",
                     "unseen-recall:",
-                    "quest:give-up-unviable",
                 )
             )
             or reason in {"status-threat:retreat", "threat:reposition"}
@@ -2469,9 +2468,28 @@ class HengbotPolicy:
         )
         predicted = self._predicted_damage(snapshot, hostiles, turns=2)
         if snapshot.player.hp - predicted <= reserve:
+            missing_hp = snapshot.player.max_hp - snapshot.player.hp
             potion = self._find_heal_potion(
-                snapshot, expected_damage=max(1, predicted)
+                snapshot,
+                expected_damage=min(predicted, missing_hp),
             )
+            if potion is None and missing_hp > 0:
+                potion = max(
+                    (
+                        item
+                        for item in snapshot.inventory
+                        if item.slot
+                        and item.is_potion
+                        and item.aware
+                        and item.sval in HEAL_POTION_SVALS
+                        and self._healing_potion_effective_hp(snapshot, item) > 0
+                    ),
+                    key=lambda item: (
+                        self._healing_potion_effective_hp(snapshot, item),
+                        item.slot,
+                    ),
+                    default=None,
+                )
             if potion is not None:
                 self.last_reason = "emergency:heal"
                 return QUAFF_KEY + potion.slot
@@ -2517,11 +2535,7 @@ class HengbotPolicy:
         adjacent = self._adjacent_hostiles(snapshot)
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
 
-        unviable_quest_escape = self._unviable_quest_escape_key(
-            snapshot, hostiles
-        )
-        if unviable_quest_escape is not None:
-            return unviable_quest_escape
+        self._latch_unviable_quest_return(snapshot, hostiles)
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
         emergency_hostiles = (
@@ -2618,6 +2632,7 @@ class HengbotPolicy:
             active_quest is not None
             and self.approved_quest_strategy(active_quest) is None
             and hostiles
+            and self._unviable_quest_floor != snapshot.floor_key
             and not self._fixed_quest_speed_attempted
         ):
             self._fixed_quest_speed_attempted = True
@@ -18308,40 +18323,19 @@ class HengbotPolicy:
             extra_turns=1,
         ) is None
 
-    def _unviable_quest_escape_key(
+    def _latch_unviable_quest_return(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
-    ) -> str | None:
-        """Latch a visible unwinnable runtime quest and leave its floor now."""
+    ) -> None:
+        """Delegate a visible unwinnable runtime quest to the return owner."""
         if (
             self._unviable_quest_floor != snapshot.floor_key
             and self._visible_unviable_quest_target(snapshot, hostiles)
         ):
             self._unviable_quest_floor = snapshot.floor_key
         if self._unviable_quest_floor != snapshot.floor_key:
-            return None
+            return
         self._returning_to_town = True
         self._last_return_trigger = "quest-unviable"
-        key = self._return_to_town_key(snapshot, hostiles)
-        if key == WAIT_KEY and hostiles and not snapshot.player.recalling:
-            # With no recall or known stair route, keep the floor verdict but
-            # let the emergency ladder relocate rather than donate this turn.
-            return None
-        if key is None:
-            if snapshot.player.recalling:
-                key = WAIT_KEY
-            else:
-                here = snapshot.grid_at(snapshot.player.position)
-                if here is not None and self._is_upstairs_target(here):
-                    key = UP_STAIRS_KEY
-                else:
-                    step = self._nearest_goal_step(
-                        snapshot, self._is_upstairs_target
-                    )
-                    if step is not None:
-                        key = self._step_toward(snapshot, step)
-        if key is not None:
-            self.last_reason = "quest:give-up-unviable"
-        return key
 
     @staticmethod
     def _kill_quest_completion_target(quest: QuestState, info: QuestInfo) -> int:
@@ -18367,6 +18361,8 @@ class HengbotPolicy:
 
     def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
         """Protect an incomplete kill attempt, with bounded survival releases."""
+        if self._unviable_quest_floor == snapshot.floor_key:
+            return False
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None:
             return False

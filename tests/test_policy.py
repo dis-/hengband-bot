@@ -24980,17 +24980,19 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
 
         self.assertEqual(key, "qs")
-        self.assertEqual(policy.last_reason, "quest:quaff-speed")
+        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
         self.assertEqual(policy._unviable_quest_floor, snapshot.floor_key)
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(policy._last_return_trigger, "quest-unviable")
 
         flickered = replace(
             snapshot,
             turn=snapshot.turn + 1,
             visible_monsters=[],
-            player=replace(snapshot.player, speed=120, recalling=True),
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
-        self.assertNotEqual(policy.choose_key(flickered), REST_MACRO)
-        self.assertEqual(policy.last_reason, "quest:give-up-unviable")
+        self.assertEqual(policy.choose_key(flickered), "rr")
+        self.assertEqual(policy.last_reason, "return:recall")
 
     def test_give_up_walk_heals_before_recall_wait(self):
         snapshot, _, knowledge = self._snapshot(
@@ -25015,12 +25017,44 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         endangered = replace(
             snapshot,
             turn=snapshot.turn + 1,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ],
             player=replace(
-                snapshot.player, hp=131, speed=120, recalling=True
+                snapshot.player, hp=131, recalling=True
             ),
         )
-        self.assertEqual(policy.choose_key(endangered), "qh")
-        self.assertEqual(policy.last_reason, "emergency:heal")
+        with patch.object(policy, "_predicted_damage", return_value=768):
+            self.assertEqual(policy.choose_key(endangered), "qh")
+            self.assertEqual(policy.last_reason, "emergency:heal")
+
+    def test_unviable_quest_without_recall_keeps_return_owner_after_flicker(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=515,
+            max_hp=515,
+            speed=110,
+            monster_hp=100000,
+            monster_speed=115,
+            monster_level=50,
+            blow_sides=62,
+            inventory=[],
+        )
+        snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        policy.choose_key(snapshot)
+        flickered = replace(
+            snapshot,
+            turn=snapshot.turn + 1,
+            visible_monsters=[],
+        )
+        key = policy.choose_key(flickered)
+
+        self.assertNotEqual(key, REST_MACRO)
+        self.assertTrue(policy.last_reason.startswith("return:"))
+        self.assertNotEqual(policy.last_reason, "explore")
+        self.assertTrue(policy._returning_to_town)
 
     def test_mid_escape_quaffs_cheapest_sufficient_heal_before_walking(self):
         snapshot, monster, knowledge = self._snapshot(
@@ -25040,10 +25074,10 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         policy._escape_sustain_floor = snapshot.floor_key
         policy.last_reason = "emergency:seek-upstairs"
 
-        with patch.object(policy, "_predicted_damage", return_value=60):
+        with patch.object(policy, "_predicted_damage", return_value=768):
             key = policy._flee_sustain_key(snapshot, "4")
 
-        self.assertEqual(key, "qh")
+        self.assertEqual(key, "qc")
         self.assertEqual(policy.last_reason, "emergency:heal")
 
     def test_escape_start_quaffs_speed_but_active_haste_does_not(self):

@@ -121,14 +121,6 @@ class WaitClassificationTest(unittest.TestCase):
         )
         self.assertIsNone(_intentional_action_wait_category("6", "explore"))
 
-    def test_give_up_and_no_rest_wait_are_stationary(self):
-        snapshot = SimpleNamespace(in_town=False)
-        self.assertFalse(
-            _cell_loop_guard_applies(snapshot, "quest:give-up-unviable")
-        )
-        self.assertFalse(_cell_loop_guard_applies(snapshot, "no-rest:wait"))
-
-
 def _snap_line(turn, y, x):
     return (
         json.dumps(
