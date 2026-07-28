@@ -21868,7 +21868,12 @@ class HengbotPolicy:
         ratio_actions = (turns * monster_energy + player_energy - 1) // player_energy
         # Runtime energy phase is intentionally not emitted. In the worst phase
         # the monster can squeeze in one action beyond the steady-state ratio.
-        return max(1, ratio_actions + 1)
+        # Within one player-turn interval, however, it can take at most the
+        # floor of the energy ratio plus one boundary-phase action. Summing
+        # that physical cap over the prediction window prevents the phase
+        # margin from inventing a third action for a 1.5x-speed monster.
+        per_turn_cap = monster_energy // player_energy + 1
+        return max(1, min(ratio_actions + 1, turns * per_turn_cap))
 
     def _summoner_cover_in_one_step(self, snapshot: Snapshot) -> bool:
         for neighbor in self._walkable_neighbors(snapshot, snapshot.player.position):

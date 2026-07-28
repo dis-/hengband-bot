@@ -12220,6 +12220,94 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertEqual(detail["ranged_prediction"], 44)
         self.assertEqual(detail["contribution"], 60)
 
+    def test_monster_actions_caps_short_window_without_changing_long_window(self):
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._monster_actions(115, 110, 1), 2)
+        self.assertEqual(policy._monster_actions(115, 110, 18), 28)
+        # At exactly double speed, two steady actions plus one boundary-phase
+        # action are physically possible in a single player turn.
+        self.assertEqual(policy._monster_actions(120, 110, 1), 3)
+        self.assertEqual(policy._monster_actions(110, 110, 1), 2)
+        self.assertEqual(policy._monster_actions(100, 110, 1), 1)
+
+    def test_incident_threat_uses_two_actions_and_384_operational_damage(self):
+        monster = replace(
+            hostile(
+                1,
+                10,
+                11,
+                distance=1,
+                speed=115,
+                max_melee_damage=120,
+                race_id=1124,
+            ),
+            name="Killing angel",
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=1000,
+            average_hp=1000,
+            speed=115,
+            can_summon=False,
+            friendly=False,
+            level=40,
+            max_melee_damage=120,
+            blows=tuple(
+                MonsterBlow("HIT", "SUPERHURT", 15, 2) for _ in range(4)
+            ),
+        )
+        snap = self._line_snapshot(monster, hp=50)
+        snap = replace(snap, player=replace(snap.player, ac=50))
+
+        prediction = HengbotPolicy(
+            monrace_knowledge={1124: knowledge}
+        ).threat_prediction(snap, [monster], turns=1)
+
+        self.assertEqual(prediction["monsters"][0]["actions"], 2)
+        self.assertEqual(prediction["operational_total"], 384)
+
+    def test_corrected_incident_threat_no_longer_outpaces_healing_potion(self):
+        monster = replace(
+            hostile(
+                1,
+                10,
+                11,
+                distance=1,
+                speed=115,
+                max_melee_damage=120,
+                race_id=1124,
+            ),
+            name="Killing angel",
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=1000,
+            average_hp=1000,
+            speed=115,
+            can_summon=False,
+            friendly=False,
+            level=40,
+            max_melee_damage=120,
+            blows=tuple(
+                MonsterBlow("HIT", "SUPERHURT", 15, 2) for _ in range(4)
+            ),
+        )
+        healing = item("h", TVAL_POTION, SV_POTION_HEALING)
+        snap = self._line_snapshot(monster, hp=100, inventory=[healing])
+        snap = replace(
+            snap,
+            player=replace(snap.player, hp=100, max_hp=500, ac=50),
+        )
+        policy = HengbotPolicy(monrace_knowledge={1124: knowledge})
+
+        expected = policy._predicted_damage(
+            snap, [monster], turns=1, expected=True
+        )
+
+        self.assertEqual(expected, 294)
+        self.assertIs(
+            policy._find_heal_potion(snap, expected_damage=expected), healing
+        )
+
     def test_never_move_enemy_cannot_spend_actions_approaching_for_melee(self):
         monster = replace(
             hostile(
