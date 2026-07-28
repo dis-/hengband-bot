@@ -16998,6 +16998,56 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
 
+    def test_declared_walkout_suppresses_multiplier_chase_until_release(self):
+        policy, snapshot = self._latched_mining_breeder()
+        policy._escape_state.enter("disengage", "combat:disengage-seek-upstairs")
+        policy._returning_to_town = False
+        policy.last_reason = "combat:disengage-seek-upstairs"
+        policy._nearest_goal_step = lambda _snapshot, _goal: Position(10, 9)
+
+        for _ in range(2):
+            key = policy._fundraising_key(snapshot, policy._hostiles(snapshot))
+            self.assertIsNone(key)
+            self.assertEqual(
+                policy._escape_state.owner,
+                "disengage",
+            )
+            self.assertEqual(
+                policy.last_reason,
+                "combat:disengage-seek-upstairs",
+            )
+
+    def test_declared_walkout_still_melees_adjacent_blocker(self):
+        policy, snapshot = self._latched_mining_breeder()
+        blocker = replace(
+            snapshot.visible_monsters[0],
+            position=Position(10, 11),
+            distance=1,
+        )
+        snapshot = replace(
+            snapshot,
+            grids={
+                **snapshot.grids,
+                Position(10, 11): replace(
+                    snapshot.grids[Position(10, 11)],
+                    has_monster=True,
+                ),
+                Position(10, 12): replace(
+                    snapshot.grids[Position(10, 12)],
+                    has_monster=False,
+                    monster_index=0,
+                ),
+            },
+            visible_monsters=[blocker],
+        )
+        policy._escape_state.enter("disengage", "combat:disengage-seek-upstairs")
+        policy._fruitless_disengage_floor = None
+        policy._breeder_engagement_score = 0
+        policy._returning_to_town = False
+
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        self.assertEqual(policy.last_reason, "melee")
+
     def test_mining_keeps_tracking_treasure_when_its_display_flickers(self):
         tool = item(
             "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
@@ -24073,6 +24123,37 @@ class NoWaitUnderFireTest(unittest.TestCase):
                 WAIT_KEY,
             )
         self.assertEqual(policy.last_reason, "emergency:wait")
+
+    def test_declared_walkout_no_wait_flee_refuses_two_cell_ping_pong(self):
+        from collections import deque
+
+        snapshot = self._snapshot(include_escape=False)
+        policy = HengbotPolicy()
+        policy._took_damage = True
+        policy.last_reason = "combat:disengage-wait"
+        policy._escape_state.enter("disengage", policy.last_reason)
+        repeated = Position(10, 9)
+        alternate = Position(11, 10)
+        policy._recent = deque(
+            [repeated, snapshot.player.position] * 6,
+            maxlen=64,
+        )
+
+        with (
+            patch.object(policy, "_flee_step", return_value=repeated),
+            patch.object(
+                policy,
+                "_least_visited_neighbor",
+                return_value=alternate,
+            ),
+        ):
+            key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+
+        self.assertEqual(
+            key,
+            policy._direction_key(snapshot.player.position, alternate),
+        )
+        self.assertEqual(policy.last_reason, "no-wait:least-visited")
 
 
 class UniqueCombatConsumableTest(unittest.TestCase):

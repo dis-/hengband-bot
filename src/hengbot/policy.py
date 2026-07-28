@@ -2329,7 +2329,11 @@ class HengbotPolicy:
             return READ_KEY + scroll.slot
 
         step = self._flee_step(snapshot, hostiles)
-        if step is not None:
+        if step is not None and not (
+            self._escape_state.owner == "disengage"
+            and self._is_oscillating()
+            and step in set(self._recent)
+        ):
             self.last_reason = "no-wait:flee"
             return self._direction_key(snapshot.player.position, step)
 
@@ -14957,6 +14961,13 @@ class HengbotPolicy:
         combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
         if combat_equip is not None:
             return combat_equip
+        if self._escape_state.owner == "disengage":
+            # A declared walk-out owns movement until EscapeState releases it.
+            # Adjacent combat has already run in _decide, so yielding here still
+            # permits bump-attacking a blocker while preventing multiplier,
+            # loot, mining, and exploration routes from pulling against the
+            # disengage direction.
+            return None
         multipliers = [monster for monster in hostiles if monster.can_multiply]
         if multipliers:
             target = min(multipliers, key=lambda monster: monster.distance)
