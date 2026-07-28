@@ -256,6 +256,8 @@ STATIONARY_REASONS = frozenset(
         # 40-cell watchdog produces a false loop at five walls (5 * 8).
         "return:search-upstairs",
         "return:wait-recall",
+        "quest:give-up-unviable",
+        "no-rest:wait",
         "fundraise:wait-recall",
         "town:wait-recall",
         "town:wait-restock",

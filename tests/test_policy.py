@@ -24979,20 +24979,50 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, "rr")
-        self.assertEqual(policy.last_reason, "quest:give-up-unviable")
+        self.assertEqual(key, "qs")
+        self.assertEqual(policy.last_reason, "quest:quaff-speed")
         self.assertEqual(policy._unviable_quest_floor, snapshot.floor_key)
 
         flickered = replace(
             snapshot,
             turn=snapshot.turn + 1,
             visible_monsters=[],
-            player=replace(snapshot.player, recalling=True),
+            player=replace(snapshot.player, speed=120, recalling=True),
         )
-        self.assertEqual(policy.choose_key(flickered), WAIT_KEY)
+        self.assertNotEqual(policy.choose_key(flickered), REST_MACRO)
         self.assertEqual(policy.last_reason, "quest:give-up-unviable")
 
-    def test_mid_escape_quaffs_strongest_heal_before_walking(self):
+    def test_give_up_walk_heals_before_recall_wait(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=515,
+            max_hp=515,
+            speed=110,
+            monster_hp=100000,
+            monster_speed=115,
+            monster_level=50,
+            blow_sides=62,
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ],
+        )
+        snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        self.assertEqual(policy.choose_key(snapshot), "qs")
+        self.assertEqual(policy._unviable_quest_floor, snapshot.floor_key)
+
+        endangered = replace(
+            snapshot,
+            turn=snapshot.turn + 1,
+            player=replace(
+                snapshot.player, hp=131, speed=120, recalling=True
+            ),
+        )
+        self.assertEqual(policy.choose_key(endangered), "qh")
+        self.assertEqual(policy.last_reason, "emergency:heal")
+
+    def test_mid_escape_quaffs_cheapest_sufficient_heal_before_walking(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=100,
             max_hp=515,
@@ -25013,7 +25043,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         with patch.object(policy, "_predicted_damage", return_value=60):
             key = policy._flee_sustain_key(snapshot, "4")
 
-        self.assertEqual(key, "qc")
+        self.assertEqual(key, "qh")
         self.assertEqual(policy.last_reason, "emergency:heal")
 
     def test_escape_start_quaffs_speed_but_active_haste_does_not(self):
@@ -25041,28 +25071,41 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         policy.last_reason = "return:seek-upstairs"
         self.assertEqual(policy._flee_sustain_key(hasted, "4"), "4")
 
-    def test_dungeon_rest_is_suppressed_only_with_visible_damage(self):
+    def test_speed_attempt_survives_one_interleaved_combat_decision(self):
         snapshot, _, knowledge = self._snapshot(
-            hp=455,
+            hp=515,
             max_hp=515,
+            speed=110,
             monster_hp=1800,
             monster_speed=115,
-            blow_sides=62,
+            blow_sides=20,
+            inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
         )
         snapshot = replace(snapshot, floor_key=(1, 24, 0))
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
-        with patch.object(policy, "_flee_step", return_value=Position(10, 9)):
-            key = policy._suppress_dungeon_rest_under_threat(
-                snapshot, REST_MACRO
-            )
-        self.assertEqual(key, "4")
-        self.assertEqual(policy.last_reason, "no-rest:flee")
+        policy.last_reason = "return:seek-upstairs"
+        self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "qs")
 
-        quiet = replace(snapshot, visible_monsters=[])
-        self.assertEqual(
-            policy._suppress_dungeon_rest_under_threat(quiet, REST_MACRO),
-            REST_MACRO,
+        policy.last_reason = "melee"
+        self.assertEqual(policy._flee_sustain_key(snapshot, "6"), "6")
+        policy.last_reason = "return:seek-upstairs"
+        self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "4")
+
+    def test_instant_escape_does_not_start_speed_episode(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=515,
+            max_hp=515,
+            speed=110,
+            monster_hp=1800,
+            monster_speed=115,
+            blow_sides=20,
+            inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
         )
+        snapshot = replace(snapshot, floor_key=(1, 24, 0))
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy.last_reason = "emergency:teleport"
+        self.assertEqual(policy._flee_sustain_key(snapshot, "rt"), "rt")
+        self.assertFalse(policy._escape_sustain_active)
 
     def test_two_adjacent_quest_targets_do_not_commit(self):
         snapshot, monster, knowledge = self._snapshot(
