@@ -988,7 +988,7 @@ DIGGER_WIELD_LIMIT = 8
 # at once instead — that path is NOT harness-exempt, so it must not linger.)
 MINING_STALL_LIMIT = 150
 # Decision-log trip analysis (2026-07-28) found a sharp yield cliff:
-# mining.detected_total ≤10 → 27–42 g/min; detected_total ≥12 → 2,100–4,000 g/min.
+# mining.detected_total ≤10 → 27–142 g/min; detected_total ≥12 → 2,100–6,000 g/min.
 BARREN_FLOOR_SKIP_THRESHOLD = 10
 MINING_SWEEP_NO_PROGRESS_LIMIT = 24
 MINING_SWEEP_HARD_LIMIT = 600
