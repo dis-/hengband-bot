@@ -9114,6 +9114,8 @@ class HengbotPolicy:
         self, snapshot: Snapshot, candidate: InventoryItem | StoreItem
     ) -> bool:
         """Whether this fully known item is disposal-safe under the R1 prune."""
+        if candidate.tval == TVAL_BOW:
+            return self._is_disposable_dominated_launcher(snapshot, candidate)
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return False
         if (
@@ -9142,6 +9144,68 @@ class HengbotPolicy:
             and equipment_identity(owned.item) == candidate_identity
             for owned in catalog
         )
+
+    def _is_disposable_dominated_launcher(
+        self, snapshot: Snapshot, candidate: InventoryItem | StoreItem
+    ) -> bool:
+        """Return whether the equipped launcher strictly dominates this spare."""
+        equipped = self._equipped_launcher(snapshot)
+        if (
+            snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+            or equipped is None
+            or candidate is equipped
+            or any(candidate is item for item in snapshot.equipment)
+            or candidate.tval != TVAL_BOW
+            or not candidate.known
+            or candidate.is_cursed
+            or candidate.is_broken
+            or (
+                item_requires_full_identification(candidate)
+                and not candidate.fully_known
+            )
+            or self._equipment_disposal_reserved(snapshot, candidate)
+        ):
+            return False
+
+        equipped_damage = self._launcher_average_damage(equipped)
+        candidate_damage = self._launcher_average_damage(candidate)
+        equipped_grade = (int(equipped.is_artifact), int(equipped.is_ego))
+        candidate_grade = (int(candidate.is_artifact), int(candidate.is_ego))
+        no_worse = (
+            equipped_damage >= candidate_damage
+            and equipped.to_h >= candidate.to_h
+            and equipped.pval >= candidate.pval
+            and equipped.known_flags.issuperset(candidate.known_flags)
+            and equipped_grade >= candidate_grade
+        )
+        strictly_better = (
+            equipped_damage > candidate_damage
+            or equipped.to_h > candidate.to_h
+            or equipped.pval > candidate.pval
+            or equipped.known_flags > candidate.known_flags
+            or equipped_grade > candidate_grade
+        )
+        return no_worse and strictly_better
+
+    def _begin_pack_dominated_launcher_disposal(
+        self, snapshot: Snapshot
+    ) -> None:
+        """Hand one dominated pack launcher to the normal disposal router."""
+        if self._pending_disposal_item is not None:
+            return
+        candidate = next(
+            (
+                item
+                for item in snapshot.inventory
+                if self._is_disposable_dominated_launcher(snapshot, item)
+            ),
+            None,
+        )
+        if candidate is None:
+            return
+        self._pending_disposal_slot = candidate.slot
+        self._pending_disposal_item = self._item_signature(candidate)
+        self._disposal_store_attempts.clear()
 
     def _equipment_disposal_reserved(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem
@@ -9473,6 +9537,7 @@ class HengbotPolicy:
             add(STORE_GENERAL, "quest-throwing-items", "opening-quest")
             return needs
 
+        self._begin_pack_dominated_launcher_disposal(snapshot)
         if (
             self._pending_disposal_item is not None
             and (target := self._pending_disposal(snapshot)) is not None

@@ -1,8 +1,19 @@
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
-from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME, STORE_WEAPON, TVAL_SWORD, StoreState
+from hengbot.model import (
+    PLAYER_CLASS_WARRIOR,
+    STORE_HOME,
+    STORE_WEAPON,
+    SV_BOW_LIGHT_XBOW,
+    SV_BOW_SHORT,
+    TVAL_BOLT,
+    TVAL_BOW,
+    TVAL_SWORD,
+    StoreState,
+)
 from hengbot.policy import HengbotPolicy
 from tests.test_policy import Position, Snapshot, grid, item, player, store_item
 
@@ -86,6 +97,82 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
         policy._disposal_store_attempts.add(STORE_WEAPON)
         policy._destroy_pending = True
         self.assertEqual(policy._town_destroy_key(snap), "01ka")
+
+    @staticmethod
+    def launcher(slot, sval, name, *, to_h, to_d, artifact=False):
+        return item(
+            slot, TVAL_BOW, sval, name=name, known=True, fully_known=True,
+            is_equipment=True, is_artifact=artifact, to_h=to_h, to_d=to_d,
+        )
+
+    def launcher_snapshot(self, inventory, equipment, *, quests=None):
+        return replace(
+            self.snapshot([]),
+            inventory=inventory,
+            equipment=equipment,
+            store=None,
+            quests=quests or {},
+        )
+
+    def test_pack_crossbow_dominated_by_equipped_artifact_bow_is_routed(self):
+        equipped = self.launcher(
+            "bow", SV_BOW_SHORT, "artifact bow", to_h=15, to_d=17,
+            artifact=True,
+        )
+        crossbow = self.launcher(
+            "a", SV_BOW_LIGHT_XBOW, "plain crossbow", to_h=4, to_d=5,
+        )
+        snapshot = self.launcher_snapshot([crossbow], [equipped])
+        policy = HengbotPolicy()
+
+        needs = policy._enumerate_town_needs(snapshot)
+
+        self.assertEqual(policy._pending_disposal_slot, "a")
+        self.assertIn(
+            (STORE_WEAPON, "disposal"),
+            [(need.store_type, need.category) for need in needs],
+        )
+
+    def test_only_crossbow_and_bolts_are_untouched(self):
+        crossbow = self.launcher(
+            "a", SV_BOW_LIGHT_XBOW, "only crossbow", to_h=4, to_d=5,
+        )
+        bolts = item("b", TVAL_BOLT, 0, name="bolts", known=True, count=30)
+        snapshot = self.launcher_snapshot([crossbow, bolts], [])
+        policy = HengbotPolicy()
+
+        needs = policy._enumerate_town_needs(snapshot)
+
+        self.assertIsNone(policy._pending_disposal_item)
+        self.assertNotIn("disposal", [need.category for need in needs])
+
+    def test_equipped_and_quest_required_launchers_are_retained(self):
+        bow = self.launcher(
+            "bow", SV_BOW_SHORT, "artifact bow", to_h=15, to_d=17,
+            artifact=True,
+        )
+        crossbow = self.launcher(
+            "a", SV_BOW_LIGHT_XBOW, "quest crossbow", to_h=4, to_d=5,
+        )
+        snapshot = self.launcher_snapshot([crossbow], [bow])
+        policy = HengbotPolicy()
+        self.assertFalse(policy._is_disposable_dominated_launcher(snapshot, bow))
+
+        profile = SimpleNamespace(
+            required_force={
+                "launcher": {
+                    "ammo": "bolt",
+                    "equipped": True,
+                    "min_average_damage": 0,
+                }
+            }
+        )
+        with patch.object(
+            policy, "_quest_strategy_for_errand_or_floor", return_value=profile
+        ):
+            self.assertFalse(
+                policy._is_disposable_dominated_launcher(snapshot, crossbow)
+            )
 
 
 if __name__ == "__main__":
