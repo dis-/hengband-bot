@@ -24,6 +24,7 @@ from hengbot.equipment_transaction_session import (
 from hengbot.model import (
     InventoryItem,
     PLAYER_CLASS_WARRIOR,
+    STORE_ALCHEMIST,
     STORE_HOME,
     StoreItem,
 )
@@ -763,6 +764,64 @@ class WarriorOptimizationTest(unittest.TestCase):
             },
         )
         self.assertFalse(policy._home_page_advance_pending)
+
+    def test_policy_clears_home_page_wait_on_interleaved_alchemist_snapshot(self):
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+            observe=lambda observation: None,
+            complete=False,
+            block=lambda reason: None,
+        )
+        policy._home_page_advance_pending = True
+        policy._prepare_equipment_optimization = lambda snapshot: None
+        policy._shopping_approach_step = lambda snapshot: None
+        town = SimpleNamespace(
+            in_town=True,
+            store=None,
+            inventory=(),
+            equipment=(),
+            grids={},
+        )
+        alchemist = SimpleNamespace(
+            in_town=True,
+            store=SimpleNamespace(store_type=STORE_ALCHEMIST, items=()),
+            inventory=(),
+            equipment=(),
+            grids={},
+        )
+        policy._with_grid_memory = lambda current: current
+        policy._observe_home_history = lambda current: None
+        policy._observe = lambda current: None
+        policy._enumerate_town_needs = lambda current: ()
+        policy._report_town_stop_pass = lambda *args, **kwargs: None
+        policy._periodic_character_dump_key = lambda current, key: key
+        policy._break_positional_oscillation = lambda current, key: key
+        policy._break_livelock = lambda current, key: key
+        policy._remember_stair_command = lambda current, key: None
+        policy._update_combat_outcome = lambda current: None
+        policy._update_navigation_progress = lambda current: None
+        policy._capture_home_history_intent = lambda current, key: None
+
+        def decide(snapshot):
+            if snapshot.store is not None:
+                policy.last_reason = "shop:leave"
+                return "\x1b"
+            return policy._equipment_transaction_town_key(snapshot)
+
+        policy._decide = decide
+
+        self.assertEqual(policy.choose_key(town), "5")
+        self.assertTrue(policy._home_page_advance_pending)
+        self.assertEqual(policy.choose_key(alchemist), "\x1b")
+        self.assertFalse(policy._home_page_advance_pending)
+        self.assertEqual(policy.choose_key(town), "5")
+        self.assertNotEqual(
+            policy.last_reason, "equipment-transaction:await-home-page"
+        )
 
     def test_policy_home_snapshot_still_clears_page_advance_pending(self):
         policy = HengbotPolicy()

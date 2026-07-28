@@ -1852,6 +1852,7 @@ class HengbotPolicy:
         # a main-loop town snapshot.  last_reason is therefore not a reliable
         # proof that the next Home snapshot is the result of our page advance.
         self._home_page_advance_pending = False
+        self._home_page_advance_store_none_decisions = 0
         self._pending_disposal_slot: str | None = None
         self._pending_disposal_item: tuple[str, int, int] | None = None
         self._disposal_store_attempts: set[int] = set()
@@ -1940,12 +1941,23 @@ class HengbotPolicy:
                     self._home_star_remove_curse_scan_pages.values()
                 )
             self._home_page_advance_pending = False
-        if (
-            snapshot.store is None
+            self._home_page_advance_store_none_decisions = 0
+        elif (
+            snapshot.store is not None
             and self._home_page_advance_pending
-            and self.last_reason == "equipment-transaction:await-home-page"
         ):
+            # 2026-07-28 incident: an Alchemist snapshot alternating with the
+            # surface proves this is not the one-snapshot Home redraw bridge.
             self._home_page_advance_pending = False
+            self._home_page_advance_store_none_decisions = 0
+        elif self._home_page_advance_pending:
+            self._home_page_advance_store_none_decisions += 1
+            if (
+                self._home_page_advance_store_none_decisions
+                >= TOWN_CYCLE_BREAK_LIMIT
+            ):
+                self._home_page_advance_pending = False
+                self._home_page_advance_store_none_decisions = 0
         if self._equipment_transaction_session is not None:
             self._equipment_transaction_session.observe(
                 observe_equipment_transactions(snapshot)
@@ -1973,6 +1985,7 @@ class HengbotPolicy:
             and self.last_reason in HOME_PAGE_ADVANCE_REASONS
         ):
             self._home_page_advance_pending = True
+            self._home_page_advance_store_none_decisions = 0
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
