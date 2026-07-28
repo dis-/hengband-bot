@@ -183,6 +183,20 @@ class EconomyLedgerTest(unittest.TestCase):
 
 
 class NewestSnapshotTest(unittest.TestCase):
+    def test_parses_grid_mark_flag_and_defaults_older_snapshots_to_unmarked(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["nearby_grids"] = [
+            {"y": 5, "x": 6, "known": True, "flags": {"mark": True}},
+            {"y": 5, "x": 7, "known": True, "flags": {"mark": False}},
+            {"y": 5, "x": 8, "known": True},
+        ]
+
+        snapshot = parse_snapshot(data, {})
+
+        self.assertTrue(snapshot.grids[Position(5, 6)].marked)
+        self.assertFalse(snapshot.grids[Position(5, 7)].marked)
+        self.assertFalse(snapshot.grids[Position(5, 8)].marked)
+
     def test_parses_equipment_optimizer_player_inputs(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["player"].update(

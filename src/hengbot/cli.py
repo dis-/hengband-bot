@@ -277,6 +277,7 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "breakout:dig-to-stairs",
         # Mining-rework dig, bounded by the sweep's MINING_SWEEP_HARD_LIMIT.
         "fundraise:dig-to-treasure",
+        "fundraise:dig-mark-bump",
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
         "quest-strategy:hold",

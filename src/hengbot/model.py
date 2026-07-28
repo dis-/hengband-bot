@@ -540,6 +540,9 @@ class GridState:
     lit: bool = False
     in_view: bool = False
     allows_los: bool = True
+    # Player memory, distinct from the emitter's authoritative terrain truth.
+    # Hengband rejects tunnelling an unmarked wall before consuming energy.
+    marked: bool = False
 
     @property
     def is_store(self) -> bool:
@@ -823,6 +826,7 @@ def parse_snapshot(
             ),
             lit=known and _as_bool(flags.get("lite", False)),
             in_view=known and _as_bool(flags.get("view", False)),
+            marked=_as_bool(flags.get("mark", False)),
             allows_los=allows_los,
         )
 

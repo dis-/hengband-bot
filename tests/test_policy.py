@@ -107,6 +107,7 @@ from hengbot.policy import (
     BUY_KEY,
     CHARACTER_DUMP_MACRO,
     DESTROY_FAIL_LIMIT,
+    DIGGER_WIELD_LIMIT,
     EMPTY_DIVE_LIMIT,
     NO_DEPTH_PROGRESS_DIVE_LIMIT,
     OVEREXTEND_LOOT_MAX,
@@ -232,6 +233,7 @@ def grid(
     in_view=False,
     allows_los=None,
     terrain_id=-1,
+    marked=True,
 ):
     pos = Position(y, x)
     walkable = (passable and not closed_door and not rubble) or open_door
@@ -267,6 +269,7 @@ def grid(
         in_view=known and in_view,
         allows_los=(known and walkable) if allows_los is None else allows_los,
         terrain_id=terrain_id,
+        marked=marked,
     )
 
 
@@ -29369,6 +29372,86 @@ class MiningReachableTreasureClosureTest(unittest.TestCase):
         self.assertEqual(policy._mining_closure_key(snap), TUNNEL_KEY + "6")
         self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
         self.assertNotIn(target, policy._mining_dropped_veins)
+
+    def test_live_unmarked_southwest_vein_is_bumped_before_tunnelling(self):
+        target = Position(20, 103)
+        snap = Snapshot(
+            player(19, 104, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(19, 104): grid(19, 104),
+                target: grid(
+                    20,
+                    103,
+                    passable=False,
+                    gold=True,
+                    tunnel=True,
+                    permanent=False,
+                    terrain_id=56,
+                    marked=False,
+                ),
+            },
+            [],
+            floor_key=(2, 1, 0),
+        )
+        policy = self._policy(target)
+        policy._mining_detection_centers = [Position(19, 104)]
+
+        self.assertEqual(policy._mining_closure_key(snap), "1")
+        self.assertEqual(policy.last_reason, "fundraise:dig-mark-bump")
+
+    def test_marked_southwest_vein_still_uses_tunnel_command(self):
+        target = Position(20, 103)
+        snap = Snapshot(
+            player(19, 104, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(19, 104): grid(19, 104),
+                target: grid(
+                    20,
+                    103,
+                    passable=False,
+                    gold=True,
+                    tunnel=True,
+                    permanent=False,
+                    terrain_id=56,
+                    marked=True,
+                ),
+            },
+            [],
+            floor_key=(2, 1, 0),
+        )
+        policy = self._policy(target)
+        policy._mining_detection_centers = [Position(19, 104)]
+
+        self.assertEqual(policy._mining_closure_key(snap), TUNNEL_KEY + "1")
+        self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
+
+    def test_persistently_unmarked_vein_is_dropped_after_bounded_bumps(self):
+        target = Position(20, 103)
+        snap = Snapshot(
+            player(19, 104, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(19, 104): grid(19, 104),
+                target: grid(
+                    20,
+                    103,
+                    passable=False,
+                    gold=True,
+                    tunnel=True,
+                    terrain_id=56,
+                    marked=False,
+                ),
+            },
+            [],
+            floor_key=(2, 1, 0),
+        )
+        policy = self._policy(target)
+        policy._mining_detection_centers = [Position(19, 104)]
+        with patch.object(policy, "_finish_mining_floor", return_value="FINISH"):
+            for _ in range(DIGGER_WIELD_LIMIT - 1):
+                self.assertEqual(policy._mining_closure_key(snap), "1")
+            self.assertEqual(policy._mining_closure_key(snap), "FINISH")
+
+        self.assertIn(target, policy._mining_dropped_veins)
 
     def test_drops_gold_enclosed_by_permanent_rock(self):
         target = Position(3, 3)

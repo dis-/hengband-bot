@@ -1500,6 +1500,10 @@ class HengbotPolicy:
         self._unverified_stairs: set[tuple[str, Position]] = set()
         self._known_treasure: set[Position] = set()
         self._treasure_target: Position | None = None
+        # Bumping an unseen wall marks it so Hengband will accept the following
+        # tunnel command. Bound stale-emitter retries with DIGGER_WIELD_LIMIT.
+        self._mining_mark_bumps: Counter[Position] = Counter()
+        self._mining_unmarkable_grids: set[Position] = set()
         # Consecutive stalled (oscillating) turns while mining. Digging toward a
         # walled-off vein keeps the player on one tile, so this bounds how long we
         # claw at an unreachable vein before giving up and ascending — WITHOUT ever
@@ -4014,6 +4018,8 @@ class HengbotPolicy:
             self._unverified_stairs.clear()
             self._known_treasure.clear()
             self._treasure_target = None
+            self._mining_mark_bumps.clear()
+            self._mining_unmarkable_grids.clear()
             self._mining_detection_centers.clear()
             self._mining_stall_turns = 0
             self._mining_route_visits.clear()
@@ -14336,9 +14342,39 @@ class HengbotPolicy:
             candidates.append((dy, 0))
         for cy, cx in candidates:
             cell = snapshot.grids.get(Position(pos.y + cy, pos.x + cx))
-            if cell is not None and cell.can_dig:
-                return TUNNEL_KEY + DIRECTION_KEYS[(cy, cx)]
+            if (
+                cell is not None
+                and cell.can_dig
+                and cell.position not in self._mining_unmarkable_grids
+            ):
+                return self._mining_tunnel_key(snapshot, cell.position)
         return None
+
+    def _mining_tunnel_key(
+        self,
+        snapshot: Snapshot,
+        grid_position: Position,
+        *,
+        vein: Position | None = None,
+    ) -> str | None:
+        """Mark an adjacent mining wall before issuing Hengband's tunnel key."""
+        grid = snapshot.grids.get(grid_position)
+        if grid is None or not grid.tunnel or grid.enterable:
+            return None
+        direction = self._direction_key(snapshot.player.position, grid_position)
+        if grid.marked:
+            self._mining_mark_bumps.pop(grid_position, None)
+            return TUNNEL_KEY + direction
+
+        self._mining_mark_bumps[grid_position] += 1
+        if self._mining_mark_bumps[grid_position] >= DIGGER_WIELD_LIMIT:
+            self._mining_mark_bumps.pop(grid_position, None)
+            self._mining_unmarkable_grids.add(grid_position)
+            if vein is not None:
+                self._drop_mining_vein(vein)
+            return None
+        self.last_reason = "fundraise:dig-mark-bump"
+        return direction
 
     def _dig_to_known_downstairs_key(self, snapshot: Snapshot) -> str | None:
         """Route toward a known descent, allowing only known diggable terrain."""
@@ -14521,9 +14557,13 @@ class HengbotPolicy:
             self._mining_sweep_steps += 1
             if step_is_dig:
                 self.last_reason = "fundraise:dig-to-treasure"
-                return TUNNEL_KEY + self._direction_key(
-                    snapshot.player.position, step
-                )
+                key = self._mining_tunnel_key(snapshot, step, vein=target)
+                if key is not None:
+                    return key
+                self._treasure_target = None
+                self._mining_target_distance = None
+                targets.discard(target)
+                continue
             self.last_reason = "fundraise:seek-treasure"
             return self._step_toward(snapshot, step)
 
@@ -14933,6 +14973,8 @@ class HengbotPolicy:
                 self._mining_swept_dead_targets.clear()
                 self._mining_grids_at_sweep_done = 0
                 self._mining_dropped_veins.clear()
+                self._mining_mark_bumps.clear()
+                self._mining_unmarkable_grids.clear()
                 self.last_reason = "fundraise:detect-treasure"
                 return READ_KEY + scroll.slot
 
@@ -15035,9 +15077,11 @@ class HengbotPolicy:
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
             self.last_reason = "fundraise:mine-treasure"
-            return TUNNEL_KEY + self._direction_key(
-                snapshot.player.position, adjacent_gold.position
+            key = self._mining_tunnel_key(
+                snapshot, adjacent_gold.position, vein=adjacent_gold.position
             )
+            if key is not None:
+                return key
         osc = self._is_oscillating()
         if osc and self._treasure_target is not None:
             self._mining_oscillation_retargets += 1
