@@ -19662,6 +19662,28 @@ class HengbotPolicy:
         # launched scavenge or mining run straight back to town.
         if self._fundraising_mode in {"mine", "scavenge"}:
             return False
+        dungeon_id = snapshot.floor_key[0]
+        has_character_progress = (
+            snapshot.player.class_id >= 0
+            or dungeon_id in snapshot.dungeon_recall_depths
+        )
+        recall_max_depth = snapshot.dungeon_recall_depths.get(
+            dungeon_id, snapshot.dungeon_level
+        )
+        has_phase = any(
+            item.count > 0
+            and item.is_scroll
+            and item.sval == SV_SCROLL_PHASE_DOOR
+            for item in snapshot.inventory
+        )
+        if (
+            has_character_progress
+            and snapshot.dungeon_level >= recall_max_depth
+            and not has_phase
+            and self._count_teleport_scrolls(snapshot) == 0
+        ):
+            self._last_return_trigger = "escape-kit-empty"
+            return True
         if snapshot.player.class_id >= 0:
             # A resistance gap at the CURRENT floor -- not the next one, which
             # _is_descent_target already gates before a descent is taken -- means
