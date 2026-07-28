@@ -155,6 +155,7 @@ from hengbot.policy import (
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
+    DETECTION_SCROLL_BUFFER,
     BARREN_FLOOR_SKIP_THRESHOLD,
     MINING_ROUTE_REVISIT_LIMIT,
     MINING_NAVIGATION_REVISIT_LIMIT,
@@ -13127,18 +13128,52 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy._shop(snap), "pa5\r")
+        self.assertEqual(policy._shop(snap), "pa10\r")
         self.assertEqual(policy.last_reason, "home:withdraw-treasure-detection")
 
         with_scrolls = replace(
             snap,
             inventory=[
                 *inventory,
-                item("z", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
+                item(
+                    "z",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=5 + DETECTION_SCROLL_BUFFER,
+                ),
             ],
         )
         self.assertEqual(policy._shop(with_scrolls), "pb\r")
         self.assertEqual(policy.last_reason, "home:withdraw-digging-tool")
+
+    def test_fundraising_withdraws_detection_buffer_from_home(self):
+        target = 4
+        stored_count = target + DETECTION_SCROLL_BUFFER
+        snap = Snapshot(
+            player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=self._strict_supplies(detection=0),
+            store=StoreState(
+                STORE_HOME,
+                [
+                    store_item(
+                        "a",
+                        TVAL_SCROLL,
+                        SV_SCROLL_DETECT_TREASURE,
+                        count=stored_count,
+                    )
+                ],
+            ),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._planned_mining_runs = target
+
+        self.assertEqual(policy._shop(snap), f"pa{stored_count}\r")
+        self.assertEqual(policy.last_reason, "home:withdraw-treasure-detection")
 
     def test_fundraising_withdraws_second_digger_from_home(self):
         held_digger = item("p", TVAL_DIGGING, 1, name="held shovel")
@@ -13821,6 +13856,61 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNotNone(purchase)
         self.assertTrue(purchase.is_treasure_detection_scroll)
 
+    def test_fundraising_buys_detection_scroll_buffer(self):
+        target = 4
+        detection = store_item(
+            "t",
+            TVAL_SCROLL,
+            SV_SCROLL_DETECT_TREASURE,
+            price=10,
+            count=50,
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=self._strict_supplies(detection=target),
+            store=StoreState(STORE_ALCHEMIST, [detection]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._planned_mining_runs = target
+
+        self.assertEqual(
+            policy._shop(snap),
+            f"pt{DETECTION_SCROLL_BUFFER}\r\r",
+        )
+        self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
+
+    def test_detection_buffer_is_not_a_departure_requirement(self):
+        target = 4
+        snap = Snapshot(
+            player(10, 10, gold=0, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(detection=target),
+                item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            ],
+            equipment=[self._lantern()],
+            store=StoreState(STORE_ALCHEMIST, []),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy._planned_mining_runs = target
+
+        self.assertTrue(policy._fundraising_supplies_ready(snap))
+        self.assertNotEqual(
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
+        )
+        self.assertIsNone(policy._town_special_key(snap))
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertIsNone(policy._town_restock_wait_until)
+
     def test_fundraising_routes_minimum_kit_before_dive_supplies(self):
         pol = HengbotPolicy()
         pol._fundraising_mode = "prepare"
@@ -14266,7 +14356,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy.choose_key(snap), "pa5\r\r")
+        self.assertEqual(policy.choose_key(snap), "pa10\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
 
     def test_procurement_requirements_show_only_current_shortages(self):
@@ -17330,6 +17420,51 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertEqual(key, "<")
+        self.assertEqual(policy.last_reason, "fundraise:skip-barren-floor")
+
+    def test_buffered_expedition_skips_first_barren_floor_after_detection(self):
+        target = 4
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        start = Position(10, 10)
+        base_grids = {
+            start: grid(start.y, start.x, upstairs=True),
+            Position(10, 11): grid(10, 11),
+        }
+        snap = Snapshot(
+            player(start.y, start.x, class_id=PLAYER_CLASS_WARRIOR),
+            base_grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=80,
+            height=80,
+            inventory=self._strict_supplies(
+                recall=0, detection=target + DETECTION_SCROLL_BUFFER
+            ),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = target
+
+        self.assertTrue(policy.choose_key(snap).startswith(READ_KEY))
+        detected_grids = dict(base_grids)
+        for index in range(BARREN_FLOOR_SKIP_THRESHOLD):
+            position = Position(30, 30 + index)
+            detected_grids[position] = grid(
+                position.y, position.x, passable=False, gold=True
+            )
+        detected = replace(
+            snap,
+            grids=detected_grids,
+            inventory=self._strict_supplies(
+                recall=0,
+                detection=target + DETECTION_SCROLL_BUFFER - 1,
+            ),
+        )
+
+        self.assertEqual(policy.choose_key(detected), "<")
         self.assertEqual(policy.last_reason, "fundraise:skip-barren-floor")
 
     def test_mining_keeps_rich_floor_after_initial_detection(self):

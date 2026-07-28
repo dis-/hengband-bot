@@ -987,9 +987,8 @@ DIGGER_WIELD_LIMIT = 8
 # Never spends a Teleport/Recall scroll. (Pure oscillation with nothing diggable gives up
 # at once instead — that path is NOT harness-exempt, so it must not linger.)
 MINING_STALL_LIMIT = 150
-# Decision-log trip analysis (2026-07-28) found a sharp yield cliff: floors with
-# mining.detected_total <= 10 produced only 27-42 g/min, while every floor with
-# detected_total >= 12 produced 2,100-4,000 g/min.
+# Decision-log trip analysis (2026-07-28) found a sharp yield cliff:
+# mining.detected_total ≤10 → 27–42 g/min; detected_total ≥12 → 2,100–4,000 g/min.
 BARREN_FLOOR_SKIP_THRESHOLD = 10
 MINING_SWEEP_NO_PROGRESS_LIMIT = 24
 MINING_SWEEP_HARD_LIMIT = 600
@@ -1154,6 +1153,9 @@ STAFF_IDENTIFY_MIN_SUCCESS = 0.80
 # single transaction.
 IDENTIFY_PURCHASE_MAX = 5
 MINING_RUNS_PER_SET = 5
+# User-approved standing float: it enables the strict spare-scroll barren-floor
+# clause and is consumed only by incidental losses such as fire, acid, or theft.
+DETECTION_SCROLL_BUFFER = 5
 FUNDRAISING_START_GOLD = 3000
 # Mining has substantial fixed overhead: town processing, two wilderness crossings
 # for shallow runs, and one Treasure Detection scroll per fresh floor.  Build a
@@ -11088,9 +11090,12 @@ class HengbotPolicy:
                     ),
                     None,
                 )
-            scrolls_needed = self._mining_detection_scroll_target(snapshot)
+            scrolls_needed = (
+                self._mining_detection_scroll_target(snapshot)
+                + DETECTION_SCROLL_BUFFER
+            )
             if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
-                return next(
+                detection_scroll = next(
                     (
                         it
                         for it in store.items
@@ -11098,6 +11103,8 @@ class HengbotPolicy:
                     ),
                     None,
                 )
+                if detection_scroll is not None:
+                    return detection_scroll
             if not self._has_withdrawable_digging_tool(snapshot):
                 return next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
@@ -11389,7 +11396,10 @@ class HengbotPolicy:
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
             needed = ledger["cure"].required_departure - ledger["cure"].count
         elif item.is_treasure_detection_scroll:
-            target = self._mining_detection_scroll_target(snapshot)
+            target = (
+                self._mining_detection_scroll_target(snapshot)
+                + DETECTION_SCROLL_BUFFER
+            )
             needed = target - self._count_treasure_detection_scrolls(snapshot)
         elif item.is_ammo:
             needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
@@ -12051,11 +12061,16 @@ class HengbotPolicy:
                 deposit = self._find_home_deposit(snapshot)
                 if deposit is not None:
                     return self._home_deposit_key(snapshot, deposit)
-                scrolls_needed = self._mining_detection_scroll_target(snapshot)
+                required_scrolls = self._mining_detection_scroll_target(snapshot)
+                scrolls_needed = required_scrolls + DETECTION_SCROLL_BUFFER
                 scrolls_missing = max(
                     0,
                     scrolls_needed
                     - self._count_treasure_detection_scrolls(snapshot),
+                )
+                required_scrolls_missing = (
+                    self._count_treasure_detection_scrolls(snapshot)
+                    < required_scrolls
                 )
                 stored_scrolls = next(
                     (
@@ -12110,7 +12125,7 @@ class HengbotPolicy:
                     )
                 )
                 if (
-                    scrolls_missing
+                    required_scrolls_missing
                     or not self._has_digging_tool(snapshot)
                     or withdrawable_digger_missing
                 ):
@@ -12122,7 +12137,7 @@ class HengbotPolicy:
                         self._home_digger_seen_pages.add(page)
                         self.last_reason = (
                             "home:seek-treasure-detection-page"
-                            if scrolls_missing
+                            if required_scrolls_missing
                             else "home:seek-digging-tool-page"
                         )
                         return " "
@@ -12131,7 +12146,7 @@ class HengbotPolicy:
                     self._town_store_attempted[STORE_HOME] = snapshot.turn
                     self.last_reason = (
                         "home:no-treasure-detection"
-                        if scrolls_missing
+                        if required_scrolls_missing
                         else "home:no-digging-tool"
                     )
                     return LEAVE_STORE_KEY
