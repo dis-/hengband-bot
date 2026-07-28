@@ -74,7 +74,6 @@ class ExplorationLedger:
                 self.save(force=True)
                 self._clear(snapshot.floor_key)
                 self.sample = _sample(snapshot)
-                self.marked_high = self.marked_count(snapshot)
                 return False
             return True
         self._loaded = True
@@ -86,6 +85,8 @@ class ExplorationLedger:
             )
         except (OSError, ValueError, TypeError):
             data = {}
+        if not isinstance(data, dict):
+            data = {}
         stored_key = tuple(data.get("floor_key", ()))
         stored_sample = [tuple(item) for item in data.get("sample", ())]
         if stored_key != snapshot.floor_key or not self._sample_agrees(
@@ -93,7 +94,6 @@ class ExplorationLedger:
         ):
             self._clear(snapshot.floor_key)
             self.sample = _sample(snapshot)
-            self.marked_high = self.marked_count(snapshot)
             return False
         self.floor_key = snapshot.floor_key
         self.sample = stored_sample
@@ -111,17 +111,8 @@ class ExplorationLedger:
         self.blocked_unknown = {
             (int(y), int(x)) for y, x in data.get("blocked_unknown", ())
         }
-        self.marked_high = max(
-            int(data.get("marked_high", 0)), self.marked_count(snapshot)
-        )
+        self.marked_high = int(data.get("marked_high", 0))
         return True
-
-    @staticmethod
-    def marked_count(snapshot: Snapshot) -> int:
-        return sum(
-            getattr(grid, "marked", False)
-            for grid in getattr(snapshot, "grids", {}).values()
-        )
 
     @staticmethod
     def _positions(values: Iterable[Iterable[int]]) -> set[Position]:
@@ -152,9 +143,14 @@ class ExplorationLedger:
         mismatches = len(sample) - sum(comparable)
         return mismatches / len(sample) <= EXPLORATION_SAMPLE_MISMATCH_TOLERANCE
 
-    def note_decision(self) -> None:
+    def note_decision(self, snapshot: Snapshot) -> None:
         self._dirty_decisions += 1
         if self._dirty_decisions >= EXPLORATION_SAVE_CADENCE:
+            # A restart resumes near the latest position, so keep the
+            # fingerprint in the latest emitted window rather than at entry.
+            latest_sample = _sample(snapshot)
+            if latest_sample:
+                self.sample = latest_sample
             self.save()
 
     def save(self, *, force: bool = False) -> None:

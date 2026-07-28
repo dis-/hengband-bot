@@ -1900,6 +1900,7 @@ class HengbotPolicy:
     def choose_key(self, snapshot: Snapshot) -> str:
         self._decision_sequence += 1
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
+        latest_snapshot = snapshot
         snapshot = self._with_grid_memory(snapshot)
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
@@ -2088,9 +2089,9 @@ class HengbotPolicy:
         self._last_snapshot_was_store = snapshot.store is not None
         self._exploration_ledger.marked_high = max(
             self._exploration_ledger.marked_high,
-            self._exploration_ledger.marked_count(snapshot),
+            len(self._remembered_known_t),
         )
-        self._exploration_ledger.note_decision()
+        self._exploration_ledger.note_decision(latest_snapshot)
         return key
 
     def request_character_dump(self) -> None:
@@ -2141,6 +2142,13 @@ class HengbotPolicy:
         self._last_snapshot_was_store = snapshot.store is not None
         self._observe(snapshot)
         self._build_grid_index(snapshot)
+        self._exploration_ledger.marked_high = max(
+            self._exploration_ledger.marked_high,
+            len(self._remembered_known_t),
+        )
+        self._fruitless_disengage_marked_high = (
+            self._exploration_ledger.marked_high
+        )
         # Save-backed remembered terrain in the launch snapshot may describe the
         # pre-reload layout. Keep it targetable, but label stairs as unverified;
         # rejected commands below will self-heal them without a startup leash.
@@ -20104,7 +20112,7 @@ class HengbotPolicy:
         if quest_locked and not nearby_threat:
             return None
 
-        marked_now = self._exploration_ledger.marked_count(snapshot)
+        marked_now = len(self._remembered_known_t)
         productive_walk_out = (
             self.last_reason == "combat:disengage-explore"
             and marked_now > self._fruitless_disengage_marked_high

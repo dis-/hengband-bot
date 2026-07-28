@@ -5,7 +5,10 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from hengbot.exploration_ledger import ExplorationLedger
+from hengbot.exploration_ledger import (
+    EXPLORATION_SAVE_CADENCE,
+    ExplorationLedger,
+)
 from hengbot.model import Position, Snapshot, SV_DIGGING_SHOVEL, TVAL_DIGGING
 from hengbot.policy import (
     EXTENDED_STUCK_WINDOW,
@@ -52,6 +55,42 @@ def observed_floor(*positions, terrain_offset=0):
 
 
 class ExplorationLedgerTest(unittest.TestCase):
+    def test_non_object_json_is_discarded(self):
+        snapshot = floor_snapshot(
+            Position(10, 5), observed_floor(Position(10, 5))
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ledger.json"
+            for literal in ("null", "42", '"x"', "[1,2,3]"):
+                with self.subTest(literal=literal):
+                    path.write_text(literal, encoding="utf-8")
+                    ledger = ExplorationLedger(path)
+                    self.assertFalse(ledger.bind(snapshot))
+                    self.assertEqual(ledger.floor_key, snapshot.floor_key)
+
+    def test_cadence_save_refreshes_sample_to_latest_window(self):
+        entry_positions = [Position(10, x) for x in range(5, 10)]
+        latest_positions = [Position(10, x) for x in range(100, 105)]
+        entry = floor_snapshot(
+            entry_positions[0],
+            observed_floor(*entry_positions),
+        )
+        latest = floor_snapshot(
+            latest_positions[0],
+            observed_floor(*latest_positions, terrain_offset=100),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ledger.json"
+            ledger = ExplorationLedger(path)
+            self.assertFalse(ledger.bind(entry))
+            ledger.visit_counts[entry_positions[0]] = 3
+            for _ in range(EXPLORATION_SAVE_CADENCE):
+                ledger.note_decision(latest)
+
+            resumed = ExplorationLedger(path)
+            self.assertTrue(resumed.bind(latest))
+            self.assertEqual(resumed.visit_counts[entry_positions[0]], 3)
+
     def test_matching_instance_loads_and_mismatch_or_floor_change_discards(self):
         positions = [Position(10, x) for x in range(5, 10)]
         matching = floor_snapshot(positions[0], observed_floor(*positions))
@@ -149,33 +188,77 @@ class GlobalFrontierTest(unittest.TestCase):
 
 
 class ProgressBudgetTest(unittest.TestCase):
-    def test_growth_preserves_budget_and_zero_growth_stops_at_same_limit(self):
+    def test_persistent_growth_preserves_budget(self):
         position = Position(10, 5)
         base_cells = observed_floor(position)
         base = floor_snapshot(position, base_cells)
         policy = HengbotPolicy()
         policy.prime(base)
+        # Model a floor larger than the moving emitter window: the persistent
+        # accumulator already contains corridors no longer in snapshot.grids.
+        policy._remembered_known_t.update((10, x) for x in range(5, 15))
         policy._fruitless_disengage_floor = FLOOR
         policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT
-        policy._fruitless_disengage_marked_high = 1
-        policy.last_reason = "combat:disengage-explore"
-        grown = floor_snapshot(
-            position,
-            base_cells + observed_floor(Position(10, 6), terrain_offset=10),
-            turn=2,
+        policy._fruitless_disengage_marked_high = len(
+            policy._remembered_known_t
         )
+        policy.last_reason = "combat:disengage-explore"
+        policy._remembered_known_t.add((10, 15))
         with (
             patch.object(policy, "_fruitless_fight_is_winnable", return_value=False),
             patch.object(policy, "_return_to_town_key", return_value="6"),
         ):
-            self.assertEqual(policy._fruitless_disengage_key(grown, []), "6")
+            self.assertEqual(policy._fruitless_disengage_key(base, []), "6")
             self.assertEqual(
                 policy._fruitless_disengage_decisions,
                 FRUITLESS_DISENGAGE_LIMIT,
             )
 
+    def test_window_growth_without_persistent_growth_consumes_budget(self):
+        position = Position(10, 5)
+        base_cells = observed_floor(position)
+        base = floor_snapshot(position, base_cells)
+        policy = HengbotPolicy()
+        policy.prime(base)
+        policy._remembered_known_t.update((10, x) for x in range(5, 15))
+        policy._fruitless_disengage_floor = FLOOR
+        policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT
+        policy._fruitless_disengage_marked_high = len(
+            policy._remembered_known_t
+        )
+        policy.last_reason = "combat:disengage-explore"
+        larger_window = floor_snapshot(
+            position,
+            base_cells + observed_floor(Position(10, 6), terrain_offset=10),
+            turn=2,
+        )
+        with patch.object(
+            policy, "_fruitless_fight_is_winnable", return_value=False
+        ):
+            self.assertEqual(
+                policy._fruitless_disengage_key(larger_window, []), WAIT_KEY
+            )
+            self.assertEqual(policy.last_reason, "combat:fruitless")
+
+    def test_zero_growth_stops_at_same_limit_after_productive_step(self):
+        position = Position(10, 5)
+        base = floor_snapshot(position, observed_floor(position))
+        policy = HengbotPolicy()
+        policy.prime(base)
+        policy._fruitless_disengage_floor = FLOOR
+        policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT
+        policy._fruitless_disengage_marked_high = len(
+            policy._remembered_known_t
+        )
+        policy._remembered_known_t.add((10, 6))
+        policy.last_reason = "combat:disengage-explore"
+        with (
+            patch.object(policy, "_fruitless_fight_is_winnable", return_value=False),
+            patch.object(policy, "_return_to_town_key", return_value="6"),
+        ):
+            self.assertEqual(policy._fruitless_disengage_key(base, []), "6")
             policy.last_reason = "combat:disengage-explore"
-            self.assertEqual(policy._fruitless_disengage_key(grown, []), WAIT_KEY)
+            self.assertEqual(policy._fruitless_disengage_key(base, []), WAIT_KEY)
             self.assertEqual(policy.last_reason, "combat:fruitless")
 
 
