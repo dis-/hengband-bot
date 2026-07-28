@@ -6997,7 +6997,15 @@ class HengbotPolicy:
                 not self._home_available(snapshot)
                 or (
                     not self._home_candidate_waiting
-                    and self._equipment_catalog.home_scan_complete
+                    # A bounded Home pass can end with the page catalog still
+                    # incomplete (for example, partly-known items remain on
+                    # pages that never became processable).  Once T3 marks Home
+                    # blocked for this visit, defer that catalog work and keep
+                    # the currently legal loadout; a fresh visit will rescan it.
+                    and (
+                        self._equipment_catalog.home_scan_complete
+                        or STORE_HOME in self._town_visit_ledger.blocked_stores
+                    )
                     and self._home_pending_item is None
                     and not self._home_pending_batch
                     and not self._home_batch_review_items
@@ -14099,7 +14107,13 @@ class HengbotPolicy:
             if blocker is not None:
                 self._town_blocked_reason = blocker
                 return self._town_blocked_key(snapshot)
-
+            # The errand registry and its bounded store passes have no remaining
+            # owner, yet some departure prerequisite is still false.  Expose
+            # that otherwise-unclassified gate through the existing visible
+            # terminal instead of handing town back to generic stuck:wander.
+            if not self._town_claims_active(snapshot):
+                self._town_blocked_reason = "departure-unsatisfiable"
+                return self._town_blocked_key(snapshot)
         return None
 
     def _departure_block_state(

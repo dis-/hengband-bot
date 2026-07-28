@@ -21576,6 +21576,50 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
+    def test_exhausted_identify_charges_and_home_catalog_defer_to_recall(self):
+        # Live 2026-07-28 shape: all hard supplies are ready, the Magic shop
+        # cannot top up the usable Identify staves, and Home's bounded scan
+        # ended with two incomplete items.  Both are next-visit work.
+        pol, snap = self._ready_town(
+            STAFF_IDENTIFY_MIN_DEPTH,
+            DUNGEON_ANGBAND,
+            DUNGEON_ANGBAND,
+            angband_unlocked=True,
+        )
+        snap = replace(
+            snap,
+            inventory=[
+                replace(snap.inventory[0], count=10),
+                replace(snap.inventory[1], count=15),
+                replace(snap.inventory[2], count=10),
+                replace(snap.inventory[3], count=10),
+                replace(snap.inventory[4], count=10),
+                item(
+                    "s",
+                    TVAL_STAFF,
+                    SV_STAFF_IDENTIFY,
+                    charges=9,
+                    name="Staff of Identify",
+                ),
+            ],
+        )
+        pol._town_store_attempted[STORE_MAGIC] = snap.turn
+        pol._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        pol._equipment_catalog.home_scan_complete = False
+        pol._home_candidate_waiting = False
+
+        with patch.object(pol, "_home_available", return_value=True), patch.object(
+            pol, "_equipment_departure_ready", return_value=True
+        ), patch.object(pol, "_dungeon_entry_allowed", return_value=True):
+            self.assertTrue(pol._identify_staff_ready(snap))
+            self.assertTrue(
+                pol._town_departure_ready(snap),
+                pol._departure_block_state(snap),
+            )
+            self.assertEqual(pol._town_special_key(snap), "rra")
+
+        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
     def test_pending_surplus_shovel_does_not_block_or_cancel_recall(self):
         pol, snap = self._ready_town(
             23,
@@ -21708,7 +21752,10 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         pol._town_departure_ready = lambda _snapshot: False
 
-        self.assertIsNone(pol._town_special_key(snap))
+        with patch.object(pol, "_town_claims_active", return_value=False):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:departure-unsatisfiable")
+        self.assertEqual(pol._town_wander_streak, 0)
         block = pol.departure_block_state()
         self.assertEqual(block["gate"], "town_departure_ready")
         self.assertIn("town_departure_ready", block["failed"])
