@@ -30435,6 +30435,39 @@ class EntranceTravelTest(unittest.TestCase):
         self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
 
+    def test_mining_walk_in_ignores_prior_floor_descent_cooldown(self):
+        snap = replace(
+            self._surface_snap(),
+            player=replace(self._surface_snap().player, level=7, gold=303),
+            inventory=[
+                item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+                item(
+                    "t",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=MINING_RUNS_PER_SET,
+                ),
+            ],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+        )
+
+        for cooldown in (False, True):
+            with self.subTest(cooldown=cooldown):
+                pol = HengbotPolicy()
+                pol._fundraising_mode = "mine"
+                pol._town_restock_suppressed = True
+                if cooldown:
+                    # Live character #5 had just escaped Yeek 1F via
+                    # status-threat:stairs, which arms this 200-decision gate.
+                    pol._descent_blocked_at_level = snap.player.level
+                    pol._descent_block_countdown = 64
+
+                self.assertTrue(pol._fundraising_kit_secured(snap))
+                self.assertTrue(pol._recall_departure_shortage(snap))
+                self.assertFalse(pol._descent_is_blocked(snap))
+                self.assertEqual(self._travel(pol, snap), "\x1b`n>.")
+                self.assertEqual(pol.last_reason, "town:travel-entrance")
+
     def test_zero_recall_ordinary_surface_goal_does_not_enter(self):
         pol = HengbotPolicy()
         snap = replace(self._surface_snap(), inventory=[])

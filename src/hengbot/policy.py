@@ -22217,6 +22217,13 @@ class HengbotPolicy:
                     or not self._town_departure_ready(snapshot)
                 ):
                     return True
+            if self._fundraising_mode in {"mine", "scavenge"}:
+                # A threat ascent from Yeek 1F defers deeper movement on that
+                # dungeon visit.  Back in town, the next fundraising walk-in
+                # generates a fresh level 1; carrying the 200-decision cooldown
+                # across that boundary only hides the entrance and hands town
+                # to stuck:wander after the mining kit is ready.
+                return False
         if self._descent_blocked_at_level is None:
             return False
         # The block lifts on a level-up (we grew stronger) or when the cooldown
