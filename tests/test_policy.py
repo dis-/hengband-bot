@@ -3068,42 +3068,110 @@ class ReturnToTownTest(unittest.TestCase):
 
     def test_empty_escape_kit_on_recall_max_depth_reads_recall(self):
         snap = Snapshot(
-            player(10, 10),
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(DUNGEON_ANGBAND, 24, 0),
             dungeon_recall_depths={DUNGEON_ANGBAND: 24},
-            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            ],
         )
         policy = HengbotPolicy()
+        policy._observe(snap)
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        self.assertFalse(
+            policy._supply_ledger(snap, snap.dungeon_level)["teleport"].obtainable
+        )
 
-        self.assertEqual(policy.choose_key(snap), READ_KEY + "r")
+        with patch.object(policy, "_missing_required_abilities", return_value=()):
+            self.assertTrue(policy._should_start_town_return(snap))
+            self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
+            self.assertEqual(policy.choose_key(snap), READ_KEY + "r")
         self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
         self.assertEqual(policy.last_reason, "return:recall")
 
     def test_teleport_prevents_escape_kit_return_on_recall_max_depth(self):
         snap = Snapshot(
-            player(10, 10),
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            floor_key=(DUNGEON_ANGBAND, 24, 0),
-            dungeon_recall_depths={DUNGEON_ANGBAND: 24},
-            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+            floor_key=(DUNGEON_ANGBAND, 1, 0),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 1},
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3)],
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    is_equipment=True,
+                    fuel=5000,
+                )
+            ],
         )
         policy = HengbotPolicy()
 
         self.assertFalse(policy._should_start_town_return(snap))
         self.assertIsNone(policy._last_return_trigger)
 
-    def test_empty_escape_kit_does_not_return_below_recall_max_depth(self):
+    def test_unaware_phase_scroll_does_not_count_as_escape_kit(self):
         snap = Snapshot(
-            player(10, 10),
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            floor_key=(DUNGEON_ANGBAND, 23, 0),
+            floor_key=(DUNGEON_ANGBAND, 24, 0),
             dungeon_recall_depths={DUNGEON_ANGBAND: 24},
+            inventory=[
+                item("p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR, aware=False)
+            ],
         )
         policy = HengbotPolicy()
+
+        self.assertTrue(policy._should_start_town_return(snap))
+        self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
+
+    def test_empty_escape_kit_does_not_return_below_recall_max_depth(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_ANGBAND, 1, 0),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 2},
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    is_equipment=True,
+                    fuel=5000,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+
+        self.assertFalse(policy._should_start_town_return(snap))
+        self.assertIsNone(policy._last_return_trigger)
+
+    def test_unobtainable_empty_escape_kit_does_not_bounce_shallow_floor(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_ANGBAND, 1, 0),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 1},
+            equipment=[
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    is_equipment=True,
+                    fuel=5000,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
 
         self.assertFalse(policy._should_start_town_return(snap))
         self.assertIsNone(policy._last_return_trigger)
@@ -3121,6 +3189,21 @@ class ReturnToTownTest(unittest.TestCase):
 
         self.assertFalse(policy._should_start_town_return(snap))
         self.assertIsNone(policy._last_return_trigger)
+
+    def test_cycle_break_preserves_escape_kit_restock_store(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._last_return_trigger = "escape-kit-empty"
+
+        policy._break_town_cycle(snap)
+
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
     def test_returns_when_equipped_light_is_empty_and_cannot_be_refilled(self):
         snap = Snapshot(

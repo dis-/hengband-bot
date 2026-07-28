@@ -1076,6 +1076,8 @@ RETURN_LOOT_SWEEP_MAX_DISTANCE = 12
 RETURN_LOOT_SWEEP_TRIGGERS = frozenset(
     {"recall-low", "teleport-low", "cure-low", "next-depth-kit"}
 )
+# escape-kit-empty deliberately skips the loot sweep: reaching town before the
+# last escape method is spent is more important than an optional detour.
 CURE_CRITICAL_TARGET = 3
 CURE_CRITICAL_REQUIRED_DEPTH = 2
 CURE_CRITICAL_DEEP_DEPTH = 10
@@ -1220,8 +1222,6 @@ DISPOSABLE_SCROLL_SVALS = frozenset(
         SV_SCROLL_HOLY_CHANT,
     }
 )
-# Scroll svals that relocate us, from sv-scroll-types.h.
-PHASE_SCROLL_SVAL = 8
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
 
 QUEST_AMMO_TVALS = {
@@ -5583,7 +5583,10 @@ class HengbotPolicy:
 
     def _find_phase_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
-            snapshot, lambda it: it.is_scroll and it.aware and it.sval == PHASE_SCROLL_SVAL
+            snapshot,
+            lambda it: (
+                it.is_scroll and it.aware and it.sval == SV_SCROLL_PHASE_DOOR
+            ),
         )
 
     def _has_light_equipped(self, snapshot: Snapshot) -> bool:
@@ -13796,7 +13799,13 @@ class HengbotPolicy:
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         shortages = (
             self._ledger_departure_shortages(ledger)
-            if self._last_return_trigger in {"recall-low", "teleport-low", "cure-low", "next-depth-kit"}
+            if self._last_return_trigger in {
+                "recall-low",
+                "teleport-low",
+                "cure-low",
+                "next-depth-kit",
+                "escape-kit-empty",
+            }
             else []
         )
         preserved_stores = {
@@ -19663,28 +19672,22 @@ class HengbotPolicy:
         if self._fundraising_mode in {"mine", "scavenge"}:
             return False
         dungeon_id = snapshot.floor_key[0]
-        has_character_progress = (
-            snapshot.player.class_id >= 0
-            or dungeon_id in snapshot.dungeon_recall_depths
-        )
         recall_max_depth = snapshot.dungeon_recall_depths.get(
             dungeon_id, snapshot.dungeon_level
         )
-        has_phase = any(
-            item.count > 0
-            and item.is_scroll
-            and item.sval == SV_SCROLL_PHASE_DOOR
-            for item in snapshot.inventory
-        )
-        if (
-            has_character_progress
-            and snapshot.dungeon_level >= recall_max_depth
-            and not has_phase
-            and self._count_teleport_scrolls(snapshot) == 0
-        ):
-            self._last_return_trigger = "escape-kit-empty"
-            return True
+        ledger = self._supply_ledger(snapshot, snapshot.dungeon_level)
         if snapshot.player.class_id >= 0:
+            if (
+                snapshot.dungeon_level >= recall_max_depth
+                and self._find_phase_scroll(snapshot) is None
+                and self._count_teleport_scrolls(snapshot) == 0
+                and (
+                    ledger["teleport"].obtainable
+                    or snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
+                )
+            ):
+                self._last_return_trigger = "escape-kit-empty"
+                return True
             # A resistance gap at the CURRENT floor -- not the next one, which
             # _is_descent_target already gates before a descent is taken -- means
             # the character is standing somewhere its present gear no longer
@@ -19699,7 +19702,7 @@ class HengbotPolicy:
                 self._last_return_trigger = "resist-gap"
                 return True
             ledger_shortages = self._ledger_return_shortages(
-                self._supply_ledger(snapshot, snapshot.dungeon_level),
+                ledger,
                 snapshot.dungeon_level,
             )
             ledger_shortages = [
