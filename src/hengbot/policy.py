@@ -2467,8 +2467,8 @@ class HengbotPolicy:
             1, ceil(snapshot.player.max_hp * UNIQUE_COMBAT_HP_RESERVE_RATIO)
         )
         predicted = self._predicted_damage(snapshot, hostiles, turns=2)
-        if snapshot.player.hp - predicted <= reserve:
-            missing_hp = snapshot.player.max_hp - snapshot.player.hp
+        missing_hp = snapshot.player.max_hp - snapshot.player.hp
+        if snapshot.player.hp - predicted <= reserve and missing_hp > 0:
             potion = self._find_heal_potion(
                 snapshot,
                 expected_damage=min(predicted, missing_hp),

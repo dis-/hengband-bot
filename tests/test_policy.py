@@ -25080,6 +25080,30 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(key, "qc")
         self.assertEqual(policy.last_reason, "emergency:heal")
 
+    def test_mid_escape_at_full_hp_preserves_heals_and_keeps_walking(self):
+        snapshot, _, knowledge = self._snapshot(
+            hp=515,
+            max_hp=515,
+            monster_hp=1800,
+            monster_speed=115,
+            blow_sides=62,
+            inventory=[
+                item("c", TVAL_POTION, 38),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ],
+        )
+        snapshot = replace(snapshot, floor_key=(1, 24, 0))
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy._escape_sustain_active = True
+        policy._escape_sustain_floor = snapshot.floor_key
+        policy.last_reason = "emergency:seek-upstairs"
+
+        with patch.object(policy, "_predicted_damage", return_value=768):
+            key = policy._flee_sustain_key(snapshot, "4")
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "emergency:seek-upstairs")
+
     def test_escape_start_quaffs_speed_but_active_haste_does_not(self):
         snapshot, _, knowledge = self._snapshot(
             hp=515,
