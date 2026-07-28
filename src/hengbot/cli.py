@@ -265,6 +265,9 @@ STATIONARY_REASONS = frozenset(
         # reasons it must not feed the position loop guard, or the very escape
         # armed by the breeder-containment disengage re-trips it.
         "combat:disengage-wait-recall",
+        # _fruitless_disengage_key re-labels return:* reasons before the CLI
+        # sees them; this is the same bounded _wall_search_counts search above.
+        "combat:disengage-search-upstairs",
     }
 )
 

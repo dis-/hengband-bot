@@ -1256,6 +1256,27 @@ class StationaryReasonsTest(unittest.TestCase):
             _cell_loop_guard_applies(dungeon, "return:seek-secret-wall")
         )
 
+    def test_disengage_wall_search_holds_do_not_feed_the_loop_guard(self):
+        from collections import deque
+
+        recent_cells = deque(maxlen=LOOP_WINDOW)
+        search_reason = "combat:disengage-search-upstairs"
+        walk_reason = "combat:disengage-seek-secret-wall"
+        cells = ((42, 33), (42, 34), (43, 31), (43, 32), (44, 32))
+
+        for index, (y, x) in enumerate(cells):
+            dungeon = parse_snapshot(json.loads(_snap_line(1, y, x)), {})
+            for _ in range(8):
+                if _cell_loop_guard_applies(dungeon, search_reason):
+                    recent_cells.append((dungeon.floor_key, y, x))
+                else:
+                    recent_cells.clear()
+                self.assertFalse(_is_looping(recent_cells))
+            if index + 1 < len(cells):
+                self.assertTrue(_cell_loop_guard_applies(dungeon, walk_reason))
+                recent_cells.append((dungeon.floor_key, y, x))
+                self.assertFalse(_is_looping(recent_cells))
+
     def test_mining_digs_are_exempt_from_loop_detection(self):
         # Digging breaks rock while standing on ONE tile for many turns, which the
         # position-based loop guard would read as a confined oscillation. Mining digs
