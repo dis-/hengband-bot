@@ -1957,6 +1957,13 @@ class HengbotPolicy:
         self.escape_ladder_telemetry = None
         key = self._decide(snapshot)
         key = self._periodic_character_dump_key(snapshot, key)
+        if key is None:
+            if snapshot.store is not None:
+                self.last_reason = "policy:none-store-exit"
+                key = LEAVE_STORE_KEY
+            else:
+                self.last_reason = "policy:none-wait"
+                key = WAIT_KEY
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -13597,6 +13604,16 @@ class HengbotPolicy:
             and self._town_blocked_reason.startswith("equipment-transaction:")
         ):
             self._abandon_blocked_equipment_transaction()
+            if snapshot.store is not None:
+                return LEAVE_STORE_KEY
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and here.is_store:
+                neighbors = self._walkable_neighbors(
+                    snapshot, snapshot.player.position
+                )
+                if neighbors:
+                    return self._step_toward(snapshot, neighbors[0])
+                return "2"
             return None
         if snapshot.store is None:
             here = snapshot.grid_at(snapshot.player.position)

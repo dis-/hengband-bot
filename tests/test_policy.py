@@ -31617,6 +31617,76 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             "pack:pending", policy._equipment_transaction_failed_items
         )
 
+    def test_home_unreachable_then_open_shop_leaves_without_crashing(self):
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            "pack:blocked",
+            item_identity=("blocked",),
+        )
+        policy = HengbotPolicy()
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 1)
+        )
+        policy._equipment_transaction_session = session
+        policy._shopping_approach_step = lambda _snapshot: None
+        outside = self._town()
+
+        self.assertEqual(policy.choose_key(outside), "5")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:home-unreachable"
+        )
+
+        opened_shop = replace(
+            outside,
+            store=StoreState(STORE_ALCHEMIST, []),
+            turn=outside.turn + 1,
+        )
+        self.assertEqual(policy.choose_key(opened_shop), "\x1b")
+        self.assertEqual(
+            policy.last_reason,
+            "town:blocked:equipment-transaction:home-unreachable",
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
+
+    def test_equipment_block_in_open_store_returns_visible_exit(self):
+        policy = HengbotPolicy()
+        policy._town_blocked_reason = "equipment-transaction:home-unreachable"
+        snapshot = self._town(store=StoreState(STORE_ALCHEMIST, []))
+
+        self.assertEqual(policy._town_blocked_key(snapshot), "\x1b")
+        self.assertEqual(
+            policy.last_reason,
+            "town:blocked:equipment-transaction:home-unreachable",
+        )
+
+    def test_choose_key_defensively_exits_store_on_none_decision(self):
+        policy = HengbotPolicy()
+        policy._decide = lambda _snapshot: None
+        snapshot = self._town(store=StoreState(STORE_ALCHEMIST, []))
+
+        self.assertEqual(policy.choose_key(snapshot), "\x1b")
+        self.assertEqual(policy.last_reason, "policy:none-store-exit")
+
+    def test_choose_key_purchase_watch_still_records_real_buy(self):
+        ware = StoreItem(
+            letter="a",
+            name="Potion of Speed",
+            count=1,
+            tval=TVAL_POTION,
+            sval=SV_POTION_SPEED,
+            price=100,
+            aware=True,
+            known=True,
+            fully_known=True,
+        )
+        policy = HengbotPolicy()
+        policy._decide = lambda _snapshot: "pa\r"
+        snapshot = self._town(store=StoreState(STORE_ALCHEMIST, [ware]))
+
+        self.assertEqual(policy.choose_key(snapshot), "pa\r")
+        self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
+
     def test_transaction_deposits_fully_known_item_unchanged(self):
         known = item(
             "k", 23, 3, name="complete ego", known=True,
