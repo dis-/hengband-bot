@@ -1778,6 +1778,143 @@ class SearchTest(unittest.TestCase):
 
 
 class WieldLightTest(unittest.TestCase):
+    @staticmethod
+    def _hidden_lantern() -> InventoryItem:
+        return item(
+            "light",
+            TVAL_LITE,
+            SV_LITE_LANTERN,
+            name="unidentified lantern",
+            known=False,
+            fuel=0,
+            is_equipment=True,
+        )
+
+    def test_dark_unknown_lantern_refills_before_dungeon_work(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10, lit=False)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                item("o", TVAL_FLASK, SV_FLASK_OIL, name="oil", fuel=7500)
+            ],
+            equipment=[self._hidden_lantern()],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._darkness_recovery_key(snap), "\\Fo")
+        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.last_reason, "refill-light")
+
+    def test_dark_unknown_lantern_wields_identified_torch_without_oil(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10, lit=False)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                item(
+                    "t",
+                    TVAL_LITE,
+                    SV_LITE_TORCH,
+                    name="torch (寿命 2500 turns)",
+                    fuel=2500,
+                    known=True,
+                )
+            ],
+            equipment=[self._hidden_lantern()],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "wt")
+        self.assertEqual(policy.last_reason, "wield-light")
+
+    def test_lit_or_blind_does_not_trigger_hidden_lantern_recovery(self):
+        oil = item("o", TVAL_FLASK, SV_FLASK_OIL, name="oil", fuel=7500)
+        lit = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10, lit=True)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[oil],
+            equipment=[self._hidden_lantern()],
+        )
+        blind = replace(
+            lit,
+            player=player(10, 10, blind=True),
+            grids={Position(10, 10): grid(10, 10, lit=False)},
+        )
+
+        for snap in (lit, blind):
+            policy = HengbotPolicy()
+            policy.choose_key(snap)
+            self.assertNotIn(policy.last_reason, {"refill-light", "wield-light"})
+
+    def test_unknown_lantern_readiness_requires_departure_oil_target(self):
+        lantern = self._hidden_lantern()
+        no_oil = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10, lit=True)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            equipment=[lantern],
+        )
+        insured = replace(
+            no_oil,
+            inventory=[
+                item(
+                    "o",
+                    TVAL_FLASK,
+                    SV_FLASK_OIL,
+                    name="oil",
+                    count=OIL_TARGET,
+                    fuel=7500,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+
+        self.assertFalse(policy._light_ready(no_oil))
+        self.assertFalse(policy._expedition_light_ready(no_oil))
+        self.assertFalse(policy._fundraising_light_ready(no_oil))
+        self.assertTrue(policy._light_ready(insured))
+        self.assertTrue(policy._expedition_light_ready(insured))
+        self.assertTrue(policy._fundraising_light_ready(insured))
+        self.assertTrue(
+            any(
+                need.store_type == STORE_GENERAL
+                and need.category in {"oil", "fundraising-oil", "fundraising-light"}
+                for need in policy._enumerate_town_needs(no_oil)
+            )
+        )
+
+    def test_unknown_lantern_is_topped_up_once_before_departure(self):
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10, lit=True)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                item(
+                    "o",
+                    TVAL_FLASK,
+                    SV_FLASK_OIL,
+                    name="oil",
+                    count=OIL_TARGET,
+                    fuel=7500,
+                )
+            ],
+            equipment=[self._hidden_lantern()],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.last_reason, "refill-light")
+        self.assertNotEqual(policy.choose_key(snap), "\\Fo")
+
     def test_wields_a_torch_when_nothing_is_lit(self):
         # The Half-Troll death: a stack of torches in the pack, none wielded, so it
         # walked in the dark and could not see the monster that killed it.
@@ -1938,6 +2075,7 @@ class WieldLightTest(unittest.TestCase):
             player(10, 10),
             grids,
             [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=[item("b", TVAL_FLASK, SV_FLASK_OIL, name="oil", fuel=7500)],
             equipment=[
                 item(

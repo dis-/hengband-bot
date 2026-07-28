@@ -1419,6 +1419,9 @@ class HengbotPolicy:
         self._dive_used_sigs: set[tuple[str, int, int]] = set()
         self._prev_inv_counts: dict[tuple[str, int, int], int] = {}
         self._char_dump_done_this_visit = False  # wrote a pre-dive character dump?
+        # An unidentified lantern hides its fuel. Refill it exactly once before
+        # departure, then let the ordinary oil ledger replace the spent flask.
+        self._unknown_lantern_departure_refilled = False
         self._periodic_dump_requested = False
         self._shopping_stuck = False  # gave up an unreachable store approach this visit
         self._shop_approach_stuck_count = 0  # oscillating-approach turns without arriving
@@ -2070,6 +2073,10 @@ class HengbotPolicy:
             )
             if bought is not None:
                 self._town_visit_purchases.add(self._item_signature(bought))
+        if self._dark_without_recovery(snapshot):
+            # Preserve the chosen action while making the otherwise invisible
+            # failure state explicit in JSONL diagnostics.
+            self.last_reason = f"dark:no-recovery:{self.last_reason}"
         # The rest counter only survives consecutive rests; anything else clears it.
         if self.last_reason != "rest":
             self._rest_count = 0
@@ -2382,6 +2389,14 @@ class HengbotPolicy:
             # The emergency ladder is exempt from sibling hysteresis: the
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
+
+        # Player light radius >= 1 always gives CAVE_LITE to the player's own
+        # square (cave-map.cpp update_lite); a non-blind player whose own square
+        # is not lit therefore has radius zero. In darkness note_spot records
+        # nothing (grid.cpp), so repair the light before combat/mining/navigation.
+        darkness_recovery = self._darkness_recovery_key(snapshot)
+        if darkness_recovery is not None:
+            return darkness_recovery
 
         if (
             self._breakout_dig_floor is not None
@@ -2929,6 +2944,11 @@ class HengbotPolicy:
             if refill is not None:
                 self.last_reason = "refill-light"
                 return REFILL_KEY + refill.slot
+            departure_refill = self._unknown_lantern_departure_refill_item(snapshot)
+            if departure_refill is not None:
+                self._unknown_lantern_departure_refilled = True
+                self.last_reason = "refill-light"
+                return REFILL_KEY + departure_refill.slot
 
         # _observe schedules the town circuit breaker before _decide runs.  It
         # must preempt the shopping approach below: that router otherwise
@@ -3447,6 +3467,7 @@ class HengbotPolicy:
                 self._emergency_recall_sanctioned = False
         if snapshot.in_town and not self._town_was_in_town:
             self._town_visit_ledger = TownVisitLedger()
+            self._unknown_lantern_departure_refilled = False
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -5505,7 +5526,13 @@ class HengbotPolicy:
         # once the redacted-fuel lantern really goes dark.
         if not equipped.known:
             here = snapshot.grid_at(snapshot.player.position)
-            if not equipped.is_lantern or here is None or here.lit:
+            if (
+                not equipped.is_lantern
+                or snapshot.dungeon_level < 1
+                or snapshot.player.blind
+                or here is None
+                or here.lit
+            ):
                 return None
             return self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0)
         if equipped.is_lantern:
@@ -5520,6 +5547,74 @@ class HengbotPolicy:
                 lambda it: it.is_light and it.sval == 0 and it.fuel > 0,
             )
         return None
+
+    def _is_dark(self, snapshot: Snapshot) -> bool:
+        here = getattr(snapshot, "grids", {}).get(snapshot.player.position)
+        return (
+            snapshot.dungeon_level >= 1
+            and not snapshot.player.blind
+            and here is not None
+            and not here.lit
+        )
+
+    def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
+        return max(
+            (
+                item
+                for item in snapshot.inventory
+                if item.is_light
+                and item.sval == SV_LITE_TORCH
+                and item.known
+                and item.fuel > 0
+            ),
+            key=lambda item: item.fuel,
+            default=None,
+        )
+
+    def _darkness_recovery_key(self, snapshot: Snapshot) -> str | None:
+        if not self._is_dark(snapshot):
+            return None
+        refill = self._light_refill_item(snapshot)
+        if refill is not None:
+            self.last_reason = "refill-light"
+            return REFILL_KEY + refill.slot
+        torch = self._darkness_torch(snapshot)
+        if torch is not None:
+            self.last_reason = "wield-light"
+            return self._equip_macro(snapshot, torch, "light")
+        return None
+
+    def _dark_without_recovery(self, snapshot: Snapshot) -> bool:
+        equipped = next(
+            (
+                item
+                for item in getattr(snapshot, "equipment", ())
+                if item.is_light
+            ),
+            None,
+        )
+        return (
+            equipped is not None
+            and equipped.is_lantern
+            and not equipped.known
+            and self._is_dark(snapshot)
+            and self._light_refill_item(snapshot) is None
+            and self._darkness_torch(snapshot) is None
+        )
+
+    def _unknown_lantern_departure_refill_item(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        if (
+            not snapshot.in_town
+            or self._unknown_lantern_departure_refilled
+            or self._oil_below_departure_target(snapshot)
+        ):
+            return None
+        equipped = next((item for item in snapshot.equipment if item.is_light), None)
+        if equipped is None or equipped.known or not equipped.is_lantern:
+            return None
+        return self._first_item(snapshot, lambda item: item.is_oil and item.fuel > 0)
 
     def _oil_departure_count(self, snapshot: Snapshot) -> int:
         """Oil remaining after the refill already implied by this snapshot."""
@@ -5879,15 +5974,31 @@ class HengbotPolicy:
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
             return False
-        if self._owns_lantern(snapshot):
+        if self._owns_usable_permanent_light(snapshot):
+            return True
+        lanterns = [
+            item
+            for item in (*snapshot.inventory, *snapshot.equipment)
+            if item.is_lantern
+        ]
+        if any(item.known for item in lanterns):
             return True  # Pack oil is owned by SupplyLedger.
+        if lanterns:
+            return not self._oil_below_departure_target(snapshot)
         return self._count_usable_torches(snapshot) >= FOOD_STOCK_TARGET
 
     def _expedition_light_ready(self, snapshot: Snapshot) -> bool:
         equipped = next((item for item in snapshot.equipment if item.is_light), None)
         if equipped is None:
             return False
-        if not equipped.known or equipped.sval > SV_LITE_LANTERN or equipped.fuel > 0:
+        if equipped.sval > SV_LITE_LANTERN:
+            return True
+        if not equipped.known:
+            return (
+                equipped.is_lantern
+                and not self._oil_below_departure_target(snapshot)
+            )
+        if equipped.fuel > 0:
             return True
         return self._light_refill_item(snapshot) is not None
 
@@ -9194,9 +9305,16 @@ class HengbotPolicy:
 
     def _fundraising_light_ready(self, snapshot: Snapshot) -> bool:
         """Whether level-one fundraising can start with a working light."""
+        if self._expedition_light_ready(snapshot):
+            return True
+        candidate = self._find_light(snapshot)
+        if candidate is None:
+            return False
+        if candidate.known:
+            return self._is_usable_light(candidate)
         return (
-            self._expedition_light_ready(snapshot)
-            or self._find_light(snapshot) is not None
+            candidate.is_lantern
+            and not self._oil_below_departure_target(snapshot)
         )
 
     def _retry_after_store_restock(
