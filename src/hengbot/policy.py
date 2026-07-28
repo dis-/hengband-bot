@@ -1624,6 +1624,11 @@ class HengbotPolicy:
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
         self._decision_sequence = 0
+        self._unviable_quest_floor: tuple[int, int, int] | None = None
+        self._escape_sustain_floor: tuple[int, int, int] | None = None
+        self._escape_sustain_active = False
+        self._escape_speed_baseline: int | None = None
+        self._escape_speed_attempted = False
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         # threat_prediction results for the CURRENT snapshot, keyed by object
@@ -1903,6 +1908,14 @@ class HengbotPolicy:
     def choose_key(self, snapshot: Snapshot) -> str:
         self._decision_sequence += 1
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
+        decision_floor = getattr(snapshot, "floor_key", None)
+        if self._unviable_quest_floor != decision_floor:
+            self._unviable_quest_floor = None
+        if self._escape_sustain_floor != decision_floor:
+            self._escape_sustain_floor = decision_floor
+            self._escape_sustain_active = False
+            self._escape_speed_baseline = None
+            self._escape_speed_attempted = False
         latest_snapshot = snapshot
         snapshot = self._with_grid_memory(snapshot)
         self._observe_home_history(snapshot)
@@ -1970,6 +1983,8 @@ class HengbotPolicy:
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
         key = self._decide(snapshot)
+        key = self._flee_sustain_key(snapshot, key)
+        key = self._suppress_dungeon_rest_under_threat(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
         if key is None:
             if snapshot.store is not None:
@@ -2391,6 +2406,143 @@ class HengbotPolicy:
 
         return key
 
+    def _escape_action_selected(self) -> bool:
+        reason = self.last_reason
+        return (
+            reason.startswith(
+                (
+                    "emergency:",
+                    "flee",
+                    "return:",
+                    "combat:disengage-",
+                    "combat:avoid-unprofitable-unique-",
+                    "unseen-recall:",
+                )
+            )
+            or reason in {"status-threat:retreat", "threat:reposition"}
+        )
+
+    def _strongest_flee_heal(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        return max(
+            (
+                item
+                for item in snapshot.inventory
+                if item.slot
+                and item.is_potion
+                and item.aware
+                and item.sval in HEAL_POTION_SVALS
+                and self._healing_potion_effective_hp(snapshot, item) > 0
+            ),
+            key=lambda item: (
+                self._healing_potion_effective_hp(snapshot, item),
+                item.slot,
+            ),
+            default=None,
+        )
+
+    def _flee_sustain_key(self, snapshot: Snapshot, key: str) -> str:
+        """Spend healing/haste to keep a live escape episode moving."""
+        if not hasattr(snapshot, "visible_monsters"):
+            return key
+        if snapshot.in_town or snapshot.store is not None:
+            self._escape_sustain_active = False
+            return key
+        hostiles = self._hostiles(snapshot)
+        escaping = self._escape_action_selected()
+        if not escaping:
+            self._escape_sustain_active = False
+            self._escape_speed_baseline = None
+            self._escape_speed_attempted = False
+            return key
+        episode_start = not self._escape_sustain_active
+        if episode_start:
+            self._escape_sustain_active = True
+            self._escape_speed_baseline = snapshot.player.speed
+            self._escape_speed_attempted = False
+        if not hostiles:
+            return key
+
+        instant_escape = self.last_reason.startswith(
+            (
+                "emergency:teleport",
+                "emergency:phase",
+                "emergency:stairs",
+                "emergency:cure",
+                "flee:scroll",
+                "flee:stairs",
+            )
+        )
+        if instant_escape:
+            return key
+        reserve = max(
+            1, ceil(snapshot.player.max_hp * UNIQUE_COMBAT_HP_RESERVE_RATIO)
+        )
+        predicted = self._predicted_damage(snapshot, hostiles, turns=2)
+        if snapshot.player.hp - predicted <= reserve:
+            potion = self._strongest_flee_heal(snapshot)
+            if potion is not None:
+                self.last_reason = "emergency:heal"
+                return QUAFF_KEY + potion.slot
+
+        faster_melee = any(
+            monster.max_melee_damage > 0
+            and monster.speed >= snapshot.player.speed
+            for monster in hostiles
+        )
+        haste_active = (
+            self._escape_speed_baseline is not None
+            and snapshot.player.speed > self._escape_speed_baseline
+        )
+        if (
+            episode_start
+            and faster_melee
+            and not haste_active
+            and not self._escape_speed_attempted
+        ):
+            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            if speed is not None:
+                self._escape_speed_attempted = True
+                self.last_reason = "emergency:quaff-speed"
+                return QUAFF_KEY + speed.slot
+        return key
+
+    def _suppress_dungeon_rest_under_threat(
+        self, snapshot: Snapshot, key: str
+    ) -> str:
+        """Never start a multi-turn dungeon rest while visible damage is live."""
+        if not hasattr(snapshot, "visible_monsters"):
+            return key
+        if (
+            key != REST_MACRO
+            or snapshot.in_town
+            or snapshot.store is not None
+        ):
+            return key
+        hostiles = self._hostiles(snapshot)
+        damaging = [
+            monster
+            for monster in hostiles
+            if self._predicted_damage(snapshot, [monster], turns=1) > 0
+        ]
+        if not damaging:
+            return key
+        step = self._flee_step(snapshot, damaging)
+        if step is not None:
+            self.last_reason = "no-rest:flee"
+            return self._step_toward(snapshot, step)
+        adjacent = [
+            monster for monster in damaging if monster.distance <= 1
+        ]
+        if adjacent and not snapshot.player.afraid:
+            self.last_reason = "no-rest:melee"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
+        self.last_reason = "no-rest:wait"
+        return WAIT_KEY
+
     def _decide(self, snapshot: Snapshot) -> str:
         # A town-block latch owns the store exit before ordinary Home/shop page
         # processing. WAIT_KEY is not a valid store command.
@@ -2409,6 +2561,12 @@ class HengbotPolicy:
         hostiles = self._hostiles(snapshot)
         adjacent = self._adjacent_hostiles(snapshot)
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
+
+        unviable_quest_escape = self._unviable_quest_escape_key(
+            snapshot, hostiles
+        )
+        if unviable_quest_escape is not None:
+            return unviable_quest_escape
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
         emergency_hostiles = (
@@ -18145,6 +18303,85 @@ class HengbotPolicy:
             ):
                 return quest.id
         return None
+
+    def _visible_unviable_quest_target(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        quest_id = self._active_kill_quest_id(snapshot)
+        if quest_id is None or self.approved_quest_strategy(quest_id) is not None:
+            return False
+        race_id = snapshot.quests[quest_id].r_idx
+        targets = [
+            monster for monster in hostiles if monster.race_id == race_id
+        ]
+        if len(targets) != 1:
+            return False
+        weapon = next(
+            (
+                item
+                for item in snapshot.equipment
+                if item.slot == "main_hand"
+            ),
+            None,
+        )
+        if (
+            weapon is None
+            or snapshot.player.main_hand_blows <= 0
+            or self._main_hand_dps(snapshot, weapon) <= 0
+        ):
+            # No projection inputs means "unknown", not an unwinnable verdict.
+            return False
+        target = targets[0]
+        if (
+            self._unique_fight_projection(
+                snapshot,
+                hostiles,
+                target,
+                player_speed=snapshot.player.speed,
+            )
+            is not None
+        ):
+            return False
+        speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+        return speed is None or self._unique_fight_projection(
+            snapshot,
+            hostiles,
+            target,
+            player_speed=snapshot.player.speed + SPEED_POTION_BONUS,
+            extra_turns=1,
+        ) is None
+
+    def _unviable_quest_escape_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Latch a visible unwinnable runtime quest and leave its floor now."""
+        if self._visible_unviable_quest_target(snapshot, hostiles):
+            self._unviable_quest_floor = snapshot.floor_key
+        if self._unviable_quest_floor != snapshot.floor_key:
+            return None
+        self._stuck_escape_streak = max(
+            self._stuck_escape_streak, STUCK_ESCAPE_LIMIT
+        )
+        self._returning_to_town = True
+        self._last_return_trigger = "quest-unviable"
+        key = self._return_to_town_key(snapshot, hostiles)
+        if key == WAIT_KEY and hostiles and not snapshot.player.recalling:
+            # With no recall or known stair route, keep the floor verdict but
+            # let the emergency ladder relocate rather than donate this turn.
+            return None
+        if key is None:
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and self._is_upstairs_target(here):
+                key = UP_STAIRS_KEY
+            else:
+                step = self._nearest_goal_step(
+                    snapshot, self._is_upstairs_target
+                )
+                if step is not None:
+                    key = self._step_toward(snapshot, step)
+        if key is not None:
+            self.last_reason = "quest:give-up-unviable"
+        return key
 
     @staticmethod
     def _kill_quest_completion_target(quest: QuestState, info: QuestInfo) -> int:
