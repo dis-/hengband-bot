@@ -29453,6 +29453,125 @@ class MiningReachableTreasureClosureTest(unittest.TestCase):
 
         self.assertIn(target, policy._mining_dropped_veins)
 
+    def test_shared_unmarkable_wall_is_bumped_only_once_across_two_veins(self):
+        wall = Position(3, 4)
+        targets = {Position(2, 5), Position(4, 5)}
+        grids = {
+            Position(y, x): grid(y, x, passable=False, permanent=True)
+            for y in range(7)
+            for x in range(7)
+        }
+        grids.update(
+            {
+                Position(3, 3): grid(3, 3),
+                wall: grid(
+                    3,
+                    4,
+                    passable=False,
+                    tunnel=True,
+                    marked=False,
+                    terrain_id=56,
+                ),
+                Position(3, 5): grid(3, 5),
+                Position(2, 5): grid(
+                    2, 5, passable=False, gold=True, tunnel=True
+                ),
+                Position(4, 5): grid(
+                    4, 5, passable=False, gold=True, tunnel=True
+                ),
+            }
+        )
+        snap = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(2, 1, 0),
+            width=7,
+            height=7,
+        )
+        policy = self._policy(next(iter(targets)))
+        policy._known_treasure = targets
+        decisions = []
+        with patch.object(policy, "_finish_mining_floor", return_value="FINISH"):
+            for _ in range(12):
+                key = policy._mining_closure_key(snap)
+                decisions.append(key)
+                if key == "FINISH":
+                    break
+
+        bumps = [key for key in decisions if key == "6"]
+        self.assertLessEqual(len(bumps), DIGGER_WIELD_LIMIT)
+        self.assertIn(wall, policy._mining_unmarkable_grids)
+        self.assertEqual(decisions[-1], "FINISH")
+        self.assertLess(len(decisions), 12)
+
+    def test_closure_routes_around_excluded_diggable_wall(self):
+        target = Position(1, 1)
+        excluded = Position(2, 2)
+        snap = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(3, 3): grid(3, 3),
+                excluded: grid(2, 2, passable=False, tunnel=True),
+                Position(2, 3): grid(2, 3),
+                Position(1, 3): grid(1, 3),
+                Position(1, 2): grid(1, 2),
+                target: grid(
+                    1, 1, passable=False, gold=True, tunnel=True
+                ),
+            },
+            [],
+            floor_key=(2, 1, 0),
+            width=7,
+            height=7,
+        )
+        policy = self._policy(target)
+        policy._mining_unmarkable_grids.add(excluded)
+
+        self.assertEqual(policy._mining_closure_key(snap), "8")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+
+    def test_tunnel_refuses_excluded_grid_without_rearming_bumps(self):
+        excluded = Position(3, 4)
+        snap = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(3, 3): grid(3, 3),
+                excluded: grid(
+                    3, 4, passable=False, tunnel=True, marked=False
+                ),
+            },
+            [],
+            floor_key=(2, 1, 0),
+        )
+        policy = self._policy(excluded)
+        policy._mining_unmarkable_grids.add(excluded)
+
+        self.assertIsNone(policy._mining_tunnel_key(snap, excluded))
+        self.assertNotIn(excluded, policy._mining_mark_bumps)
+
+    def test_floor_change_clears_unmarkable_grid_exclusions(self):
+        excluded = Position(3, 4)
+        first = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(3, 3): grid(3, 3)},
+            [],
+            floor_key=(2, 1, 0),
+        )
+        second = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(3, 3): grid(3, 3)},
+            [],
+            floor_key=(2, 2, 0),
+        )
+        policy = HengbotPolicy()
+        policy._observe(first)
+        policy._mining_unmarkable_grids.add(excluded)
+
+        policy._observe(second)
+
+        self.assertNotIn(excluded, policy._mining_unmarkable_grids)
+
     def test_drops_gold_enclosed_by_permanent_rock(self):
         target = Position(3, 3)
         grids = {

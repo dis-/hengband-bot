@@ -14358,6 +14358,8 @@ class HengbotPolicy:
         vein: Position | None = None,
     ) -> str | None:
         """Mark an adjacent mining wall before issuing Hengband's tunnel key."""
+        if grid_position in self._mining_unmarkable_grids:
+            return None
         grid = snapshot.grids.get(grid_position)
         if grid is None or not grid.tunnel or grid.enterable:
             return None
@@ -14404,7 +14406,10 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, first)
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
-                if neighbor in seen:
+                if (
+                    neighbor in seen
+                    or neighbor in self._mining_unmarkable_grids
+                ):
                     continue
                 grid = snapshot.grids.get(neighbor)
                 if grid is None or not grid.known or grid.has_monster:
@@ -14456,6 +14461,7 @@ class HengbotPolicy:
                 if (
                     neighbor in seen
                     or neighbor in self._engagement_avoid_cells
+                    or neighbor in self._mining_unmarkable_grids
                     or not snapshot.in_bounds(neighbor)
                     or all(
                         neighbor.distance_to(center)
