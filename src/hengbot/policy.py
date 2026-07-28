@@ -987,10 +987,10 @@ DIGGER_WIELD_LIMIT = 8
 # Never spends a Teleport/Recall scroll. (Pure oscillation with nothing diggable gives up
 # at once instead — that path is NOT harness-exempt, so it must not linger.)
 MINING_STALL_LIMIT = 150
-# Audit-mandated post-detection yield gate.  The observed dry floor exposed only
-# 2 veins, while healthy floors exposed at least 29, so 5 rejects the clear dry
-# outlier without coming close to suppressing a productive sweep.
-MINING_MIN_VIABLE_VEINS = 5
+# Decision-log trip analysis (2026-07-28) found a sharp yield cliff: floors with
+# mining.detected_total <= 10 produced only 27-42 g/min, while every floor with
+# detected_total >= 12 produced 2,100-4,000 g/min.
+BARREN_FLOOR_SKIP_THRESHOLD = 10
 MINING_SWEEP_NO_PROGRESS_LIMIT = 24
 MINING_SWEEP_HARD_LIMIT = 600
 MINING_ROUTE_REVISIT_LIMIT = 4
@@ -15166,9 +15166,21 @@ class HengbotPolicy:
         if self._mining_viability_pending_floor == snapshot.floor_key:
             self._mining_viability_pending_floor = None
             detected_total = len(self._known_treasure - self._mining_dropped_veins)
-            if detected_total < MINING_MIN_VIABLE_VEINS:
+            has_spare_detection_scroll = (
+                self._count_treasure_detection_scrolls(snapshot)
+                > self._mining_detection_scroll_target(snapshot)
+            )
+            if detected_total == 0:
                 self._mining_stall_turns = MINING_STALL_LIMIT
                 return self._finish_mining_floor(snapshot)
+            if (
+                detected_total <= BARREN_FLOOR_SKIP_THRESHOLD
+                and has_spare_detection_scroll
+            ):
+                self._mining_stall_turns = MINING_STALL_LIMIT
+                key = self._finish_mining_floor(snapshot)
+                self.last_reason = "fundraise:skip-barren-floor"
+                return key
 
         # Loot, equipment, detection, and combat remain handled above. Consume
         # the detected set itself as one dig-aware reachable-treasure closure.

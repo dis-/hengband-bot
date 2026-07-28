@@ -155,7 +155,7 @@ from hengbot.policy import (
     LIVELOCK_LIMIT,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
-    MINING_MIN_VIABLE_VEINS,
+    BARREN_FLOOR_SKIP_THRESHOLD,
     MINING_ROUTE_REVISIT_LIMIT,
     MINING_NAVIGATION_REVISIT_LIMIT,
     MINING_STALL_LIMIT,
@@ -17275,17 +17275,86 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._fundraising_mode = "mine"
 
         self.assertTrue(policy.choose_key(snap).startswith(READ_KEY))
-        revealed = dict(base_grids)
-        revealed.update(
-            {
-                Position(20, 20): grid(20, 20, passable=False, gold=True),
-                Position(30, 30): grid(30, 30, passable=False, gold=True),
-            }
-        )
-        detected = replace(snap, grids=revealed)
+        detected = replace(snap, grids=dict(base_grids))
         self.assertEqual(policy.choose_key(detected), "<")
         self.assertEqual(policy.last_reason, "fundraise:ascend")
         self.assertLessEqual(policy._mining_sweep_steps, 3)
+
+    def _post_detection_mining_decision(
+        self, detected_total: int, detection_scrolls: int, remaining_runs: int
+    ) -> tuple[str, HengbotPolicy]:
+        tool = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        start = Position(10, 10)
+        grids = {
+            start: grid(start.y, start.x, upstairs=True),
+            Position(10, 11): grid(10, 11),
+        }
+        treasures = set()
+        for index in range(detected_total):
+            position = Position(30, 30 + index)
+            grids[position] = grid(
+                position.y, position.x, passable=False, gold=True
+            )
+            treasures.add(position)
+        snap = Snapshot(
+            player(start.y, start.x, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            width=80,
+            height=80,
+            inventory=self._strict_supplies(
+                recall=0, detection=detection_scrolls
+            ),
+            equipment=[tool, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snap.floor_key
+        policy._mining_scroll_used_floor = snap.floor_key
+        policy._mining_viability_pending_floor = snap.floor_key
+        policy._known_treasure = treasures
+        with patch.object(
+            policy, "_mining_detection_scroll_target", return_value=remaining_runs
+        ), patch.object(
+            policy, "_mining_sweep_step", return_value=Position(10, 11)
+        ):
+            key = policy.choose_key(snap)
+        return key, policy
+
+    def test_mining_skips_threshold_floor_when_detection_scroll_is_spare(self):
+        key, policy = self._post_detection_mining_decision(
+            BARREN_FLOOR_SKIP_THRESHOLD, detection_scrolls=5, remaining_runs=4
+        )
+
+        self.assertEqual(key, "<")
+        self.assertEqual(policy.last_reason, "fundraise:skip-barren-floor")
+
+    def test_mining_keeps_rich_floor_after_initial_detection(self):
+        key, policy = self._post_detection_mining_decision(
+            12, detection_scrolls=5, remaining_runs=4
+        )
+
+        self.assertEqual(key, "3")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+
+    def test_mining_keeps_barren_floor_without_spare_detection_scroll(self):
+        key, policy = self._post_detection_mining_decision(
+            5, detection_scrolls=4, remaining_runs=4
+        )
+
+        self.assertEqual(key, "3")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+
+    def test_mining_zero_treasure_still_leaves_without_spare_scroll(self):
+        key, policy = self._post_detection_mining_decision(
+            0, detection_scrolls=0, remaining_runs=4
+        )
+
+        self.assertEqual(key, "<")
+        self.assertEqual(policy.last_reason, "fundraise:ascend")
 
     def obsolete_mining_viability_gate_preserves_rich_unreachable_sweep(self):
         tool = item(
@@ -17307,7 +17376,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy.choose_key(snap).startswith(READ_KEY))
 
         revealed = dict(snap.grids)
-        for index in range(MINING_MIN_VIABLE_VEINS):
+        for index in range(BARREN_FLOOR_SKIP_THRESHOLD + 1):
             position = Position(30, 30 + index)
             revealed[position] = grid(
                 position.y, position.x, passable=False, gold=True
