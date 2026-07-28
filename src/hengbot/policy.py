@@ -9336,12 +9336,28 @@ class HengbotPolicy:
             self._pending_disposal_slot = item.slot
         return item
 
+    def _release_stale_home_candidate_waiting(self) -> None:
+        """Release a completed Home scan that has no remaining work owner."""
+        if (
+            self._home_candidate_waiting
+            and self._equipment_catalog.home_scan_complete
+            and self._home_pending_item is None
+            and not self._home_pending_batch
+            and not self._home_batch_review_items
+            and self._home_withdraw_inflight is None
+            and self._identification_need is None
+        ):
+            # 2026-07-28: disposing the last awaited Home candidate left this
+            # visit-scoped latch set and blocked an otherwise-ready recall.
+            self._home_candidate_waiting = False
+
     def _clear_pending_disposal(self) -> None:
         self._pending_disposal_slot = None
         self._pending_disposal_item = None
         self._disposal_store_attempts.clear()
         self._destroy_pending = False
         self._destroy_attempts = 0
+        self._release_stale_home_candidate_waiting()
 
     @staticmethod
     def _dominated_disposal_store(item: InventoryItem | StoreItem) -> int | None:
@@ -14034,6 +14050,10 @@ class HengbotPolicy:
             self.last_reason = "town:blocked:no-safe-recall-destination"
             return WAIT_KEY
         recall_dest, recall_dungeon_id = self._town_recall_destination(snapshot)
+        # A completed scan with no pending Home or identification owner cannot
+        # legitimately defer departure.  This also repairs old visit state
+        # created before disposal completion released the latch at its source.
+        self._release_stale_home_candidate_waiting()
         # A consumed/moved item can leave the old in-memory pointer behind even
         # though there is no longer an errand capable of clearing it.  Do this
         # immediately before the departure gate so an inert latch cannot turn a

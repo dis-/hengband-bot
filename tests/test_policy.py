@@ -18760,6 +18760,55 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "rra")
         self.assertEqual(policy.last_reason, "town:recall-to-angband")
 
+    def test_stale_home_candidate_latch_does_not_block_ready_recall(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=self._strict_supplies(recall=2),
+            equipment=[self._lantern()],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            yeek_cave_conquered=True,
+            angband_recall_unlocked=True,
+        )
+        policy = HengbotPolicy()
+        policy._char_dump_done_this_visit = True
+        policy.prime(snap)
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_candidate_waiting = True
+        policy._home_available = lambda candidate_snapshot: True
+        policy._equipment_departure_ready = lambda candidate_snapshot: True
+
+        self.assertEqual(policy._town_special_key(snap), "rra")
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertEqual(policy.last_reason, "town:recall-to-angband")
+
+    def test_real_pending_home_candidate_still_defers_ready_recall(self):
+        candidate = item(
+            "w", 23, 2, name="awaited sword", known=True, is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[*self._strict_supplies(recall=2), candidate],
+            equipment=[self._lantern()],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            yeek_cave_conquered=True,
+            angband_recall_unlocked=True,
+        )
+        policy = HengbotPolicy()
+        policy._char_dump_done_this_visit = True
+        pending = policy._item_signature(candidate)
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_candidate_waiting = True
+        policy._home_pending_item = pending
+        policy._home_available = lambda candidate_snapshot: True
+
+        self.assertFalse(policy._town_departure_ready(snap))
+        self.assertTrue(policy._home_candidate_waiting)
+        self.assertEqual(policy._home_pending_item, pending)
+
     def test_unsafe_angband_recall_switches_to_shallowest_entered_dungeon(self):
         snap = Snapshot(
             player(
@@ -21181,6 +21230,26 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "equipment:destroy-unsellable-dominated"
         )
+
+    def test_completed_dominated_disposal_releases_idle_home_candidate_latch(self):
+        inferior = item("a", 37, 1, known=True, is_equipment=True, ac=1)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_candidate_waiting = True
+        policy._pending_disposal_slot = inferior.slot
+        policy._pending_disposal_item = policy._item_signature(inferior)
+        policy._destroy_pending = True
+
+        self.assertIsNone(policy._town_destroy_key(snap))
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertEqual(policy.last_reason, "equipment:destroy-complete")
 
 
 class TownMapNightRoutingTest(unittest.TestCase):
