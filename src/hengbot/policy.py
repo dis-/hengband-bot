@@ -12848,6 +12848,30 @@ class HengbotPolicy:
         flags = getattr(info, "flags", frozenset()) if info is not None else frozenset()
         return "MAZE" in flags and "FORGET" in flags
 
+    def _recall_unready_blockers(
+        self, snapshot: Snapshot, destination: int
+    ) -> list[str]:
+        """Return safety regressions that can justify cancelling an active recall.
+
+        Pack, weapon, and deep-loadout readiness are already enforced by
+        departure_ok before a recall is read.  Recheck them here only because
+        genuinely new snapshot information may arrive while recall is active.
+        Optional surplus Home deposits deliberately gate neither departure nor
+        an active recall; they wait for the next town visit.
+        """
+        blockers: list[str] = []
+        if PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS:
+            blockers.append("pack-too-full")
+        if (
+            snapshot.player.class_id >= 0
+            and not self._combat_weapon_ready(snapshot)
+        ):
+            blockers.append("weapon-not-ready")
+        landing_depth = snapshot.dungeon_recall_depths.get(destination, 0)
+        if landing_depth > 20 and not self._equipment_departure_ready(snapshot):
+            blockers.append("deep-loadout-unconfirmed")
+        return blockers
+
     def _town_cancel_unsafe_recall_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or not snapshot.player.recalling:
             return None
@@ -12867,20 +12891,8 @@ class HengbotPolicy:
             self._blocks_teleport(item)
             for item in (*snapshot.inventory, *snapshot.equipment)
         )
-        pending_home_deposit = self._find_home_deposit(snapshot) is not None
-        pack_too_full = (
-            PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
-        )
-        weapon_not_ready = (
-            snapshot.player.class_id >= 0
-            and not self._combat_weapon_ready(snapshot)
-        )
-        pending_landing_depth = snapshot.dungeon_recall_depths.get(
-            pending_destination, 0
-        )
-        deep_loadout_unconfirmed = (
-            pending_landing_depth > 20
-            and not self._equipment_departure_ready(snapshot)
+        unready_blockers = self._recall_unready_blockers(
+            snapshot, pending_destination
         )
         if (
             self._startup_town_recall
@@ -12898,16 +12910,7 @@ class HengbotPolicy:
             and not blocks_teleport
         ):
             return None
-        if not any(
-            (
-                destination_changed,
-                blocks_teleport,
-                pending_home_deposit,
-                pack_too_full,
-                weapon_not_ready,
-                deep_loadout_unconfirmed,
-            )
-        ):
+        if not destination_changed and not blocks_teleport and not unready_blockers:
             return None
         recall = self._find_recall_scroll(snapshot)
         if recall is None:

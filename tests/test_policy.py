@@ -21576,6 +21576,84 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
+    def test_pending_surplus_shovel_does_not_block_or_cancel_recall(self):
+        pol, snap = self._ready_town(
+            23,
+            DUNGEON_ANGBAND,
+            DUNGEON_ANGBAND,
+            angband_unlocked=True,
+        )
+        shovel = replace(
+            item(
+                "s",
+                TVAL_DIGGING,
+                SV_DIGGING_SHOVEL,
+                known=True,
+                fully_known=True,
+                name="Dwarven Shovel of Digging",
+            ),
+            damage_dice_num=1,
+            damage_dice_sides=3,
+            pval=6,
+            to_h=6,
+            to_d=4,
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=7452),
+            inventory=[*snap.inventory, shovel],
+            dungeon_recall_depths={DUNGEON_ANGBAND: 1},
+        )
+        pol._town_store_attempted[STORE_HOME] = snap.turn
+        self.assertIs(pol._find_home_deposit(snap), shovel)
+        with patch.object(
+            pol, "_town_departure_ready", return_value=True
+        ), patch.object(pol, "_dungeon_entry_allowed", return_value=True):
+            self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+        self.assertIn(STORE_HOME, pol._town_store_attempted)
+
+        recalling = replace(
+            snap, player=replace(snap.player, recalling=True), turn=snap.turn + 1
+        )
+        with patch.object(pol, "_activate_loadout_depth_fallback", return_value=None):
+            self.assertIsNone(pol._town_cancel_unsafe_recall_key(recalling))
+        self.assertNotEqual(pol.last_reason, "town:cancel-unready-recall")
+
+    def test_active_recall_ignores_new_pending_surplus_deposit(self):
+        pol, snap = self._ready_town(
+            23,
+            DUNGEON_ANGBAND,
+            DUNGEON_ANGBAND,
+            angband_unlocked=True,
+        )
+        recalling = replace(snap, player=replace(snap.player, recalling=True))
+        with patch.object(
+            pol, "_activate_loadout_depth_fallback", return_value=None
+        ), patch.object(pol, "_find_home_deposit", return_value=object()):
+            self.assertIsNone(pol._town_cancel_unsafe_recall_key(recalling))
+        self.assertNotEqual(pol.last_reason, "town:cancel-unready-recall")
+
+    def test_ready_deep_recall_keeps_exact_read_key(self):
+        pol, snap = self._ready_town(
+            31,
+            DUNGEON_ANGBAND,
+            DUNGEON_ANGBAND,
+            angband_unlocked=True,
+        )
+        snap = replace(
+            snap, dungeon_recall_depths={DUNGEON_ANGBAND: 31}
+        )
+        with patch.object(
+            pol, "_town_departure_ready", return_value=True
+        ), patch.object(
+            pol, "_dungeon_entry_allowed", return_value=True
+        ), patch.object(
+            pol, "_combat_weapon_ready", return_value=True
+        ):
+            self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
     def test_resume_preserves_an_already_active_town_recall(self):
         pol, snap = self._ready_town(
             23,
