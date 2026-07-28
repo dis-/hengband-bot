@@ -19901,11 +19901,13 @@ class HengbotPolicy:
 
         breeders = [monster for monster in hostiles if monster.can_multiply]
         mining_preemption = (
-            breeders
-            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
             and snapshot.dungeon_level == 1
-            and self.threat_prediction(snapshot, hostiles, 3)[
+        )
+        mining_threat_survivable = mining_preemption and (
+            not hostiles
+            or self.threat_prediction(snapshot, hostiles, 3)[
                 "operational_total"
             ]
             * 2
@@ -19913,13 +19915,18 @@ class HengbotPolicy:
         )
         if (
             mining_preemption
-            and self._breeder_engagement_score
-            < BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT
+            and mining_threat_survivable
+            and (
+                not breeders
+                or self._breeder_engagement_score
+                < BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT
+            )
         ):
             # Mining owns a bounded first attempt at clearing weak multipliers.
             # The engagement score keeps advancing while breeders remain visible,
             # so a swarm whose count never trends down still falls back to the
-            # unchanged disengage episode and its visible terminal.
+            # unchanged disengage episode and its visible terminal. Once the
+            # breeders are gone, the stale latch no longer blocks mining.
             self._returning_to_town = False
             self._escape_state.release()
             return None

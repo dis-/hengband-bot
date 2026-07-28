@@ -16818,6 +16818,20 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy.last_reason, "fundraise:eliminate-multiplier")
 
+    def test_cleared_mining_breeders_release_latched_disengage(self):
+        policy, fighting = self._latched_mining_breeder()
+        snapshot = replace(
+            fighting,
+            grids={
+                position: replace(cell, has_monster=False, monster_index=0)
+                for position, cell in fighting.grids.items()
+            },
+            visible_monsters=[],
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "4")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+
     def test_dangerous_mining_breeder_keeps_latched_disengage(self):
         policy, snapshot = self._latched_mining_breeder()
 
