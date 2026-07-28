@@ -16958,6 +16958,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_cleared_mining_breeders_release_latched_disengage(self):
         policy, fighting = self._latched_mining_breeder()
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW - 1
+        )
         snapshot = replace(
             fighting,
             grids={
@@ -16998,24 +17001,73 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
 
-    def test_declared_walkout_suppresses_multiplier_chase_until_release(self):
-        policy, snapshot = self._latched_mining_breeder()
-        policy._escape_state.enter("disengage", "combat:disengage-seek-upstairs")
-        policy._returning_to_town = False
-        policy.last_reason = "combat:disengage-seek-upstairs"
-        policy._nearest_goal_step = lambda _snapshot, _goal: Position(10, 9)
+    def test_declared_walkout_survives_transient_breeder_vanish(self):
+        policy, visible = self._latched_mining_breeder()
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW
+            + policy_module.FRUITLESS_DISENGAGE_LIMIT
+        )
 
-        for _ in range(2):
-            key = policy._fundraising_key(snapshot, policy._hostiles(snapshot))
-            self.assertIsNone(key)
-            self.assertEqual(
-                policy._escape_state.owner,
-                "disengage",
-            )
-            self.assertEqual(
-                policy.last_reason,
-                "combat:disengage-seek-upstairs",
-            )
+        first_key = policy.choose_key(visible)
+        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+        self.assertEqual(policy._escape_state.owner, "disengage")
+
+        hidden = replace(
+            visible,
+            player=replace(visible.player, position=Position(10, 9)),
+            grids={
+                position: replace(cell, has_monster=False, monster_index=0)
+                for position, cell in visible.grids.items()
+            },
+            visible_monsters=[],
+        )
+        second_key = policy.choose_key(hidden)
+
+        self.assertNotEqual(first_key, WAIT_KEY)
+        self.assertNotEqual(second_key, WAIT_KEY)
+        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+        self.assertNotEqual(
+            policy.last_reason,
+            "fundraise:eliminate-multiplier-last-seen",
+        )
+        self.assertEqual(policy._escape_state.owner, "disengage")
+
+    def test_declared_walkout_releases_after_breeder_score_decays(self):
+        policy, visible = self._latched_mining_breeder()
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW
+            + policy_module.FRUITLESS_DISENGAGE_LIMIT
+        )
+        policy.choose_key(visible)
+        self.assertEqual(policy._escape_state.owner, "disengage")
+
+        hidden = replace(
+            visible,
+            grids={
+                position: replace(cell, has_monster=False, monster_index=0)
+                for position, cell in visible.grids.items()
+            },
+            visible_monsters=[],
+        )
+        while (
+            policy._breeder_engagement_score
+            >= policy_module.BREEDER_CONTAINMENT_WINDOW
+        ):
+            policy.choose_key(hidden)
+            if (
+                policy._breeder_engagement_score
+                >= policy_module.BREEDER_CONTAINMENT_WINDOW
+            ):
+                self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+                self.assertNotEqual(
+                    policy.last_reason,
+                    "fundraise:eliminate-multiplier-last-seen",
+                )
+
+        key = policy.choose_key(hidden)
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
+        self.assertIsNone(policy._escape_state.owner)
 
     def test_declared_walkout_still_melees_adjacent_blocker(self):
         policy, snapshot = self._latched_mining_breeder()

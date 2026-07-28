@@ -20046,16 +20046,24 @@ class HengbotPolicy:
             mining_preemption
             and mining_threat_survivable
             and (
-                not breeders
-                or self._breeder_engagement_score
-                < BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT
+                (
+                    breeders
+                    and self._breeder_engagement_score
+                    < BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT
+                )
+                or (
+                    not breeders
+                    and self._breeder_engagement_score
+                    < BREEDER_CONTAINMENT_WINDOW
+                )
             )
         ):
             # Mining owns a bounded first attempt at clearing weak multipliers.
             # The engagement score keeps advancing while breeders remain visible,
             # so a swarm whose count never trends down still falls back to the
-            # unchanged disengage episode and its visible terminal. Once the
-            # breeders are gone, the stale latch no longer blocks mining.
+            # unchanged disengage episode and its visible terminal. Once genuine
+            # absence decays the score below the declaration threshold, the stale
+            # latch no longer blocks mining.
             self._returning_to_town = False
             self._escape_state.release()
             return None
