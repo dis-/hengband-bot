@@ -33,6 +33,7 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonraceKnowledge
 from hengbot.navigation import NavigationLedger
+from hengbot.exploration_ledger import ExplorationLedger
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState
 from hengbot.quest_knowledge import (
@@ -1291,6 +1292,7 @@ class HengbotPolicy:
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
         quest_strategies: "dict[int, StrategyProfile] | None" = None,
         home_disposal_state: HomeDisposalState | None = None,
+        exploration_ledger_path: Path | None = None,
     ) -> None:
         # A pre-loaded static town layout (lib/edit/towns) the bot may know in
         # advance, like a returning player — used to route across a dark town to a
@@ -1459,6 +1461,8 @@ class HengbotPolicy:
             tuple[tuple[str, str, int, int], ...]
         ] = set()
         self._visit_counts: Counter[Position] = Counter()
+        self._exploration_ledger = ExplorationLedger(exploration_ledger_path)
+        self._probed_frontiers: set[Position] = set()
         self._floor_key: tuple[int, int, int] | None = None
         # Hengband does not mark dark floor permanently, so walked corridors can
         # disappear from later nearby_grids snapshots. Retain the last terrain
@@ -1675,6 +1679,7 @@ class HengbotPolicy:
         self._breeder_engagement_score = 0
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
+        self._fruitless_disengage_marked_high = 0
         self._escape_wait_budget_floor: tuple[int, int, int] | None = None
         self._escape_wait_decisions: Counter[str] = Counter()
         self.escape_ladder_telemetry: dict[str, object] | None = None
@@ -2081,6 +2086,11 @@ class HengbotPolicy:
         if self.last_reason != "rest":
             self._rest_count = 0
         self._last_snapshot_was_store = snapshot.store is not None
+        self._exploration_ledger.marked_high = max(
+            self._exploration_ledger.marked_high,
+            self._exploration_ledger.marked_count(snapshot),
+        )
+        self._exploration_ledger.note_decision()
         return key
 
     def request_character_dump(self) -> None:
@@ -3984,6 +3994,10 @@ class HengbotPolicy:
                 self._yeek_conquest_processed = True
 
         if snapshot.floor_key != self._floor_key:
+            # Bind before clearing per-floor policy state: on a real transition
+            # the ledger still references the old counters and must flush them
+            # before it creates the fresh current-floor state.
+            self._exploration_ledger.bind(snapshot)
             self._emergency_return_active = False
             self._q2_reconnect_recovery_floor = (
                 snapshot.floor_key
@@ -4028,6 +4042,14 @@ class HengbotPolicy:
             self._blocked_rubble.clear()
             self._search_counts.clear()
             self._wall_search_counts.clear()
+            self._visit_counts = self._exploration_ledger.visit_counts
+            self._probed_frontiers = self._exploration_ledger.probed_frontiers
+            self._search_counts = self._exploration_ledger.search_counts
+            self._wall_search_counts = self._exploration_ledger.wall_search_counts
+            self._blocked_unknown = self._exploration_ledger.blocked_unknown
+            self._fruitless_disengage_marked_high = (
+                self._exploration_ledger.marked_high
+            )
             self._escape_state.release()
             self._remembered_floor_t.clear()
             self._remembered_door_t.clear()
@@ -20082,11 +20104,26 @@ class HengbotPolicy:
         if quest_locked and not nearby_threat:
             return None
 
-        if self._fruitless_disengage_decisions >= FRUITLESS_DISENGAGE_LIMIT:
+        marked_now = self._exploration_ledger.marked_count(snapshot)
+        productive_walk_out = (
+            self.last_reason == "combat:disengage-explore"
+            and marked_now > self._fruitless_disengage_marked_high
+        )
+        self._fruitless_disengage_marked_high = max(
+            self._fruitless_disengage_marked_high, marked_now
+        )
+        if (
+            self._fruitless_disengage_decisions >= FRUITLESS_DISENGAGE_LIMIT
+            and not productive_walk_out
+        ):
             self.last_reason = "combat:fruitless"
             self._escape_state.release()
             return WAIT_KEY
-        self._fruitless_disengage_decisions += 1
+        if not productive_walk_out:
+            # Productive walk-out steps do not spend the fruitless allowance.
+            # Termination is preserved because marked growth is bounded by the
+            # finite floor; every later zero-growth decision consumes as before.
+            self._fruitless_disengage_decisions += 1
         self._escape_state.budgets["fruitless-disengage"] = (
             self._fruitless_disengage_decisions
         )
@@ -22590,6 +22627,12 @@ class HengbotPolicy:
             self._explore_path = []
             return None
         start = snapshot.player.position
+        if self._is_oscillating():
+            self._explore_path = []
+            global_path = self._global_frontier_path(snapshot)
+            if global_path:
+                self._explore_path = global_path[1:]
+                return global_path[0]
         # Follow the committed route while it stays valid, so open areas are
         # swept in straight lines instead of oscillating between two tiles.
         while self._explore_path:
@@ -22616,6 +22659,86 @@ class HengbotPolicy:
         if path:
             return path
         return self._plan_explore_path_pass(snapshot, allow_damaging=True)
+
+    def _global_frontier_path(self, snapshot: Snapshot) -> list[Position]:
+        """Route to the most promising frontier anywhere on the remembered map."""
+        candidates = {
+            Position(y, x)
+            for y, x in self._remembered_floor_t
+            if Position(y, x) not in self._probed_frontiers
+            and self._is_remembered_frontier(snapshot, Position(y, x))
+        }
+        candidates.discard(snapshot.player.position)
+        if not candidates:
+            return []
+        visited_weight = sum(self._visit_counts.values())
+        if visited_weight:
+            centroid_y = sum(
+                position.y * visits
+                for position, visits in self._visit_counts.items()
+            ) / visited_weight
+            centroid_x = sum(
+                position.x * visits
+                for position, visits in self._visit_counts.items()
+            ) / visited_weight
+        else:
+            centroid_y = snapshot.player.position.y
+            centroid_x = snapshot.player.position.x
+
+        def frontier_score(position: Position) -> tuple[int, float, int, int]:
+            unknown = sum(
+                (position.y + dy, position.x + dx) not in self._known_t
+                and (position.y + dy, position.x + dx)
+                not in self._blocked_unknown
+                and snapshot.in_bounds(
+                    Position(position.y + dy, position.x + dx)
+                )
+                for dy, dx in NEIGHBOR_OFFSETS
+            )
+            # Immediate unknown exposure estimates region size; distance from
+            # the over-visited centroid breaks ties toward genuinely new areas.
+            centroid_distance = abs(position.y - centroid_y) + abs(
+                position.x - centroid_x
+            )
+            return (unknown, centroid_distance, -position.y, -position.x)
+
+        goal = max(candidates, key=frontier_score)
+        start = snapshot.player.position
+        digger = self._equipped_digging_tool(snapshot) is not None
+        queue: deque[Position] = deque([start])
+        parent: dict[Position, Position | None] = {start: None}
+        while queue:
+            position = queue.popleft()
+            if position == goal:
+                break
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor in parent or neighbor in self._engagement_avoid_cells:
+                    continue
+                grid = snapshot.grids.get(neighbor)
+                walkable = neighbor in self._walkable_neighbors(snapshot, position)
+                diggable = (
+                    digger
+                    and grid is not None
+                    and grid.known
+                    and grid.can_dig
+                    and not grid.permanent
+                    and neighbor not in self._mining_unmarkable_grids
+                )
+                if not walkable and not diggable:
+                    continue
+                parent[neighbor] = position
+                queue.append(neighbor)
+        if goal not in parent:
+            self._probed_frontiers.add(goal)
+            return []
+        path: list[Position] = []
+        node: Position | None = goal
+        while node is not None and node != start:
+            path.append(node)
+            node = parent[node]
+        path.reverse()
+        return path
 
     def _plan_explore_path_pass(
         self, snapshot: Snapshot, *, allow_damaging: bool
@@ -22810,6 +22933,7 @@ class HengbotPolicy:
                 best_count = count
                 best = Position(ny, nx)
         if best is None:
+            self._probed_frontiers.add(origin)
             return None
         yx = (best.y, best.x)
         self._probe_counts[yx] += 1
@@ -22887,6 +23011,9 @@ class HengbotPolicy:
         # unrevealable neighbour (dark-room flicker) — stop chasing it so we move on
         # to real frontiers instead of oscillating in place.
         if self._visit_counts[grid.position] >= FRONTIER_EXHAUST_VISITS:
+            self._probed_frontiers.add(grid.position)
+            return False
+        if grid.position in self._probed_frontiers:
             return False
         # A floor tile borders unexplored ground if a neighbour is not a known
         # tile. Crucially, a tile beyond the *map edge* (out of bounds) is void,
@@ -22925,6 +23052,9 @@ class HengbotPolicy:
         if key not in self._floor_t:
             return False
         if self._visit_counts[position] >= FRONTIER_EXHAUST_VISITS:
+            self._probed_frontiers.add(position)
+            return False
+        if position in self._probed_frontiers:
             return False
 
         bounded = snapshot.width > 0 and snapshot.height > 0
@@ -23020,6 +23150,14 @@ class HengbotPolicy:
             ):
                 self._blocked_rubble.add(yx)
             return TUNNEL_KEY + key
+        if (
+            grid is not None
+            and grid.can_dig
+            and not grid.enterable
+            and self._equipped_digging_tool(snapshot) is not None
+        ):
+            tunnel = self._mining_tunnel_key(snapshot, step)
+            return tunnel if tunnel is not None else key
         return key
 
 

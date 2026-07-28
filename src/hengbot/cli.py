@@ -32,6 +32,7 @@ from hengbot.policy import (
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     required_depth_gates,
 )
+from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 
 
 # Character posted to the window to dismiss a message / "-more-" prompt that the
@@ -1189,6 +1190,7 @@ def main(argv: list[str] | None = None) -> int:
         damaging_terrain_ids=damaging_terrain_ids,
         quest_knowledge=quest_knowledge,
         quest_strategies=quest_strategies,
+        exploration_ledger_path=EXPLORATION_LEDGER_PATH,
     )
     if args.decision_log is not None:
         policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
