@@ -293,10 +293,10 @@ class EscapeState:
     rung: str | None = None
     stable_decisions: int = 0
     budgets: Counter[str] = field(default_factory=Counter)
-    decision_token: tuple[tuple[int, int, int] | None, int] | None = None
+    decision_token: int | None = None
     ledger: dict[str, object] = field(default_factory=dict)
 
-    def begin_decision(self, snapshot: Snapshot) -> None:
+    def begin_decision(self, snapshot: Snapshot, decision_token: int) -> None:
         floor_key = getattr(snapshot, "floor_key", None)
         if floor_key is not None and self.floor != floor_key:
             self.floor = floor_key
@@ -304,17 +304,13 @@ class EscapeState:
             self.rung = None
             self.stable_decisions = 0
             self.budgets.clear()
-        # Minimal store snapshots may omit both map identity and turn. Object
-        # identity still gives them safe per-snapshot ledger semantics.
-        token = (floor_key, getattr(snapshot, "turn", id(snapshot)))
-        if token != self.decision_token:
-            self.decision_token = token
+        if decision_token != self.decision_token:
+            self.decision_token = decision_token
             self.ledger.clear()
 
     def read_once(
         self, snapshot: Snapshot, key: str, producer: Callable[[], object]
     ) -> object:
-        self.begin_decision(snapshot)
         if key not in self.ledger:
             self.ledger[key] = producer()
         return self.ledger[key]
@@ -1618,6 +1614,7 @@ class HengbotPolicy:
         self._returning_to_town = False
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
+        self._decision_sequence = 0
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         # threat_prediction results for the CURRENT snapshot, keyed by object
@@ -1893,6 +1890,8 @@ class HengbotPolicy:
         return replace(snapshot, grids=dict(remembered))
 
     def choose_key(self, snapshot: Snapshot) -> str:
+        self._decision_sequence += 1
+        self._escape_state.begin_decision(snapshot, self._decision_sequence)
         snapshot = self._with_grid_memory(snapshot)
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
@@ -1946,7 +1945,6 @@ class HengbotPolicy:
                 self._equipment_transaction_home_pages.clear()
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
-        self._escape_state.begin_decision(snapshot)
         self.escape_ladder_telemetry = None
         key = self._decide(snapshot)
         key = self._periodic_character_dump_key(snapshot, key)
@@ -22820,6 +22818,9 @@ class HengbotPolicy:
         open it (``o`` + direction) instead of walking — a closed door is a
         frontier the pathfinder heads for, yet walking into it may not open it.
         Doors that refuse to open (jammed / hard lock) are abandoned."""
+        if step == snapshot.player.position:
+            self.last_reason = "nav:step-self"
+            return WAIT_KEY
         key = self._direction_key(snapshot.player.position, step)
         grid = snapshot.grids.get(step)
         if grid is not None and grid.trap:

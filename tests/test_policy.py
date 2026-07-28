@@ -104,6 +104,7 @@ from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.policy import (
     HengbotPolicy,
+    EscapeState,
     BUY_KEY,
     CHARACTER_DUMP_MACRO,
     DESTROY_FAIL_LIMIT,
@@ -2678,8 +2679,11 @@ class ReturnToTownTest(unittest.TestCase):
         policy = self._prepare_exit_owner_policy(clear)
 
         results = []
-        for snapshot in (clear, blocked, clear_again):
+        for decision, snapshot in enumerate(
+            (clear, blocked, clear_again), start=1
+        ):
             policy._build_grid_index(snapshot)
+            policy._escape_state.begin_decision(snapshot, decision)
             policy._return_to_town_key(snapshot, [])
             results.append(policy.last_reason)
 
@@ -2705,12 +2709,15 @@ class ReturnToTownTest(unittest.TestCase):
         second_clear = self._exit_owner_snapshot(9, turn=3)
         policy = self._prepare_exit_owner_policy(blocked)
 
+        policy._escape_state.begin_decision(blocked, 1)
         self.assertEqual(policy._return_to_town_key(blocked, []), "4")
         self.assertEqual(policy.last_reason, "return:seek-secret-wall")
         policy._build_grid_index(first_clear)
+        policy._escape_state.begin_decision(first_clear, 2)
         self.assertEqual(policy._return_to_town_key(first_clear, []), "4")
         self.assertEqual(policy.last_reason, "return:seek-secret-wall")
         policy._build_grid_index(second_clear)
+        policy._escape_state.begin_decision(second_clear, 3)
         self.assertEqual(policy._return_to_town_key(second_clear, []), "6")
         self.assertEqual(policy.last_reason, "return:seek-upstairs")
 
@@ -2724,12 +2731,77 @@ class ReturnToTownTest(unittest.TestCase):
             calls += 1
             return Position(10, 11)
 
+        policy._escape_state.begin_decision(snapshot, 1)
         first = policy._escape_state.read_once(snapshot, "reachable", reachable)
         second = policy._escape_state.read_once(snapshot, "reachable", reachable)
 
         self.assertEqual(first, Position(10, 11))
         self.assertEqual(second, first)
         self.assertEqual(calls, 1)
+
+    def test_escape_decision_ledger_refreshes_when_same_turn_gets_new_decision(self):
+        snapshot = self._exit_owner_snapshot(10, turn=280712)
+        state = EscapeState()
+        values = iter((Position(27, 25), Position(26, 26)))
+
+        state.begin_decision(snapshot, 1)
+        first = state.read_once(snapshot, "reachable", lambda: next(values))
+        state.begin_decision(snapshot, 2)
+        second = state.read_once(snapshot, "reachable", lambda: next(values))
+
+        self.assertEqual(first, Position(27, 25))
+        self.assertEqual(second, Position(26, 26))
+
+    def test_same_turn_return_recomputes_upstairs_step_after_player_moves(self):
+        positions = (Position(28, 24), Position(27, 25), Position(26, 26))
+        grids = {
+            position: grid(
+                position.y,
+                position.x,
+                upstairs=position == positions[-1],
+            )
+            for position in positions
+        }
+        for position in positions:
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor not in grids:
+                    grids[neighbor] = grid(
+                        neighbor.y, neighbor.x, passable=False
+                    )
+
+        def at(position):
+            return Snapshot(
+                player(position.y, position.x, food=6000),
+                grids,
+                [],
+                turn=280712,
+                floor_key=self.FLOOR,
+                inventory=self._pack(PACK_CAPACITY),
+                width=40,
+                height=40,
+            )
+
+        first = at(positions[0])
+        second = at(positions[1])
+        policy = self._prepare_exit_owner_policy(first)
+
+        self.assertEqual(policy.choose_key(first), "9")
+        self.assertEqual(policy.choose_key(second), "9")
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+        self.assertEqual(
+            policy._escape_state.ledger["return:upstairs-step"],
+            positions[2],
+        )
+
+    def test_step_toward_self_returns_labeled_wait(self):
+        snapshot = self._exit_owner_snapshot(10)
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            policy._step_toward(snapshot, snapshot.player.position), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "nav:step-self")
 
     def test_emergency_owner_releases_to_disengage_immediately(self):
         snapshot = self._exit_owner_snapshot(10)
@@ -2758,13 +2830,13 @@ class ReturnToTownTest(unittest.TestCase):
         policy._escape_state.floor = (DUNGEON_YEEK_CAVE, 2, 0)
         store_snapshot = SimpleNamespace(store=StoreState(STORE_HOME, []))
 
-        policy._escape_state.begin_decision(store_snapshot)
+        policy._escape_state.begin_decision(store_snapshot, 1)
 
         self.assertEqual(
             policy._escape_state.floor, (DUNGEON_YEEK_CAVE, 2, 0)
         )
         self.assertEqual(
-            policy._escape_state.decision_token, (None, id(store_snapshot))
+            policy._escape_state.decision_token, 1
         )
 
     def test_fruitless_budget_survives_breeder_los_flicker(self):
