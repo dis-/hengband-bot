@@ -20170,6 +20170,10 @@ class HengbotPolicy:
         self, snapshot: Snapshot, key: str
     ) -> str:
         """Break a combat-interspersed small-cell navigation oscillation."""
+        if self._breeder_breakthrough_floor == snapshot.floor_key:
+            self._oscillation_outcome_marker = None
+            self._osc_positions.clear()
+            return key
         if snapshot.in_town or snapshot.store is not None:
             self._oscillation_outcome_marker = None
             return key
@@ -22438,58 +22442,59 @@ class HengbotPolicy:
             self._defer_descent(snapshot)
             self.last_reason = "breeder-breakthrough:ascend"
             return UP_STAIRS_KEY
-        oscillation_cells = set(self._recent) if self._is_oscillating() else set()
-        if oscillation_cells:
-            step = self._least_visited_neighbor(snapshot)
-            if step is not None and step not in oscillation_cells:
-                self.last_reason = "breeder-breakthrough:seek-upstairs"
-                return self._step_toward(snapshot, step)
-            blocker = self._blocking_escape_melee_key(
-                snapshot, hostiles, self._is_upstairs_target
+        step = self._breeder_breakthrough_step(snapshot)
+        if step is not None:
+            grid = snapshot.grid_at(step)
+            self.last_reason = (
+                "breeder-breakthrough:clear-escape-path"
+                if grid is not None and grid.has_monster
+                else "breeder-breakthrough:seek-upstairs"
             )
-            if blocker is not None:
-                self.last_reason = "breeder-breakthrough:clear-escape-path"
-                return blocker
-            adjacent = [
-                monster
-                for monster in self._adjacent_hostiles(snapshot)
-                if monster.position not in oscillation_cells
-            ]
-            if adjacent and not snapshot.player.afraid:
-                self.last_reason = "breeder-breakthrough:clear-escape-path"
-                return self._direction_key(
-                    snapshot.player.position, self._weakest(adjacent).position
-                )
-        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-        if step is not None:
-            self.last_reason = "breeder-breakthrough:seek-upstairs"
             return self._step_toward(snapshot, step)
-        blocker = self._blocking_escape_melee_key(
-            snapshot, hostiles, self._is_upstairs_target
-        )
-        if blocker is not None:
-            self.last_reason = "breeder-breakthrough:clear-escape-path"
-            return blocker
-        step = self._explore_step(snapshot)
-        if step is not None:
-            self.last_reason = "breeder-breakthrough:seek-upstairs"
-            return self._step_toward(snapshot, step)
-        step = self._least_visited_neighbor(snapshot)
-        if step is not None:
-            self.last_reason = "breeder-breakthrough:seek-upstairs"
-            return self._step_toward(snapshot, step)
-        goal = self._nearest_upstairs(snapshot)
-        if (
-            goal is not None
-            and not snapshot.player.blind
-            and not snapshot.player.confused
-        ):
-            dig = self._tunnel_step_toward(snapshot, goal)
-            if dig is not None:
-                self.last_reason = "breeder-breakthrough:seek-upstairs"
-                return dig
         self.last_reason = "breeder-breakthrough:upstairs-not-found"
         return WAIT_KEY
+
+    def _breeder_breakthrough_step(
+        self, snapshot: Snapshot
+    ) -> Position | None:
+        """Route monotonically upstairs, treating occupied floor as passable."""
+        start = snapshot.player.position
+        goal = self._nearest_upstairs(snapshot)
+        if goal is None:
+            return None
+        seen = {start}
+        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        while queue:
+            position, first_step = queue.popleft()
+            if position == goal:
+                return first_step
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if (
+                    neighbor in seen
+                    or neighbor.distance_to(goal) > position.distance_to(goal)
+                ):
+                    continue
+                grid = snapshot.grid_at(neighbor)
+                key = (neighbor.y, neighbor.x)
+                traversable = (
+                    key in self._floor_t
+                    or key in self._door_t
+                    or ((dy == 0 or dx == 0) and key in self._rubble_t)
+                    or (
+                        grid is not None
+                        and grid.known
+                        and grid.has_monster
+                        and grid.enterable
+                    )
+                )
+                if not traversable:
+                    continue
+                seen.add(neighbor)
+                queue.append(
+                    (neighbor, neighbor if first_step is None else first_step)
+                )
+        return None
 
     def _remember_swarm_distances(self, snapshot: Snapshot) -> None:
         """Retain one observation so awake monsters moving closer can converge."""

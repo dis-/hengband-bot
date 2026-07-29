@@ -851,80 +851,93 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(shrinking), WAIT_KEY)
         self.assertEqual(policy.last_reason, "melee:choke-hold")
 
-    def test_incident_breakthrough_route_escapes_confined_oscillation(self):
-        capture = (
+    def test_incident_breakthrough_routes_advance_monotonically_to_upstairs(self):
+        captures = [
             Path(__file__).parents[1]
             / "incident-captures"
             / "20260729-1943-breakthrough-oscillation"
-            / "oscillation-turn.jsonl"
-        )
+            / "oscillation-turn.jsonl",
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260729-2009-breakthrough-retreat"
+            / "retreat-turn191760.jsonl",
+        ]
         monraces = Path(
             r"C:\hengband\.worktrees\bot-json-output\lib\edit"
             r"\MonraceDefinitions.jsonc"
         )
-        if not capture.is_file() or not monraces.is_file():
+        if not all(capture.is_file() for capture in captures) or not monraces.is_file():
             self.skipTest("real breakthrough incident capture is not available")
         knowledge = load_monrace_knowledge(monraces)
-        snapshot = parse_snapshot(
-            json.loads(capture.read_text(encoding="utf-8")), knowledge
-        )
-        snapshot = replace(
-            snapshot,
-            player=replace(snapshot.player, position=Position(4, 16)),
-            inventory=[],
-        )
-        policy = HengbotPolicy(monrace_knowledge=knowledge)
-        policy._fundraising_mode = "mine"
-        policy._observe(snapshot)
-        policy._breeder_breakthrough_floor = snapshot.floor_key
         offsets = {
             "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
             "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
         }
-        positions = []
+        upstairs = Position(14, 18)
+        remembered_grids = {}
 
-        for _ in range(40):
-            positions.append(snapshot.player.position)
-            key = policy.choose_key(snapshot)
-            if key == UP_STAIRS_KEY:
-                break
-            self.assertIn(key, offsets)
-            dy, dx = offsets[key]
-            destination = Position(
-                snapshot.player.position.y + dy,
-                snapshot.player.position.x + dx,
-            )
-            destination_grid = snapshot.grid_at(destination)
-            if destination_grid is not None and destination_grid.has_monster:
-                grids = dict(snapshot.grids)
-                grids[destination] = replace(
-                    destination_grid, has_monster=False, monster_index=0
+        for capture in captures:
+            with self.subTest(capture=capture):
+                snapshot = parse_snapshot(
+                    json.loads(capture.read_text(encoding="utf-8")), knowledge
                 )
-                snapshot = replace(
-                    snapshot,
-                    grids=grids,
-                    visible_monsters=[
-                        monster
-                        for monster in snapshot.visible_monsters
-                        if monster.position != destination
-                    ],
-                    turn=snapshot.turn + 1,
+                snapshot = replace(snapshot, inventory=[])
+                policy = HengbotPolicy(monrace_knowledge=knowledge)
+                policy._fundraising_mode = "mine"
+                policy._grid_memory_region = (
+                    *snapshot.floor_key,
+                    snapshot.width,
+                    snapshot.height,
+                    snapshot.town_id,
+                    snapshot.in_town,
                 )
-            else:
-                snapshot = replace(
-                    snapshot,
-                    player=replace(snapshot.player, position=destination),
-                    turn=snapshot.turn + 1,
-                )
+                policy._grid_memory = dict(remembered_grids)
+                policy._observe(snapshot)
+                policy._breeder_breakthrough_floor = snapshot.floor_key
+                distances = [snapshot.player.position.distance_to(upstairs)]
 
-        self.assertEqual(key, UP_STAIRS_KEY)
-        self.assertEqual(snapshot.player.position, Position(14, 18))
-        self.assertFalse(
-            any(
-                len(set(positions[index:index + 40])) <= 4
-                for index in range(len(positions) - 39)
-            )
-        )
+                for _ in range(80):
+                    key = policy.choose_key(snapshot)
+                    if key == UP_STAIRS_KEY:
+                        break
+                    self.assertIn(key, offsets)
+                    dy, dx = offsets[key]
+                    destination = Position(
+                        snapshot.player.position.y + dy,
+                        snapshot.player.position.x + dx,
+                    )
+                    destination_grid = snapshot.grid_at(destination)
+                    if destination_grid is not None and destination_grid.has_monster:
+                        grids = dict(snapshot.grids)
+                        grids[destination] = replace(
+                            destination_grid, has_monster=False, monster_index=0
+                        )
+                        snapshot = replace(
+                            snapshot,
+                            grids=grids,
+                            visible_monsters=[
+                                monster
+                                for monster in snapshot.visible_monsters
+                                if monster.position != destination
+                            ],
+                            turn=snapshot.turn + 1,
+                        )
+                    else:
+                        snapshot = replace(
+                            snapshot,
+                            player=replace(snapshot.player, position=destination),
+                            turn=snapshot.turn + 1,
+                        )
+                    distances.append(snapshot.player.position.distance_to(upstairs))
+
+                self.assertEqual(key, UP_STAIRS_KEY)
+                self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+                self.assertEqual(snapshot.player.position, upstairs)
+                self.assertTrue(all(
+                    later <= earlier
+                    for earlier, later in zip(distances, distances[1:])
+                ))
+                remembered_grids.update(policy._grid_memory)
 
     def test_choke_hold_sanction_does_not_mask_ranged_emergency(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
