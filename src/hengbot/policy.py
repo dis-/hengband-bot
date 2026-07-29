@@ -22438,6 +22438,28 @@ class HengbotPolicy:
             self._defer_descent(snapshot)
             self.last_reason = "breeder-breakthrough:ascend"
             return UP_STAIRS_KEY
+        oscillation_cells = set(self._recent) if self._is_oscillating() else set()
+        if oscillation_cells:
+            step = self._least_visited_neighbor(snapshot)
+            if step is not None and step not in oscillation_cells:
+                self.last_reason = "breeder-breakthrough:seek-upstairs"
+                return self._step_toward(snapshot, step)
+            blocker = self._blocking_escape_melee_key(
+                snapshot, hostiles, self._is_upstairs_target
+            )
+            if blocker is not None:
+                self.last_reason = "breeder-breakthrough:clear-escape-path"
+                return blocker
+            adjacent = [
+                monster
+                for monster in self._adjacent_hostiles(snapshot)
+                if monster.position not in oscillation_cells
+            ]
+            if adjacent and not snapshot.player.afraid:
+                self.last_reason = "breeder-breakthrough:clear-escape-path"
+                return self._direction_key(
+                    snapshot.player.position, self._weakest(adjacent).position
+                )
         step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None:
             self.last_reason = "breeder-breakthrough:seek-upstairs"

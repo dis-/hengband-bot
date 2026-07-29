@@ -1,3 +1,4 @@
+import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -88,6 +89,7 @@ from hengbot.model import (
     StoreItem,
     StoreState,
     _parse_store,
+    parse_snapshot,
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import TR_TELEPORT
@@ -118,6 +120,7 @@ from hengbot.policy import (
     SELL_KEY,
     SELL_CONFIRM_SUFFIX,
     READ_KEY,
+    UP_STAIRS_KEY,
     WAIT_KEY,
     STUCK_ESCAPE_LIMIT,
     TOWN_WANDER_LIMIT,
@@ -847,6 +850,81 @@ class CombatTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(shrinking), WAIT_KEY)
         self.assertEqual(policy.last_reason, "melee:choke-hold")
+
+    def test_incident_breakthrough_route_escapes_confined_oscillation(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260729-1943-breakthrough-oscillation"
+            / "oscillation-turn.jsonl"
+        )
+        monraces = Path(
+            r"C:\hengband\.worktrees\bot-json-output\lib\edit"
+            r"\MonraceDefinitions.jsonc"
+        )
+        if not capture.is_file() or not monraces.is_file():
+            self.skipTest("real breakthrough incident capture is not available")
+        knowledge = load_monrace_knowledge(monraces)
+        snapshot = parse_snapshot(
+            json.loads(capture.read_text(encoding="utf-8")), knowledge
+        )
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, position=Position(4, 16)),
+            inventory=[],
+        )
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        policy._fundraising_mode = "mine"
+        policy._observe(snapshot)
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        offsets = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        positions = []
+
+        for _ in range(40):
+            positions.append(snapshot.player.position)
+            key = policy.choose_key(snapshot)
+            if key == UP_STAIRS_KEY:
+                break
+            self.assertIn(key, offsets)
+            dy, dx = offsets[key]
+            destination = Position(
+                snapshot.player.position.y + dy,
+                snapshot.player.position.x + dx,
+            )
+            destination_grid = snapshot.grid_at(destination)
+            if destination_grid is not None and destination_grid.has_monster:
+                grids = dict(snapshot.grids)
+                grids[destination] = replace(
+                    destination_grid, has_monster=False, monster_index=0
+                )
+                snapshot = replace(
+                    snapshot,
+                    grids=grids,
+                    visible_monsters=[
+                        monster
+                        for monster in snapshot.visible_monsters
+                        if monster.position != destination
+                    ],
+                    turn=snapshot.turn + 1,
+                )
+            else:
+                snapshot = replace(
+                    snapshot,
+                    player=replace(snapshot.player, position=destination),
+                    turn=snapshot.turn + 1,
+                )
+
+        self.assertEqual(key, UP_STAIRS_KEY)
+        self.assertEqual(snapshot.player.position, Position(14, 18))
+        self.assertFalse(
+            any(
+                len(set(positions[index:index + 40])) <= 4
+                for index in range(len(positions) - 39)
+            )
+        )
 
     def test_choke_hold_sanction_does_not_mask_ranged_emergency(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
