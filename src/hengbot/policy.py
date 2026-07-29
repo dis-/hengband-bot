@@ -1096,10 +1096,6 @@ STAFF_IDENTIFY_MIN_DEPTH = 10
 # match store/articles-on-sale.cpp (Recall additionally uses the Alchemist's
 # random-stock precedent established by dc216f8).
 SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
-    "recall": {
-        "return": ((1, 0), (RECALL_MIN_DEPTH, RECALL_RETURN_THRESHOLD + 1)),
-        "departure": ((1, 1), (RECALL_MIN_DEPTH, RECALL_RETURN_THRESHOLD + 2)),
-    },
     "teleport": {
         "return": ((1, 0), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_RETURN_THRESHOLD + 1)),
         "departure": ((1, 1), (TELEPORT_REQUIRED_DEPTH, TELEPORT_SCROLL_TARGET + 1), (STAFF_IDENTIFY_MIN_DEPTH, TELEPORT_SCROLL_DEEP_TARGET)),
@@ -3023,7 +3019,8 @@ class HengbotPolicy:
             return fundraising
 
         if (
-            self._recall_departure_shortage(snapshot)
+            self._count_recall_scrolls(snapshot)
+            < self._recall_shortage_retreat_threshold(snapshot.dungeon_level)
             and not self._recall_shortage_opening_exempt(snapshot)
             and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
             and not snapshot.in_town
@@ -5928,9 +5925,9 @@ class HengbotPolicy:
     @staticmethod
     def _recall_target(depth: int) -> int:
         if depth <= 4:
-            return 1
-        if depth <= 10:
             return 3
+        if depth <= 10:
+            return 6
         if depth <= 15:
             return 6
         if depth <= 20:
@@ -6025,13 +6022,20 @@ class HengbotPolicy:
                     or any(item.price <= snapshot.player.gold for item in wares)
                 )
             threshold_depth = max(depth, self._planned_depth()) if kind == "teleport" else depth
-            required_return = self._supply_threshold(kind, "return", threshold_depth)
-            required_departure = self._supply_threshold(kind, "departure", threshold_depth)
             if kind == "recall":
-                required_departure = max(
-                    required_departure, self._recall_required_target(snapshot)
+                required_return = required_departure = (
+                    0
+                    if self._fundraising_mode in {"mine", "scavenge"}
+                    else self._recall_required_target(snapshot)
                 )
-            elif kind == "oil" and self._owns_usable_permanent_light(snapshot):
+            else:
+                required_return = self._supply_threshold(
+                    kind, "return", threshold_depth
+                )
+                required_departure = self._supply_threshold(
+                    kind, "departure", threshold_depth
+                )
+            if kind == "oil" and self._owns_usable_permanent_light(snapshot):
                 # Permanent lights consume no fuel. Oil therefore stops being
                 # expedition stock as soon as a usable permanent light is owned,
                 # including one already catalogued in Home during this visit.
@@ -6083,7 +6087,8 @@ class HengbotPolicy:
     ) -> list[SupplyStatus]:
         return [
             status for status in ledger.values()
-            if status.count < status.required_return
+            if status.kind != "recall"
+            and status.count < status.required_return
             and (status.obtainable or depth > WALK_OUT_MAX_DEPTH)
         ]
 
@@ -6262,6 +6267,10 @@ class HengbotPolicy:
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         return status.count < status.required_departure
 
+    @staticmethod
+    def _recall_shortage_retreat_threshold(depth: int) -> int:
+        return 1 if depth <= 5 else RECALL_RETURN_THRESHOLD
+
     def _recall_shortage_opening_exempt(self, snapshot: Snapshot) -> bool:
         return (
             snapshot.player.class_id < 0
@@ -6285,57 +6294,9 @@ class HengbotPolicy:
         return status.required_departure
 
     def _recall_required_target(self, snapshot: Snapshot) -> int:
-        target = self._recall_target(self._planned_depth())
-        # A town departure by recall consumes one scroll before the expedition
-        # starts.  Buy that scroll in addition to the in-dungeon reserve, or the
-        # arrival snapshot is immediately below target and triggers a return.
-        recalls_from_town = snapshot.in_town and (
-            (
-                self._target_dungeon_id == DUNGEON_ANGBAND
-                and snapshot.angband_recall_unlocked
-            )
-            or (
-                self._target_dungeon_id == DUNGEON_YEEK_CAVE
-                and self._fundraising_mode not in {"mine", "scavenge"}
-                and not self._taken_kill_quest_requires_walk_in(snapshot)
-                and self._deepest_level >= RECALL_MIN_DEPTH
-                and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
-            )
-            or (
-                self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
-                and self._target_dungeon_id in snapshot.entered_dungeon_ids
-            )
-        ) and self._recall_destination_safe(snapshot, self._target_dungeon_id)
-        if recalls_from_town:
-            target += 1
-            if self._planned_depth() >= RECALL_MIN_DEPTH:
-                # That departure recall is consumed entering the dungeon, so the
-                # arrival snapshot is target-1. Once arrived at RECALL_MIN_DEPTH+
-                # (here to stay: the next depth is always >= RECALL_MIN_DEPTH
-                # too), the ledger return invariant fires below its return
-                # threshold and _next_depth_supply_shortage wants count >=
-                # RECALL_RETURN_THRESHOLD + 1 for the next floor -- both must
-                # come out true (safe) on arrival, i.e. target - 1 must EXCEED
-                # RECALL_RETURN_THRESHOLD, else the bot recalls right back to
-                # town (or judges itself short for the next floor) the instant
-                # it lands, burning a second recall for nothing. The shallower
-                # _recall_target bands (11+, values 6/9/10) already clear this
-                # once +1'd above; only the first post-minimum band (target 3,
-                # depths 5-10) does not, so this only raises that one.
-                target = max(target, RECALL_RETURN_THRESHOLD + 2)
-        elif (
-            snapshot.in_town
-            and self._target_dungeon_id == DUNGEON_YEEK_CAVE
-            and self._fundraising_mode not in {"mine", "scavenge"}
-            and self._deepest_level < RECALL_MIN_DEPTH
-            and self._planned_depth() >= RECALL_MIN_DEPTH
-        ):
-            # Walking to Yeek Cave consumes no scroll. Four remains the desired
-            # stock so reaching 5F does not immediately trigger recall, while
-            # _recall_departure_minimum permits the safe three-scroll fallback
-            # if Temple and Alchemist are both out of stock.
-            target = max(target, RECALL_RETURN_THRESHOLD + 1)
-        return target
+        if self._fundraising_mode in {"mine", "scavenge"}:
+            return 0
+        return self._recall_target(self._planned_depth())
 
     def _taken_kill_quest_requires_walk_in(self, snapshot: Snapshot) -> bool:
         """Enter above a taken kill objective instead of recalling below it."""
@@ -14086,15 +14047,6 @@ class HengbotPolicy:
             and self._recall_destination_safe(snapshot, self._target_dungeon_id)
         ):
             recall_dest = "alt-dungeon"
-        elif (
-            self._target_dungeon_id == DUNGEON_YEEK_CAVE
-            and self._fundraising_mode not in {"mine", "scavenge"}
-            and not self._taken_kill_quest_requires_walk_in(snapshot)
-            and self._deepest_level >= RECALL_MIN_DEPTH
-            and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
-            and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
-        ):
-            recall_dest = "yeek-cave"
         return recall_dest, recall_dungeon_id
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
@@ -20051,7 +20003,12 @@ class HengbotPolicy:
                 return REFILL_KEY + refill.slot
 
         recall = self._find_recall_scroll(snapshot)
-        if recall is not None and not player.blind and not player.confused:
+        if (
+            snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
+            and recall is not None
+            and not player.blind
+            and not player.confused
+        ):
             self._dungeon_recall_issue_watch = (
                 snapshot.floor_key,
                 snapshot.turn,

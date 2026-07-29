@@ -11005,7 +11005,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         requirements = {
             entry["item"]: entry for entry in policy.procurement_requirements(snapshot)
         }
-        self.assertEqual(requirements["Word of Recall scrolls"]["missing"], 1)
+        self.assertEqual(requirements["Word of Recall scrolls"]["missing"], 2)
         self.assertEqual(requirements["Flasks of oil"]["missing"], 1)
         needs = policy._enumerate_town_needs(snapshot)
         self.assertIn(policy_module.TownNeed(STORE_GENERAL, "oil", "normal"), needs)
@@ -13700,8 +13700,8 @@ class PredictiveEscapeTest(unittest.TestCase):
             floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
             inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
-        self.assertEqual(pol.choose_key(safe), "rr")
-        self.assertEqual(pol.last_reason, "return:recall")
+        self.assertNotEqual(pol.choose_key(safe), "rr")
+        self.assertTrue(pol._returning_to_town)
 
     def test_healthy_first_teleport_landing_continues_dive(self):
         monster = hostile(1, 10, 11, max_melee_damage=20)
@@ -13771,7 +13771,7 @@ class PredictiveEscapeTest(unittest.TestCase):
                 item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
             ],
         )
-        self.assertEqual(pol.choose_key(landing), "rr")
+        self.assertNotEqual(pol.choose_key(landing), "rr")
         self.assertEqual(pol._last_return_trigger, "emergency-material-threat")
 
 
@@ -13955,7 +13955,7 @@ class SummonerMeleeTest(unittest.TestCase):
 
 
 class TownAndFundraisingPolicyTest(unittest.TestCase):
-    def _strict_supplies(self, *, recall=1, detection=0, teleport=1, critical=1):
+    def _strict_supplies(self, *, recall=3, detection=0, teleport=1, critical=1):
         supplies = [
             item("f", TVAL_FOOD, 35, count=5),
             item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
@@ -14234,7 +14234,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
 
-        self.assertFalse(policy._recall_departure_ready(snap))
+        self.assertTrue(policy._recall_departure_ready(snap))
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_fundraising_withdraws_stored_detection_before_digger(self):
@@ -15288,10 +15288,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             equipment=[self._lantern()],
         )
         missing_healing = Snapshot(
-            inventory=self._strict_supplies(recall=1, teleport=3), **base
+            inventory=self._strict_supplies(recall=3, teleport=3), **base
         )
         complete = Snapshot(
-            inventory=self._strict_supplies(recall=1, teleport=4, critical=4),
+            inventory=self._strict_supplies(recall=3, teleport=4, critical=4),
             **base,
         )
 
@@ -15435,7 +15435,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10, downstairs=True)},
             [],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
-            inventory=self._strict_supplies(recall=1, teleport=3, critical=3),
+            inventory=self._strict_supplies(recall=3, teleport=3, critical=3),
             equipment=[self._lantern()],
         )
         self.assertFalse(HengbotPolicy()._descent_is_blocked(ready))
@@ -15454,8 +15454,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rr")
-        self.assertEqual(policy.last_reason, "return:recall")
+        self.assertNotEqual(policy.choose_key(snap), "rr")
+        self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy._last_return_trigger, "next-depth-kit")
 
     def _lantern(self):
@@ -15500,7 +15500,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(0, 0, 0),
-            inventory=self._strict_supplies(recall=1, detection=42),
+            inventory=self._strict_supplies(recall=3, detection=42),
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
@@ -16218,11 +16218,36 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_recall_targets_follow_the_confirmed_depth_table(self):
         policy = HengbotPolicy()
-        self.assertEqual(policy._recall_target(4), 1)
-        self.assertEqual(policy._recall_target(5), 3)
-        self.assertEqual(policy._recall_target(11), 6)
-        self.assertEqual(policy._recall_target(16), 9)
-        self.assertEqual(policy._recall_target(21), 10)
+        requirement = {
+            1: 3, 4: 3, 5: 6, 10: 6, 11: 6,
+            15: 6, 16: 9, 20: 9, 21: 10,
+        }
+        retreat = {1: 1, 5: 1, 6: 3, 10: 3, 20: 3}
+        self.assertEqual(
+            {depth: policy._recall_target(depth) for depth in requirement},
+            requirement,
+        )
+        self.assertEqual(
+            {
+                depth: policy._recall_shortage_retreat_threshold(depth)
+                for depth in retreat
+            },
+            retreat,
+        )
+
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 20, 0),
+        )
+        for mode in ("mine", "scavenge"):
+            with self.subTest(mode=mode):
+                policy._fundraising_mode = mode
+                status = policy._supply_ledger(snapshot, 20)["recall"]
+                self.assertEqual(status.required_return, 0)
+                self.assertEqual(status.required_departure, 0)
+                self.assertFalse(policy._recall_departure_shortage(snapshot))
 
     def test_strict_town_routine_visits_temple_for_missing_recall(self):
         grids = {
@@ -16317,13 +16342,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10)},
             [],
             floor_key=(DUNGEON_YEEK_CAVE, RECALL_MIN_DEPTH, 0),
-            inventory=self._strict_supplies(recall=0),
+            inventory=self._strict_supplies(
+                recall=0, teleport=15, critical=10
+            ),
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
 
-        self.assertTrue(policy._should_start_town_return(snap))
-        self.assertEqual(policy._last_return_trigger, "recall-low")
+        policy.choose_key(snap)
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(policy._last_return_trigger, "recall-shortage")
 
     def test_returns_when_recall_stock_falls_below_depth_target(self):
         grids = {Position(10, 10): grid(10, 10, upstairs=True)}
@@ -16332,7 +16360,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             grids,
             [],
             floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
-            inventory=self._strict_supplies(recall=2),
+            inventory=self._strict_supplies(recall=3),
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
@@ -16354,8 +16382,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         self.assertFalse(policy._should_start_town_return(dungeon_snapshot(4)))
-        self.assertTrue(policy._should_start_town_return(dungeon_snapshot(3)))
-        self.assertEqual(policy._last_return_trigger, "recall-low")
+        self.assertFalse(policy._should_start_town_return(dungeon_snapshot(3)))
 
     def test_town_requires_fifth_recall_after_shops_are_exhausted(self):
         snap = Snapshot(
@@ -16377,7 +16404,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             if requirement["item"] == "Word of Recall scrolls"
         )
         self.assertEqual(recall_requirement["current"], 3)
-        self.assertEqual(recall_requirement["target"], 5)
+        self.assertEqual(recall_requirement["target"], 6)
 
         policy._town_store_attempted.update(
             {STORE_TEMPLE: 0, STORE_ALCHEMIST: 0, STORE_BLACK: 0}
@@ -16404,7 +16431,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10)},
             [],
             turn=100,
-            inventory=self._strict_supplies(recall=1),
+            inventory=self._strict_supplies(recall=3),
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
@@ -19650,9 +19677,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
 
-        self.assertEqual(policy._fundraising_key(snap, []), "rr")
+        self.assertNotEqual(policy._fundraising_key(snap, []), "rr")
         self.assertTrue(policy._returning_to_town)
-        self.assertEqual(policy.last_reason, "return:recall")
 
     def obsolete_mining_abandons_a_revisited_treasure_route_before_long_leash(self):
         tool = item(
@@ -20100,7 +20126,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "victory:pickup")
 
     def test_conquest_runs_normal_town_routine_then_listens_for_rumor(self):
-        supplies = self._strict_supplies(recall=1)
+        supplies = self._strict_supplies(recall=3)
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 11): grid(10, 11, building_type=0),
@@ -20121,7 +20147,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_rumor_batch_size_adapts_to_affordable_gold(self):
         # Only 900g on hand: 60 reads are affordable, but one send is capped at 40.
-        supplies = self._strict_supplies(recall=1)
+        supplies = self._strict_supplies(recall=3)
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 11): grid(10, 11, building_type=0),
@@ -20140,7 +20166,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_rumor_needs_funds_when_too_poor_for_a_batch(self):
         # Below the reserve+one-read floor, mine for gold instead of a token visit.
-        supplies = self._strict_supplies(recall=1)
+        supplies = self._strict_supplies(recall=3)
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 11): grid(10, 11, building_type=0),
@@ -20161,7 +20187,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # The inn is two tiles east; the first step does NOT land on it, so the
         # rumor keys must NOT ride along (they would leak into the town command
         # loop and the inn would never be entered).
-        supplies = self._strict_supplies(recall=1)
+        supplies = self._strict_supplies(recall=3)
         grids = {
             Position(10, 10): grid(10, 10),
             Position(10, 11): grid(10, 11),
@@ -20248,7 +20274,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=self._strict_supplies(recall=2),
+            inventory=self._strict_supplies(recall=6),
             equipment=[self._lantern()],
             recall_dungeon_id=DUNGEON_ANGBAND,
             yeek_cave_conquered=True,
@@ -20264,7 +20290,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=self._strict_supplies(recall=2),
+            inventory=self._strict_supplies(recall=6),
             equipment=[self._lantern()],
             recall_dungeon_id=DUNGEON_ANGBAND,
             yeek_cave_conquered=True,
@@ -20287,7 +20313,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=self._strict_supplies(recall=2),
+            inventory=self._strict_supplies(recall=6),
             equipment=[self._lantern()],
             recall_dungeon_id=DUNGEON_ANGBAND,
             yeek_cave_conquered=True,
@@ -20404,8 +20430,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._deepest_level = RECALL_MIN_DEPTH
         policy._char_dump_done_this_visit = True  # past the pre-dive dump
 
-        self.assertEqual(policy._town_special_key(snap), "rrb")
-        self.assertEqual(policy.last_reason, "town:recall-to-yeek-cave")
+        self.assertIsNone(policy._town_special_key(snap))
 
     def test_recall_selection_falls_back_to_current_destination(self):
         snap = Snapshot(
@@ -20430,20 +20455,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._deepest_level = RECALL_MIN_DEPTH
 
-        # planned depth 6 -> _recall_target 3, +1 for the departure recall, +1
-        # more so arrival (target - 1) still clears RECALL_RETURN_THRESHOLD.
-        self.assertEqual(policy._recall_required_target(snap), 5)
+        self.assertEqual(policy._recall_required_target(snap), 6)
         self.assertFalse(policy._recall_ready(snap))
         self.assertIsNone(policy._town_special_key(snap))
 
     def test_angband_recall_purchase_target_covers_min_depth_band_arrival(self):
-        # Regression: depths 5-10 all share _recall_target==3. Buying only
-        # target+1==4 for departure left exactly 3 on arrival after the entry
-        # recall was consumed -- equal to RECALL_RETURN_THRESHOLD, so the bot
-        # "recall-low" returned (and separately judged itself short of
-        # _next_depth_supply_shortage's next-depth minimum) the instant a dive
-        # began. Buying one more so target==5 leaves 4 on arrival, clearing
-        # both.
+        # Depths 5-10 share the single six-scroll requirement without a
+        # context-dependent departure add-on.
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -20456,14 +20474,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._target_dungeon_id = DUNGEON_ANGBAND
         for planned_depth in (RECALL_MIN_DEPTH, 10):  # both ends of the 5-10 band
             policy._deepest_level = planned_depth - 1
-            self.assertEqual(policy._recall_target(planned_depth), 3)
-            self.assertEqual(policy._recall_required_target(snap), 5)
+            self.assertEqual(policy._recall_target(planned_depth), 6)
+            self.assertEqual(policy._recall_required_target(snap), 6)
 
     def test_recall_arrival_at_min_depth_band_clears_both_thresholds(self):
-        # Simulated post-entry counts for the fix above: the new purchase amount
-        # (5) leaves 4 recall scrolls on arrival at depths 5-10, which must NOT
-        # trigger either an immediate return-to-town or a next-depth restock
-        # demand; one fewer (3, the old broken arrival count) must trigger both.
+        # The requirement still gates further descent, while the separate
+        # recall-shortage retreat only fires below three from 6F onward.
         def arrival(count):
             return Snapshot(
                 player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -20477,13 +20493,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             )
 
         policy = HengbotPolicy()
-        stocked = arrival(4)
-        low = arrival(3)
+        stocked = arrival(6)
+        low = arrival(2)
         self.assertFalse(policy._ledger_return_shortages(
             policy._supply_ledger(stocked, stocked.dungeon_level), stocked.dungeon_level
         ))
         self.assertFalse(policy._next_depth_supply_shortage(stocked))
-        self.assertTrue(policy._ledger_return_shortages(
+        self.assertFalse(policy._ledger_return_shortages(
             policy._supply_ledger(low, low.dungeon_level), low.dungeon_level
         ))
         self.assertTrue(policy._next_depth_supply_shortage(low))
@@ -20552,7 +20568,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10)},
             [],
             turn=817418,
-            inventory=self._strict_supplies(recall=1),
+            inventory=self._strict_supplies(recall=3),
             equipment=[self._lantern()],
             store=StoreState(store_type=STORE_HOME, items=[home_item]),
         )
@@ -20925,7 +20941,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 Position(10, 11): self._home_tile(10, 11),
             },
             [],
-            inventory=self._strict_supplies(recall=1),
+            inventory=self._strict_supplies(recall=3),
             equipment=[self._lantern()],
             town_flag=True,
         )
@@ -23163,8 +23179,7 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         pol._observe(snap)
         self.assertGreaterEqual(pol._deepest_level, RECALL_MIN_DEPTH)
-        self.assertEqual(pol._town_special_key(snap), "rra")
-        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
+        self.assertIsNone(pol._town_special_key(snap))
 
     def test_recall_depth_only_raises_never_lowers_watermark(self):
         # recall_depth seeds via max(): a deeper in-session watermark still wins,
@@ -23175,10 +23190,31 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._observe(snap)
         self.assertEqual(pol._deepest_level, 8)
 
-    def test_recalls_into_a_deep_yeek_cave_run(self):
+    def test_deep_yeek_cave_run_still_walks_to_the_entrance(self):
         pol, snap = self._ready_town(RECALL_MIN_DEPTH, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
-        self.assertEqual(pol._town_special_key(snap), "rra")
-        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
+        self.assertIsNone(pol._town_special_key(snap))
+
+    def test_town_yeek_one_cycle_never_spends_recall(self):
+        pol, town = self._ready_town(
+            RECALL_MIN_DEPTH, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE
+        )
+        self.assertEqual(pol._count_recall_scrolls(town), 9)
+        self.assertIsNone(pol._town_special_key(town))
+
+        dungeon = replace(
+            town,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            town_flag=False,
+            grids={Position(10, 10): grid(10, 10, upstairs=True)},
+        )
+        pol._returning_to_town = True
+        self.assertEqual(pol._return_to_town_key(dungeon, []), UP_STAIRS_KEY)
+        self.assertEqual(pol.last_reason, "return:ascend")
+        self.assertEqual(pol._count_recall_scrolls(dungeon), 9)
+
+        returned = replace(town, turn=town.turn + 2)
+        self.assertIsNone(pol._town_special_key(returned))
+        self.assertEqual(pol._count_recall_scrolls(returned), 9)
 
     def test_shallow_run_walks_to_the_entrance_not_recall(self):
         pol, snap = self._ready_town(RECALL_MIN_DEPTH - 1, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
@@ -23829,8 +23865,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol._target_dungeon_id = 4
         town = self._town(angband_unlocked=False, conquered=(3, 7, 14))
         required = pol._recall_required_target(town)
-        return_threshold = pol._supply_threshold("recall", "return", 18)
-        self.assertGreaterEqual(required - 1, return_threshold)
+        self.assertEqual(required, pol._recall_target(pol._planned_depth()))
 
     # --- _pick_alternate_dungeon ------------------------------------------
     def test_picks_shallowest_recall_selectable_dungeon(self):
@@ -24249,7 +24284,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol._target_dungeon_id = 14
 
         reserve = pol._recall_target(pol._planned_depth())
-        self.assertEqual(pol._recall_required_target(snap), reserve + 1)
+        self.assertEqual(pol._recall_required_target(snap), reserve)
 
     def test_alternate_dungeon_recall_never_bypasses_free_slot_requirement(self):
         inv = [
@@ -27353,7 +27388,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 class OptionalBlackMarketPotionTest(unittest.TestCase):
     def _supplies(self):
         return [
-            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3),
             item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
             item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL),
             item("f", TVAL_FOOD, 35, count=5),
@@ -29602,7 +29637,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
         pol._target_dungeon_id = DUNGEON_ANGBAND
-        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10)
         snap = replace(
             self._town_snap(),
             inventory=[recall],
@@ -29834,7 +29869,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._floor_key = (0, 0, 0)
         pol._town_blocked_reason = "repetition"
         pol._target_dungeon_id = DUNGEON_ANGBAND
-        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2)
+        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10)
         snap = replace(
             self._town_snap(),
             inventory=[recall],
@@ -29994,7 +30029,9 @@ class TownCycleDetectorTest(unittest.TestCase):
         position = Position(34, 94)
         snap = replace(
             self._town_snap(),
-            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3)
+            ],
             grids={
                 position: grid(
                     position.y,
@@ -31792,7 +31829,9 @@ class EntranceTravelTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 0),
             turn=turn,
-            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3)
+            ],
             equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
         )
 
@@ -31849,7 +31888,7 @@ class EntranceTravelTest(unittest.TestCase):
                     pol._descent_block_countdown = 64
 
                 self.assertTrue(pol._fundraising_kit_secured(snap))
-                self.assertTrue(pol._recall_departure_shortage(snap))
+                self.assertFalse(pol._recall_departure_shortage(snap))
                 pol._target_dungeon_id = DUNGEON_YEEK_CAVE
                 self.assertEqual(pol.choose_key(snap), "\x1b`n>.")
                 self.assertEqual(pol.last_reason, "town:travel-entrance")
@@ -36444,7 +36483,7 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         ])
 
         ledger = policy._supply_ledger(arrival, arrival.dungeon_level)
-        self.assertEqual(ledger["recall"].required_departure, 5)
+        self.assertEqual(ledger["recall"].required_departure, 6)
         self.assertFalse(policy._ledger_return_shortages(ledger, arrival.dungeon_level))
         self.assertFalse(policy._should_start_town_return(arrival))
         self.assertNotEqual(policy._last_return_trigger, "recall-low")
@@ -36533,12 +36572,12 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
 
         enough = self._snapshot(12, [
             item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=5),
-            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
             item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=2),
         ])
         low = replace(enough, inventory=[
             item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
-            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
             item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=2),
         ])
 
@@ -36639,9 +36678,20 @@ class RecallShortageBehaviorRestrictionTest(unittest.TestCase):
         self.assertEqual(key, policy_module.UP_STAIRS_KEY)
         self.assertEqual(policy.last_reason, "return:ascend")
 
+    def test_live_yeek_one_four_scrolls_does_not_trigger_recall_shortage(self):
+        policy = self._ordinary_policy()
+        dungeon = self._snapshot(1, 4)
+
+        key = policy.choose_key(dungeon)
+
+        self.assertFalse(policy._returning_to_town)
+        self.assertNotEqual(key, READ_KEY + "r")
+        self.assertNotEqual(policy.last_reason, "return:recall")
+        self.assertNotEqual(policy._last_return_trigger, "recall-shortage")
+
     def test_sufficient_recall_preserves_departure_and_descent(self):
         policy = self._ordinary_policy()
-        dungeon = self._snapshot(1, 5, downstairs=True)
+        dungeon = self._snapshot(1, 6, downstairs=True)
 
         self.assertFalse(policy._recall_departure_shortage(dungeon))
         self.assertFalse(policy._descent_is_blocked(dungeon))
@@ -36655,7 +36705,7 @@ class RecallShortageBehaviorRestrictionTest(unittest.TestCase):
         expected = "mining-owner"
         policy._fundraising_key = lambda _snapshot, _hostiles: expected
 
-        self.assertTrue(policy._recall_departure_shortage(dungeon))
+        self.assertFalse(policy._recall_departure_shortage(dungeon))
         self.assertEqual(policy.choose_key(dungeon), expected)
         self.assertFalse(policy._returning_to_town)
 
