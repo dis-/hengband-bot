@@ -23162,6 +23162,43 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "7")
         self.assertEqual(pol.last_reason, "emergency:cornered-attack")
 
+    def test_oscillating_emergency_walk_refuses_the_ping_pong_step(self):
+        # Character #5's fatal 2/8 trace repeatedly chose the previous cell
+        # while a breeder swarm attacked. Refuse that walking rung and let the
+        # existing ladder escalate to cutting through an adjacent blocker.
+        snap = self._swarm([])
+        pol = HengbotPolicy()
+        pol._emergency_escape_pending = True
+        previous = Position(11, 44)
+        for position in [snap.player.position, previous] * 5:
+            pol._recent.append(position)
+
+        with (
+            patch.object(
+                pol, "_nearest_goal_step", return_value=previous
+            ),
+            patch.object(pol, "_flee_step", return_value=None),
+        ):
+            self.assertTrue(pol._is_oscillating())
+            self.assertEqual(
+                pol._emergency_item(snap, snap.visible_monsters), "7"
+            )
+        self.assertEqual(pol.last_reason, "emergency:cornered-attack")
+
+    def test_non_oscillating_emergency_walk_is_unchanged(self):
+        snap = self._swarm([])
+        pol = HengbotPolicy()
+        pol._emergency_escape_pending = True
+        step = Position(11, 44)
+        pol._recent.extend((snap.player.position, step))
+
+        with patch.object(pol, "_nearest_goal_step", return_value=step):
+            self.assertFalse(pol._is_oscillating())
+            self.assertEqual(
+                pol._emergency_item(snap, snap.visible_monsters), "2"
+            )
+        self.assertEqual(pol.last_reason, "emergency:seek-upstairs")
+
 
 class EmergencyHealBeforeFleeTest(unittest.TestCase):
     def _quest_emergency(self, *, hp=100, inventory=()):
@@ -30439,6 +30476,10 @@ class EntranceTravelTest(unittest.TestCase):
         snap = replace(
             self._surface_snap(),
             player=replace(self._surface_snap().player, level=7, gold=303),
+            grids={
+                **self._surface_snap().grids,
+                Position(34, 95): grid(34, 95),
+            },
             inventory=[
                 item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
                 item(
@@ -30454,6 +30495,7 @@ class EntranceTravelTest(unittest.TestCase):
         for cooldown in (False, True):
             with self.subTest(cooldown=cooldown):
                 pol = HengbotPolicy()
+                pol._floor_key = snap.floor_key
                 pol._fundraising_mode = "mine"
                 pol._town_restock_suppressed = True
                 if cooldown:
@@ -30464,9 +30506,28 @@ class EntranceTravelTest(unittest.TestCase):
 
                 self.assertTrue(pol._fundraising_kit_secured(snap))
                 self.assertTrue(pol._recall_departure_shortage(snap))
-                self.assertFalse(pol._descent_is_blocked(snap))
-                self.assertEqual(self._travel(pol, snap), "\x1b`n>.")
+                pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+                self.assertEqual(pol.choose_key(snap), "\x1b`n>.")
                 self.assertEqual(pol.last_reason, "town:travel-entrance")
+
+    def test_non_mining_walk_in_respects_prior_floor_descent_cooldown(self):
+        snap = replace(
+            self._surface_snap(),
+            player=replace(self._surface_snap().player, level=7),
+            grids={
+                **self._surface_snap().grids,
+                Position(34, 95): grid(34, 95),
+            },
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+        )
+        pol = HengbotPolicy()
+        pol._floor_key = snap.floor_key
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+        pol._descent_blocked_at_level = snap.player.level
+        pol._descent_block_countdown = 64
+
+        self.assertNotEqual(pol.choose_key(snap), "\x1b`n>.")
+        self.assertNotEqual(pol.last_reason, "town:travel-entrance")
 
     def test_zero_recall_ordinary_surface_goal_does_not_enter(self):
         pol = HengbotPolicy()

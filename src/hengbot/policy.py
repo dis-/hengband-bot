@@ -21300,8 +21300,16 @@ class HengbotPolicy:
                     self.last_reason = "unseen-recall:heal"
                     return QUAFF_KEY + potion.slot
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+            if step is not None and (
+                self._is_oscillating() and step in set(self._recent)
+            ):
+                step = None
             if step is None:
                 step = self._least_visited_neighbor(snapshot)
+            if step is not None and (
+                self._is_oscillating() and step in set(self._recent)
+            ):
+                step = None
             if step is not None:
                 self.last_reason = "unseen-recall:move"
                 return self._step_toward(snapshot, step)
@@ -21497,8 +21505,16 @@ class HengbotPolicy:
                         self.last_reason = "emergency:heal"
                         return QUAFF_KEY + potion.slot
                 step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+                if step is not None and (
+                    self._is_oscillating() and step in set(self._recent)
+                ):
+                    step = None
                 if step is None:
                     step = self._flee_step(snapshot, hostiles)
+                if step is not None and (
+                    self._is_oscillating() and step in set(self._recent)
+                ):
+                    step = None
                 if step is not None:
                     self.last_reason = "emergency:seek-upstairs"
                     return self._step_toward(snapshot, step)
@@ -22226,8 +22242,8 @@ class HengbotPolicy:
                 return False
         if self._descent_blocked_at_level is None:
             return False
-        # The block lifts on a level-up (we grew stronger) or when the cooldown
-        # runs out — one bad landing must not ratchet the bot upward forever
+        # This global latch is keyed to character level: it lifts when we grow
+        # stronger or its cooldown runs out. One bad landing must not ratchet
         # when the shallower floors cannot supply a whole level of XP.
         if snapshot.player.level > self._descent_blocked_at_level:
             self._descent_blocked_at_level = None
@@ -22864,7 +22880,10 @@ class HengbotPolicy:
         if self._town_restock_suppressed:
             # A deep character with no recall scroll loses its saved depth here,
             # but an L1 walk-in is the only remaining departure; do not turn it
-            # into an unsupplied deep recall.
+            # into an unsupplied deep recall. This departure-only bypass also
+            # skips _fundraising_departure_ready's kit/light/HP gate; light is
+            # checked by _descent_is_blocked, and DESCEND_MIN_HP_RATIO remains
+            # the final HP backstop before the entrance command is emitted.
             return self._town_map.entrance
         if (
             self._fundraising_mode in {"mine", "scavenge"}
