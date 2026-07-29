@@ -2680,6 +2680,13 @@ class HengbotPolicy:
         if unprofitable_unique is not None:
             return unprofitable_unique
 
+        # Mining/swarm contact has a deliberately ordered combat transition.
+        # Keep the diggers on while a missile can repel the approach; once
+        # contact persists, re-arm before any ordinary melee decision.
+        swarm_combat = self._melee_swarm_combat_key(snapshot, hostiles, adjacent)
+        if swarm_combat is not None:
+            return swarm_combat
+
         # 1. Survival: flee when hurt, swarmed, or too afraid to fight back.
         status_threats = self._unresisted_melee_status_threats(snapshot, hostiles)
         if status_threats:
@@ -14684,8 +14691,6 @@ class HengbotPolicy:
             ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
             if ranged is not None:
                 return ranged
-        if snapshot.player.class_id == PLAYER_CLASS_WARRIOR:
-            return None
         if not hostiles:
             return None
         restore = self._restore_mining_combat_hand_key(
@@ -14726,6 +14731,12 @@ class HengbotPolicy:
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
             return self._step_toward(snapshot, step)
+        blocker = self._blocking_escape_melee_key(
+            snapshot, self._hostiles(snapshot), self._is_upstairs_target
+        )
+        if blocker is not None:
+            self.last_reason = "fundraise:clear-escape-path"
+            return blocker
         upstairs_search_expired = self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
         if upstairs_search_expired:
             recall = self._find_recall_scroll(snapshot)
@@ -21506,6 +21517,13 @@ class HengbotPolicy:
                 ):
                     step = None
                 if step is None:
+                    blocker = self._blocking_escape_melee_key(
+                        snapshot, hostiles, self._is_upstairs_target
+                    )
+                    if blocker is not None:
+                        self.last_reason = "emergency:clear-escape-path"
+                        return blocker
+                if step is None:
                     step = self._flee_step(snapshot, hostiles)
                 if step is not None and (
                     self._is_oscillating() and step in set(self._recent)
@@ -22134,6 +22152,76 @@ class HengbotPolicy:
                 return True
         return False
 
+    def _melee_swarm_combat_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        """Order ranged repelling, re-arming, and choke combat for melee swarms."""
+        melee_hostiles = [
+            monster for monster in hostiles
+            if monster.max_ranged_damage <= 0 and not monster.asleep
+        ]
+        swarm = len(melee_hostiles) >= 2
+        mining = (
+            self._fundraising_mode in {"mine", "scavenge"}
+            and snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
+            and snapshot.dungeon_level == 1
+            and self._equipped_digging_tool(snapshot) is not None
+        )
+        if not swarm and not mining:
+            return None
+        # Approved and runtime quest targeting has its own reviewed positioning
+        # and race-priority semantics; do not steal those engagements.
+        if (
+            self._active_fixed_quest_id(snapshot) is not None
+            or self._active_kill_quest_id(snapshot) is not None
+        ):
+            return None
+        # A ranged member can attack through the queue, so preserve the old
+        # flee/disengage behavior rather than treating this as a safe choke.
+        if swarm and len(melee_hostiles) != len(hostiles):
+            return None
+
+        if not adjacent:
+            ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
+            if ranged is not None:
+                return ranged
+        elif self._equipped_digging_tool(snapshot) is not None:
+            restore = self._restore_mining_combat_hand_key(
+                snapshot, "combat:restore-main-weapon"
+            )
+            if restore is not None:
+                return restore
+
+        if not swarm:
+            return None
+        if self._predicted_damage(snapshot, hostiles, turns=3) >= (
+            snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
+        ):
+            return None
+        if self._should_flee(snapshot, hostiles, adjacent):
+            # The ordinary flee branch now prefers narrow cells, preserving the
+            # covered retreat line instead of stepping back into the room.
+            return None
+        openness = self._open_neighbor_count(snapshot, snapshot.player.position)
+        if openness > SUMMONER_CHOKE_NEIGHBORS - 1:
+            step = self._summoner_retreat_step(snapshot, melee_hostiles, hostiles)
+            if step is not None:
+                self.last_reason = "combat:choke-reposition"
+                return self._step_toward(snapshot, step)
+
+        if openness <= SUMMONER_CHOKE_NEIGHBORS - 1:
+            if adjacent and not snapshot.player.afraid:
+                self.last_reason = "combat:choke-melee"
+                return self._direction_key(
+                    snapshot.player.position, self._weakest(adjacent).position
+                )
+            self.last_reason = "combat:choke-hold"
+            return WAIT_KEY
+        return None
+
     def _monster_path_distance(
         self, snapshot: Snapshot, origin: Position
     ) -> int | None:
@@ -22504,17 +22592,68 @@ class HengbotPolicy:
         if not candidates:
             return None
 
-        def score(pos: Position) -> tuple[int, int, int, int]:
+        def score(pos: Position) -> tuple[int, int, int, int, int]:
             nearest = min(pos.distance_to(m.position) for m in hostiles)
             grid = snapshot.grids.get(pos)
             unsafe = 1 if (grid and grid.unsafe) else 0
             trap = 1 if (grid and grid.trap) else 0
-            return (nearest, -trap, -unsafe, -self._visit_counts[pos])
+            return (
+                nearest,
+                -self._open_neighbor_count(snapshot, pos),
+                -trap,
+                -unsafe,
+                -self._visit_counts[pos],
+            )
 
         return max(candidates, key=score)
 
     def _open_neighbor_count(self, snapshot: Snapshot, position: Position) -> int:
         return len(self._walkable_neighbors(snapshot, position))
+
+    def _blocking_escape_melee_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        goal: Callable[[GridState], bool],
+    ) -> str | None:
+        """Bump a weak adjacent blocker when it is the door to an escape route."""
+        player = snapshot.player
+        candidates = [
+            monster for monster in hostiles
+            if monster.distance <= 1
+            and monster.max_ranged_damage <= 0
+            and monster.max_hp <= max(1, player.max_hp)
+            and monster.max_melee_damage < player.hp
+        ]
+        best: tuple[int, MonsterState] | None = None
+        for monster in candidates:
+            queue: deque[tuple[Position, int]] = deque([(monster.position, 0)])
+            seen = {player.position, monster.position}
+            distance_to_goal: int | None = None
+            while queue:
+                position, distance = queue.popleft()
+                cell = snapshot.grid_at(position)
+                if cell is not None and goal(cell):
+                    distance_to_goal = distance
+                    break
+                for dy, dx in NEIGHBOR_OFFSETS:
+                    neighbor = Position(position.y + dy, position.x + dx)
+                    if neighbor in seen:
+                        continue
+                    cell = snapshot.grid_at(neighbor)
+                    if cell is None or not cell.passable:
+                        continue
+                    if cell.has_monster and neighbor != monster.position:
+                        continue
+                    seen.add(neighbor)
+                    queue.append((neighbor, distance + 1))
+            if distance_to_goal is not None and (
+                best is None or distance_to_goal < best[0]
+            ):
+                best = (distance_to_goal, monster)
+        if best is None:
+            return None
+        return self._direction_key(player.position, best[1].position)
 
     def _summoner_retreat_step(
         self,

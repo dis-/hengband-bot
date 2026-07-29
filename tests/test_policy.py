@@ -394,6 +394,129 @@ def hostile(
 
 
 class CombatTest(unittest.TestCase):
+    @staticmethod
+    def _mouse_swarm_snapshot(*, at_choke=False, adjacent=False, ranged=False):
+        origin = Position(10, 9) if at_choke else Position(10, 10)
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 13)
+            for x in range(10, 13)
+        }
+        grids.update({
+            Position(10, 8): grid(10, 8),
+            Position(10, 9): grid(10, 9),
+            Position(9, 9): grid(9, 9, passable=False),
+            Position(11, 9): grid(11, 9, passable=False),
+            Position(9, 8): grid(9, 8, passable=False),
+            Position(11, 8): grid(11, 8, passable=False),
+        })
+        positions = (
+            [(10, 10), (9, 10), (11, 10), (10, 11)]
+            if adjacent
+            else [(8, 10), (8, 11), (8, 12), (9, 12)]
+        )
+        monsters = [
+            hostile(
+                index,
+                y,
+                x,
+                distance=origin.distance_to(Position(y, x)),
+                can_multiply=True,
+                max_melee_damage=1,
+                max_ranged_damage=6 if ranged and index == 1 else 0,
+            )
+            for index, (y, x) in enumerate(positions, 1)
+        ]
+        for monster in monsters:
+            grids[monster.position] = replace(
+                grids[monster.position], has_monster=True
+            )
+        return Snapshot(
+            player(origin.y, origin.x, hp=172, max_hp=172, level=10),
+            grids,
+            monsters,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+
+    def test_open_melee_swarm_repositions_to_corridor_choke(self):
+        snapshot = self._mouse_swarm_snapshot(adjacent=True)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._melee_swarm_combat_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._adjacent_hostiles(snapshot),
+            ),
+            "4",
+        )
+        self.assertEqual(policy.last_reason, "combat:choke-reposition")
+
+    def test_choke_melees_adjacent_swarm_without_chasing(self):
+        snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=True)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._melee_swarm_combat_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._adjacent_hostiles(snapshot),
+            ),
+            "6",
+        )
+        self.assertEqual(policy.last_reason, "combat:choke-melee")
+
+    def test_ranged_swarm_bypasses_choke_logic(self):
+        snapshot = self._mouse_swarm_snapshot(adjacent=True, ranged=True)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertIsNone(
+            policy._melee_swarm_combat_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._adjacent_hostiles(snapshot),
+            )
+        )
+
+    def test_choke_retreat_prefers_covered_corridor(self):
+        snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=True)
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._flee_step(snapshot, snapshot.visible_monsters),
+            Position(10, 8),
+        )
+
+    def test_escape_attacks_weak_mouse_blocking_corridor_to_stairs(self):
+        mouse = hostile(
+            1, 10, 9, distance=1, can_multiply=True,
+            max_hp=10, max_melee_damage=2,
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=59, max_hp=172, level=10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9, monster=True),
+                Position(10, 8): grid(10, 8),
+                Position(10, 7): grid(10, 7, upstairs=True),
+            },
+            [mouse],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._blocking_escape_melee_key(
+                snapshot, [mouse], policy._is_upstairs_target
+            ),
+            "4",
+        )
+
     def test_hunt_approaches_large_pack_when_aggregate_threat_is_immaterial(self):
         monsters = [
             hostile(i, 10, 10 + i, hp=40, max_hp=40, distance=i,
@@ -16333,6 +16456,54 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._fundraising_combat_equipment_key(snap, [monster]), "vt6"
         )
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
+
+    def test_mining_swarm_throws_then_restores_weapon_on_contact(self):
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
+        sword = item("s", TVAL_SWORD, 1, name="Broad Sword", is_equipment=True)
+        shovel = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="shovel", is_equipment=True,
+        )
+        approaching = hostile(1, 10, 12, distance=2, can_multiply=True)
+        base = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [approaching],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[torch, sword],
+            equipment=[shovel, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._build_grid_index(base)
+
+        self.assertEqual(
+            policy._melee_swarm_combat_key(base, [approaching], []), "vt6"
+        )
+        self.assertEqual(policy.last_reason, "ranged:throw-torch")
+
+        contact = replace(
+            base,
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            visible_monsters=[
+                replace(approaching, position=Position(10, 11), distance=1)
+            ],
+        )
+        policy._build_grid_index(contact)
+        self.assertEqual(
+            policy._melee_swarm_combat_key(
+                contact, contact.visible_monsters, contact.visible_monsters
+            ),
+            "wsn",
+        )
+        self.assertEqual(policy.last_reason, "combat:restore-main-weapon")
 
 
 
