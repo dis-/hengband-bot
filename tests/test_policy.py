@@ -2017,6 +2017,15 @@ class CombatTest(unittest.TestCase):
 
 
 class UnseenAttackerTest(unittest.TestCase):
+    CURSE_MESSAGES = (
+        "Your Ring of Woe drains HP from you!",
+        "The Jewel of Judgement drains life from you!",
+        "Something drains life from you!",
+        "苦痛の指輪はあなたの体力を吸収した！",
+        "「審判の宝石」はあなたの体力を吸収した！",
+        "なにかがあなたの体力を吸収した！",
+    )
+
     def _open_grids(self, cy, cx, extra=None):
         grids = {}
         for dy in range(-1, 2):
@@ -2123,6 +2132,85 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertNotIn(pol.last_reason, {"unseen:ascend", "unseen:flee-stairs"})
         self.assertFalse(pol._returning_to_town)
         self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
+
+    def test_curse_damage_never_enters_unseen_retreat_or_emergency(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+
+        for message in self.CURSE_MESSAGES:
+            with self.subTest(message=message):
+                pol = HengbotPolicy()
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 10, hp=227, max_hp=227),
+                        grids,
+                        [],
+                        turn=1,
+                        floor_key=floor,
+                    )
+                )
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 11, hp=227, max_hp=227),
+                        grids,
+                        [],
+                        turn=2,
+                        floor_key=floor,
+                    )
+                )
+                key = pol.choose_key(
+                    Snapshot(
+                        player(10, 11, hp=100, max_hp=227),
+                        grids,
+                        [],
+                        messages=(message,),
+                        turn=3,
+                        floor_key=floor,
+                    )
+                )
+
+                self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
+                self.assertIsNone(pol._unseen_retreat_floor)
+                self.assertIsNone(pol._unseen_choke_position)
+                self.assertEqual(pol._unseen_wait_remaining, 0)
+                self.assertFalse(pol._emergency_escape_pending)
+                self.assertFalse(pol._emergency_return_active)
+                self.assertNotEqual(key, WAIT_KEY)
+
+    def test_snapshot_without_messages_keeps_real_unseen_retreat(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=227, max_hp=227),
+                grids,
+                [],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=227, max_hp=227),
+                grids,
+                [],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=213, max_hp=227),
+                grids,
+                [],
+                turn=3,
+                floor_key=floor,
+            )
+        )
+
+        self.assertEqual((key, pol.last_reason), ("4", "unseen:reverse-choke"))
 
     def test_weak_breeder_hit_does_not_start_unseen_retreat_or_wait(self):
         grids = self._reverse_choke_grids()

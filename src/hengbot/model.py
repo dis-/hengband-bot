@@ -655,6 +655,7 @@ class Snapshot:
     town_flag: bool | None = None
     town_id: int = -1
     town_index: int = 0
+    messages: tuple[str, ...] = ()
 
     def in_bounds(self, position: Position) -> bool:
         # With unknown dimensions, treat everything as in-bounds (no filtering).
@@ -935,6 +936,7 @@ def parse_snapshot(
         player=player,
         grids=grids,
         visible_monsters=monsters,
+        messages=tuple(str(message) for message in data.get("messages", [])),
         turn=int(data.get("turn", 0)),
         floor_key=floor_key,
         inside_arena=bool(floor_data.get("inside_arena", False)),

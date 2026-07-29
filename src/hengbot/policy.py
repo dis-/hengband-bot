@@ -1612,6 +1612,7 @@ class HengbotPolicy:
         # (a monster in the dark / invisible) — resting through that is fatal.
         self._last_hp: int | None = None
         self._took_damage = False
+        self._took_curse_damage = False
         # Set once we visit the General Store but cannot buy a lantern (can't
         # afford it / not stocked), so we stop walking back to it forever.
         self._shopping_abandoned = False
@@ -4316,6 +4317,12 @@ class HengbotPolicy:
         # Damage since the last decision with no visible cause = unseen attacker.
         hp = snapshot.player.hp
         self._took_damage = self._last_hp is not None and hp < self._last_hp
+        self._took_curse_damage = self._took_damage and any(
+            " drains HP from you!" in message
+            or " drains life from you!" in message
+            or "あなたの体力を吸収した" in message
+            for message in snapshot.messages
+        )
         self._last_damage_amount = (
             self._last_hp - hp if self._took_damage and self._last_hp is not None else 0
         )
@@ -21431,6 +21438,7 @@ class HengbotPolicy:
         if (
             player.recalling
             and self._took_damage
+            and not self._took_curse_damage
             and not hostiles
             and not snapshot.in_town
         ):
@@ -21485,6 +21493,7 @@ class HengbotPolicy:
         predicted = self._predicted_damage(snapshot, hostiles, turns=3)
         unseen_lethal = (
             self._took_damage
+            and not self._took_curse_damage
             and not hostiles
             and not snapshot.in_town
             and not player.poisoned
@@ -22996,6 +23005,7 @@ class HengbotPolicy:
         player = snapshot.player
         eligible_hit = (
             self._took_damage
+            and not self._took_curse_damage
             and not snapshot.visible_monsters
             and not player.poisoned
             and not player.cut

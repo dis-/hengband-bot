@@ -182,6 +182,17 @@ class EconomyLedgerTest(unittest.TestCase):
 
 
 class NewestSnapshotTest(unittest.TestCase):
+    def test_parses_messages_and_defaults_missing_field_to_empty(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["messages"] = ["Your ring drains HP from you!", "second"]
+
+        self.assertEqual(
+            parse_snapshot(data, {}).messages,
+            ("Your ring drains HP from you!", "second"),
+        )
+        del data["messages"]
+        self.assertEqual(parse_snapshot(data, {}).messages, ())
+
     def test_parses_grid_mark_flag_and_defaults_older_snapshots_to_unmarked(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["nearby_grids"] = [
