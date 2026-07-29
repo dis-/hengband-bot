@@ -19884,7 +19884,8 @@ class HengbotPolicy:
         next_depth = snapshot.dungeon_level + 1
         ledger = self._supply_ledger(snapshot, next_depth)
         return any(
-            status.count < status.required_return
+            status.kind != "recall"
+            and status.count < status.required_return
             and (status.obtainable or next_depth > WALK_OUT_MAX_DEPTH)
             for status in ledger.values()
         )
@@ -22538,6 +22539,8 @@ class HengbotPolicy:
         if self._returning_to_town or len(snapshot.inventory) >= PACK_CAPACITY:
             return True
         if (
+            snapshot.in_town
+            and
             self._recall_departure_shortage(snapshot)
             and not self._recall_shortage_opening_exempt(snapshot)
             and self._fundraising_mode not in {"mine", "scavenge"}

@@ -15440,10 +15440,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertFalse(HengbotPolicy()._descent_is_blocked(ready))
 
-    def test_returns_after_finding_stairs_when_next_depth_kit_is_short(self):
-        # Recall is optional on 4F but its return reserve starts at 5F, so the
-        # remembered downstairs is the event that makes this shortage actionable.
-        inventory = self._strict_supplies(recall=3, teleport=3, critical=3)
+    def test_yeek_four_five_recall_descends_without_next_depth_return(self):
+        inventory = self._strict_supplies(recall=5, teleport=15, critical=10)
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10, downstairs=True)},
@@ -15454,7 +15452,28 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertNotEqual(policy.choose_key(snap), "rr")
+        self.assertEqual(policy.choose_key(snap), policy_module.DOWN_STAIRS_KEY)
+        self.assertFalse(policy._returning_to_town)
+        self.assertNotEqual(policy._last_return_trigger, "next-depth-kit")
+        self.assertFalse(policy._descent_is_blocked(snap))
+
+    def test_yeek_four_cure_shortage_still_latches_next_depth_return(self):
+        inventory = self._strict_supplies(recall=5, teleport=15, critical=1)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10, downstairs=True)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 4, 0),
+            inventory=inventory,
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+
+        self.assertTrue(policy._next_depth_supply_shortage(snap))
+        with patch.object(policy, "_ledger_return_shortages", return_value=[]):
+            self.assertNotEqual(
+                policy.choose_key(snap), policy_module.DOWN_STAIRS_KEY
+            )
         self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy._last_return_trigger, "next-depth-kit")
 
@@ -20502,7 +20521,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._ledger_return_shortages(
             policy._supply_ledger(low, low.dungeon_level), low.dungeon_level
         ))
-        self.assertTrue(policy._next_depth_supply_shortage(low))
+        self.assertFalse(policy._next_depth_supply_shortage(low))
 
     def test_home_receives_equipment_before_other_town_work(self):
         gear = item(
@@ -36653,6 +36672,12 @@ class RecallShortageBehaviorRestrictionTest(unittest.TestCase):
         policy = self._ordinary_policy()
         town = self._snapshot(0, 0, town=True, downstairs=True)
 
+        self.assertTrue(policy._recall_departure_shortage(town))
+        self.assertFalse(
+            policy._dungeon_entry_allowed(
+                town, via_recall=False, destination_depth=1
+            )
+        )
         key = policy.choose_key(town)
 
         self.assertEqual(key, RESTOCK_WAIT_MACRO)
@@ -36660,13 +36685,35 @@ class RecallShortageBehaviorRestrictionTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, "town:travel-entrance")
         self.assertNotEqual(key, policy_module.ENTER_DUNGEON_MACRO)
 
-    def test_shortage_blocks_downstairs_in_ordinary_dive(self):
+    def test_departure_shortage_does_not_block_downstairs_in_dungeon(self):
         policy = self._ordinary_policy()
-        dungeon = self._snapshot(1, 0, downstairs=True)
+        dungeon = self._snapshot(4, 5, downstairs=True)
 
         self.assertTrue(policy._recall_departure_shortage(dungeon))
-        self.assertTrue(policy._descent_is_blocked(dungeon))
-        self.assertNotEqual(policy.choose_key(dungeon), policy_module.DOWN_STAIRS_KEY)
+        self.assertFalse(policy._descent_is_blocked(dungeon))
+        self.assertEqual(policy.choose_key(dungeon), policy_module.DOWN_STAIRS_KEY)
+
+    def test_recall_retreat_threshold_is_the_only_in_dungeon_shortage_trigger(self):
+        for depth, recall_count, should_return in (
+            (5, 0, True),
+            (6, 2, True),
+            (4, 5, False),
+        ):
+            with self.subTest(depth=depth, recall_count=recall_count):
+                policy = self._ordinary_policy()
+                dungeon = self._snapshot(depth, recall_count)
+
+                policy.choose_key(dungeon)
+
+                self.assertEqual(policy._returning_to_town, should_return)
+                if should_return:
+                    self.assertEqual(
+                        policy._last_return_trigger, "recall-shortage"
+                    )
+                else:
+                    self.assertNotEqual(
+                        policy._last_return_trigger, "recall-shortage"
+                    )
 
     def test_mid_dive_shortage_latches_return_and_ascends(self):
         policy = self._ordinary_policy()
