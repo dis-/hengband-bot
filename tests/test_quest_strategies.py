@@ -7,8 +7,12 @@ from unittest.mock import patch
 from hengbot.monrace_knowledge import _strip_jsonc
 from hengbot.policy import HengbotPolicy
 from hengbot.policy import FIXED_QUEST_ALLOWLIST
-from hengbot.quest_knowledge import load_quest_knowledge
+from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
+
+REAL_QUEST_DEFINITIONS = find_quest_definitions(
+    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+)
 
 
 class QuestStrategiesTest(unittest.TestCase):
@@ -205,9 +209,8 @@ class QuestStrategiesTest(unittest.TestCase):
                 )
 
     def test_shipped_drafts_match_real_quest_data(self):
-        edit = Path(r"C:\hengband\lib\edit")
-        definitions = edit / "QuestDefinitionList.txt"
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband lib/edit is not available")
         directory = Path(__file__).parents[1] / "strategy" / "quests"
         quests = load_quest_knowledge(definitions)

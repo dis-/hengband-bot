@@ -100,6 +100,7 @@ from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER,
     QUEST_TYPE_RANDOM,
     QuestBattlefield, QuestInfo,
+    find_quest_definitions,
     load_quest_knowledge,
 )
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
@@ -194,6 +195,10 @@ from hengbot.policy import (
     TownNeed,
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
+)
+
+REAL_QUEST_DEFINITIONS = find_quest_definitions(
+    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
 )
 
 
@@ -6783,9 +6788,9 @@ class FixedQuestTest(unittest.TestCase):
 
     def test_real_lib_fixed_quest_rosters_25_and_28_run_through_readiness(self):
         edit = Path(r"C:\hengband\lib\edit")
-        quest_path = edit / "QuestDefinitionList.txt"
+        quest_path = REAL_QUEST_DEFINITIONS
         monrace_path = edit / "MonraceDefinitions.jsonc"
-        if not quest_path.is_file() or not monrace_path.is_file():
+        if quest_path is None or not monrace_path.is_file():
             self.skipTest("real Hengband lib/edit is not available")
         quests = load_quest_knowledge(quest_path)
         monraces = load_monrace_knowledge(monrace_path)
@@ -8123,8 +8128,8 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:melee")
 
     def test_q31_hold_gate_precedes_stationary_target_survey(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[31]
         profile = replace(self.profiles[31], approved=True)
@@ -8154,8 +8159,8 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:survey-target-unconfirmed")
 
     def test_q31_sweeps_instead_of_cycling_at_stale_mobile_spawn(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[31]
         profile = replace(self.profiles[31], approved=True)
@@ -8198,8 +8203,8 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep")
 
     def test_q31_does_not_exhaust_sweep_after_only_initial_placements(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[31]
         profile = replace(self.profiles[31], approved=True)
@@ -8249,8 +8254,8 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep")
 
     def test_q31_repeats_full_map_sweep_after_three_rounds_for_teleporting_huorns(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[31]
         profile = replace(self.profiles[31], approved=True)
@@ -8303,8 +8308,8 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._quest_strategy_sweep_rounds[31], 4)
 
     def test_q31_refills_empty_lantern_before_continuing_quiet_sweep(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[31]
         profile = replace(self.profiles[31], approved=True)
@@ -8337,8 +8342,8 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "refill-light")
 
     def test_q31_restart_uses_static_route_to_retake_distant_hold(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[31]
         profile = replace(self.profiles[31], approved=True)
@@ -8419,8 +8424,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def _q34_source_policy(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         policy = self._policy()
         policy._quest_knowledge[34] = load_quest_knowledge(definitions)[34]
@@ -9213,8 +9218,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-dig")
 
     def test_q2_real_map_phase_replay_clears_every_placement_via_breach(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         battlefield = q2.battlefield
@@ -9341,8 +9346,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_post_blue_sequence_covers_every_deep_water_puddle(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         battlefield = load_quest_knowledge(definitions)[2].battlefield
         self.assertIsNotNone(battlefield)
@@ -9650,8 +9655,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertTrue(policy._q2_breach_complete)
 
     def test_q2_real_map_routes_to_observation_cell_for_isolated_gremlin(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9670,8 +9675,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:q2-phase-153")
 
     def test_q2_phase_reroutes_after_repeated_static_step_does_not_move(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9713,8 +9718,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_white_crocodile_route_does_not_reverse_between_opened_cells(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9780,8 +9785,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_breaches_immediately_after_visible_empty_gremlin_cell(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9808,8 +9813,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIn(153, policy._q2_cleared_races)
 
     def test_q2_requires_seven_cells_down_before_confirming_blue_clear(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9884,8 +9889,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertTrue(policy._q2_blue_recovery_complete)
 
     def test_q2_observation_route_does_not_reverse_at_worm_corner(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9920,8 +9925,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_stale_empty_puddle_cell_does_not_skip_downward_phase(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -9950,8 +9955,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotIn(puddle, policy._q2_surveyed_placements)
 
     def test_q2_restart_at_nether_worm_keeps_later_puddle_pending(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -10007,8 +10012,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, "quest-strategy:retake-hold")
 
     def test_q2_restart_moves_to_reconfirm_opening_rat_placements(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -10026,8 +10031,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:q2-phase-86")
 
     def test_q2_rat_reconfirmation_uses_stable_closer_goal(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -10755,8 +10760,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(key, "6")
 
     def test_q2_residual_multiplier_route_does_not_reverse_between_vantages(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -10792,8 +10797,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_residual_corpse_sweep_keeps_one_route_target(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         policy = self._policy()
@@ -10829,8 +10834,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_starts_full_map_patrol_instead_of_holding_at_entrance(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
         battlefield = q2.battlefield
@@ -11811,8 +11816,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q34_source_map_routes_every_throw_phase_without_unsafe_step(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         info = load_quest_knowledge(definitions)[34]
         self.assertIsNotNone(info.battlefield)

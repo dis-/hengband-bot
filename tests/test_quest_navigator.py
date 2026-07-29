@@ -11,11 +11,20 @@ from hengbot.policy import (
     QUEST_STATUS_TAKEN,
     TVAL_LITE,
 )
-from hengbot.quest_knowledge import QuestBattlefield, QuestInfo
+from hengbot.quest_knowledge import (
+    QuestBattlefield,
+    QuestInfo,
+    find_quest_definitions,
+    load_quest_knowledge,
+)
 from hengbot.quest_navigator import DOOR_SEARCH_BUDGET, QuestFloorNavigator, QuestPhase
 from hengbot.quest_strategies import load_quest_strategies
 from test_policy import grid, hostile, item, player
 from hengbot.model import QuestState
+
+REAL_QUEST_DEFINITIONS = find_quest_definitions(
+    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+)
 
 
 def q1_battlefield():
@@ -110,8 +119,8 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         self.assertEqual(owner.last_reason, "quest:enter")
 
     def test_real_q31_trees_allow_routes_to_every_stationary_target_vantage(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         from hengbot.quest_knowledge import load_quest_knowledge
 
@@ -133,8 +142,8 @@ class QuestFloorNavigatorTest(unittest.TestCase):
             self.assertTrue(navigator._static_path(start, goals), target)
 
     def test_q31_profile_pins_reachable_clear_firing_points(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         from hengbot.quest_knowledge import load_quest_knowledge
 
@@ -241,8 +250,8 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         self.assertEqual(self.policy.last_reason, "quest:exit")
 
     def test_q34_sweep_never_opens_avoided_glass_door_for_loot(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         from hengbot.quest_knowledge import load_quest_knowledge
 
@@ -279,8 +288,8 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         self.assertFalse(set(path) & blocked)
 
     def test_q34_sweep_never_picks_up_reserved_chest(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         from hengbot.quest_knowledge import load_quest_knowledge
 
@@ -305,8 +314,8 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, "quest:sweep:pickup")
 
     def test_q34_sweep_reuses_final_door_for_remaining_loot(self):
-        definitions = Path(r"C:\hengband\lib\edit\QuestDefinitionList.txt")
-        if not definitions.is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         from hengbot.quest_knowledge import load_quest_knowledge
 

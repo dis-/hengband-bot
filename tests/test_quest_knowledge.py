@@ -14,6 +14,10 @@ from hengbot.quest_knowledge import (
 )
 from hengbot.monrace_knowledge import _strip_jsonc
 
+REAL_QUEST_DEFINITIONS = find_quest_definitions(
+    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+)
+
 
 class QuestKnowledgeTest(unittest.TestCase):
     def test_loads_legacy_quest_one_exact_values(self):
@@ -122,10 +126,10 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertEqual(info.threat_roster, ((257, 16),))
 
     def test_real_warg_problem_q_line_matches_activation_floor(self):
-        edit = Path(r"C:\hengband\lib\edit")
-        if not (edit / "QuestDefinitionList.txt").is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband lib/edit is not available")
-        info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[14]
+        info = load_quest_knowledge(definitions)[14]
         self.assertEqual((info.type, info.max_num, info.level, info.monrace_id, info.dungeon), (1, 16, 5, 257, 2))
         self.assertEqual(info.threat_roster, ((257, 16),))
 
@@ -145,12 +149,12 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertEqual((info[40].level, info[49].level), (50, 6))
 
     def test_real_lib_edit_quest_one_matches_policy_constants(self):
-        edit = Path(r"C:\hengband\lib\edit")
-        if not (edit / "QuestDefinitionList.txt").is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband lib/edit is not available")
         from hengbot.policy import FIXED_QUEST_LEVEL_MARGIN
 
-        info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[1]
+        info = load_quest_knowledge(definitions)[1]
         self.assertEqual(info.name, "\u76d7\u8cca\u306e\u96a0\u308c\u5bb6")
         self.assertEqual((info.type, info.level, info.flags), (6, 5, QUEST_FLAG_PRESET | QUEST_FLAG_ONCE))
         self.assertEqual(info.level + FIXED_QUEST_LEVEL_MARGIN, 8)
@@ -164,10 +168,10 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertIn((8, 4), battlefield.chokepoints)
 
     def test_real_water_cave_battlefield_matches_roster(self):
-        edit = Path(r"C:\hengband\lib\edit")
-        if not (edit / "QuestDefinitionList.txt").is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband lib/edit is not available")
-        info = load_quest_knowledge(edit / "QuestDefinitionList.txt")[18]
+        info = load_quest_knowledge(definitions)[18]
         battlefield = info.battlefield
         self.assertIsNotNone(battlefield)
         self.assertEqual(len(battlefield.monster_placements), info.threat_roster_count)
@@ -187,11 +191,11 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertTrue(battlefield.chokepoints)
 
     def test_real_old_man_willow_preserves_walkable_tree_terrain(self):
-        edit = Path(r"C:\hengband\lib\edit")
-        if not (edit / "QuestDefinitionList.txt").is_file():
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
             self.skipTest("real Hengband lib/edit is not available")
 
-        battlefield = load_quest_knowledge(edit / "QuestDefinitionList.txt")[31].battlefield
+        battlefield = load_quest_knowledge(definitions)[31].battlefield
 
         self.assertIsNotNone(battlefield)
         self.assertEqual(battlefield.terrain[(2, 1)], "tree")
