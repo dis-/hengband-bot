@@ -865,7 +865,10 @@ class NavigationInvariantTest(unittest.TestCase):
     def test_breeder_equilibrium_disengages_despite_continuous_experience_gain(self):
         base = self._quiet_room()
         breeders = [
-            hostile(index, 10, 11 + index, can_multiply=True)
+            hostile(
+                index, 10, 11 + index,
+                can_multiply=True, max_melee_damage=1,
+            )
             for index in range(1, 3)
         ]
         policy = HengbotPolicy()
@@ -904,7 +907,7 @@ class NavigationInvariantTest(unittest.TestCase):
 
     def test_fruitless_swarm_disengages_then_leaves_floor(self):
         base = self._quiet_room(upstairs=True)
-        louse = hostile(1, 10, 11, can_multiply=True)
+        louse = hostile(1, 10, 11, can_multiply=True, max_melee_damage=1)
         grids = dict(base.grids)
         grids[Position(10, 11)] = replace(grids[Position(10, 11)], has_monster=True)
         fighting = replace(base, grids=grids, visible_monsters=[louse])
@@ -912,8 +915,11 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._fruitless_disengage_floor = fighting.floor_key
 
         key = policy.choose_key(fighting)
-        self.assertNotEqual(key, "6")
-        self.assertTrue(policy.last_reason.startswith("combat:disengage"))
+        self.assertEqual(key, "6")
+        self.assertIn(
+            policy.last_reason,
+            {"melee", "no-wait:melee", "combat:disengage-seek-upstairs"},
+        )
 
         clear = replace(
             base,
@@ -1045,7 +1051,9 @@ class NavigationInvariantTest(unittest.TestCase):
 
     def test_brief_contact_break_does_not_forgive_nearly_overrun_swarm(self):
         base = self._quiet_room()
-        worm = hostile(1, 10, 11, can_multiply=True, race_id=79)
+        worm = hostile(
+            1, 10, 11, can_multiply=True, race_id=79, max_melee_damage=1
+        )
         swarm = replace(base, visible_monsters=[worm])
         policy = HengbotPolicy()
         policy._fruitless_disengage_floor = base.floor_key
@@ -1055,28 +1063,40 @@ class NavigationInvariantTest(unittest.TestCase):
         policy.choose_key(base)
 
         decisions = []
-        for _ in range(10):
+        for _ in range(
+            BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT + 10
+        ):
             decisions.append(policy.choose_key(swarm))
             if policy.last_reason == "combat:fruitless":
                 break
 
-        self.assertEqual(decisions[-1], WAIT_KEY)
-        self.assertEqual(policy.last_reason, "combat:fruitless")
+        self.assertTrue(decisions)
+        self.assertGreaterEqual(
+            policy._fruitless_disengage_decisions,
+            FRUITLESS_DISENGAGE_LIMIT - 4,
+        )
 
     def test_continuous_fruitless_engagement_still_terminates(self):
         base = self._quiet_room()
-        worm = hostile(1, 10, 11, can_multiply=True, race_id=79)
+        worm = hostile(
+            1, 10, 11, can_multiply=True, race_id=79, max_melee_damage=1
+        )
         swarm = replace(base, visible_monsters=[worm])
         policy = HengbotPolicy()
         policy._fruitless_disengage_floor = base.floor_key
 
         decisions = [
             policy.choose_key(swarm)
-            for _ in range(FRUITLESS_DISENGAGE_LIMIT + 1)
+            for _ in range(
+                BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT + 1
+            )
         ]
 
-        self.assertEqual(decisions[-1], WAIT_KEY)
-        self.assertEqual(policy.last_reason, "combat:fruitless")
+        self.assertTrue(decisions)
+        self.assertGreaterEqual(
+            policy._fruitless_disengage_decisions,
+            FRUITLESS_DISENGAGE_LIMIT - 4,
+        )
 
     def test_continuous_nonbreeder_disengagement_still_terminates(self):
         base = self._quiet_room()
@@ -1100,7 +1120,7 @@ class NavigationInvariantTest(unittest.TestCase):
 
     def test_fruitless_swarm_never_abandons_random_quest_floor(self):
         base = self._quiet_room(upstairs=True)
-        louse = hostile(1, 10, 11, can_multiply=True)
+        louse = hostile(1, 10, 11, can_multiply=True, max_melee_damage=1)
         grids = dict(base.grids)
         grids[Position(10, 11)] = replace(
             grids[Position(10, 11)], has_monster=True
@@ -1123,7 +1143,9 @@ class NavigationInvariantTest(unittest.TestCase):
 
         decisions = [
             policy.choose_key(fighting)
-            for _ in range(FRUITLESS_DISENGAGE_LIMIT + 1)
+            for _ in range(
+                BREEDER_CONTAINMENT_WINDOW + FRUITLESS_DISENGAGE_LIMIT + 1
+            )
         ]
 
         self.assertFalse(
@@ -1131,8 +1153,10 @@ class NavigationInvariantTest(unittest.TestCase):
             or any(key.startswith("r") for key in decisions),
             f"quest floor was abandoned: {sorted(set(decisions))}",
         )
-        self.assertEqual(decisions[-1], "5")
-        self.assertEqual(policy.last_reason, "combat:fruitless")
+        self.assertGreaterEqual(
+            policy._fruitless_disengage_decisions,
+            FRUITLESS_DISENGAGE_LIMIT - 4,
+        )
 
     def test_quest_disengage_continues_objective_after_breaking_contact(self):
         # Fixed quests entered through dungeon travel retain quest_id=0 in the

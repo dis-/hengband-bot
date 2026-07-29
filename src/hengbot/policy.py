@@ -557,6 +557,7 @@ COMBAT_OUTCOME_WINDOW = 300
 # below has to arm before the position loop guard hard-stops the bot.  At 120 it
 # never did, and the multiplier-combat loop guard stopped the bot instead.
 BREEDER_CONTAINMENT_WINDOW = 60
+WEAK_BREEDER_MAX_DAMAGE_RATIO = 0.05
 FRUITLESS_DISENGAGE_LIMIT = 100
 # WAIT terminals which are deliberately allowed to outlive the CLI's positional
 # guard.  Each entry names an existing policy bound; cli imports this registry
@@ -4371,8 +4372,22 @@ class HengbotPolicy:
             self._mining_oscillation_retargets = 0
 
     # ---------------------------------------------------------------- combat
+    @staticmethod
+    def _is_weak_breeder(
+        snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        return (
+            monster.can_multiply
+            and max(monster.max_melee_damage, monster.max_ranged_damage)
+            < snapshot.player.max_hp * WEAK_BREEDER_MAX_DAMAGE_RATIO
+        )
+
     def _hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
-        return [m for m in snapshot.visible_monsters if m.hostile]
+        return [
+            monster
+            for monster in snapshot.visible_monsters
+            if monster.hostile and not self._is_weak_breeder(snapshot, monster)
+        ]
 
     def _adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         origin = snapshot.player.position
@@ -20399,7 +20414,11 @@ class HengbotPolicy:
         breeders = [
             monster
             for monster in snapshot.visible_monsters
-            if monster.hostile and monster.can_multiply
+            if (
+                monster.hostile
+                and monster.can_multiply
+                and not self._is_weak_breeder(snapshot, monster)
+            )
         ]
         productive_choke = self._productive_choke_hold(snapshot)
         if breeders and not productive_choke:
@@ -20597,6 +20616,20 @@ class HengbotPolicy:
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
         if self._fruitless_disengage_floor != snapshot.floor_key:
+            return None
+        if (
+            not hostiles
+            and any(
+                monster.hostile and self._is_weak_breeder(snapshot, monster)
+                for monster in snapshot.visible_monsters
+            )
+        ):
+            self._fruitless_disengage_floor = None
+            self._fruitless_disengage_decisions = 0
+            if self._last_return_trigger is None:
+                self._returning_to_town = False
+            if self._escape_state.owner == "disengage":
+                self._escape_state.release()
             return None
 
         breeders = [monster for monster in hostiles if monster.can_multiply]

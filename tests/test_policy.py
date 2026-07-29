@@ -449,11 +449,120 @@ class CombatTest(unittest.TestCase):
                 grids[monster.position], has_monster=True
             )
         return Snapshot(
-            player(origin.y, origin.x, hp=172, max_hp=172, level=10),
+            player(origin.y, origin.x, hp=172, max_hp=20, level=10),
             grids,
             monsters,
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
         )
+
+    @staticmethod
+    def _weak_breeder_incident_snapshot(*, blocking=False, turn=1):
+        origin = Position(10, 10)
+        positions = [
+            Position(12 + index // 20, 5 + index % 20)
+            for index in range(83)
+        ]
+        if blocking:
+            positions[0] = Position(10, 11)
+            positions[1] = Position(9, 10)
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 18)
+            for x in range(4, 26)
+        }
+        breeders = [
+            hostile(
+                index,
+                position.y,
+                position.x,
+                distance=origin.distance_to(position),
+                race_id=79,
+                can_multiply=True,
+                max_melee_damage=1,
+            )
+            for index, position in enumerate(positions, 1)
+        ]
+        for breeder in breeders:
+            grids[breeder.position] = replace(
+                grids[breeder.position], has_monster=True
+            )
+        return Snapshot(
+            player(10, 10, hp=300, max_hp=300, level=13),
+            grids,
+            breeders,
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            turn=turn,
+            width=30,
+            height=30,
+        )
+
+    def test_incident_weak_breeders_make_ordinary_progress(self):
+        snapshot = self._weak_breeder_incident_snapshot()
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_explore_step", return_value=Position(10, 11)
+        ):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("6", "explore"))
+        self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
+        self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+    def test_only_path_blocking_weak_breeder_is_attacked(self):
+        snapshot = self._weak_breeder_incident_snapshot(blocking=True)
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_explore_step", return_value=Position(10, 11)
+        ):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("6", "explore"))
+        self.assertNotEqual(key, "8")
+
+    def test_strong_multiplied_breeders_keep_existing_breakthrough(self):
+        snapshot = self._weak_breeder_incident_snapshot()
+        strong = [
+            replace(monster, max_melee_damage=15)
+            for monster in snapshot.visible_monsters
+        ]
+        snapshot = replace(snapshot, visible_monsters=strong)
+        policy = HengbotPolicy()
+        policy._choke_hold_floor = snapshot.floor_key
+        policy._choke_hold_start_breeders = len(strong) - 1
+
+        self.assertEqual(
+            policy._breeder_breakthrough_key(snapshot, policy._hostiles(snapshot)),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:upstairs-not-found"
+        )
+
+    def test_weak_breeder_replay_does_not_drain_disengage_allowance(self):
+        policy = HengbotPolicy()
+        base = self._weak_breeder_incident_snapshot()
+        policy._fruitless_disengage_floor = base.floor_key
+        policy._fruitless_disengage_decisions = 99
+        reasons = []
+
+        with patch.object(
+            policy, "_explore_step", return_value=Position(10, 11)
+        ):
+            for turn in range(1, 7):
+                key = policy.choose_key(replace(base, turn=turn))
+                reasons.append(policy.last_reason)
+                self.assertNotEqual(key, WAIT_KEY)
+
+        self.assertEqual(policy._fruitless_disengage_decisions, 0)
+        self.assertTrue(
+            all(
+                reason == "explore" or reason == "breakout"
+                for reason in reasons
+            )
+        )
+        self.assertNotIn("combat:fruitless", reasons)
 
     def test_open_melee_swarm_repositions_to_corridor_choke(self):
         snapshot = self._mouse_swarm_snapshot(adjacent=True)
@@ -638,7 +747,7 @@ class CombatTest(unittest.TestCase):
             "4",
         )
 
-    def test_low_hp_declared_walkout_attacks_mouse_blocking_known_stairs(self):
+    def test_low_hp_weak_breeder_does_not_preserve_declared_walkout(self):
         mouse = hostile(
             1, 10, 9, hp=6, max_hp=6, distance=1, can_multiply=True,
             max_melee_damage=2,
@@ -671,9 +780,9 @@ class CombatTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual((key, policy.last_reason), (
-            "4", "combat:disengage-clear-path",
-        ))
+        self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
+        self.assertNotEqual(policy.last_reason, "combat:fruitless")
+        self.assertIsNone(policy._fruitless_disengage_floor)
 
     def test_escape_reroutes_around_dangerous_fast_blocker(self):
         blocker = hostile(
@@ -797,7 +906,7 @@ class CombatTest(unittest.TestCase):
                 )
             return Snapshot(
                 player(
-                    position.y, position.x, hp=205, max_hp=205, level=10,
+                    position.y, position.x, hp=205, max_hp=20, level=10,
                     class_id=PLAYER_CLASS_WARRIOR,
                     main_hand_blows=2, main_hand_to_d=5,
                 ),
@@ -974,7 +1083,20 @@ class CombatTest(unittest.TestCase):
                 snapshot = parse_snapshot(
                     json.loads(capture.read_text(encoding="utf-8")), knowledge
                 )
-                snapshot = replace(snapshot, inventory=[])
+                snapshot = replace(
+                    snapshot,
+                    inventory=[],
+                    visible_monsters=[
+                        replace(
+                            monster,
+                            max_melee_damage=max(
+                                monster.max_melee_damage,
+                                snapshot.player.max_hp * 0.05,
+                            ),
+                        )
+                        for monster in snapshot.visible_monsters
+                    ],
+                )
                 policy = HengbotPolicy(monrace_knowledge=knowledge)
                 policy._fundraising_mode = "mine"
                 policy._grid_memory_region = (
@@ -1091,11 +1213,25 @@ class CombatTest(unittest.TestCase):
             self.skipTest("real breakthrough incident captures are not available")
         knowledge = load_monrace_knowledge(monraces)
         snapshots = [
-            replace(
+            (
+                lambda snapshot: replace(
+                    snapshot,
+                    inventory=[],
+                    visible_monsters=[
+                        replace(
+                            monster,
+                            max_melee_damage=max(
+                                monster.max_melee_damage,
+                                snapshot.player.max_hp * 0.05,
+                            ),
+                        )
+                        for monster in snapshot.visible_monsters
+                    ],
+                )
+            )(
                 parse_snapshot(
                     json.loads(capture.read_text(encoding="utf-8")), knowledge
-                ),
-                inventory=[],
+                )
             )
             for capture in captures
         ]
@@ -4092,7 +4228,10 @@ class ReturnToTownTest(unittest.TestCase):
 
     def test_fruitless_counter_decays_without_rewriting_escape_budget(self):
         snapshot = self._exit_owner_snapshot(10)
-        breeder = hostile(1, 10, 12, distance=2, can_multiply=True)
+        breeder = hostile(
+            1, 10, 12, distance=2, can_multiply=True,
+            max_melee_damage=5,
+        )
         fighting = replace(snapshot, visible_monsters=[breeder])
         policy = self._prepare_exit_owner_policy(fighting)
         policy._escape_state.budgets["fruitless-disengage"] = 37
@@ -14005,7 +14144,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(second), "rt")
         self.assertTrue(pol._returning_to_town)
 
-    def test_material_threat_after_teleport_starts_return(self):
+    def test_weak_breeder_after_teleport_does_not_start_return(self):
         monster = hostile(1, 10, 11, max_melee_damage=20)
         pol = HengbotPolicy()
         first = self._line_snapshot(
@@ -14029,7 +14168,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             ],
         )
         self.assertNotEqual(pol.choose_key(landing), "rr")
-        self.assertEqual(pol._last_return_trigger, "emergency-material-threat")
+        self.assertIsNone(pol._last_return_trigger)
 
 
 class SummonerMeleeTest(unittest.TestCase):
@@ -17647,7 +17786,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 approaching_grids[monster.position], has_monster=True
             )
         approaching = Snapshot(
-            player(10, 10, hp=172, max_hp=172, level=10,
+            player(10, 10, hp=172, max_hp=20, level=10,
                    class_id=PLAYER_CLASS_WARRIOR),
             approaching_grids,
             approaching_monsters,
@@ -17787,7 +17926,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 10,
                 10,
                 hp=189,
-                max_hp=189,
+                max_hp=20,
                 class_id=PLAYER_CLASS_WARRIOR,
             ),
             grids,
@@ -18751,7 +18890,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "4")
         self.assertEqual(policy.last_reason, "fundraise:seek-treasure")
 
-    def test_mining_eliminates_a_visible_multiplier_before_treasure(self):
+    def test_mining_does_not_ignore_a_visible_strong_multiplier(self):
         grids = {
             Position(10, 8): grid(10, 8, gold=True),
             Position(10, 9): grid(10, 9),
@@ -18762,7 +18901,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             grids,
-            [hostile(1, 10, 12, distance=2, can_multiply=True)],
+            [
+                hostile(
+                    1, 10, 12, distance=2, can_multiply=True,
+                    max_melee_damage=5,
+                )
+            ],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=self._strict_supplies(recall=0, detection=1),
             equipment=[
@@ -18774,24 +18918,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._fundraising_mode = "mine"
         policy._mining_scroll_used_floor = snap.floor_key
 
-        self.assertEqual(policy.choose_key(snap), "6")
-        self.assertEqual(policy.last_reason, "fundraise:eliminate-multiplier")
-
-        hidden_snap = Snapshot(
-            player(10, 11, class_id=PLAYER_CLASS_WARRIOR),
-            {
-                position: replace(cell, has_monster=False, monster_index=0)
-                for position, cell in grids.items()
-            },
-            [],
-            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
-            inventory=snap.inventory,
-            equipment=snap.equipment,
-        )
-        self.assertEqual(policy.choose_key(hidden_snap), "6", policy.last_reason)
-        self.assertEqual(
-            policy.last_reason, "fundraise:eliminate-multiplier-last-seen"
-        )
+        self.assertEqual(policy.choose_key(snap), "4")
+        self.assertEqual(policy.last_reason, "threat:reposition")
 
     def _latched_mining_breeder(self):
         grids = {
@@ -18801,7 +18929,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             Position(10, 11): grid(10, 11),
             Position(10, 12): grid(10, 12, monster=True),
         }
-        breeder = hostile(1, 10, 12, distance=2, can_multiply=True)
+        breeder = hostile(
+            1, 10, 12, distance=2, can_multiply=True,
+            max_melee_damage=9,
+        )
         snapshot = Snapshot(
             player(
                 10,
@@ -27454,7 +27585,9 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             monster_hp=20,
             blow_sides=0,
         )
-        monster = replace(monster, can_multiply=True)
+        monster = replace(
+            monster, can_multiply=True, max_melee_damage=10
+        )
         weaker = replace(
             monster, index=2, hp=5, max_hp=20, can_multiply=True
         )
@@ -27528,13 +27661,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             self.assertEqual(policy.choose_key(snapshot), "rt")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
-    def test_breeder_containment_disengages_before_multiplier_loop_guard(self):
-        # Live 2026-07-24 loop: a full-HP warrior surrounded by ~44 giant white
-        # lice (harmless multipliers) never tripped the damage-gated swarm flee
-        # and melee could not out-pace their breeding, so cli's multiplier-combat
-        # loop guard hard-stopped the bot.  The graceful breeder disengage must
-        # arm BEFORE that guard fires, i.e. within MULTIPLIER_COMBAT_LOOP_WINDOW
-        # continuous breeder-visible decisions.
+    def test_weak_breeder_containment_never_arms_disengage(self):
         from hengbot.cli import MULTIPLIER_COMBAT_LOOP_WINDOW
 
         snapshot, monster, knowledge = self._snapshot(
@@ -27548,18 +27675,12 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
-        armed_at = None
-        for i in range(1, MULTIPLIER_COMBAT_LOOP_WINDOW + 1):
+        for _ in range(MULTIPLIER_COMBAT_LOOP_WINDOW + 1):
             policy._update_combat_outcome(snapshot)
-            if not policy._combat_fruitful:
-                armed_at = i
-                break
 
-        self.assertIsNotNone(
-            armed_at, "breeder disengage never armed before the loop guard"
-        )
-        self.assertLess(armed_at, MULTIPLIER_COMBAT_LOOP_WINDOW)
-        self.assertTrue(policy._returning_to_town)
+        self.assertTrue(policy._combat_fruitful)
+        self.assertIsNone(policy._fruitless_disengage_floor)
+        self.assertFalse(policy._returning_to_town)
 
     def test_does_not_disengage_from_current_objective_guardian(self):
         snapshot, monster, knowledge = self._snapshot(
