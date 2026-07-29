@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from hengbot.quest_knowledge import (
     find_quest_definitions,
     load_quest_knowledge,
 )
+from hengbot.monrace_knowledge import _strip_jsonc
 
 
 class QuestKnowledgeTest(unittest.TestCase):
@@ -44,6 +46,56 @@ class QuestKnowledgeTest(unittest.TestCase):
             info = load_quest_knowledge(Path(directory))[1]
         self.assertEqual((info.name, info.name_en, info.type, info.level, info.flags), ("Japanese name", "Thieves Hideout", 6, 5, 6))
         self.assertEqual((info.monrace_id, info.reward_artifact_ids), (44, (42, 43)))
+
+    def test_real_migrated_quests_load_legend_rosters_and_battlefields(self):
+        quest_dir = Path(r"C:\hengband\lib\edit\quests")
+        if not quest_dir.is_dir():
+            self.skipTest("real migrated Hengband quest data is not available")
+
+        loaded = load_quest_knowledge(quest_dir)
+        allowlist = {1, 2, 14, 18, 22, 25, 28, 31, 34}
+        self.assertTrue(allowlist <= loaded.keys())
+        self.assertEqual(loaded[1].placed_monsters, ((44, 2), (150, 2)))
+
+        for quest_id in sorted(allowlist):
+            path = next(quest_dir.glob(f"{quest_id:03d}_*.jsonc"))
+            data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
+            legend = data.get("legend", {})
+            monster_glyphs = {
+                glyph for glyph, entry in legend.items()
+                if isinstance(entry, dict) and int(entry.get("monster", 0) or 0) > 0
+            }
+            if monster_glyphs:
+                self.assertTrue(loaded[quest_id].placed_monsters, path.name)
+            if data.get("map"):
+                self.assertIsNotNone(loaded[quest_id].battlefield, path.name)
+
+    def test_legacy_map_roster_and_battlefield_still_parse(self):
+        text = (
+            "F:a:FLOOR:ROOM:44:0:0:0:0:0\n"
+            "F:b:FLOOR:ROOM:150:0:0:0:0:0\n"
+            "Q:1:N:Thieves Hideout\n"
+            "Q:1:Q:6:0:0:0:5:0:0:0:6\n"
+            "D:XabX\n"
+            "D:X<aX\n"
+            "P:1:1\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "QuestDefinitionList.txt"
+            quests = path.parent / "quests"
+            quests.mkdir()
+            path.write_text("", encoding="utf-8")
+            (quests / "001_ThievesHideout.txt").write_text(text, encoding="utf-8")
+            info = load_quest_knowledge(path)[1]
+
+        self.assertEqual(info.placed_monsters, ((44, 2), (150, 1)))
+        self.assertIsNotNone(info.battlefield)
+        self.assertEqual(info.battlefield.player_start, (1, 1))
+        self.assertEqual(info.battlefield.entrance, (1, 1))
+        self.assertEqual(
+            info.battlefield.monster_placements,
+            (((0, 1), 44), ((0, 2), 150), ((1, 2), 44)),
+        )
 
     def test_legacy_short_q_line_defaults_flags_to_zero(self):
         text = "Q:8:N:Quest eight\nQ:8:Q:6:0:0:0:10:0:0:2\n"

@@ -305,6 +305,7 @@ def _json_quest(path: Path) -> QuestInfo:
         artifacts = [reward["artifact"]]
     artifact_ids = tuple(int(value) for value in artifacts)
     roster = _json_placed_monsters(data)
+    battlefield = _json_battlefield(data)
     return QuestInfo(
         id=quest_id,
         name=name,
@@ -322,6 +323,7 @@ def _json_quest(path: Path) -> QuestInfo:
         reward_artifact_ids=artifact_ids,
         reward_baseitem_id=int(reward.get("baseitemId", 0) or 0),
         placed_monsters=tuple(sorted(roster.items())),
+        battlefield=battlefield,
     )
 
 
@@ -360,7 +362,69 @@ def _json_placed_monsters(data: dict[str, Any]) -> Counter[int]:
             visit(child, in_map=in_map or key in map_keys)
 
     visit(data)
+    legend = data.get("legend")
+    rows = data.get("map")
+    if isinstance(legend, dict) and isinstance(rows, list):
+        for glyph, entry in legend.items():
+            if not isinstance(glyph, str) or len(glyph) != 1 or not isinstance(entry, dict):
+                continue
+            try:
+                r_idx = int(entry.get("monster", 0))
+            except (TypeError, ValueError):
+                continue
+            if r_idx > 0:
+                roster[r_idx] += sum(
+                    row.count(glyph) for row in rows if isinstance(row, str)
+                )
     return roster
+
+
+def _json_battlefield(data: dict[str, Any]) -> QuestBattlefield | None:
+    legend = data.get("legend")
+    raw_rows = data.get("map")
+    if not isinstance(legend, dict) or not isinstance(raw_rows, list):
+        return None
+    rows = [row for row in raw_rows if isinstance(row, str)]
+    if not rows:
+        return None
+
+    features = {
+        "X": "PERMANENT", ".": "FLOOR", "D": "CLOSED_DOOR",
+        "<": "UP_STAIR", "%": "GRANITE", "T": "TREE",
+    }
+    reward_glyphs: set[str] = set()
+    monster_glyphs: dict[str, int] = {}
+    for glyph, entry in legend.items():
+        if not isinstance(glyph, str) or len(glyph) != 1 or not isinstance(entry, dict):
+            continue
+        terrain = entry.get("terrain")
+        if isinstance(terrain, str):
+            features[glyph] = terrain
+        try:
+            r_idx = int(entry.get("monster", 0))
+        except (TypeError, ValueError):
+            r_idx = 0
+        if r_idx > 0:
+            monster_glyphs[glyph] = r_idx
+        if "object" in entry:
+            reward_glyphs.add(glyph)
+
+    placements = [
+        ((y, x), monster_glyphs[glyph])
+        for y, row in enumerate(rows)
+        for x, glyph in enumerate(row)
+        if glyph in monster_glyphs
+    ]
+    raw_start = data.get("start")
+    player_start: tuple[int, int] | None = None
+    if isinstance(raw_start, dict):
+        try:
+            player_start = (int(raw_start["y"]), int(raw_start["x"]))
+        except (KeyError, TypeError, ValueError):
+            pass
+    return _legacy_battlefield(
+        rows, features, placements, player_start, reward_glyphs
+    )
 
 
 def load_quest_knowledge(path: Path) -> dict[int, QuestInfo]:
