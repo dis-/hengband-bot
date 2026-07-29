@@ -20408,6 +20408,9 @@ class HengbotPolicy:
             self._breeder_engagement_score = max(
                 0, self._breeder_engagement_score - 4
             )
+            self._fruitless_disengage_decisions = max(
+                0, self._fruitless_disengage_decisions - 4
+            )
         if self._breeder_engagement_score >= BREEDER_CONTAINMENT_WINDOW:
             self._combat_fruitful = False
             if self._fruitless_disengage_floor != snapshot.floor_key:

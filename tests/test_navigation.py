@@ -1007,6 +1007,76 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "5")
         self.assertEqual(policy.last_reason, "combat:fruitless")
 
+    def test_finished_swarm_allowance_decays_before_fresh_warg_fight(self):
+        base = self._quiet_room()
+        worms = [
+            hostile(
+                index,
+                10,
+                11,
+                can_multiply=True,
+                race_id=79,
+            )
+            for index in range(1, 91)
+        ]
+        swarm = replace(base, visible_monsters=worms)
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = base.floor_key
+
+        for _ in range(FRUITLESS_DISENGAGE_LIMIT - 4):
+            policy.choose_key(swarm)
+            self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+        for _ in range(4):
+            policy.choose_key(base)
+        self.assertLess(
+            policy._fruitless_disengage_decisions,
+            FRUITLESS_DISENGAGE_LIMIT - 4,
+        )
+
+        warg = replace(
+            base,
+            visible_monsters=[hostile(257, 10, 11, race_id=257)],
+        )
+        for _ in range(2):
+            policy.choose_key(warg)
+            self.assertNotEqual(policy.last_reason, "combat:fruitless")
+
+    def test_brief_contact_break_does_not_forgive_nearly_overrun_swarm(self):
+        base = self._quiet_room()
+        worm = hostile(1, 10, 11, can_multiply=True, race_id=79)
+        swarm = replace(base, visible_monsters=[worm])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = base.floor_key
+        policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT - 1
+
+        policy.choose_key(base)
+        policy.choose_key(base)
+
+        decisions = []
+        for _ in range(10):
+            decisions.append(policy.choose_key(swarm))
+            if policy.last_reason == "combat:fruitless":
+                break
+
+        self.assertEqual(decisions[-1], WAIT_KEY)
+        self.assertEqual(policy.last_reason, "combat:fruitless")
+
+    def test_continuous_fruitless_engagement_still_terminates(self):
+        base = self._quiet_room()
+        worm = hostile(1, 10, 11, can_multiply=True, race_id=79)
+        swarm = replace(base, visible_monsters=[worm])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = base.floor_key
+
+        decisions = [
+            policy.choose_key(swarm)
+            for _ in range(FRUITLESS_DISENGAGE_LIMIT + 1)
+        ]
+
+        self.assertEqual(decisions[-1], WAIT_KEY)
+        self.assertEqual(policy.last_reason, "combat:fruitless")
+
     def test_fruitless_swarm_never_abandons_random_quest_floor(self):
         base = self._quiet_room(upstairs=True)
         louse = hostile(1, 10, 11, can_multiply=True)
@@ -1057,7 +1127,7 @@ class NavigationInvariantTest(unittest.TestCase):
 
         self.assertNotEqual(key, "5")
         self.assertFalse(policy.last_reason.startswith("combat:disengage"))
-        self.assertEqual(policy._fruitless_disengage_decisions, 17)
+        self.assertEqual(policy._fruitless_disengage_decisions, 13)
 
     def test_normal_fight_is_unchanged_without_disengage_latch(self):
         base = self._quiet_room()

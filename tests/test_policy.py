@@ -4090,7 +4090,7 @@ class ReturnToTownTest(unittest.TestCase):
             policy._escape_state.decision_token, 1
         )
 
-    def test_fruitless_budget_survives_breeder_los_flicker(self):
+    def test_fruitless_counter_decays_without_rewriting_escape_budget(self):
         snapshot = self._exit_owner_snapshot(10)
         breeder = hostile(1, 10, 12, distance=2, can_multiply=True)
         fighting = replace(snapshot, visible_monsters=[breeder])
@@ -4108,7 +4108,7 @@ class ReturnToTownTest(unittest.TestCase):
         )
         policy._update_combat_outcome(replace(fighting, turn=3))
 
-        self.assertEqual(policy._fruitless_disengage_decisions, 37)
+        self.assertEqual(policy._fruitless_disengage_decisions, 33)
         self.assertEqual(
             policy._escape_state.budgets["fruitless-disengage"], 37
         )
