@@ -491,6 +491,13 @@ class DescentTargetExpiryTest(unittest.TestCase):
 
 
 class NavigationInvariantTest(unittest.TestCase):
+    GIVEUP_CAPTURE = (
+        Path(__file__).parents[1]
+        / "incident-captures"
+        / "20260730-0257-exploration-giveup"
+        / "giveup-turn437868.jsonl"
+    )
+
     def _quiet_room(self, *, upstairs=False, inventory=()):
         grids = {
             Position(10, 10): grid(10, 10),
@@ -1318,6 +1325,102 @@ class NavigationInvariantTest(unittest.TestCase):
                     break
             self.assertEqual(policy.last_reason, "livelock:exhausted")
             self.assertEqual(key, WAIT_KEY)
+
+    def test_real_exploration_giveup_relocates_to_western_window_edge(self):
+        row = json.loads(
+            next(
+                line
+                for line in self.GIVEUP_CAPTURE.read_text(
+                    encoding="utf-8-sig"
+                ).splitlines()
+                if line.strip()
+            )
+        )
+        snapshot = parse_snapshot(row)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._nav_exhausted = True
+        policy._window_edge_fallback_pending = True
+
+        key = policy.choose_key(snapshot)
+
+        reachable_edges = {
+            Position(y, x)
+            for y, x in (
+                (11, 67), (12, 68), (13, 75), (16, 66), (16, 75),
+                (20, 71), (21, 73), (22, 73), (23, 73), (24, 73),
+                (25, 73), (26, 75), (27, 73), (27, 75),
+            )
+        }
+        self.assertEqual(policy.last_reason, "livelock:seek-window-edge")
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertIn(policy._explore_path[-1], reachable_edges)
+        self.assertLess(policy._explore_path[-1].x, snapshot.player.position.x)
+
+    def test_window_edge_replay_reaches_new_coverage_and_resets_stall(self):
+        row = json.loads(
+            next(
+                line
+                for line in self.GIVEUP_CAPTURE.read_text(
+                    encoding="utf-8-sig"
+                ).splitlines()
+                if line.strip()
+            )
+        )
+        snapshot = parse_snapshot(row)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._nav_exhausted = True
+        policy._window_edge_fallback_pending = True
+        policy.choose_key(snapshot)
+        route = list(policy._explore_path)
+        goal = route[-1]
+
+        for position in route:
+            moved = replace(
+                snapshot,
+                player=replace(snapshot.player, position=position),
+            )
+            policy.choose_key(moved)
+
+        shifted_grids = dict(snapshot.grids)
+        shifted_grids[Position(goal.y, goal.x - 1)] = grid(
+            goal.y, goal.x - 1
+        )
+        shifted = replace(
+            snapshot,
+            player=replace(snapshot.player, position=goal),
+            grids=shifted_grids,
+        )
+        policy._nav_stall_count = NAV_NO_PROGRESS_LIMIT - 1
+        policy.choose_key(shifted)
+
+        self.assertEqual(goal, Position(16, 66))
+        self.assertEqual(policy._nav_stall_count, 0)
+        self.assertFalse(policy._nav_exhausted)
+        self.assertIn((goal.y, goal.x - 1), policy._remembered_known_t)
+
+    def test_enclosed_window_edge_goals_are_deduplicated_then_terminal(self):
+        snapshot = self._quiet_room()
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._nav_exhausted = True
+        policy._window_edge_fallback_pending = True
+        policy.choose_key(snapshot)
+        first_goal = next(iter(policy._window_edge_goals))
+
+        policy._window_edge_goals.update(
+            position
+            for position, cell in snapshot.grids.items()
+            if cell.passable
+        )
+        policy._nav_exhausted = True
+        policy._window_edge_fallback_pending = True
+        key = policy.choose_key(snapshot)
+
+        self.assertIn(first_goal, policy._window_edge_goals)
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
 
 
 class StarvationStopTest(unittest.TestCase):

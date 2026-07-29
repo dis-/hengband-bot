@@ -1498,6 +1498,9 @@ class HengbotPolicy:
         self._remembered_rubble_t: set[tuple[int, int]] = set()
         self._remembered_wall_t: set[tuple[int, int]] = set()
         self._remembered_known_t: set[tuple[int, int]] = set()
+        self._emitted_t: set[tuple[int, int]] = set()
+        self._window_edge_goals: set[Position] = set()
+        self._window_edge_fallback_pending = False
         self._remembered_downstairs: set[Position] = set()
         self._remembered_upstairs: set[Position] = set()
         # A stair command is verified by the following snapshot. Hengband rejects
@@ -1935,6 +1938,10 @@ class HengbotPolicy:
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
         latest_snapshot = snapshot
+        self._emitted_t = {
+            (position.y, position.x)
+            for position in getattr(snapshot, "grids", {})
+        }
         snapshot = self._with_grid_memory(snapshot)
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
@@ -4222,6 +4229,8 @@ class HengbotPolicy:
             self._recent.clear()
             self._osc_positions.clear()
             self._explore_path = []
+            self._window_edge_goals.clear()
+            self._window_edge_fallback_pending = False
             self._engagement_avoid_cells.clear()
             self._probe_counts.clear()
             self._floor_trap_disarm_attempts.clear()
@@ -20276,6 +20285,17 @@ class HengbotPolicy:
         """
         if not self._nav_exhausted or snapshot.in_town:
             return None
+        if self._window_edge_fallback_pending:
+            self._window_edge_fallback_pending = False
+            edge_path = self._window_edge_relocation_path(snapshot)
+            if edge_path:
+                self._window_edge_goals.add(edge_path[-1])
+                self._explore_path = edge_path[1:]
+                self._nav_stall_count = 0
+                self._nav_exhausted = False
+                self._nav_escape_steps = 0
+                self.last_reason = "livelock:seek-window-edge"
+                return self._step_toward(snapshot, edge_path[0])
         player = snapshot.player
         if player.recalling:
             # The countdown will end the floor by itself; stand down.
@@ -20319,6 +20339,89 @@ class HengbotPolicy:
                 return READ_KEY + teleport.slot
         self.last_reason = "livelock:exhausted"
         return WAIT_KEY
+
+    def _window_edge_relocation_path(
+        self, snapshot: Snapshot
+    ) -> list[Position]:
+        """BFS to one untried walkable boundary cell of the current emission."""
+        if not self._emitted_t:
+            return []
+        min_y = min(y for y, _ in self._emitted_t)
+        max_y = max(y for y, _ in self._emitted_t)
+        min_x = min(x for _, x in self._emitted_t)
+        max_x = max(x for _, x in self._emitted_t)
+        extents = {
+            (-1, 0): min_y,
+            (1, 0): max(0, snapshot.height - 1 - max_y),
+            (0, -1): min_x,
+            (0, 1): max(0, snapshot.width - 1 - max_x),
+        }
+        start = snapshot.player.position
+        queue: deque[Position] = deque([start])
+        parent: dict[Position, Position | None] = {start: None}
+        distance = {start: 0}
+        while queue:
+            position = queue.popleft()
+            for neighbor in self._walkable_neighbors(
+                snapshot, position, allow_damaging=False
+            ):
+                if (
+                    neighbor in parent
+                    or neighbor in self._engagement_avoid_cells
+                ):
+                    continue
+                parent[neighbor] = position
+                distance[neighbor] = distance[position] + 1
+                queue.append(neighbor)
+
+        ranked: list[tuple[tuple[int, int, int, int, int], Position]] = []
+        for y, x in self._emitted_t:
+            goal = Position(y, x)
+            if (
+                goal == start
+                or goal not in parent
+                or goal in self._window_edge_goals
+                or (y, x) not in self._floor_t
+            ):
+                continue
+            outward = [
+                (dy, dx)
+                for dy, dx in extents
+                if snapshot.in_bounds(Position(y + dy, x + dx))
+                and (y + dy, x + dx) not in self._emitted_t
+            ]
+            if not outward:
+                continue
+            direction = max(
+                outward,
+                key=lambda offset: (
+                    extents[offset],
+                    (y - start.y) * offset[0]
+                    + (x - start.x) * offset[1],
+                ),
+            )
+            displacement = (
+                (y - start.y) * direction[0]
+                + (x - start.x) * direction[1]
+            )
+            score = (
+                extents[direction],
+                displacement,
+                -distance[goal],
+                -y,
+                -x,
+            )
+            ranked.append((score, goal))
+        if not ranked:
+            return []
+        goal = max(ranked)[1]
+        path: list[Position] = []
+        node: Position | None = goal
+        while node is not None and node != start:
+            path.append(node)
+            node = parent[node]
+        path.reverse()
+        return path
 
     def _bound_escape_wait(self, snapshot: Snapshot, key: str) -> str:
         """Let registered escape WAITs spend their policy budget, then stop.
@@ -20412,6 +20515,7 @@ class HengbotPolicy:
         self._nav_stall_count += 1
         if self._nav_stall_count >= NAV_NO_PROGRESS_LIMIT:
             self._nav_exhausted = True
+            self._window_edge_fallback_pending = True
 
     def _update_combat_outcome(self, snapshot: Snapshot) -> None:
         """Mark a combat streak fruitless when its full window has no outcome."""
