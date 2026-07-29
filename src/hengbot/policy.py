@@ -1442,6 +1442,8 @@ class HengbotPolicy:
         self._town_travel_fallback: Position | None = None
         self._town_hunt_target: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
+        self._mining_combat_contact_streak = 0
+        self._mining_threat_free_streak = 0
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
         # weapon). The pre-recall weapon check blocks a dive until this clears (weapon
         # re-armed) or hits WEAPON_BLOCK_LIMIT (own no weapon → dive anyway).
@@ -2533,6 +2535,7 @@ class HengbotPolicy:
         player = snapshot.player
         hostiles = self._hostiles(snapshot)
         adjacent = self._adjacent_hostiles(snapshot)
+        self._update_mining_combat_streaks(snapshot, hostiles, adjacent)
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
 
         self._latch_unviable_quest_return(snapshot, hostiles)
@@ -2662,7 +2665,9 @@ class HengbotPolicy:
 
         # A fruitless breeder engagement latches this floor visit. Keep this
         # ahead of ordinary combat so the same cluster cannot pull us back in.
-        disengage = self._fruitless_disengage_key(snapshot, hostiles)
+        disengage = None
+        if not self._productive_choke_hold(snapshot):
+            disengage = self._fruitless_disengage_key(snapshot, hostiles)
         if disengage is not None:
             return disengage
         if self._escape_state.owner == "disengage":
@@ -14686,19 +14691,51 @@ class HengbotPolicy:
             or snapshot.dungeon_level != 1
         ):
             return None
+        active_adjacent = [
+            monster for monster in hostiles
+            if monster.distance <= 1 and not monster.asleep
+        ]
         if self._equipped_digging_tool(snapshot) is not None:
-            adjacent = [monster for monster in hostiles if monster.distance <= 1]
-            ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
+            ranged = self._ranged_attack_key(snapshot, hostiles, active_adjacent)
             if ranged is not None:
                 return ranged
-        if not hostiles:
+        if (
+            not active_adjacent
+            or self._mining_combat_contact_streak < DIGGER_WIELD_LIMIT
+        ):
             return None
         restore = self._restore_mining_combat_hand_key(
-            snapshot, "fundraise:wield-combat-weapon"
+            snapshot, "melee:restore-weapon"
         )
         if restore is not None:
             return restore
         return None
+
+    def _update_mining_combat_streaks(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> None:
+        """Advance mining re-arm hysteresis exactly once per decision."""
+        mining = (
+            self._fundraising_mode in {"mine", "scavenge"}
+            and snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
+            and snapshot.dungeon_level == 1
+        )
+        if not mining:
+            self._mining_combat_contact_streak = 0
+            self._mining_threat_free_streak = 0
+            return
+        if any(not monster.asleep for monster in adjacent):
+            self._mining_combat_contact_streak += 1
+            self._mining_threat_free_streak = 0
+        elif not hostiles:
+            self._mining_combat_contact_streak = 0
+            self._mining_threat_free_streak += 1
+        else:
+            self._mining_combat_contact_streak = 0
+            self._mining_threat_free_streak = 0
 
     def _finish_mining_floor(self, snapshot: Snapshot) -> str:
         return self._leave_fundraising_floor(snapshot)
@@ -15406,6 +15443,11 @@ class HengbotPolicy:
             1 for item in snapshot.equipment if item.is_digging_tool
         )
         if equipped_diggers < desired_diggers:
+            # Do not oscillate weapon<->digger around a wandering monster.
+            # Re-enter the mining loadout only after the same bounded quiet
+            # streak used by the wield transaction has elapsed.
+            if self._mining_threat_free_streak < DIGGER_WIELD_LIMIT:
+                return None
             if not self._has_digging_tool(snapshot):
                 self._town_blocked_reason = "digging-tool-lost"
                 self.last_reason = "fundraise:digging-tool-lost"
@@ -20311,7 +20353,8 @@ class HengbotPolicy:
             for monster in snapshot.visible_monsters
             if monster.hostile and monster.can_multiply
         ]
-        if breeders:
+        productive_choke = self._productive_choke_hold(snapshot)
+        if breeders and not productive_choke:
             self._breeder_engagement_score += 1
         else:
             # Brief line-of-sight breaks must not erase a nearly overrun fight,
@@ -20398,6 +20441,25 @@ class HengbotPolicy:
             self._returning_to_town = True
             self.last_reason = "combat:disengage-armed"
 
+    def _productive_choke_hold(self, snapshot: Snapshot) -> bool:
+        """A choke kill is progress and must not arm or dispatch walk-out."""
+        if (
+            not self.last_reason.startswith("melee:choke")
+            or self._open_neighbor_count(snapshot, snapshot.player.position)
+            > SUMMONER_CHOKE_NEIGHBORS - 1
+            or not self._combat_outcomes
+            or snapshot.floor_key != self._combat_outcome_floor
+        ):
+            return False
+        previous = self._combat_outcomes[-1]
+        # Visibility churn is not a kill: rear breeders routinely move behind
+        # walls at a corridor mouth.  Use only engine-backed reward progress so
+        # a kill-less shuffling swarm still reaches the bounded walk-out.
+        return bool(
+            snapshot.player.exp > previous[0]
+            or snapshot.player.gold > previous[1]
+        )
+
     def _disengage_move_or_escalate(
         self,
         snapshot: Snapshot,
@@ -20440,6 +20502,12 @@ class HengbotPolicy:
         if stairs is not None:
             self.last_reason = "combat:disengage-stairs"
             return stairs
+        blocker = self._blocking_escape_melee_key(
+            snapshot, hostiles, self._is_upstairs_target
+        )
+        if blocker is not None:
+            self.last_reason = "combat:disengage-clear-path"
+            return blocker
         # No stairs underfoot: route toward the nearest known up-stairs to leave
         # the floor entirely. The player outruns a speed-100 breeder swarm, so
         # reaching the stairs breaks contact where circling the same room never
@@ -22160,8 +22228,7 @@ class HengbotPolicy:
     ) -> str | None:
         """Order ranged repelling, re-arming, and choke combat for melee swarms."""
         melee_hostiles = [
-            monster for monster in hostiles
-            if monster.max_ranged_damage <= 0 and not monster.asleep
+            monster for monster in hostiles if monster.max_ranged_damage <= 0
         ]
         swarm = len(melee_hostiles) >= 2
         mining = (
@@ -22181,16 +22248,19 @@ class HengbotPolicy:
             return None
         # A ranged member can attack through the queue, so preserve the old
         # flee/disengage behavior rather than treating this as a safe choke.
-        if swarm and len(melee_hostiles) != len(hostiles):
+        if swarm and any(monster.max_ranged_damage > 0 for monster in hostiles):
             return None
 
         if not adjacent:
             ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
             if ranged is not None:
                 return ranged
-        elif self._equipped_digging_tool(snapshot) is not None:
+        if (
+            self._mining_combat_contact_streak >= DIGGER_WIELD_LIMIT
+            and self._equipped_digging_tool(snapshot) is not None
+        ):
             restore = self._restore_mining_combat_hand_key(
-                snapshot, "combat:restore-main-weapon"
+                snapshot, "melee:restore-weapon"
             )
             if restore is not None:
                 return restore
@@ -22209,16 +22279,16 @@ class HengbotPolicy:
         if openness > SUMMONER_CHOKE_NEIGHBORS - 1:
             step = self._summoner_retreat_step(snapshot, melee_hostiles, hostiles)
             if step is not None:
-                self.last_reason = "combat:choke-reposition"
+                self.last_reason = "melee:choke"
                 return self._step_toward(snapshot, step)
 
         if openness <= SUMMONER_CHOKE_NEIGHBORS - 1:
             if adjacent and not snapshot.player.afraid:
-                self.last_reason = "combat:choke-melee"
+                self.last_reason = "melee:choke"
                 return self._direction_key(
                     snapshot.player.position, self._weakest(adjacent).position
                 )
-            self.last_reason = "combat:choke-hold"
+            self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
 
@@ -22599,16 +22669,26 @@ class HengbotPolicy:
             trap = 1 if (grid and grid.trap) else 0
             return (
                 nearest,
-                -self._open_neighbor_count(snapshot, pos),
                 -trap,
                 -unsafe,
+                -self._open_neighbor_count(snapshot, pos),
                 -self._visit_counts[pos],
             )
 
         return max(candidates, key=score)
 
     def _open_neighbor_count(self, snapshot: Snapshot, position: Position) -> int:
-        return len(self._walkable_neighbors(snapshot, position))
+        # Geometry must not change when a room fills with monsters.  The normal
+        # routing index deliberately removes occupied cells, but choke scoring
+        # is terrain-only.
+        count = 0
+        for dy, dx in NEIGHBOR_OFFSETS:
+            grid = snapshot.grid_at(Position(position.y + dy, position.x + dx))
+            if grid is not None and grid.known and (
+                grid.passable or grid.is_closed_door
+            ):
+                count += 1
+        return count
 
     def _blocking_escape_melee_key(
         self,
@@ -22622,8 +22702,7 @@ class HengbotPolicy:
             monster for monster in hostiles
             if monster.distance <= 1
             and monster.max_ranged_damage <= 0
-            and monster.max_hp <= max(1, player.max_hp)
-            and monster.max_melee_damage < player.hp
+            and self._escape_blocker_is_easy_kill(snapshot, hostiles, monster)
         ]
         best: tuple[int, MonsterState] | None = None
         for monster in candidates:
@@ -22654,6 +22733,32 @@ class HengbotPolicy:
         if best is None:
             return None
         return self._direction_key(player.position, best[1].position)
+
+    def _escape_blocker_is_easy_kill(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        monster: MonsterState,
+    ) -> bool:
+        """Use the combat projection, not monster size, to approve a bump."""
+        weapon = next(
+            (
+                item for item in snapshot.equipment
+                if item.slot == "main_hand"
+                and (item.is_melee_weapon or item.is_digging_tool)
+            ),
+            None,
+        )
+        if weapon is None or snapshot.player.main_hand_blows <= 0:
+            return False
+        damage = self._main_hand_dps(snapshot, weapon)
+        if damage <= 0:
+            return False
+        turns = max(1, ceil(monster.hp / damage))
+        incoming = self.threat_prediction(
+            snapshot, hostiles, turns=turns
+        )["operational_total"]
+        return incoming < snapshot.player.hp
 
     def _summoner_retreat_step(
         self,

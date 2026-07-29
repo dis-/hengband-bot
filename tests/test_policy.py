@@ -157,6 +157,7 @@ from hengbot.policy import (
     MINING_RUNS_PER_SET,
     DETECTION_SCROLL_BUFFER,
     BARREN_FLOOR_SKIP_THRESHOLD,
+    BREEDER_CONTAINMENT_WINDOW,
     MINING_ROUTE_REVISIT_LIMIT,
     MINING_NAVIGATION_REVISIT_LIMIT,
     MINING_STALL_LIMIT,
@@ -411,10 +412,17 @@ class CombatTest(unittest.TestCase):
             Position(11, 8): grid(11, 8, passable=False),
         })
         positions = (
-            [(10, 10), (9, 10), (11, 10), (10, 11)]
+            (
+                [(10, 10), (9, 11), (10, 11), (11, 11)]
+                if at_choke
+                else [(10, 10), (9, 10), (11, 10), (10, 11)]
+            )
             if adjacent
             else [(8, 10), (8, 11), (8, 12), (9, 12)]
         )
+        if at_choke:
+            grids[Position(9, 10)] = grid(9, 10, passable=False)
+            grids[Position(11, 10)] = grid(11, 10, passable=False)
         monsters = [
             hostile(
                 index,
@@ -451,7 +459,7 @@ class CombatTest(unittest.TestCase):
             ),
             "4",
         )
-        self.assertEqual(policy.last_reason, "combat:choke-reposition")
+        self.assertEqual(policy.last_reason, "melee:choke")
 
     def test_choke_melees_adjacent_swarm_without_chasing(self):
         snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=True)
@@ -466,7 +474,7 @@ class CombatTest(unittest.TestCase):
             ),
             "6",
         )
-        self.assertEqual(policy.last_reason, "combat:choke-melee")
+        self.assertEqual(policy.last_reason, "melee:choke")
 
     def test_ranged_swarm_bypasses_choke_logic(self):
         snapshot = self._mouse_swarm_snapshot(adjacent=True, ranged=True)
@@ -481,6 +489,27 @@ class CombatTest(unittest.TestCase):
             )
         )
 
+    def test_sleeping_melee_member_does_not_disable_swarm_choke(self):
+        snapshot = self._mouse_swarm_snapshot(adjacent=True)
+        snapshot = replace(
+            snapshot,
+            visible_monsters=[
+                replace(snapshot.visible_monsters[0], asleep=True),
+                *snapshot.visible_monsters[1:],
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertIsNotNone(
+            policy._melee_swarm_combat_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._adjacent_hostiles(snapshot),
+            )
+        )
+        self.assertEqual(policy.last_reason, "melee:choke")
+
     def test_choke_retreat_prefers_covered_corridor(self):
         snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=True)
         policy = HengbotPolicy()
@@ -491,13 +520,38 @@ class CombatTest(unittest.TestCase):
             Position(10, 8),
         )
 
+    def test_flee_avoids_trap_before_preferring_narrow_ground(self):
+        monster = hostile(1, 10, 12, distance=2, max_melee_damage=1)
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9, trap=True),
+                Position(9, 10): grid(9, 10),
+                Position(8, 9): grid(8, 9),
+                Position(8, 10): grid(8, 10),
+                Position(8, 11): grid(8, 11),
+                Position(9, 9): grid(9, 9),
+                Position(9, 11): grid(9, 11),
+            },
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertNotEqual(policy._flee_step(snapshot, [monster]), Position(10, 9))
+
     def test_escape_attacks_weak_mouse_blocking_corridor_to_stairs(self):
         mouse = hostile(
             1, 10, 9, distance=1, can_multiply=True,
             max_hp=10, max_melee_damage=2,
         )
         snapshot = Snapshot(
-            player(10, 10, hp=59, max_hp=172, level=10),
+            player(
+                10, 10, hp=59, max_hp=172, level=10,
+                main_hand_blows=2, main_hand_to_d=5,
+            ),
             {
                 Position(10, 10): grid(10, 10),
                 Position(10, 9): grid(10, 9, monster=True),
@@ -506,6 +560,12 @@ class CombatTest(unittest.TestCase):
             },
             [mouse],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
         )
         policy = HengbotPolicy()
         policy._build_grid_index(snapshot)
@@ -516,6 +576,86 @@ class CombatTest(unittest.TestCase):
             ),
             "4",
         )
+
+    def test_escape_reroutes_around_dangerous_fast_blocker(self):
+        blocker = hostile(
+            1, 10, 9, hp=170, max_hp=170, distance=1, speed=130,
+            max_melee_damage=45,
+        )
+        snapshot = Snapshot(
+            player(
+                10, 10, hp=59, max_hp=172, level=10,
+                main_hand_blows=2, main_hand_to_d=5,
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9, monster=True),
+                Position(10, 8): grid(10, 8),
+                Position(10, 7): grid(10, 7, upstairs=True),
+            },
+            [blocker],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        self.assertIsNone(
+            policy._blocking_escape_melee_key(
+                snapshot, [blocker], policy._is_upstairs_target
+            )
+        )
+
+    def test_productive_choke_hold_survives_long_breeder_window(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        policy = HengbotPolicy()
+
+        for decision in range(45):
+            current = replace(
+                base,
+                player=replace(base.player, exp=decision),
+            )
+            policy.choose_key(current)
+            self.assertTrue(policy.last_reason.startswith("melee:choke"))
+
+        self.assertLess(policy._breeder_engagement_score, 3)
+        self.assertIsNone(policy._fruitless_disengage_floor)
+
+    def test_kill_less_choke_hold_still_arms_walk_out(self):
+        snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        policy = HengbotPolicy()
+
+        for _ in range(BREEDER_CONTAINMENT_WINDOW + 1):
+            policy.choose_key(snapshot)
+            if policy._fruitless_disengage_floor == snapshot.floor_key:
+                break
+
+        self.assertEqual(policy._fruitless_disengage_floor, snapshot.floor_key)
+        self.assertTrue(
+            policy.last_reason.startswith("combat:disengage")
+            or policy.last_reason == "combat:fruitless"
+        )
+
+    def test_visibility_churn_does_not_fake_productive_choke_kills(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        policy = HengbotPolicy()
+
+        for decision in range(BREEDER_CONTAINMENT_WINDOW + 2):
+            visible = (
+                base.visible_monsters[:-1]
+                if decision % 2
+                else base.visible_monsters
+            )
+            policy.choose_key(replace(base, visible_monsters=visible))
+            if policy._fruitless_disengage_floor == base.floor_key:
+                break
+
+        self.assertEqual(policy._fruitless_disengage_floor, base.floor_key)
 
     def test_hunt_approaches_large_pack_when_aggregate_threat_is_immaterial(self):
         monsters = [
@@ -16475,7 +16615,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [approaching],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=[torch, sword],
-            equipment=[shovel, self._lantern()],
+            equipment=[shovel],
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
@@ -16497,13 +16637,170 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ],
         )
         policy._build_grid_index(contact)
+        for _ in range(DIGGER_WIELD_LIMIT - 1):
+            policy._update_mining_combat_streaks(
+                contact, contact.visible_monsters, contact.visible_monsters
+            )
+            self.assertIsNone(
+                policy._melee_swarm_combat_key(
+                    contact, contact.visible_monsters, contact.visible_monsters
+                )
+            )
+        policy._update_mining_combat_streaks(
+            contact, contact.visible_monsters, contact.visible_monsters
+        )
         self.assertEqual(
             policy._melee_swarm_combat_key(
                 contact, contact.visible_monsters, contact.visible_monsters
             ),
             "wsn",
         )
-        self.assertEqual(policy.last_reason, "combat:restore-main-weapon")
+        self.assertEqual(policy.last_reason, "melee:restore-weapon")
+
+    def test_choose_key_orders_throw_restore_then_choke_melee(self):
+        torch = item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
+        sword = item(
+            "s", TVAL_SWORD, 1, name="Broad Sword", is_equipment=True,
+            damage_dice_num=2, damage_dice_sides=5,
+        )
+        shovel = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="shovel", is_equipment=True,
+        )
+        room = {
+            Position(y, x): grid(y, x, lit=True)
+            for y in range(8, 13)
+            for x in range(8, 14)
+        }
+        approaching_monsters = [
+            hostile(
+                index, y, x, distance=Position(10, 10).distance_to(Position(y, x)),
+                can_multiply=True, max_melee_damage=1,
+            )
+            for index, (y, x) in enumerate(
+                [(10, 12), (9, 12), (11, 12), (10, 13)], 1
+            )
+        ]
+        approaching_grids = dict(room)
+        for monster in approaching_monsters:
+            approaching_grids[monster.position] = replace(
+                approaching_grids[monster.position], has_monster=True
+            )
+        approaching = Snapshot(
+            player(10, 10, hp=172, max_hp=172, level=10,
+                   class_id=PLAYER_CLASS_WARRIOR),
+            approaching_grids,
+            approaching_monsters,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[torch, sword],
+            equipment=[shovel, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        probe = HengbotPolicy()
+        probe._fundraising_mode = "mine"
+        probe._build_grid_index(approaching)
+        self.assertEqual(
+            probe._melee_swarm_combat_key(
+                approaching, approaching_monsters, []
+            ),
+            "vt6",
+        )
+        opening_key = policy.choose_key(approaching)
+        self.assertEqual(
+            (opening_key, policy.last_reason),
+            ("vt6", "ranged:throw-torch"),
+        )
+
+        contact_monsters = [
+            replace(monster, distance=1)
+            for monster in approaching_monsters
+        ]
+        contact_monsters[0] = replace(
+            contact_monsters[0], position=Position(10, 11)
+        )
+        contact_grids = dict(room)
+        for monster in contact_monsters:
+            contact_grids[monster.position] = replace(
+                contact_grids[monster.position], has_monster=True
+            )
+        contact = replace(
+            approaching,
+            grids=contact_grids,
+            visible_monsters=contact_monsters,
+        )
+        for decision in range(1, DIGGER_WIELD_LIMIT):
+            policy.choose_key(contact)
+            self.assertNotEqual(policy.last_reason, "melee:restore-weapon")
+            self.assertEqual(policy._mining_combat_contact_streak, decision)
+        self.assertEqual(policy.choose_key(contact), "wsn")
+        self.assertEqual(policy.last_reason, "melee:restore-weapon")
+
+        choke_grids = dict(room)
+        for pos in (
+            Position(9, 9), Position(11, 9),
+            Position(9, 10), Position(11, 10),
+        ):
+            choke_grids[pos] = grid(pos.y, pos.x, passable=False)
+        choke_monsters = [
+            replace(contact_monsters[0], position=Position(10, 8), distance=1),
+            replace(contact_monsters[1], position=Position(9, 11), distance=2),
+            replace(contact_monsters[2], position=Position(10, 11), distance=2),
+            replace(contact_monsters[3], position=Position(11, 11), distance=2),
+        ]
+        for monster in choke_monsters:
+            choke_grids[monster.position] = replace(
+                choke_grids[monster.position], has_monster=True
+            )
+        armed = replace(
+            approaching,
+            player=replace(approaching.player, position=Position(10, 9),
+                           main_hand_blows=2, main_hand_to_d=5),
+            grids=choke_grids,
+            visible_monsters=choke_monsters,
+            inventory=[torch, shovel],
+            equipment=[replace(sword, slot="main_hand")],
+        )
+        policy._recent.clear()
+        policy._osc_positions.clear()
+        policy._last_position = None
+        armed_probe = HengbotPolicy()
+        armed_probe._build_grid_index(armed)
+        self.assertIsNotNone(
+            armed_probe._melee_swarm_combat_key(
+                armed, armed.visible_monsters, [armed.visible_monsters[0]]
+            )
+        )
+        self.assertEqual(armed_probe.last_reason, "melee:choke")
+        policy.choose_key(armed)
+        self.assertEqual(policy.last_reason, "melee:choke")
+
+    def test_sleeping_mouse_does_not_trigger_mining_weapon_restore(self):
+        sword = item("s", TVAL_SWORD, 1, name="Broad Sword", is_equipment=True)
+        shovel = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="shovel", is_equipment=True,
+        )
+        mouse = hostile(1, 10, 11, distance=1, asleep=True)
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            [mouse],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[sword],
+            equipment=[shovel, self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_combat_contact_streak = DIGGER_WIELD_LIMIT
+
+        self.assertIsNone(
+            policy._fundraising_combat_equipment_key(snapshot, [mouse])
+        )
 
 
 
@@ -31779,6 +32076,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
+        pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
         self.assertEqual(pol._fundraising_key(snap, []), "wja")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
         self.assertEqual(pol._normal_weapon_name, "Broad Sword")  # remembered to re-wield
@@ -31801,6 +32099,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
+        pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
         self.assertEqual(pol._fundraising_key(snap, []), "wjn")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
 
@@ -31825,6 +32124,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
+        pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
         keys = [pol._fundraising_key(snap, []) for _ in range(DIGGER_WIELD_LIMIT)]
         self.assertTrue(all(k == "wja" for k in keys[:-1]))  # kept trying, then...
         self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
