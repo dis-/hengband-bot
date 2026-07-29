@@ -22457,44 +22457,51 @@ class HengbotPolicy:
     def _breeder_breakthrough_step(
         self, snapshot: Snapshot
     ) -> Position | None:
-        """Route monotonically upstairs, treating occupied floor as passable."""
+        """Route upstairs on remembered terrain, preferring no retreat."""
         start = snapshot.player.position
         goal = self._nearest_upstairs(snapshot)
         if goal is None:
             return None
-        seen = {start}
-        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
-        while queue:
-            position, first_step = queue.popleft()
-            if position == goal:
-                return first_step
-            for dy, dx in NEIGHBOR_OFFSETS:
-                neighbor = Position(position.y + dy, position.x + dx)
-                if (
-                    neighbor in seen
-                    or neighbor.distance_to(goal) > position.distance_to(goal)
-                ):
-                    continue
-                grid = snapshot.grid_at(neighbor)
-                key = (neighbor.y, neighbor.x)
-                traversable = (
-                    key in self._floor_t
-                    or key in self._door_t
-                    or ((dy == 0 or dx == 0) and key in self._rubble_t)
-                    or (
-                        grid is not None
-                        and grid.known
-                        and grid.has_monster
-                        and grid.enterable
+
+        def route(monotone: bool) -> Position | None:
+            seen = {start}
+            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+            while queue:
+                position, first_step = queue.popleft()
+                if position == goal:
+                    return first_step
+                for dy, dx in NEIGHBOR_OFFSETS:
+                    neighbor = Position(position.y + dy, position.x + dx)
+                    if neighbor in seen or (
+                        monotone
+                        and neighbor.distance_to(goal) > position.distance_to(goal)
+                    ):
+                        continue
+                    grid = snapshot.grid_at(neighbor)
+                    key = (neighbor.y, neighbor.x)
+                    traversable = (
+                        key in self._remembered_floor_t
+                        or key in self._remembered_door_t
+                        or (
+                            (dy == 0 or dx == 0)
+                            and key in self._remembered_rubble_t
+                        )
+                        or (
+                            grid is not None
+                            and grid.known
+                            and grid.has_monster
+                            and grid.enterable
+                        )
                     )
-                )
-                if not traversable:
-                    continue
-                seen.add(neighbor)
-                queue.append(
-                    (neighbor, neighbor if first_step is None else first_step)
-                )
-        return None
+                    if not traversable:
+                        continue
+                    seen.add(neighbor)
+                    queue.append(
+                        (neighbor, neighbor if first_step is None else first_step)
+                    )
+            return None
+
+        return route(monotone=True) or route(monotone=False)
 
     def _remember_swarm_distances(self, snapshot: Snapshot) -> None:
         """Retain one observation so awake monsters moving closer can converge."""

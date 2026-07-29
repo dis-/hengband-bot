@@ -939,6 +939,132 @@ class CombatTest(unittest.TestCase):
                 ))
                 remembered_grids.update(policy._grid_memory)
 
+    def test_breakthrough_retries_with_detour_only_without_monotone_route(self):
+        start = Position(1, 1)
+        upstairs = Position(1, 4)
+        snapshot = Snapshot(
+            player(1, 1),
+            {
+                start: grid(1, 1),
+                upstairs: grid(1, 4, upstairs=True),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy()
+        policy._remembered_floor_t = {
+            (1, 1), (1, 0), (2, 0), (3, 0), (3, 1),
+            (3, 2), (3, 3), (2, 4), (1, 4),
+        }
+
+        detour = policy._breeder_breakthrough_step(snapshot)
+        self.assertIsNotNone(detour)
+        self.assertGreater(
+            detour.distance_to(upstairs), start.distance_to(upstairs)
+        )
+
+        policy._remembered_floor_t.add((1, 2))
+        policy._remembered_floor_t.add((1, 3))
+        self.assertEqual(
+            policy._breeder_breakthrough_step(snapshot), Position(1, 2)
+        )
+
+    def test_incident_breakthrough_replay_uses_chronological_capture_memory(self):
+        captures = [
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260729-1943-breakthrough-oscillation"
+            / "oscillation-turn.jsonl",
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260729-2009-breakthrough-retreat"
+            / "retreat-turn191760.jsonl",
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260729-2038-monotone-deadend"
+            / "deadend.jsonl",
+        ]
+        monraces = Path(
+            r"C:\hengband\.worktrees\bot-json-output\lib\edit"
+            r"\MonraceDefinitions.jsonc"
+        )
+        if (
+            not all(capture.is_file() for capture in captures)
+            or not monraces.is_file()
+        ):
+            self.skipTest("real breakthrough incident captures are not available")
+        knowledge = load_monrace_knowledge(monraces)
+        snapshots = [
+            replace(
+                parse_snapshot(
+                    json.loads(capture.read_text(encoding="utf-8")), knowledge
+                ),
+                inventory=[],
+            )
+            for capture in captures
+        ]
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        policy._fundraising_mode = "mine"
+        for seed_snapshot in snapshots[:2]:
+            policy._observe(seed_snapshot)
+            policy._build_grid_index(seed_snapshot)
+
+        snapshot = snapshots[2]
+        policy._build_grid_index(snapshot)
+        current_window = HengbotPolicy(monrace_knowledge=knowledge)
+        current_window._build_grid_index(snapshot)
+        policy._floor_t = current_window._floor_t
+        policy._door_t = current_window._door_t
+        policy._rubble_t = current_window._rubble_t
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        self.assertIsNotNone(policy._breeder_breakthrough_step(snapshot))
+        offsets = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        upstairs = Position(14, 18)
+        reasons = []
+
+        for _ in range(80):
+            key = policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+            if key == UP_STAIRS_KEY:
+                break
+            self.assertIn(key, offsets)
+            dy, dx = offsets[key]
+            destination = Position(
+                snapshot.player.position.y + dy,
+                snapshot.player.position.x + dx,
+            )
+            destination_grid = snapshot.grid_at(destination)
+            if destination_grid is not None and destination_grid.has_monster:
+                grids = dict(snapshot.grids)
+                grids[destination] = replace(
+                    destination_grid, has_monster=False, monster_index=0
+                )
+                snapshot = replace(
+                    snapshot,
+                    grids=grids,
+                    visible_monsters=[
+                        monster
+                        for monster in snapshot.visible_monsters
+                        if monster.position != destination
+                    ],
+                    turn=snapshot.turn + 1,
+                )
+            else:
+                snapshot = replace(
+                    snapshot,
+                    player=replace(snapshot.player, position=destination),
+                    turn=snapshot.turn + 1,
+                )
+
+        self.assertEqual(snapshot.player.position, upstairs)
+        self.assertEqual(key, UP_STAIRS_KEY)
+        self.assertEqual(reasons[-1], "breeder-breakthrough:ascend")
+        self.assertNotIn("breeder-breakthrough:upstairs-not-found", reasons)
+        self.assertNotIn("no-wait:flee", reasons)
+
     def test_choke_hold_sanction_does_not_mask_ranged_emergency(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
         archer = replace(
