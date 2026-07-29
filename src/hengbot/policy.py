@@ -1636,6 +1636,12 @@ class HengbotPolicy:
         self._escape_speed_attempted = False
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
+        self._unseen_retreat_floor: tuple[int, int, int] | None = None
+        self._unseen_retreat_direction: tuple[int, int] | None = None
+        self._unseen_retreat_target: Position | None = None
+        self._unseen_choke_position: Position | None = None
+        self._unseen_wait_remaining = 0
+        self._unseen_wait_intercepted = False
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
         self._threat_prediction_memo: dict[tuple, dict] = {}
@@ -2583,6 +2589,15 @@ class HengbotPolicy:
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
 
+        unseen_intercept = self._unseen_retreat_intercept_key(
+            snapshot, hostiles, adjacent
+        )
+        if unseen_intercept is not None:
+            return unseen_intercept
+        unseen_retreat = self._unseen_retreat_key(snapshot, hostiles)
+        if unseen_retreat is not None:
+            return unseen_retreat
+
         # Player light radius >= 1 always gives CAVE_LITE to the player's own
         # square (cave-map.cpp update_lite); a non-blind player whose own square
         # is not lit therefore has radius zero. In darkness note_spot records
@@ -3251,37 +3266,6 @@ class HengbotPolicy:
             return RESTOCK_WAIT_MACRO
 
         here = snapshot.grid_at(player.position)
-        # 3b. Losing HP with nothing hostile in view means an attacker we cannot
-        #     see (a monster in the dark, or invisible). Resting or idling here is
-        #     how a full-HP clvl9 Half-Troll bled 187 -> dead to a Draugr it never
-        #     saw. Never rest; keep moving until the damage stops (stepping into
-        #     the unseen attacker attacks it). Lethal observed damage has
-        #     already entered the ordinary emergency ladder above.
-        if (
-            self._took_damage
-            and not hostiles
-            and not player.poisoned
-            and not player.cut
-        ):
-            if here is not None and self._is_upstairs_target(here) and not self._quest_floor_exit_locked(snapshot):
-                self._defer_descent(snapshot)
-                self.last_reason = (
-                    "unseen:ascend-quest-fail"
-                    if self._quest_exit_would_fail(snapshot)
-                    else "unseen:ascend"
-                )
-                return UP_STAIRS_KEY
-            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-            if step is None:
-                step = self._nearest_goal_step(snapshot, lambda g: g.is_descent)
-            if step is not None:
-                self.last_reason = "unseen:flee-stairs"
-                return self._step_toward(snapshot, step)
-            step = self._least_visited_neighbor(snapshot)
-            if step is not None:
-                self.last_reason = "unseen:move"
-                return self._step_toward(snapshot, step)
-
         # 4. Recover between fights: with nothing hostile in sight and HP down
         #    (and not bleeding, and not being hit by something unseen), rest until
         #    healed. This is our main way to stay survivable without healing items.
@@ -4302,6 +4286,7 @@ class HengbotPolicy:
             self._multiplier_target_grace = 0
             self._choke_hold_floor = None
             self._choke_hold_start_breeders = None
+            self._clear_unseen_retreat()
             self._breeder_breakthrough_floor = None
             # A blocked-town/fundraising reason latches a permanent WAIT (which
             # then trips the loop-detector and stops the bot). Several of those
@@ -22876,6 +22861,158 @@ class HengbotPolicy:
             ):
                 count += 1
         return count
+
+    def _clear_unseen_retreat(self) -> None:
+        self._unseen_retreat_floor = None
+        self._unseen_retreat_direction = None
+        self._unseen_retreat_target = None
+        self._unseen_choke_position = None
+        self._unseen_wait_remaining = 0
+        self._unseen_wait_intercepted = False
+
+    def _recent_reverse_direction(self, origin: Position) -> tuple[int, int] | None:
+        for position in reversed(self._recent):
+            if position != origin:
+                return (
+                    position.y - origin.y,
+                    position.x - origin.x,
+                )
+        return None
+
+    def _unseen_reverse_choke_step(self, snapshot: Snapshot) -> Position | None:
+        origin = snapshot.player.position
+        direction = self._unseen_retreat_direction
+        if direction is None:
+            return self._least_visited_neighbor(snapshot)
+        reverse_dy, reverse_dx = direction
+
+        def projection(position: Position) -> int:
+            return (
+                (position.y - origin.y) * reverse_dy
+                + (position.x - origin.x) * reverse_dx
+            )
+
+        first_steps = sorted(
+            (
+                neighbor
+                for neighbor in self._walkable_neighbors(snapshot, origin)
+                if projection(neighbor) > 0
+            ),
+            key=lambda position: (
+                -projection(position),
+                self._visit_counts[position],
+            ),
+        )
+        queue: deque[tuple[Position, Position]] = deque(
+            (position, position) for position in first_steps
+        )
+        seen = {origin, *first_steps}
+        while queue:
+            position, first_step = queue.popleft()
+            if self._open_neighbor_count(snapshot, position) <= (
+                SUMMONER_CHOKE_NEIGHBORS - 1
+            ):
+                self._unseen_retreat_target = position
+                return first_step
+            for neighbor in self._walkable_neighbors(snapshot, position):
+                if neighbor in seen or projection(neighbor) <= 0:
+                    continue
+                seen.add(neighbor)
+                queue.append((neighbor, first_step))
+        self._unseen_retreat_target = None
+        return first_steps[0] if first_steps else None
+
+    def _unseen_retreat_intercept_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        if (
+            self._unseen_retreat_floor != snapshot.floor_key
+            or self._unseen_choke_position != snapshot.player.position
+            or self._unseen_wait_remaining <= 0
+            or not hostiles
+        ):
+            return None
+        self._unseen_wait_intercepted = True
+        if adjacent and not snapshot.player.afraid:
+            self.last_reason = "melee:choke"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
+        self.last_reason = "melee:choke-hold"
+        return WAIT_KEY
+
+    def _unseen_retreat_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        player = snapshot.player
+        eligible_hit = (
+            self._took_damage
+            and not hostiles
+            and not player.poisoned
+            and not player.cut
+        )
+        active = self._unseen_retreat_floor == snapshot.floor_key
+        if not eligible_hit and not active:
+            return None
+
+        if not active:
+            self._unseen_retreat_floor = snapshot.floor_key
+            self._unseen_retreat_direction = self._recent_reverse_direction(
+                player.position
+            )
+            self._unseen_retreat_target = None
+            self._unseen_choke_position = None
+            self._unseen_wait_remaining = 0
+            self._unseen_wait_intercepted = False
+
+        if self._unseen_wait_intercepted and not hostiles:
+            self._unseen_wait_intercepted = False
+            self._unseen_wait_remaining = BREEDER_CONTAINMENT_WINDOW
+
+        if self._unseen_choke_position is not None:
+            if eligible_hit:
+                self._unseen_choke_position = None
+                self._unseen_wait_remaining = 0
+                self._unseen_retreat_target = None
+            elif player.position == self._unseen_choke_position:
+                if self._unseen_wait_remaining > 0:
+                    self._unseen_wait_remaining -= 1
+                    self.last_reason = "unseen:choke-wait"
+                    return WAIT_KEY
+                self._clear_unseen_retreat()
+                return None
+            else:
+                self._clear_unseen_retreat()
+                return None
+
+        at_target = (
+            self._unseen_retreat_target == player.position
+            and self._open_neighbor_count(snapshot, player.position)
+            <= SUMMONER_CHOKE_NEIGHBORS - 1
+        )
+        if at_target and not self._took_damage:
+            self._unseen_choke_position = player.position
+            self._unseen_wait_remaining = BREEDER_CONTAINMENT_WINDOW - 1
+            self.last_reason = "unseen:choke-wait"
+            return WAIT_KEY
+        if at_target:
+            self._unseen_retreat_target = None
+
+        step = None
+        if self._unseen_retreat_target is not None:
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: grid.position == self._unseen_retreat_target,
+            )
+        if step is None:
+            step = self._unseen_reverse_choke_step(snapshot)
+        if step is not None:
+            self.last_reason = "unseen:reverse-choke"
+            return self._step_toward(snapshot, step)
+        return None
 
     def _blocking_escape_melee_key(
         self,

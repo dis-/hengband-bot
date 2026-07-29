@@ -1303,6 +1303,19 @@ class StationaryReasonsTest(unittest.TestCase):
         )
         self.assertTrue(_cell_loop_guard_applies(dungeon, "explore"))
 
+    def test_unseen_choke_wait_is_exempt_for_full_sixty_decisions(self):
+        from collections import deque
+
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+        recent_cells = deque(maxlen=LOOP_WINDOW)
+        self.assertIn("unseen:choke-wait", STATIONARY_EXEMPT_REASONS)
+        for _ in range(60):
+            if _cell_loop_guard_applies(dungeon, "unseen:choke-wait"):
+                recent_cells.append((dungeon.floor_key, 10, 10))
+            else:
+                recent_cells.clear()
+            self.assertFalse(_is_looping(recent_cells))
+
     def test_fixed_quest_hold_is_exempt_from_loop_detection(self):
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
 

@@ -1793,6 +1793,54 @@ class UnseenAttackerTest(unittest.TestCase):
             grids[pos] = g
         return grids
 
+    def _reverse_choke_grids(self):
+        grids = {Position(10, x): grid(10, x) for x in range(8, 15)}
+        for y in (9, 11):
+            for x in range(12, 15):
+                grids[Position(y, x)] = grid(y, x)
+        grids[Position(10, 14)] = grid(10, 14, upstairs=True)
+        return grids
+
+    def _start_reverse_choke_wait(self, pol, grids, floor):
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=227, max_hp=227),
+                grids,
+                [],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=227, max_hp=227),
+                grids,
+                [],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=213, max_hp=227),
+                grids,
+                [],
+                turn=3,
+                floor_key=floor,
+            )
+        )
+        self.assertEqual((key, pol.last_reason), ("4", "unseen:reverse-choke"))
+        wait = pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=213, max_hp=227),
+                grids,
+                [],
+                turn=4,
+                floor_key=floor,
+            )
+        )
+        self.assertEqual((wait, pol.last_reason), (WAIT_KEY, "unseen:choke-wait"))
+
     def test_does_not_rest_while_bleeding_from_unseen(self):
         # No visible hostiles but HP fell between decisions → an unseen attacker;
         # resting would be fatal, so we must move instead.
@@ -1807,7 +1855,7 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertNotEqual(key, REST_MACRO)
         self.assertTrue(pol.last_reason.startswith("unseen"), pol.last_reason)
 
-    def test_flees_to_upstairs_when_bleeding_unseen(self):
+    def test_unseen_hit_does_not_flee_to_upstairs(self):
         grids = {Position(10, x): grid(10, x) for x in range(10, 14)}
         grids[Position(10, 14)] = grid(10, 14, upstairs=True)
         pol = HengbotPolicy()
@@ -1817,63 +1865,111 @@ class UnseenAttackerTest(unittest.TestCase):
         key = pol.choose_key(
             Snapshot(player(10, 10, hp=95, max_hp=200), grids, [], turn=2, floor_key=(1, 5, 0))
         )
-        self.assertEqual(key, "6")  # step east toward the up stairs
-        self.assertEqual(pol.last_reason, "unseen:flee-stairs")
+        self.assertIn(key, "12346789")
+        self.assertEqual(pol.last_reason, "unseen:reverse-choke")
+        self.assertNotEqual(key, "<")
 
-    def test_real_modest_unseen_hit_moves_without_latching_return(self):
-        grids = {Position(10, x): grid(10, x) for x in range(10, 15)}
-        grids[Position(10, 14)] = grid(10, 14, upstairs=True)
+    def test_real_modest_unseen_hit_reverses_toward_choke_without_return(self):
+        grids = self._reverse_choke_grids()
         floor = (1, 4, 0)
         pol = HengbotPolicy()
 
         pol.choose_key(
             Snapshot(player(10, 10, hp=227, max_hp=227), grids, [], turn=1, floor_key=floor)
+        )
+        pol.choose_key(
+            Snapshot(player(10, 11, hp=227, max_hp=227), grids, [], turn=2, floor_key=floor)
         )
         self.assertEqual(
             pol.choose_key(
-                Snapshot(player(10, 10, hp=213, max_hp=227), grids, [], turn=2, floor_key=floor)
+                Snapshot(player(10, 11, hp=213, max_hp=227), grids, [], turn=3, floor_key=floor)
             ),
-            "6",
+            "4",
         )
-        self.assertEqual(pol.last_reason, "unseen:flee-stairs")
+        self.assertEqual(pol.last_reason, "unseen:reverse-choke")
+        self.assertNotIn(pol.last_reason, {"unseen:ascend", "unseen:flee-stairs"})
         self.assertFalse(pol._returning_to_town)
         self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
 
-    def test_expedition_resumes_after_unseen_damage_stops(self):
-        grids = self._open_grids(10, 10)
+    def test_reverse_choke_waits_sixty_decisions_then_resumes_floor(self):
+        grids = self._reverse_choke_grids()
         floor = (1, 4, 0)
         pol = HengbotPolicy()
 
-        pol.choose_key(
-            Snapshot(player(10, 10, hp=227, max_hp=227), grids, [], turn=1, floor_key=floor)
-        )
-        escape_key = pol.choose_key(
-            Snapshot(player(10, 10, hp=213, max_hp=227), grids, [], turn=2, floor_key=floor)
-        )
-        self.assertIn(escape_key, "12346789")
-        escaped = {
-            "1": Position(11, 9),
-            "2": Position(11, 10),
-            "3": Position(11, 11),
-            "4": Position(10, 9),
-            "6": Position(10, 11),
-            "7": Position(9, 9),
-            "8": Position(9, 10),
-            "9": Position(9, 11),
-        }[escape_key]
-
-        pol.choose_key(
+        self._start_reverse_choke_wait(pol, grids, floor)
+        for turn in range(5, 64):
+            self.assertEqual(
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 10, hp=213, max_hp=227),
+                        grids,
+                        [],
+                        turn=turn,
+                        floor_key=floor,
+                    )
+                ),
+                WAIT_KEY,
+            )
+            self.assertEqual(pol.last_reason, "unseen:choke-wait")
+        resumed = pol.choose_key(
             Snapshot(
-                player(escaped.y, escaped.x, hp=213, max_hp=227),
+                player(10, 10, hp=213, max_hp=227),
                 grids,
                 [],
-                turn=3,
+                turn=64,
                 floor_key=floor,
             )
         )
+        self.assertNotEqual(resumed, WAIT_KEY)
         self.assertFalse(pol._returning_to_town)
-        self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
-        self.assertFalse(pol.last_reason.startswith("return:"), pol.last_reason)
+        self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
+
+    def test_interception_fights_at_choke_then_restarts_sixty_wait(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+        self._start_reverse_choke_wait(pol, grids, floor)
+
+        attacker = hostile(1, 10, 11, hp=10, max_melee_damage=2)
+        self.assertEqual(
+            pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=213, max_hp=227),
+                    grids,
+                    [attacker],
+                    turn=5,
+                    floor_key=floor,
+                )
+            ),
+            "6",
+        )
+        self.assertEqual(pol.last_reason, "melee:choke")
+        for turn in range(6, 66):
+            self.assertEqual(
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 10, hp=213, max_hp=227),
+                        grids,
+                        [],
+                        turn=turn,
+                        floor_key=floor,
+                    )
+                ),
+                WAIT_KEY,
+            )
+            self.assertEqual(pol.last_reason, "unseen:choke-wait")
+        self.assertNotEqual(
+            pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=213, max_hp=227),
+                    grids,
+                    [],
+                    turn=66,
+                    floor_key=floor,
+                )
+            ),
+            WAIT_KEY,
+        )
 
     def test_lethal_unseen_hit_uses_existing_emergency_response(self):
         grids = self._open_grids(10, 10)
@@ -1978,8 +2074,8 @@ class UnseenAttackerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(key, "6")
-        self.assertEqual(pol.last_reason, "unseen:flee-stairs")
+        self.assertIn(key, "12346789")
+        self.assertEqual(pol.last_reason, "unseen:reverse-choke")
 
     def test_unseen_damage_during_recall_moves_when_no_escape_item(self):
         grids = {Position(10, x): grid(10, x) for x in range(10, 15)}

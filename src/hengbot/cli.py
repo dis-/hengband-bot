@@ -284,6 +284,7 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "fundraise:dig-mark-bump",
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
+        "unseen:choke-wait",
         "quest-strategy:hold",
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as
