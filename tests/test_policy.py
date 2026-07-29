@@ -16350,6 +16350,68 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "<")
         self.assertEqual(policy.last_reason, "fundraise:ascend")
 
+    def test_mining_wields_carried_torch_instead_of_bouncing_to_town(self):
+        torch = item(
+            "t", TVAL_LITE, SV_LITE_TORCH, known=True, fuel=2500, count=10
+        )
+        lantern = item(
+            "light",
+            TVAL_LITE,
+            SV_LITE_LANTERN,
+            known=False,
+            fuel=7500,
+            is_equipment=True,
+        )
+        digger = item(
+            "d", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): replace(
+                    grid(10, 10, upstairs=True), lit=True
+                )
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item(
+                    "s",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=4,
+                ),
+                torch,
+                digger,
+            ],
+            equipment=[lantern],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertEqual(policy.choose_key(snap), "wt", policy.last_reason)
+        self.assertEqual(policy.last_reason, "fundraise:wield-light")
+
+        after_wield = replace(
+            snap,
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item(
+                    "s",
+                    TVAL_SCROLL,
+                    SV_SCROLL_DETECT_TREASURE,
+                    count=4,
+                ),
+                replace(lantern, slot="u", is_equipment=False),
+                digger,
+            ],
+            equipment=[replace(torch, slot="light", count=1, is_equipment=True)],
+        )
+        self.assertTrue(policy._expedition_light_ready(after_wield))
+        self.assertNotEqual(policy.choose_key(after_wield), "<")
+        self.assertNotEqual(policy.last_reason, "fundraise:ascend")
+
     def test_mining_returns_immediately_when_gold_target_is_reached(self):
         snap = Snapshot(
             player(

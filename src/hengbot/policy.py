@@ -9648,15 +9648,23 @@ class HengbotPolicy:
         """Whether level-one fundraising can start with a working light."""
         if self._expedition_light_ready(snapshot):
             return True
+        return self._fundraising_wieldable_light(snapshot) is not None
+
+    def _fundraising_wieldable_light(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        """Return a carried light that can satisfy expedition readiness."""
         candidate = self._find_light(snapshot)
         if candidate is None:
-            return False
+            return None
         if candidate.known:
-            return self._is_usable_light(candidate)
-        return (
+            return candidate if self._is_usable_light(candidate) else None
+        if (
             candidate.is_lantern
             and not self._oil_below_departure_target(snapshot)
-        )
+        ):
+            return candidate
+        return None
 
     def _retry_after_store_restock(
         self, snapshot: Snapshot, store_types: tuple[int, ...]
@@ -15362,8 +15370,14 @@ class HengbotPolicy:
             "full",
             "gorged",
         }
-        if no_food_left or not self._expedition_light_ready(snapshot):
+        if no_food_left:
             return self._leave_fundraising_floor(snapshot)
+        if not self._expedition_light_ready(snapshot):
+            light = self._fundraising_wieldable_light(snapshot)
+            if light is None:
+                return self._leave_fundraising_floor(snapshot)
+            self.last_reason = "fundraise:wield-light"
+            return self._equip_macro(snapshot, light, "light")
 
         if snapshot.player.hungry:
             food = self._find_edible(snapshot)
