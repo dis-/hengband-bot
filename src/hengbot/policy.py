@@ -978,6 +978,10 @@ SHOP_APPROACH_STUCK_LIMIT = 12
 # "Equip which hand?" prompt when both hands are full). If it still keeps not taking
 # this many times, the main weapon is genuinely stuck/cursed — abandon the mining run.
 DIGGER_WIELD_LIMIT = 8
+# Two adjacent observations distinguish persisted contact from one transient
+# redraw without spending seven rounds fighting with mining tools. No existing
+# 2--3 decision hysteresis constant describes this combat transition.
+MINING_COMBAT_CONTACT_LIMIT = 2
 # Consecutive turns spent tunnelling toward a walled-off vein before giving up on it
 # and ascending. Digging holds the player on one tile, so `fundraise:tunnel-to-treasure`
 # is EXEMPT from the harness loop guard (cli.py STATIONARY_EXEMPT_REASONS) — this leash, not the
@@ -1444,6 +1448,8 @@ class HengbotPolicy:
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
+        self._swarm_distance_floor: tuple[int, int, int] | None = None
+        self._swarm_previous_distances: dict[int, int] = {}
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
         # weapon). The pre-recall weapon check blocks a dive until this clears (weapon
         # re-armed) or hits WEAPON_BLOCK_LIMIT (own no weapon → dive anyway).
@@ -1987,6 +1993,7 @@ class HengbotPolicy:
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
         key = self._decide(snapshot)
+        self._remember_swarm_distances(snapshot)
         key = self._flee_sustain_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
         if key is None:
@@ -14701,7 +14708,7 @@ class HengbotPolicy:
                 return ranged
         if (
             not active_adjacent
-            or self._mining_combat_contact_streak < DIGGER_WIELD_LIMIT
+            or self._mining_combat_contact_streak < MINING_COMBAT_CONTACT_LIMIT
         ):
             return None
         restore = self._restore_mining_combat_hand_key(
@@ -20492,6 +20499,14 @@ class HengbotPolicy:
                 self._returning_to_town = True
                 self.last_reason = "combat:disengage-recall"
                 return READ_KEY + recall.slot
+        # Once walk-out owns the fight, a known exit behind a survivable
+        # single-file blocker chain is nearer than retreating away from it.
+        blocker = self._blocking_escape_melee_key(
+            snapshot, hostiles, self._is_upstairs_target
+        )
+        if blocker is not None:
+            self.last_reason = "combat:disengage-clear-path"
+            return blocker
         step = self._summoner_retreat_step(snapshot, threats, hostiles)
         if step is not None and not (
             self._is_oscillating() and step in set(self._recent)
@@ -20502,12 +20517,6 @@ class HengbotPolicy:
         if stairs is not None:
             self.last_reason = "combat:disengage-stairs"
             return stairs
-        blocker = self._blocking_escape_melee_key(
-            snapshot, hostiles, self._is_upstairs_target
-        )
-        if blocker is not None:
-            self.last_reason = "combat:disengage-clear-path"
-            return blocker
         # No stairs underfoot: route toward the nearest known up-stairs to leave
         # the floor entirely. The player outruns a speed-100 breeder swarm, so
         # reaching the stairs breaks contact where circling the same room never
@@ -22227,8 +22236,18 @@ class HengbotPolicy:
         adjacent: list[MonsterState],
     ) -> str | None:
         """Order ranged repelling, re-arming, and choke combat for melee swarms."""
+        converging = [
+            monster
+            for monster in hostiles
+            if not monster.asleep
+            and (
+                monster.distance <= SWARM_LOOKAHEAD
+                or self._swarm_previous_distances.get(monster.index, 0)
+                > monster.distance
+            )
+        ]
         melee_hostiles = [
-            monster for monster in hostiles if monster.max_ranged_damage <= 0
+            monster for monster in converging if monster.max_ranged_damage <= 0
         ]
         swarm = len(melee_hostiles) >= 2
         mining = (
@@ -22237,7 +22256,7 @@ class HengbotPolicy:
             and snapshot.dungeon_level == 1
             and self._equipped_digging_tool(snapshot) is not None
         )
-        if not swarm and not mining:
+        if not swarm and not (mining and converging):
             return None
         # Approved and runtime quest targeting has its own reviewed positioning
         # and race-priority semantics; do not steal those engagements.
@@ -22248,15 +22267,15 @@ class HengbotPolicy:
             return None
         # A ranged member can attack through the queue, so preserve the old
         # flee/disengage behavior rather than treating this as a safe choke.
-        if swarm and any(monster.max_ranged_damage > 0 for monster in hostiles):
+        if swarm and any(monster.max_ranged_damage > 0 for monster in converging):
             return None
 
         if not adjacent:
-            ranged = self._ranged_attack_key(snapshot, hostiles, adjacent)
+            ranged = self._ranged_attack_key(snapshot, converging, adjacent)
             if ranged is not None:
                 return ranged
         if (
-            self._mining_combat_contact_streak >= DIGGER_WIELD_LIMIT
+            self._mining_combat_contact_streak >= MINING_COMBAT_CONTACT_LIMIT
             and self._equipped_digging_tool(snapshot) is not None
         ):
             restore = self._restore_mining_combat_hand_key(
@@ -22291,6 +22310,19 @@ class HengbotPolicy:
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
+
+    def _remember_swarm_distances(self, snapshot: Snapshot) -> None:
+        """Retain one observation so awake monsters moving closer can converge."""
+        floor_key = getattr(snapshot, "floor_key", None)
+        visible_monsters = getattr(snapshot, "visible_monsters", ())
+        if self._swarm_distance_floor != floor_key:
+            self._swarm_distance_floor = floor_key
+            self._swarm_previous_distances.clear()
+        self._swarm_previous_distances = {
+            monster.index: monster.distance
+            for monster in visible_monsters
+            if monster.hostile and not monster.asleep
+        }
 
     def _monster_path_distance(
         self, snapshot: Snapshot, origin: Position
@@ -22666,6 +22698,8 @@ class HengbotPolicy:
             nearest = min(pos.distance_to(m.position) for m in hostiles)
             grid = snapshot.grids.get(pos)
             unsafe = 1 if (grid and grid.unsafe) else 0
+            # Known traps are excluded from the routing index before this score;
+            # retain the ordering defensively for alternate GridState sources.
             trap = 1 if (grid and grid.trap) else 0
             return (
                 nearest,
@@ -22723,7 +22757,22 @@ class HengbotPolicy:
                     if cell is None or not cell.passable:
                         continue
                     if cell.has_monster and neighbor != monster.position:
-                        continue
+                        occupant = next(
+                            (
+                                hostile
+                                for hostile in hostiles
+                                if hostile.position == neighbor
+                            ),
+                            None,
+                        )
+                        if (
+                            occupant is None
+                            or occupant.max_ranged_damage > 0
+                            or not self._escape_blocker_is_easy_kill(
+                                snapshot, hostiles, occupant
+                            )
+                        ):
+                            continue
                     seen.add(neighbor)
                     queue.append((neighbor, distance + 1))
             if distance_to_goal is not None and (

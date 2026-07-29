@@ -511,36 +511,88 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "melee:choke")
 
     def test_choke_retreat_prefers_covered_corridor(self):
-        snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=True)
-        policy = HengbotPolicy()
-        policy._build_grid_index(snapshot)
-
-        self.assertEqual(
-            policy._flee_step(snapshot, snapshot.visible_monsters),
-            Position(10, 8),
-        )
-
-    def test_flee_avoids_trap_before_preferring_narrow_ground(self):
         monster = hostile(1, 10, 12, distance=2, max_melee_damage=1)
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 13)
+            for x in range(8, 13)
+        }
+        # West and north are equally far from the threat. West is narrowed by
+        # real walls; north remains open, and both reach _flee_step's score.
+        grids[Position(9, 8)] = grid(9, 8, passable=False)
+        grids[Position(10, 8)] = grid(10, 8, passable=False)
+        grids[Position(11, 8)] = grid(11, 8, passable=False)
         snapshot = Snapshot(
             player(10, 10, hp=100, max_hp=100),
-            {
-                Position(10, 10): grid(10, 10),
-                Position(10, 9): grid(10, 9, trap=True),
-                Position(9, 10): grid(9, 10),
-                Position(8, 9): grid(8, 9),
-                Position(8, 10): grid(8, 10),
-                Position(8, 11): grid(8, 11),
-                Position(9, 9): grid(9, 9),
-                Position(9, 11): grid(9, 11),
-            },
+            grids,
             [monster],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
         )
         policy = HengbotPolicy()
         policy._build_grid_index(snapshot)
 
-        self.assertNotEqual(policy._flee_step(snapshot, [monster]), Position(10, 9))
+        candidates = policy._walkable_neighbors(snapshot, snapshot.player.position)
+        self.assertIn(Position(10, 9), candidates)
+        self.assertIn(Position(9, 10), candidates)
+        self.assertEqual(
+            policy._flee_step(snapshot, [monster]),
+            Position(10, 9),
+        )
+
+    def test_sleeping_idle_mining_group_falls_through_without_swarm_hold_or_throw(self):
+        sleepers = [
+            hostile(
+                index, 10, 10 + distance, distance=distance, asleep=True,
+                can_multiply=True, max_melee_damage=1,
+            )
+            for index, distance in enumerate((3, 4), 1)
+        ]
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(10, 12): grid(10, 12),
+                Position(10, 13): grid(10, 13, monster=True),
+                Position(10, 14): grid(10, 14, monster=True),
+            },
+            sleepers,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[],
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN, name="lantern",
+                    fuel=5000, is_equipment=True,
+                ),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        throwable = replace(
+            snapshot,
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
+            ],
+        )
+        policy._build_grid_index(throwable)
+        self.assertIsNone(
+            policy._melee_swarm_combat_key(throwable, sleepers, [])
+        )
+
+        for decision in range(119):
+            policy.choose_key(snapshot)
+            if decision == 0:
+                self.assertEqual(
+                    policy.last_reason, "fundraise:eliminate-multiplier"
+                )
+            self.assertNotIn(
+                policy.last_reason,
+                {"melee:choke", "melee:choke-hold", "ranged:throw-torch"},
+            )
 
     def test_escape_attacks_weak_mouse_blocking_corridor_to_stairs(self):
         mouse = hostile(
@@ -908,6 +960,47 @@ class CombatTest(unittest.TestCase):
         # rather than circling the swarm-filled room.
         self.assertEqual(policy.last_reason, "combat:disengage-seek-upstairs")
         self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
+
+    def test_disengage_clears_two_weak_blockers_before_retreating_from_exit(self):
+        policy = HengbotPolicy()
+        blockers = [
+            hostile(
+                index, 10, x, hp=4, max_hp=4, distance=x - 10,
+                can_multiply=True, max_melee_damage=1,
+            )
+            for index, x in enumerate((11, 12), 1)
+        ]
+        snapshot = Snapshot(
+            player(
+                10, 10, hp=100, max_hp=100, level=10,
+                main_hand_blows=2, main_hand_to_d=5,
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+                Position(10, 12): grid(10, 12, monster=True),
+                Position(10, 13): grid(10, 13, upstairs=True),
+                Position(10, 9): grid(10, 9),
+            },
+            blockers,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+        policy._build_grid_index(snapshot)
+        with patch.object(
+            policy, "_summoner_retreat_step", return_value=Position(10, 9)
+        ) as retreat:
+            key = policy._disengage_move_or_escalate(
+                snapshot, blockers, blockers
+            )
+
+        self.assertEqual((key, policy.last_reason), ("6", "combat:disengage-clear-path"))
+        retreat.assert_not_called()
 
     def test_disengage_reads_recall_to_leave_the_floor(self):
         from collections import deque
@@ -16637,7 +16730,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ],
         )
         policy._build_grid_index(contact)
-        for _ in range(DIGGER_WIELD_LIMIT - 1):
+        for _ in range(policy_module.MINING_COMBAT_CONTACT_LIMIT - 1):
             policy._update_mining_combat_streaks(
                 contact, contact.visible_monsters, contact.visible_monsters
             )
@@ -16730,7 +16823,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             grids=contact_grids,
             visible_monsters=contact_monsters,
         )
-        for decision in range(1, DIGGER_WIELD_LIMIT):
+        for decision in range(1, policy_module.MINING_COMBAT_CONTACT_LIMIT):
             policy.choose_key(contact)
             self.assertNotEqual(policy.last_reason, "melee:restore-weapon")
             self.assertEqual(policy._mining_combat_contact_streak, decision)
