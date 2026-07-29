@@ -629,6 +629,43 @@ class CombatTest(unittest.TestCase):
             "4",
         )
 
+    def test_low_hp_declared_walkout_attacks_mouse_blocking_known_stairs(self):
+        mouse = hostile(
+            1, 10, 9, hp=6, max_hp=6, distance=1, can_multiply=True,
+            max_melee_damage=2,
+        )
+        snapshot = Snapshot(
+            player(
+                10, 10, hp=59, max_hp=172, level=10,
+                main_hand_blows=2, main_hand_to_d=5,
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9, monster=True),
+                Position(10, 8): grid(10, 8),
+                Position(10, 7): grid(10, 7, upstairs=True),
+                Position(9, 10): grid(9, 10),
+                Position(11, 10): grid(11, 10),
+            },
+            [mouse],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._fruitless_disengage_floor = snapshot.floor_key
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), (
+            "4", "combat:disengage-clear-path",
+        ))
+
     def test_escape_reroutes_around_dangerous_fast_blocker(self):
         blocker = hostile(
             1, 10, 9, hp=170, max_hp=170, distance=1, speed=130,
@@ -677,6 +714,69 @@ class CombatTest(unittest.TestCase):
 
         self.assertLess(policy._breeder_engagement_score, 3)
         self.assertIsNone(policy._fruitless_disengage_floor)
+
+    def test_choke_hold_does_not_read_escape_scroll_before_mice_arrive(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        mice = [
+            replace(
+                base.visible_monsters[index],
+                position=Position(10, 11 + index),
+                distance=2 + index,
+            )
+            for index in range(2)
+        ]
+        grids = dict(base.grids)
+        for mouse in mice:
+            grids[mouse.position] = replace(
+                grids[mouse.position], has_monster=True
+            )
+        snapshot = replace(
+            base,
+            grids=grids,
+            visible_monsters=mice,
+            inventory=[
+                item(
+                    "p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR,
+                    count=5,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), (
+            WAIT_KEY, "melee:choke-hold",
+        ))
+
+    def test_choke_hold_sanction_does_not_mask_ranged_emergency(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        archer = replace(
+            base.visible_monsters[0],
+            position=Position(10, 11),
+            distance=2,
+            max_ranged_damage=12,
+        )
+        grids = dict(base.grids)
+        grids[archer.position] = replace(grids[archer.position], has_monster=True)
+        snapshot = replace(
+            base,
+            grids=grids,
+            visible_monsters=[archer, base.visible_monsters[1]],
+            inventory=[
+                item("p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR, count=5)
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        policy.last_reason = "melee:choke-hold"
+
+        key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+
+        self.assertEqual((key, policy.last_reason), (
+            READ_KEY + "p", "no-wait:escape-scroll",
+        ))
 
     def test_kill_less_choke_hold_still_arms_walk_out(self):
         snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)

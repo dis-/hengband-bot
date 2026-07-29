@@ -2348,10 +2348,27 @@ class HengbotPolicy:
             return key
 
         reason = self.last_reason
+        hostiles = (
+            self._hostiles(snapshot)
+            if hasattr(snapshot, "visible_monsters")
+            else []
+        )
+        choke_hold = (
+            reason == "melee:choke-hold"
+            and not self._took_damage
+            and bool(hostiles)
+            and all(
+                monster.max_ranged_damage <= 0 and monster.distance > 1
+                for monster in hostiles
+            )
+        )
         # Keep this aligned with cli.STATIONARY_REASONS and the
         # stationary_by_design cases in _break_positional_oscillation. Importing
         # the CLI set here would introduce a policy/CLI cycle; these are the
         # bounded recall/confirmation waits and deliberate quest/rest holds.
+        # A melee choke wait lets the queue approach without burning the escape
+        # kit. The breeder kill-window accounting bounds an unproductive hold;
+        # damage, ranged fire, or adjacent contact still enters the ladder below.
         sanctioned = (
             reason
             in {
@@ -2369,15 +2386,11 @@ class HengbotPolicy:
             or (":await-" in reason and reason.endswith("-confirmation"))
             or reason.endswith(":hold")
             or reason.endswith(":recover")
+            or choke_hold
         )
         if sanctioned:
             return key
 
-        hostiles = (
-            self._hostiles(snapshot)
-            if hasattr(snapshot, "visible_monsters")
-            else []
-        )
         under_fire = self._took_damage or any(
             self._has_line_of_fire(
                 snapshot, monster.position, snapshot.player.position
@@ -2752,6 +2765,24 @@ class HengbotPolicy:
                     else "flee:stairs"
                 )
                 return escape
+            if (
+                (
+                    self._fruitless_disengage_floor == snapshot.floor_key
+                    or self._returning_to_town
+                    or self._escape_state.owner in {"disengage", "return"}
+                )
+                and (
+                    blocker := self._blocking_escape_melee_key(
+                        snapshot, hostiles, self._is_upstairs_target
+                    )
+                )
+                is not None
+            ):
+                # A declared walk-out must keep moving toward its known exit at
+                # low HP too. One projected-easy corridor kill is safer than the
+                # generic flee rung retreating back into the floor.
+                self.last_reason = "combat:disengage-clear-path"
+                return blocker
             step = self._flee_step(snapshot, hostiles)
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
@@ -22241,6 +22272,8 @@ class HengbotPolicy:
             for monster in hostiles
             if not monster.asleep
             and (
+                # SWARM_LOOKAHEAD is also the short engagement horizon here:
+                # monsters this close are already converging for positioning.
                 monster.distance <= SWARM_LOOKAHEAD
                 or self._swarm_previous_distances.get(monster.index, 0)
                 > monster.distance
