@@ -751,6 +751,103 @@ class CombatTest(unittest.TestCase):
             WAIT_KEY, "melee:choke-hold",
         ))
 
+    def test_incident_breeder_growth_forces_sticky_upstairs_breakthrough(self):
+        sword = item(
+            "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+            is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+        )
+        choke = Position(9, 16)
+        upstairs = Position(9, 13)
+        base_grids = {
+            Position(y, x): grid(y, x, lit=True)
+            for y in range(7, 12)
+            for x in range(13, 21)
+        }
+        for wall in (
+            Position(8, 13), Position(10, 13),
+            Position(8, 14), Position(10, 14),
+            Position(8, 15), Position(10, 15),
+            Position(8, 16), Position(10, 16),
+            Position(8, 17), Position(10, 17),
+        ):
+            base_grids[wall] = grid(wall.y, wall.x, passable=False)
+        base_grids[upstairs] = grid(upstairs.y, upstairs.x, upstairs=True)
+
+        def incident_snapshot(position, positions):
+            breeders = [
+                hostile(
+                    index, y, x,
+                    distance=position.distance_to(Position(y, x)),
+                    race_id=31, can_multiply=True, max_melee_damage=1,
+                )
+                for index, (y, x) in enumerate(positions, 1)
+            ]
+            grids = dict(base_grids)
+            for breeder in breeders:
+                grids[breeder.position] = replace(
+                    grids[breeder.position], has_monster=True
+                )
+            return Snapshot(
+                player(
+                    position.y, position.x, hp=205, max_hp=205, level=10,
+                    class_id=PLAYER_CLASS_WARRIOR,
+                    main_hand_blows=2, main_hand_to_d=5,
+                ),
+                grids,
+                breeders,
+                floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+                equipment=[sword],
+            )
+
+        held_positions = [
+            (7, 17), (7, 18), (7, 19), (8, 19),
+            (9, 19), (10, 19), (11, 18), (11, 19),
+        ]
+        grown_positions = [
+            (9, 15),
+            (7, 17), (7, 18), (7, 19), (8, 19), (8, 20),
+            (9, 19), (9, 20), (10, 19), (11, 18), (11, 19),
+        ]
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        held = incident_snapshot(choke, held_positions)
+        self.assertEqual(policy.choose_key(held), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "melee:choke-hold")
+
+        grown = incident_snapshot(choke, grown_positions)
+        grown_key = policy.choose_key(grown)
+        self.assertEqual(grown_key, "4")
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:clear-escape-path"
+        )
+
+        cleared_positions = grown_positions[1:]
+        still_at_choke = incident_snapshot(choke, cleared_positions)
+        self.assertEqual(policy.choose_key(still_at_choke), "4")
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:seek-upstairs"
+        )
+
+        on_stairs = incident_snapshot(upstairs, cleared_positions)
+        self.assertEqual(policy.choose_key(on_stairs), "<")
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+
+    def test_shrinking_breeder_swarm_stays_at_choke(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        self.assertEqual(policy.choose_key(base), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "melee:choke-hold")
+
+        shrinking = replace(
+            base,
+            visible_monsters=base.visible_monsters[:-1],
+        )
+        self.assertEqual(policy.choose_key(shrinking), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "melee:choke-hold")
+
     def test_choke_hold_sanction_does_not_mask_ranged_emergency(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
         archer = replace(

@@ -1693,6 +1693,9 @@ class HengbotPolicy:
         self._combat_fruitful = True
         self._breeder_engagement_floor: tuple[int, int, int] | None = None
         self._breeder_engagement_score = 0
+        self._choke_hold_floor: tuple[int, int, int] | None = None
+        self._choke_hold_start_breeders: int | None = None
+        self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
         self._fruitless_disengage_marked_high = 0
@@ -2682,6 +2685,10 @@ class HengbotPolicy:
         if player.confused and not hostiles:
             self.last_reason = "confused:wait"
             return WAIT_KEY
+
+        breakthrough = self._breeder_breakthrough_key(snapshot, hostiles)
+        if breakthrough is not None:
+            return breakthrough
 
         # A fruitless breeder engagement latches this floor visit. Keep this
         # ahead of ordinary combat so the same cluster cannot pull us back in.
@@ -4306,6 +4313,9 @@ class HengbotPolicy:
             self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
+            self._choke_hold_floor = None
+            self._choke_hold_start_breeders = None
+            self._breeder_breakthrough_floor = None
             # A blocked-town/fundraising reason latches a permanent WAIT (which
             # then trips the loop-detector and stops the bot). Several of those
             # conditions are transient (a shop temporarily out of food, the inn
@@ -22396,6 +22406,10 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, step)
 
         if openness <= SUMMONER_CHOKE_NEIGHBORS - 1:
+            breeder_count = sum(monster.can_multiply for monster in hostiles)
+            if breeder_count and self._choke_hold_floor != snapshot.floor_key:
+                self._choke_hold_floor = snapshot.floor_key
+                self._choke_hold_start_breeders = breeder_count
             if adjacent and not snapshot.player.afraid:
                 self.last_reason = "melee:choke"
                 return self._direction_key(
@@ -22404,6 +22418,56 @@ class HengbotPolicy:
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
+
+    def _breeder_breakthrough_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Leave upward once a breeder swarm outgrows its choke-start count."""
+        if (
+            self._choke_hold_floor == snapshot.floor_key
+            and self._choke_hold_start_breeders is not None
+            and sum(monster.can_multiply for monster in hostiles)
+            > self._choke_hold_start_breeders
+        ):
+            self._breeder_breakthrough_floor = snapshot.floor_key
+        if self._breeder_breakthrough_floor != snapshot.floor_key:
+            return None
+
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and self._is_upstairs_target(here):
+            self._defer_descent(snapshot)
+            self.last_reason = "breeder-breakthrough:ascend"
+            return UP_STAIRS_KEY
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        if step is not None:
+            self.last_reason = "breeder-breakthrough:seek-upstairs"
+            return self._step_toward(snapshot, step)
+        blocker = self._blocking_escape_melee_key(
+            snapshot, hostiles, self._is_upstairs_target
+        )
+        if blocker is not None:
+            self.last_reason = "breeder-breakthrough:clear-escape-path"
+            return blocker
+        step = self._explore_step(snapshot)
+        if step is not None:
+            self.last_reason = "breeder-breakthrough:seek-upstairs"
+            return self._step_toward(snapshot, step)
+        step = self._least_visited_neighbor(snapshot)
+        if step is not None:
+            self.last_reason = "breeder-breakthrough:seek-upstairs"
+            return self._step_toward(snapshot, step)
+        goal = self._nearest_upstairs(snapshot)
+        if (
+            goal is not None
+            and not snapshot.player.blind
+            and not snapshot.player.confused
+        ):
+            dig = self._tunnel_step_toward(snapshot, goal)
+            if dig is not None:
+                self.last_reason = "breeder-breakthrough:seek-upstairs"
+                return dig
+        self.last_reason = "breeder-breakthrough:upstairs-not-found"
+        return WAIT_KEY
 
     def _remember_swarm_distances(self, snapshot: Snapshot) -> None:
         """Retain one observation so awake monsters moving closer can converge."""
