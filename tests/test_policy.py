@@ -1820,32 +1820,93 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertEqual(key, "6")  # step east toward the up stairs
         self.assertEqual(pol.last_reason, "unseen:flee-stairs")
 
-    def test_unseen_flee_remains_latched_after_damage_stops_and_hp_recovers(self):
+    def test_real_modest_unseen_hit_moves_without_latching_return(self):
         grids = {Position(10, x): grid(10, x) for x in range(10, 15)}
         grids[Position(10, 14)] = grid(10, 14, upstairs=True)
-        floor = (1, 15, 0)
+        floor = (1, 4, 0)
         pol = HengbotPolicy()
 
         pol.choose_key(
-            Snapshot(player(10, 10, hp=200, max_hp=200), grids, [], turn=1, floor_key=floor)
+            Snapshot(player(10, 10, hp=227, max_hp=227), grids, [], turn=1, floor_key=floor)
         )
         self.assertEqual(
             pol.choose_key(
-                Snapshot(player(10, 10, hp=170, max_hp=200), grids, [], turn=2, floor_key=floor)
+                Snapshot(player(10, 10, hp=213, max_hp=227), grids, [], turn=2, floor_key=floor)
             ),
             "6",
         )
         self.assertEqual(pol.last_reason, "unseen:flee-stairs")
+        self.assertFalse(pol._returning_to_town)
+        self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
 
-        # No further hit and HP is full.  The old behavior fell back to normal
-        # exploration here and could re-enter the attacker's firing lane.
-        self.assertEqual(
-            pol.choose_key(
-                Snapshot(player(10, 11, hp=200, max_hp=200), grids, [], turn=3, floor_key=floor)
-            ),
-            "6",
+    def test_expedition_resumes_after_unseen_damage_stops(self):
+        grids = self._open_grids(10, 10)
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+
+        pol.choose_key(
+            Snapshot(player(10, 10, hp=227, max_hp=227), grids, [], turn=1, floor_key=floor)
         )
-        self.assertEqual(pol.last_reason, "return:seek-upstairs")
+        escape_key = pol.choose_key(
+            Snapshot(player(10, 10, hp=213, max_hp=227), grids, [], turn=2, floor_key=floor)
+        )
+        self.assertIn(escape_key, "12346789")
+        escaped = {
+            "1": Position(11, 9),
+            "2": Position(11, 10),
+            "3": Position(11, 11),
+            "4": Position(10, 9),
+            "6": Position(10, 11),
+            "7": Position(9, 9),
+            "8": Position(9, 10),
+            "9": Position(9, 11),
+        }[escape_key]
+
+        pol.choose_key(
+            Snapshot(
+                player(escaped.y, escaped.x, hp=213, max_hp=227),
+                grids,
+                [],
+                turn=3,
+                floor_key=floor,
+            )
+        )
+        self.assertFalse(pol._returning_to_town)
+        self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
+        self.assertFalse(pol.last_reason.startswith("return:"), pol.last_reason)
+
+    def test_lethal_unseen_hit_uses_existing_emergency_response(self):
+        grids = self._open_grids(10, 10)
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)
+
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=227, max_hp=227),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=100, max_hp=227),
+                grids,
+                [],
+                inventory=[teleport],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+
+        self.assertEqual(key, "rt")
+        self.assertEqual(pol.last_reason, "emergency:teleport")
+        self.assertTrue(pol._emergency_escape_pending)
+        self.assertTrue(pol._emergency_return_active)
+        self.assertEqual(pol._last_return_trigger, "emergency-lethal-swarm")
 
     def test_unseen_damage_during_recall_teleports_instead_of_waiting(self):
         grids = self._open_grids(10, 10)

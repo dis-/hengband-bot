@@ -3254,25 +3254,15 @@ class HengbotPolicy:
         # 3b. Losing HP with nothing hostile in view means an attacker we cannot
         #     see (a monster in the dark, or invisible). Resting or idling here is
         #     how a full-HP clvl9 Half-Troll bled 187 -> dead to a Draugr it never
-        #     saw. Never rest; break contact via the nearest stairs, else keep
-        #     moving (stepping into the unseen attacker attacks it).
+        #     saw. Never rest; keep moving until the damage stops (stepping into
+        #     the unseen attacker attacks it). Lethal observed damage has
+        #     already entered the ordinary emergency ladder above.
         if (
             self._took_damage
             and not hostiles
             and not player.poisoned
             and not player.cut
         ):
-            # An unseen attacker is not merely a one-turn navigation hazard.
-            # If damage pauses while we move or heal, ordinary exploration
-            # otherwise takes ownership again and walks straight back into the
-            # same firing lane.  End the expedition and keep the return latched
-            # until town, just like every other unsafe supply/escape condition.
-            # This is deliberately set before the direct stair handling below:
-            # the current turn still breaks contact immediately, while the next
-            # decision is owned by _return_to_town_key even if HP has recovered.
-            if not snapshot.in_town:
-                self._returning_to_town = True
-                self._last_return_trigger = "unseen-attacker"
             if here is not None and self._is_upstairs_target(here) and not self._quest_floor_exit_locked(snapshot):
                 self._defer_descent(snapshot)
                 self.last_reason = (
@@ -21467,6 +21457,14 @@ class HengbotPolicy:
             self._unseen_recall_damage_streak = 0
 
         predicted = self._predicted_damage(snapshot, hostiles, turns=3)
+        unseen_lethal = (
+            self._took_damage
+            and not hostiles
+            and not snapshot.in_town
+            and not player.poisoned
+            and not player.cut
+            and self._last_damage_amount >= player.hp
+        )
         ranged_scroll_lock = self._ranged_scroll_lock_escape_needed(
             snapshot, hostiles, predicted=predicted
         )
@@ -21563,11 +21561,14 @@ class HengbotPolicy:
             else HEAL_HP_RATIO
         )
         lethal = (
-            bool(hostiles)
-            and (predicted >= player.hp or ranged_scroll_lock)
-            and not protected_q31_hold
-            and not protected_q31_stationary_engagement
-            and not self._committed_unique_fight_viable(snapshot, hostiles)
+            unseen_lethal
+            or (
+                bool(hostiles)
+                and (predicted >= player.hp or ranged_scroll_lock)
+                and not protected_q31_hold
+                and not protected_q31_stationary_engagement
+                and not self._committed_unique_fight_viable(snapshot, hostiles)
+            )
         )
         if lethal or summoner_open:
             self._emergency_escape_pending = True
