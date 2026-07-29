@@ -11343,20 +11343,24 @@ class HengbotPolicy:
         gold = snapshot.player.gold
         if snapshot.player.class_id < 0:
             if not self._owns_lantern(snapshot):
-                return next(
+                lantern = next(
                     (it for it in store.items if it.is_lantern and it.price <= gold),
                     None,
                 )
+                if lantern is not None:
+                    return lantern
             if self._oil_below_departure_target(snapshot):
-                return next(
+                oil = next(
                     (it for it in store.items if it.is_oil and it.price <= gold),
                     None,
                 )
+                if oil is not None:
+                    return oil
             if (
                 snapshot.player.food_type != FOOD_TYPE_MANA
                 and self._needs_food_restock(snapshot)
             ):
-                return next(
+                food = next(
                     (
                         it
                         for it in store.items
@@ -11366,6 +11370,8 @@ class HengbotPolicy:
                     ),
                     None,
                 )
+                if food is not None:
+                    return food
             return None
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             if not self._has_withdrawable_digging_tool(snapshot):
@@ -11388,17 +11394,20 @@ class HengbotPolicy:
                     return detection
             if not self._food_ready(snapshot):
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
-                    return self._mana_food_purchase(snapshot)
-                return next(
-                    (
-                        it
-                        for it in store.items
-                        if it.tval == TVAL_FOOD
-                        and it.sval >= FOOD_MIN_SVAL
-                        and it.price <= gold
-                    ),
-                    None,
-                )
+                    food = self._mana_food_purchase(snapshot)
+                else:
+                    food = next(
+                        (
+                            it
+                            for it in store.items
+                            if it.tval == TVAL_FOOD
+                            and it.sval >= FOOD_MIN_SVAL
+                            and it.price <= gold
+                        ),
+                        None,
+                    )
+                if food is not None:
+                    return food
             scrolls_needed = (
                 self._mining_detection_scroll_target(snapshot)
                 + DETECTION_SCROLL_BUFFER
@@ -11415,15 +11424,19 @@ class HengbotPolicy:
                 if detection_scroll is not None:
                     return detection_scroll
             if not self._has_withdrawable_digging_tool(snapshot):
-                return next(
+                digger = next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
                     None,
                 )
+                if digger is not None:
+                    return digger
             if not self._fundraising_light_ready(snapshot):
-                return next(
+                lantern = next(
                     (it for it in store.items if it.is_lantern and it.price <= gold),
                     None,
                 )
+                if lantern is not None:
+                    return lantern
             if self._oil_below_departure_target(snapshot):
                 oil = next(
                     (it for it in store.items if it.is_oil and it.price <= gold),
@@ -11451,7 +11464,7 @@ class HengbotPolicy:
                 if torch is not None:
                     return torch
             if self._digging_tool_count(snapshot) < 2:
-                return next(
+                digger = next(
                     (
                         item
                         for item in store.items
@@ -11459,6 +11472,8 @@ class HengbotPolicy:
                     ),
                     None,
                 )
+                if digger is not None:
+                    return digger
             return None
 
         if self._identification_need is not None:
@@ -11532,7 +11547,7 @@ class HengbotPolicy:
             snapshot.player.food_type != FOOD_TYPE_MANA
             and self._needs_food_restock(snapshot)
         ):
-            return next(
+            food = next(
                 (
                     it
                     for it in store.items
@@ -11542,10 +11557,22 @@ class HengbotPolicy:
                 ),
                 None,
             )
+            if food is not None:
+                return food
         if not self._owns_lantern(snapshot):
-            return next((it for it in store.items if it.is_lantern and it.price <= gold), None)
+            lantern = next(
+                (it for it in store.items if it.is_lantern and it.price <= gold),
+                None,
+            )
+            if lantern is not None:
+                return lantern
         if self._oil_below_departure_target(snapshot):
-            return next((it for it in store.items if it.is_oil and it.price <= gold), None)
+            oil = next(
+                (it for it in store.items if it.is_oil and it.price <= gold),
+                None,
+            )
+            if oil is not None:
+                return oil
         if (
             self._planned_depth() <= TORCH_THROW_MAX_DEPTH
             and self._matching_ammo(snapshot) is None
@@ -11564,12 +11591,14 @@ class HengbotPolicy:
             if torch is not None:
                 return torch
         if not self._teleport_ready(snapshot):
-            return next(
+            teleport = next(
                 (it for it in store.items if it.is_teleport_scroll and it.price <= gold),
                 None,
             )
+            if teleport is not None:
+                return teleport
         if not self._cure_critical_ready(snapshot):
-            return next(
+            cure = next(
                 (
                     it
                     for it in store.items
@@ -11579,6 +11608,8 @@ class HengbotPolicy:
                 ),
                 None,
             )
+            if cure is not None:
+                return cure
         launcher = self._equipped_launcher(snapshot)
         if (
             launcher is not None
@@ -11595,7 +11626,7 @@ class HengbotPolicy:
             if ammo is not None:
                 return ammo
         if not self._identify_staff_ready(snapshot):
-            return next(
+            identify = next(
                 (
                     it
                     for it in store.items
@@ -11605,11 +11636,13 @@ class HengbotPolicy:
                 ),
                 None,
             )
+            if identify is not None:
+                return identify
         if (
             self._has_normal_remove_curse_target(snapshot)
             and self._find_remove_curse_scroll(snapshot) is None
         ):
-            return next(
+            remove_curse = next(
                 (
                     it
                     for it in store.items
@@ -11619,6 +11652,8 @@ class HengbotPolicy:
                 ),
                 None,
             )
+            if remove_curse is not None:
+                return remove_curse
         star_remove_curse = self._affordable_star_remove_curse(snapshot)
         if star_remove_curse is not None:
             return star_remove_curse

@@ -21,6 +21,7 @@ from hengbot.model import (
     STORE_MAGIC,
     STORE_TEMPLE,
     STORE_WEAPON,
+    SV_DIGGING_PICK,
     SV_DIGGING_SHOVEL,
     SV_FLASK_OIL,
     SV_LITE_LANTERN,
@@ -1695,6 +1696,93 @@ class ShoppingTest(unittest.TestCase):
             "pf5\r\r",
         )
         self.assertEqual(policy.last_reason, "shop:buy-oil")
+
+    def test_unaffordable_mana_food_falls_through_to_incident_oil(self):
+        inventory = [
+            item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            item("t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=4),
+            item("m", TVAL_STAFF, 1, charges=14),
+        ]
+        equipment = [
+            item(
+                "light", TVAL_LITE, SV_LITE_LANTERN,
+                fuel=5000, is_equipment=True,
+            ),
+        ]
+        oil = store_item("o", TVAL_FLASK, SV_FLASK_OIL, price=3, count=20)
+
+        for wares in (
+            [oil],
+            [
+                oil,
+                store_item(
+                    "p", TVAL_DIGGING, SV_DIGGING_PICK,
+                    price=50, name="Pick",
+                ),
+            ],
+        ):
+            with self.subTest(wares=[ware.name for ware in wares]):
+                policy = HengbotPolicy()
+                policy._fundraising_mode = "prepare"
+                snapshot = replace(
+                    self._in_store(wares, gold=367, inv=inventory, eq=equipment),
+                    player=player(
+                        10, 10, gold=367, class_id=PLAYER_CLASS_WARRIOR,
+                        food_type=FOOD_TYPE_MANA,
+                    ),
+                )
+
+                self.assertEqual(policy._supply_ledger(snapshot, 1)["food"].count, 14)
+                self.assertEqual(policy._supply_ledger(snapshot, 1)["food"].required_departure, 15)
+                self.assertEqual(policy._supply_ledger(snapshot, 1)["oil"].count, 0)
+                self.assertEqual(policy._supply_ledger(snapshot, 1)["oil"].required_departure, 5)
+                self.assertEqual(policy.choose_key(snapshot), "po5\r\r")
+                self.assertEqual(policy.last_reason, "shop:buy-oil")
+
+    def test_unaffordable_mana_food_falls_through_inside_magic_shop(self):
+        inventory = [
+            item("d", TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            item("t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=4),
+            item("m", TVAL_STAFF, 1, charges=14),
+        ]
+        equipment = [
+            item(
+                "light", TVAL_LITE, SV_LITE_LANTERN,
+                fuel=5000, is_equipment=True,
+            ),
+        ]
+        mana_food = store_item(
+            "g", TVAL_STAFF, 4, price=1576, name="Mana food", pval=23,
+        )
+        detection = store_item(
+            "t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            price=162, count=18,
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        base = replace(
+            self._in_store(
+                [mana_food], gold=367, inv=inventory, eq=equipment,
+            ),
+            player=player(
+                10, 10, gold=367, class_id=PLAYER_CLASS_WARRIOR,
+                food_type=FOOD_TYPE_MANA,
+            ),
+        )
+        magic = replace(
+            base, store=StoreState(STORE_MAGIC, [mana_food]),
+        )
+
+        self.assertEqual(policy.choose_key(magic), "\x1b")
+        self.assertEqual(policy.last_reason, "shop:leave")
+
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        with_detection = replace(
+            base, store=StoreState(STORE_MAGIC, [mana_food, detection]),
+        )
+        self.assertEqual(policy.choose_key(with_detection), "pt2\r\r")
+        self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
 
     def test_permanent_light_buys_neither_lantern_nor_oil(self):
         wares = [
