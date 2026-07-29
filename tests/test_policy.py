@@ -851,6 +851,94 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(shrinking), WAIT_KEY)
         self.assertEqual(policy.last_reason, "melee:choke-hold")
 
+    def test_incident_expired_breakthrough_latch_returns_to_ordinary_behavior(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        grids = {
+            position: replace(grid_state, has_monster=False, monster_index=0)
+            for position, grid_state in base.grids.items()
+        }
+        cleared = replace(base, grids=grids, visible_monsters=[])
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._observe(cleared)
+        policy._breeder_engagement_floor = cleared.floor_key
+        policy._breeder_engagement_score = 0
+        policy._breeder_breakthrough_floor = cleared.floor_key
+
+        policy.choose_key(cleared)
+
+        self.assertNotEqual(
+            policy.last_reason, "breeder-breakthrough:upstairs-not-found"
+        )
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+
+    def test_breakthrough_latch_survives_brief_breeder_visibility_flicker(self):
+        visible = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        hidden = replace(visible, visible_monsters=[])
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._observe(visible)
+        policy._breeder_engagement_floor = visible.floor_key
+        policy._breeder_engagement_score = 12
+        policy._breeder_breakthrough_floor = visible.floor_key
+
+        for _ in range(2):
+            policy.choose_key(hidden)
+            self.assertTrue(
+                policy.last_reason.startswith("breeder-breakthrough:")
+            )
+            self.assertEqual(
+                policy._breeder_breakthrough_floor, visible.floor_key
+            )
+
+        policy.choose_key(visible)
+        self.assertTrue(
+            policy.last_reason.startswith("breeder-breakthrough:")
+        )
+        self.assertEqual(
+            policy._breeder_breakthrough_floor, visible.floor_key
+        )
+
+    def test_visible_breeders_do_not_release_breakthrough_latch(self):
+        visible = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._observe(visible)
+        policy._breeder_engagement_floor = visible.floor_key
+        policy._breeder_engagement_score = 8
+        policy._breeder_breakthrough_floor = visible.floor_key
+
+        policy.choose_key(visible)
+        self.assertTrue(
+            policy.last_reason.startswith("breeder-breakthrough:")
+        )
+        self.assertEqual(
+            policy._breeder_breakthrough_floor, visible.floor_key
+        )
+
+    def test_breakthrough_can_rearm_after_expired_latch_releases(self):
+        visible = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        hidden = replace(visible, visible_monsters=[])
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._observe(visible)
+        policy._breeder_engagement_floor = visible.floor_key
+        policy._breeder_engagement_score = 0
+        policy._breeder_breakthrough_floor = visible.floor_key
+
+        policy.choose_key(hidden)
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+
+        policy._choke_hold_floor = visible.floor_key
+        policy._choke_hold_start_breeders = len(visible.visible_monsters) - 1
+        self.assertEqual(policy.choose_key(visible), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:upstairs-not-found"
+        )
+        self.assertEqual(
+            policy._breeder_breakthrough_floor, visible.floor_key
+        )
+
     def test_incident_breakthrough_routes_advance_monotonically_to_upstairs(self):
         captures = [
             Path(__file__).parents[1]
@@ -894,6 +982,9 @@ class CombatTest(unittest.TestCase):
                 policy._grid_memory = dict(remembered_grids)
                 policy._observe(snapshot)
                 policy._breeder_breakthrough_floor = snapshot.floor_key
+                policy._breeder_engagement_score = (
+                    BREEDER_CONTAINMENT_WINDOW * 10
+                )
                 distances = [snapshot.player.position.distance_to(upstairs)]
 
                 for _ in range(80):
@@ -1017,6 +1108,7 @@ class CombatTest(unittest.TestCase):
         policy._door_t = current_window._door_t
         policy._rubble_t = current_window._rubble_t
         policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._breeder_engagement_score = BREEDER_CONTAINMENT_WINDOW * 10
         self.assertIsNotNone(policy._breeder_breakthrough_step(snapshot))
         offsets = {
             "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),

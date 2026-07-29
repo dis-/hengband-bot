@@ -22372,6 +22372,11 @@ class HengbotPolicy:
     ) -> str | None:
         """Leave upward once a breeder swarm outgrows its choke-start count."""
         if (
+            self._breeder_breakthrough_floor == snapshot.floor_key
+            and self._breeder_engagement_score == 0
+        ):
+            self._breeder_breakthrough_floor = None
+        if (
             self._choke_hold_floor == snapshot.floor_key
             and self._choke_hold_start_breeders is not None
             and sum(monster.can_multiply for monster in hostiles)
