@@ -23199,6 +23199,128 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
             )
         self.assertEqual(pol.last_reason, "emergency:seek-upstairs")
 
+    def test_choose_key_death_shape_attacks_instead_of_ping_ponging(self):
+        # Character #5's free south cell was the other half of the 2/8 loop;
+        # the mouse is adjacent on a different cell and remains attackable.
+        current = Position(10, 44)
+        repeated = Position(11, 44)
+        mouse = MonsterState(
+            index=1,
+            position=Position(10, 43),
+            hp=10,
+            max_hp=10,
+            distance=1,
+            friendly=False,
+            pet=False,
+            speed=120,
+            max_melee_damage=200,
+        )
+        snap = Snapshot(
+            player(10, 44, hp=100, max_hp=255, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                current: grid(10, 44),
+                repeated: grid(11, 44),
+                mouse.position: grid(10, 43, monster=True),
+            },
+            [mouse],
+            floor_key=(2, 1, 0),
+        )
+        pol = HengbotPolicy()
+        with patch.object(pol, "_decide", return_value=WAIT_KEY):
+            pol.choose_key(snap)
+        pol._emergency_escape_pending = True
+        pol._recent.clear()
+        pol._recent.extend([current, repeated] * 6)
+
+        with (
+            patch.object(pol, "_predicted_damage", return_value=1000),
+            patch.object(pol, "_nearest_goal_step", return_value=repeated),
+            patch.object(pol, "_flee_step", return_value=repeated),
+            patch.object(
+                pol, "_break_positional_oscillation", side_effect=lambda _s, key: key
+            ),
+        ):
+            key = pol.choose_key(snap)
+
+        self.assertEqual(
+            (key, pol.last_reason),
+            ("4", "emergency:cornered-attack"),
+        )
+
+    def test_choose_key_no_wait_does_not_reemit_emergency_refused_step(self):
+        current = Position(10, 10)
+        repeated = Position(11, 10)
+        snap = Snapshot(
+            player(10, 10, hp=100, max_hp=200),
+            {current: grid(10, 10), repeated: grid(11, 10)},
+            [],
+            floor_key=(1, 1, 0),
+        )
+        pol = HengbotPolicy()
+        pol.choose_key(
+            replace(snap, player=replace(snap.player, hp=120), turn=1)
+        )
+        pol._recent.clear()
+        pol._recent.extend([current, repeated] * 6)
+
+        def emergency_wait(_snapshot):
+            pol.last_reason = "emergency:wait"
+            pol._escape_state.enter("emergency", pol.last_reason)
+            return WAIT_KEY
+
+        with (
+            patch.object(pol, "_decide", side_effect=emergency_wait),
+            patch.object(pol, "_flee_step", return_value=repeated),
+            patch.object(pol, "_least_visited_neighbor", return_value=None),
+        ):
+            key = pol.choose_key(replace(snap, turn=2))
+
+        self.assertNotEqual(key, "2")
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(pol.last_reason, "emergency:wait")
+
+    def test_choose_key_unseen_recall_escalation_still_moves(self):
+        current = Position(10, 10)
+        first = Position(11, 10)
+        escalation = Position(10, 9)
+        grids = {
+            current: grid(10, 10),
+            first: grid(11, 10),
+            escalation: grid(10, 9),
+        }
+        floor = (1, 5, 0)
+        pol = HengbotPolicy()
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=200, max_hp=200, word_recall=5),
+                grids,
+                [],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        pol._recent.clear()
+        pol._recent.extend([current, first, current, escalation] * 3)
+
+        with (
+            patch.object(pol, "_nearest_goal_step", return_value=first),
+            patch.object(
+                pol, "_least_visited_neighbor", return_value=escalation
+            ),
+        ):
+            key = pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=170, max_hp=200, word_recall=4),
+                    grids,
+                    [],
+                    turn=2,
+                    floor_key=floor,
+                )
+            )
+
+        self.assertEqual(key, "4")
+        self.assertEqual(pol.last_reason, "unseen-recall:move")
+
 
 class EmergencyHealBeforeFleeTest(unittest.TestCase):
     def _quest_emergency(self, *, hp=100, inventory=()):

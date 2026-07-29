@@ -2386,7 +2386,7 @@ class HengbotPolicy:
 
         step = self._flee_step(snapshot, hostiles)
         if step is not None and not (
-            self._escape_state.owner == "disengage"
+            self._escape_state.owner in {"disengage", "emergency"}
             and self._is_oscillating()
             and step in set(self._recent)
         ):
@@ -21306,10 +21306,6 @@ class HengbotPolicy:
                 step = None
             if step is None:
                 step = self._least_visited_neighbor(snapshot)
-            if step is not None and (
-                self._is_oscillating() and step in set(self._recent)
-            ):
-                step = None
             if step is not None:
                 self.last_reason = "unseen-recall:move"
                 return self._step_toward(snapshot, step)
@@ -22244,7 +22240,8 @@ class HengbotPolicy:
             return False
         # This global latch is keyed to character level: it lifts when we grow
         # stronger or its cooldown runs out. One bad landing must not ratchet
-        # when the shallower floors cannot supply a whole level of XP.
+        # the bot upward forever when the shallower floors cannot supply a
+        # whole level of XP.
         if snapshot.player.level > self._descent_blocked_at_level:
             self._descent_blocked_at_level = None
             return False
