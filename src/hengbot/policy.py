@@ -22996,7 +22996,7 @@ class HengbotPolicy:
         player = snapshot.player
         eligible_hit = (
             self._took_damage
-            and not hostiles
+            and not snapshot.visible_monsters
             and not player.poisoned
             and not player.cut
         )

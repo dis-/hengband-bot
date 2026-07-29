@@ -2124,6 +2124,50 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertFalse(pol._returning_to_town)
         self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
 
+    def test_weak_breeder_hit_does_not_start_unseen_retreat_or_wait(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        breeder = hostile(
+            1,
+            10,
+            13,
+            distance=2,
+            can_multiply=True,
+            max_melee_damage=1,
+        )
+        grids[breeder.position] = replace(
+            grids[breeder.position], has_monster=True
+        )
+        pol = HengbotPolicy()
+
+        with patch.object(
+            pol, "_explore_step", return_value=Position(10, 11)
+        ):
+            pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=227, max_hp=227),
+                    grids,
+                    [breeder],
+                    turn=1,
+                    floor_key=floor,
+                )
+            )
+            key = pol.choose_key(
+                Snapshot(
+                    player(10, 11, hp=226, max_hp=227),
+                    grids,
+                    [breeder],
+                    turn=2,
+                    floor_key=floor,
+                )
+            )
+
+        self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
+        self.assertIsNone(pol._unseen_retreat_floor)
+        self.assertIsNone(pol._unseen_choke_position)
+        self.assertEqual(pol._unseen_wait_remaining, 0)
+        self.assertNotEqual(key, WAIT_KEY)
+
     def test_reverse_choke_waits_sixty_decisions_then_resumes_floor(self):
         grids = self._reverse_choke_grids()
         floor = (1, 4, 0)
