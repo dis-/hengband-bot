@@ -894,6 +894,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._breeder_engagement_score = BREEDER_CONTAINMENT_WINDOW
         policy._fruitless_disengage_floor = base.floor_key
         policy._fruitless_disengage_decisions = 37
+        policy._fruitless_disengage_spent_this_decision = True
         policy.last_reason = "combat:disengage-step"
 
         policy._update_combat_outcome(fighting)
@@ -1066,6 +1067,26 @@ class NavigationInvariantTest(unittest.TestCase):
         base = self._quiet_room()
         worm = hostile(1, 10, 11, can_multiply=True, race_id=79)
         swarm = replace(base, visible_monsters=[worm])
+        policy = HengbotPolicy()
+        policy._fruitless_disengage_floor = base.floor_key
+
+        decisions = [
+            policy.choose_key(swarm)
+            for _ in range(FRUITLESS_DISENGAGE_LIMIT + 1)
+        ]
+
+        self.assertEqual(decisions[-1], WAIT_KEY)
+        self.assertEqual(policy.last_reason, "combat:fruitless")
+
+    def test_continuous_nonbreeder_disengagement_still_terminates(self):
+        base = self._quiet_room()
+        swarm = replace(
+            base,
+            visible_monsters=[
+                hostile(index, 10, 11, race_id=257)
+                for index in range(1, 91)
+            ],
+        )
         policy = HengbotPolicy()
         policy._fruitless_disengage_floor = base.floor_key
 

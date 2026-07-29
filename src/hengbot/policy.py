@@ -1701,6 +1701,7 @@ class HengbotPolicy:
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
         self._fruitless_disengage_marked_high = 0
+        self._fruitless_disengage_spent_this_decision = False
         self._escape_wait_budget_floor: tuple[int, int, int] | None = None
         self._escape_wait_decisions: Counter[str] = Counter()
         self.escape_ladder_telemetry: dict[str, object] | None = None
@@ -1997,6 +1998,7 @@ class HengbotPolicy:
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
+        self._fruitless_disengage_spent_this_decision = False
         key = self._decide(snapshot)
         self._remember_swarm_distances(snapshot)
         key = self._flee_sustain_key(snapshot, key)
@@ -20408,6 +20410,7 @@ class HengbotPolicy:
             self._breeder_engagement_score = max(
                 0, self._breeder_engagement_score - 4
             )
+        if not self._fruitless_disengage_spent_this_decision:
             self._fruitless_disengage_decisions = max(
                 0, self._fruitless_disengage_decisions - 4
             )
@@ -20665,11 +20668,13 @@ class HengbotPolicy:
             self.last_reason = "combat:fruitless"
             self._escape_state.release()
             return WAIT_KEY
-        if not productive_walk_out:
+        if not productive_walk_out and nearby_threat:
             # Productive walk-out steps do not spend the fruitless allowance.
+            # Neither do decisions after contact has genuinely broken.
             # Termination is preserved because marked growth is bounded by the
-            # finite floor; every later zero-growth decision consumes as before.
+            # finite floor; later zero-growth decisions under threat consume.
             self._fruitless_disengage_decisions += 1
+            self._fruitless_disengage_spent_this_decision = True
         self._escape_state.budgets["fruitless-disengage"] = (
             self._fruitless_disengage_decisions
         )

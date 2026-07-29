@@ -4101,11 +4101,14 @@ class ReturnToTownTest(unittest.TestCase):
             policy_module.BREEDER_CONTAINMENT_WINDOW - 1
         )
 
+        policy._fruitless_disengage_spent_this_decision = True
         policy._update_combat_outcome(fighting)
+        policy._fruitless_disengage_spent_this_decision = False
         policy._update_combat_outcome(replace(fighting, visible_monsters=[], turn=2))
         policy._breeder_engagement_score = (
             policy_module.BREEDER_CONTAINMENT_WINDOW - 1
         )
+        policy._fruitless_disengage_spent_this_decision = True
         policy._update_combat_outcome(replace(fighting, turn=3))
 
         self.assertEqual(policy._fruitless_disengage_decisions, 33)
