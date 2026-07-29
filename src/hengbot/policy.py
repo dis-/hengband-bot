@@ -14699,6 +14699,10 @@ class HengbotPolicy:
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
         """Restore each combat hand displaced by the temporary mining loadout."""
+        main_hand = next(
+            (item for item in snapshot.equipment if item.slot == "main_hand"),
+            None,
+        )
         for target_slot, remembered_name in (
             ("main_hand", self._normal_weapon_name),
             ("sub_hand", self._normal_sub_hand_name),
@@ -14728,6 +14732,14 @@ class HengbotPolicy:
                 ),
             )
             if replacement is None:
+                if (
+                    target_slot == "sub_hand"
+                    and main_hand is not None
+                    and not main_hand.is_digging_tool
+                ):
+                    self._digger_wield_attempts = 0
+                    self.last_reason = reason
+                    return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
                 continue
             self._digger_wield_attempts += 1
             if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:

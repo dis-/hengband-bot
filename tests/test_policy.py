@@ -17119,6 +17119,103 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy.choose_key(armed)
         self.assertEqual(policy.last_reason, "melee:choke")
 
+    def test_choose_key_combat_restore_releases_incident_dual_wield_digger(self):
+        sword = item(
+            "s",
+            TVAL_SWORD,
+            16,
+            name="Broad Sword",
+            is_equipment=True,
+            damage_dice_num=2,
+            damage_dice_sides=5,
+        )
+        shovel = item(
+            "sub_hand",
+            TVAL_DIGGING,
+            SV_DIGGING_SHOVEL,
+            name="Shovel",
+            is_equipment=True,
+            pval=1,
+        )
+        positions = [
+            (10, 11), (9, 11), (11, 11), (10, 12),
+            (9, 12), (11, 12), (8, 11), (12, 11),
+            (8, 12), (12, 12), (9, 13), (11, 13),
+        ]
+        breeders = [
+            hostile(
+                index,
+                y,
+                x,
+                distance=1 if index == 1 else 2,
+                race_id=31,
+                can_multiply=True,
+                max_melee_damage=1,
+            )
+            for index, (y, x) in enumerate(positions, 1)
+        ]
+        grids = {
+            Position(y, x): grid(
+                y,
+                x,
+                monster=any(
+                    monster.position == Position(y, x) for monster in breeders
+                ),
+            )
+            for y in range(8, 13)
+            for x in range(9, 14)
+        }
+        mining = Snapshot(
+            player(
+                10,
+                10,
+                hp=189,
+                max_hp=189,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            grids,
+            breeders,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[sword],
+            equipment=[
+                replace(shovel, slot="main_hand"),
+                replace(shovel, slot="sub_hand", name="Pick"),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._mining_combat_contact_streak = (
+            policy_module.MINING_COMBAT_CONTACT_LIMIT
+        )
+
+        self.assertEqual(policy.choose_key(mining), "wsa")
+        self.assertEqual(policy.last_reason, "melee:restore-weapon")
+
+        main_restored = replace(
+            mining,
+            inventory=[replace(shovel, slot="m")],
+            equipment=[
+                replace(sword, slot="main_hand"),
+                shovel,
+            ],
+        )
+        self.assertEqual(policy.choose_key(main_restored), "tb")
+        self.assertEqual(policy.last_reason, "melee:restore-weapon")
+
+        combat_ready = replace(
+            main_restored,
+            inventory=[
+                replace(shovel, slot="m"),
+                replace(shovel, slot="n", name="Pick"),
+            ],
+            equipment=[replace(sword, slot="main_hand")],
+        )
+        self.assertFalse(
+            any(item.is_digging_tool for item in combat_ready.equipment)
+        )
+        policy.choose_key(combat_ready)
+        self.assertTrue(policy.last_reason.startswith("melee:choke"))
+
     def test_sleeping_mouse_does_not_trigger_mining_weapon_restore(self):
         sword = item("s", TVAL_SWORD, 1, name="Broad Sword", is_equipment=True)
         shovel = item(
