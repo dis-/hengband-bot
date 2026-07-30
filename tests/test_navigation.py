@@ -490,6 +490,126 @@ class DescentTargetExpiryTest(unittest.TestCase):
         self.assertFalse(policy._nav_ledger.is_expired("descend", target))
 
 
+class UnenterableExploreGoalTest(unittest.TestCase):
+    CAPTURE = (
+        Path(__file__).parents[1]
+        / "incident-captures"
+        / "20260730-0712-west-pocket-loop"
+        / "pocket-turn457749.jsonl"
+    )
+    GOAL = Position(16, 3)
+    RING = (
+        Position(16, 2),
+        Position(15, 3),
+        Position(15, 4),
+        Position(16, 4),
+        Position(17, 3),
+        Position(17, 2),
+    )
+
+    @classmethod
+    def _capture_snapshot(cls):
+        with cls.CAPTURE.open(encoding="utf-8-sig") as stream:
+            return parse_snapshot(json.loads(next(stream)))
+
+    @staticmethod
+    def _seed_incident_ledger(policy):
+        data = json.loads(
+            (
+                Path(__file__).parents[1]
+                / "jsonlog"
+                / "exploration-ledger.json"
+            ).read_text(encoding="utf-8")
+        )
+        policy._visit_counts.update(
+            {
+                Position(y, x): visits
+                for y, x, visits in data["visit_counts"]
+            }
+        )
+        policy._probed_frontiers.update(
+            Position(y, x) for y, x in data["probed_frontiers"]
+        )
+
+    def test_real_west_pocket_replay_retires_goal_and_plans_elsewhere(self):
+        base = self._capture_snapshot()
+        policy = HengbotPolicy()
+        policy._floor_key = base.floor_key
+        self._seed_incident_ledger(policy)
+
+        proposed = []
+        for position in self.RING:
+            snapshot = replace(
+                base, player=replace(base.player, position=position)
+            )
+            key = policy.choose_key(snapshot)
+            pending = getattr(policy, "_pending_one_step_explore", None)
+            proposed.append(pending[1] if pending is not None else None)
+            self.assertEqual(policy.last_reason, "explore")
+            self.assertNotEqual(key, WAIT_KEY)
+
+        self.assertEqual(proposed[:3], [self.GOAL] * 3)
+        self.assertNotIn(self.GOAL, proposed[3:])
+        self.assertIn(self.GOAL, policy._unenterable_explore_goals)
+        self.assertTrue(
+            any(goal is not None and goal != self.GOAL for goal in proposed[3:])
+        )
+
+    def _retired_synthetic_goal(self):
+        goal = Position(10, 10)
+        origins = (Position(9, 9), Position(9, 10), Position(9, 11))
+        grids = {
+            goal: replace(
+                grid(goal.y, goal.x, terrain_id=1),
+                has_monster=True,
+                monster_index=47,
+            )
+        }
+        grids.update(
+            {origin: grid(origin.y, origin.x, terrain_id=1) for origin in origins}
+        )
+        policy = HengbotPolicy()
+        snapshot = Snapshot(
+            player(origins[0].y, origins[0].x, food=12000),
+            grids,
+            [],
+            floor_key=DUNGEON_FLOOR,
+            width=40,
+            height=40,
+        )
+        policy._floor_key = snapshot.floor_key
+        policy._visit_counts.update({origin: 1 for origin in origins})
+        for origin in origins:
+            attempted = replace(
+                snapshot, player=replace(snapshot.player, position=origin)
+            )
+            policy._remember_one_step_explore(attempted, origin, goal)
+            policy._observe_one_step_explore(attempted)
+        return policy, snapshot, goal
+
+    def test_signature_change_revives_transiently_blocked_goal(self):
+        policy, snapshot, goal = self._retired_synthetic_goal()
+        self.assertIn(goal, policy._unenterable_explore_goals)
+
+        changed_grid = replace(
+            snapshot.grids[goal], has_monster=False, monster_index=0
+        )
+        changed = replace(
+            snapshot, grids={**snapshot.grids, goal: changed_grid}
+        )
+        policy._observe_one_step_explore(changed)
+
+        self.assertNotIn(goal, policy._unenterable_explore_goals)
+        policy._build_grid_index(changed)
+        self.assertEqual(policy._plan_explore_path(changed)[-1], goal)
+
+    def test_retirement_does_not_synthesize_visit_count(self):
+        policy, _snapshot, goal = self._retired_synthetic_goal()
+
+        self.assertIn(goal, policy._unenterable_explore_goals)
+        self.assertEqual(policy._visit_counts[goal], 0)
+
+
 class NavigationInvariantTest(unittest.TestCase):
     GIVEUP_CAPTURE = (
         Path(__file__).parents[1]

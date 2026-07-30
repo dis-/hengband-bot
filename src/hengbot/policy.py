@@ -1482,6 +1482,20 @@ class HengbotPolicy:
             maxlen=EXTENDED_STUCK_WINDOW
         )
         self._explore_path: list[Position] = []
+        # A one-step explore route is consumed before the next snapshot can
+        # confirm arrival. Remember its origin until then; failures from several
+        # different adjacent cells retire a goal without pretending it was
+        # visited. Terrain/occupancy changes revive the coordinate.
+        self._pending_one_step_explore: (
+            tuple[Position, Position, tuple[int, bool, bool, bool, int]] | None
+        ) = None
+        self._one_step_explore_failures: dict[Position, set[Position]] = {}
+        self._one_step_explore_signatures: dict[
+            Position, tuple[int, bool, bool, bool, int]
+        ] = {}
+        self._unenterable_explore_goals: dict[
+            Position, tuple[int, bool, bool, bool, int]
+        ] = {}
         # Cells from which the material-engagement gate deliberately retreated.
         # Generic exploration/hunting must not immediately route back onto them.
         self._engagement_avoid_cells: set[Position] = set()
@@ -4229,6 +4243,10 @@ class HengbotPolicy:
             self._recent.clear()
             self._osc_positions.clear()
             self._explore_path = []
+            self._pending_one_step_explore = None
+            self._one_step_explore_failures.clear()
+            self._one_step_explore_signatures.clear()
+            self._unenterable_explore_goals.clear()
             self._window_edge_goals.clear()
             self._window_edge_fallback_pending = False
             self._engagement_avoid_cells.clear()
@@ -4338,6 +4356,7 @@ class HengbotPolicy:
         self._last_hp = hp
 
         position = snapshot.player.position
+        self._observe_one_step_explore(snapshot)
         self._position_changed = (
             self._last_position is not None and position != self._last_position
         )
@@ -23830,6 +23849,8 @@ class HengbotPolicy:
                 and self._is_step_open(snapshot, start, nxt)
             ):
                 self._explore_path.pop(0)
+                if not self._explore_path:
+                    self._remember_one_step_explore(snapshot, start, nxt)
                 return nxt
             self._explore_path = []  # diverged or blocked → replan
 
@@ -23837,7 +23858,65 @@ class HengbotPolicy:
         if not path:
             return None
         self._explore_path = path[1:]
+        if not self._explore_path:
+            self._remember_one_step_explore(snapshot, start, path[0])
         return path[0]
+
+    @staticmethod
+    def _explore_goal_signature(
+        grid: GridState | None,
+    ) -> tuple[int, bool, bool, bool, int]:
+        if grid is None:
+            return (-1, False, False, False, 0)
+        return (
+            grid.terrain_id,
+            grid.known,
+            grid.passable,
+            grid.is_closed_door,
+            grid.monster_index if grid.has_monster else 0,
+        )
+
+    def _remember_one_step_explore(
+        self, snapshot: Snapshot, origin: Position, goal: Position
+    ) -> None:
+        self._pending_one_step_explore = (
+            origin,
+            goal,
+            self._explore_goal_signature(snapshot.grid_at(goal)),
+        )
+
+    def _observe_one_step_explore(self, snapshot: Snapshot) -> None:
+        for goal, retired_signature in list(
+            self._unenterable_explore_goals.items()
+        ):
+            signature = self._explore_goal_signature(snapshot.grid_at(goal))
+            if signature != retired_signature:
+                del self._unenterable_explore_goals[goal]
+                self._one_step_explore_failures.pop(goal, None)
+                self._one_step_explore_signatures.pop(goal, None)
+
+        pending = self._pending_one_step_explore
+        self._pending_one_step_explore = None
+        if pending is None:
+            return
+        origin, goal, attempted_signature = pending
+        if snapshot.player.position == goal:
+            self._one_step_explore_failures.pop(goal, None)
+            self._one_step_explore_signatures.pop(goal, None)
+            return
+        signature = self._explore_goal_signature(snapshot.grid_at(goal))
+        if signature != attempted_signature:
+            self._one_step_explore_failures.pop(goal, None)
+            self._one_step_explore_signatures.pop(goal, None)
+            return
+        if self._one_step_explore_signatures.get(goal) != signature:
+            self._one_step_explore_failures[goal] = set()
+            self._one_step_explore_signatures[goal] = signature
+        failures = self._one_step_explore_failures.setdefault(goal, set())
+        failures.add(origin)
+        if len(failures) >= 3:
+            self._unenterable_explore_goals[goal] = signature
+            self._explore_path = []
 
     def _plan_explore_path(self, snapshot: Snapshot) -> list[Position]:
         """Dijkstra to the nearest (visit-penalised) frontier, returning the full
@@ -23853,6 +23932,7 @@ class HengbotPolicy:
             Position(y, x)
             for y, x in self._remembered_floor_t
             if Position(y, x) not in self._probed_frontiers
+            and Position(y, x) not in self._unenterable_explore_goals
             and self._is_remembered_frontier(snapshot, Position(y, x))
         }
         candidates.discard(snapshot.player.position)
@@ -23951,10 +24031,14 @@ class HengbotPolicy:
                 if (
                     self._visit_counts[pos] == 0
                     and (pos.y, pos.x) in self._floor_t
+                    and pos not in self._unenterable_explore_goals
                 ):
                     goal = pos
                     break
-                if self._is_remembered_frontier(snapshot, pos):
+                if (
+                    pos not in self._unenterable_explore_goals
+                    and self._is_remembered_frontier(snapshot, pos)
+                ):
                     goal = pos
                     break
             for neighbor in self._walkable_neighbors(
