@@ -24458,7 +24458,8 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         pol._observe(snap)
         self.assertGreaterEqual(pol._deepest_level, RECALL_MIN_DEPTH)
-        self.assertIsNone(pol._town_special_key(snap))
+        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_recall_depth_only_raises_never_lowers_watermark(self):
         # recall_depth seeds via max(): a deeper in-session watermark still wins,
@@ -24469,31 +24470,10 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._observe(snap)
         self.assertEqual(pol._deepest_level, 8)
 
-    def test_deep_yeek_cave_run_still_walks_to_the_entrance(self):
+    def test_recalls_into_a_deep_yeek_cave_run(self):
         pol, snap = self._ready_town(RECALL_MIN_DEPTH, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
-        self.assertIsNone(pol._town_special_key(snap))
-
-    def test_town_yeek_one_cycle_never_spends_recall(self):
-        pol, town = self._ready_town(
-            RECALL_MIN_DEPTH, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE
-        )
-        self.assertEqual(pol._count_recall_scrolls(town), 9)
-        self.assertIsNone(pol._town_special_key(town))
-
-        dungeon = replace(
-            town,
-            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
-            town_flag=False,
-            grids={Position(10, 10): grid(10, 10, upstairs=True)},
-        )
-        pol._returning_to_town = True
-        self.assertEqual(pol._return_to_town_key(dungeon, []), UP_STAIRS_KEY)
-        self.assertEqual(pol.last_reason, "return:ascend")
-        self.assertEqual(pol._count_recall_scrolls(dungeon), 9)
-
-        returned = replace(town, turn=town.turn + 2)
-        self.assertIsNone(pol._town_special_key(returned))
-        self.assertEqual(pol._count_recall_scrolls(returned), 9)
+        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_shallow_run_walks_to_the_entrance_not_recall(self):
         pol, snap = self._ready_town(RECALL_MIN_DEPTH - 1, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
@@ -30984,6 +30964,107 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
         self.assertTrue(pol._emergency_recall_sanctioned)
+
+    def test_yeek_recall_destination_and_repetition_departure_are_restored(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+        pol._deepest_level = RECALL_MIN_DEPTH
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=7)
+        snap = replace(
+            self._town_snap(),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            recall_dungeon_id=DUNGEON_YEEK_CAVE,
+            recall_depth=RECALL_MIN_DEPTH,
+            dungeon_recall_depths={
+                DUNGEON_YEEK_CAVE: RECALL_MIN_DEPTH,
+            },
+        )
+
+        with patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ), patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(
+                pol._town_recall_destination(snap),
+                ("yeek-cave", DUNGEON_YEEK_CAVE),
+            )
+            self.assertEqual(
+                pol._recall_selection_key(snap, DUNGEON_YEEK_CAVE), "a"
+            )
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "ra")
+
+        self.assertNotEqual(pol.last_reason, "town:blocked:repetition")
+
+    def test_yeek_repetition_recall_refuses_five_scrolls(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+        pol._deepest_level = RECALL_MIN_DEPTH
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5)
+        snap = replace(
+            self._town_snap(),
+            inventory=[recall],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            recall_dungeon_id=DUNGEON_YEEK_CAVE,
+            recall_depth=RECALL_MIN_DEPTH,
+            dungeon_recall_depths={
+                DUNGEON_YEEK_CAVE: RECALL_MIN_DEPTH,
+            },
+        )
+
+        with patch.object(
+            pol, "_recall_destination_safe", return_value=True
+        ), patch.object(pol, "_descent_step", return_value=None):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+
+        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+
+    def test_yeek_recall_destination_preserves_walk_in_exemptions(self):
+        snap = replace(
+            self._town_snap(),
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            recall_dungeon_id=DUNGEON_YEEK_CAVE,
+            recall_depth=RECALL_MIN_DEPTH,
+        )
+
+        for mode in ("mine", "scavenge"):
+            with self.subTest(mode=mode):
+                pol = HengbotPolicy()
+                pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+                pol._deepest_level = RECALL_MIN_DEPTH
+                pol._fundraising_mode = mode
+                with patch.object(
+                    pol, "_recall_destination_safe", return_value=True
+                ):
+                    self.assertEqual(
+                        pol._town_recall_destination(snap),
+                        (None, DUNGEON_YEEK_CAVE),
+                    )
+
+        shallow = HengbotPolicy()
+        shallow._target_dungeon_id = DUNGEON_YEEK_CAVE
+        shallow._deepest_level = RECALL_MIN_DEPTH - 1
+        with patch.object(
+            shallow, "_recall_destination_safe", return_value=True
+        ):
+            self.assertEqual(
+                shallow._town_recall_destination(snap),
+                (None, DUNGEON_YEEK_CAVE),
+            )
+
+        quest = HengbotPolicy()
+        quest._target_dungeon_id = DUNGEON_YEEK_CAVE
+        quest._deepest_level = RECALL_MIN_DEPTH
+        with patch.object(
+            quest, "_taken_kill_quest_requires_walk_in", return_value=True
+        ), patch.object(quest, "_recall_destination_safe", return_value=True):
+            self.assertEqual(
+                quest._town_recall_destination(snap),
+                (None, DUNGEON_YEEK_CAVE),
+            )
 
     def test_last_scroll_repetition_recall_is_forbidden_and_stops_visibly(self):
         pol = HengbotPolicy()

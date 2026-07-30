@@ -14273,6 +14273,15 @@ class HengbotPolicy:
             and self._recall_destination_safe(snapshot, self._target_dungeon_id)
         ):
             recall_dest = "alt-dungeon"
+        elif (
+            self._target_dungeon_id == DUNGEON_YEEK_CAVE
+            and self._fundraising_mode not in {"mine", "scavenge"}
+            and not self._taken_kill_quest_requires_walk_in(snapshot)
+            and self._deepest_level >= RECALL_MIN_DEPTH
+            and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
+            and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
+        ):
+            recall_dest = "yeek-cave"
         return recall_dest, recall_dungeon_id
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
