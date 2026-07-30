@@ -2389,6 +2389,11 @@ class HengbotPolicy:
             return key
 
         reason = self.last_reason
+        strategic_hostiles = (
+            self._hostiles(snapshot)
+            if hasattr(snapshot, "visible_monsters")
+            else []
+        )
         hostiles = (
             self._raw_hostiles(snapshot)
             if hasattr(snapshot, "visible_monsters")
@@ -2397,10 +2402,10 @@ class HengbotPolicy:
         choke_hold = (
             reason == "melee:choke-hold"
             and not self._took_damage
-            and bool(hostiles)
+            and bool(strategic_hostiles)
             and all(
                 monster.max_ranged_damage <= 0 and monster.distance > 1
-                for monster in hostiles
+                for monster in strategic_hostiles
             )
         )
         # Keep this aligned with cli.STATIONARY_REASONS and the
@@ -2442,19 +2447,25 @@ class HengbotPolicy:
         if not under_fire:
             return key
 
-        scroll = self._escape_scroll(snapshot)
-        if scroll is not None:
-            self.last_reason = "no-wait:escape-scroll"
-            return READ_KEY + scroll.slot
+        only_suppressed_weak_breeders = (
+            not self._took_damage
+            and bool(hostiles)
+            and not strategic_hostiles
+        )
+        if not only_suppressed_weak_breeders:
+            scroll = self._escape_scroll(snapshot)
+            if scroll is not None:
+                self.last_reason = "no-wait:escape-scroll"
+                return READ_KEY + scroll.slot
 
-        step = self._flee_step(snapshot, hostiles)
-        if step is not None and not (
-            self._escape_state.owner in {"disengage", "emergency"}
-            and self._is_oscillating()
-            and step in set(self._recent)
-        ):
-            self.last_reason = "no-wait:flee"
-            return self._direction_key(snapshot.player.position, step)
+            step = self._flee_step(snapshot, hostiles)
+            if step is not None and not (
+                self._escape_state.owner in {"disengage", "emergency"}
+                and self._is_oscillating()
+                and step in set(self._recent)
+            ):
+                self.last_reason = "no-wait:flee"
+                return self._direction_key(snapshot.player.position, step)
 
         step = self._least_visited_neighbor(snapshot)
         if step is not None:

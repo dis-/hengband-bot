@@ -526,16 +526,123 @@ class CombatTest(unittest.TestCase):
         self.assertNotEqual(key, "8")
 
     def test_latched_adjacent_weak_breeders_forbid_unsanctioned_wait(self):
-        snapshot = self._weak_breeder_incident_snapshot(blocking=True)
+        base = self._weak_breeder_incident_snapshot(blocking=True)
+        for sval in (SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT):
+            with self.subTest(sval=sval):
+                snapshot = replace(
+                    base,
+                    inventory=[item("q", TVAL_SCROLL, sval, count=1)],
+                )
+                policy = HengbotPolicy()
+                policy._breeder_breakthrough_floor = snapshot.floor_key
+                policy._took_damage = False
+                policy.last_reason = "fundraise:upstairs-not-found"
+
+                key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+
+                self.assertNotEqual(key, WAIT_KEY)
+                self.assertIn(
+                    policy.last_reason,
+                    {"no-wait:least-visited", "no-wait:melee"},
+                )
+
+    def test_real_capture_weak_breeders_do_not_spend_escape_scroll(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260730-1543-fundraise-loot-oscillation"
+            / "last-snapshots.jsonl"
+        )
+        monraces = Path(
+            r"C:\hengband\.worktrees\bot-json-output\lib\edit"
+            r"\MonraceDefinitions.jsonc"
+        )
+        if not capture.is_file() or not monraces.is_file():
+            self.skipTest("real fundraise oscillation capture is not available")
+        knowledge = load_monrace_knowledge(monraces)
+        base = parse_snapshot(
+            json.loads(capture.read_text(encoding="utf-8").splitlines()[-1]),
+            knowledge,
+        )
+
+        for sval in (SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT):
+            with self.subTest(sval=sval):
+                snapshot = replace(
+                    base,
+                    inventory=[
+                        *base.inventory,
+                        item("q", TVAL_SCROLL, sval, count=1),
+                    ],
+                )
+                policy = HengbotPolicy(monrace_knowledge=knowledge)
+                policy._breeder_breakthrough_floor = snapshot.floor_key
+                policy.last_reason = "fundraise:upstairs-not-found"
+
+                key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+
+                self.assertNotEqual(key, WAIT_KEY)
+                self.assertIn(
+                    policy.last_reason,
+                    {"no-wait:least-visited", "no-wait:melee"},
+                )
+
+    def test_genuine_hostile_still_uses_escape_scroll_under_fire(self):
+        base = self._weak_breeder_incident_snapshot(blocking=True)
+        genuine = replace(
+            base.visible_monsters[0],
+            can_multiply=False,
+        )
+        snapshot = replace(
+            base,
+            visible_monsters=[genuine, *base.visible_monsters[1:]],
+            inventory=[
+                item("q", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR, count=1),
+            ],
+        )
         policy = HengbotPolicy()
         policy._breeder_breakthrough_floor = snapshot.floor_key
-        policy._took_damage = False
         policy.last_reason = "fundraise:upstairs-not-found"
 
         key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
 
-        self.assertNotEqual(key, WAIT_KEY)
-        self.assertTrue(policy.last_reason.startswith("no-wait:"))
+        self.assertEqual(
+            (key, policy.last_reason),
+            (READ_KEY + "q", "no-wait:escape-scroll"),
+        )
+
+    def test_choke_hold_ignores_adjacent_suppressed_weak_breeder(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        waiting = replace(
+            base.visible_monsters[0],
+            position=Position(10, 12),
+            distance=2,
+        )
+        weak = hostile(
+            99, 10, 11, distance=1, race_id=79,
+            can_multiply=True, max_melee_damage=1,
+        )
+        grids = dict(base.grids)
+        grids[waiting.position] = replace(
+            grids[waiting.position], has_monster=True
+        )
+        grids[weak.position] = replace(
+            grids[weak.position], has_monster=True
+        )
+        snapshot = replace(
+            base,
+            grids=grids,
+            visible_monsters=[waiting, weak],
+        )
+        policy = HengbotPolicy()
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._took_damage = False
+        policy.last_reason = "melee:choke-hold"
+
+        key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+
+        self.assertEqual((key, policy.last_reason), (
+            WAIT_KEY, "melee:choke-hold",
+        ))
 
     def test_latched_weak_breeder_is_escape_route_blocker_candidate(self):
         blocker = hostile(
