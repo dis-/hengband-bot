@@ -1492,14 +1492,14 @@ class CombatTest(unittest.TestCase):
                 )
                 policy = HengbotPolicy(monrace_knowledge=knowledge)
                 policy._fundraising_mode = "mine"
-                policy._grid_memory_region = (
+                policy._remembered_grid_region = (
                     *snapshot.floor_key,
                     snapshot.width,
                     snapshot.height,
                     snapshot.town_id,
                     snapshot.in_town,
                 )
-                policy._grid_memory = dict(remembered_grids)
+                policy._remembered_grids = dict(remembered_grids)
                 policy._observe(snapshot)
                 policy._breeder_breakthrough_floor = snapshot.floor_key
                 policy._breeder_engagement_score = (
@@ -1548,7 +1548,7 @@ class CombatTest(unittest.TestCase):
                     later <= earlier
                     for earlier, later in zip(distances, distances[1:])
                 ))
-                remembered_grids.update(policy._grid_memory)
+                remembered_grids.update(policy._remembered_grids)
 
     def test_breakthrough_retries_with_detour_only_without_monotone_route(self):
         start = Position(1, 1)

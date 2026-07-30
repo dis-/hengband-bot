@@ -56,22 +56,80 @@ class PerFloorGridMemoryTest(unittest.TestCase):
         self.assertIn((vanished.y, vanished.x), policy._floor_t)
         self.assertTrue(policy._is_step_open(current, Position(10, 8), vanished))
 
-    def test_monster_occupancy_is_never_remembered(self):
+    def test_dynamic_occupancy_is_never_remembered(self):
         policy = HengbotPolicy()
-        occupied = grid(10, 7, monster=True)
-        occupied = replace(occupied, monster_index=41)
+        occupied = replace(
+            grid(10, 7, monster=True),
+            monster_index=41,
+            object_count=2,
+            object_tvals=(23, 77),
+        )
         first = policy._with_grid_memory(snapshot(6, [grid(10, 6), occupied]))
         self.assertTrue(first.grids[occupied.position].has_monster)
+        self.assertEqual(first.grids[occupied.position].object_count, 2)
+        self.assertTrue(first.grids[occupied.position].currently_observed)
 
         absent = policy._with_grid_memory(snapshot(6, [grid(10, 6)], turn=2))
         remembered = absent.grids[occupied.position]
         self.assertFalse(remembered.has_monster)
         self.assertEqual(remembered.monster_index, 0)
+        self.assertEqual(remembered.object_count, 0)
+        self.assertEqual(remembered.object_tvals, ())
+        self.assertFalse(remembered.currently_observed)
 
         visible_empty = policy._with_grid_memory(
             snapshot(6, [grid(10, 6), grid(10, 7)], turn=3)
         )
         self.assertFalse(visible_empty.grids[occupied.position].has_monster)
+        self.assertTrue(visible_empty.grids[occupied.position].currently_observed)
+
+    def test_stairs_trap_and_route_survive_wire_omission(self):
+        policy = HengbotPolicy()
+        stairs = replace(
+            grid(10, 8, downstairs=True),
+            trap=True,
+            terrain_id=77,
+            marked=True,
+        )
+        corridor = [grid(10, x) for x in range(5, 8)] + [stairs]
+        first = policy._with_grid_memory(snapshot(5, corridor))
+        policy._build_grid_index(first)
+
+        dark = policy._with_grid_memory(snapshot(5, [grid(10, 5)], turn=2))
+        policy._build_grid_index(dark)
+        remembered = dark.grids[stairs.position]
+
+        self.assertTrue(remembered.has_down_stairs)
+        self.assertTrue(remembered.trap)
+        self.assertTrue(remembered.passable)
+        self.assertIn(stairs.position, policy._remembered_downstairs)
+        self.assertEqual(
+            policy._nearest_goal_step(dark, lambda cell: cell.has_down_stairs),
+            Position(10, 6),
+        )
+
+    def test_only_never_perceived_neighbor_is_frontier(self):
+        policy = HengbotPolicy()
+        center = grid(10, 10)
+        perceived = [center] + [
+            grid(10 + dy, 10 + dx)
+            for dy, dx in (
+                (-1, -1), (-1, 0), (-1, 1), (0, -1),
+                (0, 1), (1, -1), (1, 0), (1, 1),
+            )
+        ]
+        first = policy._with_grid_memory(snapshot(10, perceived))
+        policy._build_grid_index(first)
+        self.assertFalse(policy._is_frontier(first, center))
+
+        dark = policy._with_grid_memory(snapshot(10, [center], turn=2))
+        policy._build_grid_index(dark)
+        self.assertFalse(policy._is_frontier(dark, center))
+
+        fresh = HengbotPolicy()
+        unknown = fresh._with_grid_memory(snapshot(10, [center]))
+        fresh._build_grid_index(unknown)
+        self.assertTrue(fresh._is_frontier(unknown, center))
 
     def test_newest_terrain_observation_wins(self):
         policy = HengbotPolicy()

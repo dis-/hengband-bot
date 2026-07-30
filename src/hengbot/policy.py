@@ -1495,8 +1495,10 @@ class HengbotPolicy:
         # Hengband does not mark dark floor permanently, so walked corridors can
         # disappear from later nearby_grids snapshots. Retain the last terrain
         # observation for this floor visit; dynamic occupancy is stripped below.
-        self._grid_memory_region: tuple[int, int, int, int, int, int, bool] | None = None
-        self._grid_memory: dict[Position, GridState] = {}
+        self._remembered_grid_region: (
+            tuple[int, int, int, int, int, int, bool] | None
+        ) = None
+        self._remembered_grids: dict[Position, GridState] = {}
         self._last_position: Position | None = None
         self._recent: deque[Position] = deque(maxlen=EXTENDED_STUCK_WINDOW)
         self._osc_positions: deque[Position] = deque(
@@ -1971,16 +1973,25 @@ class HengbotPolicy:
             snapshot.town_id,
             snapshot.in_town,
         )
-        if self._grid_memory_region != region:
-            self._grid_memory_region = region
-            self._grid_memory = {}
+        if self._remembered_grid_region != region:
+            self._remembered_grid_region = region
+            self._remembered_grids = {}
 
         remembered = {
-            position: replace(grid, has_monster=False, monster_index=0)
-            for position, grid in self._grid_memory.items()
+            position: replace(
+                grid,
+                has_monster=False,
+                monster_index=0,
+                object_count=0,
+                object_tvals=(),
+                lit=False,
+                in_view=False,
+                currently_observed=False,
+            )
+            for position, grid in self._remembered_grids.items()
         }
         remembered.update(snapshot.grids)
-        self._grid_memory = remembered
+        self._remembered_grids = remembered
         return replace(snapshot, grids=dict(remembered))
 
     def choose_key(self, snapshot: Snapshot) -> str:

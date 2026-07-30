@@ -543,6 +543,9 @@ class GridState:
     # Player memory, distinct from the emitter's authoritative terrain truth.
     # Hengband rejects tunnelling an unmarked wall before consuming energy.
     marked: bool = False
+    # True only when this cell was present in the current wire snapshot.
+    # Remembered terrain deliberately carries no live occupancy information.
+    currently_observed: bool = True
 
     @property
     def is_store(self) -> bool:
