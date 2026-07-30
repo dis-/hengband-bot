@@ -2390,7 +2390,7 @@ class HengbotPolicy:
 
         reason = self.last_reason
         hostiles = (
-            self._hostiles(snapshot)
+            self._raw_hostiles(snapshot)
             if hasattr(snapshot, "visible_monsters")
             else []
         )
@@ -2461,7 +2461,11 @@ class HengbotPolicy:
             self.last_reason = "no-wait:least-visited"
             return self._direction_key(snapshot.player.position, step)
 
-        adjacent = self._adjacent_hostiles(snapshot)
+        adjacent = [
+            monster
+            for monster in hostiles
+            if snapshot.player.position.distance_to(monster.position) <= 1
+        ]
         if adjacent and not snapshot.player.afraid:
             self.last_reason = "no-wait:melee"
             return self._direction_key(
@@ -4499,6 +4503,12 @@ class HengbotPolicy:
                     and self._is_weak_breeder(snapshot, monster)
                 )
             )
+        ]
+
+    def _raw_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+        return [
+            monster for monster in snapshot.visible_monsters
+            if monster.hostile
         ]
 
     def _adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
@@ -23378,6 +23388,7 @@ class HengbotPolicy:
     ) -> str | None:
         """Bump a weak adjacent blocker when it is the door to an escape route."""
         player = snapshot.player
+        hostiles = self._raw_hostiles(snapshot)
         candidates = [
             monster for monster in hostiles
             if monster.distance <= 1

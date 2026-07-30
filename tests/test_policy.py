@@ -525,6 +525,141 @@ class CombatTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("6", "explore"))
         self.assertNotEqual(key, "8")
 
+    def test_latched_adjacent_weak_breeders_forbid_unsanctioned_wait(self):
+        snapshot = self._weak_breeder_incident_snapshot(blocking=True)
+        policy = HengbotPolicy()
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._took_damage = False
+        policy.last_reason = "fundraise:upstairs-not-found"
+
+        key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertTrue(policy.last_reason.startswith("no-wait:"))
+
+    def test_latched_weak_breeder_is_escape_route_blocker_candidate(self):
+        blocker = hostile(
+            1, 10, 9, hp=6, max_hp=6, distance=1, race_id=27,
+            can_multiply=True, max_melee_damage=2,
+        )
+        snapshot = Snapshot(
+            player(
+                10, 10, hp=59, max_hp=172, level=10,
+                main_hand_blows=2, main_hand_to_d=5,
+            ),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9, monster=True),
+                Position(10, 8): grid(10, 8),
+                Position(10, 7): grid(10, 7, upstairs=True),
+            },
+            [blocker],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(policy._hostiles(snapshot), [])
+        self.assertEqual(
+            policy._blocking_escape_melee_key(
+                snapshot, policy._hostiles(snapshot), policy._is_upstairs_target
+            ),
+            "4",
+        )
+
+    def test_incident_wait_cycle_replay_leaves_six_cell_set(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260730-1543-fundraise-loot-oscillation"
+            / "last-snapshots.jsonl"
+        )
+        monraces = Path(
+            r"C:\hengband\.worktrees\bot-json-output\lib\edit"
+            r"\MonraceDefinitions.jsonc"
+        )
+        if not capture.is_file() or not monraces.is_file():
+            self.skipTest("real fundraise oscillation capture is not available")
+        knowledge = load_monrace_knowledge(monraces)
+        snapshot = parse_snapshot(
+            json.loads(capture.read_text(encoding="utf-8").splitlines()[-1]),
+            knowledge,
+        )
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        policy._fundraising_mode = "mine"
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        cycle = {
+            Position(36, 29), Position(36, 31), Position(36, 32),
+            Position(37, 30), Position(37, 33), Position(38, 33),
+        }
+        offsets = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        reasons = []
+
+        def incident_wait(_snapshot):
+            policy.last_reason = "fundraise:upstairs-not-found"
+            return WAIT_KEY
+
+        for _ in range(8):
+            adjacent = any(
+                snapshot.player.position.distance_to(monster.position) <= 1
+                for monster in snapshot.visible_monsters
+            )
+            if adjacent:
+                with patch.object(policy, "_decide", side_effect=incident_wait):
+                    key = policy.choose_key(snapshot)
+            else:
+                key = policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+            if key not in offsets:
+                continue
+            dy, dx = offsets[key]
+            destination = Position(
+                snapshot.player.position.y + dy,
+                snapshot.player.position.x + dx,
+            )
+            occupant = next(
+                (
+                    monster for monster in snapshot.visible_monsters
+                    if monster.position == destination
+                ),
+                None,
+            )
+            if occupant is not None:
+                grids = dict(snapshot.grids)
+                grids[destination] = replace(
+                    grids[destination], has_monster=False, monster_index=0
+                )
+                snapshot = replace(
+                    snapshot,
+                    grids=grids,
+                    visible_monsters=[
+                        monster for monster in snapshot.visible_monsters
+                        if monster.position != destination
+                    ],
+                    turn=snapshot.turn + 1,
+                )
+            else:
+                snapshot = replace(
+                    snapshot,
+                    player=replace(snapshot.player, position=destination),
+                    turn=snapshot.turn + 1,
+                )
+            if snapshot.player.position not in cycle:
+                break
+
+        self.assertEqual(reasons[:2], ["no-wait:melee", "no-wait:melee"])
+        self.assertNotIn(snapshot.player.position, cycle)
+
     def test_strong_multiplied_breeders_keep_existing_breakthrough(self):
         snapshot = self._weak_breeder_incident_snapshot()
         strong = [
