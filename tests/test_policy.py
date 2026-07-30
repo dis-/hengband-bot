@@ -2685,11 +2685,75 @@ class ShoppingTest(unittest.TestCase):
         items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)]
         pol = HengbotPolicy()
         snap = self._in_store(items, gold=1000)  # gold never drops between calls
-        keys = [pol.choose_key(snap) for _ in range(STORE_STUCK_LIMIT + 1)]
+        keys = []
+        for _ in range(STORE_STUCK_LIMIT * (STORE_STUCK_LIMIT + 1) + 1):
+            key = pol.choose_key(snap)
+            keys.append(key)
+            if key == LEAVE_STORE_KEY:
+                break
         self.assertIn("pb\r", keys)  # it did try to buy
         self.assertIn("\x1b", keys)  # and eventually gave up and left
         self.assertTrue(pol._shopping_abandoned)
         self.assertIn(STORE_GENERAL, pol._town_store_attempted)
+
+    def test_purchase_waits_for_real_incident_gold_delta(self):
+        target = item(
+            "a",
+            23,
+            1,
+            name="ego sword",
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+        )
+        ware = store_item(
+            "m",
+            TVAL_SCROLL,
+            SV_SCROLL_STAR_IDENTIFY,
+            price=2541,
+            count=2,
+        )
+
+        def incident_snapshot(gold):
+            return Snapshot(
+                player(10, 10, gold=gold, class_id=PLAYER_CLASS_WARRIOR),
+                {Position(10, 10): grid(10, 10)},
+                [],
+                inventory=[target],
+                equipment=[],
+                store=StoreState(store_type=STORE_ALCHEMIST, items=[ware]),
+            )
+
+        pol = HengbotPolicy()
+        pol._home_pending_item = pol._item_signature(target)
+        pol._identification_need = "full"
+
+        self.assertEqual(pol.choose_key(incident_snapshot(10421)), "pm1\r\r")
+        self.assertEqual(pol.last_reason, "shop:buy-star-identify")
+        self.assertEqual(pol.choose_key(incident_snapshot(10421)), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "shop:await-buy-confirmation")
+        self.assertIsNotNone(pol._store_buy_inflight)
+
+        pol.choose_key(incident_snapshot(7880))
+        self.assertIsNone(pol._store_buy_inflight)
+
+    def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
+        items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)]
+        pol = HengbotPolicy()
+        snap = self._in_store(items, gold=1000)
+
+        keys = []
+        for _ in range(STORE_STUCK_LIMIT * (STORE_STUCK_LIMIT + 1) + 1):
+            key = pol.choose_key(snap)
+            keys.append(key)
+            if key == LEAVE_STORE_KEY:
+                break
+
+        self.assertEqual(keys.count("pb\r"), STORE_STUCK_LIMIT)
+        self.assertEqual(keys[-1], LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "shop:stuck-leave")
+        self.assertIsNone(pol._store_buy_inflight)
 
     def test_gives_up_when_lantern_unaffordable(self):
         items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=500)]

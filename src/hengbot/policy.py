@@ -1637,6 +1637,12 @@ class HengbotPolicy:
         # re-tried it unchanged — to bail out of a purchase that never registers.
         self._last_buy_sig: tuple[str, int] | None = None
         self._store_stuck_count = 0
+        # A store redraw can repeat the exact pre-purchase state after Hengband
+        # has accepted the command.  Do not issue another buy until inventory or
+        # gold confirms the first one, or a bounded wait proves it was rejected.
+        self._store_buy_inflight: tuple[
+            int, tuple[str, int, int], int, int, int
+        ] | None = None
         # Same target and shortage after a registered, money-spending buy is a
         # distinct defect from a transport failure at unchanged gold.
         self._last_buy_progress_sig: tuple[str, int, int] | None = None
@@ -12744,6 +12750,69 @@ class HengbotPolicy:
 
         item = self._next_purchase(snapshot)
         if item is not None:
+            signature = self._item_signature(item)
+            inflight = self._store_buy_inflight
+            if inflight is not None:
+                (
+                    watched_store,
+                    watched_signature,
+                    before_count,
+                    before_gold,
+                    wait_count,
+                ) = inflight
+                carried_increased = (
+                    self._inventory_signature_count(snapshot, watched_signature)
+                    > before_count
+                )
+                gold_decreased = snapshot.player.gold < before_gold
+                if carried_increased:
+                    self._store_buy_inflight = None
+                elif gold_decreased:
+                    self._store_buy_inflight = None
+                    remaining = self._purchase_quantity(snapshot, item)
+                    if self._last_buy_progress_sig is not None:
+                        old_letter, old_remaining, _ = self._last_buy_progress_sig
+                        if (
+                            item.letter == old_letter
+                            and remaining == old_remaining
+                        ):
+                            self._store_buy_no_progress_count += 1
+                        elif (
+                            item.letter != old_letter
+                            or remaining != old_remaining
+                        ):
+                            self._store_buy_no_progress_count = 0
+                    self._last_buy_progress_sig = (
+                        item.letter,
+                        remaining,
+                        snapshot.player.gold,
+                    )
+                    if self._store_buy_no_progress_count >= STORE_STUCK_LIMIT:
+                        self._shopping_abandoned = True
+                        self._town_store_attempted[store.store_type] = snapshot.turn
+                        self._store_buy_no_progress_count = 0
+                        self._last_buy_progress_sig = None
+                        self.last_reason = "shop:defective-target-leave"
+                        return LEAVE_STORE_KEY
+                    self.last_reason = "shop:await-buy-confirmation"
+                    return WAIT_KEY
+                elif (
+                    watched_store != store.store_type
+                    or watched_signature != signature
+                ):
+                    self._store_buy_inflight = None
+                elif wait_count + 1 < STORE_STUCK_LIMIT:
+                    self._store_buy_inflight = (
+                        watched_store,
+                        watched_signature,
+                        before_count,
+                        before_gold,
+                        wait_count + 1,
+                    )
+                    self.last_reason = "shop:await-buy-confirmation"
+                    return WAIT_KEY
+                else:
+                    self._store_buy_inflight = None
             # Bail out of a purchase that never takes effect. A registered buy
             # drops our gold (so the signature changes and the counter resets);
             # if we keep asking to buy the same item at the same gold, the macro
@@ -12846,8 +12915,16 @@ class HengbotPolicy:
             # remaining Returns are prompt defaults and a final confirmation,
             # not an unchecked tail after a possibly unsupported command.
             suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
+            self._store_buy_inflight = (
+                store.store_type,
+                signature,
+                self._inventory_signature_count(snapshot, signature),
+                snapshot.player.gold,
+                0,
+            )
             return BUY_KEY + item.letter + suffix
 
+        self._store_buy_inflight = None
         self._last_buy_sig = None
         self._last_buy_progress_sig = None
         self._store_buy_no_progress_count = 0
