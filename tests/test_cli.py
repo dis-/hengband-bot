@@ -825,6 +825,29 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(record["shop_selector"], evidence)
 
+    def test_decision_record_carries_identification_source_reservation(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+        reservation = {
+            "target": ["unknown sword", 23, -1],
+            "kind": "normal",
+            "source": {
+                "signature": ["Identify", 70, 12],
+                "slot": "c",
+            },
+            "state": "acquired",
+        }
+
+        record = _decision_record(
+            snapshot,
+            "6",
+            "shop:travel",
+            identification_source_reservation=reservation,
+        )
+
+        self.assertEqual(
+            record["identification_source_reservation"], reservation
+        )
+
     def test_records_policy_reason_and_observable_state(self):
         data = json.loads(_snap_line(123, 5, 7))
         data["floor"]["quest_id"] = 40

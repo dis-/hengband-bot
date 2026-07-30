@@ -22411,6 +22411,144 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(town), "ria")
         self.assertEqual(policy.last_reason, "identify:normal")
 
+    def test_acquired_identify_source_is_reserved_for_home_candidate(self):
+        candidate = store_item(
+            "a", 23, -1, name="unknown home sword", aware=False, known=False,
+            fully_known=False, is_equipment=True,
+        )
+        carried = item(
+            "b", 31, -1, name="unknown carried gloves", aware=False, known=False,
+            is_equipment=True,
+        )
+        base = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[self._lantern()],
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(base), LEAVE_STORE_KEY)
+        target = policy._item_signature(candidate)
+        self.assertEqual(
+            policy._identification_source_reservation["target"], target
+        )
+        self.assertEqual(
+            policy._identification_source_reservation["state"], "awaiting-source"
+        )
+
+        scroll = item("c", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify")
+        acquired = replace(base, inventory=[carried, scroll], store=None)
+        self.assertIsNone(policy._town_item_processing_key(acquired))
+        self.assertEqual(
+            policy._identification_source_reservation["state"], "acquired"
+        )
+
+        home = replace(base, inventory=[scroll])
+        self.assertEqual(policy.choose_key(home), BUY_KEY + "a\r")
+        self.assertEqual(policy.last_reason, "home:batch-withdraw")
+
+        withdrawn = item(
+            "a", 23, -1, name="unknown home sword", aware=False, known=False,
+            is_equipment=True,
+        )
+        town = replace(
+            base, inventory=[withdrawn, carried, scroll], store=None
+        )
+        self.assertEqual(policy._town_item_processing_key(town), "rca")
+        self.assertEqual(policy.last_reason, "identify:normal")
+
+    def test_unreserved_identify_source_remains_available(self):
+        candidate = store_item(
+            "a", 23, -1, name="unknown home sword", aware=False, known=False,
+            is_equipment=True,
+        )
+        carried = item(
+            "b", 31, -1, name="unknown carried gloves", aware=False, known=False,
+            is_equipment=True,
+        )
+        home = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            equipment=[self._lantern()],
+            store=StoreState(store_type=STORE_HOME, items=[candidate]),
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+
+        scrolls = item(
+            "c", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify", count=2
+        )
+        acquired = replace(home, inventory=[carried, scrolls], store=None)
+        self.assertEqual(policy._town_item_processing_key(acquired), "rcb")
+        self.assertEqual(policy.last_reason, "identify:normal")
+        self.assertIsNotNone(policy._identification_source_reservation)
+
+    def test_identify_source_reservation_releases_on_success(self):
+        policy = HengbotPolicy()
+        target = ("unknown home sword", 23, -1)
+        policy._identification_source_reservation = {
+            "target": target,
+            "kind": "normal",
+            "source": {
+                "signature": ("Identify", TVAL_SCROLL, SV_SCROLL_IDENTIFY),
+                "slot": "c",
+            },
+            "state": "identifying",
+            "baseline": {},
+        }
+        policy._home_pending_item = target
+        known = item(
+            "a", 23, -1, name="unknown home sword", aware=True, known=True,
+            fully_known=True, is_equipment=True,
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[known],
+            equipment=[self._lantern()],
+        )
+
+        self.assertIsNone(policy._town_item_processing_key(snapshot))
+        self.assertIsNone(policy._identification_source_reservation)
+
+    def test_identify_source_reservation_releases_on_bounded_home_failure(self):
+        policy = HengbotPolicy()
+        target = ("unknown home sword", 23, -1)
+        scroll = item("c", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify")
+        policy._identification_source_reservation = {
+            "target": target,
+            "kind": "normal",
+            "source": {
+                "signature": policy._item_signature(scroll),
+                "slot": scroll.slot,
+            },
+            "state": "acquired",
+            "baseline": {},
+        }
+        policy._home_candidate_waiting = True
+        policy._home_pending_item = target
+
+        policy._release_blocked_store_latches(STORE_HOME)
+
+        self.assertIsNone(policy._identification_source_reservation)
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[scroll],
+            equipment=[self._lantern()],
+        )
+        self.assertEqual(
+            policy._find_identification_source(snapshot, full=False),
+            (READ_KEY, scroll),
+        )
+
     def test_home_skips_average_pseudo_identified_equipment_for_occupied_slot(self):
         average = store_item(
             "a",

@@ -586,6 +586,7 @@ def _decision_record(
     quest_strategy: dict | None = None,
     escape_ladder: dict | None = None,
     shop_selector: dict | None = None,
+    identification_source_reservation: dict | None = None,
     map_memory: dict | None = None,
     descent_refusal: str | None = None,
 ) -> dict:
@@ -654,6 +655,11 @@ def _decision_record(
         **({"quest_strategy": quest_strategy} if quest_strategy is not None else {}),
         **({"escape_ladder": escape_ladder} if escape_ladder else {}),
         **({"shop_selector": shop_selector} if shop_selector else {}),
+        **(
+            {"identification_source_reservation": identification_source_reservation}
+            if identification_source_reservation
+            else {}
+        ),
         "map_memory": map_memory or {},
         **({"descent_refusal": descent_refusal} if descent_refusal else {}),
     }
@@ -925,6 +931,11 @@ def _write_decision(
                         getattr(policy, "_shop_selector_diagnostics", {})
                         if policy is not None
                         else {}
+                    ),
+                    (
+                        getattr(policy, "_identification_source_reservation", None)
+                        if policy is not None
+                        else None
                     ),
                     map_memory_summary(policy) if policy is not None else {},
                     (

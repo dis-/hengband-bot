@@ -1925,6 +1925,10 @@ class HengbotPolicy:
         self._home_candidate_waiting = True
         self._identification_need: str | None = None
         self._identification_candidate: tuple[str, int, int] | None = None
+        # An identification errand owns the next source acquired for it.  Keep
+        # the acquisition baseline so a pre-existing source remains unreserved
+        # and a newly enlarged stack reserves only one unit.
+        self._identification_source_reservation: dict[str, object] | None = None
         self._device_identification_candidate: tuple[str, int, int] | None = None
         self._deferred_device_items: set[tuple[str, int, int]] = set()
         self._processed_home_items: set[tuple[str, int, int]] = set()
@@ -8732,7 +8736,10 @@ class HengbotPolicy:
                 if (
                     needs_normal_identification
                     and self._find_identification_source(
-                        snapshot, full=False, reliable_only=True
+                        snapshot,
+                        full=False,
+                        reliable_only=True,
+                        reservation_target=signature,
                     )
                     is None
                     and STORE_ALCHEMIST in self._town_store_attempted
@@ -8787,8 +8794,28 @@ class HengbotPolicy:
         return item
 
     def _find_identification_source(
-        self, snapshot: Snapshot, *, full: bool, reliable_only: bool = False
+        self,
+        snapshot: Snapshot,
+        *,
+        full: bool,
+        reliable_only: bool = False,
+        reservation_target: tuple[str, int, int] | None = None,
     ) -> tuple[str, InventoryItem] | None:
+        self._bind_identification_source_reservation(snapshot)
+
+        def available(item: InventoryItem) -> bool:
+            reservation = self._identification_source_reservation
+            if reservation is None or reservation.get("state") == "awaiting-source":
+                return True
+            if reservation_target == reservation.get("target"):
+                return True
+            source = reservation.get("source")
+            if not isinstance(source, dict):
+                return True
+            if tuple(source.get("signature", ())) != self._item_signature(item):
+                return True
+            return self._identification_source_units(item) > 1
+
         if not full:
             if not reliable_only:
                 staff = self._first_item(
@@ -8797,7 +8824,8 @@ class HengbotPolicy:
                     and it.aware
                     and it.sval == SV_STAFF_IDENTIFY
                     and it.known
-                    and it.charges > 0,
+                    and it.charges > 0
+                    and available(it),
                 )
                 if staff is not None:
                     return USE_STAFF_KEY, staff
@@ -8807,7 +8835,8 @@ class HengbotPolicy:
                     and it.aware
                     and it.sval == SV_ROD_IDENTIFY
                     and it.known
-                    and it.timeout == 0,
+                    and it.timeout == 0
+                    and available(it),
                 )
                 if rod is not None:
                     return ZAP_ROD_KEY, rod
@@ -8815,7 +8844,8 @@ class HengbotPolicy:
                 snapshot,
                 lambda it: it.is_scroll
                 and it.aware
-                and it.sval == SV_SCROLL_IDENTIFY,
+                and it.sval == SV_SCROLL_IDENTIFY
+                and available(it),
             )
             if scroll is not None:
                 return READ_KEY, scroll
@@ -8825,11 +8855,102 @@ class HengbotPolicy:
             snapshot,
             lambda it: it.is_scroll
             and it.aware
-            and it.sval == SV_SCROLL_STAR_IDENTIFY,
+            and it.sval == SV_SCROLL_STAR_IDENTIFY
+            and available(it),
         )
         if scroll is not None:
             return READ_KEY, scroll
         return None
+
+    @staticmethod
+    def _identification_source_units(item: InventoryItem) -> int:
+        if item.tval == TVAL_STAFF:
+            return item.charges
+        return item.count
+
+    def _identification_source_items(
+        self, snapshot: Snapshot, *, full: bool
+    ) -> list[InventoryItem]:
+        if full:
+            return [
+                item
+                for item in snapshot.inventory
+                if item.is_scroll
+                and item.aware
+                and item.sval == SV_SCROLL_STAR_IDENTIFY
+            ]
+        return [
+            item
+            for item in snapshot.inventory
+            if item.is_scroll
+            and item.aware
+            and item.sval == SV_SCROLL_IDENTIFY
+        ]
+
+    def _reserve_next_identification_source(
+        self,
+        snapshot: Snapshot,
+        target: tuple[str, int, int],
+        *,
+        full: bool,
+    ) -> None:
+        reservation = self._identification_source_reservation
+        if reservation is not None and reservation.get("target") == target:
+            return
+        baseline: dict[tuple[str, int, int], int] = {}
+        for item in self._identification_source_items(snapshot, full=full):
+            signature = self._item_signature(item)
+            baseline[signature] = (
+                baseline.get(signature, 0) + self._identification_source_units(item)
+            )
+        self._identification_source_reservation = {
+            "target": target,
+            "kind": "full" if full else "normal",
+            "source": None,
+            "state": "awaiting-source",
+            "baseline": baseline,
+        }
+
+    def _bind_identification_source_reservation(self, snapshot: Snapshot) -> None:
+        reservation = self._identification_source_reservation
+        if reservation is None or reservation.get("state") != "awaiting-source":
+            return
+        full = reservation.get("kind") == "full"
+        baseline = reservation.get("baseline")
+        if not isinstance(baseline, dict):
+            baseline = {}
+        current: dict[tuple[str, int, int], int] = {}
+        items = self._identification_source_items(snapshot, full=full)
+        for item in items:
+            signature = self._item_signature(item)
+            current[signature] = (
+                current.get(signature, 0) + self._identification_source_units(item)
+            )
+        acquired = next(
+            (
+                item
+                for item in items
+                if current[self._item_signature(item)]
+                > baseline.get(self._item_signature(item), 0)
+            ),
+            None,
+        )
+        if acquired is None:
+            return
+        reservation["source"] = {
+            "signature": self._item_signature(acquired),
+            "slot": acquired.slot,
+        }
+        reservation["state"] = "acquired"
+
+    def _release_identification_source_reservation(
+        self, target: tuple[str, int, int] | None = None
+    ) -> None:
+        reservation = self._identification_source_reservation
+        if reservation is None:
+            return
+        if target is None or reservation.get("target") == target:
+            self._identification_source_reservation = None
 
     def _identification_requires_reliable_source(self, snapshot: Snapshot) -> bool:
         """Whether the pending target is worn and therefore needs a scroll.
@@ -9187,7 +9308,12 @@ class HengbotPolicy:
         return (chance - 2) / chance
 
     def _carried_identify_command(
-        self, snapshot: Snapshot, target: InventoryItem, *, full: bool
+        self,
+        snapshot: Snapshot,
+        target: InventoryItem,
+        *,
+        full: bool,
+        reservation_target: tuple[str, int, int] | None = None,
     ) -> str | None:
         """Key that identifies a non-worn carried item, or None if none is usable.
 
@@ -9202,7 +9328,10 @@ class HengbotPolicy:
             self._identify_staff_success_rate(snapshot) < STAFF_IDENTIFY_MIN_SUCCESS
         )
         source = self._find_identification_source(
-            snapshot, full=full, reliable_only=reliable_only
+            snapshot,
+            full=full,
+            reliable_only=reliable_only,
+            reservation_target=reservation_target,
         )
         if source is None:
             return None
@@ -9276,6 +9405,7 @@ class HengbotPolicy:
             # the store: defer this candidate for the current town visit and let
             # higher-priority resupply/fundraising continue.
             self._deferred_home_items.add(self._home_pending_item)
+            self._release_identification_source_reservation(self._home_pending_item)
             self._home_pending_item = None
             self._home_pending_slot = None
             self._home_active_from_batch = False
@@ -9295,16 +9425,27 @@ class HengbotPolicy:
             self._home_withdraw_fail_streak = 0
 
         if not target.known and target.pseudo_feeling != "average":
-            key = self._carried_identify_command(snapshot, target, full=False)
+            key = self._carried_identify_command(
+                snapshot,
+                target,
+                full=False,
+                reservation_target=self._home_pending_item,
+            )
             if key is None:
                 self._request_identification("normal")
                 return None
             self._identification_need = None
+            if self._identification_source_reservation is not None:
+                self._identification_source_reservation["state"] = "identifying"
             self.last_reason = "identify:normal"
             return key
 
         if item_requires_full_identification(target) and not target.fully_known:
-            source = self._find_identification_source(snapshot, full=True)
+            source = self._find_identification_source(
+                snapshot,
+                full=True,
+                reservation_target=self._home_pending_item,
+            )
             if source is None:
                 signature = self._item_signature(target)
                 if STORE_ALCHEMIST in self._town_store_attempted:
@@ -9314,10 +9455,13 @@ class HengbotPolicy:
                 return None
             command, item = source
             self._identification_need = None
+            if self._identification_source_reservation is not None:
+                self._identification_source_reservation["state"] = "identifying"
             self.last_reason = "identify:full"
             return command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
 
         target_signature = self._item_signature(target)
+        self._release_identification_source_reservation(self._home_pending_item)
         self._processed_home_items.add(target_signature)
         if self._home_active_from_batch:
             self._home_pending_item = None
@@ -9346,6 +9490,7 @@ class HengbotPolicy:
     def _defer_full_identification(self, signature: tuple[str, int, int]) -> None:
         """Defer unavailable *Identify* work without retaining its Home latch."""
         self._deferred_home_items.add(signature)
+        self._release_identification_source_reservation(signature)
         self._unbuyable_full_identify_sigs.add(signature)
         self._identification_candidate = None
         if self._identification_need == "full":
@@ -10980,6 +11125,7 @@ class HengbotPolicy:
     def _release_blocked_store_latches(self, store_type: int) -> None:
         """Release flow state that a blocked store can no longer service."""
         if store_type == STORE_HOME:
+            self._release_identification_source_reservation()
             self._home_candidate_waiting = False
             self._home_pending_item = None
             self._home_pending_batch.clear()
@@ -13171,6 +13317,9 @@ class HengbotPolicy:
                     self.last_reason = "home:leave-with-item"
                     return LEAVE_STORE_KEY
                 self._deferred_home_items.add(self._home_pending_item)
+                self._release_identification_source_reservation(
+                    self._home_pending_item
+                )
                 self._home_pending_item = None
                 self._home_pending_slot = None
                 self._identification_need = None
@@ -13382,20 +13531,32 @@ class HengbotPolicy:
                     and not candidate.fully_known
                 )
                 if needs_normal and self._find_identification_source(
-                    snapshot, full=False, reliable_only=True
+                    snapshot,
+                    full=False,
+                    reliable_only=True,
+                    reservation_target=self._item_signature(candidate),
                 ) is None:
+                    signature = self._item_signature(candidate)
                     self._request_identification("normal")
-                    self._identification_candidate = self._item_signature(candidate)
+                    self._identification_candidate = signature
+                    self._reserve_next_identification_source(
+                        snapshot, signature, full=False
+                    )
                     self._home_candidate_waiting = True
                     self.last_reason = "home:need-identify"
                     return LEAVE_STORE_KEY
                 if needs_full and self._find_identification_source(
-                    snapshot, full=True
+                    snapshot,
+                    full=True,
+                    reservation_target=self._item_signature(candidate),
                 ) is None:
                     signature = self._item_signature(candidate)
                     self._unbuyable_full_identify_sigs.add(signature)
                     self._request_identification("full")
                     self._identification_candidate = signature
+                    self._reserve_next_identification_source(
+                        snapshot, signature, full=True
+                    )
                     self._home_candidate_waiting = True
                     self.last_reason = "home:need-full-identify"
                     return LEAVE_STORE_KEY
@@ -13410,6 +13571,7 @@ class HengbotPolicy:
                     # request so carried candidates can be processed first.
                     signature = self._item_signature(candidate)
                     self._deferred_home_items.add(signature)
+                    self._release_identification_source_reservation(signature)
                     if self._identification_candidate == signature:
                         self._identification_candidate = None
                     self._identification_need = None
@@ -13424,7 +13586,6 @@ class HengbotPolicy:
                     len(snapshot.inventory),
                     self._inventory_signature_count(snapshot, signature),
                 )
-                self._identification_candidate = None
                 self._home_candidate_waiting = False
                 self.last_reason = "home:batch-withdraw"
                 return BUY_KEY + candidate.letter + "\r"
@@ -15360,6 +15521,9 @@ class HengbotPolicy:
             "home_batch_review_items": list(self._home_batch_review_items),
             "home_withdraw_inflight": self._home_withdraw_inflight,
             "identification_need": self._identification_need,
+            "identification_source_reservation": (
+                self._identification_source_reservation
+            ),
             "combat_weapon_ready": self._combat_weapon_ready(snapshot),
             "free_pack_slots": PACK_CAPACITY - len(snapshot.inventory),
             "minimum_free_pack_slots": MIN_FREE_PACK_SLOTS,
