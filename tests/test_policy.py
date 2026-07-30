@@ -499,6 +499,8 @@ class CombatTest(unittest.TestCase):
     def test_incident_weak_breeders_make_ordinary_progress(self):
         snapshot = self._weak_breeder_incident_snapshot()
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
 
         with patch.object(
             policy, "_explore_step", return_value=Position(10, 11)
@@ -512,6 +514,8 @@ class CombatTest(unittest.TestCase):
     def test_only_path_blocking_weak_breeder_is_attacked(self):
         snapshot = self._weak_breeder_incident_snapshot(blocking=True)
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
 
         with patch.object(
             policy, "_explore_step", return_value=Position(10, 11)
@@ -529,8 +533,7 @@ class CombatTest(unittest.TestCase):
         ]
         snapshot = replace(snapshot, visible_monsters=strong)
         policy = HengbotPolicy()
-        policy._choke_hold_floor = snapshot.floor_key
-        policy._choke_hold_start_breeders = len(strong) - 1
+        policy._breeder_breakthrough_floor = snapshot.floor_key
 
         self.assertEqual(
             policy._breeder_breakthrough_key(snapshot, policy._hostiles(snapshot)),
@@ -543,6 +546,8 @@ class CombatTest(unittest.TestCase):
     def test_weak_breeder_replay_does_not_drain_disengage_allowance(self):
         policy = HengbotPolicy()
         base = self._weak_breeder_incident_snapshot()
+        policy._floor_key = base.floor_key
+        policy._breeder_breakthrough_floor = base.floor_key
         policy._fruitless_disengage_floor = base.floor_key
         policy._fruitless_disengage_decisions = 99
         reasons = []
@@ -563,6 +568,149 @@ class CombatTest(unittest.TestCase):
             )
         )
         self.assertNotIn("combat:fruitless", reasons)
+
+    @staticmethod
+    def _small_breeder_group_snapshot(*, adjacent=False, ranged=True, exp=0):
+        origin = Position(10, 10)
+        positions = (
+            [Position(10, 11), Position(9, 12)]
+            if adjacent
+            else [Position(10, 12), Position(9, 12)]
+        )
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 13)
+            for x in range(8, 14)
+        }
+        breeders = [
+            hostile(
+                index,
+                position.y,
+                position.x,
+                distance=origin.distance_to(position),
+                race_id=27,
+                can_multiply=True,
+                max_melee_damage=1,
+            )
+            for index, position in enumerate(positions, 1)
+        ]
+        for breeder in breeders:
+            grids[breeder.position] = replace(
+                grids[breeder.position], has_monster=True
+            )
+        equipment = [
+            item(
+                "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+            )
+        ]
+        inventory = []
+        if ranged:
+            equipment.append(
+                item("bow", TVAL_BOW, SV_BOW_SHORT, is_equipment=True)
+            )
+            inventory.append(item("a", TVAL_ARROW, 1, count=20))
+        return Snapshot(
+            replace(
+                player(
+                    origin.y, origin.x, hp=100, max_hp=100, level=10,
+                    main_hand_blows=2, main_hand_to_d=5,
+                ),
+                exp=exp,
+            ),
+            grids,
+            breeders,
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            equipment=equipment,
+            inventory=inventory,
+        )
+
+    def test_small_breeder_group_is_preempted_with_ranged_weapon(self):
+        policy = HengbotPolicy()
+        snapshot = self._small_breeder_group_snapshot()
+
+        key = policy.choose_key(snapshot)
+
+        self.assertTrue(key.startswith("fa"))
+        self.assertTrue(policy.last_reason.startswith("ranged:"))
+
+    def test_small_breeder_group_closes_for_melee_without_ranged_option(self):
+        policy = HengbotPolicy()
+        snapshot = self._small_breeder_group_snapshot(
+            adjacent=True, ranged=False
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertIn(key, {"7", "8", "9", "4", "6", "1", "2", "3"})
+        self.assertTrue(policy.last_reason.startswith("melee"))
+
+    def test_breeder_latch_requires_five_kills_and_growth(self):
+        base = self._small_breeder_group_snapshot(ranged=False)
+
+        def observe_kills(policy, count, visible_count):
+            current = base
+            policy._update_combat_outcome(current)
+            for kill in range(1, count + 1):
+                policy.last_reason = "melee"
+                breeders = [
+                    replace(monster, index=100 * kill + index)
+                    for index, monster in enumerate(
+                        (
+                            base.visible_monsters
+                            * ((visible_count + 1) // 2)
+                        )[:visible_count],
+                        1,
+                    )
+                ]
+                current = replace(
+                    base,
+                    player=replace(base.player, exp=kill),
+                    visible_monsters=breeders,
+                )
+                policy._update_combat_outcome(current)
+            return current
+
+        four_kills = HengbotPolicy()
+        observe_kills(four_kills, 4, 3)
+        self.assertIsNone(four_kills._breeder_breakthrough_floor)
+
+        no_growth = HengbotPolicy()
+        observe_kills(no_growth, 5, 2)
+        self.assertIsNone(no_growth._breeder_breakthrough_floor)
+
+        grown = HengbotPolicy()
+        grown_snapshot = observe_kills(grown, 5, 3)
+        self.assertEqual(
+            grown._breeder_breakthrough_floor, grown_snapshot.floor_key
+        )
+
+    def test_latched_weak_swarm_is_ignored_but_strong_swarm_leaves(self):
+        weak = self._weak_breeder_incident_snapshot()
+        policy = HengbotPolicy()
+        policy._floor_key = weak.floor_key
+        policy._breeder_breakthrough_floor = weak.floor_key
+        self.assertEqual(policy._hostiles(weak), [])
+
+        blocking = self._weak_breeder_incident_snapshot(blocking=True)
+        with patch.object(
+            policy, "_explore_step", return_value=Position(10, 11)
+        ):
+            self.assertEqual(policy.choose_key(blocking), "6")
+
+        strong = replace(
+            weak,
+            visible_monsters=[
+                replace(monster, max_melee_damage=20)
+                for monster in weak.visible_monsters
+            ],
+        )
+        self.assertEqual(
+            policy._breeder_breakthrough_key(
+                strong, policy._hostiles(strong)
+            ),
+            WAIT_KEY,
+        )
 
     def test_open_melee_swarm_repositions_to_corridor_choke(self):
         snapshot = self._mouse_swarm_snapshot(adjacent=True)
@@ -657,7 +805,7 @@ class CombatTest(unittest.TestCase):
             Position(10, 9),
         )
 
-    def test_sleeping_idle_mining_group_falls_through_without_swarm_hold_or_throw(self):
+    def test_weak_breeders_trigger_fundraise_elimination_in_state_one(self):
         sleepers = [
             hostile(
                 index, 10, 10 + distance, distance=distance, asleep=True,
@@ -666,7 +814,10 @@ class CombatTest(unittest.TestCase):
             for index, distance in enumerate((3, 4), 1)
         ]
         snapshot = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            player(
+                10, 10, hp=100, max_hp=100,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
             {
                 Position(10, 10): grid(10, 10),
                 Position(10, 11): grid(10, 11),
@@ -776,6 +927,8 @@ class CombatTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
         policy._fruitless_disengage_floor = snapshot.floor_key
 
         key = policy.choose_key(snapshot)
@@ -933,6 +1086,7 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "melee:choke-hold")
 
         grown = incident_snapshot(choke, grown_positions)
+        policy._breeder_breakthrough_floor = grown.floor_key
         grown_key = policy.choose_key(grown)
         self.assertEqual(grown_key, "4")
         self.assertEqual(
@@ -984,7 +1138,7 @@ class CombatTest(unittest.TestCase):
         self.assertNotEqual(
             policy.last_reason, "breeder-breakthrough:upstairs-not-found"
         )
-        self.assertIsNone(policy._breeder_breakthrough_floor)
+        self.assertEqual(policy._breeder_breakthrough_floor, cleared.floor_key)
 
     def test_breakthrough_latch_survives_brief_breeder_visibility_flicker(self):
         visible = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
@@ -998,9 +1152,6 @@ class CombatTest(unittest.TestCase):
 
         for _ in range(2):
             policy.choose_key(hidden)
-            self.assertTrue(
-                policy.last_reason.startswith("breeder-breakthrough:")
-            )
             self.assertEqual(
                 policy._breeder_breakthrough_floor, visible.floor_key
             )
@@ -1041,10 +1192,8 @@ class CombatTest(unittest.TestCase):
         policy._breeder_breakthrough_floor = visible.floor_key
 
         policy.choose_key(hidden)
-        self.assertIsNone(policy._breeder_breakthrough_floor)
+        self.assertEqual(policy._breeder_breakthrough_floor, visible.floor_key)
 
-        policy._choke_hold_floor = visible.floor_key
-        policy._choke_hold_start_breeders = len(visible.visible_monsters) - 1
         self.assertEqual(policy.choose_key(visible), WAIT_KEY)
         self.assertEqual(
             policy.last_reason, "breeder-breakthrough:upstairs-not-found"
@@ -1326,7 +1475,7 @@ class CombatTest(unittest.TestCase):
             READ_KEY + "p", "no-wait:escape-scroll",
         ))
 
-    def test_kill_less_choke_hold_still_arms_walk_out(self):
+    def test_kill_less_choke_hold_does_not_arm_walk_out(self):
         snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
         policy = HengbotPolicy()
 
@@ -1335,13 +1484,11 @@ class CombatTest(unittest.TestCase):
             if policy._fruitless_disengage_floor == snapshot.floor_key:
                 break
 
-        self.assertEqual(policy._fruitless_disengage_floor, snapshot.floor_key)
-        self.assertTrue(
-            policy.last_reason.startswith("combat:disengage")
-            or policy.last_reason == "combat:fruitless"
-        )
+        self.assertIsNone(policy._fruitless_disengage_floor)
+        self.assertFalse(policy.last_reason.startswith("combat:disengage"))
+        self.assertNotEqual(policy.last_reason, "combat:fruitless")
 
-    def test_visibility_churn_does_not_fake_productive_choke_kills(self):
+    def test_visibility_churn_does_not_arm_breeder_walk_out(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
         policy = HengbotPolicy()
 
@@ -1355,7 +1502,7 @@ class CombatTest(unittest.TestCase):
             if policy._fruitless_disengage_floor == base.floor_key:
                 break
 
-        self.assertEqual(policy._fruitless_disengage_floor, base.floor_key)
+        self.assertIsNone(policy._fruitless_disengage_floor)
 
     def test_hunt_approaches_large_pack_when_aggregate_threat_is_immaterial(self):
         monsters = [
@@ -4422,7 +4569,7 @@ class ReturnToTownTest(unittest.TestCase):
             policy._escape_state.decision_token, 1
         )
 
-    def test_fruitless_counter_decays_without_rewriting_escape_budget(self):
+    def test_breeder_does_not_arm_old_fruitless_counter(self):
         snapshot = self._exit_owner_snapshot(10)
         breeder = hostile(
             1, 10, 12, distance=2, can_multiply=True,
@@ -4446,7 +4593,7 @@ class ReturnToTownTest(unittest.TestCase):
         policy._fruitless_disengage_spent_this_decision = True
         policy._update_combat_outcome(replace(fighting, turn=3))
 
-        self.assertEqual(policy._fruitless_disengage_decisions, 33)
+        self.assertEqual(policy._fruitless_disengage_decisions, 0)
         self.assertEqual(
             policy._escape_state.budgets["fruitless-disengage"], 37
         )
@@ -14363,6 +14510,7 @@ class PredictiveEscapeTest(unittest.TestCase):
                 item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
             ],
         )
+        pol._breeder_breakthrough_floor = landing.floor_key
         self.assertNotEqual(pol.choose_key(landing), "rr")
         self.assertIsNone(pol._last_return_trigger)
 
@@ -19220,16 +19368,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
 
-    def test_declared_walkout_survives_transient_breeder_vanish(self):
+    def test_breeder_impossible_latch_survives_transient_vanish(self):
         policy, visible = self._latched_mining_breeder()
-        policy._breeder_engagement_score = (
-            policy_module.BREEDER_CONTAINMENT_WINDOW
-            + policy_module.FRUITLESS_DISENGAGE_LIMIT
-        )
+        policy._floor_key = visible.floor_key
+        policy._breeder_breakthrough_floor = visible.floor_key
 
         first_key = policy.choose_key(visible)
-        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
-        self.assertEqual(policy._escape_state.owner, "disengage")
+        self.assertEqual(
+            (first_key, policy.last_reason),
+            ("rt", "no-wait:escape-scroll"),
+        )
 
         hidden = replace(
             visible,
@@ -19242,14 +19390,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         second_key = policy.choose_key(hidden)
 
-        self.assertNotEqual(first_key, WAIT_KEY)
         self.assertNotEqual(second_key, WAIT_KEY)
-        self.assertTrue(policy.last_reason.startswith("combat:disengage-"))
+        self.assertEqual(
+            policy._breeder_breakthrough_floor, visible.floor_key
+        )
         self.assertNotEqual(
             policy.last_reason,
             "fundraise:eliminate-multiplier-last-seen",
         )
-        self.assertEqual(policy._escape_state.owner, "disengage")
 
     def test_declared_walkout_releases_after_breeder_score_decays(self):
         policy, visible = self._latched_mining_breeder()

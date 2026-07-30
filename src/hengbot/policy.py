@@ -1720,6 +1720,10 @@ class HengbotPolicy:
         self._combat_fruitful = True
         self._breeder_engagement_floor: tuple[int, int, int] | None = None
         self._breeder_engagement_score = 0
+        self._breeder_engagement_start_count: int | None = None
+        self._breeder_kills = 0
+        self._breeder_previous_exp: int | None = None
+        self._breeder_previous_indices: set[int] = set()
         self._choke_hold_floor: tuple[int, int, int] | None = None
         self._choke_hold_start_breeders: int | None = None
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
@@ -2731,6 +2735,20 @@ class HengbotPolicy:
         breakthrough = self._breeder_breakthrough_key(snapshot, hostiles)
         if breakthrough is not None:
             return breakthrough
+
+        breeders = [monster for monster in hostiles if monster.can_multiply]
+        if (
+            breeders
+            and self._breeder_breakthrough_floor != snapshot.floor_key
+        ):
+            breeder_adjacent = [
+                monster for monster in adjacent if monster.can_multiply
+            ]
+            ranged = self._ranged_attack_key(
+                snapshot, breeders, breeder_adjacent
+            )
+            if ranged is not None:
+                return ranged
 
         # A fruitless breeder engagement latches this floor visit. Keep this
         # ahead of ordinary combat so the same cluster cannot pull us back in.
@@ -4325,6 +4343,10 @@ class HengbotPolicy:
             self._choke_hold_start_breeders = None
             self._clear_unseen_retreat()
             self._breeder_breakthrough_floor = None
+            self._breeder_engagement_start_count = None
+            self._breeder_kills = 0
+            self._breeder_previous_exp = None
+            self._breeder_previous_indices.clear()
             # A blocked-town/fundraising reason latches a permanent WAIT (which
             # then trips the loop-detector and stops the bot). Several of those
             # conditions are transient (a shop temporarily out of food, the inn
@@ -4427,7 +4449,13 @@ class HengbotPolicy:
         return [
             monster
             for monster in snapshot.visible_monsters
-            if monster.hostile and not self._is_weak_breeder(snapshot, monster)
+            if (
+                monster.hostile
+                and not (
+                    self._breeder_breakthrough_floor == snapshot.floor_key
+                    and self._is_weak_breeder(snapshot, monster)
+                )
+            )
         ]
 
     def _adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
@@ -20618,15 +20646,45 @@ class HengbotPolicy:
         if self._breeder_engagement_floor != snapshot.floor_key:
             self._breeder_engagement_floor = snapshot.floor_key
             self._breeder_engagement_score = 0
-        breeders = [
+            self._breeder_engagement_start_count = None
+            self._breeder_kills = 0
+            self._breeder_previous_exp = snapshot.player.exp
+            self._breeder_previous_indices.clear()
+        visible_breeders = [
             monster
             for monster in snapshot.visible_monsters
-            if (
-                monster.hostile
-                and monster.can_multiply
-                and not self._is_weak_breeder(snapshot, monster)
-            )
+            if monster.hostile and monster.can_multiply
         ]
+        if (
+            self._breeder_previous_indices
+            and self._breeder_previous_exp is not None
+            and snapshot.player.exp > self._breeder_previous_exp
+            and self._breeder_previous_indices
+            - {monster.index for monster in visible_breeders}
+            and (
+                self.last_reason == "melee"
+                or self.last_reason == "fundraise:eliminate-multiplier"
+                or self.last_reason.startswith(("ranged:", "hunt"))
+            )
+        ):
+            self._breeder_kills += 1
+        if visible_breeders and self._breeder_engagement_start_count is None:
+            self._breeder_engagement_start_count = len(visible_breeders)
+        if (
+            self._breeder_engagement_start_count is not None
+            and self._breeder_kills >= 5
+            and len(visible_breeders) > self._breeder_engagement_start_count
+        ):
+            self._breeder_breakthrough_floor = snapshot.floor_key
+        self._breeder_previous_exp = snapshot.player.exp
+        self._breeder_previous_indices = {
+            monster.index for monster in visible_breeders
+        }
+        breeders = (
+            visible_breeders
+            if self._breeder_breakthrough_floor != snapshot.floor_key
+            else []
+        )
         productive_choke = self._productive_choke_hold(snapshot)
         if breeders and not productive_choke:
             self._breeder_engagement_score += 1
@@ -20640,17 +20698,11 @@ class HengbotPolicy:
             self._fruitless_disengage_decisions = max(
                 0, self._fruitless_disengage_decisions - 4
             )
-        if self._breeder_engagement_score >= BREEDER_CONTAINMENT_WINDOW:
-            self._combat_fruitful = False
-            if self._fruitless_disengage_floor != snapshot.floor_key:
-                self._fruitless_disengage_floor = snapshot.floor_key
-                self._fruitless_disengage_decisions = self._escape_state.budgets[
-                    "fruitless-disengage"
-                ]
-                self._returning_to_town = True
-                self.last_reason = "combat:disengage-armed"
+        if breeders:
+            self._breeder_engagement_score = 0
+            self._combat_outcomes.clear()
+            self._combat_fruitful = True
             return
-
         reason = self.last_reason
         combat = reason == "melee" or reason.startswith(COMBAT_REASON_PREFIXES)
         combat_adjacent = reason in {
@@ -22620,20 +22672,14 @@ class HengbotPolicy:
     def _breeder_breakthrough_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
-        """Leave upward once a breeder swarm outgrows its choke-start count."""
-        if (
-            self._breeder_breakthrough_floor == snapshot.floor_key
-            and self._breeder_engagement_score == 0
-        ):
-            self._breeder_breakthrough_floor = None
-        if (
-            self._choke_hold_floor == snapshot.floor_key
-            and self._choke_hold_start_breeders is not None
-            and sum(monster.can_multiply for monster in hostiles)
-            > self._choke_hold_start_breeders
-        ):
-            self._breeder_breakthrough_floor = snapshot.floor_key
+        """Leave upward for strong breeders after extermination becomes impossible."""
         if self._breeder_breakthrough_floor != snapshot.floor_key:
+            return None
+        if not any(
+            monster.can_multiply
+            and not self._is_weak_breeder(snapshot, monster)
+            for monster in hostiles
+        ):
             return None
 
         here = snapshot.grid_at(snapshot.player.position)

@@ -516,9 +516,9 @@ class UnenterableExploreGoalTest(unittest.TestCase):
     def _seed_incident_ledger(policy):
         data = json.loads(
             (
-                Path(__file__).parents[1]
-                / "jsonlog"
-                / "exploration-ledger.json"
+                Path(__file__).parent
+                / "fixtures"
+                / "west-pocket-exploration-ledger.json"
             ).read_text(encoding="utf-8")
         )
         policy._visit_counts.update(
@@ -970,7 +970,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._update_navigation_progress(fighting)
         self.assertEqual(policy._nav_stall_count, 0)
 
-    def test_multiplier_swarm_with_no_outcome_is_marked_fruitless(self):
+    def test_multiplier_swarm_with_no_kills_does_not_latch(self):
         base = self._quiet_room()
         lice = [
             hostile(index, 10, 11, can_multiply=True)
@@ -985,11 +985,11 @@ class NavigationInvariantTest(unittest.TestCase):
             policy._update_combat_outcome(fighting)
             armed = armed or policy.last_reason == "combat:disengage-armed"
 
-        self.assertTrue(armed)
-        self.assertFalse(policy._combat_fruitful)
-        self.assertEqual(policy._fruitless_disengage_floor, fighting.floor_key)
+        self.assertFalse(armed)
+        self.assertTrue(policy._combat_fruitful)
+        self.assertIsNone(policy._fruitless_disengage_floor)
 
-    def test_breeder_equilibrium_disengages_despite_continuous_experience_gain(self):
+    def test_five_breeder_kills_without_growth_do_not_latch(self):
         base = self._quiet_room()
         breeders = [
             hostile(
@@ -1009,9 +1009,10 @@ class NavigationInvariantTest(unittest.TestCase):
             )
             policy._update_combat_outcome(fighting)
 
-        self.assertEqual(policy.last_reason, "combat:disengage-armed")
-        self.assertFalse(policy._combat_fruitful)
-        self.assertEqual(policy._fruitless_disengage_floor, base.floor_key)
+        self.assertEqual(policy.last_reason, "melee")
+        self.assertTrue(policy._combat_fruitful)
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+        self.assertIsNone(policy._fruitless_disengage_floor)
 
     def test_breeder_verdict_does_not_rearm_existing_disengage(self):
         base = self._quiet_room()
