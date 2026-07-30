@@ -4,6 +4,7 @@ import ast
 import json
 import unittest
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
 from hengbot.model import Position, Snapshot, parse_snapshot
@@ -88,7 +89,6 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                 ),
                 ("_explore_step", "ExplorationPathOutcome.ABANDON"),
                 ("_explore_step", "ExplorationPathOutcome.PAUSE"),
-                ("_explore_step", "ExplorationPathOutcome.PAUSE"),
                 ("_explore_step", "ExplorationPathOutcome.INVALIDATE"),
                 (
                     "_retire_explore_goal",
@@ -168,7 +168,7 @@ class CapturedGoalFlipCharacterizationTest(unittest.TestCase):
 
 
 class ExplorationCommitmentReplanningTest(unittest.TestCase):
-    def test_monster_on_goal_pauses_then_resumes_same_identity(self):
+    def test_monster_on_goal_keeps_routing_with_same_identity(self):
         start = Position(10, 10)
         goal = Position(10, 11)
         occupied = corridor_snapshot(start)
@@ -183,18 +183,71 @@ class ExplorationCommitmentReplanningTest(unittest.TestCase):
             ExplorationGoalKind.VISIT, goal, signature
         )
 
-        self.assertIsNone(policy._explore_step(occupied))
+        self.assertEqual(policy._explore_step(occupied), goal)
         self.assertEqual(policy._explore_goal_identity.position, goal)
         self.assertEqual(
             policy._explore_path_outcome, ExplorationPathOutcome.PAUSE
         )
 
-        clear = corridor_snapshot(start)
-        policy._build_grid_index(clear)
-        self.assertEqual(policy._explore_step(clear), goal)
+        policy._build_grid_index(occupied)
+        self.assertEqual(policy._explore_step(occupied), goal)
         self.assertEqual(policy._explore_goal_identity.position, goal)
 
-    def test_unreachable_identity_is_retired_before_reselection(self):
+    def test_stationary_occupant_retires_after_three_failed_origins(self):
+        goal = Position(10, 10)
+        origins = (
+            Position(9, 9),
+            Position(9, 10),
+            Position(9, 11),
+        )
+        alternative = Position(8, 9)
+        cells = {
+            goal: grid(
+                goal.y, goal.x, terrain_id=1, marked=True, monster=True
+            ),
+            alternative: grid(
+                alternative.y, alternative.x, terrain_id=1, marked=True
+            ),
+        }
+        cells.update(
+            {
+                origin: grid(
+                    origin.y, origin.x, terrain_id=1, marked=True
+                )
+                for origin in origins
+            }
+        )
+        policy = HengbotPolicy()
+        first = Snapshot(
+            player(origins[0].y, origins[0].x),
+            cells,
+            [],
+            floor_key=(2, 5, 0),
+            width=30,
+            height=30,
+        )
+        policy.prime(first)
+        policy._visit_counts.update({origin: 1 for origin in origins})
+        policy._build_grid_index(first)
+        signature = policy._explore_goal_signature(first.grid_at(goal))
+        policy._explore_goal_identity = ExplorationGoalIdentity(
+            ExplorationGoalKind.VISIT, goal, signature
+        )
+
+        for origin in origins:
+            attempted = replace(
+                first, player=replace(first.player, position=origin)
+            )
+            policy._build_grid_index(attempted)
+            self.assertEqual(policy._explore_step(attempted), goal)
+            policy._observe_one_step_explore(attempted)
+
+        self.assertIsNone(policy._explore_goal_identity)
+        self.assertIn(goal, policy._unenterable_explore_goals)
+        policy._build_grid_index(first)
+        self.assertEqual(policy._explore_step(first), alternative)
+
+    def test_unreachable_identity_is_dropped_without_suppression_write(self):
         start = Position(10, 10)
         blocked_goal = Position(10, 11)
         alternative = Position(11, 10)
@@ -221,13 +274,16 @@ class ExplorationCommitmentReplanningTest(unittest.TestCase):
         policy._explore_goal_identity = ExplorationGoalIdentity(
             ExplorationGoalKind.VISIT, blocked_goal, signature
         )
+        probed_before = set(policy._probed_frontiers)
+        window_before = set(policy._window_edge_goals)
+        unenterable_before = dict(policy._unenterable_explore_goals)
 
         step = policy._explore_step(snapshot)
 
         self.assertEqual(step, alternative)
-        self.assertEqual(
-            policy._unenterable_explore_goals[blocked_goal], signature
-        )
+        self.assertEqual(policy._probed_frontiers, probed_before)
+        self.assertEqual(policy._window_edge_goals, window_before)
+        self.assertEqual(policy._unenterable_explore_goals, unenterable_before)
         self.assertEqual(policy._explore_goal_identity.position, alternative)
 
 

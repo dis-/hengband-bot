@@ -24073,17 +24073,6 @@ class HengbotPolicy:
             elif not self._explore_goal_evidence_matches(snapshot, identity):
                 self._retire_explore_goal(identity)
                 identity = None
-            elif (
-                identity.position != start
-                and (goal_grid := snapshot.grid_at(identity.position)) is not None
-                and goal_grid.has_monster
-            ):
-                # Occupancy is transient evidence.  Combat owns the current
-                # turn; retain the typed destination so exploration resumes
-                # after the monster moves or dies.
-                self._clear_explore_path(ExplorationPathOutcome.PAUSE)
-                return None
-
         if identity is not None and (oscillating or not self._explore_path):
             self._clear_explore_path(ExplorationPathOutcome.PAUSE)
             route = self._route_to_explore_goal(
@@ -24098,6 +24087,11 @@ class HengbotPolicy:
                 route = self._route_to_explore_goal(snapshot, identity.position)
             if route:
                 self._explore_path = route[1:]
+                if not self._explore_path:
+                    self._explore_path_outcome = ExplorationPathOutcome.PAUSE
+                    self._remember_one_step_explore(
+                        snapshot, start, route[0]
+                    )
                 return route[0]
             self._retire_explore_goal(identity)
             identity = None
@@ -24132,6 +24126,13 @@ class HengbotPolicy:
                 route = self._route_to_explore_goal(snapshot, identity.position)
                 if route:
                     self._explore_path = route[1:]
+                    if not self._explore_path:
+                        self._explore_path_outcome = (
+                            ExplorationPathOutcome.PAUSE
+                        )
+                        self._remember_one_step_explore(
+                            snapshot, start, route[0]
+                        )
                     return route[0]
                 self._retire_explore_goal(identity)
 
@@ -24183,14 +24184,6 @@ class HengbotPolicy:
     def _retire_explore_goal(
         self, identity: ExplorationGoalIdentity
     ) -> None:
-        if identity.kind == ExplorationGoalKind.VISIT:
-            self._unenterable_explore_goals[
-                identity.position
-            ] = identity.evidence_signature
-        elif identity.kind == ExplorationGoalKind.FRONTIER:
-            self._probed_frontiers.add(identity.position)
-        elif identity.kind == ExplorationGoalKind.WINDOW_EDGE:
-            self._window_edge_goals.add(identity.position)
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self._explore_goal_identity = None
 
@@ -24226,9 +24219,19 @@ class HengbotPolicy:
             position = queue.popleft()
             if position == goal:
                 break
-            for neighbor in self._walkable_neighbors(
+            neighbors = self._walkable_neighbors(
                 snapshot, position, allow_damaging=allow_damaging
+            )
+            if (
+                position.distance_to(goal) == 1
+                and (goal.y, goal.x) in self._remembered_floor_t
+                and goal not in neighbors
             ):
+                # Live monsters are excluded from the immediate floor index.
+                # Permit only the committed goal as the final route step so
+                # exploration approaches it and combat can engage.
+                neighbors.append(goal)
+            for neighbor in neighbors:
                 if (
                     neighbor in parent
                     or neighbor in avoided
@@ -24322,6 +24325,11 @@ class HengbotPolicy:
         if len(failures) >= 3:
             self._unenterable_explore_goals[goal] = signature
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+            if (
+                self._explore_goal_identity is not None
+                and self._explore_goal_identity.position == goal
+            ):
+                self._explore_goal_identity = None
 
     def _plan_explore_path(self, snapshot: Snapshot) -> list[Position]:
         """Dijkstra to the nearest (visit-penalised) frontier, returning the full

@@ -531,7 +531,7 @@ class UnenterableExploreGoalTest(unittest.TestCase):
             Position(y, x) for y, x in data["probed_frontiers"]
         )
 
-    def test_real_west_pocket_occupant_pauses_committed_goal(self):
+    def test_real_west_pocket_replay_retires_goal_and_plans_elsewhere(self):
         base = self._capture_snapshot()
         policy = HengbotPolicy()
         policy._floor_key = base.floor_key
@@ -548,14 +548,11 @@ class UnenterableExploreGoalTest(unittest.TestCase):
             self.assertEqual(policy.last_reason, "explore")
             self.assertNotEqual(key, WAIT_KEY)
 
-        # Stage 3 intentionally updates this old characterization: monster
-        # occupancy is transient, so it no longer accumulates three failed
-        # entry origins and retires the underlying exploration identity.
-        self.assertEqual(proposed[0], self.GOAL)
-        self.assertEqual(proposed[1:], [None] * (len(self.RING) - 1))
-        self.assertNotIn(self.GOAL, policy._unenterable_explore_goals)
-        self.assertEqual(
-            policy._explore_goal_identity.position, self.GOAL
+        self.assertEqual(proposed[:3], [self.GOAL] * 3)
+        self.assertNotIn(self.GOAL, proposed[3:])
+        self.assertIn(self.GOAL, policy._unenterable_explore_goals)
+        self.assertTrue(
+            any(goal is not None and goal != self.GOAL for goal in proposed[3:])
         )
 
     def _retired_synthetic_goal(self):
