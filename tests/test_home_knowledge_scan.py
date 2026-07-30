@@ -10,7 +10,7 @@ from hengbot.cli import (
 )
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog
 from hengbot.model import GridState, PlayerState, Position, Snapshot
-from hengbot.policy import HengbotPolicy, STORE_HOME
+from hengbot.policy import CHARACTER_DUMP_MACRO, HengbotPolicy, STORE_HOME
 
 
 def town_with_home() -> Snapshot:
@@ -115,6 +115,34 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             with self.subTest(response_type=response_type):
                 line = json.dumps({"type": response_type, "player": {}})
                 self.assertIsNone(_newest_snapshot([line], {}))
+
+    def test_unsolicited_character_and_look_responses_send_no_key(self):
+        policy = HengbotPolicy()
+        for response_type in ("character", "look"):
+            with self.subTest(response_type=response_type):
+                send = Mock(return_value=True)
+
+                consumed = _dispatch_response_lines(
+                    [json.dumps({"type": response_type})], policy, send
+                )
+
+                self.assertEqual(consumed, 1)
+                send.assert_not_called()
+
+    def test_periodic_character_dump_response_adds_no_keys(self):
+        policy = HengbotPolicy()
+        policy.request_character_dump()
+        key = policy._periodic_character_dump_key(town_with_home(), "6")
+        self.assertEqual(key, CHARACTER_DUMP_MACRO)
+        self.assertEqual(policy.last_reason, "periodic:character-dump")
+        sent = list(key)
+
+        consumed = _dispatch_response_lines(
+            [json.dumps({"type": "character"})], policy, sent.append
+        )
+
+        self.assertEqual(consumed, 1)
+        self.assertEqual(sent, list(CHARACTER_DUMP_MACRO))
 
     def test_real_shaped_payload_preserves_slots_and_item_identity(self):
         policy = HengbotPolicy()

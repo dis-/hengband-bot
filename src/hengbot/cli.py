@@ -1899,17 +1899,18 @@ def _dispatch_response_lines(complete_lines, policy, send) -> int:
             continue
         consumed += 1
         knowledge = data.get("knowledge")
-        if (
+        requested_home_knowledge = (
             response_type == "knowledge"
             and isinstance(knowledge, dict)
             and knowledge.get("category") == "home"
             and knowledge.get("menu_key") == "9"
             and getattr(policy, "_home_knowledge_scan_inflight", False)
-        ):
+        )
+        if requested_home_knowledge:
             policy.consume_home_knowledge(
                 tuple(_parse_items(knowledge.get("items", [])))
             )
-        send(NUDGE_KEY)
+            send(NUDGE_KEY)
     return consumed
 
 
