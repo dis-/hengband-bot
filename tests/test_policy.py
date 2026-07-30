@@ -3370,6 +3370,60 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(self._in_store(items)), "pb\r")
         self.assertEqual(pol.last_reason, "shop:buy-lantern")
 
+    def test_stale_store_snapshot_after_leave_cannot_emit_purchase(self):
+        lantern = InventoryItem(
+            "e", "lantern", 1, TVAL_LITE, SV_LITE_LANTERN, True, True
+        )
+        pol = HengbotPolicy()
+        leaving = replace(self._in_store([], inv=[lantern]), turn=100)
+
+        self.assertEqual(pol.choose_key(leaving), LEAVE_STORE_KEY)
+
+        stale = replace(
+            self._in_store(
+                [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)]
+            ),
+            turn=99,
+        )
+        self.assertEqual(pol.choose_key(stale), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "shop:await-leave-generation")
+        self.assertIsNone(pol._store_buy_inflight)
+
+    def test_pending_buy_preempts_leave_from_unchanged_store_snapshot(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        pol = HengbotPolicy()
+        buying = replace(self._in_store([ware]), turn=100)
+
+        self.assertEqual(pol.choose_key(buying), "pb\r")
+        would_leave = replace(
+            self._in_store([], inv=[
+                InventoryItem(
+                    "e", "lantern", 1, TVAL_LITE, SV_LITE_LANTERN, True, True
+                )
+            ]),
+            turn=100,
+        )
+        self.assertEqual(pol.choose_key(would_leave), WAIT_KEY)
+        self.assertNotEqual(pol.last_reason, "shop:leave")
+
+    def test_unaccepted_purchase_is_not_recorded_as_completed(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        pol = HengbotPolicy()
+        self.assertEqual(pol.choose_key(self._in_store([ware])), "pb\r")
+        signature = pol._item_signature(ware)
+
+        outside = Snapshot(
+            player(10, 10, gold=1000),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=1,
+            town_flag=True,
+        )
+        pol.choose_key(outside)
+
+        self.assertIsNone(pol._store_buy_inflight)
+        self.assertNotIn(signature, pol._town_visit_purchases)
+
     def test_buys_oil_once_lantern_owned(self):
         items = [store_item("c", TVAL_FLASK, SV_FLASK_OIL, price=3, count=42)]
         inv = [InventoryItem("e", "lantern", 1, TVAL_LITE, SV_LITE_LANTERN, True, True)]
@@ -36497,7 +36551,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "\x1b")
         self.assertEqual(policy.last_reason, "policy:none-store-exit")
 
-    def test_choose_key_purchase_watch_still_records_real_buy(self):
+    def test_choose_key_purchase_watch_records_only_confirmed_buy(self):
         ware = StoreItem(
             letter="a",
             name="Potion of Speed",
@@ -36514,6 +36568,22 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         snapshot = self._town(store=StoreState(STORE_ALCHEMIST, [ware]))
 
         self.assertEqual(policy.choose_key(snapshot), "pa\r")
+        self.assertNotIn(
+            policy._item_signature(ware), policy._town_visit_purchases
+        )
+        confirmed = replace(
+            snapshot,
+            inventory=[
+                item(
+                    "a",
+                    TVAL_POTION,
+                    SV_POTION_SPEED,
+                    name="Potion of Speed",
+                )
+            ],
+        )
+        policy._decision_sequence += 1
+        policy._shop(confirmed)
         self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
 
     def test_transaction_deposits_fully_known_item_unchanged(self):
