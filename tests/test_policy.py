@@ -31022,6 +31022,45 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.last_reason, "town:blocked:repetition")
 
+    def test_yeek_repetition_services_affordable_recall_shortage(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._target_dungeon_id = DUNGEON_YEEK_CAVE
+        pol._deepest_level = RECALL_MIN_DEPTH
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5)
+        position = Position(27, 97)
+        temple = Position(27, 100)
+        snap = Snapshot(
+            player(27, 97, class_id=PLAYER_CLASS_WARRIOR, gold=18129),
+            {
+                position: grid(27, 97),
+                Position(27, 98): grid(27, 98),
+                Position(27, 99): grid(27, 99),
+                temple: replace(grid(27, 100), store_number=STORE_TEMPLE),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[recall],
+            equipment=[],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
+            recall_dungeon_id=DUNGEON_YEEK_CAVE,
+            recall_depth=RECALL_MIN_DEPTH,
+            dungeon_recall_depths={DUNGEON_YEEK_CAVE: RECALL_MIN_DEPTH},
+        )
+        recall_need = TownNeed(STORE_TEMPLE, "recall", "normal")
+
+        with patch.object(
+            pol, "_town_need_candidates", return_value=[recall_need]
+        ):
+            pol._break_town_cycle(snap)
+            pol._town_blocked_reason = "repetition"
+            key = pol._town_special_key(snap)
+
+        self.assertFalse(pol._town_restock_suppressed)
+        self.assertEqual(pol._town_errand_plan.stops, [STORE_TEMPLE])
+        self.assertEqual(key, "6")
+        self.assertEqual(pol.last_reason, "town:repetition-required-shopping")
+
     def test_yeek_recall_destination_preserves_walk_in_exemptions(self):
         snap = replace(
             self._town_snap(),
@@ -31564,7 +31603,8 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
         snap = self._town_snap()
-        pol._town_special_key(snap)
+        with patch.object(pol, "_town_need_candidates", return_value=[]):
+            pol._town_special_key(snap)
         self.assertTrue(pol._town_restock_suppressed)
         self.assertIsNone(
             pol._retry_after_store_restock(snap, (STORE_ALCHEMIST,))
@@ -31584,13 +31624,33 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._town_cycle_pending = True
         snap = self._town_snap()
-        pol._town_special_key(snap)  # first break: suppression latched
+        catalog_need = TownNeed(STORE_HOME, "equipment-catalog", "home-first")
+        with mock.patch.object(
+            pol, "_town_need_candidates", return_value=[catalog_need]
+        ):
+            pol._town_special_key(snap)  # first break: optional work suppressed
         with mock.patch.object(
             pol,
             "_find_weapon_sale",
             return_value=item("w", TVAL_SWORD, 4, is_equipment=True),
+        ), mock.patch.object(
+            pol, "_town_need_candidates", return_value=[catalog_need]
         ):
             self.assertIsNone(pol._next_required_store_type(snap))
+
+    def test_cycle_break_still_suppresses_opportunistic_equipment_catalog(self):
+        pol = HengbotPolicy()
+        snap = self._town_snap()
+        catalog_need = TownNeed(STORE_HOME, "equipment-catalog", "home-first")
+
+        with patch.object(
+            pol, "_town_need_candidates", return_value=[catalog_need]
+        ):
+            pol._break_town_cycle(snap)
+
+        self.assertTrue(pol._town_restock_suppressed)
+        self.assertIsNone(pol._town_errand_plan)
+        self.assertIsNone(pol._next_required_store_type(snap))
 
     def test_prepare_cycle_break_enters_scavenge_for_departure(self):
         pol = HengbotPolicy()

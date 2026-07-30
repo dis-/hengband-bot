@@ -10348,6 +10348,41 @@ class HengbotPolicy:
             self._town_need_evaluation_candidates = None
         return needs
 
+    def _departure_blocking_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
+        """Return live errands whose NeedSpec says they gate departure."""
+        needs: list[TownNeed] = []
+        self._town_need_evaluation_snapshot = snapshot
+        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
+        try:
+            for spec in self._town_need_registry():
+                if spec.departure_blocking and spec.produces(snapshot):
+                    needs.append(
+                        TownNeed(
+                            spec.resolve_store_type(snapshot),
+                            spec.category,
+                            spec.ordering_class,
+                        )
+                    )
+        finally:
+            self._town_need_evaluation_snapshot = None
+            self._town_need_evaluation_candidates = None
+        return needs
+
+    def _town_need_supplier_reachable(
+        self, snapshot: Snapshot, need: TownNeed
+    ) -> bool:
+        """Whether a need's supplier has a live or remembered town route."""
+        if snapshot.store is not None and snapshot.store.store_type == need.store_type:
+            return True
+        if any(
+            grid.store_number == need.store_type for grid in snapshot.grids.values()
+        ):
+            return True
+        return (
+            self._town_map_active(snapshot)
+            and self._town_map.store_position(need.store_type) is not None
+        )
+
     def _order_town_stops(
         self, snapshot: Snapshot, stores: list[int], start: Position | None = None
     ) -> list[int]:
@@ -10529,9 +10564,14 @@ class HengbotPolicy:
             for store, failures in self._town_visit_ledger.approach_fails.items()
             if failures >= TOWN_STOP_PASS_LIMIT
         }
+        live_needs = (
+            self._departure_blocking_town_needs(snapshot)
+            if self._town_blocked_reason == "repetition"
+            else self._enumerate_town_needs(snapshot)
+        )
         needs = [
             need
-            for need in self._enumerate_town_needs(snapshot)
+            for need in live_needs
             if need.store_type not in ledger_blocked
         ]
         warned = set(self._town_visit_ledger.drift_warnings)
@@ -13079,7 +13119,10 @@ class HengbotPolicy:
     def _shopping_approach_step(self, snapshot: Snapshot) -> Position | None:
         self._shopping_approach_store_type = None
         self._shopping_approach_goal = None
-        if not snapshot.in_town or self._town_blocked_reason is not None:
+        if not snapshot.in_town or (
+            self._town_blocked_reason is not None
+            and self._town_blocked_reason != "repetition"
+        ):
             return None
         if self._shopping_stuck:
             # The failed store was recorded in _town_store_attempted when the
@@ -14101,6 +14144,12 @@ class HengbotPolicy:
         preserved_stores = {
             store for status in shortages for store in status.stores
         }
+        departure_needs = [
+            need
+            for need in self._departure_blocking_town_needs(snapshot)
+            if self._town_need_supplier_reachable(snapshot, need)
+        ]
+        preserved_stores.update(need.store_type for need in departure_needs)
         for store_type in range(len(TOWN_TRAVEL_STORE_SYMBOLS) + 1):
             if store_type in preserved_stores:
                 self._town_store_attempted.pop(store_type, None)
@@ -14141,9 +14190,13 @@ class HengbotPolicy:
         # stores above when it expires, and the cycle resumes.
         self._town_restock_suppressed = not preserved_stores
         self._town_errand_plan = (
-            TownErrandPlan(sorted(preserved_stores))
-            if preserved_stores
-            else None
+            self._build_town_errand_plan(snapshot, departure_needs)
+            if departure_needs
+            else (
+                TownErrandPlan(sorted(preserved_stores))
+                if preserved_stores
+                else None
+            )
         )
 
     def _town_blocked_store_context(self, snapshot: Snapshot) -> bool:
@@ -14198,6 +14251,14 @@ class HengbotPolicy:
             clear_traveler = self._town_kill_mob_key(snapshot)
             if clear_traveler is not None:
                 return clear_traveler
+            shopping_step = self._shopping_approach_step(snapshot)
+            if shopping_step is not None:
+                self.last_reason = "town:repetition-required-shopping"
+                return self._shopping_approach_key(
+                    snapshot,
+                    shopping_step,
+                    "town:repetition-required-shopping",
+                )
             here = snapshot.grid_at(snapshot.player.position)
             if (
                 here is not None
