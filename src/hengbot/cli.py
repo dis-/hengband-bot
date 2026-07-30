@@ -582,6 +582,7 @@ def _decision_record(
     town_plan: dict | None = None,
     fixedquest_readiness: dict | None = None,
     departure_block: dict | None = None,
+    cross_town_shopping: dict | None = None,
     quest_strategy: dict | None = None,
     escape_ladder: dict | None = None,
     map_memory: dict | None = None,
@@ -644,6 +645,11 @@ def _decision_record(
         **({"town_plan": town_plan} if town_plan else {}),
         **({"fixedquest_readiness": fixedquest_readiness} if fixedquest_readiness else {}),
         **({"departure_block": departure_block} if departure_block else {}),
+        **(
+            {"cross_town_shopping": cross_town_shopping}
+            if cross_town_shopping
+            else {}
+        ),
         **({"quest_strategy": quest_strategy} if quest_strategy is not None else {}),
         **({"escape_ladder": escape_ladder} if escape_ladder else {}),
         "map_memory": map_memory or {},
@@ -879,6 +885,9 @@ def _write_decision(
             departure_block = (
                 policy.departure_block_state() if policy is not None else {}
             )
+            cross_town_shopping = (
+                policy.cross_town_shopping_state() if policy is not None else {}
+            )
             quest_strategy = None
             quest_id = snapshot.floor_key[2] or int(fixedquest_readiness.get("quest_id", 0))
             if policy is not None and quest_id > 0:
@@ -903,6 +912,7 @@ def _write_decision(
                     town_plan,
                     fixedquest_readiness,
                     departure_block,
+                    cross_town_shopping,
                     quest_strategy,
                     (
                         policy.escape_ladder_telemetry

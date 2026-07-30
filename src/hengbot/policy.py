@@ -250,6 +250,9 @@ class TownTravelProgress:
 
 
 TOWN_STOP_PASS_LIMIT = 3
+# Cash retained after buying every departure-blocking shortage on a cross-town
+# shopping expedition, covering the user-specified round trip.
+CROSS_TOWN_SHOPPING_RESERVE = 1000
 
 
 @dataclass(frozen=True)
@@ -284,6 +287,18 @@ class TownVisitLedger:
     passes_since_progress: int = 0
     drift_warnings: list[str] = field(default_factory=list)
     satisfied_needs: set[tuple[int, str]] = field(default_factory=set)
+
+
+@dataclass
+class CrossTownShoppingExpedition:
+    trigger_town_id: int
+    blocking_categories: tuple[str, ...]
+    shortage_costs: dict[str, int]
+    reserve: int
+    required_gold: int
+    candidate_order: tuple[int, ...]
+    tried_towns: list[int] = field(default_factory=list)
+    target_town_id: int | None = None
 
 
 @dataclass
@@ -1837,6 +1852,12 @@ class HengbotPolicy:
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
         # Store purchases are retained for the rest of the current town visit.
         self._town_visit_purchases: set[tuple[str, int, int]] = set()
+        # Prices are learned only from shelves actually shown by the emitter.
+        # Values are (unit price, units supplied); no guessed/default shopping
+        # price is permitted for the cross-town funds gate.
+        self._observed_departure_prices: dict[str, tuple[int, int]] = {}
+        self._cross_town_shopping: CrossTownShoppingExpedition | None = None
+        self._cross_town_shopping_funds: dict[str, object] = {}
         # A fixed quest's carry contract may ask for stock that no supplier has
         # this visit.  Town procurement may waive only those exhausted entries;
         # quest-entry readiness continues to check the original contract.
@@ -3783,6 +3804,7 @@ class HengbotPolicy:
         self._threat_prediction_memo.clear()
         self._observe_remove_curse(snapshot)
         self._observe_launcher_enchant(snapshot)
+        self._observe_departure_prices(snapshot)
         previous_floor = self._floor_key
         if self._emergency_recall_sanctioned:
             if previous_floor is not None and previous_floor != snapshot.floor_key:
@@ -11074,6 +11096,243 @@ class HengbotPolicy:
             for need in self._enumerate_town_needs(snapshot)
         )
 
+    def _remember_departure_price(
+        self, category: str, price: int, units: int = 1
+    ) -> None:
+        if price <= 0 or units <= 0:
+            return
+        previous = self._observed_departure_prices.get(category)
+        if previous is None or price * previous[1] < previous[0] * units:
+            self._observed_departure_prices[category] = (price, units)
+
+    def _observe_departure_prices(self, snapshot: Snapshot) -> None:
+        """Retain only emitter-observed prices usable by the expedition gate."""
+        store = snapshot.store
+        if store is None:
+            return
+        for item in store.items:
+            if item.is_recall_scroll:
+                self._remember_departure_price("recall", item.price)
+            if item.is_teleport_scroll:
+                self._remember_departure_price("teleport", item.price)
+            if item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
+                self._remember_departure_price("cure-critical", item.price)
+            if item.is_oil:
+                self._remember_departure_price("oil", item.price)
+            if item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL:
+                self._remember_departure_price("food", item.price)
+            if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
+                self._remember_departure_price(
+                    "identification-source:normal", item.price
+                )
+            if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
+                self._remember_departure_price(
+                    "identification-source:full", item.price
+                )
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+                charges = max(1, item.pval)
+                self._remember_departure_price("identify-staff", item.price, charges)
+            if item.tval == TVAL_LITE and item.sval in {
+                SV_LITE_TORCH,
+                SV_LITE_LANTERN,
+            }:
+                self._remember_departure_price("light", item.price)
+            if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
+                self._remember_departure_price("remove-curse", item.price)
+            for stat, sval in RESTORE_POTION_SVAL_BY_STAT.items():
+                if item.tval == TVAL_POTION and item.sval == sval:
+                    self._remember_departure_price(
+                        f"stat-restore:{stat}", item.price
+                    )
+
+    def _cross_town_shortages(
+        self, snapshot: Snapshot
+    ) -> list[tuple[str, int]]:
+        """Return shop-purchasable departure shortages, including latched ones."""
+        shortages: list[tuple[str, int]] = []
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        category = {
+            "recall": "recall",
+            "teleport": "teleport",
+            "cure": "cure-critical",
+            "oil": "oil",
+            "food": "food",
+        }
+        for status in ledger.values():
+            missing = max(0, status.required_departure - status.count)
+            if missing:
+                shortages.append((category[status.kind], missing))
+        if self._identification_need is not None:
+            shortages.append(
+                (
+                    "identification-source:full"
+                    if self._identification_need == "full"
+                    else "identification-source:normal",
+                    1,
+                )
+            )
+        identify_charges = sum(
+            item.charges
+            for item in snapshot.inventory
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+        )
+        if not self._identify_staff_ready(snapshot):
+            shortages.append(
+                ("identify-staff", max(1, STAFF_IDENTIFY_MIN_CHARGES - identify_charges))
+            )
+        if not self._light_ready(snapshot):
+            shortages.append(("light", 1))
+        if self._has_normal_remove_curse_target(snapshot) and self._find_remove_curse_scroll(snapshot) is None:
+            shortages.append(("remove-curse", 1))
+        for stat in snapshot.player.drained_stats:
+            if self._carried_restore_potion(snapshot, stat) is None:
+                shortages.append((f"stat-restore:{stat}", 1))
+        return shortages
+
+    def _cross_town_unobtainable_categories(
+        self, snapshot: Snapshot, shortages: list[tuple[str, int]]
+    ) -> tuple[str, ...]:
+        """Use bounded town-ledger/store evidence to confirm the local failure."""
+        aliases = {
+            "identification-source:normal": "identification-source",
+            "identification-source:full": "identification-source",
+        }
+        drift_categories = {
+            warning.rsplit(":", 1)[-1]
+            for warning in self._town_visit_ledger.drift_warnings
+            if warning.startswith("drift:")
+        }
+        blocked = self._town_visit_ledger.blocked_stores
+        live_needs = self._departure_blocking_town_needs(snapshot)
+        unobtainable: list[str] = []
+        for category, _quantity in shortages:
+            need_category = aliases.get(category, category)
+            matching = [
+                need for need in live_needs if need.category == need_category
+            ]
+            supplier_exhausted = bool(matching) and all(
+                need.store_type in self._town_store_attempted
+                or need.store_type in blocked
+                or self._town_visit_ledger.approach_fails[need.store_type]
+                >= TOWN_STOP_PASS_LIMIT
+                for need in matching
+            )
+            if (
+                supplier_exhausted
+                or self._town_visit_ledger.need_attempts.get(need_category, 0)
+                >= TOWN_STOP_PASS_LIMIT
+                or need_category in drift_categories
+                and not matching
+            ):
+                unobtainable.append(category)
+        return tuple(dict.fromkeys(unobtainable))
+
+    def _cross_town_candidate_order(self, snapshot: Snapshot) -> tuple[int, ...]:
+        current = self._effective_town_id(snapshot)
+        if snapshot.visited_town_ids is None:
+            return ()
+        return tuple(
+            town_id
+            for town_id in sorted(set(snapshot.visited_town_ids))
+            if town_id != current and town_id in TOWN_TELEPORT_BUILDING_TYPES
+        )
+
+    def cross_town_shopping_state(self) -> dict[str, object]:
+        expedition = self._cross_town_shopping
+        if expedition is None:
+            return dict(self._cross_town_shopping_funds)
+        return {
+            "trigger_town_id": expedition.trigger_town_id,
+            "blocking_categories": list(expedition.blocking_categories),
+            "shortage_costs": dict(expedition.shortage_costs),
+            "reserve": expedition.reserve,
+            "required_gold": expedition.required_gold,
+            "candidate_order": list(expedition.candidate_order),
+            "tried_towns": list(expedition.tried_towns),
+            "target_town_id": expedition.target_town_id,
+        }
+
+    def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
+        shortages = self._cross_town_shortages(snapshot)
+        unobtainable = self._cross_town_unobtainable_categories(
+            snapshot, shortages
+        )
+        expedition = self._cross_town_shopping
+        if expedition is None:
+            if not unobtainable:
+                return None
+            costs: dict[str, int] = {}
+            for category, quantity in shortages:
+                observed = self._observed_departure_prices.get(category)
+                if observed is None:
+                    self._cross_town_shopping_funds = {
+                        "trigger_town_id": self._effective_town_id(snapshot),
+                        "blocking_categories": list(unobtainable),
+                        "missing_price_for": category,
+                        "funds_sufficient": None,
+                        "candidate_order": list(
+                            self._cross_town_candidate_order(snapshot)
+                        ),
+                        "tried_towns": [],
+                    }
+                    return None
+                price, units = observed
+                costs[category] = ceil(quantity / units) * price
+            candidates = self._cross_town_candidate_order(snapshot)
+            if not candidates:
+                return None
+            required_gold = sum(costs.values()) + CROSS_TOWN_SHOPPING_RESERVE
+            self._cross_town_shopping_funds = {
+                "trigger_town_id": self._effective_town_id(snapshot),
+                "blocking_categories": list(unobtainable),
+                "shortage_costs": dict(costs),
+                "reserve": CROSS_TOWN_SHOPPING_RESERVE,
+                "required_gold": required_gold,
+                "gold": snapshot.player.gold,
+                "funds_sufficient": snapshot.player.gold >= required_gold,
+                "candidate_order": list(candidates),
+                "tried_towns": [],
+            }
+            if snapshot.player.gold < required_gold:
+                # This is intentionally the ordinary fundraising owner and
+                # target; the existing mining kit/departure/walk-in rules apply.
+                self._planned_mining_runs = None
+                self._fundraising_mode = "prepare"
+                self._town_store_attempted.clear()
+                self.last_reason = "town:cross-town-shopping-needs-funds"
+                return WAIT_KEY
+            expedition = CrossTownShoppingExpedition(
+                trigger_town_id=self._effective_town_id(snapshot),
+                blocking_categories=unobtainable,
+                shortage_costs=costs,
+                reserve=CROSS_TOWN_SHOPPING_RESERVE,
+                required_gold=required_gold,
+                candidate_order=candidates,
+            )
+            self._cross_town_shopping = expedition
+
+        current = self._effective_town_id(snapshot)
+        if (
+            expedition.target_town_id is not None
+            and current == expedition.target_town_id
+        ):
+            if current not in expedition.tried_towns:
+                expedition.tried_towns.append(current)
+            expedition.target_town_id = None
+        for next_town in expedition.candidate_order:
+            if next_town in expedition.tried_towns or next_town == current:
+                continue
+            expedition.target_town_id = next_town
+            key = self._town_teleport_key(snapshot, next_town)
+            if key is not None:
+                self.last_reason = f"town:cross-town-shopping:travel-{next_town}"
+                return key
+            # The existing inn router has no route to this candidate from the
+            # current town. Count it once and continue the ordered cycle.
+            expedition.tried_towns.append(next_town)
+            expedition.target_town_id = None
+        return None
+
     def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
         """Apply ordered state changes only after the plan walk is exhausted."""
         if self._town_restock_suppressed or snapshot.player.class_id < 0:
@@ -14763,6 +15022,7 @@ class HengbotPolicy:
             self.last_reason = self._restock_wait_reason(snapshot)
             return RESTOCK_WAIT_MACRO
         if recall_dest is not None and departure_ok:
+            self._cross_town_shopping = None
             recall_count = sum(
                 item.count for item in snapshot.inventory if item.is_recall_scroll
             )
@@ -14842,6 +15102,9 @@ class HengbotPolicy:
             # that otherwise-unclassified gate through the existing visible
             # terminal instead of handing town back to generic stuck:wander.
             if not self._town_claims_active(snapshot):
+                expedition = self._cross_town_shopping_key(snapshot)
+                if expedition is not None:
+                    return expedition
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
         return None

@@ -25137,6 +25137,122 @@ class TownRecallReturnTest(unittest.TestCase):
             block["values"]["free_pack_slots"], PACK_CAPACITY - len(snap.inventory)
         )
 
+    def test_cross_town_identify_capture_starts_travel_instead_of_visible_stop(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=9193),
+            town_id=0,
+            visited_town_ids=(0, 1, 2, 3),
+        )
+        pol._identification_need = "normal"
+        pol._home_candidate_waiting = True
+        pol._town_visit_ledger.need_attempts["identification-source"] = 5
+        pol._town_visit_ledger.drift_warnings.append(
+            "drift:alchemist:identification-source"
+        )
+        pol._observed_departure_prices["identification-source:normal"] = (20, 1)
+        with patch.object(pol, "_town_departure_ready", return_value=False), patch.object(
+            pol, "_town_claims_active", return_value=False
+        ), patch.object(
+            pol,
+            "_cross_town_shortages",
+            return_value=[("identification-source:normal", 1)],
+        ), patch.object(pol, "_town_teleport_key", return_value="6ma"):
+            self.assertEqual(pol._town_special_key(snap), "6ma")
+        self.assertEqual(pol.last_reason, "town:cross-town-shopping:travel-1")
+        self.assertNotEqual(pol.last_reason, "town:blocked:departure-unsatisfiable")
+        self.assertEqual(pol.cross_town_shopping_state()["candidate_order"], [1, 2, 3])
+
+    def test_cross_town_funds_failure_uses_ordinary_fundraising_mode(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=1019),
+            town_id=0,
+            visited_town_ids=(0, 1),
+        )
+        pol._observed_departure_prices["identification-source:normal"] = (20, 1)
+        pol._town_visit_ledger.need_attempts["identification-source"] = 3
+        with patch.object(
+            pol,
+            "_cross_town_shortages",
+            return_value=[("identification-source:normal", 1)],
+        ):
+            self.assertEqual(pol._cross_town_shopping_key(snap), WAIT_KEY)
+        self.assertEqual(pol._fundraising_mode, "prepare")
+        self.assertIsNone(pol._planned_mining_runs)
+        self.assertIsNone(pol._cross_town_shopping)
+
+        ordinary = HengbotPolicy()
+        ordinary_snap = replace(snap, player=replace(snap.player, gold=100))
+        self.assertTrue(ordinary._start_fundraising(ordinary_snap))
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs),
+            (ordinary._fundraising_mode, ordinary._planned_mining_runs),
+        )
+
+    def test_cross_town_tries_each_visited_town_once_then_visible_stop_remains(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=5000),
+            town_id=0,
+            visited_town_ids=(0, 1, 2),
+        )
+        pol._observed_departure_prices["identification-source:normal"] = (20, 1)
+        pol._town_visit_ledger.need_attempts["identification-source"] = 3
+        shortage = [("identification-source:normal", 1)]
+        with patch.object(pol, "_cross_town_shortages", return_value=shortage), patch.object(
+            pol, "_town_teleport_key", side_effect=lambda _snap, town: f"travel-{town}"
+        ):
+            self.assertEqual(pol._cross_town_shopping_key(snap), "travel-1")
+            town1 = replace(snap, town_id=1)
+            self.assertEqual(pol._cross_town_shopping_key(town1), "travel-2")
+            town2 = replace(snap, town_id=2)
+            self.assertIsNone(pol._cross_town_shopping_key(town2))
+            self.assertEqual(pol._cross_town_shopping.tried_towns, [1, 2])
+            self.assertIsNone(pol._cross_town_shopping_key(town2))
+
+        pol._town_blocked_reason = "departure-unsatisfiable"
+        self.assertEqual(pol._town_blocked_key(town2), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "town:blocked:departure-unsatisfiable")
+
+    def test_opportunistic_need_does_not_trigger_cross_town_shopping(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(snap, town_id=0, visited_town_ids=(0, 1))
+        pol._town_visit_ledger.need_attempts["ammo"] = 5
+        with patch.object(pol, "_cross_town_shortages", return_value=[]):
+            self.assertIsNone(pol._cross_town_shopping_key(snap))
+        self.assertIsNone(pol._cross_town_shopping)
+
+    def test_cross_town_expedition_never_weakens_recall_entry_invariant(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pol._cross_town_shopping = policy_module.CrossTownShoppingExpedition(
+            0, ("recall",), {"recall": 20}, 1000, 1020, (1,), [1]
+        )
+        without_recall = replace(
+            snap,
+            inventory=[
+                item for item in snap.inventory if not item.is_recall_scroll
+            ],
+        )
+        self.assertFalse(
+            pol._dungeon_entry_allowed(
+                without_recall, via_recall=False, destination_depth=8
+            )
+        )
+
     def test_inert_home_identification_latch_is_cleared_before_recall(self):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
