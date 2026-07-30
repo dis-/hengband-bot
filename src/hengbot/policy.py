@@ -2685,22 +2685,23 @@ class HengbotPolicy:
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
 
-        detected_preparation = self._detected_threat_preparation_key(
-            snapshot, hostiles
-        )
-        if detected_preparation is not None:
-            return detected_preparation
-
         unseen_intercept = self._unseen_retreat_intercept_key(
             snapshot, hostiles, adjacent
         )
         unseen_action = unseen_intercept
         if unseen_action is None:
             unseen_action = self._unseen_retreat_key(snapshot, hostiles)
-        if unseen_action is not None:
+        detected_preparation = None
+        if unseen_action is None:
+            detected_preparation = self._detected_threat_preparation_key(
+                snapshot, hostiles
+            )
+        contested_action = unseen_action or detected_preparation
+        if contested_action is not None:
             # An ordinary or already-latched town return owns this contested
-            # decision. Keep the unseen retreat at its existing rung when no
-            # return would act, without promoting return above unrelated gates.
+            # decision. Keep unseen retreat above anticipatory detected-threat
+            # preparation when no return would act, without promoting return
+            # above unrelated gates.
             town_return = (
                 None
                 if self._escape_state.owner not in {None, "return", "unseen"}
@@ -2708,7 +2709,7 @@ class HengbotPolicy:
             )
             if town_return is not None:
                 return town_return
-            return unseen_action
+            return contested_action
 
         # Player light radius >= 1 always gives CAVE_LITE to the player's own
         # square (cave-map.cpp update_lite); a non-blind player whose own square

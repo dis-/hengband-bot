@@ -515,6 +515,86 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         retreat.assert_called_once()
         self.assertEqual(policy._hostiles(snapshot), [])
 
+    def test_latched_town_return_outranks_detected_threat_preparation(self):
+        breeder = replace(
+            hostile(
+                7, 10, 12, distance=2, can_multiply=True,
+                max_melee_damage=4,
+            ),
+            perception="detected",
+        )
+        snapshot = replace(
+            self._corridor_snapshot([breeder]),
+            grids={
+                Position(y, x): grid(y, x)
+                for y in range(8, 13)
+                for x in range(8, 13)
+            },
+            inventory=[item("w", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+        )
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+
+        with patch.object(
+            policy, "_summoner_retreat_step", return_value=Position(9, 9)
+        ):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("rw", "return:recall"))
+
+    def test_emergency_outranks_detected_threat_preparation(self):
+        breeder = replace(
+            hostile(
+                7, 10, 12, distance=2, can_multiply=True,
+                max_melee_damage=4,
+            ),
+            perception="detected",
+        )
+        snapshot = self._corridor_snapshot([breeder])
+        policy = HengbotPolicy()
+
+        def emergency(_snapshot, _hostiles):
+            policy.last_reason = "emergency:teleport"
+            return "rt"
+
+        with (
+            patch.object(policy, "_emergency_item", side_effect=emergency),
+            patch.object(
+                policy, "_detected_threat_preparation_key",
+                wraps=policy._detected_threat_preparation_key,
+            ) as detected_preparation,
+        ):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("rt", "emergency:teleport"))
+        detected_preparation.assert_not_called()
+
+    def test_armed_unseen_retreat_outranks_detected_threat_preparation(self):
+        breeder = replace(
+            hostile(
+                7, 10, 12, distance=2, can_multiply=True,
+                max_melee_damage=4,
+            ),
+            perception="detected",
+        )
+        snapshot = self._corridor_snapshot([breeder])
+        policy = HengbotPolicy()
+
+        with (
+            patch.object(
+                policy, "_unseen_retreat_intercept_key", return_value=None
+            ),
+            patch.object(policy, "_unseen_retreat_key", return_value=WAIT_KEY),
+            patch.object(
+                policy, "_detected_threat_preparation_key",
+                wraps=policy._detected_threat_preparation_key,
+            ) as detected_preparation,
+        ):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        detected_preparation.assert_not_called()
+
 
 class CombatTest(unittest.TestCase):
     @staticmethod
