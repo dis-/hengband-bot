@@ -1944,6 +1944,10 @@ class HengbotPolicy:
         # duplicate-preserving page scan alongside that catalog.
         self._home_star_remove_curse_count: int | None = None
         self._home_star_remove_curse_scan_pages: dict[tuple, int] = {}
+        self._home_knowledge_scan_requested = False
+        self._home_knowledge_scan_inflight = False
+        self._home_scan_source: str | None = None
+        self._home_scan_item_count: int | None = None
         self._star_remove_curse_shelf_seen = False
         self._star_remove_curse_reserve_deposit_pending = False
         self._star_remove_curse_reserve_withdraw_pending = False
@@ -2112,6 +2116,26 @@ class HengbotPolicy:
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
         self._fruitless_disengage_spent_this_decision = False
+        if (
+            snapshot.store is None
+            and getattr(snapshot, "in_town", False)
+            and self._home_available(snapshot)
+            and not self._equipment_catalog.home_scan_complete
+            and not self._home_knowledge_scan_requested
+            and self._identification_need is None
+            and self._next_required_store_type(snapshot) == STORE_HOME
+            and bool(self._home_processing_seen_pages)
+        ):
+            self._home_knowledge_scan_requested = True
+            self._home_knowledge_scan_inflight = True
+            self.last_reason = "home:request-knowledge-scan"
+            return "~9"
+        if self._home_knowledge_scan_inflight:
+            # An ordinary board snapshot after the request means the response
+            # did not arrive (the CLI's bounded prompt recovery has returned to
+            # the command loop). Keep the request one-shot and let the existing
+            # page-based Home scan proceed unchanged.
+            self._home_knowledge_scan_inflight = False
         if self._store_leave_inflight is not None:
             leave_generation, leave_turn, leave_store = self._store_leave_inflight
             if snapshot.store is None:
@@ -2235,6 +2259,10 @@ class HengbotPolicy:
                 or withdrawn.tval in AMMUNITION_TVALS
             ):
                 self._equipment_catalog.invalidate_home()
+                self._home_knowledge_scan_requested = False
+                self._home_knowledge_scan_inflight = False
+                self._home_scan_source = None
+                self._home_scan_item_count = None
                 self._home_star_remove_curse_scan_pages.clear()
                 if (
                     withdrawn is not None
@@ -2297,6 +2325,19 @@ class HengbotPolicy:
         )
         self._exploration_ledger.note_decision(latest_snapshot)
         return key
+
+    def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> None:
+        """Consume the complete Home list returned by the emitter's ``~9``."""
+        self._equipment_catalog.complete_home_scan(items)
+        self._home_star_remove_curse_count = sum(
+            item.count
+            for item in items
+            if item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+        )
+        self._home_knowledge_scan_inflight = False
+        self._home_scan_source = "~9"
+        self._home_scan_item_count = len(items)
 
     def request_character_dump(self) -> None:
         """Latch a CLI timer request until an ordinary quiet filler decision."""

@@ -454,6 +454,17 @@ class OwnedEquipmentCatalog:
         self._rebuild_home(self._home_scan_staging.values())
         return self.home_scan_complete
 
+    def complete_home_scan(
+        self, items: Iterable[StoreItem | InventoryItem]
+    ) -> None:
+        """Replace the Home catalog from one authoritative complete inventory."""
+        complete_items = tuple(items)
+        self._home_seen_pages.clear()
+        self._home_scan_staging.clear()
+        self._home_scan_current_page = None
+        self._rebuild_home((complete_items,))
+        self.home_scan_complete = True
+
     def _rebuild_home(
         self,
         pages: Iterable[Iterable[StoreItem | InventoryItem]],

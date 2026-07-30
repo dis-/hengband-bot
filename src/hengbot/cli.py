@@ -10,7 +10,7 @@ from collections import deque
 from pathlib import Path
 from typing import Iterable
 
-from hengbot.model import MissingMonraceKnowledgeError, parse_snapshot
+from hengbot.model import MissingMonraceKnowledgeError, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.terrain_knowledge import (
     find_terrain_definitions,
@@ -589,6 +589,7 @@ def _decision_record(
     identification_source_reservation: dict | None = None,
     map_memory: dict | None = None,
     descent_refusal: str | None = None,
+    home_scan: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -662,6 +663,7 @@ def _decision_record(
         ),
         "map_memory": map_memory or {},
         **({"descent_refusal": descent_refusal} if descent_refusal else {}),
+        **({"home_scan": home_scan} if home_scan else {}),
     }
 
 
@@ -943,6 +945,17 @@ def _write_decision(
                         if policy is not None
                         and getattr(policy, "_remembered_downstairs", None)
                         and not reason.startswith("descend")
+                        else None
+                    ),
+                    (
+                        {
+                            "source": getattr(policy, "_home_scan_source", None),
+                            "item_count": getattr(
+                                policy, "_home_scan_item_count", None
+                            ),
+                        }
+                        if policy is not None
+                        and getattr(policy, "_home_scan_source", None)
                         else None
                     ),
                 ),
@@ -1419,6 +1432,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 )
                 complete_lines, pending = _split_complete_lines(pending + chunk)
                 recorder.record_snapshot_lines(complete_lines)
+                _dispatch_response_lines(complete_lines, policy, send)
                 # Act ONLY on the newest complete snapshot in this batch. The game
                 # emits a snapshot then blocks on request_command, so the file's
                 # newest line is ALWAYS the current board the game is waiting on;
@@ -1859,12 +1873,44 @@ def _newest_snapshot_entry(
         if not line.strip():
             continue
         try:
-            return parse_snapshot(json.loads(line), monrace_knowledge), line
+            data = json.loads(line)
+            if data.get("type") in {"knowledge", "look", "character"}:
+                continue
+            return parse_snapshot(data, monrace_knowledge), line
         except MissingMonraceKnowledgeError:
             raise
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"invalid snapshot: {exc}", file=sys.stderr)
     return None
+
+
+def _dispatch_response_lines(complete_lines, policy, send) -> int:
+    """Consume requested menu responses without treating them as board states."""
+    consumed = 0
+    for line in complete_lines:
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        response_type = data.get("type")
+        if response_type not in {"knowledge", "look", "character"}:
+            continue
+        consumed += 1
+        knowledge = data.get("knowledge")
+        if (
+            response_type == "knowledge"
+            and isinstance(knowledge, dict)
+            and knowledge.get("category") == "home"
+            and knowledge.get("menu_key") == "9"
+            and getattr(policy, "_home_knowledge_scan_inflight", False)
+        ):
+            policy.consume_home_knowledge(
+                tuple(_parse_items(knowledge.get("items", [])))
+            )
+        send(NUDGE_KEY)
+    return consumed
 
 
 def _read_last_line(path: Path) -> Iterable[str]:
