@@ -2628,11 +2628,22 @@ class HengbotPolicy:
         unseen_intercept = self._unseen_retreat_intercept_key(
             snapshot, hostiles, adjacent
         )
-        if unseen_intercept is not None:
-            return unseen_intercept
-        unseen_retreat = self._unseen_retreat_key(snapshot, hostiles)
-        if unseen_retreat is not None:
-            return unseen_retreat
+        unseen_action = unseen_intercept
+        if unseen_action is None:
+            unseen_action = self._unseen_retreat_key(snapshot, hostiles)
+        if unseen_action is not None:
+            # An ordinary or already-latched town return owns this contested
+            # decision. Keep the unseen retreat at its existing rung when no
+            # return would act, without promoting return above unrelated gates.
+            town_return = (
+                None
+                if self._escape_state.owner not in {None, "return"}
+                else self._return_to_town_key(snapshot, hostiles)
+            )
+            if town_return is not None:
+                self._escape_state.enter("return", self.last_reason)
+                return town_return
+            return unseen_action
 
         # Player light radius >= 1 always gives CAVE_LITE to the player's own
         # square (cave-map.cpp update_lite); a non-blind player whose own square

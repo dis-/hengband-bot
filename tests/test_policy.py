@@ -2577,6 +2577,42 @@ class UnseenAttackerTest(unittest.TestCase):
             WAIT_KEY,
         )
 
+    def test_no_return_preserves_retreat_wait_and_intercept(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+
+        self._start_reverse_choke_wait(pol, grids, floor)
+        for turn in range(5, 63):
+            self.assertEqual(
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 10, hp=213, max_hp=227),
+                        grids,
+                        [],
+                        turn=turn,
+                        floor_key=floor,
+                    )
+                ),
+                WAIT_KEY,
+            )
+            self.assertEqual(pol.last_reason, "unseen:choke-wait")
+
+        attacker = hostile(1, 10, 11, hp=10, max_melee_damage=2)
+        self.assertEqual(
+            pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=213, max_hp=227),
+                    grids,
+                    [attacker],
+                    turn=63,
+                    floor_key=floor,
+                )
+            ),
+            "6",
+        )
+        self.assertEqual(pol.last_reason, "melee:choke")
+
     def test_lethal_unseen_hit_uses_existing_emergency_response(self):
         grids = self._open_grids(10, 10)
         floor = (1, 4, 0)
@@ -4467,6 +4503,106 @@ class ReturnToTownTest(unittest.TestCase):
             if x >= 9:
                 policy._wall_search_counts[(y, x)] = SEARCH_LIMIT
         return policy
+
+    def _incident_snapshot(self, position, turn):
+        route = (Position(8, 17), Position(7, 18), Position(6, 19))
+        grids = {
+            cell: grid(
+                cell.y,
+                cell.x,
+                upstairs=cell == Position(6, 19),
+            )
+            for cell in route
+        }
+        for cell in route:
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(cell.y + dy, cell.x + dx)
+                if neighbor not in grids:
+                    grids[neighbor] = grid(
+                        neighbor.y, neighbor.x, passable=False
+                    )
+        return Snapshot(
+            player(position.y, position.x, hp=265, max_hp=265, food=6000),
+            grids,
+            [],
+            turn=turn,
+            floor_key=self.FLOOR,
+            inventory=self._pack(PACK_CAPACITY),
+            width=40,
+            height=40,
+        )
+
+    def _prepare_incident_policy(self):
+        policy = HengbotPolicy()
+        policy._floor_key = self.FLOOR
+        policy._returning_to_town = True
+        policy._last_return_trigger = "pack-full"
+        policy._unseen_retreat_floor = self.FLOOR
+        policy._unseen_retreat_direction = (1, -1)
+        policy._unseen_retreat_target = Position(8, 17)
+        return policy
+
+    def test_latched_return_owns_consecutive_armed_unseen_decisions(self):
+        policy = self._prepare_incident_policy()
+        decisions = (
+            self._incident_snapshot(Position(8, 17), 1),
+            self._incident_snapshot(Position(7, 18), 2),
+        )
+
+        reasons = []
+        for snapshot in decisions:
+            policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+
+        self.assertEqual(reasons, ["return:seek-upstairs"] * 2)
+        self.assertFalse(any(reason.startswith("unseen:") for reason in reasons))
+
+    def test_incident_replay_leaves_ping_pong_cells_and_reaches_exit(self):
+        policy = self._prepare_incident_policy()
+        position = Position(8, 17)
+        visited = [position]
+        direction = {
+            "9": (-1, 1),
+        }
+
+        for turn in range(1, 4):
+            key = policy.choose_key(self._incident_snapshot(position, turn))
+            if key == UP_STAIRS_KEY:
+                break
+            dy, dx = direction[key]
+            position = Position(position.y + dy, position.x + dx)
+            visited.append(position)
+
+        self.assertEqual(visited, [
+            Position(8, 17),
+            Position(7, 18),
+            Position(6, 19),
+        ])
+        self.assertEqual(key, UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "return:ascend")
+
+    def test_emergency_still_preempts_return_and_armed_unseen_retreat(self):
+        policy = self._prepare_incident_policy()
+        snapshot = self._incident_snapshot(Position(8, 17), 1)
+
+        def emergency(_snapshot, _hostiles):
+            policy.last_reason = "emergency:teleport"
+            return "rt"
+
+        with (
+            patch.object(policy, "_emergency_item", side_effect=emergency),
+            patch.object(
+                policy, "_unseen_retreat_key", wraps=policy._unseen_retreat_key
+            ) as unseen,
+            patch.object(
+                policy, "_return_to_town_key", wraps=policy._return_to_town_key
+            ) as town_return,
+        ):
+            self.assertEqual(policy.choose_key(snapshot), "rt")
+
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+        unseen.assert_not_called()
+        town_return.assert_not_called()
 
     def test_reads_an_identified_recall_scroll_when_pack_is_full(self):
         inventory = self._pack(PACK_CAPACITY - 1)
