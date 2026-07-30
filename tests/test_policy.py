@@ -2706,7 +2706,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 [],
                 messages=(
                     "トラップだ！",
-                    "小さなダーツが飛んできて刺さった！",
+                    "小さなダーツが飛んできて刺さった！ <x2>",
                     "ひどく不器用になった気がする。",
                 ),
                 turn=455319,
@@ -2719,7 +2719,12 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertNotEqual(pol._escape_state.owner, "unseen")
 
     def test_japanese_and_english_unseen_attacks_arm_retreat(self):
-        for message in ("何かに殴られた。", "It hits you."):
+        for message in (
+            "何かに殴られた。",
+            "何かに殴られた。 <x2>",
+            "It hits you.",
+            "It hits you. <x3>",
+        ):
             with self.subTest(message=message):
                 grids = self._reverse_choke_grids()
                 floor = (1, 4, 0)

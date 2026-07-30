@@ -23386,6 +23386,7 @@ class HengbotPolicy:
         monster-describer.cpp:39-53,91 supplies 何か / it / something when the
         attacking monster is hidden.
         """
+        message = re.sub(r" <x[1-9]\d*>$", "", message)
         japanese_acts = (
             "殴られた。",
             "触られた。",
