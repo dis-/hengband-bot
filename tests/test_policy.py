@@ -2280,6 +2280,41 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertFalse(pol._returning_to_town)
         self.assertNotEqual(pol._last_return_trigger, "unseen-attacker")
 
+    def test_reverse_choke_abandons_three_nonopening_doors_in_nine_decisions(self):
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(5, 10)
+            for x in (18, 20)
+        }
+        for y in range(5, 10):
+            grids[Position(y, 19)] = grid(y, 19, passable=False)
+        for y in (6, 7, 8):
+            grids[Position(y, 19)] = grid(y, 19, closed_door=True)
+        floor = (0, 5, 34)
+        snapshot = Snapshot(
+            player(7, 18, hp=183, max_hp=195),
+            grids,
+            [],
+            turn=78248,
+            floor_key=floor,
+            width=66,
+            height=22,
+        )
+        pol = HengbotPolicy()
+        pol.prime(snapshot)
+        pol._unseen_retreat_floor = floor
+        pol._unseen_retreat_direction = (-1, 1)
+        pol._unseen_retreat_target = Position(5, 20)
+
+        keys = [pol.choose_key(snapshot) for _ in range(10)]
+
+        self.assertEqual(keys[:9], ["o9"] * 3 + ["o6"] * 3 + ["o3"] * 3)
+        self.assertNotIn(keys[9], {"o9", "o6", "o3"})
+        self.assertEqual(
+            pol._blocked_doors,
+            {(6, 19), (7, 19), (8, 19)},
+        )
+
     def test_curse_damage_never_enters_unseen_retreat_or_emergency(self):
         grids = self._reverse_choke_grids()
         floor = (1, 4, 0)

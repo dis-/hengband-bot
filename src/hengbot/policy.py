@@ -459,9 +459,9 @@ BACKTRACK_PENALTY = 30
 # side never comes into view. When stuck, step directly into an adjacent unknown
 # tile to reveal it; give up on a direction after this many bumps (it is a wall).
 PROBE_LIMIT = 2
-# 'o' attempts to open (and pick the lock of) a closed door. After this many
-# tries it is treated as impassable (jammed / too hard) and routed around.
-DOOR_OPEN_LIMIT = 12
+# 'o' attempts to open (and pick the lock of) a closed door. After three tries
+# it is treated as impassable (jammed / too hard) and routed around.
+DOOR_OPEN_LIMIT = 3
 # BOT_PLAY is launched with ``-o``, so tunnelling is always the raw original
 # command. Prefixing it with the keymap-bypass command can leave the Windows
 # build waiting at an intermediate command prompt instead of consuming the
