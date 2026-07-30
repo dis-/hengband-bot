@@ -287,6 +287,9 @@ class TownVisitLedger:
     passes_since_progress: int = 0
     drift_warnings: list[str] = field(default_factory=list)
     satisfied_needs: set[tuple[int, str]] = field(default_factory=set)
+    shelf_observations: dict[
+        tuple[int, str], tuple[tuple[int, int], ...]
+    ] = field(default_factory=dict)
 
 
 @dataclass
@@ -11152,6 +11155,111 @@ class HengbotPolicy:
                     self._remember_departure_price(
                         f"stat-restore:{stat}", item.price
                     )
+        self._observe_cross_town_shelf(snapshot)
+
+    @staticmethod
+    def _cross_town_item_categories(item: StoreItem) -> tuple[str, ...]:
+        """Return expedition shortage categories concretely supplied by a ware."""
+        categories: list[str] = []
+        if item.is_recall_scroll:
+            categories.append("recall")
+        if item.is_teleport_scroll:
+            categories.append("teleport")
+        if item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
+            categories.append("cure-critical")
+        if item.is_oil:
+            categories.append("oil")
+        if item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL:
+            categories.append("food")
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
+            categories.append("identification-source:normal")
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
+            categories.append("identification-source:full")
+        if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+            categories.append("identify-staff")
+        if item.tval == TVAL_LITE and item.sval in {
+            SV_LITE_TORCH,
+            SV_LITE_LANTERN,
+        }:
+            categories.append("light")
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
+            categories.append("remove-curse")
+        for stat, sval in RESTORE_POTION_SVAL_BY_STAT.items():
+            if item.tval == TVAL_POTION and item.sval == sval:
+                categories.append(f"stat-restore:{stat}")
+        return tuple(categories)
+
+    def _observe_cross_town_shelf(self, snapshot: Snapshot) -> None:
+        """Record positive or negative shelf facts for live local suppliers."""
+        store = snapshot.store
+        if store is None:
+            return
+        offered: dict[str, list[tuple[int, int]]] = {}
+        for item in store.items:
+            for category in self._cross_town_item_categories(item):
+                offered.setdefault(category, []).append(
+                    (
+                        item.price,
+                        max(1, item.pval)
+                        if category == "identify-staff"
+                        else max(1, item.count),
+                    )
+                )
+        observed_categories = set(offered)
+        observed_categories.update(
+            category
+            for category in (
+                "recall",
+                "teleport",
+                "cure-critical",
+                "oil",
+                "food",
+                "identification-source:normal",
+                "identification-source:full",
+                "identify-staff",
+                "light",
+                "remove-curse",
+                *(f"stat-restore:{stat}" for stat in RESTORE_POTION_SVAL_BY_STAT),
+            )
+            if store.store_type in self._cross_town_supplier_types(snapshot, category)
+        )
+        for category in observed_categories:
+            self._town_visit_ledger.shelf_observations[
+                (store.store_type, category)
+            ] = tuple(offered.get(category, ()))
+
+    def _cross_town_supplier_types(
+        self, snapshot: Snapshot, category: str
+    ) -> tuple[int, ...]:
+        """Return every local store eligible to supply an expedition shortage."""
+        supply_kind = {
+            "recall": "recall",
+            "teleport": "teleport",
+            "cure-critical": "cure",
+            "oil": "oil",
+            "food": "food",
+        }.get(category)
+        if supply_kind is not None:
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
+            return tuple(
+                dict.fromkeys(
+                    store_type
+                    for status in ledger.values()
+                    if status.kind == supply_kind
+                    for store_type in status.stores
+                )
+            )
+        if category.startswith("identification-source:"):
+            return (STORE_ALCHEMIST,)
+        if category == "identify-staff":
+            return (STORE_MAGIC,)
+        if category == "light":
+            return (STORE_GENERAL,)
+        if category == "remove-curse":
+            return (STORE_TEMPLE,)
+        if category.startswith("stat-restore:"):
+            return (STORE_ALCHEMIST,)
+        return ()
 
     def _cross_town_shortages(
         self, snapshot: Snapshot
@@ -11200,39 +11308,27 @@ class HengbotPolicy:
     def _cross_town_unobtainable_categories(
         self, snapshot: Snapshot, shortages: list[tuple[str, int]]
     ) -> tuple[str, ...]:
-        """Use bounded town-ledger/store evidence to confirm the local failure."""
-        aliases = {
-            "identification-source:normal": "identification-source",
-            "identification-source:full": "identification-source",
-        }
-        drift_categories = {
-            warning.rsplit(":", 1)[-1]
-            for warning in self._town_visit_ledger.drift_warnings
-            if warning.startswith("drift:")
-        }
-        blocked = self._town_visit_ledger.blocked_stores
-        live_needs = self._departure_blocking_town_needs(snapshot)
+        """Require shelf evidence from every local supplier before escalation."""
         unobtainable: list[str] = []
         for category, _quantity in shortages:
-            need_category = aliases.get(category, category)
-            matching = [
-                need for need in live_needs if need.category == need_category
+            suppliers = set(self._cross_town_supplier_types(snapshot, category))
+            evidence = [
+                self._town_visit_ledger.shelf_observations.get(
+                    (store_type, category)
+                )
+                for store_type in suppliers
             ]
-            supplier_exhausted = bool(matching) and all(
-                need.store_type in self._town_store_attempted
-                or need.store_type in blocked
-                or self._town_visit_ledger.approach_fails[need.store_type]
-                >= TOWN_STOP_PASS_LIMIT
-                for need in matching
-            )
-            if (
-                supplier_exhausted
-                or self._town_visit_ledger.need_attempts.get(need_category, 0)
-                >= TOWN_STOP_PASS_LIMIT
-                or need_category in drift_categories
-                and not matching
-            ):
-                unobtainable.append(category)
+            if suppliers and all(observation is not None for observation in evidence):
+                # An empty tuple proves an observed stock-out. Non-empty
+                # evidence proves local failure only when every matching ware
+                # costs more than the player's current gold. In particular, an
+                # affordable visible ware vetoes attempts, drift and latches.
+                if all(
+                    not observation
+                    or all(price > snapshot.player.gold for price, _units in observation)
+                    for observation in evidence
+                ):
+                    unobtainable.append(category)
         return tuple(dict.fromkeys(unobtainable))
 
     def _cross_town_candidate_order(self, snapshot: Snapshot) -> tuple[int, ...]:

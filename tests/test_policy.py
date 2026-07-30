@@ -25153,6 +25153,9 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._town_visit_ledger.drift_warnings.append(
             "drift:alchemist:identification-source"
         )
+        pol._town_visit_ledger.shelf_observations[
+            (STORE_ALCHEMIST, "identification-source:normal")
+        ] = ()
         pol._observed_departure_prices["identification-source:normal"] = (20, 1)
         with patch.object(pol, "_town_departure_ready", return_value=False), patch.object(
             pol, "_town_claims_active", return_value=False
@@ -25166,6 +25169,132 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertNotEqual(pol.last_reason, "town:blocked:departure-unsatisfiable")
         self.assertEqual(pol.cross_town_shopping_state()["candidate_order"], [1, 2, 3])
 
+    def test_capture_affordable_identify_staff_vetoes_cross_town_expedition(self):
+        """Rebuild the 20260731 incident's shelf and workflow evidence."""
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=9193),
+            town_id=0,
+            visited_town_ids=(0, 1, 2, 3),
+            store=StoreState(
+                STORE_MAGIC,
+                [
+                    StoreItem(
+                        "i", "鑑定の杖 (4x 19回分)", 4,
+                        TVAL_STAFF, SV_STAFF_IDENTIFY, 950,
+                        charges=19, pval=19,
+                    ),
+                    StoreItem(
+                        "j", "鑑定の杖 (2x 16回分)", 2,
+                        TVAL_STAFF, SV_STAFF_IDENTIFY, 904,
+                        charges=16, pval=16,
+                    ),
+                ],
+            ),
+        )
+        pol._town_visit_ledger.need_attempts["identify-staff"] = 1
+        pol._town_visit_ledger.drift_warnings.append(
+            "drift:magic:identify-staff"
+        )
+        pol._town_store_attempted[STORE_MAGIC] = snap.turn
+        pol._departure_blocking_town_needs = lambda _snapshot: [
+            TownNeed(STORE_MAGIC, "identify-staff", "normal")
+        ]
+        pol._observe_departure_prices(snap)
+        pol._observed_departure_prices["identify-staff"] = (904, 16)
+        shortage = [("identify-staff", 20)]
+
+        self.assertEqual(
+            pol._cross_town_unobtainable_categories(snap, shortage), ()
+        )
+        with patch.object(pol, "_cross_town_shortages", return_value=shortage):
+            self.assertIsNone(pol._cross_town_shopping_key(snap))
+        self.assertIsNone(pol._cross_town_shopping)
+
+    def test_observed_empty_supplier_proves_cross_town_stock_out(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=5000),
+            town_id=0,
+            visited_town_ids=(0, 1),
+            store=StoreState(STORE_MAGIC, []),
+        )
+        pol._departure_blocking_town_needs = lambda _snapshot: [
+            TownNeed(STORE_MAGIC, "identify-staff", "normal")
+        ]
+        pol._observe_departure_prices(snap)
+        pol._observed_departure_prices["identify-staff"] = (904, 16)
+        shortage = [("identify-staff", 20)]
+
+        self.assertEqual(
+            pol._cross_town_unobtainable_categories(snap, shortage),
+            ("identify-staff",),
+        )
+        with patch.object(pol, "_cross_town_shortages", return_value=shortage), patch.object(
+            pol, "_town_teleport_key", return_value="travel-1"
+        ):
+            self.assertEqual(pol._cross_town_shopping_key(snap), "travel-1")
+
+    def test_visible_but_unaffordable_supplier_is_locally_unobtainable(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=903),
+            store=StoreState(
+                STORE_MAGIC,
+                [
+                    StoreItem(
+                        "j", "鑑定の杖 (2x 16回分)", 2,
+                        TVAL_STAFF, SV_STAFF_IDENTIFY, 904,
+                        charges=16, pval=16,
+                    )
+                ],
+            ),
+        )
+        pol._departure_blocking_town_needs = lambda _snapshot: [
+            TownNeed(STORE_MAGIC, "identify-staff", "normal")
+        ]
+        pol._observe_departure_prices(snap)
+
+        self.assertEqual(
+            pol._cross_town_unobtainable_categories(
+                snap, [("identify-staff", 20)]
+            ),
+            ("identify-staff",),
+        )
+
+    def test_consumed_need_reappearance_is_not_stock_absence(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pol._town_visit_ledger.satisfied_needs.add(
+            (STORE_MAGIC, "identify-staff")
+        )
+        pol._town_visit_ledger.need_attempts["identify-staff"] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        pol._town_visit_ledger.drift_warnings.append(
+            "drift:magic:identify-staff"
+        )
+        pol._departure_blocking_town_needs = lambda _snapshot: [
+            TownNeed(STORE_MAGIC, "identify-staff", "normal")
+        ]
+
+        self.assertEqual(
+            pol._cross_town_unobtainable_categories(
+                snap, [("identify-staff", 20)]
+            ),
+            (),
+        )
+
     def test_cross_town_funds_failure_uses_ordinary_fundraising_mode(self):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
@@ -25177,7 +25306,11 @@ class TownRecallReturnTest(unittest.TestCase):
             visited_town_ids=(0, 1),
         )
         pol._observed_departure_prices["identification-source:normal"] = (20, 1)
+        pol._identification_need = "normal"
         pol._town_visit_ledger.need_attempts["identification-source"] = 3
+        pol._town_visit_ledger.shelf_observations[
+            (STORE_ALCHEMIST, "identification-source:normal")
+        ] = ()
         with patch.object(
             pol,
             "_cross_town_shortages",
@@ -25207,7 +25340,11 @@ class TownRecallReturnTest(unittest.TestCase):
             visited_town_ids=(0, 1, 2),
         )
         pol._observed_departure_prices["identification-source:normal"] = (20, 1)
+        pol._identification_need = "normal"
         pol._town_visit_ledger.need_attempts["identification-source"] = 3
+        pol._town_visit_ledger.shelf_observations[
+            (STORE_ALCHEMIST, "identification-source:normal")
+        ] = ()
         shortage = [("identification-source:normal", 1)]
         with patch.object(pol, "_cross_town_shortages", return_value=shortage), patch.object(
             pol, "_town_teleport_key", side_effect=lambda _snap, town: f"travel-{town}"
