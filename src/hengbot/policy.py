@@ -6461,7 +6461,7 @@ class HengbotPolicy:
         via_recall: bool,
         destination_depth: int,
     ) -> bool:
-        """Enforce recall stock after every action that enters a dungeon."""
+        """Enforce recall stock when committing to enter a dungeon."""
         mining_walk_in = (
             not via_recall
             and destination_depth == 1
@@ -6471,8 +6471,7 @@ class HengbotPolicy:
         if mining_walk_in:
             return True
         recall = self._supply_ledger(snapshot, destination_depth)["recall"]
-        stock_after_entry = recall.count - int(via_recall)
-        return stock_after_entry >= max(1, recall.required_return)
+        return recall.count >= max(1, recall.required_return)
 
     def _dungeon_entry_depth(
         self, snapshot: Snapshot, dungeon_id: int, *, via_recall: bool
@@ -15183,7 +15182,6 @@ class HengbotPolicy:
             and self._fundraising_mode not in {"mine", "scavenge"}
             and not self._taken_kill_quest_requires_walk_in(snapshot)
             and self._deepest_level >= RECALL_MIN_DEPTH
-            and snapshot.recall_dungeon_id == DUNGEON_YEEK_CAVE
             and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
         ):
             recall_dest = "yeek-cave"

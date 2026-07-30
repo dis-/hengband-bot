@@ -25132,6 +25132,83 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
+    def test_six_scrolls_permit_tenth_floor_yeek_recall_departure(self):
+        pol, snap = self._ready_town(
+            10, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE, recall_depth=10
+        )
+        snap = replace(
+            snap,
+            inventory=[
+                replace(
+                    entry,
+                    count=(
+                        6
+                        if entry.tval == TVAL_SCROLL
+                        and entry.sval == SV_SCROLL_WORD_OF_RECALL
+                        else 20
+                    ),
+                )
+                for entry in snap.inventory
+            ] + [item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20)],
+            dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
+        )
+
+        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
+
+    def test_five_scrolls_refuse_tenth_floor_yeek_recall_departure(self):
+        pol, snap = self._ready_town(
+            10, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE, recall_depth=10
+        )
+        snap = replace(
+            snap,
+            inventory=[
+                replace(
+                    entry,
+                    count=(
+                        5
+                        if entry.tval == TVAL_SCROLL
+                        and entry.sval == SV_SCROLL_WORD_OF_RECALL
+                        else 20
+                    ),
+                )
+                for entry in snap.inventory
+            ] + [item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20)],
+            dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
+        )
+
+        self.assertNotEqual(pol._town_special_key(snap), "rra")
+        self.assertNotEqual(pol.last_reason, "town:recall-to-yeek-cave")
+
+    def test_yeek_recall_ignores_the_games_different_default_destination(self):
+        pol, snap = self._ready_town(
+            10, DUNGEON_YEEK_CAVE, DUNGEON_ANGBAND, recall_depth=20
+        )
+        snap = replace(
+            snap,
+            inventory=[
+                replace(
+                    entry,
+                    count=(
+                        6
+                        if entry.tval == TVAL_SCROLL
+                        and entry.sval == SV_SCROLL_WORD_OF_RECALL
+                        else 20
+                    ),
+                )
+                for entry in snap.inventory
+            ] + [item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20)],
+            entered_dungeon_ids=(DUNGEON_YEEK_CAVE, DUNGEON_ANGBAND),
+            dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
+        )
+
+        self.assertEqual(
+            pol._town_recall_destination(snap),
+            ("yeek-cave", DUNGEON_YEEK_CAVE),
+        )
+        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
+
     def test_shallow_run_walks_to_the_entrance_not_recall(self):
         pol, snap = self._ready_town(RECALL_MIN_DEPTH - 1, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
         self.assertIsNone(pol._town_special_key(snap))
