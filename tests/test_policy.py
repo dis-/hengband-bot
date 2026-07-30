@@ -2359,6 +2359,65 @@ class UnseenAttackerTest(unittest.TestCase):
                 self.assertFalse(pol._emergency_return_active)
                 self.assertNotEqual(key, WAIT_KEY)
 
+    def _assert_attributed_damage_does_not_trigger_unseen(
+        self, message, *, initial_hp=160, damaged_hp=159
+    ):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=initial_hp, max_hp=227),
+                grids,
+                [],
+                turn=1,
+                floor_key=floor,
+            )
+        )
+        pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=initial_hp, max_hp=227),
+                grids,
+                [],
+                turn=2,
+                floor_key=floor,
+            )
+        )
+
+        key = pol.choose_key(
+            Snapshot(
+                player(10, 11, hp=damaged_hp, max_hp=227),
+                grids,
+                [],
+                messages=(message,),
+                turn=3,
+                floor_key=floor,
+            )
+        )
+
+        self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
+        self.assertIsNone(pol._unseen_retreat_floor)
+        self.assertIsNone(pol._unseen_choke_position)
+        self.assertEqual(pol._unseen_wait_remaining, 0)
+        self.assertFalse(pol._emergency_escape_pending)
+        self.assertFalse(pol._emergency_return_active)
+        self.assertNotEqual(key, WAIT_KEY)
+
+    def test_live_chest_trap_damage_does_not_trigger_unseen(self):
+        self._assert_attributed_damage_does_not_trigger_unseen(
+            "トラップが作動してしまいました！"
+        )
+
+    def test_floor_trap_damage_does_not_trigger_unseen(self):
+        self._assert_attributed_damage_does_not_trigger_unseen(
+            "落とし穴を作動させてしまった！"
+        )
+
+    def test_damaging_terrain_does_not_trigger_unseen(self):
+        self._assert_attributed_damage_does_not_trigger_unseen(
+            "溶岩で火傷した！"
+        )
+
     def test_snapshot_without_messages_keeps_real_unseen_retreat(self):
         grids = self._reverse_choke_grids()
         floor = (1, 4, 0)

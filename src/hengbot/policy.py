@@ -1630,6 +1630,7 @@ class HengbotPolicy:
         self._last_hp: int | None = None
         self._took_damage = False
         self._took_curse_damage = False
+        self._took_trap_or_terrain_damage = False
         # Set once we visit the General Store but cannot buy a lantern (can't
         # afford it / not stocked), so we stop walking back to it forever.
         self._shopping_abandoned = False
@@ -4376,6 +4377,38 @@ class HengbotPolicy:
             " drains HP from you!" in message
             or " drains life from you!" in message
             or "あなたの体力を吸収した" in message
+            for message in snapshot.messages
+        )
+        self._took_trap_or_terrain_damage = self._took_damage and any(
+            message in {
+                "トラップが作動してしまいました！",
+                "トラップを作動させてしまった！",
+                "You set off a trap!",
+                "熱で火傷した！",
+                "The heat burns you!",
+                "冷気に覆われた！",
+                "The cold engulfs you!",
+                "電撃を受けた！",
+                "The electricity shocks you!",
+                "酸が飛び散った！",
+                "The acid melts you!",
+                "毒気を吸い込んだ！",
+                "The gas poisons you!",
+                "溺れている！",
+                "You are drowning!",
+            }
+            or "を作動させてしまった！" in message
+            or message.startswith("You set off the ")
+            or "で火傷した！" in message
+            or " burns you!" in message
+            or "に凍えた！" in message
+            or " frostbites you!" in message
+            or "に感電した！" in message
+            or " shocks you!" in message
+            or "に溶かされた！" in message
+            or " melts you!" in message
+            or "に毒された！" in message
+            or " poisons you!" in message
             for message in snapshot.messages
         )
         self._last_damage_amount = (
@@ -21691,6 +21724,7 @@ class HengbotPolicy:
             player.recalling
             and self._took_damage
             and not self._took_curse_damage
+            and not self._took_trap_or_terrain_damage
             and not hostiles
             and not snapshot.in_town
         ):
@@ -21746,6 +21780,7 @@ class HengbotPolicy:
         unseen_lethal = (
             self._took_damage
             and not self._took_curse_damage
+            and not self._took_trap_or_terrain_damage
             and not hostiles
             and not snapshot.in_town
             and not player.poisoned
@@ -23252,6 +23287,7 @@ class HengbotPolicy:
         eligible_hit = (
             self._took_damage
             and not self._took_curse_damage
+            and not self._took_trap_or_terrain_damage
             and not snapshot.visible_monsters
             and not player.poisoned
             and not player.cut
