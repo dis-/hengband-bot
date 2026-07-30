@@ -8,6 +8,7 @@ from pathlib import Path
 
 from hengbot.model import Position, Snapshot, parse_snapshot
 from hengbot.policy import (
+    ExplorationGoalIdentity,
     ExplorationGoalKind,
     ExplorationPathOutcome,
     HengbotPolicy,
@@ -62,6 +63,9 @@ class ExplorationPathInventoryTest(unittest.TestCase):
             writers,
             [
                 ("_navigation_livelock_key", "edge_path[1:]"),
+                ("_explore_step", "[]"),
+                ("_explore_step", "route[1:]"),
+                ("_explore_step", "route[1:]"),
                 ("_explore_step", "global_path[1:]"),
                 ("_explore_step", "path[1:]"),
                 ("_clear_explore_path", "[]"),
@@ -83,8 +87,13 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                     "ExplorationPathOutcome.ABANDON",
                 ),
                 ("_explore_step", "ExplorationPathOutcome.ABANDON"),
-                ("_explore_step", "ExplorationPathOutcome.ABANDON"),
+                ("_explore_step", "ExplorationPathOutcome.PAUSE"),
+                ("_explore_step", "ExplorationPathOutcome.PAUSE"),
                 ("_explore_step", "ExplorationPathOutcome.INVALIDATE"),
+                (
+                    "_retire_explore_goal",
+                    "ExplorationPathOutcome.INVALIDATE",
+                ),
                 (
                     "_observe_one_step_explore",
                     "ExplorationPathOutcome.INVALIDATE",
@@ -94,8 +103,8 @@ class ExplorationPathInventoryTest(unittest.TestCase):
 
 
 class CapturedGoalFlipCharacterizationTest(unittest.TestCase):
-    def test_current_offline_planner_flips_between_two_goals(self):
-        """Pin today's planner, not a full-process or revert-proof replay.
+    def test_replanning_holds_one_incident_destination(self):
+        """Update the stage-1 characterization to pin committed replanning.
 
         The fixture states the reconstructed persistent-ledger and policy
         fields. In particular, the capture did not serialize the live
@@ -108,14 +117,11 @@ class CapturedGoalFlipCharacterizationTest(unittest.TestCase):
         fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
         self.assertIn("not a full-process replay", fixture["description"])
         ledger = fixture["ledger"]
-        expected = {
-            Position(4, 95): (Position(3, 95), Position(2, 94), "8"),
-            Position(5, 95): (Position(6, 95), Position(8, 96), "2"),
-        }
-
-        for row in fixture["snapshots"]:
+        policy = HengbotPolicy()
+        destinations = []
+        keys = []
+        for index, row in enumerate(fixture["snapshots"][:2]):
             snapshot = parse_snapshot(row)
-            policy = HengbotPolicy()
             policy._floor_key = snapshot.floor_key
             policy._visit_counts = Counter(
                 {
@@ -142,14 +148,87 @@ class CapturedGoalFlipCharacterizationTest(unittest.TestCase):
                 Position(y, x) for y, x in ledger["blocked_unknown"]
             }
             policy._build_grid_index(snapshot)
-
-            path = policy._plan_explore_path(snapshot)
-            first, destination, key = expected[snapshot.player.position]
-            self.assertEqual(path[0], first)
-            self.assertEqual(path[-1], destination)
-            self.assertEqual(
-                policy._direction_key(snapshot.player.position, path[0]), key
+            if index == 0:
+                path = policy._plan_explore_path(snapshot)
+                policy._record_explore_goal(
+                    snapshot, ExplorationGoalKind.FRONTIER, path[-1]
+                )
+            policy._explore_path = []
+            policy._recent.extend(
+                [Position(4, 95), Position(5, 95)] * 3
             )
+
+            step = policy._explore_step(snapshot)
+            self.assertIsNotNone(step)
+            destinations.append(policy._explore_goal_identity.position)
+            keys.append(policy._direction_key(snapshot.player.position, step))
+
+        self.assertEqual(destinations, [Position(2, 94), Position(2, 94)])
+        self.assertNotEqual(keys, ["8", "2"])
+
+
+class ExplorationCommitmentReplanningTest(unittest.TestCase):
+    def test_monster_on_goal_pauses_then_resumes_same_identity(self):
+        start = Position(10, 10)
+        goal = Position(10, 11)
+        occupied = corridor_snapshot(start)
+        occupied.grids[goal] = grid(
+            goal.y, goal.x, terrain_id=1, marked=True, monster=True
+        )
+        policy = HengbotPolicy()
+        policy.prime(occupied)
+        policy._build_grid_index(occupied)
+        signature = policy._explore_goal_signature(occupied.grid_at(goal))
+        policy._explore_goal_identity = ExplorationGoalIdentity(
+            ExplorationGoalKind.VISIT, goal, signature
+        )
+
+        self.assertIsNone(policy._explore_step(occupied))
+        self.assertEqual(policy._explore_goal_identity.position, goal)
+        self.assertEqual(
+            policy._explore_path_outcome, ExplorationPathOutcome.PAUSE
+        )
+
+        clear = corridor_snapshot(start)
+        policy._build_grid_index(clear)
+        self.assertEqual(policy._explore_step(clear), goal)
+        self.assertEqual(policy._explore_goal_identity.position, goal)
+
+    def test_unreachable_identity_is_retired_before_reselection(self):
+        start = Position(10, 10)
+        blocked_goal = Position(10, 11)
+        alternative = Position(11, 10)
+        cells = {
+            start: grid(10, 10, terrain_id=1, marked=True),
+            blocked_goal: grid(10, 11, terrain_id=1, marked=True),
+            alternative: grid(11, 10, terrain_id=1, marked=True),
+        }
+        snapshot = Snapshot(
+            player(10, 10),
+            cells,
+            [],
+            floor_key=(2, 5, 0),
+            width=30,
+            height=30,
+        )
+        policy = HengbotPolicy()
+        policy.prime(snapshot)
+        policy._build_grid_index(snapshot)
+        policy._engagement_avoid_cells.add(blocked_goal)
+        signature = policy._explore_goal_signature(
+            snapshot.grid_at(blocked_goal)
+        )
+        policy._explore_goal_identity = ExplorationGoalIdentity(
+            ExplorationGoalKind.VISIT, blocked_goal, signature
+        )
+
+        step = policy._explore_step(snapshot)
+
+        self.assertEqual(step, alternative)
+        self.assertEqual(
+            policy._unenterable_explore_goals[blocked_goal], signature
+        )
+        self.assertEqual(policy._explore_goal_identity.position, alternative)
 
 
 class ExplorationIdentityObservationTest(unittest.TestCase):

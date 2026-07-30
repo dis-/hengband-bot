@@ -24062,8 +24062,47 @@ class HengbotPolicy:
             self._clear_explore_path(ExplorationPathOutcome.ABANDON)
             return None
         start = snapshot.player.position
-        if self._is_oscillating():
-            self._clear_explore_path(ExplorationPathOutcome.ABANDON)
+        oscillating = self._is_oscillating()
+        identity = self._explore_goal_identity
+        if identity is not None:
+            if self._explore_goal_is_complete(snapshot, identity):
+                self._explore_path_outcome = ExplorationPathOutcome.SUCCESS
+                self._explore_goal_identity = None
+                self._explore_path = []
+                identity = None
+            elif not self._explore_goal_evidence_matches(snapshot, identity):
+                self._retire_explore_goal(identity)
+                identity = None
+            elif (
+                identity.position != start
+                and (goal_grid := snapshot.grid_at(identity.position)) is not None
+                and goal_grid.has_monster
+            ):
+                # Occupancy is transient evidence.  Combat owns the current
+                # turn; retain the typed destination so exploration resumes
+                # after the monster moves or dies.
+                self._clear_explore_path(ExplorationPathOutcome.PAUSE)
+                return None
+
+        if identity is not None and (oscillating or not self._explore_path):
+            self._clear_explore_path(ExplorationPathOutcome.PAUSE)
+            route = self._route_to_explore_goal(
+                snapshot,
+                identity.position,
+                avoid=set(self._recent) if oscillating else set(),
+            )
+            if not route and oscillating:
+                # Confinement is routing evidence, not proof that the goal is
+                # structurally unreachable.  Confirm against the remembered
+                # map with only the durable engagement vetoes applied.
+                route = self._route_to_explore_goal(snapshot, identity.position)
+            if route:
+                self._explore_path = route[1:]
+                return route[0]
+            self._retire_explore_goal(identity)
+            identity = None
+
+        if oscillating and identity is None:
             global_path = self._global_frontier_path(snapshot)
             if global_path:
                 self._explore_path = global_path[1:]
@@ -24088,6 +24127,13 @@ class HengbotPolicy:
                     self._remember_one_step_explore(snapshot, start, nxt)
                 return nxt
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+            identity = self._explore_goal_identity
+            if identity is not None:
+                route = self._route_to_explore_goal(snapshot, identity.position)
+                if route:
+                    self._explore_path = route[1:]
+                    return route[0]
+                self._retire_explore_goal(identity)
 
         path = self._plan_explore_path(snapshot)
         if not path:
@@ -24104,6 +24150,102 @@ class HengbotPolicy:
             self._explore_path_outcome = ExplorationPathOutcome.PAUSE
             self._remember_one_step_explore(snapshot, start, path[0])
         return path[0]
+
+    def _explore_goal_evidence_matches(
+        self,
+        snapshot: Snapshot,
+        identity: ExplorationGoalIdentity,
+    ) -> bool:
+        grid = snapshot.grid_at(identity.position)
+        if grid is None:
+            # An off-screen remembered goal has supplied no new evidence.
+            return True
+        current = self._explore_goal_signature(grid)
+        # Monster occupancy is deliberately excluded: it pauses a commitment
+        # but cannot turn the underlying terrain/information goal into another
+        # identity.
+        return current[:-1] == identity.evidence_signature[:-1]
+
+    def _explore_goal_is_complete(
+        self,
+        snapshot: Snapshot,
+        identity: ExplorationGoalIdentity,
+    ) -> bool:
+        if identity.kind == ExplorationGoalKind.VISIT:
+            return (
+                snapshot.player.position == identity.position
+                or self._visit_counts[identity.position] > 0
+            )
+        if identity.kind == ExplorationGoalKind.FRONTIER:
+            return not self._is_remembered_frontier(snapshot, identity.position)
+        return snapshot.player.position == identity.position
+
+    def _retire_explore_goal(
+        self, identity: ExplorationGoalIdentity
+    ) -> None:
+        if identity.kind == ExplorationGoalKind.VISIT:
+            self._unenterable_explore_goals[
+                identity.position
+            ] = identity.evidence_signature
+        elif identity.kind == ExplorationGoalKind.FRONTIER:
+            self._probed_frontiers.add(identity.position)
+        elif identity.kind == ExplorationGoalKind.WINDOW_EDGE:
+            self._window_edge_goals.add(identity.position)
+        self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        self._explore_goal_identity = None
+
+    def _route_to_explore_goal(
+        self,
+        snapshot: Snapshot,
+        goal: Position,
+        *,
+        avoid: set[Position] | None = None,
+    ) -> list[Position]:
+        route = self._route_to_explore_goal_pass(
+            snapshot, goal, allow_damaging=False, avoid=avoid
+        )
+        if route:
+            return route
+        return self._route_to_explore_goal_pass(
+            snapshot, goal, allow_damaging=True, avoid=avoid
+        )
+
+    def _route_to_explore_goal_pass(
+        self,
+        snapshot: Snapshot,
+        goal: Position,
+        *,
+        allow_damaging: bool,
+        avoid: set[Position] | None,
+    ) -> list[Position]:
+        start = snapshot.player.position
+        avoided = (avoid or set()) - {start, goal}
+        queue: deque[Position] = deque([start])
+        parent: dict[Position, Position | None] = {start: None}
+        while queue:
+            position = queue.popleft()
+            if position == goal:
+                break
+            for neighbor in self._walkable_neighbors(
+                snapshot, position, allow_damaging=allow_damaging
+            ):
+                if (
+                    neighbor in parent
+                    or neighbor in avoided
+                    or neighbor in self._engagement_avoid_cells
+                ):
+                    continue
+                parent[neighbor] = position
+                queue.append(neighbor)
+        if goal not in parent:
+            return []
+        path: list[Position] = []
+        node: Position | None = goal
+        while node is not None and node != start:
+            path.append(node)
+            node = parent[node]
+        path.reverse()
+        return path
 
     def _record_explore_goal(
         self,
