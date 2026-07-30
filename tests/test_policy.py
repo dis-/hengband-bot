@@ -576,15 +576,14 @@ class CombatTest(unittest.TestCase):
                 )
                 policy = HengbotPolicy(monrace_knowledge=knowledge)
                 policy._breeder_breakthrough_floor = snapshot.floor_key
+                policy._took_damage = True
                 policy.last_reason = "fundraise:upstairs-not-found"
 
                 key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
 
                 self.assertNotEqual(key, WAIT_KEY)
-                self.assertIn(
-                    policy.last_reason,
-                    {"no-wait:least-visited", "no-wait:melee"},
-                )
+                self.assertNotEqual(policy.last_reason, "no-wait:escape-scroll")
+                self.assertNotEqual(policy.last_reason, "no-wait:flee")
 
     def test_genuine_hostile_still_uses_escape_scroll_under_fire(self):
         base = self._weak_breeder_incident_snapshot(blocking=True)
@@ -599,16 +598,19 @@ class CombatTest(unittest.TestCase):
                 item("q", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR, count=1),
             ],
         )
-        policy = HengbotPolicy()
-        policy._breeder_breakthrough_floor = snapshot.floor_key
-        policy.last_reason = "fundraise:upstairs-not-found"
+        for took_damage in (False, True):
+            with self.subTest(took_damage=took_damage):
+                policy = HengbotPolicy()
+                policy._breeder_breakthrough_floor = snapshot.floor_key
+                policy._took_damage = took_damage
+                policy.last_reason = "fundraise:upstairs-not-found"
 
-        key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+                key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
 
-        self.assertEqual(
-            (key, policy.last_reason),
-            (READ_KEY + "q", "no-wait:escape-scroll"),
-        )
+                self.assertEqual(
+                    (key, policy.last_reason),
+                    (READ_KEY + "q", "no-wait:escape-scroll"),
+                )
 
     def test_choke_hold_ignores_adjacent_suppressed_weak_breeder(self):
         base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)

@@ -2447,11 +2447,12 @@ class HengbotPolicy:
         if not under_fire:
             return key
 
-        only_suppressed_weak_breeders = (
-            not self._took_damage
-            and bool(hostiles)
-            and not strategic_hostiles
-        )
+        # Every visible hostile here deals less than the user's weak-breeder
+        # ignore threshold, so spending an escape scroll or fleeing would
+        # contradict that rule.  Dangerous unseen attackers are handled by
+        # the earlier danger and emergency paths; this function only rewrites
+        # an already-selected unsanctioned WAIT.
+        only_suppressed_weak_breeders = bool(hostiles) and not strategic_hostiles
         if not only_suppressed_weak_breeders:
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
