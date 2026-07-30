@@ -133,6 +133,7 @@ class FlightRecorderTest(unittest.TestCase):
         )
         self.assertEqual(state["state"]["_unseen_retreat_target"], [3, 4])
         self.assertEqual(state["state"]["_unseen_retreat_direction"], [-1, 1])
+        self.assertIn("_shop_selector_diagnostics", state["state"])
         self.assertEqual(state["state"]["_unseen_retreat_floor"], [1, 5, 0])
         self.assertEqual(state["state"]["_unseen_choke_position"], [2, 3])
         self.assertEqual(state["state"]["_unseen_wait_remaining"], 42)

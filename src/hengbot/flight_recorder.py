@@ -134,6 +134,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_remembered_downstairs",
         "_cross_town_shopping",
         "_cross_town_shopping_funds",
+        "_shop_selector_diagnostics",
     )
     # Include every simple mode/latch/counter as cheap insurance against a field
     # omitted from a hand-maintained diagnostic list.

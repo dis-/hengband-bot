@@ -1562,6 +1562,9 @@ class HengbotPolicy:
         # Diagnostic only: the latest predicate that declined a remembered
         # descent. It is surfaced by the flight recorder and never read by play.
         self._descent_refusal_reason: str | None = None
+        # Diagnostic only: evidence from the latest in-store selector pass.
+        # Gameplay never reads this field.
+        self._shop_selector_diagnostics: dict[str, object] = {}
         # A stair command is verified by the following snapshot. Hengband rejects
         # a stair key without spending a turn, which gives stronger evidence than
         # ordinary navigation stalls that remembered terrain is a phantom.
@@ -2667,11 +2670,16 @@ class HengbotPolicy:
             self._town_blocked_reason is not None
             and self._town_blocked_store_context(snapshot)
         ):
-            return self._town_blocked_key(snapshot)
+            key = self._town_blocked_key(snapshot)
+            if snapshot.store is not None:
+                self._record_shop_selector_diagnostics(snapshot, key)
+            return key
 
         # In a store the town map and monsters are irrelevant — only buy/leave.
         if snapshot.store is not None:
-            return self._shop(snapshot)
+            key = self._shop(snapshot)
+            self._record_shop_selector_diagnostics(snapshot, key)
+            return key
 
         self._build_grid_index(snapshot)
         player = snapshot.player
@@ -11714,6 +11722,127 @@ class HengbotPolicy:
         if snapshot.player.gold - item.price * quantity < reserve:
             return None
         return item
+
+    @staticmethod
+    def _purchase_diagnostic_category(item: StoreItem) -> str:
+        """Return a compact diagnostic label without participating in selection."""
+        if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+            return "identify-staff"
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_IDENTIFY:
+            return "identify"
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_IDENTIFY:
+            return "star-identify"
+        if item.is_recall_scroll:
+            return "recall"
+        if item.is_teleport_scroll:
+            return "teleport"
+        if item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
+            return "cure-critical"
+        if item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
+            return "speed"
+        if item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
+            return "healing"
+        if item.is_treasure_detection_scroll:
+            return "treasure-detection"
+        if item.is_digging_tool:
+            return "digging-tool"
+        if item.is_ammo:
+            return "ammo"
+        if item.is_lantern:
+            return "lantern"
+        if item.is_oil:
+            return "oil"
+        if item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
+            return "torch"
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_REMOVE_CURSE:
+            return "remove-curse"
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
+            return "star-remove-curse"
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT:
+            return "enchant-tohit"
+        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_ENCHANT_WEAPON_TO_DAM:
+            return "enchant-todam"
+        if item.tval == TVAL_FOOD:
+            return "food"
+        if item.tval in {TVAL_WAND, TVAL_STAFF}:
+            return "device"
+        return "other"
+
+    @staticmethod
+    def _shop_candidate_diagnostics(
+        item: StoreItem, category: str
+    ) -> dict[str, object]:
+        candidate: dict[str, object] = {
+            "category": category,
+            "name": item.name,
+            "letter": item.letter,
+            "price": item.price,
+            "count": item.count,
+        }
+        if item.tval in {TVAL_WAND, TVAL_STAFF}:
+            candidate["charges"] = item.charges
+        return candidate
+
+    def _record_shop_selector_diagnostics(
+        self, snapshot: Snapshot, key: str
+    ) -> None:
+        """Capture selector evidence after the action; gameplay never consumes it."""
+        store = snapshot.store
+        if store is None:
+            return
+
+        wanted_item = self._next_purchase_unreserved(snapshot)
+        wanted = None
+        if wanted_item is not None:
+            wanted = self._shop_candidate_diagnostics(
+                wanted_item, self._purchase_diagnostic_category(wanted_item)
+            )
+
+        selected_item = None
+        if (
+            store.store_type != STORE_HOME
+            and key.startswith(BUY_KEY)
+            and len(key) > 1
+        ):
+            selected_item = next(
+                (item for item in store.items if item.letter == key[1]), None
+            )
+
+        considered_item = selected_item or wanted_item
+        considered = None
+        rejection_reason = "not-needed"
+        if considered_item is not None:
+            considered = self._shop_candidate_diagnostics(
+                considered_item,
+                self._purchase_diagnostic_category(considered_item),
+            )
+            if selected_item is not None:
+                rejection_reason = "selected"
+            elif wanted_item is not None:
+                reserve = self._fundraising_kit_reserve(snapshot)
+                quantity = self._purchase_quantity(snapshot, wanted_item)
+                reserved = (
+                    not wanted_item.is_digging_tool
+                    and not wanted_item.is_treasure_detection_scroll
+                    and not (
+                        self._opening_q34_torch_shortage(snapshot) > 0
+                        and wanted_item.tval == TVAL_LITE
+                        and wanted_item.sval == SV_LITE_TORCH
+                    )
+                    and reserve > 0
+                    and snapshot.player.gold
+                    - wanted_item.price * quantity
+                    < reserve
+                )
+                rejection_reason = "reserved" if reserved else "preempted"
+
+        self._shop_selector_diagnostics = {
+            "winning_rung": self.last_reason,
+            "gold": snapshot.player.gold,
+            "wanted_purchase": wanted,
+            "considered_candidate": considered,
+            "rejection_reason": rejection_reason,
+        }
 
     @staticmethod
     def _quest_launcher_quality(

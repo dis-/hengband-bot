@@ -791,6 +791,40 @@ class NewestSnapshotTest(unittest.TestCase):
 
 
 class DecisionRecordTest(unittest.TestCase):
+    def test_in_store_record_carries_shop_selector_evidence(self):
+        data = json.loads(_snap_line(123, 5, 7))
+        snapshot = parse_snapshot(data, {})
+        evidence = {
+            "winning_rung": "shop:sell-device",
+            "gold": 9193,
+            "wanted_purchase": {
+                "category": "identify-staff",
+                "name": "Staff of Identify",
+                "letter": "g",
+                "price": 950,
+                "count": 4,
+                "charges": 19,
+            },
+            "considered_candidate": {
+                "category": "identify-staff",
+                "name": "Staff of Identify",
+                "letter": "g",
+                "price": 950,
+                "count": 4,
+                "charges": 19,
+            },
+            "rejection_reason": "preempted",
+        }
+
+        record = _decision_record(
+            snapshot,
+            "s",
+            "shop:sell-device",
+            shop_selector=evidence,
+        )
+
+        self.assertEqual(record["shop_selector"], evidence)
+
     def test_records_policy_reason_and_observable_state(self):
         data = json.loads(_snap_line(123, 5, 7))
         data["floor"]["quest_id"] = 40

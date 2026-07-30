@@ -26966,6 +26966,75 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertIsNotNone(purchase)
         self.assertEqual((purchase.tval, purchase.sval), (TVAL_STAFF, SV_STAFF_IDENTIFY))
 
+    def test_store_decision_records_identify_staff_selector_evidence(self):
+        inv = [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9),
+            item("t", TVAL_SCROLL, 9, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            item("f", TVAL_FOOD, 35, count=9),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=9, fuel=500),
+        ]
+        snap = Snapshot(
+            player(10, 10, gold=9193, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=inv,
+            equipment=[
+                item(
+                    "g",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                )
+            ],
+            store=StoreState(
+                STORE_MAGIC,
+                [
+                    store_item(
+                        "z",
+                        TVAL_STAFF,
+                        SV_STAFF_IDENTIFY,
+                        price=950,
+                        name="Staff of Identify",
+                        charges=19,
+                        count=4,
+                    )
+                ],
+            ),
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+
+        key = pol.choose_key(snap)
+
+        self.assertEqual(key, "pz1\r\r")
+        self.assertEqual(pol.last_reason, "shop:buy-food")
+        self.assertEqual(
+            pol._shop_selector_diagnostics,
+            {
+                "winning_rung": "shop:buy-food",
+                "gold": 9193,
+                "wanted_purchase": {
+                    "category": "identify-staff",
+                    "name": "Staff of Identify",
+                    "letter": "z",
+                    "price": 950,
+                    "count": 4,
+                    "charges": 19,
+                },
+                "considered_candidate": {
+                    "category": "identify-staff",
+                    "name": "Staff of Identify",
+                    "letter": "z",
+                    "price": 950,
+                    "count": 4,
+                    "charges": 19,
+                },
+                "rejection_reason": "selected",
+            },
+        )
+
     def test_home_staff_is_withdrawn_before_buying_replacement(self):
         stored = store_item(
             "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
