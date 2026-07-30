@@ -38,6 +38,13 @@ class FlightRecorderTest(unittest.TestCase):
             _explore_path_outcome="advancing",
             _nav_ledger=SimpleNamespace(descent_target=Position(2, 2)),
             _escape_state=SimpleNamespace(rung="teleport"),
+            _unseen_retreat_target=Position(3, 4),
+            _unseen_retreat_direction=(-1, 1),
+            _unseen_retreat_floor=(1, 5, 0),
+            _unseen_choke_position=Position(2, 3),
+            _unseen_wait_remaining=42,
+            _unseen_wait_intercepted=False,
+            _unseen_attack_evidence="何かに殴られた。",
             _engagement_avoid_cells={Position(4, 4)},
             _probed_frontiers={Position(5, 5)},
             _unenterable_explore_goals={Position(6, 6)},
@@ -120,6 +127,14 @@ class FlightRecorderTest(unittest.TestCase):
         )
         self.assertEqual(
             state["state"]["_explore_goal_identity"]["position"], [2, 3]
+        )
+        self.assertEqual(state["state"]["_unseen_retreat_target"], [3, 4])
+        self.assertEqual(state["state"]["_unseen_retreat_direction"], [-1, 1])
+        self.assertEqual(state["state"]["_unseen_retreat_floor"], [1, 5, 0])
+        self.assertEqual(state["state"]["_unseen_choke_position"], [2, 3])
+        self.assertEqual(state["state"]["_unseen_wait_remaining"], 42)
+        self.assertEqual(
+            state["state"]["_unseen_attack_evidence"], "何かに殴られた。"
         )
         rendered = render_remembered_map(self.policy(), self.snapshot())
         self.assertIn("@", rendered)

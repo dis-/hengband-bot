@@ -1696,6 +1696,7 @@ class HengbotPolicy:
         self._unseen_choke_position: Position | None = None
         self._unseen_wait_remaining = 0
         self._unseen_wait_intercepted = False
+        self._unseen_attack_evidence: str | None = None
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
         self._threat_prediction_memo: dict[tuple, dict] = {}
@@ -2681,7 +2682,7 @@ class HengbotPolicy:
             # return would act, without promoting return above unrelated gates.
             town_return = (
                 None
-                if self._escape_state.owner not in {None, "return"}
+                if self._escape_state.owner not in {None, "return", "unseen"}
                 else self._return_to_town_key(snapshot, hostiles)
             )
             if town_return is not None:
@@ -4425,9 +4426,17 @@ class HengbotPolicy:
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1
 
-        # Damage since the last decision with no visible cause = unseen attacker.
+        # Attribute an HP drop only when the game names a hidden monster's blow.
         hp = snapshot.player.hp
         self._took_damage = self._last_hp is not None and hp < self._last_hp
+        self._unseen_attack_evidence = next(
+            (
+                message
+                for message in snapshot.messages
+                if self._took_damage and self._is_unseen_attack_message(message)
+            ),
+            None,
+        )
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message
@@ -21867,6 +21876,7 @@ class HengbotPolicy:
         if (
             player.recalling
             and self._took_damage
+            and self._unseen_attack_evidence is not None
             and not self._took_curse_damage
             and not self._took_trap_or_terrain_damage
             and not hostiles
@@ -21923,6 +21933,7 @@ class HengbotPolicy:
         predicted = self._predicted_damage(snapshot, hostiles, turns=3)
         unseen_lethal = (
             self._took_damage
+            and self._unseen_attack_evidence is not None
             and not self._took_curse_damage
             and not self._took_trap_or_terrain_damage
             and not hostiles
@@ -23357,12 +23368,82 @@ class HengbotPolicy:
         return count
 
     def _clear_unseen_retreat(self) -> None:
+        if self._escape_state.owner == "unseen":
+            self._escape_state.release()
         self._unseen_retreat_floor = None
         self._unseen_retreat_direction = None
         self._unseen_retreat_target = None
         self._unseen_choke_position = None
         self._unseen_wait_remaining = 0
         self._unseen_wait_intercepted = False
+
+    @staticmethod
+    def _is_unseen_attack_message(message: str) -> bool:
+        """Whether a direct monster blow names Hengband's hidden actor.
+
+        The finite method text comes from monster-attack-describer.cpp:64-229.
+        monster-attack-player.cpp:297-310 joins the actor to that text, while
+        monster-describer.cpp:39-53,91 supplies 何か / it / something when the
+        attacking monster is hidden.
+        """
+        japanese_acts = (
+            "殴られた。",
+            "触られた。",
+            "パンチされた。",
+            "蹴られた。",
+            "ひっかかれた。",
+            "噛まれた。",
+            "刺された。",
+            "斬られた。",
+            "角で突かれた。",
+            "押し潰された。",
+            "飲み込まれた。",
+            "よだれをたらされた。",
+            "唾を吐かれた。",
+            "にらまれた。",
+            "泣き叫ばれた。",
+            "胞子を飛ばされた。",
+            "金をせがまれた。",
+        )
+        japanese_subject_acts = (
+            "は請求書をよこした。",
+            "が体の上を這い回った。",
+            "は爆発した。",
+            "が XXX4 を発射した。",
+        )
+        english_acts = (
+            "hits you.",
+            "touches you.",
+            "punches you.",
+            "kicks you.",
+            "claws you.",
+            "bites you.",
+            "stings you.",
+            "slashes you.",
+            "butts you.",
+            "crushes you.",
+            "engulfs you.",
+            "charges you.",
+            "crawls on you.",
+            "drools on you.",
+            "spits on you.",
+            "explodes.",
+            "gazes at you.",
+            "wails at you.",
+            "releases spores at you.",
+            "projects XXX4's at you.",
+            "begs you for money.",
+        )
+        return (
+            message in {f"何かに{act}" for act in japanese_acts}
+            or message in {f"何か{act}" for act in japanese_subject_acts}
+            or message
+            in {
+                f"{actor} {act}"
+                for actor in ("It", "Something")
+                for act in english_acts
+            }
+        )
 
     def _recent_reverse_direction(self, origin: Position) -> tuple[int, int] | None:
         for position in reversed(self._recent):
@@ -23444,6 +23525,7 @@ class HengbotPolicy:
         player = snapshot.player
         eligible_hit = (
             self._took_damage
+            and self._unseen_attack_evidence is not None
             and not self._took_curse_damage
             and not self._took_trap_or_terrain_damage
             and not snapshot.visible_monsters
@@ -23463,6 +23545,7 @@ class HengbotPolicy:
             self._unseen_choke_position = None
             self._unseen_wait_remaining = 0
             self._unseen_wait_intercepted = False
+            self._escape_state.enter("unseen", "unseen:reverse-choke")
 
         if self._unseen_wait_intercepted and not hostiles:
             self._unseen_wait_intercepted = False

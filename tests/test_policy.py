@@ -2408,6 +2408,7 @@ class CombatTest(unittest.TestCase):
 
 
 class UnseenAttackerTest(unittest.TestCase):
+    UNSEEN_ATTACK = "何かに殴られた。"
     CURSE_MESSAGES = (
         "Your Ring of Woe drains HP from you!",
         "The Jewel of Judgement drains life from you!",
@@ -2458,6 +2459,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 11, hp=213, max_hp=227),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 turn=3,
                 floor_key=floor,
             )
@@ -2483,7 +2485,14 @@ class UnseenAttackerTest(unittest.TestCase):
             Snapshot(player(10, 10, hp=120, max_hp=200), grids, [], turn=1, floor_key=(1, 5, 0))
         )
         key = pol.choose_key(
-            Snapshot(player(10, 10, hp=95, max_hp=200), grids, [], turn=2, floor_key=(1, 5, 0))
+            Snapshot(
+                player(10, 10, hp=95, max_hp=200),
+                grids,
+                [],
+                messages=(self.UNSEEN_ATTACK,),
+                turn=2,
+                floor_key=(1, 5, 0),
+            )
         )
         self.assertNotEqual(key, REST_MACRO)
         self.assertTrue(pol.last_reason.startswith("unseen"), pol.last_reason)
@@ -2496,7 +2505,14 @@ class UnseenAttackerTest(unittest.TestCase):
             Snapshot(player(10, 10, hp=120, max_hp=200), grids, [], turn=1, floor_key=(1, 5, 0))
         )
         key = pol.choose_key(
-            Snapshot(player(10, 10, hp=95, max_hp=200), grids, [], turn=2, floor_key=(1, 5, 0))
+            Snapshot(
+                player(10, 10, hp=95, max_hp=200),
+                grids,
+                [],
+                messages=(self.UNSEEN_ATTACK,),
+                turn=2,
+                floor_key=(1, 5, 0),
+            )
         )
         self.assertIn(key, "12346789")
         self.assertEqual(pol.last_reason, "unseen:reverse-choke")
@@ -2515,7 +2531,14 @@ class UnseenAttackerTest(unittest.TestCase):
         )
         self.assertEqual(
             pol.choose_key(
-                Snapshot(player(10, 11, hp=213, max_hp=227), grids, [], turn=3, floor_key=floor)
+                Snapshot(
+                    player(10, 11, hp=213, max_hp=227),
+                    grids,
+                    [],
+                    messages=(self.UNSEEN_ATTACK,),
+                    turn=3,
+                    floor_key=floor,
+                )
             ),
             "4",
         )
@@ -2662,6 +2685,127 @@ class UnseenAttackerTest(unittest.TestCase):
             "溶岩で火傷した！"
         )
 
+    def test_captured_dart_trap_damage_does_not_arm_unseen_retreat(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=303, max_hp=303),
+                grids,
+                [],
+                turn=455318,
+                floor_key=floor,
+            )
+        )
+
+        pol.choose_key(
+            Snapshot(
+                player(10, 10, hp=300, max_hp=303),
+                grids,
+                [],
+                messages=(
+                    "トラップだ！",
+                    "小さなダーツが飛んできて刺さった！",
+                    "ひどく不器用になった気がする。",
+                ),
+                turn=455319,
+                floor_key=floor,
+            )
+        )
+
+        self.assertIsNone(pol._unseen_attack_evidence)
+        self.assertIsNone(pol._unseen_retreat_floor)
+        self.assertNotEqual(pol._escape_state.owner, "unseen")
+
+    def test_japanese_and_english_unseen_attacks_arm_retreat(self):
+        for message in ("何かに殴られた。", "It hits you."):
+            with self.subTest(message=message):
+                grids = self._reverse_choke_grids()
+                floor = (1, 4, 0)
+                pol = HengbotPolicy()
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 10, hp=303, max_hp=303),
+                        grids,
+                        [],
+                        turn=1,
+                        floor_key=floor,
+                    )
+                )
+                pol.choose_key(
+                    Snapshot(
+                        player(10, 10, hp=300, max_hp=303),
+                        grids,
+                        [],
+                        messages=(message,),
+                        turn=2,
+                        floor_key=floor,
+                    )
+                )
+
+                self.assertEqual(pol._unseen_attack_evidence, message)
+                self.assertEqual(pol._unseen_retreat_floor, floor)
+                self.assertEqual(pol._escape_state.owner, "unseen")
+
+    def test_nonattack_hidden_actor_messages_do_not_arm_retreat(self):
+        for message in (
+            "何かが足下に転がってきた。",
+            "何かがピカッと光った！",
+        ):
+            with self.subTest(message=message):
+                self._assert_attributed_damage_does_not_trigger_unseen(message)
+
+    def test_armed_retreat_owns_movement_against_opposing_exploration(self):
+        grids = self._reverse_choke_grids()
+        floor = (1, 4, 0)
+        pol = HengbotPolicy()
+        with patch.object(
+            pol, "_explore_step", return_value=Position(10, 12)
+        ):
+            pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=303, max_hp=303),
+                    grids,
+                    [],
+                    turn=1,
+                    floor_key=floor,
+                )
+            )
+            pol.choose_key(
+                Snapshot(
+                    player(10, 11, hp=303, max_hp=303),
+                    grids,
+                    [],
+                    turn=2,
+                    floor_key=floor,
+                )
+            )
+            retreat = pol.choose_key(
+                Snapshot(
+                    player(10, 11, hp=300, max_hp=303),
+                    grids,
+                    [],
+                    messages=(self.UNSEEN_ATTACK,),
+                    turn=3,
+                    floor_key=floor,
+                )
+            )
+            hold = pol.choose_key(
+                Snapshot(
+                    player(10, 10, hp=300, max_hp=303),
+                    grids,
+                    [],
+                    turn=4,
+                    floor_key=floor,
+                )
+            )
+
+        self.assertEqual(retreat, "4")
+        self.assertEqual(hold, WAIT_KEY)
+        self.assertEqual(pol.last_reason, "unseen:choke-wait")
+        self.assertEqual(pol._escape_state.owner, "unseen")
+
     def test_snapshot_without_messages_keeps_real_unseen_retreat(self):
         grids = self._reverse_choke_grids()
         floor = (1, 4, 0)
@@ -2690,6 +2834,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 11, hp=213, max_hp=227),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 turn=3,
                 floor_key=floor,
             )
@@ -2878,6 +3023,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=100, max_hp=227),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 inventory=[teleport],
                 turn=2,
                 floor_key=floor,
@@ -2911,6 +3057,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=185, max_hp=200, word_recall=4),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 inventory=[teleport],
                 turn=2,
                 floor_key=floor,
@@ -2923,6 +3070,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 11, hp=170, max_hp=200, word_recall=3),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 inventory=[teleport],
                 turn=3,
                 floor_key=floor,
@@ -2954,6 +3102,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=170, max_hp=200),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 inventory=[teleport],
                 turn=2,
                 floor_key=floor,
@@ -2983,6 +3132,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=170, max_hp=200, word_recall=4),
                 grids,
                 [],
+                messages=(self.UNSEEN_ATTACK,),
                 turn=2,
                 floor_key=floor,
             )
@@ -25891,6 +26041,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
                     player(10, 10, hp=170, max_hp=200, word_recall=4),
                     grids,
                     [],
+                    messages=("It hits you.",),
                     turn=2,
                     floor_key=floor,
                 )
