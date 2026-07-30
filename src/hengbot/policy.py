@@ -3487,7 +3487,7 @@ class HengbotPolicy:
                 self._stuck_escape_streak = 0
                 self._returning_to_town = True
                 self.last_reason = "stuck:recall-escape"
-                return READ_KEY + recall.slot
+                return self._read_dungeon_recall_scroll_key(snapshot, recall)
             teleport = self._find_teleport_scroll(snapshot)
             if teleport is not None:
                 self._stuck_escape_streak = 0
@@ -19612,6 +19612,19 @@ class HengbotPolicy:
     def _find_recall_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(snapshot, lambda it: it.is_recall_scroll)
 
+    def _read_dungeon_recall_scroll_key(
+        self, snapshot: Snapshot, recall: InventoryItem
+    ) -> str:
+        recall_count = sum(
+            item.count for item in snapshot.inventory if item.is_recall_scroll
+        )
+        self._dungeon_recall_issue_watch = (
+            snapshot.floor_key,
+            snapshot.turn,
+            recall_count,
+        )
+        return READ_KEY + recall.slot
+
     def _track_idle_items(
         self, snapshot: Snapshot, previous_floor: tuple[int, int, int] | None
     ) -> None:
@@ -20186,13 +20199,8 @@ class HengbotPolicy:
             and not player.blind
             and not player.confused
         ):
-            self._dungeon_recall_issue_watch = (
-                snapshot.floor_key,
-                snapshot.turn,
-                recall_count,
-            )
             self.last_reason = "return:recall"
-            return READ_KEY + recall.slot
+            return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
         upstairs_step = self._escape_state.read_once(
             snapshot,
@@ -20481,7 +20489,7 @@ class HengbotPolicy:
                 if recall is not None:
                     self._returning_to_town = True
                     self.last_reason = "livelock:recall-escape"
-                    return READ_KEY + recall.slot
+                    return self._read_dungeon_recall_scroll_key(snapshot, recall)
             here = snapshot.grid_at(player.position)
             if here is not None and self._is_upstairs_target(here):
                 self._defer_descent(snapshot)

@@ -24561,6 +24561,68 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(policy._return_to_town_key(snapshot, []), "rr")
         self.assertEqual(policy.last_reason, "return:recall")
 
+    def test_stuck_recall_escape_awaits_consumed_scroll_confirmation(self):
+        recall = item(
+            "r",
+            TVAL_SCROLL,
+            SV_SCROLL_WORD_OF_RECALL,
+            count=2,
+        )
+        snapshot = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=100,
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            inventory=[recall],
+        )
+        policy = HengbotPolicy()
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        policy.last_reason = "search"
+
+        self.assertEqual(policy.choose_key(snapshot), READ_KEY + "r")
+        self.assertEqual(policy.last_reason, "stuck:recall-escape")
+
+        consumed = replace(
+            snapshot,
+            turn=101,
+            inventory=[replace(recall, count=1)],
+        )
+        self.assertEqual(policy._return_to_town_key(consumed, []), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "return:await-recall-confirmation")
+
+    def test_livelock_recall_escape_awaits_consumed_scroll_confirmation(self):
+        recall = item(
+            "r",
+            TVAL_SCROLL,
+            SV_SCROLL_WORD_OF_RECALL,
+            count=2,
+        )
+        snapshot = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=100,
+            floor_key=(DUNGEON_YEEK_CAVE, 5, 0),
+            inventory=[recall],
+        )
+        policy = HengbotPolicy()
+        policy._nav_exhausted = True
+
+        self.assertEqual(
+            policy._navigation_livelock_key(snapshot),
+            READ_KEY + "r",
+        )
+        self.assertEqual(policy.last_reason, "livelock:recall-escape")
+
+        consumed = replace(
+            snapshot,
+            turn=101,
+            inventory=[replace(recall, count=1)],
+        )
+        self.assertEqual(policy._return_to_town_key(consumed, []), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "return:await-recall-confirmation")
+
     def test_consumed_recall_confirmation_waits_within_window(self):
         policy, snapshot = self._pending_dungeon_recall(
             turn=100 + RECALL_ISSUE_CONFIRM_TURNS,
