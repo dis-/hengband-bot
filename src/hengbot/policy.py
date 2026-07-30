@@ -6,6 +6,7 @@ from heapq import heappop, heappush
 from itertools import count
 from math import ceil
 import re
+from enum import Enum
 from typing import Callable, Literal
 from pathlib import Path
 
@@ -1276,6 +1277,26 @@ SPEED_ENERGY_90 = (
 FOOD_MIN_SVAL = 32
 
 
+class ExplorationGoalKind(str, Enum):
+    VISIT = "VISIT"
+    FRONTIER = "FRONTIER"
+    WINDOW_EDGE = "WINDOW_EDGE"
+
+
+class ExplorationPathOutcome(str, Enum):
+    PAUSE = "pause"
+    INVALIDATE = "invalidate"
+    SUCCESS = "success"
+    ABANDON = "abandon"
+
+
+@dataclass(frozen=True)
+class ExplorationGoalIdentity:
+    kind: ExplorationGoalKind
+    position: Position
+    evidence_signature: tuple[int, bool, bool, bool, int]
+
+
 class HengbotPolicy:
     """Goal-seeking policy: survive, gain levels, and keep descending.
 
@@ -1482,6 +1503,9 @@ class HengbotPolicy:
             maxlen=EXTENDED_STUCK_WINDOW
         )
         self._explore_path: list[Position] = []
+        # Stage 2 observational state: selectors do not read either field.
+        self._explore_goal_identity: ExplorationGoalIdentity | None = None
+        self._explore_path_outcome: ExplorationPathOutcome | None = None
         # A one-step explore route is consumed before the next snapshot can
         # confirm arrival. Remember its origin until then; failures from several
         # different adjacent cells retire a goal without pretending it was
@@ -2839,7 +2863,7 @@ class HengbotPolicy:
                         for grid in snapshot.grids.values()
                         if grid.position.distance_to(threat.position) <= 1
                     )
-                self._explore_path = []
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "status-threat:retreat"
                 return self._step_toward(snapshot, step)
             if not player.blind and not player.confused:
@@ -2888,7 +2912,7 @@ class HengbotPolicy:
                     player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
                 ):
                     self._engagement_avoid_cells.add(snapshot.player.position)
-                    self._explore_path = []
+                    self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "flee"
                 return self._step_toward(snapshot, step)
             # Cornered: try a relocation scroll before anything desperate.
@@ -2993,7 +3017,7 @@ class HengbotPolicy:
                 # secret-wall exploration can immediately reverse this retreat
                 # and alternate with it forever.
                 self._engagement_avoid_cells.add(snapshot.player.position)
-                self._explore_path = []
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
                 return self._step_toward(snapshot, step)
             scroll = self._escape_scroll(snapshot)
@@ -3416,7 +3440,7 @@ class HengbotPolicy:
                 # Treat the retreat as a navigation veto, not a one-turn move.
                 # A committed explore path otherwise walks straight back here.
                 self._engagement_avoid_cells.add(snapshot.player.position)
-                self._explore_path = []
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:avoid-engagement"
                 return self._step_toward(snapshot, step)
 
@@ -4293,7 +4317,7 @@ class HengbotPolicy:
             self._visit_counts.clear()
             self._recent.clear()
             self._osc_positions.clear()
-            self._explore_path = []
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
             self._pending_one_step_explore = None
             self._one_step_explore_failures.clear()
             self._one_step_explore_signatures.clear()
@@ -15683,7 +15707,7 @@ class HengbotPolicy:
                 # cycle to the exit router, which prefers a known staircase or
                 # a least-visited step outside the cycle.
                 self._returning_to_town = True
-                self._explore_path = []
+                self._clear_explore_path(ExplorationPathOutcome.ABANDON)
                 return self._leave_fundraising_floor(snapshot)
             step = self._explore_step(snapshot)
             if step is not None:
@@ -20281,7 +20305,7 @@ class HengbotPolicy:
             # a four-cell frontier cycle forever.
             step = self._probe_unknown_step(snapshot)
             if step is not None:
-                self._explore_path = []
+                self._clear_explore_path(ExplorationPathOutcome.PAUSE)
                 self.last_reason = "return:probe"
                 return self._step_toward(snapshot, step)
             if (
@@ -20291,7 +20315,7 @@ class HengbotPolicy:
                 and self._undersearched_walls(player.position)
             ):
                 self._record_wall_search(player.position)
-                self._explore_path = []
+                self._clear_explore_path(ExplorationPathOutcome.PAUSE)
                 self.last_reason = "return:search-upstairs"
                 return SEARCH_KEY
         else:
@@ -20438,7 +20462,7 @@ class HengbotPolicy:
         self._shopping_approach_store_type = None
         self._descent_target_goal = None
         self._nav_ledger.clear_descent_route()
-        self._explore_path = []
+        self._clear_explore_path(ExplorationPathOutcome.ABANDON)
         origin = snapshot.player.position
         candidates = []
         for dy, dx in NEIGHBOR_OFFSETS:
@@ -20488,6 +20512,11 @@ class HengbotPolicy:
             if edge_path:
                 self._window_edge_goals.add(edge_path[-1])
                 self._explore_path = edge_path[1:]
+                self._record_explore_goal(
+                    snapshot,
+                    ExplorationGoalKind.WINDOW_EDGE,
+                    edge_path[-1],
+                )
                 self._nav_stall_count = 0
                 self._nav_exhausted = False
                 self._nav_escape_steps = 0
@@ -24030,14 +24059,19 @@ class HengbotPolicy:
         # tile once" and frontier goals in _plan_explore_path would otherwise
         # send us wandering the town at night (dark walls read as unknown).
         if self._town_map_active(snapshot):
-            self._explore_path = []
+            self._clear_explore_path(ExplorationPathOutcome.ABANDON)
             return None
         start = snapshot.player.position
         if self._is_oscillating():
-            self._explore_path = []
+            self._clear_explore_path(ExplorationPathOutcome.ABANDON)
             global_path = self._global_frontier_path(snapshot)
             if global_path:
                 self._explore_path = global_path[1:]
+                self._record_explore_goal(
+                    snapshot,
+                    ExplorationGoalKind.FRONTIER,
+                    global_path[-1],
+                )
                 return global_path[0]
         # Follow the committed route while it stays valid, so open areas are
         # swept in straight lines instead of oscillating between two tiles.
@@ -24050,17 +24084,45 @@ class HengbotPolicy:
             ):
                 self._explore_path.pop(0)
                 if not self._explore_path:
+                    self._explore_path_outcome = ExplorationPathOutcome.PAUSE
                     self._remember_one_step_explore(snapshot, start, nxt)
                 return nxt
-            self._explore_path = []  # diverged or blocked → replan
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
 
         path = self._plan_explore_path(snapshot)
         if not path:
             return None
         self._explore_path = path[1:]
+        goal = path[-1]
+        kind = (
+            ExplorationGoalKind.VISIT
+            if self._visit_counts[goal] == 0
+            else ExplorationGoalKind.FRONTIER
+        )
+        self._record_explore_goal(snapshot, kind, goal)
         if not self._explore_path:
+            self._explore_path_outcome = ExplorationPathOutcome.PAUSE
             self._remember_one_step_explore(snapshot, start, path[0])
         return path[0]
+
+    def _record_explore_goal(
+        self,
+        snapshot: Snapshot,
+        kind: ExplorationGoalKind,
+        position: Position,
+    ) -> None:
+        self._explore_goal_identity = ExplorationGoalIdentity(
+            kind=kind,
+            position=position,
+            evidence_signature=self._explore_goal_signature(
+                snapshot.grid_at(position)
+            ),
+        )
+        self._explore_path_outcome = None
+
+    def _clear_explore_path(self, outcome: ExplorationPathOutcome) -> None:
+        self._explore_path = []
+        self._explore_path_outcome = outcome
 
     @staticmethod
     def _explore_goal_signature(
@@ -24101,6 +24163,7 @@ class HengbotPolicy:
             return
         origin, goal, attempted_signature = pending
         if snapshot.player.position == goal:
+            self._explore_path_outcome = ExplorationPathOutcome.SUCCESS
             self._one_step_explore_failures.pop(goal, None)
             self._one_step_explore_signatures.pop(goal, None)
             return
@@ -24116,7 +24179,7 @@ class HengbotPolicy:
         failures.add(origin)
         if len(failures) >= 3:
             self._unenterable_explore_goals[goal] = signature
-            self._explore_path = []
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
 
     def _plan_explore_path(self, snapshot: Snapshot) -> list[Position]:
         """Dijkstra to the nearest (visit-penalised) frontier, returning the full
