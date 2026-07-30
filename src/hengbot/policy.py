@@ -1835,6 +1835,10 @@ class HengbotPolicy:
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
         # Store purchases are retained for the rest of the current town visit.
         self._town_visit_purchases: set[tuple[str, int, int]] = set()
+        # A fixed quest's carry contract may ask for stock that no supplier has
+        # this visit.  Town procurement may waive only those exhausted entries;
+        # quest-entry readiness continues to check the original contract.
+        self._abandoned_quest_carry_requirements: dict[str, str] = {}
         # Pack-pressure identify verification: items whose identify never lands
         # (device use stalls), plus a watch on the last attempt to detect that
         # the pack's unknown count did not change afterwards.
@@ -3773,6 +3777,7 @@ class HengbotPolicy:
         if snapshot.in_town and not self._town_was_in_town:
             self._town_visit_ledger = TownVisitLedger()
             self._unknown_lantern_departure_refilled = False
+            self._abandoned_quest_carry_requirements.clear()
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -4831,6 +4836,83 @@ class HengbotPolicy:
                     "ready": current >= required,
                 }
         return status
+
+    @staticmethod
+    def _quest_carry_suppliers(name: str) -> tuple[int, ...]:
+        if name == "throwing_items.lit_torch":
+            return (STORE_GENERAL,)
+        if name.startswith("launcher") or name.startswith("throwing_items."):
+            return (STORE_WEAPON,)
+        if name.startswith("required_scrolls."):
+            return (STORE_ALCHEMIST,)
+        if name == "utility_tools.wall_breach":
+            return (STORE_BLACK, STORE_GENERAL)
+        return ()
+
+    def _quest_carry_obtainability(
+        self,
+        snapshot: Snapshot,
+        strategy: StrategyProfile,
+        name: str,
+        status: dict[str, int | bool],
+    ) -> SupplyStatus:
+        """Mirror SupplyLedger's per-visit evidence for one quest carry entry."""
+        stores = self._quest_carry_suppliers(name)
+        candidates = [store for store in stores if store not in self._town_store_attempted]
+        obtainable = bool(candidates)
+        if (
+            obtainable
+            and snapshot.store is not None
+            and snapshot.store.store_type in candidates
+        ):
+            current_supplier = snapshot.store.store_type
+            expected_target = (
+                "launcher"
+                if name.startswith("launcher")
+                else name.partition(".")[2]
+            )
+            affordable = False
+            for item in snapshot.store.items:
+                target = self._quest_carry_target_for_item(
+                    snapshot, item, strategy.required_force
+                )
+                if (
+                    target is not None
+                    and target[0] == expected_target
+                    and item.price <= snapshot.player.gold
+                ):
+                    affordable = True
+                    break
+            obtainable = (
+                any(store != current_supplier for store in candidates)
+                or affordable
+            )
+        return SupplyStatus(
+            name,
+            int(status["measured"]),
+            int(status["required"]),
+            int(status["required"]),
+            obtainable,
+            stores,
+        )
+
+    def _abandon_unobtainable_quest_carries(
+        self, snapshot: Snapshot, strategy: StrategyProfile
+    ) -> None:
+        if not snapshot.in_town:
+            return
+        for name, status in self._quest_carry_status(
+            snapshot, strategy.required_force
+        ).items():
+            if bool(status["ready"]) or name in self._abandoned_quest_carry_requirements:
+                continue
+            supply = self._quest_carry_obtainability(
+                snapshot, strategy, name, status
+            )
+            if supply.stores and not supply.obtainable:
+                self._abandoned_quest_carry_requirements[name] = (
+                    "all-suppliers-visited-without-affordable-stock"
+                )
 
     def _quest_carry_target_for_item(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem, force: dict
@@ -6653,6 +6735,7 @@ class HengbotPolicy:
 
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
+            self._abandon_unobtainable_quest_carries(snapshot, strategy)
             labels = {
                 "launcher": "Quest launcher",
                 "throwing_items.lit_torch": "Quest throwing torches",
@@ -6667,6 +6750,8 @@ class HengbotPolicy:
             for name, status in self._quest_carry_status(
                 snapshot, strategy.required_force
             ).items():
+                if name in self._abandoned_quest_carry_requirements:
+                    continue
                 require(
                     labels.get(name, f"Quest carry: {name}"),
                     int(status["measured"]),
@@ -10058,11 +10143,15 @@ class HengbotPolicy:
                     add(store_type, supply_categories[status.kind])
         quest_strategy = self._carry_procurement_strategy(snapshot)
         if quest_strategy is not None:
+            self._abandon_unobtainable_quest_carries(snapshot, quest_strategy)
             force = quest_strategy.required_force
             carry_status = self._quest_carry_status(snapshot, force)
             missing_carries = {
                 name for name, status in carry_status.items()
-                if not bool(status["ready"])
+                if (
+                    not bool(status["ready"])
+                    and name not in self._abandoned_quest_carry_requirements
+                )
             }
             if "throwing_items.lit_torch" in missing_carries:
                 if STORE_GENERAL not in self._town_store_attempted:

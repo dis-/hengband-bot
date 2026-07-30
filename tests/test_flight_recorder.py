@@ -55,6 +55,9 @@ class FlightRecorderTest(unittest.TestCase):
             _descent_refusal_reason="descent-cooldown",
             _fundraising_mode="mine",
             _town_restock_suppressed=False,
+            _abandoned_quest_carry_requirements={
+                "launcher": "all-suppliers-visited-without-affordable-stock"
+            },
             last_reason="explore",
         )
 
@@ -133,6 +136,10 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertEqual(state["state"]["_unseen_retreat_floor"], [1, 5, 0])
         self.assertEqual(state["state"]["_unseen_choke_position"], [2, 3])
         self.assertEqual(state["state"]["_unseen_wait_remaining"], 42)
+        self.assertEqual(
+            state["modes_and_latches"]["_abandoned_quest_carry_requirements"],
+            {"launcher": "all-suppliers-visited-without-affordable-stock"},
+        )
         self.assertEqual(
             state["state"]["_unseen_attack_evidence"], "何かに殴られた。"
         )

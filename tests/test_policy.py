@@ -38460,5 +38460,90 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
         self.assertFalse(policy._town_departure_ready(snapshot))
 
 
+class QuestCarryVisitAbandonmentTest(unittest.TestCase):
+    FORCE = {
+        "launcher": {"ammo": "equipped", "equipped": True},
+        "throwing_items": {"launcher_ammo": 45},
+    }
+
+    def _town(self, *, inventory=(), store=None, gold=11525, turn=495945):
+        return Snapshot(
+            player(10, 10, gold=gold, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=turn,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=list(inventory),
+            store=store,
+        )
+
+    def test_exhausted_incident_quest_carry_is_abandoned_for_departure(self):
+        policy = HengbotPolicy()
+        profile = SimpleNamespace(required_force=self.FORCE, engagement_plan={})
+        town = self._town()
+        policy._town_store_attempted[STORE_WEAPON] = town.turn
+
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            requirements = policy.procurement_requirements(town)
+            needs = policy._enumerate_town_needs(town)
+
+        items = {row["item"] for row in requirements}
+        self.assertNotIn("Quest launcher", items)
+        self.assertNotIn("Quest launcher ammunition", items)
+        self.assertNotIn(
+            TownNeed(STORE_WEAPON, "quest-ranged-kit", "normal"), needs
+        )
+        self.assertEqual(
+            policy._abandoned_quest_carry_requirements,
+            {
+                "launcher": "all-suppliers-visited-without-affordable-stock",
+                "throwing_items.launcher_ammo":
+                    "all-suppliers-visited-without-affordable-stock",
+            },
+        )
+        self.assertNotEqual(policy.last_reason, "town:blocked:repetition")
+
+    def test_affordable_in_stock_quest_carry_is_still_purchased(self):
+        sling = store_item("a", TVAL_BOW, SV_BOW_SLING, price=300)
+        town = self._town(store=StoreState(STORE_WEAPON, [sling]))
+        policy = HengbotPolicy()
+        profile = SimpleNamespace(required_force=self.FORCE, engagement_plan={})
+
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            policy.procurement_requirements(town)
+            purchase = policy._quest_carry_purchase(town, profile)
+
+        self.assertNotIn("launcher", policy._abandoned_quest_carry_requirements)
+        self.assertIs(purchase, sling)
+
+    def test_abandonment_resets_when_the_next_town_visit_begins(self):
+        policy = HengbotPolicy()
+        policy._abandoned_quest_carry_requirements["launcher"] = "gone"
+        policy._town_was_in_town = True
+        dungeon = replace(
+            self._town(turn=495946),
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            town_flag=False,
+        )
+        policy._observe(dungeon)
+        policy._observe(self._town(turn=495947))
+
+        self.assertFalse(policy._abandoned_quest_carry_requirements)
+
+    def test_quest_strategy_still_rejects_missing_required_force(self):
+        policy = HengbotPolicy()
+        profile = SimpleNamespace(required_force=self.FORCE)
+        policy._abandoned_quest_carry_requirements["launcher"] = "gone"
+
+        self.assertFalse(
+            policy._approved_strategy_force_ready(self._town(), profile)
+        )
+        self.assertIn(
+            "launcher",
+            policy._fixed_quest_readiness["strategy_force"]["failed"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

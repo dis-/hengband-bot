@@ -751,6 +751,19 @@ class DecisionRecordTest(unittest.TestCase):
         self.assertEqual(record["position"], {"y": 5, "x": 7})
         self.assertEqual(record["inventory"], {"used": 0, "free": 23})
         self.assertEqual(record["procurement_requirements"], requirements)
+        abandoned = {
+            "launcher": "all-suppliers-visited-without-affordable-stock"
+        }
+        record = _decision_record(
+            snapshot,
+            "6",
+            "seek-loot",
+            requirements,
+            abandoned_quest_carry_requirements=abandoned,
+        )
+        self.assertEqual(
+            record["abandoned_quest_carry_requirements"], abandoned
+        )
         self.assertEqual(record["visible_hostiles"], 0)
         self.assertEqual(record["threat_prediction"], {})
         self.assertEqual(record["loot"], {})

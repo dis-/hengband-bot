@@ -571,6 +571,7 @@ def _decision_record(
     key: str,
     reason: str,
     procurement_requirements: list[dict] | None = None,
+    abandoned_quest_carry_requirements: dict[str, str] | None = None,
     over_extension: dict | None = None,
     depth_safety: dict | None = None,
     threat_prediction: dict | None = None,
@@ -628,6 +629,9 @@ def _decision_record(
             "free": max(0, PACK_CAPACITY - len(snapshot.inventory)),
         },
         "procurement_requirements": procurement_requirements or [],
+        "abandoned_quest_carry_requirements": (
+            abandoned_quest_carry_requirements or {}
+        ),
         "visible_hostiles": sum(monster.hostile for monster in snapshot.visible_monsters),
         "threat_prediction": threat_prediction or {},
         "store_type": snapshot.store.store_type if snapshot.store is not None else None,
@@ -841,6 +845,11 @@ def _write_decision(
             requirements = (
                 policy.procurement_requirements(snapshot) if policy is not None else []
             )
+            abandoned_quest_carries = (
+                dict(policy._abandoned_quest_carry_requirements)
+                if policy is not None
+                else {}
+            )
             over_extension = _over_extension_state(policy) if policy is not None else {}
             depth_safety = _depth_safety(snapshot, policy) if policy is not None else {}
             threat_prediction = (
@@ -883,6 +892,7 @@ def _write_decision(
                     key,
                     reason,
                     requirements,
+                    abandoned_quest_carries,
                     over_extension,
                     depth_safety,
                     threat_prediction,
