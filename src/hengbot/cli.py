@@ -33,6 +33,16 @@ from hengbot.policy import (
     required_depth_gates,
 )
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
+from hengbot.flight_recorder import (
+    DEFAULT_CHECKPOINT_INTERVAL,
+    DEFAULT_DISK_BUDGET_BYTES,
+    DEFAULT_LOG_GENERATIONS,
+    DEFAULT_LOG_ROTATE_BYTES,
+    FlightRecorder,
+    append_session_marker,
+    map_memory_summary,
+    rotate_log,
+)
 
 
 # Character posted to the window to dismiss a message / "-more-" prompt that the
@@ -573,6 +583,8 @@ def _decision_record(
     departure_block: dict | None = None,
     quest_strategy: dict | None = None,
     escape_ladder: dict | None = None,
+    map_memory: dict | None = None,
+    descent_refusal: str | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -630,6 +642,8 @@ def _decision_record(
         **({"departure_block": departure_block} if departure_block else {}),
         **({"quest_strategy": quest_strategy} if quest_strategy is not None else {}),
         **({"escape_ladder": escape_ladder} if escape_ladder else {}),
+        "map_memory": map_memory or {},
+        **({"descent_refusal": descent_refusal} if descent_refusal else {}),
     }
 
 
@@ -675,6 +689,11 @@ class EconomyLedger:
             }
             if self.path is not None:
                 try:
+                    rotate_log(
+                        self.path,
+                        getattr(self, "rotate_bytes", DEFAULT_LOG_ROTATE_BYTES),
+                        getattr(self, "generations", DEFAULT_LOG_GENERATIONS),
+                    )
                     self.path.parent.mkdir(parents=True, exist_ok=True)
                     with self.path.open("a", encoding="utf-8") as file:
                         json.dump(event, file, ensure_ascii=False)
@@ -813,6 +832,11 @@ def _write_decision(
     if path is None:
         return
     try:
+        rotate_log(
+            path,
+            getattr(policy, "_recorder_log_rotate_bytes", DEFAULT_LOG_ROTATE_BYTES),
+            getattr(policy, "_recorder_log_generations", DEFAULT_LOG_GENERATIONS),
+        )
         with path.open("a", encoding="utf-8") as file:
             requirements = (
                 policy.procurement_requirements(snapshot) if policy is not None else []
@@ -873,6 +897,14 @@ def _write_decision(
                     (
                         policy.escape_ladder_telemetry
                         if policy is not None
+                        else None
+                    ),
+                    map_memory_summary(policy) if policy is not None else {},
+                    (
+                        getattr(policy, "_descent_refusal_reason", None)
+                        if policy is not None
+                        and getattr(policy, "_remembered_downstairs", None)
+                        and not reason.startswith("descend")
                         else None
                     ),
                 ),
@@ -1026,6 +1058,30 @@ def main(argv: list[str] | None = None) -> int:
         default=1.5,
         help="seconds without a new snapshot before nudging a stuck prompt (0 disables)",
     )
+    parser.add_argument(
+        "--recorder-budget-bytes",
+        type=int,
+        default=DEFAULT_DISK_BUDGET_BYTES,
+        help="combined jsonlog/ and incident-captures/ flight-recorder budget (default: 3 GiB)",
+    )
+    parser.add_argument(
+        "--recorder-checkpoint-decisions",
+        type=int,
+        default=DEFAULT_CHECKPOINT_INTERVAL,
+        help="write a policy-state checkpoint every N decisions (default: 100)",
+    )
+    parser.add_argument(
+        "--recorder-log-rotate-bytes",
+        type=int,
+        default=DEFAULT_LOG_ROTATE_BYTES,
+        help="rotate decision/economy JSONL after this many bytes (default: 128 MiB)",
+    )
+    parser.add_argument(
+        "--recorder-log-generations",
+        type=int,
+        default=DEFAULT_LOG_GENERATIONS,
+        help="retained rotated generations for decision/economy logs (default: 8)",
+    )
     args = parser.parse_args(argv)
 
     if args.economy_log is None and args.decision_log is not None:
@@ -1039,12 +1095,12 @@ def main(argv: list[str] | None = None) -> int:
     args.wait_telemetry = wait_telemetry
 
     if args.decision_log is not None and not args.once:
-        try:
-            args.decision_log.parent.mkdir(parents=True, exist_ok=True)
-            args.decision_log.write_text("", encoding="utf-8")
-        except OSError as exc:
-            print(f"failed to initialize decision log: {exc}", file=sys.stderr)
-            return 2
+        rotate_log(
+            args.decision_log,
+            args.recorder_log_rotate_bytes,
+            args.recorder_log_generations,
+        )
+        append_session_marker(args.decision_log, sys.argv if argv is None else argv)
 
     if args.list_windows:
         from hengbot.input_windows import list_windows
@@ -1193,6 +1249,8 @@ def main(argv: list[str] | None = None) -> int:
         quest_strategies=quest_strategies,
         exploration_ledger_path=EXPLORATION_LEDGER_PATH,
     )
+    policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
+    policy._recorder_log_generations = args.recorder_log_generations
     if args.decision_log is not None:
         policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
 
@@ -1226,20 +1284,60 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    except Exception:
+        recorder = getattr(args, "flight_recorder", None)
+        snapshot = getattr(args, "last_snapshot", None)
+        if recorder is not None and snapshot is not None:
+            recorder.freeze(
+                "unhandled-exception",
+                policy,
+                snapshot,
+                args.decision_log,
+                [getattr(policy, "last_reason", "unknown")],
+            )
+        raise
 
 
 def _run_follow(args, policy, send, monrace_knowledge) -> int:
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
+    recorder_root = (
+        args.decision_log.parent if args.decision_log is not None else Path("jsonlog")
+    )
+    recorder = FlightRecorder(
+        recorder_root,
+        recorder_root.parent / "incident-captures",
+        budget_bytes=args.recorder_budget_bytes,
+        checkpoint_interval=args.recorder_checkpoint_decisions,
+    )
+    args.flight_recorder = recorder
+    recent_reasons: deque[str] = deque(maxlen=20)
+
+    def incident_stop(kind: str, snapshot) -> int:
+        recorder.freeze(
+            kind, policy, snapshot, args.decision_log, list(recent_reasons)
+        )
+        return 0
+
     while not path.exists():
         time.sleep(args.poll_interval)
 
     initial_snapshot = _newest_snapshot(
         list(_read_last_line(path)), monrace_knowledge
     )
+    try:
+        recorder.record_snapshot_lines(
+            path.read_text(encoding="utf-8", errors="replace").splitlines()
+        )
+    except OSError as exc:
+        print(f"flight recorder failed to seed snapshot history: {exc}", file=sys.stderr)
     if initial_snapshot is not None:
         policy.prime(initial_snapshot)
+        args.last_snapshot = initial_snapshot
+    snapshot = initial_snapshot
     economy_ledger = EconomyLedger(args.economy_log)
+    economy_ledger.rotate_bytes = args.recorder_log_rotate_bytes
+    economy_ledger.generations = args.recorder_log_generations
     if initial_snapshot is not None:
         economy_ledger.prime(initial_snapshot)
     # errors="replace": a poll can catch the emitter mid-write inside a multibyte
@@ -1282,6 +1380,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_activity, time.monotonic(), chunk
                 )
                 complete_lines, pending = _split_complete_lines(pending + chunk)
+                recorder.record_snapshot_lines(complete_lines)
                 # Act ONLY on the newest complete snapshot in this batch. The game
                 # emits a snapshot then blocks on request_command, so the file's
                 # newest line is ALWAYS the current board the game is waiting on;
@@ -1300,6 +1399,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 entry = _newest_snapshot_entry(complete_lines, monrace_knowledge)
                 if entry is not None:
                     snapshot, snapshot_line = entry
+                    args.last_snapshot = snapshot
                     # A snapshot means the game is alive and awaiting a command.
                     nudge_streak = 0
                     last_player_level = snapshot.player.level
@@ -1341,8 +1441,10 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_decision_line = snapshot_line
                     last_decision_at = now
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
+                    recorder.before_floor_change(policy, snapshot.floor_key)
                     key = policy.choose_key(snapshot)
                     last_decision_reason = policy.last_reason
+                    recent_reasons.append(policy.last_reason)
                     command_signature = _command_state_signature(
                         snapshot,
                         policy.last_reason,
@@ -1376,7 +1478,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             file=sys.stderr,
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("loop-detected", snapshot)
                     _write_decision(
                         args.decision_log,
                         snapshot,
@@ -1385,6 +1487,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         policy,
                         economy_ledger,
                     )
+                    recorder.after_decision(policy, snapshot)
                     starving_position_changed = (
                         starving_last_position is not None
                         and snapshot.player.position != starving_last_position
@@ -1411,7 +1514,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             file=sys.stderr,
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("loop-detected", snapshot)
                     # The policy's mode-independent navigation invariant found
                     # no coverage/goal/economy progress for hundreds of
                     # decisions AND could not leave the floor. This is the
@@ -1432,7 +1535,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             file=sys.stderr,
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("livelock-exhausted", snapshot)
                     if policy.last_reason == "combat:fruitless":
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} "
@@ -1448,7 +1551,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             file=sys.stderr,
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("loop-detected", snapshot)
                     town_residence_streak = _advance_town_residence_streak(
                         town_residence_streak,
                         residence_floor_key,
@@ -1464,7 +1567,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             "investigation",
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("loop-detected", snapshot)
                     print(key, flush=True)
                     sent = send(key, in_store=snapshot.store is not None)
                     last_activity = time.monotonic()
@@ -1508,7 +1611,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             "decisions; stopping the bot for investigation",
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("loop-detected", snapshot)
                     # Loop detection: confined to a few tiles on one floor for a
                     # long stretch means the policy is stuck oscillating. Stop so
                     # the cause can be investigated rather than looping forever.
@@ -1569,7 +1672,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             file=sys.stderr,
                             flush=True,
                         )
-                        return 0
+                        return incident_stop("loop-detected", snapshot)
                 continue
 
             # The emitter truncates the JSONL at game start and when it reaches
@@ -1625,7 +1728,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     )
                     if not _game_process_alive(args.window_pid):
                         print("<dead>", flush=True)
-                        return 0
+                        return incident_stop("player-death", snapshot)
                     print(
                         "<stuck-prompt> nudges exhausted but the game process "
                         "is alive; cleared prompts and resyncing",

@@ -1541,6 +1541,10 @@ class HengbotPolicy:
         self._window_edge_fallback_pending = False
         self._remembered_downstairs: set[Position] = set()
         self._remembered_upstairs: set[Position] = set()
+        self._remembered_entrances: set[Position] = set()
+        # Diagnostic only: the latest predicate that declined a remembered
+        # descent. It is surfaced by the flight recorder and never read by play.
+        self._descent_refusal_reason: str | None = None
         # A stair command is verified by the following snapshot. Hengband rejects
         # a stair key without spending a turn, which gives stronger evidence than
         # ordinary navigation stalls that remembered terrain is a phantom.
@@ -4350,6 +4354,7 @@ class HengbotPolicy:
             self._remembered_known_t.clear()
             self._remembered_downstairs.clear()
             self._remembered_upstairs.clear()
+            self._remembered_entrances.clear()
             self._pending_stair_command = None
             self._stair_rejection_strikes.clear()
             self._unverified_stairs.clear()
@@ -22927,7 +22932,11 @@ class HengbotPolicy:
         self._descent_block_countdown = DESCENT_BLOCK_DECISIONS
 
     def _descent_is_blocked(self, snapshot: Snapshot) -> bool:
+        self._descent_refusal_reason = None
         if self._returning_to_town or len(snapshot.inventory) >= PACK_CAPACITY:
+            self._descent_refusal_reason = (
+                "returning-to-town" if self._returning_to_town else "pack-full"
+            )
             return True
         if (
             snapshot.in_town
@@ -22936,11 +22945,13 @@ class HengbotPolicy:
             and not self._recall_shortage_opening_exempt(snapshot)
             and self._fundraising_mode not in {"mine", "scavenge"}
         ):
+            self._descent_refusal_reason = "recall-departure-shortage"
             return True
         if self._next_depth_supply_shortage(snapshot):
             # Defence in depth: the return policy should already be taking us
             # upward, but the descent command itself must never permit depth 2+
             # without the agreed supplies even if return state is lost/reset.
+            self._descent_refusal_reason = "next-depth-supply-shortage"
             return True
         if snapshot.in_town:
             if self._fundraising_mode in {"mine", "scavenge"}:
@@ -22948,6 +22959,7 @@ class HengbotPolicy:
                     not self._town_restock_suppressed
                     and not self._fundraising_departure_ready(snapshot)
                 ):
+                    self._descent_refusal_reason = "fundraising-departure-not-ready"
                     return True
             else:
                 # A departure-only visit may waive preferred procurement, but
@@ -22956,11 +22968,17 @@ class HengbotPolicy:
                     self._town_restock_suppressed
                     and not self._fundraising_light_ready(snapshot)
                 ):
+                    self._descent_refusal_reason = "fundraising-light-shortage"
                     return True
                 if not self._town_restock_suppressed and (
                     self._rumor_unlock_pending
                     or not self._town_departure_ready(snapshot)
                 ):
+                    self._descent_refusal_reason = (
+                        "rumor-unlock-pending"
+                        if self._rumor_unlock_pending
+                        else "town-departure-not-ready"
+                    )
                     return True
             if self._fundraising_mode in {"mine", "scavenge"}:
                 # A threat ascent from Yeek 1F defers deeper movement on that
@@ -22981,6 +22999,7 @@ class HengbotPolicy:
         if self._descent_block_countdown <= 0:
             self._descent_blocked_at_level = None
             return False
+        self._descent_refusal_reason = "descent-cooldown"
         return True
 
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
@@ -23635,6 +23654,8 @@ class HengbotPolicy:
                 self._remembered_downstairs.add(pos)
             if grid.has_up_stairs and not self._nav_ledger.is_expired("ascend", pos):
                 self._remembered_upstairs.add(pos)
+            if grid.has_entrance:
+                self._remembered_entrances.add(pos)
             remembered_known.add(key)
             remembered_floor.discard(key)
             remembered_door.discard(key)
@@ -23936,6 +23957,11 @@ class HengbotPolicy:
                 targets.add(entrance)
             else:
                 self._nav_ledger.clear_descent_route()
+                self._descent_refusal_reason = (
+                    "expired-or-ineligible-downstairs"
+                    if self._remembered_downstairs
+                    else "no-known-downstairs"
+                )
                 return None
         committed = self._nav_ledger.descent_target
         if committed is not None and committed not in targets:
@@ -23951,6 +23977,7 @@ class HengbotPolicy:
         self._descent_target_goal = target
         if origin == target:
             self._nav_ledger.clear_descent_route()
+            self._descent_refusal_reason = "standing-on-target"
             return None
 
         self._nav_ledger.advance_descent_route(origin)
@@ -23963,6 +23990,7 @@ class HengbotPolicy:
                 self._nav_ledger.observe("descend", target, len(route))
                 if self._nav_ledger.is_expired("descend", target):
                     self._descent_target_goal = None
+                    self._descent_refusal_reason = "expired-target"
                     return None
                 self.last_reason = (
                     "seek-downstairs"
@@ -23989,6 +24017,7 @@ class HengbotPolicy:
                 self._nav_ledger.observe("descend", pos, path_distance)
                 if self._nav_ledger.is_expired("descend", pos):
                     self._descent_target_goal = None
+                    self._descent_refusal_reason = "expired-target"
                     return None
                 path: list[Position] = []
                 cursor: Position | None = pos
