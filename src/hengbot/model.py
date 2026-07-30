@@ -613,19 +613,19 @@ class QuestState:
     status: int = 0
     type: int = 0
     level: int = 0
-    dungeon_id: int = 0
-    r_idx: int = 0
-    cur_num: int = 0
-    max_num: int = 0
-    num_mon: int = 0
-    flags: int = 0
-    complev: int = 0
-    comptime: int = 0
+    dungeon_id: int | None = None
+    r_idx: int | None = None
+    cur_num: int | None = None
+    max_num: int | None = None
+    num_mon: int | None = None
+    flags: int | None = None
+    complev: int | None = None
+    comptime: int | None = None
     fixed: bool = False
-    has_reward: bool = False
+    has_reward: bool | None = None
     reward_artifact_id: int | None = None
-    reward_baseitem_id: int = 0
-    reward_instant_artifact: bool = False
+    reward_baseitem_id: int | None = None
+    reward_instant_artifact: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -915,24 +915,44 @@ def parse_snapshot(
             status=int(quest_data.get("status", 0)),
             type=int(quest_data.get("type", 0)),
             level=int(quest_data.get("level", 0)),
-            dungeon_id=int(quest_data.get("dungeon_id", 0)),
-            r_idx=int(quest_data.get("r_idx", 0)),
-            cur_num=int(quest_data.get("cur_num", 0)),
-            max_num=int(quest_data.get("max_num", 0)),
-            num_mon=int(quest_data.get("num_mon", 0)),
-            flags=int(quest_data.get("flags", 0)),
-            complev=int(quest_data.get("complev", 0)),
-            comptime=int(quest_data.get("comptime", 0)),
+            dungeon_id=(
+                int(quest_data["dungeon_id"])
+                if "dungeon_id" in quest_data else None
+            ),
+            r_idx=int(quest_data["r_idx"]) if "r_idx" in quest_data else None,
+            cur_num=(
+                int(quest_data["cur_num"]) if "cur_num" in quest_data else None
+            ),
+            max_num=(
+                int(quest_data["max_num"]) if "max_num" in quest_data else None
+            ),
+            num_mon=(
+                int(quest_data["num_mon"]) if "num_mon" in quest_data else None
+            ),
+            flags=int(quest_data["flags"]) if "flags" in quest_data else None,
+            complev=(
+                int(quest_data["complev"]) if "complev" in quest_data else None
+            ),
+            comptime=(
+                int(quest_data["comptime"]) if "comptime" in quest_data else None
+            ),
             fixed=_as_bool(quest_data.get("fixed", False)),
-            has_reward=_as_bool(quest_data.get("has_reward", False)),
+            has_reward=(
+                _as_bool(quest_data["has_reward"])
+                if "has_reward" in quest_data else None
+            ),
             reward_artifact_id=(
                 int(quest_data["reward_artifact_id"])
                 if quest_data.get("reward_artifact_id") is not None
                 else None
             ),
-            reward_baseitem_id=int(quest_data.get("reward_baseitem_id", 0)),
-            reward_instant_artifact=_as_bool(
-                quest_data.get("reward_instant_artifact", False)
+            reward_baseitem_id=(
+                int(quest_data["reward_baseitem_id"])
+                if "reward_baseitem_id" in quest_data else None
+            ),
+            reward_instant_artifact=(
+                _as_bool(quest_data["reward_instant_artifact"])
+                if "reward_instant_artifact" in quest_data else None
             ),
         )
     return Snapshot(

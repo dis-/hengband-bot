@@ -561,6 +561,30 @@ class NewestSnapshotTest(unittest.TestCase):
         with_towns = parse_snapshot(data, {})
         self.assertEqual(with_towns.visited_town_ids, (0, 1))
 
+    def test_omitted_quest_fields_are_undisclosed_not_zero_or_false(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["progress"] = {
+            "quests": [{
+                "id": 28,
+                "name": "Single target",
+                "status": 1,
+                "type": 1,
+                "level": 70,
+                "fixed": True,
+            }]
+        }
+
+        quest = parse_snapshot(data, {}).quests[28]
+
+        for field in (
+            "dungeon_id", "r_idx", "cur_num", "max_num", "num_mon",
+            "flags", "complev", "comptime", "has_reward",
+            "reward_artifact_id", "reward_baseitem_id",
+            "reward_instant_artifact",
+        ):
+            with self.subTest(field=field):
+                self.assertIsNone(getattr(quest, field))
+
     def test_parses_entered_dungeon_ids_for_recall_selection(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["progress"] = {

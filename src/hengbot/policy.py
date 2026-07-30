@@ -18776,31 +18776,44 @@ class HengbotPolicy:
         """Return an incomplete runtime kill quest occupying the current floor."""
         dungeon_id, level, floor_quest_id = snapshot.floor_key
         for quest in snapshot.quests.values():
-            target = (
-                quest.num_mon
-                if quest.type == QUEST_TYPE_KILL_NUMBER
-                else quest.max_num
+            info = self._quest_knowledge.get(quest.id)
+            quest_type = info.type if info is not None else quest.type
+            target = self._kill_quest_completion_target(quest, info)
+            quest_dungeon = (
+                info.dungeon if info is not None else quest.dungeon_id
             )
+            quest_level = info.level if info is not None else quest.level
             if (
                 quest.status == QUEST_STATUS_TAKEN
-                and quest.type
+                and quest_type
                 in {
                     QUEST_TYPE_KILL_LEVEL,
                     QUEST_TYPE_KILL_NUMBER,
                     QUEST_TYPE_RANDOM,
                 }
-                and target > 0
-                and quest.cur_num < target
+                and (
+                    quest.cur_num is None
+                    or target is None
+                    or quest.cur_num < target
+                )
                 and (
                     floor_quest_id == quest.id
                     or (
-                        dungeon_id == quest.dungeon_id
-                        and level == quest.level
+                        quest_dungeon is not None
+                        and dungeon_id == quest_dungeon
+                        and level == quest_level
                     )
                 )
             ):
                 return quest.id
         return None
+
+    def _quest_target_race_id(self, quest: QuestState) -> int | None:
+        """Join a fixed target from knowledge, otherwise use disclosed runtime data."""
+        info = self._quest_knowledge.get(quest.id)
+        if info is not None and info.monrace_id > 0:
+            return info.monrace_id
+        return quest.r_idx
 
     def _visible_unviable_quest_target(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -18808,8 +18821,8 @@ class HengbotPolicy:
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None or self.approved_quest_strategy(quest_id) is not None:
             return False
-        race_id = snapshot.quests[quest_id].r_idx
-        if race_id <= 0:
+        race_id = self._quest_target_race_id(snapshot.quests[quest_id])
+        if race_id is None or race_id <= 0:
             return False
         targets = [
             monster for monster in hostiles if monster.race_id == race_id
@@ -18866,15 +18879,32 @@ class HengbotPolicy:
         self._last_return_trigger = "quest-unviable"
 
     @staticmethod
-    def _kill_quest_completion_target(quest: QuestState, info: QuestInfo) -> int:
+    def _kill_quest_completion_target(
+        quest: QuestState, info: QuestInfo | None
+    ) -> int | None:
         """Return the counter that completes each supported kill-quest type."""
-        if info.type == QUEST_TYPE_KILL_LEVEL:
+        quest_type = info.type if info is not None else quest.type
+        if quest_type == QUEST_TYPE_KILL_LEVEL:
             # KILL_LEVEL advances cur_num until max_num; num_mon describes the
             # generated pack and is not necessarily the completion threshold.
-            return quest.max_num or info.max_num
-        if info.type == QUEST_TYPE_KILL_NUMBER:
-            return quest.num_mon or info.num_mon
-        return 0
+            return (
+                quest.max_num
+                if quest.max_num is not None
+                else (info.max_num if info is not None else None)
+            )
+        if quest_type == QUEST_TYPE_KILL_NUMBER:
+            return (
+                quest.num_mon
+                if quest.num_mon is not None
+                else (info.num_mon if info is not None else None)
+            )
+        if quest_type == QUEST_TYPE_RANDOM:
+            return (
+                quest.max_num
+                if quest.max_num is not None
+                else (info.max_num if info is not None else None)
+            )
+        return None
 
     def _kill_quest_exit_would_fail(self, snapshot: Snapshot) -> bool:
         quest_id = self._active_kill_quest_id(snapshot)
@@ -18927,7 +18957,11 @@ class HengbotPolicy:
         # floor after the ordinary stuck budget is exhausted. Runtime RANDOM
         # quests deliberately accept the loss at that same genuine-stall
         # boundary, independent of static quest knowledge.
-        runtime_random = snapshot.quests[quest_id].type == QUEST_TYPE_RANDOM
+        quest = snapshot.quests[quest_id]
+        info = self._quest_knowledge.get(quest_id)
+        runtime_random = (
+            info.type if info is not None else quest.type
+        ) == QUEST_TYPE_RANDOM
         if (
             (runtime_random or not self._kill_quest_exit_would_fail(snapshot))
             and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
@@ -18946,8 +18980,8 @@ class HengbotPolicy:
             or self.approved_quest_strategy(quest_id) is not None
         ):
             return []
-        race_id = snapshot.quests[quest_id].r_idx
-        if race_id <= 0:
+        race_id = self._quest_target_race_id(snapshot.quests[quest_id])
+        if race_id is None or race_id <= 0:
             return []
         return [monster for monster in hostiles if monster.race_id == race_id]
 
@@ -20588,7 +20622,11 @@ class HengbotPolicy:
             and (
                 snapshot.player.exp > previous[1]
                 or any(
-                    cur_num > dict(previous[4]).get(quest_id, cur_num)
+                    cur_num is not None
+                    and (
+                        previous_cur := dict(previous[4]).get(quest_id)
+                    ) is not None
+                    and cur_num > previous_cur
                     for quest_id, cur_num in quest_kills
                 )
             )
@@ -21515,7 +21553,8 @@ class HengbotPolicy:
         if quest_id is None:
             return False
         quest = snapshot.quests.get(quest_id)
-        return quest is not None and quest.r_idx > 0 and monster.race_id == quest.r_idx
+        race_id = self._quest_target_race_id(quest) if quest is not None else None
+        return race_id is not None and race_id > 0 and monster.race_id == race_id
 
     def _unique_combat_consumable(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -23266,7 +23305,10 @@ class HengbotPolicy:
                 and info.type == QUEST_TYPE_KILL_LEVEL
                 and info.dungeon == dungeon_id
                 and quest.status == QUEST_STATUS_TAKEN
-                and quest.cur_num < self._kill_quest_completion_target(quest, info)
+                and (
+                    quest.cur_num is None
+                    or quest.cur_num < self._kill_quest_completion_target(quest, info)
+                )
             ):
                 return quest, info
         return None
@@ -23284,6 +23326,8 @@ class HengbotPolicy:
             self._quest_regen_phase = None
             return None
         quest, info = active
+        if quest.cur_num is None:
+            return None
         here = snapshot.grid_at(snapshot.player.position)
         if snapshot.dungeon_level > info.level:
             if here is not None and self._is_upstairs_target(here):

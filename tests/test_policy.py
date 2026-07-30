@@ -7684,6 +7684,123 @@ class FixedQuestTest(unittest.TestCase):
         complete = replace(snap, quests={14: replace(quest, cur_num=16)})
         self.assertFalse(policy._quest_floor_exit_locked(complete))
 
+    def test_new_single_target_shape_without_target_or_progress_keeps_exit_lock(self):
+        info = QuestInfo(
+            28, "Royal Crypt", QUEST_TYPE_KILL_LEVEL, 70, QUEST_FLAG_ONCE,
+            dungeon=2, max_num=1, monrace_id=999,
+        )
+        data = {
+            "player": {"y": 10, "x": 10, "hp": 100, "max_hp": 100},
+            "floor": {"dungeon_id": 2, "level": 70, "quest_id": 28},
+            "progress": {"quests": [{
+                "id": 28, "name": "Royal Crypt", "status": QUEST_STATUS_TAKEN,
+                "type": QUEST_TYPE_KILL_LEVEL, "level": 70, "fixed": True,
+            }]},
+        }
+        snapshot = parse_snapshot(data, {})
+        policy = HengbotPolicy(quest_knowledge={28: info})
+
+        self.assertEqual(policy._active_kill_quest_id(snapshot), 28)
+        self.assertTrue(policy._quest_floor_exit_locked(snapshot))
+        self.assertFalse(policy._kill_quest_descent_allowed(snapshot))
+
+    def test_new_quest_row_shapes_join_static_facts_and_handle_progress(self):
+        cases = (
+            (
+                "kill-number-current",
+                {"id": 14, "name": "Wargs", "status": 1, "type": 5,
+                 "level": 5, "fixed": True, "cur_num": 3, "max_num": 16},
+                QuestInfo(14, "Wargs", 5, 5, 0, dungeon=3, num_mon=16,
+                          monrace_id=257),
+                257, 3, True, True,
+            ),
+            (
+                "kill-level-current-multiple",
+                {"id": 20, "name": "Pack", "status": 1, "type": 1,
+                 "level": 20, "fixed": True, "r_idx": 300,
+                 "cur_num": 2, "max_num": 4},
+                QuestInfo(20, "Pack", 1, 20, 0, dungeon=3, max_num=4,
+                          monrace_id=300),
+                300, 2, True, False,
+            ),
+            (
+                "kill-level-current-single",
+                {"id": 28, "name": "Single", "status": 1, "type": 1,
+                 "level": 28, "fixed": True, "r_idx": 999},
+                QuestInfo(28, "Single", 1, 28, QUEST_FLAG_ONCE, dungeon=3,
+                          max_num=1, monrace_id=999),
+                999, None, True, False,
+            ),
+            (
+                "random-current",
+                {"id": 49, "name": "Random", "status": 1, "type": 7,
+                 "level": 30, "fixed": False, "r_idx": 777},
+                QuestInfo(49, "Random", 7, 30, 0, dungeon=3, max_num=1),
+                777, None, True, True,
+            ),
+            (
+                "taken-find-artifact-with-reward",
+                {"id": 31, "name": "Artifact", "status": 1, "type": 3,
+                 "level": 31, "fixed": True, "reward_artifact_id": 12,
+                 "reward_baseitem_id": 42},
+                QuestInfo(31, "Artifact", 3, 31, 0, dungeon=3),
+                None, None, False, True,
+            ),
+            (
+                "finished-random",
+                {"id": 50, "name": "Finished", "status": 4, "type": 7,
+                 "level": 32, "fixed": False, "r_idx": 778,
+                 "complev": 33, "comptime": 1234},
+                QuestInfo(50, "Finished", 7, 32, 0, dungeon=3, max_num=1),
+                778, None, False, True,
+            ),
+            (
+                "failed-random",
+                {"id": 51, "name": "Failed", "status": 3, "type": 7,
+                 "level": 33, "fixed": False, "r_idx": 779,
+                 "complev": 34, "comptime": 2345},
+                QuestInfo(51, "Failed", 7, 33, 0, dungeon=3, max_num=1),
+                779, None, False, True,
+            ),
+        )
+        for (
+            name, row, info, expected_race, expected_progress,
+            expected_active, expected_descent,
+        ) in cases:
+            with self.subTest(name=name):
+                data = {
+                    "player": {"y": 10, "x": 10, "hp": 100, "max_hp": 100},
+                    "floor": {
+                        "dungeon_id": 3, "level": info.level, "quest_id": 0,
+                    },
+                    "progress": {"quests": [row]},
+                }
+                snapshot = parse_snapshot(data, {})
+                quest = snapshot.quests[info.id]
+                policy = HengbotPolicy(quest_knowledge={info.id: info})
+                monster = hostile(
+                    1, 10, 11, hp=10, max_hp=10,
+                    race_id=expected_race or 12345,
+                )
+
+                self.assertIsNone(quest.dungeon_id)
+                self.assertEqual(quest.cur_num, expected_progress)
+                self.assertEqual(
+                    policy._quest_target_race_id(quest), expected_race,
+                )
+                self.assertEqual(
+                    policy._active_kill_quest_id(snapshot) == info.id,
+                    expected_active,
+                )
+                self.assertEqual(
+                    policy._consumable_fight_target(snapshot, monster),
+                    expected_race is not None and expected_active,
+                )
+                self.assertEqual(
+                    policy._kill_quest_descent_allowed(snapshot),
+                    expected_descent,
+                )
+
     def test_dying_kill_quest_with_no_teleport_may_take_stairs(self):
         info = QuestInfo(14, "Warg Problem", 5, 5, 2, dungeon=0, num_mon=16, monrace_id=257)
         quest = QuestState(id=14, status=1, type=5, level=5, dungeon_id=0, r_idx=257, cur_num=3, max_num=16, num_mon=16, fixed=True)
