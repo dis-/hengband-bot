@@ -403,6 +403,119 @@ def hostile(
     )
 
 
+class DetectedMonsterChannelTest(unittest.TestCase):
+    @staticmethod
+    def _corridor_snapshot(detected):
+        grids = {
+            Position(10, x): grid(10, x)
+            for x in range(9, 14)
+        }
+        return Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            grids,
+            [],
+            detected_monsters=detected,
+            floor_key=(1, 10, 0),
+        )
+
+    def test_detected_only_monster_is_neither_melee_target_nor_route_cell(self):
+        behind_wall = replace(
+            hostile(
+                7, 10, 11, distance=1, max_melee_damage=20
+            ),
+            perception="detected",
+        )
+        snapshot = self._corridor_snapshot([behind_wall])
+        policy = HengbotPolicy()
+
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(policy._hostiles(snapshot), [])
+        self.assertEqual(policy._adjacent_hostiles(snapshot), [])
+        self.assertNotIn((10, 11), policy._floor_t)
+        self.assertNotIn(
+            behind_wall.position,
+            policy._walkable_neighbors(snapshot, snapshot.player.position),
+        )
+
+    def test_detected_breeders_count_classify_and_enter_threat_prediction(self):
+        weak = replace(
+            hostile(
+                7, 10, 12, distance=2, can_multiply=True,
+                max_melee_damage=4,
+            ),
+            perception="detected",
+        )
+        strong = replace(
+            hostile(
+                8, 10, 13, distance=3, can_multiply=True,
+                max_melee_damage=5,
+            ),
+            perception="detected",
+        )
+        snapshot = self._corridor_snapshot([weak, strong])
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        perceived = policy._perceived_hostiles(snapshot)
+        prediction = policy.threat_prediction(snapshot, perceived)
+        policy._update_combat_outcome(snapshot)
+
+        self.assertTrue(policy._is_weak_breeder(snapshot, weak))
+        self.assertFalse(policy._is_weak_breeder(snapshot, strong))
+        self.assertEqual(policy._breeder_engagement_start_count, 2)
+        self.assertEqual(
+            {row["position"]["x"] for row in prediction["monsters"]},
+            {12, 13},
+        )
+
+    def test_transition_from_detected_to_visible_is_not_double_counted(self):
+        detected = replace(
+            hostile(7, 10, 12, distance=2, can_multiply=True),
+            perception="detected",
+        )
+        visible = replace(detected, perception="direct")
+        snapshot = replace(
+            self._corridor_snapshot([detected]),
+            visible_monsters=[visible],
+        )
+        policy = HengbotPolicy()
+
+        perceived = policy._perceived_hostiles(snapshot)
+        policy._update_combat_outcome(snapshot)
+
+        self.assertEqual([monster.index for monster in perceived], [7])
+        self.assertEqual(policy._breeder_engagement_start_count, 1)
+
+    def test_detected_breeder_prepares_choke_without_targeting_it(self):
+        breeder = replace(
+            hostile(
+                7, 10, 12, distance=2, can_multiply=True,
+                max_melee_damage=4,
+            ),
+            perception="detected",
+        )
+        snapshot = replace(
+            self._corridor_snapshot([breeder]),
+            grids={
+                Position(y, x): grid(y, x)
+                for y in range(8, 13)
+                for x in range(8, 13)
+            },
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        with patch.object(
+            policy, "_summoner_retreat_step", return_value=Position(9, 9)
+        ) as retreat:
+            key = policy._detected_threat_preparation_key(snapshot, [])
+
+        self.assertEqual((key, policy.last_reason), ("7", "detected:prepare-choke"))
+        retreat.assert_called_once()
+        self.assertEqual(policy._hostiles(snapshot), [])
+
+
 class CombatTest(unittest.TestCase):
     @staticmethod
     def _mouse_swarm_snapshot(*, at_choke=False, adjacent=False, ranged=False):

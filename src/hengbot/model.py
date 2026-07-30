@@ -594,6 +594,7 @@ class MonsterState:
     max_melee_damage: int = 0
     max_ranged_damage: int = 0
     can_multiply: bool = False
+    perception: str = "direct"
 
     @property
     def hostile(self) -> bool:
@@ -633,6 +634,7 @@ class Snapshot:
     player: PlayerState
     grids: dict[Position, GridState]
     visible_monsters: list[MonsterState]
+    detected_monsters: list[MonsterState] = field(default_factory=list)
     turn: int = 0
     floor_key: tuple[int, int, int] = (0, 0, 0)
     inside_arena: bool = False
@@ -898,6 +900,66 @@ def parse_snapshot(
             )
         )
 
+    detected_monsters: list[MonsterState] = []
+    for monster_data in data.get("detected_monsters", []):
+        index = int(monster_data["index"])
+        position = Position(
+            int(monster_data["y"]), int(monster_data["x"])
+        )
+        friendly = bool(monster_data.get("friendly", False))
+        pet = bool(monster_data.get("pet", False))
+        distance = int(
+            monster_data.get(
+                "distance", player.position.distance_to(position)
+            )
+        )
+        if monster_data.get("hallucinated", False):
+            detected_monsters.append(
+                MonsterState(
+                    index=index,
+                    position=position,
+                    hp=UNKNOWN_MONSTER_HP,
+                    max_hp=UNKNOWN_MONSTER_HP,
+                    distance=distance,
+                    friendly=friendly,
+                    pet=pet,
+                    perception="detected",
+                )
+            )
+            continue
+        race_id = int(monster_data.get("race_id", 0))
+        knowledge = knowledge_by_id.get(race_id)
+        if knowledge is None:
+            raise MissingMonraceKnowledgeError(
+                f"missing monster knowledge for race_id={race_id}"
+            )
+        max_hp = knowledge.max_hp
+        health = str(monster_data.get("health", "unhurt"))
+        detected_monsters.append(
+            MonsterState(
+                index=index,
+                position=position,
+                hp=_estimated_monster_hp(max_hp, health),
+                max_hp=max_hp,
+                distance=distance,
+                friendly=friendly,
+                pet=pet,
+                speed=knowledge.speed,
+                asleep=bool(monster_data.get("asleep", False)),
+                stunned=bool(monster_data.get("stunned", False)),
+                confused=bool(monster_data.get("confused", False)),
+                fearful=bool(monster_data.get("fearful", False)),
+                name=str(monster_data.get("name", "")),
+                race_id=race_id,
+                can_summon=knowledge.can_summon,
+                level=knowledge.level,
+                max_melee_damage=knowledge.max_melee_damage,
+                max_ranged_damage=knowledge.max_ranged_damage,
+                can_multiply=knowledge.can_multiply,
+                perception="detected",
+            )
+        )
+
     floor_data = data.get("floor", {})
     floor_key = (
         int(floor_data.get("dungeon_id", 0)),
@@ -959,6 +1021,7 @@ def parse_snapshot(
         player=player,
         grids=grids,
         visible_monsters=monsters,
+        detected_monsters=detected_monsters,
         messages=tuple(str(message) for message in data.get("messages", [])),
         turn=int(data.get("turn", 0)),
         floor_key=floor_key,

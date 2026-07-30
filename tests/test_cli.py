@@ -182,6 +182,42 @@ class EconomyLedgerTest(unittest.TestCase):
 
 
 class NewestSnapshotTest(unittest.TestCase):
+    def test_parses_detected_monsters_as_a_separate_perception_channel(self):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["detected_monsters"] = [
+            {
+                "index": 7,
+                "y": 5,
+                "x": 9,
+                "distance": 6,
+                "race_id": 44,
+                "name": "detected breeder",
+                "health": "unhurt",
+                "friendly": False,
+                "pet": False,
+            }
+        ]
+        knowledge = {
+            44: MonraceKnowledge(
+                20, 110, False, False,
+                max_melee_damage=3,
+                can_multiply=True,
+            )
+        }
+
+        snapshot = parse_snapshot(data, knowledge)
+
+        self.assertEqual(snapshot.visible_monsters, [])
+        self.assertEqual(len(snapshot.detected_monsters), 1)
+        monster = snapshot.detected_monsters[0]
+        self.assertEqual(monster.position, Position(5, 9))
+        self.assertEqual(monster.distance, 6)
+        self.assertEqual(monster.race_id, 44)
+        self.assertEqual(monster.perception, "detected")
+
+        del data["detected_monsters"]
+        self.assertEqual(parse_snapshot(data, knowledge).detected_monsters, [])
+
     def test_parses_messages_and_defaults_missing_field_to_empty(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["messages"] = ["Your ring drains HP from you!", "second"]

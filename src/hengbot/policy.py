@@ -2685,6 +2685,12 @@ class HengbotPolicy:
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
 
+        detected_preparation = self._detected_threat_preparation_key(
+            snapshot, hostiles
+        )
+        if detected_preparation is not None:
+            return detected_preparation
+
         unseen_intercept = self._unseen_retreat_intercept_key(
             snapshot, hostiles, adjacent
         )
@@ -4575,6 +4581,29 @@ class HengbotPolicy:
         return [
             monster for monster in snapshot.visible_monsters
             if monster.hostile
+        ]
+
+    def _perceived_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+        """Return de-duplicated sight and detection records for anticipation."""
+        perceived: dict[int, MonsterState] = {
+            monster.index: monster
+            for monster in snapshot.detected_monsters
+            if monster.hostile
+        }
+        perceived.update(
+            {
+                monster.index: monster
+                for monster in snapshot.visible_monsters
+                if monster.hostile
+            }
+        )
+        return [
+            monster
+            for monster in perceived.values()
+            if not (
+                self._breeder_breakthrough_floor == snapshot.floor_key
+                and self._is_weak_breeder(snapshot, monster)
+            )
         ]
 
     def _adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
@@ -20974,9 +21003,9 @@ class HengbotPolicy:
             self._breeder_kills = 0
             self._breeder_previous_exp = snapshot.player.exp
             self._breeder_previous_indices.clear()
-        visible_breeders = [
+        perceived_breeders = [
             monster
-            for monster in snapshot.visible_monsters
+            for monster in self._perceived_hostiles(snapshot)
             if monster.hostile and monster.can_multiply
         ]
         if (
@@ -20984,7 +21013,7 @@ class HengbotPolicy:
             and self._breeder_previous_exp is not None
             and snapshot.player.exp > self._breeder_previous_exp
             and self._breeder_previous_indices
-            - {monster.index for monster in visible_breeders}
+            - {monster.index for monster in perceived_breeders}
             and (
                 self.last_reason == "melee"
                 or self.last_reason == "fundraise:eliminate-multiplier"
@@ -20992,20 +21021,20 @@ class HengbotPolicy:
             )
         ):
             self._breeder_kills += 1
-        if visible_breeders and self._breeder_engagement_start_count is None:
-            self._breeder_engagement_start_count = len(visible_breeders)
+        if perceived_breeders and self._breeder_engagement_start_count is None:
+            self._breeder_engagement_start_count = len(perceived_breeders)
         if (
             self._breeder_engagement_start_count is not None
             and self._breeder_kills >= 5
-            and len(visible_breeders) > self._breeder_engagement_start_count
+            and len(perceived_breeders) > self._breeder_engagement_start_count
         ):
             self._breeder_breakthrough_floor = snapshot.floor_key
         self._breeder_previous_exp = snapshot.player.exp
         self._breeder_previous_indices = {
-            monster.index for monster in visible_breeders
+            monster.index for monster in perceived_breeders
         }
         breeders = (
-            visible_breeders
+            perceived_breeders
             if self._breeder_breakthrough_floor != snapshot.floor_key
             else []
         )
@@ -22998,6 +23027,51 @@ class HengbotPolicy:
             return WAIT_KEY
         return None
 
+    def _detected_threat_preparation_key(
+        self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
+    ) -> str | None:
+        """Anticipate detected threats without treating them as attack targets."""
+        detected = [
+            monster
+            for monster in self._perceived_hostiles(snapshot)
+            if monster.perception == "detected"
+        ]
+        if not detected:
+            return None
+
+        # Keep the lower-certainty channel in the normal damage model, but do
+        # not pass it to melee, ranged, line-of-fire, or blocker-clearing code.
+        self.threat_prediction(snapshot, detected, turns=3)
+        if visible_hostiles:
+            return None
+        converging = [
+            monster
+            for monster in detected
+            if not monster.asleep and monster.distance <= SWARM_LOOKAHEAD
+        ]
+        breeders = [
+            monster for monster in converging if monster.can_multiply
+        ]
+        melee_threats = [
+            monster
+            for monster in converging
+            if monster.max_ranged_damage <= 0
+        ]
+        if not breeders and len(melee_threats) < 2:
+            return None
+        if (
+            self._open_neighbor_count(snapshot, snapshot.player.position)
+            <= SUMMONER_CHOKE_NEIGHBORS - 1
+        ):
+            return None
+        step = self._summoner_retreat_step(
+            snapshot, breeders or melee_threats, detected
+        )
+        if step is None:
+            return None
+        self.last_reason = "detected:prepare-choke"
+        return self._step_toward(snapshot, step)
+
     def _breeder_breakthrough_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -23980,6 +24054,11 @@ class HengbotPolicy:
             if not grid.has_monster:
                 continue
             key = (pos.y, pos.x)
+            floor.discard(key)
+            door.discard(key)
+            rubble.discard(key)
+        for monster in snapshot.detected_monsters:
+            key = (monster.position.y, monster.position.x)
             floor.discard(key)
             door.discard(key)
             rubble.discard(key)
