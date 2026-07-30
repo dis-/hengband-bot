@@ -4681,6 +4681,60 @@ class ReturnToTownTest(unittest.TestCase):
         self.assertEqual(policy._return_to_town_key(second_clear, []), "6")
         self.assertEqual(policy.last_reason, "return:seek-upstairs")
 
+    def test_armed_unseen_does_not_reset_exit_owner_release_hysteresis(self):
+        first_clear = self._exit_owner_snapshot(10, turn=1)
+        second_clear = self._exit_owner_snapshot(9, turn=2)
+        policy = self._prepare_exit_owner_policy(first_clear)
+        policy._escape_state.begin_decision(first_clear, 0)
+        policy._escape_state.enter("return", "return:seek-secret-wall")
+
+        with (
+            patch.object(
+                policy, "_unseen_retreat_intercept_key", return_value=None
+            ),
+            patch.object(policy, "_unseen_retreat_key", return_value=WAIT_KEY),
+        ):
+            self.assertEqual(policy.choose_key(first_clear), "4")
+            self.assertEqual(policy.last_reason, "return:seek-secret-wall")
+            self.assertEqual(policy.choose_key(second_clear), "6")
+
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+
+    def test_armed_unseen_does_not_destroy_wall_search_owner(self):
+        grids = {Position(10, 10): grid(10, 10)}
+        for dy, dx in NEIGHBOR_OFFSETS:
+            grids[Position(10 + dy, 10 + dx)] = grid(
+                10 + dy, 10 + dx, passable=False
+            )
+        snapshot = Snapshot(
+            player(10, 10, food=6000),
+            grids,
+            [],
+            floor_key=self.FLOOR,
+            inventory=self._pack(PACK_CAPACITY),
+            width=40,
+            height=40,
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = self.FLOOR
+        policy._returning_to_town = True
+        policy._escape_state.begin_decision(snapshot, 0)
+        policy._escape_state.enter("return", "return:seek-secret-wall")
+
+        with (
+            patch.object(
+                policy, "_unseen_retreat_intercept_key", return_value=None
+            ),
+            patch.object(policy, "_unseen_retreat_key", return_value=WAIT_KEY),
+        ):
+            for _ in range(2):
+                self.assertEqual(policy.choose_key(snapshot), "s")
+                self.assertEqual(policy.last_reason, "return:search-upstairs")
+                self.assertEqual(policy._escape_state.owner, "return")
+                self.assertEqual(
+                    policy._escape_state.rung, "return:seek-secret-wall"
+                )
+
     def test_escape_decision_ledger_reads_reachability_once(self):
         snapshot = self._exit_owner_snapshot(10)
         policy = self._prepare_exit_owner_policy(snapshot)

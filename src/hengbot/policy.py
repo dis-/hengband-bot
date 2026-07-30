@@ -2641,7 +2641,6 @@ class HengbotPolicy:
                 else self._return_to_town_key(snapshot, hostiles)
             )
             if town_return is not None:
-                self._escape_state.enter("return", self.last_reason)
                 return town_return
             return unseen_action
 
