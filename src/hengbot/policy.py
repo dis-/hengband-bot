@@ -2811,25 +2811,27 @@ class HengbotPolicy:
 
         self._build_grid_index(snapshot)
         player = snapshot.player
-        hostiles = self._strategic_hostiles(snapshot)
-        adjacent = self._strategic_adjacent_hostiles(snapshot)
-        raw_hostiles = self._physical_hostiles(snapshot)
-        raw_adjacent = [
-            monster for monster in raw_hostiles
-            if player.position.distance_to(monster.position) <= 1
-        ]
+        strategic_hostiles = self._strategic_hostiles(snapshot)
+        strategic_adjacent = self._strategic_adjacent_hostiles(snapshot)
+        physical_hostiles = self._physical_hostiles(snapshot)
+        physical_adjacent = self._physical_adjacent_hostiles(snapshot)
         self._update_mining_combat_streaks(
-            snapshot, raw_hostiles, raw_adjacent
+            snapshot, physical_hostiles, physical_adjacent
         )
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
 
-        self._latch_unviable_quest_return(snapshot, hostiles)
+        self._latch_unviable_quest_return(snapshot, strategic_hostiles)
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
+        # Emergency material-threat spending deliberately stays strategic. A
+        # suppressed weak breeder must not re-arm emergency return after a
+        # teleport; disabling blows are covered by the physical status rung.
         emergency_hostiles = (
-            self._quest_strategy_emergency_hostiles(snapshot, profile, hostiles)
+            self._quest_strategy_emergency_hostiles(
+                snapshot, profile, strategic_hostiles
+            )
             if profile is not None
-            else hostiles
+            else strategic_hostiles
         )
         summoner_ranged = self._summoner_ranged_kill_key(
             snapshot, emergency_hostiles
@@ -2850,15 +2852,17 @@ class HengbotPolicy:
             self._escape_state.release()
 
         unseen_intercept = self._unseen_retreat_intercept_key(
-            snapshot, hostiles, adjacent
+            snapshot, physical_hostiles, physical_adjacent
         )
         unseen_action = unseen_intercept
         if unseen_action is None:
-            unseen_action = self._unseen_retreat_key(snapshot, hostiles)
+            unseen_action = self._unseen_retreat_key(
+                snapshot, physical_hostiles
+            )
         detected_preparation = None
         if unseen_action is None:
             detected_preparation = self._detected_threat_preparation_key(
-                snapshot, hostiles
+                snapshot, physical_hostiles
             )
         contested_action = unseen_action or detected_preparation
         if contested_action is not None:
@@ -2869,7 +2873,7 @@ class HengbotPolicy:
             town_return = (
                 None
                 if self._escape_state.owner not in {None, "return", "unseen"}
-                else self._return_to_town_key(snapshot, hostiles)
+                else self._return_to_town_key(snapshot, strategic_hostiles)
             )
             if town_return is not None:
                 return town_return
@@ -2898,14 +2902,14 @@ class HengbotPolicy:
             # Approved-floor survival remains above the navigator. Keeping this
             # scoped to the quest branch preserves byte-for-byte dispatch order
             # on every non-quest floor.
-            survival = self._survival_gate_key(snapshot, hostiles)
+            survival = self._survival_gate_key(snapshot, physical_hostiles)
             if survival is not None:
                 return survival
             # Approved quest navigation owns the whole floor and returns before
             # the ordinary light-maintenance block below. Refill during a quiet
             # turn so a long fixed-map sweep cannot consume every remaining turn
             # of lantern fuel while oil is already in the pack.
-            if not hostiles and not player.confused:
+            if not physical_hostiles and not player.confused:
                 refill = self._light_refill_item(snapshot)
                 if refill is not None:
                     self.last_reason = "refill-light"
@@ -2922,21 +2926,23 @@ class HengbotPolicy:
             if (
                 quest is not None
                 and quest.status == QUEST_STATUS_COMPLETED
-                and not hostiles
+                and not strategic_hostiles
             ):
                 # Fixed-quest sweep would otherwise treat a chest as generic
                 # loot and carry it out unopened. Process it on this floor so
                 # only Chest::open() contents enter the pack.
                 chest = self._chest_processing_key(
                     snapshot,
-                    hostiles,
+                    physical_hostiles,
                     allowed_positions={Q34_WOODEN_CHEST_POSITION}
                     if profile.quest_id == 34
                     else None,
                 )
                 if chest is not None:
                     return chest
-            return navigator.decide(self, snapshot, hostiles, adjacent)
+            return navigator.decide(
+                self, snapshot, strategic_hostiles, strategic_adjacent
+            )
 
         # A reviewed one-shot quest is entered on the assumption that its carried
         # Speed dose is part of the action-economy budget.  Spend it on first
@@ -2945,7 +2951,7 @@ class HengbotPolicy:
         if (
             active_quest is not None
             and self.approved_quest_strategy(active_quest) is None
-            and hostiles
+            and strategic_hostiles
             and self._unviable_quest_floor != snapshot.floor_key
             and not self._fixed_quest_speed_attempted
         ):
@@ -2960,7 +2966,7 @@ class HengbotPolicy:
         #     Cyclops killed a clvl-4 bot here). Survival is the ONLY goal: flee,
         #     recall to safety, never shop/explore/fight for XP.
         if snapshot.on_open_wilderness:
-            return self._wilderness_survival_key(snapshot, hostiles)
+            return self._wilderness_survival_key(snapshot, physical_hostiles)
 
         # Town is cleared before errands resume.  Unlike dungeon hunting this is
         # deliberately unconditional: every visible non-pet monster is a target,
@@ -2970,21 +2976,25 @@ class HengbotPolicy:
             return town_kill
 
         # 0b. Ride out confusion in a safe spot rather than stumbling randomly.
-        if player.confused and not hostiles:
+        if player.confused and not physical_hostiles:
             self.last_reason = "confused:wait"
             return WAIT_KEY
 
-        breakthrough = self._breeder_breakthrough_key(snapshot, hostiles)
+        breakthrough = self._breeder_breakthrough_key(
+            snapshot, strategic_hostiles
+        )
         if breakthrough is not None:
             return breakthrough
 
-        breeders = [monster for monster in hostiles if monster.can_multiply]
+        breeders = [
+            monster for monster in strategic_hostiles if monster.can_multiply
+        ]
         if (
             breeders
             and self._breeder_breakthrough_floor != snapshot.floor_key
         ):
             breeder_adjacent = [
-                monster for monster in adjacent if monster.can_multiply
+                monster for monster in strategic_adjacent if monster.can_multiply
             ]
             ranged = self._ranged_attack_key(
                 snapshot, breeders, breeder_adjacent
@@ -2996,7 +3006,9 @@ class HengbotPolicy:
         # ahead of ordinary combat so the same cluster cannot pull us back in.
         disengage = None
         if not self._productive_choke_hold(snapshot):
-            disengage = self._fruitless_disengage_key(snapshot, hostiles)
+            disengage = self._fruitless_disengage_key(
+                snapshot, strategic_hostiles
+            )
         if disengage is not None:
             return disengage
         if self._escape_state.owner == "disengage":
@@ -3009,7 +3021,7 @@ class HengbotPolicy:
         # floor-level disengage while it is visible; the latch survives BLINK
         # and TELEPORT interruptions that reset the contiguous combat tracker.
         unprofitable_unique = self._unprofitable_unique_disengage_key(
-            snapshot, hostiles
+            snapshot, strategic_hostiles
         )
         if unprofitable_unique is not None:
             return unprofitable_unique
@@ -3019,7 +3031,7 @@ class HengbotPolicy:
             and self._breeder_breakthrough_floor == snapshot.floor_key
         ):
             combat_equip = self._fundraising_combat_equipment_key(
-                snapshot, raw_hostiles
+                snapshot, physical_hostiles
             )
             if combat_equip is not None:
                 return combat_equip
@@ -3029,14 +3041,14 @@ class HengbotPolicy:
         # Keep the diggers on while a missile can repel the approach; once
         # contact persists, re-arm before any ordinary melee decision.
         mining_hostiles = (
-            raw_hostiles
+            physical_hostiles
             if self._fundraising_mode in {"mine", "scavenge"}
-            else hostiles
+            else strategic_hostiles
         )
         mining_adjacent = (
-            raw_adjacent
+            physical_adjacent
             if self._fundraising_mode in {"mine", "scavenge"}
-            else adjacent
+            else strategic_adjacent
         )
         swarm_combat = self._melee_swarm_combat_key(
             snapshot, mining_hostiles, mining_adjacent
@@ -3045,7 +3057,9 @@ class HengbotPolicy:
             return swarm_combat
 
         # 1. Survival: flee when hurt, swarmed, or too afraid to fight back.
-        status_threats = self._unresisted_melee_status_threats(snapshot, hostiles)
+        status_threats = self._unresisted_melee_status_threats(
+            snapshot, physical_hostiles
+        )
         if status_threats:
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
@@ -3088,7 +3102,13 @@ class HengbotPolicy:
             self.last_reason = "status-threat:wait"
             return WAIT_KEY
 
-        if self._should_flee(snapshot, hostiles, adjacent):
+        # Ordinary flee deliberately stays strategic: once weak-breeder
+        # extermination is impossible, their mere presence must not turn the
+        # approved walk-out into flight. Physical status and escape hazards are
+        # handled by the dedicated rungs above.
+        if self._should_flee(
+            snapshot, strategic_hostiles, strategic_adjacent
+        ):
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
                 self.last_reason = (
@@ -3105,7 +3125,7 @@ class HengbotPolicy:
                 )
                 and (
                     blocker := self._blocking_escape_melee_key(
-                        snapshot, hostiles, self._is_upstairs_target
+                        snapshot, physical_hostiles, self._is_upstairs_target
                     )
                 )
                 is not None
@@ -3115,14 +3135,16 @@ class HengbotPolicy:
                 # generic flee rung retreating back into the floor.
                 self.last_reason = "combat:disengage-clear-path"
                 return blocker
-            step = self._flee_step(snapshot, hostiles)
+            step = self._flee_step(snapshot, strategic_hostiles)
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
                 # (notably for an over-level monster).  Persist the abandoned
                 # square here as well, otherwise a remembered loot target can
                 # immediately route back into it when the monster flickers out
                 # of view, producing a seek-loot/flee two-cell oscillation.
-                if self._predicted_damage(snapshot, hostiles, turns=3) >= (
+                if self._predicted_damage(
+                    snapshot, strategic_hostiles, turns=3
+                ) >= (
                     player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
                 ):
                     self._engagement_avoid_cells.add(snapshot.player.position)
@@ -3134,9 +3156,11 @@ class HengbotPolicy:
             if scroll is not None:
                 self.last_reason = "flee:scroll"
                 return READ_KEY + scroll.slot
-            if adjacent and not player.afraid:
+            if strategic_adjacent and not player.afraid:
                 self.last_reason = "flee:cornered-attack"
-                return self._direction_key(player.position, self._weakest(adjacent).position)
+                return self._direction_key(
+                    player.position, self._weakest(strategic_adjacent).position
+                )
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
@@ -3147,14 +3171,14 @@ class HengbotPolicy:
         # free hits every step (and a faster summoner stays adjacent the whole
         # way) — kill it instead; melee below already targets summoners first.
         summoners = [
-            monster for monster in hostiles
+            monster for monster in strategic_hostiles
             if monster.can_summon and not monster.asleep
         ]
         # A KILL_NUMBER pack gets the same reviewed choke-point movement as a
         # summoner fight.  The normal ranged phase below then softens pursuers.
         corridor_threats = summoners
         if summoners and self._active_kill_quest_id(snapshot) is not None:
-            corridor_threats = hostiles
+            corridor_threats = strategic_hostiles
         summoner_adjacent = any(
             player.position.distance_to(monster.position) <= 1 for monster in corridor_threats
         )
@@ -3179,7 +3203,9 @@ class HengbotPolicy:
                     else "summoner:stairs"
                 )
                 return UP_STAIRS_KEY
-            step = self._summoner_retreat_step(snapshot, corridor_threats, hostiles)
+            step = self._summoner_retreat_step(
+                snapshot, corridor_threats, strategic_hostiles
+            )
             if step is not None:
                 self.last_reason = "summoner:retreat"
                 return self._step_toward(snapshot, step)
@@ -3192,10 +3218,14 @@ class HengbotPolicy:
 
         # With no approved fixed-map profile, a visible runtime quest race owns
         # ordinary combat selection after all emergency/flee/reposition gates.
-        quest_targets = self._locked_kill_quest_targets(snapshot, hostiles)
-        combat_hostiles = quest_targets or hostiles
+        quest_targets = self._locked_kill_quest_targets(
+            snapshot, strategic_hostiles
+        )
+        combat_hostiles = quest_targets or strategic_hostiles
         combat_adjacent = [
-            monster for monster in adjacent if monster in combat_hostiles
+            monster
+            for monster in strategic_adjacent
+            if monster in combat_hostiles
         ]
 
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
@@ -3223,10 +3253,10 @@ class HengbotPolicy:
         # 19F, three fast monsters at distance two were already worth 57% of
         # current HP over three turns; ordinary exploration then stepped into
         # their pack and turned them into a five-monster surround.
-        if hostiles and self._predicted_damage(
-            snapshot, hostiles, turns=3
+        if strategic_hostiles and self._predicted_damage(
+            snapshot, strategic_hostiles, turns=3
         ) >= player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO:
-            step = self._flee_step(snapshot, hostiles)
+            step = self._flee_step(snapshot, strategic_hostiles)
             if step is not None:
                 # This is the same navigation veto as the projected-melee gate
                 # below.  Without persisting the abandoned square, generic
@@ -3254,11 +3284,13 @@ class HengbotPolicy:
         # one of those returns keys on its own and would otherwise starve this
         # step of decisions — which is exactly how a mining run walked a
         # character to food_state "weak" with an empty pack (2026-07-17).
-        survival = self._survival_gate_key(snapshot, hostiles)
+        survival = self._survival_gate_key(snapshot, physical_hostiles)
         if survival is not None:
             return survival
 
-        mana_food_loot = self._mana_food_loot_key(snapshot, hostiles)
+        mana_food_loot = self._mana_food_loot_key(
+            snapshot, strategic_hostiles
+        )
         if mana_food_loot is not None:
             return mana_food_loot
 
@@ -3298,7 +3330,7 @@ class HengbotPolicy:
         # Native travel can cross most of town without another bot decision.
         # Eat first once hunger is visible so a long shop trip cannot continue
         # into weakness merely because the ordinary food check is later below.
-        if snapshot.in_town and player.hungry and not hostiles:
+        if snapshot.in_town and player.hungry and not physical_hostiles:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
@@ -3307,7 +3339,7 @@ class HengbotPolicy:
         # Wilderness monsters can enter town, so shopping is not safe while
         # injured. After an unseen hit, head for the nearest store entrance;
         # otherwise recover fully before crossing town again.
-        if snapshot.in_town and not hostiles:
+        if snapshot.in_town and not physical_hostiles:
             if self._took_damage:
                 shelter = self._nearest_goal_step(snapshot, lambda grid: grid.is_store)
                 if shelter is not None:
@@ -3329,15 +3361,17 @@ class HengbotPolicy:
         if conquest_loot is not None:
             return conquest_loot
 
-        fixed_quest = self._fixed_quest_key(snapshot, hostiles)
+        fixed_quest = self._fixed_quest_key(snapshot, strategic_hostiles)
         if fixed_quest is not None:
             return fixed_quest
 
-        stat_restore = self._stat_restore_quaff_key(snapshot, hostiles)
+        stat_restore = self._stat_restore_quaff_key(
+            snapshot, physical_hostiles
+        )
         if stat_restore is not None:
             return stat_restore
 
-        stat_gain = self._stat_gain_quaff_key(snapshot, hostiles)
+        stat_gain = self._stat_gain_quaff_key(snapshot, physical_hostiles)
         if stat_gain is not None:
             return stat_gain
 
@@ -3345,7 +3379,7 @@ class HengbotPolicy:
         if bounty is not None:
             return bounty
 
-        fundraising = self._fundraising_key(snapshot, hostiles)
+        fundraising = self._fundraising_key(snapshot, strategic_hostiles)
         if fundraising is not None:
             return fundraising
 
@@ -3382,7 +3416,7 @@ class HengbotPolicy:
         # contents may themselves be the supplies (drop → step beside → s ×N →
         # D ×N → o ×N, the user-specified procedure). Emergencies never reach
         # here (handled at the top), so only the leisurely return is deferred.
-        chest = self._chest_processing_key(snapshot, hostiles)
+        chest = self._chest_processing_key(snapshot, physical_hostiles)
         if chest is not None:
             return chest
 
@@ -3399,7 +3433,7 @@ class HengbotPolicy:
         ):
             return_loot = self._normal_loot_key(
                 snapshot,
-                hostiles,
+                strategic_hostiles,
                 max_path_distance=RETURN_LOOT_SWEEP_MAX_DISTANCE,
                 seek_reason="return:seek-loot",
             )
@@ -3423,7 +3457,7 @@ class HengbotPolicy:
         town_return = (
             None
             if self._escape_state.owner not in {None, "return"}
-            else self._return_to_town_key(snapshot, hostiles)
+            else self._return_to_town_key(snapshot, strategic_hostiles)
         )
         if town_return is not None:
             self._escape_state.enter("return", self.last_reason)
@@ -3479,7 +3513,7 @@ class HengbotPolicy:
             return equipment_transaction
 
         if not self._emergency_return_active:
-            loot = self._normal_loot_key(snapshot, hostiles)
+            loot = self._normal_loot_key(snapshot, strategic_hostiles)
             if loot is not None:
                 return loot
 
@@ -3545,7 +3579,7 @@ class HengbotPolicy:
         # blocks descent) and wanders the town forever. Skipped mid-fight.
         if (
             snapshot.in_town
-            and not adjacent
+            and not physical_adjacent
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
         ):
             overflow_destroy = self._town_overflow_destroy_key(snapshot)
@@ -3573,7 +3607,9 @@ class HengbotPolicy:
             # normal opportunity. At the ordinary departure boundary, shortage
             # permits only the established fundraising or restock-wait flow.
             if self._start_fundraising(snapshot):
-                fundraising = self._fundraising_key(snapshot, hostiles)
+                fundraising = self._fundraising_key(
+                    snapshot, strategic_hostiles
+                )
                 if fundraising is not None:
                     return fundraising
             recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
@@ -3650,8 +3686,11 @@ class HengbotPolicy:
         # Preserve higher-priority concrete work such as safe loot recovery,
         # but retreat before descent, hunting, or generic exploration can
         # close into the engagement and alternate with the threat gate.
-        if any(self._material_melee_engagement(snapshot, monster) for monster in hostiles):
-            step = self._flee_step(snapshot, hostiles)
+        if any(
+            self._material_melee_engagement(snapshot, monster)
+            for monster in strategic_hostiles
+        ):
+            step = self._flee_step(snapshot, strategic_hostiles)
             if step is not None:
                 # Treat the retreat as a navigation veto, not a one-turn move.
                 # A committed explore path otherwise walks straight back here.
@@ -3670,8 +3709,8 @@ class HengbotPolicy:
             # the stairs. Chasing a fallback frontier makes the monster vanish
             # from sight, after which we turn back toward the stairs forever.
             # Clear an easy blocker instead of bouncing at the visibility edge.
-            if self.last_reason == "approach-descent" and hostiles:
-                clear_step = self._hunt_step(snapshot, hostiles)
+            if self.last_reason == "approach-descent" and strategic_hostiles:
+                clear_step = self._hunt_step(snapshot, strategic_hostiles)
                 if clear_step is not None:
                     self.last_reason = "clear-descent"
                     return self._step_toward(snapshot, clear_step)
@@ -3681,14 +3720,14 @@ class HengbotPolicy:
             return self._step_toward(snapshot, step)
 
         # 7. Eat when hungry and it is safe to do so.
-        if player.hungry and not hostiles:
+        if player.hungry and not physical_hostiles:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "eat"
                 return EAT_KEY + food.slot
 
         # 7. Opportunistic hunt for easy XP while no downstairs is in sight.
-        step = self._hunt_step(snapshot, hostiles)
+        step = self._hunt_step(snapshot, strategic_hostiles)
         if step is not None:
             self.last_reason = "hunt"
             return self._step_toward(snapshot, step)

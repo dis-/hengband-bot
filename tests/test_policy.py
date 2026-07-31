@@ -1,4 +1,7 @@
+import ast
+import inspect
 import json
+import textwrap
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -864,6 +867,54 @@ class CombatTest(unittest.TestCase):
         ):
             with self.subTest(name=explicit_name):
                 self.assertTrue(hasattr(policy, explicit_name))
+
+    def test_decide_routes_physical_consumers_only_physical_views(self):
+        tree = ast.parse(textwrap.dedent(inspect.getsource(HengbotPolicy._decide)))
+        calls = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            if not isinstance(function, ast.Attribute):
+                continue
+            calls.setdefault(function.attr, []).append(node)
+
+        expected_arguments = {
+            "_unseen_retreat_intercept_key": (
+                "physical_hostiles", "physical_adjacent",
+            ),
+            "_unseen_retreat_key": ("physical_hostiles",),
+            "_detected_threat_preparation_key": ("physical_hostiles",),
+            "_survival_gate_key": ("physical_hostiles",),
+            "_wilderness_survival_key": ("physical_hostiles",),
+            "_unresisted_melee_status_threats": ("physical_hostiles",),
+            "_blocking_escape_melee_key": ("physical_hostiles",),
+            "_stat_restore_quaff_key": ("physical_hostiles",),
+            "_stat_gain_quaff_key": ("physical_hostiles",),
+            "_chest_processing_key": ("physical_hostiles",),
+        }
+        for consumer, required_names in expected_arguments.items():
+            with self.subTest(consumer=consumer):
+                self.assertIn(consumer, calls)
+                for call in calls[consumer]:
+                    argument_names = {
+                        argument.id
+                        for argument in call.args
+                        if isinstance(argument, ast.Name)
+                    }
+                    self.assertTrue(set(required_names) <= argument_names)
+                    self.assertFalse(
+                        {"strategic_hostiles", "strategic_adjacent"}
+                        & argument_names
+                    )
+
+        decide_names = {
+            node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+        }
+        self.assertFalse(
+            {"hostiles", "adjacent", "raw_hostiles", "raw_adjacent"}
+            & decide_names
+        )
 
     def test_only_path_blocking_weak_breeder_is_attacked(self):
         snapshot = self._weak_breeder_incident_snapshot(blocking=True)
@@ -15162,6 +15213,36 @@ class PredictiveEscapeTest(unittest.TestCase):
         protected_policy = HengbotPolicy(monrace_knowledge={6002: knowledge})
         self.assertEqual(protected_policy.choose_key(protected), "6")
         self.assertEqual(protected_policy.last_reason, "melee")
+
+    def test_suppressed_weak_breeder_paralysis_remains_a_status_threat(self):
+        monster = replace(
+            hostile(
+                1, 10, 11, distance=1, max_melee_damage=1,
+                can_multiply=True,
+            ),
+            race_id=6004,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            level=10,
+            max_melee_damage=1,
+            blows=(MonsterBlow("TOUCH", "PARALYZE", 1, 1),),
+        )
+        snapshot = self._line_snapshot(
+            monster,
+            hp=100,
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={6004: knowledge})
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.last_reason, "status-threat:scroll")
 
     def test_status_threat_retreat_vetoes_immediate_explore_return(self):
         monster = replace(
