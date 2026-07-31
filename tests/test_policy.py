@@ -144,7 +144,6 @@ from hengbot.policy import (
     FUNDRAISING_KIT_RESERVE,
     FUNDRAISING_START_GOLD,
     FIXED_QUEST_CURE_CRITICAL_HP,
-    FIXED_QUEST_LEVEL_MARGIN,
     QUEST_STATUS_COMPLETED,
     QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED,
@@ -4734,13 +4733,17 @@ class DescendTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(floor_ten), "<")
         self.assertNotEqual(policy.choose_key(returned), ">")
 
-    def test_retries_descent_after_gaining_a_level(self):
+    def test_level_gain_does_not_release_descent_cooldown(self):
         policy = HengbotPolicy()
         grids = {Position(10, 10): grid(10, 10, downstairs=True)}
-        policy._descent_blocked_at_level = 10
+        policy._descent_blocked = True
+        policy._descent_block_countdown = 2
         snapshot = Snapshot(
             player(10, 10, level=11), grids, [], turn=300, floor_key=(2, 9, 0)
         )
+        self.assertNotEqual(policy.choose_key(snapshot), ">")
+
+        policy._descent_block_countdown = 0
         self.assertEqual(policy.choose_key(snapshot), ">")
 
     def test_prime_remembers_a_dangerous_landing_for_the_follow_process(self):
@@ -7548,7 +7551,7 @@ class FixedQuestTest(unittest.TestCase):
         policy._build_grid_index(snapshot)
         self.assertEqual(policy._town_teleport_key(snapshot, 1), "6mb")
 
-    def test_readiness_uses_static_level_plus_safety_margin(self):
+    def test_readiness_does_not_use_player_level(self):
         info = QuestInfo(18, "Water Cave", 4, 35, 6, placed_monsters=((44, 1),))
         harmless = MonraceKnowledge(1, 110, False, False)
         policy = HengbotPolicy(
@@ -7557,7 +7560,7 @@ class FixedQuestTest(unittest.TestCase):
         snapshot = replace(
             self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
             player=player(
-                26, 97, level=info.level + FIXED_QUEST_LEVEL_MARGIN,
+                26, 97, level=1,
                 hp=100, max_hp=100, main_hand_blows=4, main_hand_to_d=10,
             ),
             equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True,
@@ -7566,11 +7569,6 @@ class FixedQuestTest(unittest.TestCase):
         policy._combat_weapon_ready = lambda _snapshot: True
         policy._town_departure_ready = lambda _snapshot: True
         self.assertTrue(policy._fixed_quest_ready(snapshot, 18))
-        too_early = replace(
-            snapshot,
-            player=replace(snapshot.player, level=snapshot.player.level - 1),
-        )
-        self.assertFalse(policy._fixed_quest_ready(too_early, 18))
 
     def test_fixed_quest_kill_time_counts_both_dual_wielded_weapons(self):
         info = QuestInfo(
@@ -8336,7 +8334,7 @@ class FixedQuestTest(unittest.TestCase):
                 snapshot = replace(
                     self._town_snapshot(26, 97, {Position(26, 97): grid(26, 97)}, 0),
                     player=player(
-                        26, 97, level=quests[quest_id].level + FIXED_QUEST_LEVEL_MARGIN,
+                        26, 97, level=1,
                         hp=100000, max_hp=100000, main_hand_blows=10,
                         main_hand_to_d=100000,
                     ),
@@ -15563,6 +15561,40 @@ class PredictiveEscapeTest(unittest.TestCase):
 
 
 class SummonerMeleeTest(unittest.TestCase):
+    def test_resume_landing_does_not_use_open_neighbor_summoner_gate(self):
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, 10): grid(10, 10, upstairs=True),
+                Position(10, 14): grid(10, 14, monster=True),
+            },
+            [hostile(1, 10, 14, distance=4, can_summon=True)],
+            floor_key=(1, 5, 0),
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(policy, "_open_neighbor_count", return_value=8):
+            policy.prime(snapshot)
+
+        self.assertFalse(policy._descent_blocked)
+
+    def test_summoner_cover_step_does_not_use_open_neighbor_gate(self):
+        snapshot = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                Position(9, 11): grid(9, 11, passable=False),
+            },
+            [],
+            floor_key=(1, 5, 0),
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+
+        with patch.object(policy, "_open_neighbor_count", return_value=8):
+            self.assertTrue(policy._summoner_cover_in_one_step(snapshot))
+
     def test_killable_distant_summoner_is_shot_before_open_terrain_escape(self):
         grids = {
             Position(y, x): grid(
@@ -26267,11 +26299,11 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol._last_overextended_depth = 30  # reached L30 there before bailing
         self.assertEqual(pol._pick_alternate_dungeon(self._town()), 3)
 
-    def test_skips_dungeons_above_the_characters_recommended_level(self):
+    def test_alternate_selection_does_not_use_player_level(self):
         pol = self._policy()
         pol._last_overextended_depth = 26
-        snap = self._town(clvl=3)  # too weak for Mountain(20), Orc(5), Forest(5)
-        self.assertIsNone(pol._pick_alternate_dungeon(snap))
+        snap = self._town(clvl=3)
+        self.assertEqual(pol._pick_alternate_dungeon(snap), 3)
 
     def test_never_picks_a_conquered_forgetting_maze_as_fallback(self):
         pol = self._policy()
@@ -26359,7 +26391,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol = self._policy()
         self._run_dive(pol, **self.OVEREXTENDED)
         self._run_dive(pol, **self.OVEREXTENDED)
-        self._run_dive(pol, loot=3)  # a real haul resets the counter
+        self._run_dive(pol, loot=5)  # above the four-pickup bar resets the counter
         self.assertEqual(pol._target_empty_dives, 0)
         self._run_dive(pol, **self.OVEREXTENDED)
         self.assertIsNone(pol._alternate_dungeon)  # streak restarted, no switch yet
@@ -26414,20 +26446,24 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_dungeon_id, 3)
         self.assertIsNone(pol._conquest_committed)
 
-    def test_conquest_target_can_return_after_alternate_period(self):
+    def test_guardian_conquest_discards_alternate_and_selects_ordinary_target(self):
         pol = self._policy()
         pol._alternate_dungeon = 14
+        pol._last_overextended_depth = 26
         pol._target_dungeon_id = 14
         abilities = self.MOUNTAIN_SAFE | {"resist_chaos"}
-        snap = self._town(
+        before = self._town(
             clvl=30, recall_depth=32, abilities=abilities,
-            conquered=(3, 4, 14), angband_unlocked=False,
+            conquered=(3, 4), angband_unlocked=False,
         )
+        conquered = replace(before, conquered_dungeon_ids=(3, 4, 14))
 
         with patch.object(pol, "_guardian_fight_viable", return_value=True):
-            pol._observe(snap)
+            pol._observe(before)
+            pol._observe(conquered)
 
         self.assertIsNone(pol._alternate_dungeon)
+        self.assertEqual(pol._last_overextended_depth, 0)
         self.assertEqual(pol._conquest_committed, 7)
         self.assertEqual(pol._target_dungeon_id, 7)
 
@@ -26448,12 +26484,16 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._conquest_committed, 7)
         self.assertIsNone(pol._alternate_dungeon)
 
-    def test_a_dangerous_but_looted_dive_is_not_over_extended(self):
-        # Bailing out repeatedly is fine as long as the pack came back full — that
-        # is a hot dungeon we can still farm, not one too deep to loot.
+    def test_four_pickups_still_count_as_over_extended(self):
         pol = self._policy()
         for _ in range(EMPTY_DIVE_LIMIT):
             self._run_dive(pol, loot=4, emergencies=3)
+        self.assertEqual(pol._alternate_dungeon, 3)
+
+    def test_five_pickups_reset_the_over_extension_streak(self):
+        pol = self._policy()
+        self._run_dive(pol, **self.OVEREXTENDED)
+        self._run_dive(pol, loot=5, emergencies=3)
         self.assertEqual(pol._target_empty_dives, 0)
         self.assertIsNone(pol._alternate_dungeon)
 
@@ -26502,13 +26542,14 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_empty_dives, 0)
         self.assertIsNone(pol._alternate_dungeon)
 
-    def test_returns_to_angband_once_strong_enough(self):
+    def test_level_gain_does_not_release_alternate(self):
         pol = self._policy()
         pol._alternate_dungeon = 14
         pol._last_overextended_depth = 26
-        pol._observe(self._town(clvl=30))  # reached Angband's recommended level
-        self.assertIsNone(pol._alternate_dungeon)
-        self.assertEqual(pol._target_dungeon_id, DUNGEON_ANGBAND)
+        pol._observe(self._town(clvl=50))
+        self.assertEqual(pol._alternate_dungeon, 14)
+        self.assertEqual(pol._last_overextended_depth, 26)
+        self.assertEqual(pol._target_dungeon_id, 14)
 
     def test_loadout_depth_fallback_survives_town_observation_at_main_level(self):
         pol = self._policy()
@@ -28943,7 +28984,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "emergency:teleport")
         self.assertIsNone(policy._unique_combat_committed_race_id)
 
-    def test_unviable_random_quest_target_gives_up_and_latch_survives_flicker(self):
+    def test_unviable_random_quest_latch_does_not_force_level_based_flee(self):
         snapshot, _, knowledge = self._snapshot(
             hp=515,
             max_hp=515,
@@ -28963,8 +29004,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, "qs")
-        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+        self.assertEqual(key, "6")
         self.assertEqual(policy._unviable_quest_floor, snapshot.floor_key)
         self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy._last_return_trigger, "quest-unviable")
@@ -28995,8 +29035,9 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
-        self.assertEqual(policy.choose_key(snapshot), "qs")
-        self.assertEqual(policy._unviable_quest_floor, snapshot.floor_key)
+        policy._unviable_quest_floor = snapshot.floor_key
+        policy._returning_to_town = True
+        policy._last_return_trigger = "quest-unviable"
 
         endangered = replace(
             snapshot,
@@ -29469,7 +29510,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "melee")
 
-    def test_overlevel_winnable_nonbreeder_does_not_flee(self):
+    def test_monster_level_does_not_force_flee_from_winnable_nonbreeder(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=616,
             max_hp=616,
@@ -29486,7 +29527,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
 
-    def test_overlevel_unwinnable_monster_still_flees(self):
+    def test_monster_level_does_not_force_flee_from_unwinnable_monster(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=200,
             max_hp=200,
@@ -29501,9 +29542,9 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertFalse(
             policy._fruitless_fight_is_winnable(snapshot, [monster])
         )
-        self.assertTrue(policy._should_flee(snapshot, [monster], [monster]))
+        self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
 
-    def test_low_hp_still_flees_from_overlevel_winnable_nonbreeder(self):
+    def test_low_hp_still_flees_regardless_of_monster_level(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=79,
             max_hp=200,
@@ -29520,7 +29561,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         self.assertTrue(policy._should_flee(snapshot, [monster], [monster]))
 
-    def test_overlevel_breeder_and_unique_still_flee(self):
+    def test_monster_level_does_not_force_breeder_or_unique_flee(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=616,
             max_hp=616,
@@ -29537,7 +29578,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertFalse(
             breeder_policy._fruitless_fight_is_winnable(snapshot, [breeder])
         )
-        self.assertTrue(
+        self.assertFalse(
             breeder_policy._should_flee(snapshot, [breeder], [breeder])
         )
 
@@ -29545,7 +29586,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertFalse(
             unique_policy._fruitless_fight_is_winnable(snapshot, [monster])
         )
-        self.assertTrue(
+        self.assertFalse(
             unique_policy._should_flee(snapshot, [monster], [monster])
         )
 
@@ -34413,7 +34454,7 @@ class EntranceTravelTest(unittest.TestCase):
                 if cooldown:
                     # Live character #5 had just escaped Yeek 1F via
                     # status-threat:stairs, which arms this 200-decision gate.
-                    pol._descent_blocked_at_level = snap.player.level
+                    pol._descent_blocked = True
                     pol._descent_block_countdown = 64
 
                 self.assertTrue(pol._fundraising_kit_secured(snap))
@@ -34435,7 +34476,7 @@ class EntranceTravelTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._floor_key = snap.floor_key
         pol._target_dungeon_id = DUNGEON_YEEK_CAVE
-        pol._descent_blocked_at_level = snap.player.level
+        pol._descent_blocked = True
         pol._descent_block_countdown = 64
 
         self.assertNotEqual(pol.choose_key(snap), "\x1b`n>.")
@@ -37659,6 +37700,13 @@ class DungeonConquestTest(unittest.TestCase):
     def test_no_target_when_all_reachable_dungeons_are_conquered(self):
         pol = self._policy()
         self.assertIsNone(pol._conquest_target(self._snap(self.ALL_2530, conquered=(3, 4))))
+
+    def test_conquest_target_does_not_use_player_level(self):
+        pol = self._policy()
+        snapshot = self._snap(self.ALL_2530, conquered=(), clvl=1)
+
+        with patch.object(pol, "_guardian_fight_viable", return_value=True):
+            self.assertEqual(pol._conquest_target(snapshot), 3)
 
     def test_chameleon_cave_is_never_a_conquest_target_or_commitment(self):
         knowledge = self._dk()

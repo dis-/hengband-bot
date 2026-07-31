@@ -128,7 +128,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_unenterable_explore_goals",
         "_window_edge_goals",
         "_descent_target_goal",
-        "_descent_blocked_at_level",
+        "_descent_blocked",
         "_descent_block_countdown",
         "_descent_refusal_reason",
         "_remembered_downstairs",

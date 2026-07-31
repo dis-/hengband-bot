@@ -50,7 +50,7 @@ class FlightRecorderTest(unittest.TestCase):
             _unenterable_explore_goals={Position(6, 6)},
             _window_edge_goals={Position(7, 7)},
             _descent_target_goal=Position(2, 2),
-            _descent_blocked_at_level=10,
+            _descent_blocked=True,
             _descent_block_countdown=2,
             _descent_refusal_reason="descent-cooldown",
             _fundraising_mode="mine",

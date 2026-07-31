@@ -418,10 +418,6 @@ FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})
 # Morivant, and Angwil are building 4.  Zul's tavern does not offer town
 # teleportation, so it is intentionally absent.
 TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
-# A three-level buffer preserves the proven Thieves' Hideout gate (5 -> 8)
-# and adds modest insurance before committing to another one-shot floor.  The
-# full-health, loadout, pack-space, and departure gates below still all apply.
-FIXED_QUEST_LEVEL_MARGIN = 3
 # Fixed quest maps are one-shot commitments.  Quest 25 and 28 are open rooms,
 # so model the eight most dangerous placed monsters occupying every adjacent
 # grid. Acceptance requires operational three-turn damage to be strictly below
@@ -506,7 +502,6 @@ FRONTIER_EXHAUST_VISITS = 8
 SUMMONER_RANGED_KILL_SHOTS = 3
 SUMMONER_EXPOSED_NEIGHBORS = 4
 FLEE_HP_RATIO = 0.40  # below this, break off and run from any hostile
-OVERLEVEL_FLEE_MARGIN = 5  # static race level this far above clvl is overwhelming
 SWARM_COUNT = 3  # a swarm starts at this many adjacent hostiles...
 # ...but the bot flees it only when those hostiles could carve off a big share of
 # HP over the next few turns. Judging by predicted damage (not a raw count or
@@ -748,7 +743,7 @@ THREAT_PREDICTION_MEMO_LIMIT = 8
 # a few hundred distinct (race, actions, distance, player-profile) combinations,
 # and every input is part of the key, so entries can never go stale.
 AGGREGATE_RANGED_CACHE_LIMIT = 4096
-OVEREXTEND_LOOT_MAX = 1  # "almost nothing": at most this many pickups on the dive
+OVEREXTEND_LOOT_MAX = 4  # "almost nothing": at most this many pickups on the dive
 OVEREXTEND_EMERGENCY_MIN = 2  # ...paired with at least this many emergency escapes
 PICKUP_REASONS = frozenset({"pickup", "victory:pickup", "conquest:pickup"})
 # Bailing out under fire: teleport/phase away, recall out, or run for the stairs.
@@ -762,7 +757,6 @@ EMERGENCY_ESCAPE_REASONS = frozenset(
         "emergency:seek-upstairs",
     }
 )
-SUMMONER_OPEN_NEIGHBORS = 5
 SUMMONER_CHOKE_NEIGHBORS = 3
 
 # Descending / healing. Dive only when healthy, and recover between fights so we
@@ -1703,7 +1697,7 @@ class HengbotPolicy:
         # distinct defect from a transport failure at unchanged gold.
         self._last_buy_progress_sig: tuple[str, int, int] | None = None
         self._store_buy_no_progress_count = 0
-        self._descent_blocked_at_level: int | None = None
+        self._descent_blocked = False
         self._descent_block_countdown = 0
         self._returning_to_town = False
         self._last_return_trigger: str | None = None  # why the last town return began
@@ -2489,20 +2483,14 @@ class HengbotPolicy:
             and here.has_down_stairs
             and snapshot.dungeon_level > 0
         ):
-            self._descent_blocked_at_level = snapshot.player.level
+            self._descent_blocked = True
             self._descent_block_countdown = RESUME_DESCENT_BLOCK_DECISIONS
         if here is None or not here.has_up_stairs:
             return
 
         hostiles = self._hostiles(snapshot)
         adjacent = self._adjacent_hostiles(snapshot)
-        summoners = [monster for monster in hostiles if monster.can_summon]
-        unsafe_summoner_landing = (
-            bool(summoners)
-            and self._open_neighbor_count(snapshot, snapshot.player.position)
-            >= SUMMONER_OPEN_NEIGHBORS
-        )
-        if self._should_flee(snapshot, hostiles, adjacent) or unsafe_summoner_landing:
+        if self._should_flee(snapshot, hostiles, adjacent):
             self._defer_descent(snapshot)
 
     def _break_livelock(self, snapshot: Snapshot, key: str) -> str:
@@ -4164,8 +4152,8 @@ class HengbotPolicy:
         # loot grabbed and the emergency escapes forced; a dive that came back with
         # almost nothing AND had to bail out repeatedly (see OVEREXTEND_* limits) is
         # judged over-extended. A run of them means the dungeon is beyond the
-        # character's ability, so switch to the deepest already-unlocked dungeon
-        # whose recommended level fits. ---
+        # character's ability, so switch to a shallower already-unlocked dungeon
+        # whose landing depth satisfies the required abilities. ---
         prev_dungeon = previous_floor[0] if previous_floor else 0
         if not snapshot.in_town:
             if prev_dungeon == 0:  # descended from town: a fresh dive begins
@@ -4240,6 +4228,19 @@ class HengbotPolicy:
             self._alternate_dungeon = None
             self._equipment_optimization_signature = None
             self._equipment_optimization_preparation = None
+        conquered_now = set(snapshot.conquered_dungeon_ids)
+        first_observation = previous_floor is None
+        if first_observation:
+            # A resumed process sees historical conquests as its baseline.
+            self._conquered_seen |= conquered_now
+            if snapshot.yeek_cave_conquered:
+                self._yeek_conquest_processed = True
+        newly_conquered = conquered_now - self._conquered_seen
+        if newly_conquered:
+            # A guardian clear ends the current over-extension diversion. Let
+            # ordinary target selection choose the next conquest/default dive.
+            self._alternate_dungeon = None
+            self._last_overextended_depth = 0
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             self._last_overextended_depth = snapshot.recall_depth
             alt = self._pick_alternate_dungeon(snapshot)
@@ -4271,18 +4272,10 @@ class HengbotPolicy:
                 self._alternate_dungeon = alt
                 self._conquest_committed = None
             self._no_depth_progress_dives = 0
-        # A switched target overrides the default until the character grows into the
-        # main dungeon's recommended level.
+        # A switched target overrides the ordinary selection until its lifecycle
+        # ends through conquest, loadout-fallback completion, or replacement.
         if self._alternate_dungeon is not None:
-            main = self._dungeon_knowledge.get(DUNGEON_ANGBAND)
-            if (
-                self._loadout_depth_fallback_dungeon is None
-                and main is not None
-                and snapshot.player.level >= main.min_player_level
-            ):
-                self._alternate_dungeon = None
-                self._last_overextended_depth = 0
-            elif self._alternate_dungeon in snapshot.entered_dungeon_ids:
+            if self._alternate_dungeon in snapshot.entered_dungeon_ids:
                 self._target_dungeon_id = self._alternate_dungeon
 
         # HIGHEST PRIORITY target: clear an unconquered dungeon whose bottom is within
@@ -4315,17 +4308,6 @@ class HengbotPolicy:
         # out (the user flagged the Yeek Cave reward being left behind). Cleared on
         # reaching town.
         current_dungeon = snapshot.floor_key[0]
-        conquered_now = set(snapshot.conquered_dungeon_ids)
-        first_observation = previous_floor is None
-        if first_observation:
-            # A resumed process sees every historical conquest in its first
-            # snapshot.  Treat that snapshot as the baseline; otherwise any
-            # ordinary kill on an already-conquered guardian floor re-arms the
-            # victory sweep and immediately recalls the character.
-            self._conquered_seen |= conquered_now
-            if snapshot.yeek_cave_conquered:
-                self._yeek_conquest_processed = True
-        newly_conquered = conquered_now - self._conquered_seen
         if (
             not snapshot.in_town
             and current_dungeon != DUNGEON_YEEK_CAVE
@@ -5713,14 +5695,6 @@ class HengbotPolicy:
             # if it ceases to be viable, normal retreat immediately resumes.
             return False
         if player.hp_ratio < FLEE_HP_RATIO:
-            return True
-        if (
-            any(
-                monster.level > player.level + OVERLEVEL_FLEE_MARGIN
-                for monster in hostiles
-            )
-            and not self._fruitless_fight_is_winnable(snapshot, hostiles)
-        ):
             return True
         # Surrounded: flee only if the swarm could take a big share of HP soon.
         # A raw adjacent count fled full-HP characters from weak (often sleeping)
@@ -19876,8 +19850,6 @@ class HengbotPolicy:
         profile = self.approved_quest_strategy(quest_id)
         if profile is not None and not self._approved_strategy_force_ready(snapshot, profile):
             return reject("strategy-force")
-        if profile is None and snapshot.player.level < info.level + FIXED_QUEST_LEVEL_MARGIN:
-            return reject("level-floor")
         if snapshot.player.hp < snapshot.player.max_hp:
             return reject("not-full-hp")
         if not self._temporary_status_clear(snapshot):
@@ -20803,8 +20775,6 @@ class HengbotPolicy:
                 continue
             if info.max_depth <= 0 or info.max_depth > limit:
                 continue  # cannot safely reach its guardian floor
-            if info.min_player_level > snapshot.player.level:
-                continue
             if not self._guardian_fight_viable(snapshot, info):
                 continue
             if best is None or info.max_depth > best.max_depth:
@@ -20823,12 +20793,11 @@ class HengbotPolicy:
     ) -> int | None:
         """Choose the shallowest safe dungeon already available to Recall."""
         # The deepest already-unlocked dungeon — excluding the over-deep main one
-        # and the Yeek Cave reserved for fundraising — whose recommended level the
-        # character meets and whose floor is SHALLOWER than the depth we could not
-        # loot at. Deepest-that-still-fits is the most rewarding for the level;
+        # and the Yeek Cave reserved for fundraising — whose floor is SHALLOWER
+        # than the depth we could not loot at. Deepest-that-still-fits is the most
+        # rewarding available fallback;
         # re-running after another empty streak (with _last_overextended_depth now
         # the switched dungeon's depth) steps down to a shallower one.
-        clvl = snapshot.player.level
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)
@@ -20849,8 +20818,6 @@ class HengbotPolicy:
                 continue
             if did == self._alternate_dungeon:
                 continue  # the one we are leaving — never re-pick it, always step down
-            if info.min_player_level > clvl:
-                continue
             landing_depth = snapshot.dungeon_recall_depths.get(did, info.min_depth)
             if max_entry_depth is None:
                 if landing_depth >= self._last_overextended_depth:
@@ -23636,8 +23603,6 @@ class HengbotPolicy:
 
     def _summoner_cover_in_one_step(self, snapshot: Snapshot) -> bool:
         for neighbor in self._walkable_neighbors(snapshot, snapshot.player.position):
-            if self._open_neighbor_count(snapshot, neighbor) >= SUMMONER_OPEN_NEIGHBORS:
-                continue
             # A clipped visibility/snapshot edge can look artificially narrow.
             # Count it as cover only when an observed wall or closed door creates
             # the narrowing.
@@ -23933,7 +23898,7 @@ class HengbotPolicy:
         return None
 
     def _defer_descent(self, snapshot: Snapshot) -> None:
-        self._descent_blocked_at_level = snapshot.player.level
+        self._descent_blocked = True
         self._descent_block_countdown = DESCENT_BLOCK_DECISIONS
 
     def _descent_is_blocked(self, snapshot: Snapshot) -> bool:
@@ -23992,17 +23957,10 @@ class HengbotPolicy:
                 # across that boundary only hides the entrance and hands town
                 # to stuck:wander after the mining kit is ready.
                 return False
-        if self._descent_blocked_at_level is None:
-            return False
-        # This global latch is keyed to character level: it lifts when we grow
-        # stronger or its cooldown runs out. One bad landing must not ratchet
-        # the bot upward forever when the shallower floors cannot supply a
-        # whole level of XP.
-        if snapshot.player.level > self._descent_blocked_at_level:
-            self._descent_blocked_at_level = None
+        if not self._descent_blocked:
             return False
         if self._descent_block_countdown <= 0:
-            self._descent_blocked_at_level = None
+            self._descent_blocked = False
             return False
         self._descent_refusal_reason = "descent-cooldown"
         return True

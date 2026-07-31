@@ -148,16 +148,13 @@ class QuestKnowledgeTest(unittest.TestCase):
         self.assertEqual(set(info), {40, 49})
         self.assertEqual((info[40].level, info[49].level), (50, 6))
 
-    def test_real_lib_edit_quest_one_matches_policy_constants(self):
+    def test_real_lib_edit_quest_one_matches_parsed_definition(self):
         definitions = REAL_QUEST_DEFINITIONS
         if definitions is None:
             self.skipTest("real Hengband lib/edit is not available")
-        from hengbot.policy import FIXED_QUEST_LEVEL_MARGIN
-
         info = load_quest_knowledge(definitions)[1]
         self.assertEqual(info.name, "\u76d7\u8cca\u306e\u96a0\u308c\u5bb6")
         self.assertEqual((info.type, info.level, info.flags), (6, 5, QUEST_FLAG_PRESET | QUEST_FLAG_ONCE))
-        self.assertEqual(info.level + FIXED_QUEST_LEVEL_MARGIN, 8)
         self.assertEqual(info.placed_monster_count, 4)
         self.assertEqual(info.placed_monsters, ((44, 2), (150, 2)))
         battlefield = info.battlefield
