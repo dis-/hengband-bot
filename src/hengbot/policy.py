@@ -6028,6 +6028,9 @@ class HengbotPolicy:
     ) -> str | None:
         if item.aware and item.sval >= 0:
             return None
+        floor_grid = snapshot.grids.get(snapshot.player.position)
+        if floor_grid is None or floor_grid.object_count != 1:
+            return None
         source = self._find_identification_source(snapshot, full=False)
         if source is None:
             return None
@@ -6072,11 +6075,8 @@ class HengbotPolicy:
         if not loot_positions:
             return None
         if self._look_probe_inflight:
-            self.last_reason = "loot:await-look"
-            return WAIT_KEY
-        if self._look_floor_key != snapshot.floor_key or not any(
-            position in self._look_floor_items for position in loot_positions
-        ):
+            self._look_probe_inflight = False
+        if self._look_floor_key != snapshot.floor_key:
             return self._look_probe_key(snapshot)
 
         for position in sorted(

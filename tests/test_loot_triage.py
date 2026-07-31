@@ -35,12 +35,12 @@ def carried(
     )
 
 
-def full_snapshot(inventory, *, dungeon=DUNGEON_YEEK_CAVE):
+def full_snapshot(inventory, *, dungeon=DUNGEON_YEEK_CAVE, object_count=1):
     position = Position(10, 10)
     return Snapshot(
         PlayerState(position, 100, 100, 0, 0, 20, class_id=PLAYER_CLASS_WARRIOR),
         {position: GridState(position, True, True, False, False, False, False, False,
-                             object_count=1)},
+                             object_count=object_count)},
         [],
         floor_key=(dungeon, 13, 0),
         town_flag=False,
@@ -119,6 +119,22 @@ class GuardianLootTriageTest(unittest.TestCase):
         self.assertEqual(policy._full_pack_loot_triage_key(snapshot), "ua-")
         self.assertEqual(policy.last_reason, "loot:identify-floor-item")
 
+    def test_unaware_floor_item_on_pile_is_not_identified(self):
+        source = carried(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, name="Identify staff", charges=10
+        )
+        inventory = [source] + [carried(chr(ord("b") + i), sval=2) for i in range(22)]
+        policy = HengbotPolicy(baseitem_costs={(TVAL_SWORD, 2): 10})
+        snapshot = full_snapshot(inventory, object_count=3)
+        policy._look_floor_key = snapshot.floor_key
+        policy._look_floor_items = {
+            snapshot.player.position: (carried("", sval=-1, aware=False, known=False),)
+        }
+        policy._full_pack_destroy_key = lambda _snapshot: None
+        policy._pack_pressure_identify_key = lambda _snapshot: None
+        self.assertIsNone(policy._full_pack_loot_triage_key(snapshot))
+        self.assertNotEqual(policy.last_reason, "loot:identify-floor-item")
+
 
 class LookResponseTest(unittest.TestCase):
     def test_requested_look_is_consumed_and_probe_is_lazy(self):
@@ -143,6 +159,19 @@ class LookResponseTest(unittest.TestCase):
         self.assertEqual(policy._look_floor_items[position][0].sval, 7)
         self.assertFalse(policy._look_probe_inflight)
         send.assert_not_called()
+
+    def test_missing_look_response_does_not_wait_or_reprobe(self):
+        inventory = [carried(chr(ord("a") + i), sval=2) for i in range(PACK_CAPACITY)]
+        policy = HengbotPolicy(baseitem_costs={(TVAL_SWORD, 2): 10})
+        snapshot = full_snapshot(inventory)
+        policy._full_pack_destroy_key = lambda _snapshot: None
+        policy._pack_pressure_identify_key = lambda _snapshot: None
+
+        self.assertEqual(policy._full_pack_loot_triage_key(snapshot), "l\x1b")
+        self.assertTrue(policy._look_probe_inflight)
+        self.assertIsNone(policy._full_pack_loot_triage_key(snapshot))
+        self.assertFalse(policy._look_probe_inflight)
+        self.assertNotEqual(policy.last_reason, "loot:await-look")
 
 
 class TownOrganizationTest(unittest.TestCase):
