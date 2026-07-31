@@ -583,6 +583,10 @@ def _valid_bot_play_macro_pref(path: Path) -> bool:
     # macro-less path instead of silently typing into a flushing terminal.
     if "\nX:flush_failure\n" not in f"\n{normalized}\n":
         return False
+    # A bare Enter at the command loop opens the command menu and can consume a
+    # following macro as menu navigation. Keep that menu disabled for BOT_PLAY.
+    if "\nX:command_menu\n" not in f"\n{normalized}\n":
+        return False
     tunnel_bindings_valid = all(
         f"A:T{direction}\nP:{trigger}" in normalized
         for direction, trigger in TUNNEL_MACRO_PREF_TRIGGERS.items()
@@ -1069,11 +1073,14 @@ def _send_new_decision_key(
     posted_keys: set[str],
     *,
     in_store: bool,
+    suppress: bool = False,
 ) -> tuple[bool, str]:
     """Post each policy key at most once for a byte-identical board."""
     if snapshot_line != posted_line:
         posted_keys.clear()
         posted_line = snapshot_line
+    if suppress:
+        return False, posted_line
     if key in posted_keys:
         return False, posted_line
     sent = send(key, in_store=in_store)
@@ -1702,7 +1709,14 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_decision_at = now
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
                     recorder.before_floor_change(policy, snapshot.floor_key)
+                    store_leave_was_inflight = (
+                        policy._store_leave_inflight is not None
+                    )
                     key = policy.choose_key(snapshot)
+                    suppress_unconfirmed_store_leave = (
+                        store_leave_was_inflight
+                        and policy._store_leave_inflight is not None
+                    )
                     last_decision_reason = policy.last_reason
                     recent_reasons.append(policy.last_reason)
                     command_signature = _command_state_signature(
@@ -1828,7 +1842,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             flush=True,
                         )
                         return incident_stop("loop-detected", snapshot)
-                    if (
+                    if suppress_unconfirmed_store_leave:
+                        print("<store-leave-key:suppressed>", flush=True)
+                    elif (
                         snapshot_line == posted_decision_line
                         and key in posted_decision_keys
                     ):
@@ -1842,6 +1858,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         posted_decision_line,
                         posted_decision_keys,
                         in_store=snapshot.store is not None,
+                        suppress=suppress_unconfirmed_store_leave,
                     )
                     last_activity = time.monotonic()
                     if sent and key in DIRECTION_KEYS:

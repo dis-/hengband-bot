@@ -960,6 +960,61 @@ class DecisionRecordTest(unittest.TestCase):
 
 
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
+    def test_captured_home_leave_posts_nothing_until_context_confirms(self):
+        # Live turn 1099751: Esc left Home, but the next stale store decision's
+        # Enter must not reach the command loop. After confirmation, the
+        # captured identify macro must be posted normally.
+        line = _snap_line(1099751, 45, 123)
+        posted = []
+        posted_line = None
+        posted_keys = set()
+
+        for key, suppress in (
+            ("\x1b", False),
+            ("\r", True),
+            ("rgn" + "\x1b" * 8, False),
+        ):
+            _, posted_line = _send_new_decision_key(
+                lambda value, **_kwargs: posted.append(value) or True,
+                line,
+                key,
+                posted_line,
+                posted_keys,
+                in_store=False,
+                suppress=suppress,
+            )
+
+        self.assertEqual(posted, ["\x1b", "rgn" + "\x1b" * 8])
+
+    def test_suppressed_store_leave_decisions_still_reach_bounded_stop(self):
+        line = _snap_line(1099751, 45, 123)
+        posted = []
+        posted_line = None
+        posted_keys = set()
+        count = 0
+        previous_signature = None
+
+        for _ in range(STALLED_COMMAND_STATE_LIMIT + 1):
+            signature = (line, "shop:await-leave-confirmation", "\r")
+            count = _advance_stalled_command_count(
+                count,
+                signature=signature,
+                previous_signature=previous_signature,
+            )
+            previous_signature = signature
+            _, posted_line = _send_new_decision_key(
+                lambda value, **_kwargs: posted.append(value) or True,
+                line,
+                "\r",
+                posted_line,
+                posted_keys,
+                in_store=True,
+                suppress=True,
+            )
+
+        self.assertGreaterEqual(count, STALLED_COMMAND_STATE_LIMIT)
+        self.assertEqual(posted, [])
+
     def test_real_rejected_shop_approach_keeps_deciding_without_resending(self):
         # Live turn 1099696 at (45, 123): shop:approach "9" was silently
         # rejected, then the byte-identical line (empty messages, same turn)
@@ -1469,14 +1524,20 @@ class StallRecoveryTest(unittest.TestCase):
                 "A:\\e`n'.\nP:^R\nA:\\e`n(.\nP:^S\nA:\\e`n>.\nP:^T\n"
                 # The fast input cadence is only valid while the game stops
                 # discarding queued keys, so the pref must disable it.
-                "X:flush_failure\n",
+                "X:flush_failure\n"
+                "X:command_menu\n",
                 encoding="ascii",
             )
+            self.assertTrue(_valid_bot_play_macro_pref(pref))
+            valid_pref = pref.read_text(encoding="ascii")
+            pref.write_text(
+                valid_pref.replace("X:command_menu\n", ""), encoding="ascii"
+            )
+            self.assertFalse(_valid_bot_play_macro_pref(pref))
+            pref.write_text(valid_pref, encoding="ascii")
             pid_file = logs / "hengband.pid"
             pid_file.write_text("1234", encoding="ascii")
             state_file = logs / "state.jsonl"
-
-            self.assertTrue(_valid_bot_play_macro_pref(pref))
             self.assertTrue(_bot_play_macros_ready(state_file, monrace, 1234))
             self.assertFalse(_bot_play_macros_ready(state_file, monrace, 4321))
 
