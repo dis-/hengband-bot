@@ -834,9 +834,6 @@ RANGED_TARGET_FAILURE_LIMIT = 3
 # Don't wake distant sleepers with a shot — approach quietly instead (the
 # existing hunt path); close sleepers get softened before they act anyway.
 RANGED_SLEEPER_MAX_DISTANCE = 4
-# The Weapon Smith always stocks SHOT/ARROW/BOLT (articles-on-sale.cpp).
-AMMO_PURCHASE_TARGET = 30
-AMMO_RESTOCK_THRESHOLD = 10
 # A full launcher stack is operationally useful and user-approved, but duplicate
 # stacks beyond it must not impose an inventory-speed penalty.
 AMMO_CARRY_TARGET = 99
@@ -10788,7 +10785,7 @@ class HengbotPolicy:
         # visit on it (the Weapon Smith always stocks SHOT/ARROW/BOLT).
         if (
             self._equipped_launcher(snapshot) is not None
-            and self._count_matching_ammo(snapshot) < AMMO_RESTOCK_THRESHOLD
+            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
             and STORE_WEAPON not in self._town_store_attempted
         ):
             add(STORE_WEAPON, "ammo")
@@ -12912,7 +12909,7 @@ class HengbotPolicy:
         launcher = self._equipped_launcher(snapshot)
         if (
             launcher is not None
-            and self._count_matching_ammo(snapshot) < AMMO_PURCHASE_TARGET
+            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
         ):
             ammo = next(
                 (
@@ -13045,7 +13042,7 @@ class HengbotPolicy:
             )
             needed = target - self._count_treasure_detection_scrolls(snapshot)
         elif item.is_ammo:
-            needed = AMMO_PURCHASE_TARGET - self._count_matching_ammo(snapshot)
+            needed = AMMO_CARRY_TARGET - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
             target = TORCH_THROW_TARGET
             if strategy is not None:

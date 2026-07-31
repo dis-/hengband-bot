@@ -154,7 +154,7 @@ from hengbot.policy import (
     QUEST_STATUS_UNTAKEN,
     FOOD_MIN_SVAL,
     OIL_TARGET,
-    AMMO_PURCHASE_TARGET,
+    AMMO_CARRY_TARGET,
     TORCH_THROW_TARGET,
     CHEST_SEARCH_BUDGET,
     CHEST_DISARM_BUDGET,
@@ -11933,7 +11933,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             strategy.required_force["throwing_items"]["launcher_ammo"], 45
         )
 
-    def test_q2_carry_procurement_buys_and_reserves_exact_shortages(self):
+    def test_q2_carry_procurement_buys_ammo_target_and_reserves_exact_shortages(self):
         policy = self._policy()
         profile = self.profiles[2]
         base = replace(
@@ -11955,7 +11955,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy._quest_carry_purchase(armed, profile), bolts)
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            self.assertEqual(policy._purchase_quantity(armed, bolts), 45)
+            self.assertEqual(
+                policy._purchase_quantity(armed, bolts), AMMO_CARRY_TARGET
+            )
 
         light = StoreItem("l", "Light", 20, TVAL_SCROLL, SV_SCROLL_LIGHT, price=20)
         scroll_store = replace(base, store=StoreState(STORE_ALCHEMIST, [light]))
@@ -34313,10 +34315,33 @@ class RangedAttackTest(unittest.TestCase):
         self.assertIsNotNone(selected)
         self.assertEqual(selected.tval, TVAL_SHOT)
         self.assertEqual(
-            policy._purchase_quantity(snap, selected), AMMO_PURCHASE_TARGET
+            policy._purchase_quantity(snap, selected), AMMO_CARRY_TARGET
         )
 
-    def test_missing_27_arrows_are_bought_in_one_prompt_complete_macro(self):
+    def test_sixty_matching_rounds_still_register_optional_ammo_need(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[
+                item("a", TVAL_SHOT, 1, name="iron shots", count=60),
+                *self._strict_supplies_for_ammo(),
+            ],
+            equipment=[self._sling(), self._lantern()],
+        )
+        policy = HengbotPolicy()
+
+        needs = policy._enumerate_town_needs(snap)
+
+        self.assertIn(TownNeed(STORE_WEAPON, "ammo", "normal"), needs)
+        self.assertNotIn(
+            "ammo",
+            [need.category for need in policy._departure_blocking_town_needs(snap)],
+        )
+        policy._town_departure_ready = lambda candidate: True
+        self.assertFalse(policy._town_claims_active(snap))
+
+    def test_missing_96_arrows_are_bought_in_one_prompt_complete_macro(self):
         arrows = StoreItem("j", "arrows", 99, TVAL_ARROW, 1, price=1)
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
@@ -34337,8 +34362,39 @@ class RangedAttackTest(unittest.TestCase):
 
         # purchase-order.cpp consumes: item letter; quantity digits + Return;
         # DEFAULT_Y confirmation Return. Nothing remains for the store loop.
-        self.assertEqual(key, "pj27\r\r")
-        self.assertEqual(key[2:], "27\r\r")
+        self.assertEqual(key, "pj96\r\r")
+        self.assertEqual(key[2:], "96\r\r")
+
+    def test_partial_low_gold_ammo_purchase_completes_without_looping(self):
+        shots = StoreItem("d", "iron shot", 7, TVAL_SHOT, 1, price=10)
+        initial = Snapshot(
+            player(10, 10, gold=20, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True, turn=100,
+            inventory=[*self._strict_supplies_for_ammo()],
+            equipment=[self._sling(), self._lantern()],
+            store=StoreState(STORE_WEAPON, [shots]),
+        )
+        policy = HengbotPolicy()
+        policy._find_weapon_sale = lambda snapshot: None
+
+        self.assertEqual(policy._shop(initial), "pd2\r\r")
+        partial = replace(
+            initial,
+            player=replace(initial.player, gold=0),
+            inventory=[
+                item("a", TVAL_SHOT, 1, name="iron shots", count=2),
+                *self._strict_supplies_for_ammo(),
+            ],
+            store=StoreState(STORE_WEAPON, []),
+            turn=101,
+        )
+        policy._decision_sequence += 1
+        self.assertEqual(policy._shop(partial), WAIT_KEY)
+        policy._decision_sequence += 1
+        self.assertEqual(policy._shop(partial), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:leave")
+        self.assertIn(STORE_WEAPON, policy._town_store_attempted)
 
     def test_stale_sale_candidate_emits_no_sell_letter_or_prompt_tail(self):
         stale = item("o", TVAL_SWORD, 1, name="club", is_equipment=True, known=True)
