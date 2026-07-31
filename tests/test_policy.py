@@ -19113,11 +19113,20 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-
-        self.assertEqual(
-            policy._fundraising_combat_equipment_key(snap, [monster]), "vt6"
+        policy._floor_key = snap.floor_key
+        policy._breeder_breakthrough_floor = snap.floor_key
+        snap = replace(
+            snap,
+            visible_monsters=[
+                replace(monster, can_multiply=True, max_melee_damage=0)
+            ],
         )
-        self.assertEqual(policy.last_reason, "ranged:throw-torch")
+
+        with patch.object(policy, "_darkness_recovery_key", return_value=None):
+            self.assertEqual(
+                (policy.choose_key(snap), policy.last_reason),
+                ("vt6", "ranged:throw-torch"),
+            )
 
     def test_mining_swarm_throws_then_restores_weapon_on_contact(self):
         torch = item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
@@ -19329,7 +19338,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 distance=1 if index == 1 else 2,
                 race_id=31,
                 can_multiply=True,
-                max_melee_damage=1,
+                max_melee_damage=0,
             )
             for index, (y, x) in enumerate(positions, 1)
         ]
@@ -19363,9 +19372,15 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
+        policy._floor_key = mining.floor_key
+        policy._breeder_breakthrough_floor = mining.floor_key
         policy._mining_combat_contact_streak = (
-            policy_module.MINING_COMBAT_CONTACT_LIMIT
+            policy_module.MINING_COMBAT_CONTACT_LIMIT - 1
         )
+
+        # The extermination-impossible latch strategically suppresses these
+        # weak breeders, but mining combat must still count their real contact.
+        self.assertEqual(policy._hostiles(mining), [])
 
         self.assertEqual(policy.choose_key(mining), "wsa")
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
@@ -19393,7 +19408,88 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             any(item.is_digging_tool for item in combat_ready.equipment)
         )
         policy.choose_key(combat_ready)
-        self.assertTrue(policy.last_reason.startswith("melee:choke"))
+        self.assertTrue(policy.last_reason.startswith("fundraise:"))
+
+    def test_mining_breakthrough_restores_before_leaving_hostile_floor(self):
+        sword = item(
+            "s", TVAL_SWORD, 1, name="Broad Sword", is_equipment=True
+        )
+        breeder = hostile(
+            1, 10, 11, distance=1, can_multiply=True, max_melee_damage=0
+        )
+        mining = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+            [breeder],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[sword],
+            equipment=[
+                item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+                item(
+                    "sub_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    is_equipment=True,
+                ),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._breeder_breakthrough_floor = mining.floor_key
+        policy._mining_combat_contact_streak = (
+            policy_module.MINING_COMBAT_CONTACT_LIMIT
+        )
+
+        with patch.object(
+            policy, "_finish_mining_floor", return_value="FINISH"
+        ) as finish:
+            self.assertEqual(policy._fundraising_key(mining, []), "wsa")
+            finish.assert_not_called()
+
+            armed = replace(
+                mining,
+                inventory=[],
+                equipment=[replace(sword, slot="main_hand")],
+            )
+            self.assertEqual(policy._fundraising_key(armed, []), "FINISH")
+            finish.assert_called_once_with(armed)
+
+    def test_five_kill_growth_judgement_ends_mining_through_floor_exit(self):
+        breeders = [
+            hostile(
+                index, 10, 11 + index, distance=1 + index,
+                can_multiply=True, max_melee_damage=0,
+            )
+            for index in range(2)
+        ]
+        mining = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            breeders,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._breeder_engagement_floor = mining.floor_key
+        policy._breeder_kills = 5
+        policy._breeder_engagement_start_count = 1
+
+        policy._update_combat_outcome(mining)
+
+        self.assertEqual(policy._breeder_breakthrough_floor, mining.floor_key)
+        policy._floor_key = mining.floor_key
+        with patch.object(
+            policy, "_finish_mining_floor", return_value="FINISH"
+        ) as finish:
+            with patch.object(
+                policy, "_darkness_recovery_key", return_value=None
+            ):
+                self.assertEqual(policy.choose_key(mining), "FINISH")
+            finish.assert_called_once_with(mining)
 
     def test_sleeping_mouse_does_not_trigger_mining_weapon_restore(self):
         sword = item("s", TVAL_SWORD, 1, name="Broad Sword", is_equipment=True)

@@ -2762,7 +2762,14 @@ class HengbotPolicy:
         player = snapshot.player
         hostiles = self._hostiles(snapshot)
         adjacent = self._adjacent_hostiles(snapshot)
-        self._update_mining_combat_streaks(snapshot, hostiles, adjacent)
+        raw_hostiles = self._raw_hostiles(snapshot)
+        raw_adjacent = [
+            monster for monster in raw_hostiles
+            if player.position.distance_to(monster.position) <= 1
+        ]
+        self._update_mining_combat_streaks(
+            snapshot, raw_hostiles, raw_adjacent
+        )
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
 
         self._latch_unviable_quest_return(snapshot, hostiles)
@@ -2956,10 +2963,33 @@ class HengbotPolicy:
         if unprofitable_unique is not None:
             return unprofitable_unique
 
+        if (
+            self._fundraising_mode in {"mine", "scavenge"}
+            and self._breeder_breakthrough_floor == snapshot.floor_key
+        ):
+            combat_equip = self._fundraising_combat_equipment_key(
+                snapshot, raw_hostiles
+            )
+            if combat_equip is not None:
+                return combat_equip
+            return self._finish_mining_floor(snapshot)
+
         # Mining/swarm contact has a deliberately ordered combat transition.
         # Keep the diggers on while a missile can repel the approach; once
         # contact persists, re-arm before any ordinary melee decision.
-        swarm_combat = self._melee_swarm_combat_key(snapshot, hostiles, adjacent)
+        mining_hostiles = (
+            raw_hostiles
+            if self._fundraising_mode in {"mine", "scavenge"}
+            else hostiles
+        )
+        mining_adjacent = (
+            raw_adjacent
+            if self._fundraising_mode in {"mine", "scavenge"}
+            else adjacent
+        )
+        swarm_combat = self._melee_swarm_combat_key(
+            snapshot, mining_hostiles, mining_adjacent
+        )
         if swarm_combat is not None:
             return swarm_combat
 
@@ -3103,7 +3133,9 @@ class HengbotPolicy:
                 self.last_reason = "summoner:retreat"
                 return self._step_toward(snapshot, step)
 
-        combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
+        combat_equip = self._fundraising_combat_equipment_key(
+            snapshot, mining_hostiles
+        )
         if combat_equip is not None:
             return combat_equip
 
@@ -16471,6 +16503,14 @@ class HengbotPolicy:
             or snapshot.dungeon_level != 1
         ):
             return None
+        mining_hostiles = self._raw_hostiles(snapshot)
+        combat_equip = self._fundraising_combat_equipment_key(
+            snapshot, mining_hostiles
+        )
+        if combat_equip is not None:
+            return combat_equip
+        if self._breeder_breakthrough_floor == snapshot.floor_key:
+            return self._finish_mining_floor(snapshot)
         if (
             self._returning_to_town
             or self._should_start_town_return(snapshot)
@@ -16518,9 +16558,6 @@ class HengbotPolicy:
             self.last_reason = "fundraise:refill-light"
             return REFILL_KEY + refill.slot
 
-        combat_equip = self._fundraising_combat_equipment_key(snapshot, hostiles)
-        if combat_equip is not None:
-            return combat_equip
         if self._escape_state.owner == "disengage":
             # A declared walk-out owns movement until EscapeState releases it.
             # Adjacent combat has already run in _decide, so yielding here still
