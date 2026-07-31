@@ -1681,6 +1681,25 @@ class StationaryReasonsTest(unittest.TestCase):
             _cell_loop_guard_applies(dungeon, "combat:disengage-wait-recall")
         )
 
+    def test_fundraise_clear_escape_path_is_exempt_only_while_stationary(self):
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+
+        self.assertIn("fundraise:clear-escape-path", STATIONARY_REASONS)
+        self.assertFalse(
+            _cell_loop_guard_applies(
+                dungeon,
+                "fundraise:clear-escape-path",
+                previous_position=dungeon.player.position,
+            )
+        )
+        self.assertTrue(
+            _cell_loop_guard_applies(
+                dungeon,
+                "fundraise:clear-escape-path",
+                previous_position=Position(10, 9),
+            )
+        )
+
     def test_bounded_return_wall_search_is_exempt_but_walking_is_guarded(self):
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
 

@@ -162,6 +162,19 @@ def hit_chance(reliability: int, ac: int = AC_REFERENCE, *, lazy: bool = False) 
     return max(5, chance) / 100.0
 
 
+def melee_hit_chance(
+    melee_skill: int,
+    hand_to_h: int,
+    weapon_to_h: int,
+    ac: int = AC_REFERENCE,
+    *,
+    lazy: bool = False,
+) -> float:
+    """Return the source-compatible chance for one displayed melee hand."""
+    reliability = melee_skill + (hand_to_h + weapon_to_h) * 3
+    return hit_chance(reliability, ac, lazy=lazy)
+
+
 def _critical_damage(k: int, damage: int) -> int:
     if k < 400:
         return 2 * damage + 5
@@ -376,7 +389,13 @@ def evaluate_warrior_melee(
             + (to_hit + weapon.item.to_h) * 3
             + inputs.valour_hit_bonus
         )
-        chance = hit_chance(reliability, target_ac, lazy=inputs.lazy_personality)
+        chance = melee_hit_chance(
+            inputs.melee_skill + inputs.valour_hit_bonus,
+            to_hit,
+            weapon.item.to_h,
+            target_ac,
+            lazy=inputs.lazy_personality,
+        )
         damage_arguments = {
             "number": weapon.item.damage_dice_num,
             "sides": weapon.item.damage_dice_sides,

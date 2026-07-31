@@ -277,6 +277,9 @@ STATIONARY_REASONS = frozenset(
         "return:search-upstairs",
         "return:wait-recall",
         "fundraise:wait-recall",
+        # Clearing a physically occupied escape route attacks without changing
+        # cells. Accuracy-aware combat projection bounds whether this is chosen.
+        "fundraise:clear-escape-path",
         "town:wait-recall",
         "town:wait-restock",
         "wilderness:wait-recall",

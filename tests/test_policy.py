@@ -29268,6 +29268,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
                     main_hand_to_d=10,
                 ),
                 speed=speed,
+                melee_skill=140,
             ),
             {
                 Position(10, 10): grid(10, 10),
@@ -29927,6 +29928,50 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             policy.last_reason.startswith("combat:avoid-unprofitable-unique-")
         )
         self.assertEqual(policy._fruitless_disengage_floor, snapshot.floor_key)
+
+    def test_tactical_melee_dps_uses_real_accuracy_below_the_old_floor(self):
+        snapshot, _, _ = self._snapshot(hp=100, monster_hp=40, blow_sides=1)
+        weapon = snapshot.equipment[0]
+        inaccurate = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                melee_skill=168,
+                main_hand_blows=4,
+                main_hand_to_h=-70,
+                main_hand_to_d=6,
+            ),
+        )
+        accurate = replace(
+            inaccurate,
+            player=replace(inaccurate.player, main_hand_to_h=-20),
+        )
+
+        self.assertLess(
+            HengbotPolicy._main_hand_dps(inaccurate, weapon),
+            HengbotPolicy._main_hand_dps(accurate, weapon) / 2,
+        )
+
+    def test_engagement_is_not_winnable_with_catastrophic_accuracy(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=100, max_hp=100, monster_hp=40, blow_sides=1
+        )
+        snapshot = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                melee_skill=168,
+                main_hand_blows=4,
+                main_hand_to_h=-70,
+                main_hand_to_d=6,
+            ),
+        )
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy.threat_prediction = lambda _snapshot, _hostiles, turns: {
+            "operational_total": turns * 10
+        }
+
+        self.assertFalse(policy._engagement_is_winnable(snapshot, [monster]))
 
     def test_active_recall_teleports_instead_of_waiting_among_breeders(self):
         snapshot, monster, knowledge = self._snapshot(
@@ -38050,6 +38095,7 @@ class DungeonConquestTest(unittest.TestCase):
                 max_hp=400,
                 speed=110,
                 ac=43,
+                melee_skill=140,
                 main_hand_blows=5,
                 main_hand_to_h=21,
                 main_hand_to_d=8,

@@ -68,6 +68,7 @@ from hengbot.warrior_loadout_evaluator import (
     STORE_AMMO_AVERAGE_DAMAGE,
 )
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
+from hengbot.warrior_equipment_evaluator import melee_hit_chance
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
@@ -9920,11 +9921,10 @@ class HengbotPolicy:
             weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
         )
         damage = max(1.0, dice_average + snapshot.player.main_hand_to_d)
-        # AC 100 reference. Accuracy has deliberately modest weight; observed
-        # blows and damage dominate, matching the agreed equipment policy.
-        hit_rate = max(
-            0.25,
-            min(0.95, (100 + snapshot.player.main_hand_to_h) / 200),
+        hit_rate = melee_hit_chance(
+            snapshot.player.melee_skill,
+            snapshot.player.main_hand_to_h,
+            weapon.to_h,
         )
         return snapshot.player.main_hand_blows * damage * hit_rate
 
@@ -9934,9 +9934,10 @@ class HengbotPolicy:
             weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
         )
         damage = max(1.0, dice_average + snapshot.player.sub_hand_to_d)
-        hit_rate = max(
-            0.25,
-            min(0.95, (100 + snapshot.player.sub_hand_to_h) / 200),
+        hit_rate = melee_hit_chance(
+            snapshot.player.melee_skill,
+            snapshot.player.sub_hand_to_h,
+            weapon.to_h,
         )
         return snapshot.player.sub_hand_blows * damage * hit_rate
 
