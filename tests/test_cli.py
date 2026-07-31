@@ -53,6 +53,7 @@ from hengbot.cli import (
     _read_last_line,
     _request_due_dump,
     _rewind_if_truncated,
+    _send_new_decision_key,
     _last_activity_after_read,
     _stall_recovery_key,
     _split_complete_lines,
@@ -959,21 +960,86 @@ class DecisionRecordTest(unittest.TestCase):
 
 
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
-    def test_real_fundraising_board_is_never_decided_twice(self):
-        # Live capture turn 1021819 at (16, 8) produced seek-treasure "1"
-        # twice. Model the client gate and prove that elapsed time can never
-        # append a second decision/key for that byte-identical board.
-        line = _snap_line(1021819, 16, 8)
-        emitted = []
-        previous_line = None
-        for _elapsed in (0.0, 2.0, 20.0, 2000.0):
-            if _duplicate_snapshot_ready(
-                line, previous_line, "fundraise:seek-treasure"
-            ):
-                emitted.append("1")
-                previous_line = line
+    def test_real_rejected_shop_approach_keeps_deciding_without_resending(self):
+        # Live turn 1099696 at (45, 123): shop:approach "9" was silently
+        # rejected, then the byte-identical line (empty messages, same turn)
+        # repeated. Decisions must continue while the posted key stays unique.
+        line = _snap_line(1099696, 45, 123)
+        decisions = []
+        posted = []
+        posted_line = None
+        posted_keys = set()
 
-        self.assertEqual(emitted, ["1"])
+        for _ in range(4):
+            self.assertTrue(
+                _duplicate_snapshot_ready(line, line, "shop:approach")
+            )
+            decisions.append("9")
+            _, posted_line = _send_new_decision_key(
+                lambda key, **_kwargs: posted.append(key) or True,
+                line,
+                "9",
+                posted_line,
+                posted_keys,
+                in_store=False,
+            )
+
+        self.assertEqual(decisions, ["9", "9", "9", "9"])
+        self.assertEqual(posted, ["9"])
+
+    def test_real_fundraising_board_posts_each_key_at_most_once(self):
+        # The captured 1 1 T3 9 9 failure cannot be reproduced: repeated
+        # decisions are recorded, but duplicate sends on one board are not.
+        line = _snap_line(1021819, 16, 8)
+        posted = []
+        posted_line = None
+        posted_keys = set()
+        for key in ("1", "1", "T3", "9", "9"):
+            _, posted_line = _send_new_decision_key(
+                lambda value, **_kwargs: posted.append(value) or True,
+                line,
+                key,
+                posted_line,
+                posted_keys,
+                in_store=False,
+            )
+
+        self.assertEqual(posted, ["1", "T3", "9"])
+
+    def test_different_key_on_repeated_board_is_sent(self):
+        line = _snap_line(1099696, 45, 123)
+        posted = []
+        posted_line = None
+        posted_keys = set()
+        for key in ("9", "9", "7"):
+            _, posted_line = _send_new_decision_key(
+                lambda value, **_kwargs: posted.append(value) or True,
+                line,
+                key,
+                posted_line,
+                posted_keys,
+                in_store=False,
+            )
+
+        self.assertEqual(posted, ["9", "7"])
+
+    def test_repeated_board_can_reach_existing_stalled_command_stop(self):
+        line = _snap_line(1099696, 45, 123)
+        count = 0
+        previous_signature = None
+        for _ in range(STALLED_COMMAND_STATE_LIMIT + 1):
+            self.assertTrue(
+                _duplicate_snapshot_ready(line, line, "shop:approach")
+            )
+            signature = (line, "shop:approach", "9")
+            count = _advance_stalled_command_count(
+                count,
+                signature=signature,
+                previous_signature=previous_signature,
+            )
+            previous_signature = signature
+
+        self.assertEqual(count, STALLED_COMMAND_STATE_LIMIT)
 
     def test_acts_immediately_when_snapshot_state_changes(self):
         previous = _snap_line(100, 5, 5)

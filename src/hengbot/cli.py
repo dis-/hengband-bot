@@ -1058,9 +1058,28 @@ def _duplicate_snapshot_ready(
         # commands.  Wait for any newly serialized state (gold, inventory, or
         # store stock) before allowing another mutating transaction.
         return False
-    if line != previous_line:
-        return True
-    return False
+    return True
+
+
+def _send_new_decision_key(
+    send,
+    snapshot_line: str,
+    key: str,
+    posted_line: str | None,
+    posted_keys: set[str],
+    *,
+    in_store: bool,
+) -> tuple[bool, str]:
+    """Post each policy key at most once for a byte-identical board."""
+    if snapshot_line != posted_line:
+        posted_keys.clear()
+        posted_line = snapshot_line
+    if key in posted_keys:
+        return False, posted_line
+    sent = send(key, in_store=in_store)
+    if sent:
+        posted_keys.add(key)
+    return sent, posted_line
 
 
 def _direction_desynchronized(before, key: str, after) -> bool:
@@ -1551,6 +1570,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         last_decision_line: str | None = None
         last_decision_reason: str | None = None
         last_decision_at = 0.0
+        posted_decision_line: str | None = None
+        posted_decision_keys: set[str] = set()
         pending_action_wait: tuple[str, float] | None = None
         stalled_command_count = 0
         blocked_streak = 0
@@ -1594,8 +1615,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 # It cannot heal a surplus key already in the Windows input queue:
                 # that reaches a stable one-command-behind equilibrium. Direction
                 # acknowledgements below detect that state and drain it through
-                # the existing look channel. Rejected commands are reconsidered
-                # when their message makes the newly emitted board byte-distinct.
+                # the existing look channel. Byte-identical boards are decided
+                # again so policy loop breakers advance, but their already-posted
+                # keys are suppressed at the send boundary below.
                 if look_barrier_pending is not None:
                     (
                         eligible_lines,
@@ -1806,8 +1828,21 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             flush=True,
                         )
                         return incident_stop("loop-detected", snapshot)
-                    print(key, flush=True)
-                    sent = send(key, in_store=snapshot.store is not None)
+                    if (
+                        snapshot_line == posted_decision_line
+                        and key in posted_decision_keys
+                    ):
+                        print(f"<duplicate-key:suppressed> {key}", flush=True)
+                    else:
+                        print(key, flush=True)
+                    sent, posted_decision_line = _send_new_decision_key(
+                        send,
+                        snapshot_line,
+                        key,
+                        posted_decision_line,
+                        posted_decision_keys,
+                        in_store=snapshot.store is not None,
+                    )
                     last_activity = time.monotonic()
                     if sent and key in DIRECTION_KEYS:
                         pending_direction = (snapshot, key)
