@@ -29752,7 +29752,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(key, "6", policy.last_reason)
         self.assertEqual(policy.last_reason, "flee:cornered-attack")
 
-    def test_nav_exhausted_flee_escalates_to_existing_attack_ladder(self):
+    def test_stationary_fight_does_not_suppress_an_improving_retreat(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=79,
             max_hp=200,
@@ -29771,11 +29771,14 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             monrace_knowledge={9001: replace(knowledge, flags=frozenset())}
         )
         policy._build_grid_index(snapshot)
+        policy._recent.extend(
+            [snapshot.player.position] * (STUCK_WINDOW + 1)
+        )
         policy._nav_exhausted = True
 
         key = policy._decide(snapshot)
-        self.assertEqual(key, "6", policy.last_reason)
-        self.assertEqual(policy.last_reason, "flee:cornered-attack")
+        self.assertEqual(key, "4", policy.last_reason)
+        self.assertEqual(policy.last_reason, "flee")
 
     def test_monster_level_does_not_force_breeder_or_unique_flee(self):
         snapshot, monster, knowledge = self._snapshot(

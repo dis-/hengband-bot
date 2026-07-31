@@ -3102,9 +3102,7 @@ class HengbotPolicy:
                 # generic flee rung retreating back into the floor.
                 self.last_reason = "combat:disengage-clear-path"
                 return blocker
-            step = None
-            if not self._nav_exhausted and not self._is_oscillating():
-                step = self._flee_step(snapshot, hostiles)
+            step = self._flee_step(snapshot, hostiles)
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
                 # (notably for an over-level monster).  Persist the abandoned
