@@ -3102,7 +3102,9 @@ class HengbotPolicy:
                 # generic flee rung retreating back into the floor.
                 self.last_reason = "combat:disengage-clear-path"
                 return blocker
-            step = self._flee_step(snapshot, hostiles)
+            step = None
+            if not self._nav_exhausted and not self._is_oscillating():
+                step = self._flee_step(snapshot, hostiles)
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
                 # (notably for an over-level monster).  Persist the abandoned
@@ -5765,7 +5767,7 @@ class HengbotPolicy:
             # if it ceases to be viable, normal retreat immediately resumes.
             return False
         if player.hp_ratio < FLEE_HP_RATIO:
-            return True
+            return not self._engagement_is_winnable(snapshot, hostiles)
         # Surrounded: flee only if the swarm could take a big share of HP soon.
         # A raw adjacent count fled full-HP characters from weak (often sleeping)
         # packs — e.g. a clvl20 warrior stair-scumming away from three lvl-9 Skaven.
@@ -5780,6 +5782,37 @@ class HengbotPolicy:
         ):
             return True
         return False
+
+    def _engagement_is_winnable(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """Whether the visible engagement can be cleared before HP runs out."""
+        weapon = next(
+            (
+                item for item in snapshot.equipment
+                if item.slot == "main_hand"
+                and (item.is_melee_weapon or item.is_digging_tool)
+            ),
+            None,
+        )
+        melee_damage = (
+            self._main_hand_dps(snapshot, weapon)
+            if weapon is not None and snapshot.player.main_hand_blows > 0
+            else 0.0
+        )
+        ranged_damage = self._estimated_ranged_damage_per_shot(snapshot)
+        turns_to_clear = 0
+        for monster in hostiles:
+            damage = melee_damage
+            if self._summoner_ranged_attack_available(snapshot, monster):
+                damage = max(damage, ranged_damage)
+            if damage <= 0:
+                return False
+            turns_to_clear += max(1, ceil(monster.hp / damage))
+        incoming = self.threat_prediction(
+            snapshot, hostiles, turns=turns_to_clear
+        )["operational_total"]
+        return incoming < snapshot.player.hp
 
     # -------------------------------------------------------------- consumables
     def _first_item(self, snapshot: Snapshot, predicate) -> InventoryItem | None:
@@ -24553,6 +24586,19 @@ class HengbotPolicy:
             # stepping onto a previously-vetoed square, so relax the veto to the
             # least-bad walkable neighbour and keep the retreat moving.
             candidates = walkable
+        if not candidates:
+            return None
+
+        origin_distance = min(
+            snapshot.player.position.distance_to(monster.position)
+            for monster in hostiles
+        )
+        candidates = [
+            candidate
+            for candidate in candidates
+            if min(candidate.distance_to(monster.position) for monster in hostiles)
+            > origin_distance
+        ]
         if not candidates:
             return None
 

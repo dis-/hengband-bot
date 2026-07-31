@@ -2527,17 +2527,17 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(HengbotPolicy().choose_key(snap), "4")
 
     def test_still_flees_multiple_weak_enemies(self):
-        # The finish-it exception is only for a single adjacent threat; two weak
-        # enemies still trigger the low-HP flee.
+        # With no projected damage output, even two weak enemies are not
+        # clearable; the open west square provides a real retreat.
         grids = {
             Position(10, 10): grid(10, 10),
-            Position(10, 9): grid(10, 9, monster=True),
+            Position(10, 9): grid(10, 9),
             Position(10, 11): grid(10, 11, monster=True),
-            Position(9, 10): grid(9, 10),
+            Position(11, 11): grid(11, 11, monster=True),
         }
-        monsters = [hostile(1, 10, 11, hp=20), hostile(2, 10, 9, hp=20)]
+        monsters = [hostile(1, 10, 11, hp=20), hostile(2, 11, 11, hp=20)]
         snap = Snapshot(player(10, 10, hp=20, max_hp=150), grids, monsters)
-        # Flees rather than melee (two adjacent threats defeat the lone-enemy rule).
+        # Flees rather than melee because the projected fight is lost.
         pol = HengbotPolicy()
         pol.choose_key(snap)
         self.assertEqual(pol.last_reason, "flee")
@@ -29640,7 +29640,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
 
-    def test_low_hp_still_flees_regardless_of_monster_level(self):
+    def test_low_hp_fights_winnable_monster_regardless_of_monster_level(self):
         snapshot, monster, knowledge = self._snapshot(
             hp=79,
             max_hp=200,
@@ -29655,7 +29655,127 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertTrue(
             policy._fruitless_fight_is_winnable(snapshot, [monster])
         )
-        self.assertTrue(policy._should_flee(snapshot, [monster], [monster]))
+        self.assertFalse(policy._should_flee(snapshot, [monster], [monster]))
+
+    def test_captured_low_hp_dead_end_engages_and_preserves_speed_potion(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=109,
+            max_hp=434,
+            monster_hp=4,
+            monster_speed=120,
+            blow_sides=1,
+            inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
+        )
+        small_kobold = replace(
+            monster,
+            index=1,
+            race_id=9101,
+            name="Small kobold",
+            position=Position(20, 61),
+            distance=1,
+        )
+        fruit_bat = replace(
+            monster,
+            index=2,
+            race_id=9102,
+            name="Fruit bat",
+            position=Position(20, 62),
+            distance=1,
+        )
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, position=Position(21, 62)),
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            grids={
+                Position(19, 61): grid(19, 61),
+                Position(19, 62): grid(19, 62),
+                Position(20, 61): grid(20, 61, monster=True),
+                Position(20, 62): grid(20, 62, monster=True),
+                Position(21, 61): grid(21, 61),
+                Position(21, 62): grid(21, 62),
+            },
+            visible_monsters=[small_kobold, fruit_bat],
+        )
+        ordinary = replace(
+            knowledge,
+            max_hp=4,
+            average_hp=4,
+            max_melee_damage=1,
+            flags=frozenset(),
+            blows=(MonsterBlow("HIT", "HURT", 1, 1),),
+        )
+        policy = HengbotPolicy(
+            monrace_knowledge={9101: ordinary, 9102: ordinary}
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(policy.last_reason, "flee")
+        self.assertTrue(policy.last_reason.startswith("melee"))
+        self.assertNotEqual(key, "qs")
+        self.assertNotEqual(policy.last_reason, "emergency:quaff-speed")
+
+    def test_low_hp_lost_fight_with_improving_step_still_flees(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=79,
+            max_hp=200,
+            monster_hp=1000,
+            blow_sides=10,
+        )
+        snapshot = replace(
+            snapshot,
+            grids={
+                Position(10, 9): grid(10, 9),
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+        )
+        policy = HengbotPolicy(
+            monrace_knowledge={9001: replace(knowledge, flags=frozenset())}
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "4")
+        self.assertEqual(policy.last_reason, "flee")
+
+    def test_low_hp_lost_fight_cornered_uses_existing_attack_ladder(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=79,
+            max_hp=200,
+            monster_hp=1000,
+            blow_sides=10,
+        )
+        policy = HengbotPolicy(
+            monrace_knowledge={9001: replace(knowledge, flags=frozenset())}
+        )
+
+        key = policy.choose_key(snapshot)
+        self.assertEqual(key, "6", policy.last_reason)
+        self.assertEqual(policy.last_reason, "flee:cornered-attack")
+
+    def test_nav_exhausted_flee_escalates_to_existing_attack_ladder(self):
+        snapshot, monster, knowledge = self._snapshot(
+            hp=79,
+            max_hp=200,
+            monster_hp=1000,
+            blow_sides=10,
+        )
+        snapshot = replace(
+            snapshot,
+            grids={
+                Position(10, 9): grid(10, 9),
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, monster=True),
+            },
+        )
+        policy = HengbotPolicy(
+            monrace_knowledge={9001: replace(knowledge, flags=frozenset())}
+        )
+        policy._build_grid_index(snapshot)
+        policy._nav_exhausted = True
+
+        key = policy._decide(snapshot)
+        self.assertEqual(key, "6", policy.last_reason)
+        self.assertEqual(policy.last_reason, "flee:cornered-attack")
 
     def test_monster_level_does_not_force_breeder_or_unique_flee(self):
         snapshot, monster, knowledge = self._snapshot(
