@@ -144,12 +144,9 @@ def _advance_starving_streak(
     return streak + 1
 
 
-# The emitter can present the exact same command state several times while a
-# posted Windows key is still waiting to be consumed. Sending on every copy
-# builds a large input backlog and makes the loop detector judge stale positions.
-# A genuinely rejected move still needs retries so the policy can break out;
-# throttle exact duplicates instead of dropping them forever.
-DUPLICATE_RETRY_SECONDS = 2.0
+# Bound how long the desynchronization look barrier waits when its response is
+# lost. The value is unchanged from the former duplicate retry.
+LOOK_BARRIER_TIMEOUT_SECONDS = 2.0
 # Snapshots can advance their turn/message state before a posted movement key is
 # consumed.  Sending the next route correction then leaves one direction queued;
 # live failures overshot a Q34 chest and orbited six cells around fundraising loot.
@@ -1047,11 +1044,7 @@ def _rewind_if_truncated(file, path: Path) -> bool:
 def _duplicate_snapshot_ready(
     line: str,
     previous_line: str | None,
-    elapsed: float,
     previous_reason: str | None = None,
-    snapshot=None,
-    previous_snapshot=None,
-    command_consumed: bool | None = None,
 ) -> bool:
     if line == previous_line and previous_reason is not None and (
         previous_reason.startswith("shop:buy-")
@@ -1067,27 +1060,7 @@ def _duplicate_snapshot_ready(
         return False
     if line != previous_line:
         return True
-    if elapsed < DUPLICATE_RETRY_SECONDS:
-        return False
-    # Production callers pass proof from the look barrier.  The snapshot
-    # fallback preserves the helper's pre-barrier unit-level API; identical
-    # board content is not itself used as production evidence.
-    if command_consumed is None:
-        command_consumed = _command_rejection_evident(
-            previous_snapshot, snapshot
-        )
-    return command_consumed
-
-
-def _command_rejection_evident(before, after) -> bool:
-    """Return whether an emitted board positively shows a rejected command."""
-    if before is None or after is None:
-        return False
-    return (
-        before.turn == after.turn
-        and before.player.position == after.player.position
-        and before.messages == after.messages
-    )
+    return False
 
 
 def _direction_desynchronized(before, key: str, after) -> bool:
@@ -1110,7 +1083,7 @@ def _direction_desynchronized(before, key: str, after) -> bool:
 def _look_barrier_allows_decision(complete_lines: list[str]) -> bool:
     """Resume at an ordinary board after look, or make progress if look is lost."""
     eligible_lines, _, _ = _look_barrier_timed_release(
-        complete_lines, False, DUPLICATE_RETRY_SECONDS
+        complete_lines, False, LOOK_BARRIER_TIMEOUT_SECONDS
     )
     return bool(_newest_snapshot_entry(eligible_lines, {}))
 
@@ -1142,7 +1115,7 @@ def _look_barrier_timed_release(
     eligible_lines, look_seen = _look_barrier_release(
         complete_lines, look_seen
     )
-    timed_out = not look_seen and elapsed >= DUPLICATE_RETRY_SECONDS
+    timed_out = not look_seen and elapsed >= LOOK_BARRIER_TIMEOUT_SECONDS
     if timed_out:
         eligible_lines = complete_lines
         print("<look-barrier:timeout>", flush=True)
@@ -1597,8 +1570,6 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         look_barrier_pending: str | None = None
         look_barrier_seen = False
         look_barrier_started_at = 0.0
-        duplicate_retry_consumed = False
-        previous_decision_snapshot = None
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
             _arm_decision_watchdog()
@@ -1623,8 +1594,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 # It cannot heal a surplus key already in the Windows input queue:
                 # that reaches a stable one-command-behind equilibrium. Direction
                 # acknowledgements below detect that state and drain it through
-                # the existing look channel. Rejected commands are retried only
-                # after a newly emitted board positively confirms rejection.
+                # the existing look channel. Rejected commands are reconsidered
+                # when their message makes the newly emitted board byte-distinct.
                 if look_barrier_pending is not None:
                     (
                         eligible_lines,
@@ -1640,12 +1611,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     )
                     if entry is None:
                         continue
-                    barrier_purpose = look_barrier_pending
                     look_barrier_pending = None
                     look_barrier_seen = False
                     look_barrier_started_at = 0.0
-                    if barrier_purpose == "duplicate-retry":
-                        duplicate_retry_consumed = True
                 else:
                     entry = _newest_snapshot_entry(
                         complete_lines, monrace_knowledge
@@ -1696,38 +1664,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     duplicate_ready = _duplicate_snapshot_ready(
                         snapshot_line,
                         last_decision_line,
-                        now - last_decision_at,
                         last_decision_reason,
-                        snapshot,
-                        previous_decision_snapshot,
-                        command_consumed=duplicate_retry_consumed,
                     )
                     if not duplicate_ready:
-                        if (
-                            snapshot_line == last_decision_line
-                            and now - last_decision_at
-                            >= DUPLICATE_RETRY_SECONDS
-                            and look_barrier_pending is None
-                            and not (
-                                last_decision_reason is not None
-                                and (
-                                    last_decision_reason.startswith("shop:buy-")
-                                    or last_decision_reason.startswith("shop:sell")
-                                    or last_decision_reason.startswith("home:deposit")
-                                    or last_decision_reason.startswith("home:withdraw")
-                                )
-                            )
-                        ):
-                            barrier_key = policy._look_probe_key(snapshot)
-                            print("<duplicate-retry:look-barrier>", flush=True)
-                            if send(
-                                barrier_key,
-                                in_store=snapshot.store is not None,
-                            ):
-                                look_barrier_pending = "duplicate-retry"
-                                look_barrier_seen = False
-                                look_barrier_started_at = time.monotonic()
-                            last_activity = time.monotonic()
                         continue
                     if pending_action_wait is not None:
                         wait_category, wait_started = pending_action_wait
@@ -1739,8 +1678,6 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         pending_action_wait = None
                     last_decision_line = snapshot_line
                     last_decision_at = now
-                    previous_decision_snapshot = snapshot
-                    duplicate_retry_consumed = False
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
                     recorder.before_floor_change(policy, snapshot.floor_key)
                     key = policy.choose_key(snapshot)

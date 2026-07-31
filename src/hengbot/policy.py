@@ -13345,10 +13345,9 @@ class HengbotPolicy:
         else:
             self._last_sell_sig = sig
             self._store_sell_stuck_count = 0
-        # One already-emitted attempt whose store/pack/gold snapshot is unchanged
-        # proves the sale was rejected: the snapshot re-fires only after the
-        # duplicate-retry delay, by which time the game has processed the key, so
-        # an identical board means no sale happened. Leave now instead of
+        # One already-emitted attempt followed by a byte-distinct snapshot whose
+        # store/pack/gold state is unchanged proves the sale was rejected. Leave
+        # now instead of
         # re-emitting the multi-key sell — a second emit lands its trailing keys
         # in the store command loop after the "no room" message ("そのコマンドは
         # 店の中では使えません"), the desync the user observed.

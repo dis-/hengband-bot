@@ -12,7 +12,7 @@ from hengbot.cli import (
     CHEST_MOVE_RESPONSE_SECONDS,
     DECISION_WATCHDOG_SECONDS,
     DUMP_INTERVAL_SECONDS,
-    DUPLICATE_RETRY_SECONDS,
+    LOOK_BARRIER_TIMEOUT_SECONDS,
     EconomyLedger,
     LOOP_WINDOW,
     STATIONARY_EXEMPT_REASONS,
@@ -39,7 +39,6 @@ from hengbot.cli import (
     _input_delay_values,
     _decision_record,
     _duplicate_snapshot_ready,
-    _command_rejection_evident,
     _direction_desynchronized,
     _look_barrier_allows_decision,
     _look_barrier_release,
@@ -960,24 +959,35 @@ class DecisionRecordTest(unittest.TestCase):
 
 
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
-    def test_throttles_an_exact_duplicate_until_retry_interval(self):
-        line = _snap_line(100, 5, 5)
-        snapshot = parse_snapshot(json.loads(line), {})
+    def test_real_fundraising_board_is_never_decided_twice(self):
+        # Live capture turn 1021819 at (16, 8) produced seek-treasure "1"
+        # twice. Model the client gate and prove that elapsed time can never
+        # append a second decision/key for that byte-identical board.
+        line = _snap_line(1021819, 16, 8)
+        emitted = []
+        previous_line = None
+        for _elapsed in (0.0, 2.0, 20.0, 2000.0):
+            if _duplicate_snapshot_ready(
+                line, previous_line, "fundraise:seek-treasure"
+            ):
+                emitted.append("1")
+                previous_line = line
 
-        self.assertFalse(
-            _duplicate_snapshot_ready(line, line, 1.9, snapshot=snapshot,
-                                      previous_snapshot=snapshot)
-        )
-        self.assertTrue(
-            _duplicate_snapshot_ready(line, line, 2.0, snapshot=snapshot,
-                                      previous_snapshot=snapshot)
-        )
+        self.assertEqual(emitted, ["1"])
 
     def test_acts_immediately_when_snapshot_state_changes(self):
         previous = _snap_line(100, 5, 5)
         current = _snap_line(110, 5, 6)
 
-        self.assertTrue(_duplicate_snapshot_ready(current, previous, 0.0))
+        self.assertTrue(_duplicate_snapshot_ready(current, previous))
+
+    def test_wall_bump_message_makes_rejected_command_actionable(self):
+        previous = _snap_line(1021819, 16, 8)
+        data = json.loads(previous)
+        data["messages"] = ["花崗岩の壁が行く手をはばんでいる。"]
+        rejected = json.dumps(data, ensure_ascii=False) + "\n"
+
+        self.assertTrue(_duplicate_snapshot_ready(rejected, previous))
 
     def test_emits_one_purchase_until_a_new_store_snapshot_arrives(self):
         line = _snap_line(2068969, 31, 91)
@@ -985,9 +995,9 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         previous_line = None
         previous_reason = None
 
-        for elapsed in (0.0, 2.0):
+        for _elapsed in (0.0, 2.0):
             if _duplicate_snapshot_ready(
-                line, previous_line, elapsed, previous_reason
+                line, previous_line, previous_reason
             ):
                 emitted.append("ph30\r\r")
                 previous_line = line
@@ -998,35 +1008,8 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         changed_data["player"]["gold"] = 970
         changed = json.dumps(changed_data) + "\n"
         self.assertTrue(
-            _duplicate_snapshot_ready(changed, previous_line, 0.0, previous_reason)
+            _duplicate_snapshot_ready(changed, previous_line, previous_reason)
         )
-
-    def test_slow_accepted_command_is_not_retried_without_new_board_evidence(self):
-        line = _snap_line(100, 5, 5)
-
-        self.assertFalse(_duplicate_snapshot_ready(line, line, 20.0))
-
-    def test_rejected_command_retries_only_after_look_consumption(self):
-        line = _snap_line(100, 5, 5)
-
-        self.assertFalse(
-            _duplicate_snapshot_ready(
-                line, line, 20.0, command_consumed=False
-            )
-        )
-        self.assertTrue(
-            _duplicate_snapshot_ready(
-                line, line, 20.0, command_consumed=True
-            )
-        )
-
-    def test_message_effect_disproves_rejection(self):
-        before = parse_snapshot(json.loads(_snap_line(100, 5, 5)), {})
-        data = json.loads(_snap_line(100, 5, 5))
-        data["messages"] = ["You attack the Lurker."]
-        after = parse_snapshot(data, {})
-
-        self.assertFalse(_command_rejection_evident(before, after))
 
 
 class InputDesynchronizationTest(unittest.TestCase):
@@ -1118,14 +1101,14 @@ class InputDesynchronizationTest(unittest.TestCase):
 
         self.assertEqual(
             _look_barrier_timed_release(
-                [board], False, DUPLICATE_RETRY_SECONDS - 0.01
+                [board], False, LOOK_BARRIER_TIMEOUT_SECONDS - 0.01
             ),
             ([], False, False),
         )
         with patch("builtins.print") as print_mock:
             self.assertEqual(
                 _look_barrier_timed_release(
-                    [board], False, DUPLICATE_RETRY_SECONDS
+                    [board], False, LOOK_BARRIER_TIMEOUT_SECONDS
                 ),
                 ([board], False, True),
             )
