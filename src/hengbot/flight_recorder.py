@@ -215,7 +215,12 @@ def rotate_log(path: Path | None, max_bytes: int, generations: int) -> None:
         _warn(f"rotate {path}", exc)
 
 
-def append_session_marker(path: Path | None, argv: list[str]) -> None:
+def append_session_marker(
+    path: Path | None,
+    argv: list[str],
+    *,
+    input_delays: dict[str, float] | None = None,
+) -> None:
     if path is None:
         return
     commit = None
@@ -235,6 +240,8 @@ def append_session_marker(path: Path | None, argv: list[str]) -> None:
         "argv": argv,
         "git_commit": commit,
     }
+    if input_delays is not None:
+        record["input_delays"] = input_delays
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as file:

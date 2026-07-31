@@ -8,7 +8,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from hengbot.model import MissingMonraceKnowledgeError, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
@@ -229,6 +229,12 @@ TUNNEL_MACRO_PREF_TRIGGERS = {
 # the game at destination selection until the duplicate retry. The verified
 # BOT_PLAY macro path replaces each complete sequence with one WM_CHAR.
 TRAVEL_PROMPT_DELAY_SECONDS = 0.5
+INPUT_DELAY_DEFAULTS = {
+    "input_key_delay": MULTI_KEY_DELAY_SECONDS,
+    "input_item_prompt_delay": STORE_ITEM_PROMPT_DELAY_SECONDS,
+    "input_tunnel_prompt_delay": TUNNEL_PROMPT_DELAY_SECONDS,
+    "input_travel_prompt_delay": TRAVEL_PROMPT_DELAY_SECONDS,
+}
 TRAVEL_MACRO_TRIGGERS = {
     "\x1b`n!.": "\x0b",
     "\x1b`n\".": "\x0c",
@@ -456,7 +462,11 @@ def _last_activity_after_read(last_activity: float, now: float, chunk: str) -> f
 
 
 def _delay_spec_after_macro_key(
-    key: str, index: int, *, in_store: bool = False
+    key: str,
+    index: int,
+    *,
+    in_store: bool = False,
+    input_delays: Mapping[str, float] = INPUT_DELAY_DEFAULTS,
 ) -> tuple[float, str | None]:
     """Return the delay and telemetry category after one macro character."""
     if len(key) <= 1 or index >= len(key) - 1:
@@ -466,21 +476,56 @@ def _delay_spec_after_macro_key(
     if in_store and key[0] in {"d", "p", "{"}:
         return 0.0, None
     if key.startswith("T") and index == 0:
-        return TUNNEL_PROMPT_DELAY_SECONDS, "input:tunnel-prompt"
+        return input_delays["input_tunnel_prompt_delay"], "input:tunnel-prompt"
     if key in TRAVEL_MACRO_TRIGGERS and index in {1, 2, 3}:
-        return TRAVEL_PROMPT_DELAY_SECONDS, "input:travel-prompt"
+        return input_delays["input_travel_prompt_delay"], "input:travel-prompt"
     # f/v raise an item-selection prompt before the direction prompt, the same
     # settle shape as store drop/get.
     if key[0] in {"d", "g", "f", "v"} and index == 0:
-        return STORE_ITEM_PROMPT_DELAY_SECONDS, "input:item-prompt"
+        return input_delays["input_item_prompt_delay"], "input:item-prompt"
     if key[0] in {"p", "d"} and key[index].isdigit() and key[index + 1].isdigit():
         return STORE_QUANTITY_DIGIT_DELAY_SECONDS, "input:quantity-digit"
-    return MULTI_KEY_DELAY_SECONDS, "input:generic-prompt"
+    return input_delays["input_key_delay"], "input:generic-prompt"
 
 
-def _delay_after_macro_key(key: str, index: int, *, in_store: bool = False) -> float:
+def _delay_after_macro_key(
+    key: str,
+    index: int,
+    *,
+    in_store: bool = False,
+    input_delays: Mapping[str, float] = INPUT_DELAY_DEFAULTS,
+) -> float:
     """Return the prompt-settling delay after one character in a macro."""
-    return _delay_spec_after_macro_key(key, index, in_store=in_store)[0]
+    return _delay_spec_after_macro_key(
+        key, index, in_store=in_store, input_delays=input_delays
+    )[0]
+
+
+def _add_input_delay_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--input-key-delay",
+        type=float,
+        default=MULTI_KEY_DELAY_SECONDS,
+    )
+    parser.add_argument(
+        "--input-item-prompt-delay",
+        type=float,
+        default=STORE_ITEM_PROMPT_DELAY_SECONDS,
+    )
+    parser.add_argument(
+        "--input-tunnel-prompt-delay",
+        type=float,
+        default=TUNNEL_PROMPT_DELAY_SECONDS,
+    )
+    parser.add_argument(
+        "--input-travel-prompt-delay",
+        type=float,
+        default=TRAVEL_PROMPT_DELAY_SECONDS,
+    )
+
+
+def _input_delay_values(args: argparse.Namespace) -> dict[str, float]:
+    return {name: getattr(args, name) for name in INPUT_DELAY_DEFAULTS}
 
 
 def _intentional_action_wait_category(key: str, reason: str) -> str | None:
@@ -1103,6 +1148,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--window-class", default="ANGBAND")
     parser.add_argument("--window-pid", type=int)
     parser.add_argument("--list-windows", action="store_true")
+    _add_input_delay_arguments(parser)
     parser.add_argument(
         "--stall-timeout",
         type=float,
@@ -1134,6 +1180,7 @@ def main(argv: list[str] | None = None) -> int:
         help="retained rotated generations for decision/economy logs (default: 8)",
     )
     args = parser.parse_args(argv)
+    input_delays = _input_delay_values(args)
 
     if args.economy_log is None and args.decision_log is not None:
         args.economy_log = args.decision_log.with_name("bot-economy.jsonl")
@@ -1151,7 +1198,11 @@ def main(argv: list[str] | None = None) -> int:
             args.recorder_log_rotate_bytes,
             args.recorder_log_generations,
         )
-        append_session_marker(args.decision_log, sys.argv if argv is None else argv)
+        append_session_marker(
+            args.decision_log,
+            sys.argv if argv is None else argv,
+            input_delays=input_delays,
+        )
 
     if args.list_windows:
         from hengbot.input_windows import list_windows
@@ -1207,7 +1258,12 @@ def main(argv: list[str] | None = None) -> int:
                     process_id=args.window_pid,
                 )
                 delay, wait_category = (
-                    _delay_spec_after_macro_key(key, index, in_store=in_store)
+                    _delay_spec_after_macro_key(
+                        key,
+                        index,
+                        in_store=in_store,
+                        input_delays=input_delays,
+                    )
                     if multi
                     else (0.0, None)
                 )

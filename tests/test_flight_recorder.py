@@ -72,11 +72,24 @@ class FlightRecorderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
             path.write_text('{"old":true}\n', encoding="utf-8")
-            append_session_marker(path, ["first"])
+            append_session_marker(
+                path,
+                ["first"],
+                input_delays={
+                    "input_key_delay": 0.0,
+                    "input_item_prompt_delay": 0.5,
+                    "input_tunnel_prompt_delay": 2.0,
+                    "input_travel_prompt_delay": 0.5,
+                },
+            )
             append_session_marker(path, ["second"])
             lines = path.read_text(encoding="utf-8").splitlines()
             self.assertEqual(json.loads(lines[0]), {"old": True})
             self.assertEqual(json.loads(lines[-2])["kind"], "session-start")
+            self.assertEqual(
+                json.loads(lines[-2])["input_delays"]["input_key_delay"],
+                0.0,
+            )
             self.assertEqual(json.loads(lines[-1])["argv"], ["second"])
         cli_source = (
             Path(__file__).parents[1] / "src" / "hengbot" / "cli.py"

@@ -1,5 +1,6 @@
 import json
 import os
+import argparse
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -25,6 +26,7 @@ from hengbot.cli import (
     TUNNEL_MACRO_TRIGGERS,
     TRAVEL_MACRO_TRIGGERS,
     TRAVEL_PROMPT_DELAY_SECONDS,
+    _add_input_delay_arguments,
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
@@ -33,6 +35,7 @@ from hengbot.cli import (
     _delay_after_macro_key,
     _delay_spec_after_macro_key,
     _intentional_action_wait_category,
+    _input_delay_values,
     _decision_record,
     _duplicate_snapshot_ready,
     _chest_movement_response_pending,
@@ -87,6 +90,25 @@ class PeriodicDumpTimerTest(unittest.TestCase):
 
 
 class WaitClassificationTest(unittest.TestCase):
+    def test_cli_override_changes_generic_delay_without_changing_default(self):
+        parser = argparse.ArgumentParser()
+        _add_input_delay_arguments(parser)
+
+        defaults = _input_delay_values(parser.parse_args([]))
+        overridden = _input_delay_values(
+            parser.parse_args(["--input-key-delay", "0"])
+        )
+
+        self.assertEqual(_delay_after_macro_key("qa", 0), 0.25)
+        self.assertEqual(
+            _delay_after_macro_key("qa", 0, input_delays=defaults),
+            0.25,
+        )
+        self.assertEqual(
+            _delay_after_macro_key("qa", 0, input_delays=overridden),
+            0.0,
+        )
+
     def test_macro_delays_have_stable_categories(self):
         self.assertEqual(
             _delay_spec_after_macro_key("T3", 0),
