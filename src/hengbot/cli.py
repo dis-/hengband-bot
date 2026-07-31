@@ -339,26 +339,34 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
 
 
-def _cell_loop_guard_applies(snapshot, reason: str) -> bool:
+def _cell_loop_guard_applies(
+    snapshot, reason: str, previous_position=None
+) -> bool:
     """Leave town repetition to the policy's bounded repair path.
 
     Town deliberately has its own cycle/no-progress counters and a visible
     blocked-state stop.  Feeding the same decisions to the generic dungeon
     cell guard can stop the bot before ``town:cycle-break`` is emitted.
     """
+    if previous_position is None:
+        previous_position = snapshot.player.position
     return (
         not snapshot.in_town
-        and not any(
-            reason == stationary or reason.startswith(f"{stationary}:")
-            for stationary in STATIONARY_REASONS
+        and not (
+            previous_position == snapshot.player.position
+            and (
+                any(
+                    reason == stationary
+                    or reason.startswith(f"{stationary}:")
+                    for stationary in STATIONARY_REASONS
+                )
+                or reason in STATIONARY_EXEMPT_REASONS
+                or reason.startswith(QUEST_COMBAT_REASON_PREFIXES)
+                or reason.startswith("item:")
+                or reason.startswith("ranged:")
+                or reason.startswith("chest:")
+            )
         )
-        and reason not in STATIONARY_EXEMPT_REASONS
-        and not reason.startswith(QUEST_COMBAT_REASON_PREFIXES)
-        and not reason.startswith("item:")
-        # A firefight legitimately holds one tile for many decisions.
-        and not reason.startswith("ranged:")
-        # The chest pipeline (search/disarm/open budgets) holds two tiles.
-        and not reason.startswith("chest:")
     )
 
 
@@ -1493,6 +1501,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         residence_floor_key = None
         starving_streak = 0
         starving_last_position = None
+        cell_guard_last_position = None
         last_snapshot_floor_key = (
             initial_snapshot.floor_key if initial_snapshot is not None else None
         )
@@ -1759,7 +1768,11 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # in the middle of a safe recall home). Recall takes ~15-35
                     # turns of standing still, easily enough to trip a ≤4-cell
                     # window on its own.
-                    if not _cell_loop_guard_applies(snapshot, policy.last_reason):
+                    previous_position = cell_guard_last_position
+                    cell_guard_last_position = snapshot.player.position
+                    if not _cell_loop_guard_applies(
+                        snapshot, policy.last_reason, previous_position
+                    ):
                         # Exempt actions break positional continuity.  Keeping
                         # old route cells across hundreds of intentional hold or
                         # combat decisions makes them look like the latest

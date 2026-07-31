@@ -596,6 +596,120 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
 
 class CombatTest(unittest.TestCase):
+    def test_9f_water_capture_does_not_reposition_for_choke(self):
+        origin = Position(13, 105)
+        positions = (
+            Position(13, 119), Position(19, 122), Position(17, 122),
+            Position(16, 122), Position(12, 120), Position(13, 120),
+            Position(12, 119), Position(12, 118),
+        )
+        race_ids = (160, 70, 70, 70, 70, 70, 70, 70)
+        grids = {
+            Position(y, x): grid(y, x, terrain_id=1)
+            for y in range(10, 22)
+            for x in range(102, 124)
+        }
+        monsters = []
+        for index, (position, race_id) in enumerate(
+            zip(positions, race_ids), 1
+        ):
+            grids[position] = replace(
+                grids[position], terrain_id=84, has_monster=True
+            )
+            monsters.append(hostile(
+                index, position.y, position.x,
+                distance=origin.distance_to(position), race_id=race_id,
+                max_melee_damage=14,
+            ))
+        snapshot = Snapshot(
+            player(origin.y, origin.x, hp=461, max_hp=461),
+            grids,
+            monsters,
+            floor_key=(1, 9, 0),
+            turn=934452,
+        )
+        knowledge = {
+            160: MonraceKnowledge(
+                10, 110, False, False, flags=frozenset({"AQUATIC"})
+            ),
+            70: MonraceKnowledge(
+                10, 120, False, False,
+                flags=frozenset({"AQUATIC", "NEVER_MOVE"}),
+            ),
+        }
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+
+        west_origin = Position(13, 104)
+        west_snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, position=west_origin),
+            visible_monsters=[
+                replace(
+                    monster,
+                    distance=west_origin.distance_to(monster.position),
+                )
+                for monster in monsters
+            ],
+            turn=snapshot.turn - 1,
+        )
+        policy.choose_key(west_snapshot)
+        policy.choose_key(snapshot)
+
+        self.assertFalse(policy.last_reason.startswith("melee:choke"))
+
+    def test_immobile_monsters_remain_threats_in_reach(self):
+        knowledge = MonraceKnowledge(
+            10, 110, False, False,
+            max_melee_damage=12,
+            flags=frozenset({"AQUATIC", "NEVER_MOVE"}),
+        )
+        monster = hostile(
+            1, 10, 11, distance=1, race_id=70, max_melee_damage=12
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, 10): grid(10, 10, terrain_id=1),
+                Position(10, 11): grid(
+                    10, 11, terrain_id=84, monster=True
+                ),
+            },
+            [monster],
+            floor_key=(1, 9, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={70: knowledge})
+
+        self.assertTrue(policy._monster_can_approach(snapshot, monster))
+        self.assertGreater(
+            policy.threat_prediction(snapshot, [monster])["operational_total"],
+            0,
+        )
+
+    def test_aquatic_monster_remains_a_ranged_target(self):
+        monster = hostile(1, 10, 13, distance=3, race_id=160)
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, x): grid(
+                    10, x, terrain_id=84 if x == 13 else 1,
+                    monster=x == 13,
+                )
+                for x in range(10, 14)
+            },
+            [monster],
+            floor_key=(1, 9, 0),
+            equipment=[item("bow", TVAL_BOW, SV_BOW_SHORT, is_equipment=True)],
+            inventory=[item("a", TVAL_ARROW, 1, count=10)],
+        )
+        policy = HengbotPolicy(monrace_knowledge={
+            160: MonraceKnowledge(
+                10, 110, False, False, flags=frozenset({"AQUATIC"})
+            )
+        })
+        policy._build_grid_index(snapshot)
+
+        self.assertIsNotNone(policy._ranged_attack_key(snapshot, [monster], []))
+
     @staticmethod
     def _mouse_swarm_snapshot(*, at_choke=False, adjacent=False, ranged=False):
         origin = Position(10, 9) if at_choke else Position(10, 10)

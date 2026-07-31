@@ -1339,6 +1339,21 @@ class StallRecoveryTest(unittest.TestCase):
 
 
 class StationaryReasonsTest(unittest.TestCase):
+    def test_stationary_exemption_depends_on_observed_position(self):
+        before = parse_snapshot(json.loads(_snap_line(1, 13, 104)), {})
+        after_move = parse_snapshot(json.loads(_snap_line(1, 13, 105)), {})
+
+        self.assertTrue(
+            _cell_loop_guard_applies(
+                after_move, "melee:choke", before.player.position
+            )
+        )
+        self.assertFalse(
+            _cell_loop_guard_applies(
+                before, "melee", before.player.position
+            )
+        )
+
     def test_only_registered_budgeted_escape_waits_are_exempt(self):
         dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
 

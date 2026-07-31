@@ -23683,6 +23683,7 @@ class HengbotPolicy:
             never_moves = bool(
                 knowledge is not None and "NEVER_MOVE" in knowledge.flags
             )
+            cannot_approach = not self._monster_can_approach(snapshot, monster)
             can_teleport_player_to = bool(
                 knowledge is not None
                 and "TELE_TO" in knowledge.abilities
@@ -23710,7 +23711,7 @@ class HengbotPolicy:
                     actions
                     if path_distance <= 1
                     else 0
-                    if never_moves
+                    if never_moves or cannot_approach
                     else max(0, actions - (path_distance - 1))
                 )
                 teleport_to_attacks = (
@@ -24002,12 +24003,18 @@ class HengbotPolicy:
             monster
             for monster in hostiles
             if not monster.asleep
+            and self._monster_can_approach(snapshot, monster)
             and (
-                # SWARM_LOOKAHEAD is also the short engagement horizon here:
-                # monsters this close are already converging for positioning.
-                monster.distance <= SWARM_LOOKAHEAD
-                or self._swarm_previous_distances.get(monster.index, 0)
-                > monster.distance
+                monster.distance <= 1
+                or (
+                    monster.can_multiply
+                    and monster.distance <= SWARM_LOOKAHEAD
+                )
+                or (
+                    not self._position_changed
+                    and self._swarm_previous_distances.get(monster.index, 0)
+                    > monster.distance
+                )
             )
         ]
         melee_hostiles = [
@@ -24215,6 +24222,38 @@ class HengbotPolicy:
             for monster in visible_monsters
             if monster.hostile and not monster.asleep
         }
+
+    def _monster_can_approach(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Whether a visible melee monster can close from its present terrain."""
+        if monster.distance <= 1:
+            return True
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        if knowledge is None:
+            return True
+        if "NEVER_MOVE" in knowledge.flags:
+            return False
+        if "AQUATIC" not in knowledge.flags:
+            return True
+        monster_grid = snapshot.grid_at(monster.position)
+        if monster_grid is None or monster_grid.terrain_id < 0:
+            return True
+        water_terrain = monster_grid.terrain_id
+        return any(
+            (grid := snapshot.grid_at(position)) is not None
+            and grid.terrain_id == water_terrain
+            for position in (
+                snapshot.player.position,
+                *(
+                    Position(
+                        snapshot.player.position.y + dy,
+                        snapshot.player.position.x + dx,
+                    )
+                    for dy, dx in NEIGHBOR_OFFSETS
+                ),
+            )
+        )
 
     def _monster_path_distance(
         self, snapshot: Snapshot, origin: Position
