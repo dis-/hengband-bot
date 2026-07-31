@@ -1051,6 +1051,7 @@ def _duplicate_snapshot_ready(
     previous_reason: str | None = None,
     snapshot=None,
     previous_snapshot=None,
+    command_consumed: bool | None = None,
 ) -> bool:
     if line == previous_line and previous_reason is not None and (
         previous_reason.startswith("shop:buy-")
@@ -1068,10 +1069,14 @@ def _duplicate_snapshot_ready(
         return True
     if elapsed < DUPLICATE_RETRY_SECONDS:
         return False
-    # A retry is justified only by a newly emitted board proving that the game
-    # rejected the command.  Merely waiting DUPLICATE_RETRY_SECONDS beside the
-    # same last-read line is not evidence: the posted key may simply be slow.
-    return _command_rejection_evident(previous_snapshot, snapshot)
+    # Production callers pass proof from the look barrier.  The snapshot
+    # fallback preserves the helper's pre-barrier unit-level API; identical
+    # board content is not itself used as production evidence.
+    if command_consumed is None:
+        command_consumed = _command_rejection_evident(
+            previous_snapshot, snapshot
+        )
+    return command_consumed
 
 
 def _command_rejection_evident(before, after) -> bool:
@@ -1104,18 +1109,30 @@ def _direction_desynchronized(before, key: str, after) -> bool:
 
 def _look_barrier_allows_decision(complete_lines: list[str]) -> bool:
     """Resume at an ordinary board after look, or make progress if look is lost."""
-    for line in complete_lines:
+    eligible_lines, _ = _look_barrier_release(complete_lines)
+    return bool(_newest_snapshot_entry(eligible_lines, {}))
+
+
+def _look_barrier_release(
+    complete_lines: list[str], look_seen: bool = False
+) -> tuple[list[str], bool]:
+    """Return only lines eligible after the one-shot look consumption barrier."""
+    last_look_index = None
+    for index, line in enumerate(complete_lines):
         try:
             response_type = json.loads(line).get("type")
         except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
             continue
         if response_type == "look":
-            continue
-        elif response_type not in {"knowledge", "character"}:
-            # If the look record was lost, the first later ordinary snapshot is
-            # still a one-shot escape hatch; never wait, spin, or re-probe.
-            return True
-    return False
+            last_look_index = index
+    if last_look_index is not None:
+        look_seen = True
+        return complete_lines[last_look_index + 1 :], look_seen
+    if look_seen:
+        return complete_lines, look_seen
+    # A missing look response gets one bounded escape: consume this batch and
+    # clear the pending barrier without issuing another probe.
+    return complete_lines, look_seen
 
 
 def _movement_destination(position, key: str):
@@ -1563,7 +1580,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
             tuple[int, int, int], object, object, float
         ] | None = None
         pending_direction: tuple[object, str] | None = None
-        look_barrier_pending = False
+        look_barrier_pending: str | None = None
+        look_barrier_seen = False
+        duplicate_retry_consumed = False
         previous_decision_snapshot = None
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
@@ -1591,7 +1610,24 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 # acknowledgements below detect that state and drain it through
                 # the existing look channel. Rejected commands are retried only
                 # after a newly emitted board positively confirms rejection.
-                entry = _newest_snapshot_entry(complete_lines, monrace_knowledge)
+                if look_barrier_pending is not None:
+                    eligible_lines, look_barrier_seen = _look_barrier_release(
+                        complete_lines, look_barrier_seen
+                    )
+                    entry = _newest_snapshot_entry(
+                        eligible_lines, monrace_knowledge
+                    )
+                    if entry is None:
+                        continue
+                    barrier_purpose = look_barrier_pending
+                    look_barrier_pending = None
+                    look_barrier_seen = False
+                    if barrier_purpose == "duplicate-retry":
+                        duplicate_retry_consumed = True
+                else:
+                    entry = _newest_snapshot_entry(
+                        complete_lines, monrace_knowledge
+                    )
                 if entry is not None:
                     snapshot, snapshot_line = entry
                     args.last_snapshot = snapshot
@@ -1600,10 +1636,6 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_player_level = snapshot.player.level
                     now = time.monotonic()
                     last_activity = now
-                    if look_barrier_pending:
-                        if not _look_barrier_allows_decision(complete_lines):
-                            continue
-                        look_barrier_pending = False
                     if pending_direction is not None:
                         command_snapshot, command_key = pending_direction
                         pending_direction = None
@@ -1616,7 +1648,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                                 barrier_key,
                                 in_store=snapshot.store is not None,
                             ):
-                                look_barrier_pending = True
+                                look_barrier_pending = "desync"
+                                look_barrier_seen = False
                             last_activity = time.monotonic()
                             continue
                     if _floor_transition_needs_prompt_clear(
@@ -1637,14 +1670,40 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     ):
                         continue
                     pending_chest_movement = None
-                    if not _duplicate_snapshot_ready(
+                    duplicate_ready = _duplicate_snapshot_ready(
                         snapshot_line,
                         last_decision_line,
                         now - last_decision_at,
                         last_decision_reason,
                         snapshot,
                         previous_decision_snapshot,
-                    ):
+                        command_consumed=duplicate_retry_consumed,
+                    )
+                    if not duplicate_ready:
+                        if (
+                            snapshot_line == last_decision_line
+                            and now - last_decision_at
+                            >= DUPLICATE_RETRY_SECONDS
+                            and look_barrier_pending is None
+                            and not (
+                                last_decision_reason is not None
+                                and (
+                                    last_decision_reason.startswith("shop:buy-")
+                                    or last_decision_reason.startswith("shop:sell")
+                                    or last_decision_reason.startswith("home:deposit")
+                                    or last_decision_reason.startswith("home:withdraw")
+                                )
+                            )
+                        ):
+                            barrier_key = policy._look_probe_key(snapshot)
+                            print("<duplicate-retry:look-barrier>", flush=True)
+                            if send(
+                                barrier_key,
+                                in_store=snapshot.store is not None,
+                            ):
+                                look_barrier_pending = "duplicate-retry"
+                                look_barrier_seen = False
+                            last_activity = time.monotonic()
                         continue
                     if pending_action_wait is not None:
                         wait_category, wait_started = pending_action_wait
@@ -1657,6 +1716,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_decision_line = snapshot_line
                     last_decision_at = now
                     previous_decision_snapshot = snapshot
+                    duplicate_retry_consumed = False
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
                     recorder.before_floor_change(policy, snapshot.floor_key)
                     key = policy.choose_key(snapshot)

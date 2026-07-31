@@ -41,6 +41,7 @@ from hengbot.cli import (
     _command_rejection_evident,
     _direction_desynchronized,
     _look_barrier_allows_decision,
+    _look_barrier_release,
     _chest_movement_response_pending,
     _movement_command_needs_ack,
     _fundraising_state,
@@ -1003,6 +1004,20 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
 
         self.assertFalse(_duplicate_snapshot_ready(line, line, 20.0))
 
+    def test_rejected_command_retries_only_after_look_consumption(self):
+        line = _snap_line(100, 5, 5)
+
+        self.assertFalse(
+            _duplicate_snapshot_ready(
+                line, line, 20.0, command_consumed=False
+            )
+        )
+        self.assertTrue(
+            _duplicate_snapshot_ready(
+                line, line, 20.0, command_consumed=True
+            )
+        )
+
     def test_message_effect_disproves_rejection(self):
         before = parse_snapshot(json.loads(_snap_line(100, 5, 5)), {})
         data = json.loads(_snap_line(100, 5, 5))
@@ -1056,6 +1071,26 @@ class InputDesynchronizationTest(unittest.TestCase):
 
         self.assertFalse(_look_barrier_allows_decision([look]))
         self.assertTrue(_look_barrier_allows_decision([look, board]))
+
+    def test_look_barrier_discards_ordinary_board_before_look(self):
+        before = _snap_line(10, 5, 5)
+        look = json.dumps({"type": "look", "look": {}}) + "\n"
+        after = _snap_line(11, 5, 6)
+
+        eligible, look_seen = _look_barrier_release([before, look, after])
+
+        self.assertTrue(look_seen)
+        self.assertEqual(eligible, [after])
+
+    def test_look_barrier_waits_across_batches_after_look(self):
+        before = _snap_line(10, 5, 5)
+        look = json.dumps({"type": "look", "look": {}}) + "\n"
+        after = _snap_line(11, 5, 6)
+
+        eligible, look_seen = _look_barrier_release([before, look])
+        self.assertEqual(eligible, [])
+        self.assertTrue(look_seen)
+        self.assertEqual(_look_barrier_release([after], look_seen)[0], [after])
 
     def test_missing_look_response_makes_progress_without_reprobe(self):
         self.assertTrue(_look_barrier_allows_decision([_snap_line(11, 5, 6)]))
