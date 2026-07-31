@@ -429,8 +429,8 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         policy._build_grid_index(snapshot)
 
-        self.assertEqual(policy._hostiles(snapshot), [])
-        self.assertEqual(policy._adjacent_hostiles(snapshot), [])
+        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        self.assertEqual(policy._strategic_adjacent_hostiles(snapshot), [])
         self.assertNotIn((10, 11), policy._floor_t)
         self.assertNotIn(
             behind_wall.position,
@@ -512,7 +512,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         self.assertEqual((key, policy.last_reason), ("7", "detected:prepare-choke"))
         retreat.assert_called_once()
-        self.assertEqual(policy._hostiles(snapshot), [])
+        self.assertEqual(policy._strategic_hostiles(snapshot), [])
 
     def test_latched_town_return_outranks_detected_threat_preparation(self):
         breeder = replace(
@@ -817,6 +817,54 @@ class CombatTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
 
+    def test_2230_capture_does_not_rest_among_eighteen_weak_breeders(self):
+        # 2026-07-31 22:30 incident state: HP 332/461, eighteen giant white
+        # lice visible, two adjacent, and the extermination-impossible latch
+        # armed.  The old strategic view was empty and selected REST_MACRO.
+        base = self._weak_breeder_incident_snapshot(blocking=True)
+        breeders = [
+            replace(monster, race_id=69)
+            for monster in base.visible_monsters[:18]
+        ]
+        snapshot = replace(
+            base,
+            player=replace(base.player, hp=332, max_hp=461),
+            visible_monsters=breeders,
+            floor_key=(DUNGEON_ANGBAND, 9, 0),
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._took_damage = False
+
+        key = policy._decide(snapshot)
+
+        self.assertEqual(len(policy._physical_hostiles(snapshot)), 18)
+        self.assertEqual(len(policy._physical_adjacent_hostiles(snapshot)), 2)
+        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        self.assertNotEqual((key, policy.last_reason), (REST_MACRO, "rest"))
+
+    def test_policy_exposes_no_default_hostile_accessor(self):
+        policy = HengbotPolicy()
+
+        for ambiguous_name in (
+            "_hostiles",
+            "_raw_hostiles",
+            "_adjacent_hostiles",
+        ):
+            with self.subTest(name=ambiguous_name):
+                self.assertFalse(hasattr(policy, ambiguous_name))
+
+        for explicit_name in (
+            "_physical_hostiles",
+            "_strategic_hostiles",
+            "_physical_adjacent_hostiles",
+            "_strategic_adjacent_hostiles",
+            "_perceived_hostiles",
+        ):
+            with self.subTest(name=explicit_name):
+                self.assertTrue(hasattr(policy, explicit_name))
+
     def test_only_path_blocking_weak_breeder_is_attacked(self):
         snapshot = self._weak_breeder_incident_snapshot(blocking=True)
         policy = HengbotPolicy()
@@ -981,10 +1029,12 @@ class CombatTest(unittest.TestCase):
         policy._breeder_breakthrough_floor = snapshot.floor_key
         policy._build_grid_index(snapshot)
 
-        self.assertEqual(policy._hostiles(snapshot), [])
+        self.assertEqual(policy._strategic_hostiles(snapshot), [])
         self.assertEqual(
             policy._blocking_escape_melee_key(
-                snapshot, policy._hostiles(snapshot), policy._is_upstairs_target
+                snapshot,
+                policy._physical_hostiles(snapshot),
+                policy._is_upstairs_target,
             ),
             "4",
         )
@@ -1086,7 +1136,9 @@ class CombatTest(unittest.TestCase):
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
         self.assertEqual(
-            policy._breeder_breakthrough_key(snapshot, policy._hostiles(snapshot)),
+            policy._breeder_breakthrough_key(
+                snapshot, policy._strategic_hostiles(snapshot)
+            ),
             WAIT_KEY,
         )
         self.assertEqual(
@@ -1240,7 +1292,7 @@ class CombatTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._floor_key = weak.floor_key
         policy._breeder_breakthrough_floor = weak.floor_key
-        self.assertEqual(policy._hostiles(weak), [])
+        self.assertEqual(policy._strategic_hostiles(weak), [])
 
         blocking = self._weak_breeder_incident_snapshot(blocking=True)
         with patch.object(
@@ -1257,7 +1309,7 @@ class CombatTest(unittest.TestCase):
         )
         self.assertEqual(
             policy._breeder_breakthrough_key(
-                strong, policy._hostiles(strong)
+                strong, policy._strategic_hostiles(strong)
             ),
             WAIT_KEY,
         )
@@ -1271,7 +1323,7 @@ class CombatTest(unittest.TestCase):
             policy._melee_swarm_combat_key(
                 snapshot,
                 snapshot.visible_monsters,
-                policy._adjacent_hostiles(snapshot),
+                policy._strategic_adjacent_hostiles(snapshot),
             ),
             "4",
         )
@@ -1355,7 +1407,7 @@ class CombatTest(unittest.TestCase):
             policy._melee_swarm_combat_key(
                 snapshot,
                 snapshot.visible_monsters,
-                policy._adjacent_hostiles(snapshot),
+                policy._strategic_adjacent_hostiles(snapshot),
             ),
             "6",
         )
@@ -1370,7 +1422,7 @@ class CombatTest(unittest.TestCase):
             policy._melee_swarm_combat_key(
                 snapshot,
                 snapshot.visible_monsters,
-                policy._adjacent_hostiles(snapshot),
+                policy._strategic_adjacent_hostiles(snapshot),
             )
         )
 
@@ -1390,7 +1442,7 @@ class CombatTest(unittest.TestCase):
             policy._melee_swarm_combat_key(
                 snapshot,
                 snapshot.visible_monsters,
-                policy._adjacent_hostiles(snapshot),
+                policy._strategic_adjacent_hostiles(snapshot),
             )
         )
         self.assertEqual(policy.last_reason, "melee:choke")
@@ -19612,7 +19664,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         # The extermination-impossible latch strategically suppresses these
         # weak breeders, but mining combat must still count their real contact.
-        self.assertEqual(policy._hostiles(mining), [])
+        self.assertEqual(policy._strategic_hostiles(mining), [])
 
         self.assertEqual(policy.choose_key(mining), "wsa")
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
@@ -29052,7 +29104,9 @@ class NoWaitUnderFireTest(unittest.TestCase):
         with (
             patch.object(policy, "_flee_step", return_value=None),
             patch.object(policy, "_least_visited_neighbor", return_value=None),
-            patch.object(policy, "_adjacent_hostiles", return_value=[]),
+            patch.object(
+                policy, "_physical_adjacent_hostiles", return_value=[]
+            ),
         ):
             self.assertEqual(
                 policy._forbid_wait_under_fire(snapshot, WAIT_KEY),

@@ -2401,12 +2401,12 @@ class HengbotPolicy:
                 self.last_reason.startswith("quest-strategy:q2-residual-")
                 or self.last_reason.startswith("quest-strategy:q2-final-patrol")
             )
-            and not self._hostiles(snapshot)
+            and not self._physical_hostiles(snapshot)
         )
         safe_town = (
             snapshot.in_town
             and snapshot.store is None
-            and not self._hostiles(snapshot)
+            and not self._physical_hostiles(snapshot)
             and not snapshot.player.blind
             and not snapshot.player.confused
         )
@@ -2414,7 +2414,7 @@ class HengbotPolicy:
             not (safe_exploration or safe_q2_patrol or safe_town)
             or snapshot.store is not None
             or snapshot.player.recalling
-            or self._adjacent_hostiles(snapshot)
+            or self._physical_adjacent_hostiles(snapshot)
         ):
             return key
         self._periodic_dump_requested = False
@@ -2539,8 +2539,8 @@ class HengbotPolicy:
         if here is None or not here.has_up_stairs:
             return
 
-        hostiles = self._hostiles(snapshot)
-        adjacent = self._adjacent_hostiles(snapshot)
+        hostiles = self._physical_hostiles(snapshot)
+        adjacent = self._physical_adjacent_hostiles(snapshot)
         if self._should_flee(snapshot, hostiles, adjacent):
             self._defer_descent(snapshot)
 
@@ -2586,12 +2586,12 @@ class HengbotPolicy:
 
         reason = self.last_reason
         strategic_hostiles = (
-            self._hostiles(snapshot)
+            self._strategic_hostiles(snapshot)
             if hasattr(snapshot, "visible_monsters")
             else []
         )
         hostiles = (
-            self._raw_hostiles(snapshot)
+            self._physical_hostiles(snapshot)
             if hasattr(snapshot, "visible_monsters")
             else []
         )
@@ -2705,7 +2705,7 @@ class HengbotPolicy:
         if snapshot.in_town or snapshot.store is not None:
             self._escape_sustain_active = False
             return key
-        hostiles = self._hostiles(snapshot)
+        hostiles = self._physical_hostiles(snapshot)
         escaping = self._escape_action_selected()
         if not escaping:
             if self._escape_sustain_active:
@@ -2811,9 +2811,9 @@ class HengbotPolicy:
 
         self._build_grid_index(snapshot)
         player = snapshot.player
-        hostiles = self._hostiles(snapshot)
-        adjacent = self._adjacent_hostiles(snapshot)
-        raw_hostiles = self._raw_hostiles(snapshot)
+        hostiles = self._strategic_hostiles(snapshot)
+        adjacent = self._strategic_adjacent_hostiles(snapshot)
+        raw_hostiles = self._physical_hostiles(snapshot)
         raw_adjacent = [
             monster for monster in raw_hostiles
             if player.position.distance_to(monster.position) <= 1
@@ -3587,7 +3587,7 @@ class HengbotPolicy:
         #    healed. This is our main way to stay survivable without healing items.
         if (
             player.hp_ratio < REST_TARGET_HP_RATIO
-            and not hostiles
+            and not self._physical_hostiles(snapshot)
             and not self._took_damage
             and not player.poisoned
             and not player.cut
@@ -4749,7 +4749,7 @@ class HengbotPolicy:
             < snapshot.player.max_hp * WEAK_BREEDER_MAX_DAMAGE_RATIO
         )
 
-    def _hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+    def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         return [
             monster
             for monster in snapshot.visible_monsters
@@ -4762,7 +4762,7 @@ class HengbotPolicy:
             )
         ]
 
-    def _raw_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+    def _physical_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         return [
             monster for monster in snapshot.visible_monsters
             if monster.hostile
@@ -4791,9 +4791,21 @@ class HengbotPolicy:
             )
         ]
 
-    def _adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+    def _strategic_adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         origin = snapshot.player.position
-        return [m for m in self._hostiles(snapshot) if origin.distance_to(m.position) <= 1]
+        return [
+            monster
+            for monster in self._strategic_hostiles(snapshot)
+            if origin.distance_to(monster.position) <= 1
+        ]
+
+    def _physical_adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+        origin = snapshot.player.position
+        return [
+            monster
+            for monster in self._physical_hostiles(snapshot)
+            if origin.distance_to(monster.position) <= 1
+        ]
 
     def _equipped_launcher(self, snapshot: Snapshot) -> InventoryItem | None:
         return next(
@@ -16314,7 +16326,7 @@ class HengbotPolicy:
             self.last_reason = "fundraise:seek-upstairs"
             return self._step_toward(snapshot, step)
         blocker = self._blocking_escape_melee_key(
-            snapshot, self._hostiles(snapshot), self._is_upstairs_target
+            snapshot, self._physical_hostiles(snapshot), self._is_upstairs_target
         )
         if blocker is not None:
             self.last_reason = "fundraise:clear-escape-path"
@@ -16842,7 +16854,7 @@ class HengbotPolicy:
             or snapshot.dungeon_level != 1
         ):
             return None
-        mining_hostiles = self._raw_hostiles(snapshot)
+        mining_hostiles = self._physical_hostiles(snapshot)
         combat_equip = self._fundraising_combat_equipment_key(
             snapshot, mining_hostiles
         )
@@ -17334,7 +17346,9 @@ class HengbotPolicy:
             if triage is not None:
                 return triage
             self._returning_to_town = True
-            return self._return_to_town_key(snapshot, self._hostiles(snapshot))
+            return self._return_to_town_key(
+                snapshot, self._strategic_hostiles(snapshot)
+            )
         current_loot = self._current_floor_item_key(
             snapshot,
             pickup_reason="victory:pickup",
@@ -17347,7 +17361,9 @@ class HengbotPolicy:
             self.last_reason = "victory:seek-loot"
             return self._step_toward(snapshot, step)
         self._returning_to_town = True
-        return self._return_to_town_key(snapshot, self._hostiles(snapshot))
+        return self._return_to_town_key(
+            snapshot, self._strategic_hostiles(snapshot)
+        )
 
     def _conquest_loot_key(self, snapshot: Snapshot) -> str | None:
         # After killing a dungeon's final guardian, sweep its floor for the drop
@@ -17363,7 +17379,9 @@ class HengbotPolicy:
             if triage is not None:
                 return triage
             self._returning_to_town = True
-            return self._return_to_town_key(snapshot, self._hostiles(snapshot))
+            return self._return_to_town_key(
+                snapshot, self._strategic_hostiles(snapshot)
+            )
         current_loot = self._current_floor_item_key(
             snapshot,
             pickup_reason="conquest:pickup",
@@ -17381,7 +17399,9 @@ class HengbotPolicy:
         self._victory_loot_dungeon = None
         self._returning_to_town = True
         self._last_return_trigger = "conquest-complete"
-        key = self._return_to_town_key(snapshot, self._hostiles(snapshot))
+        key = self._return_to_town_key(
+            snapshot, self._strategic_hostiles(snapshot)
+        )
         self._last_return_trigger = "conquest-complete"
         return key
 
@@ -17748,7 +17768,7 @@ class HengbotPolicy:
                 return WAIT_KEY
             visible_corpses = [
                 monster.position
-                for monster in self._hostiles(snapshot)
+                for monster in self._strategic_hostiles(snapshot)
                 if monster.race_id == 202
             ]
             corpse_sources = {
@@ -17815,7 +17835,7 @@ class HengbotPolicy:
         # walking back to the entrance hold lets the group multiply unchecked.
         residual_hostiles = [
             monster
-            for monster in self._hostiles(snapshot)
+            for monster in self._strategic_hostiles(snapshot)
             if monster.race_id in Q2_BREEDER_RACES
         ]
         if residual_hostiles:
@@ -17991,7 +18011,7 @@ class HengbotPolicy:
         if (
             Q2_BREEDER_RACES <= self._q2_cleared_races
             and snapshot.player.hp < snapshot.player.max_hp
-            and not self._hostiles(snapshot)
+            and not self._physical_hostiles(snapshot)
         ):
             self.last_reason = "quest-strategy:q2-rest-between-engagements"
             return REST_MACRO
@@ -19583,7 +19603,7 @@ class HengbotPolicy:
     def _fixed_quest_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
-        if self._adjacent_hostiles(snapshot):
+        if self._physical_adjacent_hostiles(snapshot):
             return None
         if snapshot.in_town:
             # A claimed floor reward is part of the quest transaction and must
@@ -20869,7 +20889,7 @@ class HengbotPolicy:
     ) -> str | None:
         if len(snapshot.inventory) >= PACK_CAPACITY:
             return "pack-full"
-        if self._adjacent_hostiles(snapshot):
+        if self._physical_adjacent_hostiles(snapshot):
             return "adjacent-hostile"
         if any(monster.can_summon for monster in hostiles):
             return "summoner-visible"
@@ -20883,7 +20903,7 @@ class HengbotPolicy:
 
     def loot_state(self, snapshot: Snapshot) -> dict:
         """Decision telemetry for visible, remembered, and blocked floor loot."""
-        hostiles = self._hostiles(snapshot)
+        hostiles = self._strategic_hostiles(snapshot)
         visible = [
             {
                 "position": {"y": grid.position.y, "x": grid.position.x},
@@ -22031,7 +22051,7 @@ class HengbotPolicy:
             or (
                 self._combat_fruitful
                 and (
-                    bool(self._adjacent_hostiles(snapshot))
+                    bool(self._physical_adjacent_hostiles(snapshot))
                     or self.last_reason.startswith(
                         ("melee", "ranged", "flee", "hunt", "emergency", "quest:")
                     )
@@ -22270,7 +22290,7 @@ class HengbotPolicy:
                 if target is not None and target != snapshot.player.position:
                     self.last_reason = "combat:disengage-cut-through"
                     return self._step_toward(snapshot, target)
-        adjacent = self._adjacent_hostiles(snapshot)
+        adjacent = self._physical_adjacent_hostiles(snapshot)
         if adjacent:
             self.last_reason = "combat:disengage-melee"
             return self._direction_key(
@@ -24918,7 +24938,7 @@ class HengbotPolicy:
     ) -> str | None:
         """Bump a weak adjacent blocker when it is the door to an escape route."""
         player = snapshot.player
-        hostiles = self._raw_hostiles(snapshot)
+        hostiles = self._physical_hostiles(snapshot)
         candidates = [
             monster for monster in hostiles
             if monster.distance <= 1

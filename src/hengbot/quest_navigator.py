@@ -128,7 +128,9 @@ class QuestFloorNavigator:
 
     def _sweep(self, owner: Any, snapshot: Snapshot, hostiles: list[Any]) -> str | None:
         if hostiles:
-            action = owner._quest_execute_key(snapshot, hostiles, owner._adjacent_hostiles(snapshot))
+            action = owner._quest_execute_key(
+                snapshot, hostiles, owner._strategic_adjacent_hostiles(snapshot)
+            )
             if action is not None:
                 return action
         here = snapshot.grid_at(snapshot.player.position)
