@@ -1350,6 +1350,7 @@ class HengbotPolicy:
         self._quest_strategies = quest_strategies or {}
         self._baseitem_costs = dict(baseitem_costs or {})
         self._look_floor_items: dict[Position, tuple[InventoryItem, ...]] = {}
+        self._look_floor_object_counts: dict[Position, int] = {}
         self._look_floor_key: tuple[int, int, int] | None = None
         self._look_probe_inflight = False
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
@@ -2361,6 +2362,11 @@ class HengbotPolicy:
     def _look_probe_key(self, snapshot: Snapshot) -> str:
         self._look_floor_key = snapshot.floor_key
         self._look_floor_items.clear()
+        self._look_floor_object_counts = {
+            grid.position: grid.object_count
+            for grid in snapshot.grids.values()
+            if grid.object_count > 0
+        }
         self._look_probe_inflight = True
         self.last_reason = "loot:look-floor-items"
         return "l\x1b"
@@ -6036,8 +6042,11 @@ class HengbotPolicy:
             return None
         command, src = source
         self._look_floor_items.clear()
+        self._look_floor_object_counts.clear()
         self.last_reason = "loot:identify-floor-item"
         # Hengband's item chooser uses '-' to select the floor object.
+        # This completes selection without another prompt only while the game
+        # option `carry_query_flag` remains off (its current default).
         return command + src.slot + "-"
 
     def _cheapest_exchange_item(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -6066,6 +6075,7 @@ class HengbotPolicy:
 
         if self._look_floor_key != snapshot.floor_key:
             self._look_floor_items.clear()
+            self._look_floor_object_counts.clear()
             self._look_probe_inflight = False
         loot_positions = {
             grid.position
@@ -6077,6 +6087,19 @@ class HengbotPolicy:
         if self._look_probe_inflight:
             self._look_probe_inflight = False
         if self._look_floor_key != snapshot.floor_key:
+            return self._look_probe_key(snapshot)
+        live_counts = {
+            position: snapshot.grids[position].object_count
+            for position in loot_positions
+        }
+        cached_counts = {
+            position: self._look_floor_object_counts.get(position, live_counts[position])
+            for position in loot_positions
+        }
+        if live_counts != cached_counts:
+            # A pickup can leave a non-empty pile whose old identities still
+            # look usable. Invalidate all identities and make one fresh probe;
+            # the recorded counts prevent a missing response from re-probing.
             return self._look_probe_key(snapshot)
 
         for position in sorted(
@@ -10476,6 +10499,14 @@ class HengbotPolicy:
         )
         if organization_store is not None:
             add(organization_store, "organization-sale")
+        elif (
+            organization is not None
+            and self._identification_need is None
+            and self._town_organization_home_routable(snapshot, organization)
+        ):
+            # Required organization remains routable during fundraising; this
+            # is the existing Home deposit need and deposit machinery.
+            add(STORE_HOME, "deposit", "home-first")
         if (
             self._home_available(snapshot)
             and STORE_HOME not in self._town_store_attempted
@@ -13091,6 +13122,13 @@ class HengbotPolicy:
                 self._home_deposit_candidate(item, snapshot)
                 and not item.is_ammo
                 and not item.is_torch
+                # Ordinary convenience deposits keep their established
+                # fundraising suppression. Organization owns this Home-only
+                # case once every sale outlet has actually refused the item.
+                and (
+                    self._item_signature(item) in self._unsellable_items
+                    or self._town_organization_sale_store(snapshot, item) is not None
+                )
             )
             or self._is_surplus_digging_tool(snapshot, item)
         )
@@ -13100,14 +13138,29 @@ class HengbotPolicy:
             and self._entire_stack_is_surplus(snapshot, item)
             and not item.is_bounty
             and self._item_signature(item) not in self._home_rejected_deposits
-            and not (
-                (self._home_full or self._home_deposit_abandoned)
-                and self._town_organization_sale_store(snapshot, item) is None
-            )
             and (
                 self._town_organization_sale_store(snapshot, item) is not None
-                or self._home_available(snapshot)
+                or self._town_organization_home_routable(snapshot, item)
             ),
+        )
+
+    def _town_organization_home_routable(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> bool:
+        """Whether the existing Home deposit route can still take this surplus."""
+        at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
+        return (
+            self._home_available(snapshot)
+            and not self._home_full
+            and not self._home_deposit_abandoned
+            and self._item_signature(item) not in self._home_rejected_deposits
+            and (
+                at_home
+                or (
+                    STORE_HOME not in self._town_store_attempted
+                    and STORE_HOME not in self._town_visit_ledger.blocked_stores
+                )
+            )
         )
 
     def _town_organization_sale_store(

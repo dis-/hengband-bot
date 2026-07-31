@@ -173,6 +173,28 @@ class LookResponseTest(unittest.TestCase):
         self.assertFalse(policy._look_probe_inflight)
         self.assertNotEqual(policy.last_reason, "loot:await-look")
 
+    def test_partially_picked_pile_invalidates_stale_exchange_identity(self):
+        inventory = [carried(chr(ord("a") + i), sval=2) for i in range(PACK_CAPACITY)]
+        policy = HengbotPolicy(baseitem_costs={(TVAL_SWORD, 2): 10,
+                                                (TVAL_SWORD, 9): 1000})
+        snapshot = full_snapshot(inventory, object_count=1)
+        position = snapshot.player.position
+        policy._look_floor_key = snapshot.floor_key
+        policy._look_floor_object_counts = {position: 2}
+        policy._look_floor_items = {
+            position: (
+                carried("", sval=9, name="already picked reward"),
+                carried("", sval=2, name="remaining item"),
+            )
+        }
+        policy._full_pack_destroy_key = lambda _snapshot: None
+        policy._pack_pressure_identify_key = lambda _snapshot: None
+        policy._entire_stack_is_surplus = lambda _snapshot, _item: True
+
+        self.assertEqual(policy._full_pack_loot_triage_key(snapshot), "l\x1b")
+        self.assertEqual(policy._look_floor_items, {})
+        self.assertIsNone(policy._full_pack_loot_triage_key(snapshot))
+
 
 class TownOrganizationTest(unittest.TestCase):
     def _town(self, inventory, store_type=None):
@@ -220,3 +242,37 @@ class TownOrganizationTest(unittest.TestCase):
         self.assertIs(policy._find_home_deposit(snapshot), spare)
         self.assertEqual(policy._home_deposit_key(snapshot, spare), "da\r")
         self.assertEqual(policy.last_reason, "home:deposit")
+
+    def test_fundraising_unsellable_surplus_routes_to_home_and_deposits(self):
+        spare = carried("a", name="spare sword", is_equipment=True)
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._unsellable_items.add(policy._item_signature(spare))
+        town = self._town([spare])
+
+        needs = policy._town_need_candidates(town)
+        self.assertTrue(any(need.store_type == STORE_HOME and need.category == "deposit"
+                            for need in needs))
+        self.assertEqual(policy._home_deposit_key(
+            self._town([spare], STORE_HOME), spare
+        ), "da\r")
+
+    def test_exhausted_surplus_outlets_release_departure_gate(self):
+        spare = carried("a", name="spare sword", is_equipment=True)
+        policy = HengbotPolicy()
+        policy._unsellable_items.add(policy._item_signature(spare))
+        policy._town_store_attempted[STORE_HOME] = 1
+        policy._recall_departure_ready = lambda _snapshot: True
+        policy._food_ready = lambda _snapshot: True
+        policy._light_ready = lambda _snapshot: True
+        policy._teleport_ready = lambda _snapshot: True
+        policy._cure_critical_ready = lambda _snapshot: True
+        policy._identify_staff_ready = lambda _snapshot: True
+        policy._inventory_overweight = lambda _snapshot: False
+        policy._equipment_catalog.home_scan_complete = True
+        policy._equipment_departure_ready = lambda _snapshot: True
+        policy._home_candidate_waiting = False
+        town = self._town([spare])
+
+        self.assertIsNone(policy._find_town_organization_surplus(town))
+        self.assertTrue(policy._town_departure_ready(town))
