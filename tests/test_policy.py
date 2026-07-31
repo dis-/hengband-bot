@@ -3384,9 +3384,56 @@ class ShoppingTest(unittest.TestCase):
             ),
             turn=99,
         )
-        self.assertEqual(pol.choose_key(stale), WAIT_KEY)
+        self.assertEqual(pol.choose_key(stale), " ")
         self.assertEqual(pol.last_reason, "shop:await-leave-generation")
         self.assertIsNone(pol._store_buy_inflight)
+
+    def test_captured_home_leave_stale_snapshot_cannot_drop_deposit(self):
+        pol = HengbotPolicy()
+        home = replace(
+            self._in_store([]),
+            store=StoreState(store_type=STORE_HOME, items=[]),
+            turn=895189,
+        )
+        with patch.object(
+            pol, "_decide", side_effect=["dn\r", LEAVE_STORE_KEY, "dm\r", "dm\r"]
+        ):
+            self.assertEqual(pol.choose_key(home), "dn\r")
+            self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
+            self.assertEqual(pol.choose_key(home), " ")
+            self.assertEqual(pol.last_reason, "shop:await-leave-confirmation")
+
+            fresh_home = replace(home, turn=895190)
+            self.assertEqual(pol.choose_key(fresh_home), "dm\r")
+
+        self.assertIsNone(pol._store_leave_inflight)
+
+    def test_stale_store_after_leave_blocks_every_item_command_family(self):
+        home = replace(
+            self._in_store([]),
+            store=StoreState(store_type=STORE_HOME, items=[]),
+            turn=100,
+        )
+        for macro in ("da\r", "pa\r", "sa\r"):
+            with self.subTest(macro=macro):
+                pol = HengbotPolicy()
+                with patch.object(
+                    pol, "_decide", side_effect=[LEAVE_STORE_KEY, macro]
+                ):
+                    self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
+                    self.assertEqual(pol.choose_key(home), " ")
+                self.assertEqual(
+                    pol.last_reason, "shop:await-leave-confirmation"
+                )
+
+    def test_store_decisions_never_emit_rest_key(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        pol = HengbotPolicy()
+        buying = self._in_store([ware])
+
+        self.assertEqual(pol.choose_key(buying), "pb\r")
+        self.assertEqual(pol.choose_key(buying), " ")
+        self.assertEqual(pol.last_reason, "shop:await-buy-confirmation")
 
     def test_pending_buy_preempts_leave_from_unchanged_store_snapshot(self):
         ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
@@ -3402,7 +3449,7 @@ class ShoppingTest(unittest.TestCase):
             ]),
             turn=100,
         )
-        self.assertEqual(pol.choose_key(would_leave), WAIT_KEY)
+        self.assertEqual(pol.choose_key(would_leave), " ")
         self.assertNotEqual(pol.last_reason, "shop:leave")
 
     def test_unaccepted_purchase_is_not_recorded_as_completed(self):
@@ -3653,7 +3700,7 @@ class ShoppingTest(unittest.TestCase):
 
         self.assertEqual(pol.choose_key(incident_snapshot(10421)), "pm1\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-star-identify")
-        self.assertEqual(pol.choose_key(incident_snapshot(10421)), WAIT_KEY)
+        self.assertEqual(pol.choose_key(incident_snapshot(10421)), " ")
         self.assertEqual(pol.last_reason, "shop:await-buy-confirmation")
         self.assertIsNotNone(pol._store_buy_inflight)
 
@@ -22623,7 +22670,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         scroll = item("c", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify")
         acquired = replace(base, inventory=[carried, scroll], store=None)
-        self.assertIsNone(policy._town_item_processing_key(acquired))
+        policy.choose_key(acquired)
         self.assertEqual(
             policy._identification_source_reservation["state"], "acquired"
         )

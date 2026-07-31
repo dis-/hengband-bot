@@ -2145,15 +2145,24 @@ class HengbotPolicy:
             elif snapshot.store.store_type != leave_store:
                 self._store_leave_inflight = None
                 key = self._decide(snapshot)
+            elif getattr(snapshot, "turn", 0) > leave_turn:
+                self._store_leave_inflight = None
+                key = self._decide(snapshot)
             elif (
                 self._decision_sequence <= leave_generation
                 or getattr(snapshot, "turn", 0) < leave_turn
             ):
                 self.last_reason = "shop:await-leave-generation"
-                key = WAIT_KEY
+                key = " "
             else:
-                self._store_leave_inflight = None
                 key = self._decide(snapshot)
+                if key.startswith((SELL_KEY, BUY_KEY, "s")) and len(key) > 1:
+                    # The bounded leave tolerance has expired, so ordinary
+                    # decisions may resume.  The unchanged store observation
+                    # still cannot prove that a d/p/s macro will reach a store:
+                    # after Esc those same keys can destructively act in town.
+                    self.last_reason = "shop:await-leave-confirmation"
+                    key = " "
         else:
             key = self._decide(snapshot)
         self._remember_swarm_distances(snapshot)
@@ -2166,6 +2175,10 @@ class HengbotPolicy:
             else:
                 self.last_reason = "policy:none-wait"
                 key = WAIT_KEY
+        if snapshot.store is not None and key == WAIT_KEY:
+            # Hengband's store command loop rejects the normal rest command.
+            # Space is the established harmless store redraw/page command.
+            key = " "
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME

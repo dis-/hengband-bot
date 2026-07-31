@@ -849,7 +849,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             lambda current, key: None
         )
 
-        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.choose_key(snapshot), " ")
         self.assertFalse(policy._home_page_advance_pending)
 
     def test_policy_abandons_unconfirmed_home_withdraw_for_replanning(self):
