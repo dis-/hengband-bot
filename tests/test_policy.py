@@ -3384,7 +3384,7 @@ class ShoppingTest(unittest.TestCase):
             ),
             turn=99,
         )
-        self.assertEqual(pol.choose_key(stale), " ")
+        self.assertEqual(pol.choose_key(stale), "\r")
         self.assertEqual(pol.last_reason, "shop:await-leave-generation")
         self.assertIsNone(pol._store_buy_inflight)
 
@@ -3400,7 +3400,7 @@ class ShoppingTest(unittest.TestCase):
         ):
             self.assertEqual(pol.choose_key(home), "dn\r")
             self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
-            self.assertEqual(pol.choose_key(home), " ")
+            self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.last_reason, "shop:await-leave-confirmation")
 
             fresh_home = replace(home, turn=895190)
@@ -3421,18 +3421,20 @@ class ShoppingTest(unittest.TestCase):
                     pol, "_decide", side_effect=[LEAVE_STORE_KEY, macro]
                 ):
                     self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
-                    self.assertEqual(pol.choose_key(home), " ")
+                    self.assertEqual(pol.choose_key(home), "\r")
                 self.assertEqual(
                     pol.last_reason, "shop:await-leave-confirmation"
                 )
 
-    def test_store_decisions_never_emit_rest_key(self):
+    def test_store_wait_is_noop_and_never_emits_page_turn_key(self):
         ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
         pol = HengbotPolicy()
         buying = self._in_store([ware])
 
         self.assertEqual(pol.choose_key(buying), "pb\r")
-        self.assertEqual(pol.choose_key(buying), " ")
+        wait_key = pol.choose_key(buying)
+        self.assertEqual(wait_key, "\r")
+        self.assertNotIn(wait_key, (" ", "-"))
         self.assertEqual(pol.last_reason, "shop:await-buy-confirmation")
 
     def test_pending_buy_preempts_leave_from_unchanged_store_snapshot(self):
@@ -3449,7 +3451,7 @@ class ShoppingTest(unittest.TestCase):
             ]),
             turn=100,
         )
-        self.assertEqual(pol.choose_key(would_leave), " ")
+        self.assertEqual(pol.choose_key(would_leave), "\r")
         self.assertNotEqual(pol.last_reason, "shop:leave")
 
     def test_unaccepted_purchase_is_not_recorded_as_completed(self):
@@ -3700,7 +3702,7 @@ class ShoppingTest(unittest.TestCase):
 
         self.assertEqual(pol.choose_key(incident_snapshot(10421)), "pm1\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-star-identify")
-        self.assertEqual(pol.choose_key(incident_snapshot(10421)), " ")
+        self.assertEqual(pol.choose_key(incident_snapshot(10421)), "\r")
         self.assertEqual(pol.last_reason, "shop:await-buy-confirmation")
         self.assertIsNotNone(pol._store_buy_inflight)
 

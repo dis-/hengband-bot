@@ -704,7 +704,9 @@ class WarriorOptimizationTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda snapshot: None
         snapshot = SimpleNamespace(in_town=True, store=None)
 
-        self.assertEqual(policy._equipment_transaction_town_key(snapshot), "5")
+        wait_key = policy._equipment_transaction_town_key(snapshot)
+        self.assertEqual(wait_key, "5")
+        self.assertNotIn(wait_key, (" ", "-"))
         self.assertEqual(
             policy.last_reason, "equipment-transaction:await-home-page"
         )
@@ -849,7 +851,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             lambda current, key: None
         )
 
-        self.assertEqual(policy.choose_key(snapshot), " ")
+        wait_key = policy.choose_key(snapshot)
+        self.assertEqual(wait_key, "\r")
+        self.assertNotIn(wait_key, (" ", "-"))
         self.assertFalse(policy._home_page_advance_pending)
 
     def test_policy_abandons_unconfirmed_home_withdraw_for_replanning(self):

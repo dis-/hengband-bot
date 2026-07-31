@@ -2153,7 +2153,7 @@ class HengbotPolicy:
                 or getattr(snapshot, "turn", 0) < leave_turn
             ):
                 self.last_reason = "shop:await-leave-generation"
-                key = " "
+                key = "\r"
             else:
                 key = self._decide(snapshot)
                 if key.startswith((SELL_KEY, BUY_KEY, "s")) and len(key) > 1:
@@ -2162,7 +2162,7 @@ class HengbotPolicy:
                     # still cannot prove that a d/p/s macro will reach a store:
                     # after Esc those same keys can destructively act in town.
                     self.last_reason = "shop:await-leave-confirmation"
-                    key = " "
+                    key = "\r"
         else:
             key = self._decide(snapshot)
         self._remember_swarm_distances(snapshot)
@@ -2177,8 +2177,8 @@ class HengbotPolicy:
                 key = WAIT_KEY
         if snapshot.store is not None and key == WAIT_KEY:
             # Hengband's store command loop rejects the normal rest command.
-            # Space is the established harmless store redraw/page command.
-            key = " "
+            # Carriage return is an explicit no-op in the store command loop.
+            key = "\r"
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
