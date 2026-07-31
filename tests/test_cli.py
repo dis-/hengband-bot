@@ -12,6 +12,7 @@ from hengbot.cli import (
     CHEST_MOVE_RESPONSE_SECONDS,
     DECISION_WATCHDOG_SECONDS,
     DUMP_INTERVAL_SECONDS,
+    DUPLICATE_RETRY_SECONDS,
     EconomyLedger,
     LOOP_WINDOW,
     STATIONARY_EXEMPT_REASONS,
@@ -42,6 +43,7 @@ from hengbot.cli import (
     _direction_desynchronized,
     _look_barrier_allows_decision,
     _look_barrier_release,
+    _look_barrier_timed_release,
     _chest_movement_response_pending,
     _movement_command_needs_ack,
     _fundraising_state,
@@ -1091,6 +1093,45 @@ class InputDesynchronizationTest(unittest.TestCase):
         self.assertEqual(eligible, [])
         self.assertTrue(look_seen)
         self.assertEqual(_look_barrier_release([after], look_seen)[0], [after])
+
+    def test_look_barrier_discards_board_until_look_arrives_later(self):
+        surplus_board = _snap_line(10, 5, 5)
+        look = json.dumps({"type": "look", "look": {}}) + "\n"
+        current_board = _snap_line(11, 5, 6)
+
+        eligible, look_seen, timed_out = _look_barrier_timed_release(
+            [surplus_board], False, 0.5
+        )
+        self.assertEqual(eligible, [])
+        self.assertFalse(look_seen)
+        self.assertFalse(timed_out)
+
+        eligible, look_seen, timed_out = _look_barrier_timed_release(
+            [look, current_board], look_seen, 1.0
+        )
+        self.assertEqual(eligible, [current_board])
+        self.assertTrue(look_seen)
+        self.assertFalse(timed_out)
+
+    def test_missing_look_response_escapes_only_after_existing_bound(self):
+        board = _snap_line(11, 5, 6)
+
+        self.assertEqual(
+            _look_barrier_timed_release(
+                [board], False, DUPLICATE_RETRY_SECONDS - 0.01
+            ),
+            ([], False, False),
+        )
+        with patch("builtins.print") as print_mock:
+            self.assertEqual(
+                _look_barrier_timed_release(
+                    [board], False, DUPLICATE_RETRY_SECONDS
+                ),
+                ([board], False, True),
+            )
+        print_mock.assert_called_once_with(
+            "<look-barrier:timeout>", flush=True
+        )
 
     def test_missing_look_response_makes_progress_without_reprobe(self):
         self.assertTrue(_look_barrier_allows_decision([_snap_line(11, 5, 6)]))

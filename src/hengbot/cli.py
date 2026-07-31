@@ -1109,7 +1109,9 @@ def _direction_desynchronized(before, key: str, after) -> bool:
 
 def _look_barrier_allows_decision(complete_lines: list[str]) -> bool:
     """Resume at an ordinary board after look, or make progress if look is lost."""
-    eligible_lines, _ = _look_barrier_release(complete_lines)
+    eligible_lines, _, _ = _look_barrier_timed_release(
+        complete_lines, False, DUPLICATE_RETRY_SECONDS
+    )
     return bool(_newest_snapshot_entry(eligible_lines, {}))
 
 
@@ -1130,9 +1132,21 @@ def _look_barrier_release(
         return complete_lines[last_look_index + 1 :], look_seen
     if look_seen:
         return complete_lines, look_seen
-    # A missing look response gets one bounded escape: consume this batch and
-    # clear the pending barrier without issuing another probe.
-    return complete_lines, look_seen
+    return [], look_seen
+
+
+def _look_barrier_timed_release(
+    complete_lines: list[str], look_seen: bool, elapsed: float
+) -> tuple[list[str], bool, bool]:
+    """Apply the look barrier, escaping once if its response was lost."""
+    eligible_lines, look_seen = _look_barrier_release(
+        complete_lines, look_seen
+    )
+    timed_out = not look_seen and elapsed >= DUPLICATE_RETRY_SECONDS
+    if timed_out:
+        eligible_lines = complete_lines
+        print("<look-barrier:timeout>", flush=True)
+    return eligible_lines, look_seen, timed_out
 
 
 def _movement_destination(position, key: str):
@@ -1582,6 +1596,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         pending_direction: tuple[object, str] | None = None
         look_barrier_pending: str | None = None
         look_barrier_seen = False
+        look_barrier_started_at = 0.0
         duplicate_retry_consumed = False
         previous_decision_snapshot = None
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
@@ -1611,8 +1626,14 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 # the existing look channel. Rejected commands are retried only
                 # after a newly emitted board positively confirms rejection.
                 if look_barrier_pending is not None:
-                    eligible_lines, look_barrier_seen = _look_barrier_release(
-                        complete_lines, look_barrier_seen
+                    (
+                        eligible_lines,
+                        look_barrier_seen,
+                        look_barrier_timed_out,
+                    ) = _look_barrier_timed_release(
+                        complete_lines,
+                        look_barrier_seen,
+                        time.monotonic() - look_barrier_started_at,
                     )
                     entry = _newest_snapshot_entry(
                         eligible_lines, monrace_knowledge
@@ -1622,6 +1643,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     barrier_purpose = look_barrier_pending
                     look_barrier_pending = None
                     look_barrier_seen = False
+                    look_barrier_started_at = 0.0
                     if barrier_purpose == "duplicate-retry":
                         duplicate_retry_consumed = True
                 else:
@@ -1650,6 +1672,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             ):
                                 look_barrier_pending = "desync"
                                 look_barrier_seen = False
+                                look_barrier_started_at = time.monotonic()
                             last_activity = time.monotonic()
                             continue
                     if _floor_transition_needs_prompt_clear(
@@ -1703,6 +1726,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                             ):
                                 look_barrier_pending = "duplicate-retry"
                                 look_barrier_seen = False
+                                look_barrier_started_at = time.monotonic()
                             last_activity = time.monotonic()
                         continue
                     if pending_action_wait is not None:
