@@ -180,16 +180,21 @@ assert TOWN_TRAVEL_TURN_STALL_LIMIT == 12
 # constant is defined later in this module; the literal here would silently
 # diverge if the net were retuned, so assert against the real value at the
 # bottom of the module instead.)
-# Store purchases and other multi-prompt commands redraw between each key. A
-# 50ms gap was too short on the live Windows build: Return/y reached the queue
-# before the quantity/confirmation prompt was ready and were flushed. Keep the
-# macro deliberate; single movement keys are unaffected.
-MULTI_KEY_DELAY_SECONDS = 0.25
-# Entering the item selector from a busy store redraw is measurably slower than
-# advancing an already-open prompt. At a 49-stack Home, 250 ms repeatedly lost
-# the inventory letter after ``d``; 300 ms succeeded in the preserved game.
-# Leave margin for busier redraws instead of relying on that narrow boundary.
-STORE_ITEM_PROMPT_DELAY_SECONDS = 0.5
+# These gaps existed because the game DISCARDED queued input: flush_failure
+# routed "various failures" through term_flush(), so a key that arrived while a
+# prompt was still redrawing was thrown away, and every delay here was tuned to
+# out-wait that window (0.25 for generic prompt chains; 0.5 after ``d`` because
+# a 49-stack Home lost the inventory letter at 0.25).
+#
+# The BOT_PLAY pref now turns that option off (``X:flush_failure``), which is a
+# verified precondition of the macro path — see _valid_bot_play_macro_pref. With
+# input no longer discarded, 2026-07-31 measurements over full store, Home and
+# travel macro traffic showed no lost keys at the values below, so a human's
+# uninterrupted typing cadence is what the bot uses too. If a key ever goes
+# missing again, check that the pref is still installed and still disables
+# flush_failure BEFORE raising these numbers.
+MULTI_KEY_DELAY_SECONDS = 0.02
+STORE_ITEM_PROMPT_DELAY_SECONDS = 0.05
 # The live torch macro accepted the first digit of ``10`` but lost the second
 # at the generic cadence. Multi-digit store quantities get the proven margin.
 STORE_QUANTITY_DIGIT_DELAY_SECONDS = 0.5
@@ -226,10 +231,11 @@ TUNNEL_MACRO_PREF_TRIGGERS = {
     "9": "^H",
 }
 # Native travel uses five external key messages without a loaded macro. Busy
-# target-selector redraws intermittently flush one of them at 250 ms, leaving
+# target-selector redraws intermittently flushed one of them at 250 ms, leaving
 # the game at destination selection until the duplicate retry. The verified
-# BOT_PLAY macro path replaces each complete sequence with one WM_CHAR.
-TRAVEL_PROMPT_DELAY_SECONDS = 0.5
+# BOT_PLAY macro path replaces each complete sequence with one WM_CHAR, and the
+# same pref disables the discard — see MULTI_KEY_DELAY_SECONDS.
+TRAVEL_PROMPT_DELAY_SECONDS = 0.05
 INPUT_DELAY_DEFAULTS = {
     "input_key_delay": MULTI_KEY_DELAY_SECONDS,
     "input_item_prompt_delay": STORE_ITEM_PROMPT_DELAY_SECONDS,
@@ -566,6 +572,12 @@ def _valid_bot_play_macro_pref(path: Path) -> bool:
     if BOT_PLAY_MACRO_PREF_MARKER not in text:
         return False
     normalized = text.replace("\r\n", "\n")
+    # The input cadence above assumes the game no longer discards queued keys,
+    # which this pref line is what actually guarantees. Verify it here rather
+    # than trusting it: a pref that lost the line must fall back to the slow
+    # macro-less path instead of silently typing into a flushing terminal.
+    if "\nX:flush_failure\n" not in f"\n{normalized}\n":
+        return False
     tunnel_bindings_valid = all(
         f"A:T{direction}\nP:{trigger}" in normalized
         for direction, trigger in TUNNEL_MACRO_PREF_TRIGGERS.items()

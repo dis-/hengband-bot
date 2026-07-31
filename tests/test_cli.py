@@ -99,10 +99,10 @@ class WaitClassificationTest(unittest.TestCase):
             parser.parse_args(["--input-key-delay", "0"])
         )
 
-        self.assertEqual(_delay_after_macro_key("qa", 0), 0.25)
+        self.assertEqual(_delay_after_macro_key("qa", 0), 0.02)
         self.assertEqual(
             _delay_after_macro_key("qa", 0, input_delays=defaults),
-            0.25,
+            0.02,
         )
         self.assertEqual(
             _delay_after_macro_key("qa", 0, input_delays=overridden),
@@ -1269,7 +1269,10 @@ class StallRecoveryTest(unittest.TestCase):
                 "A:T6\nP:^E\nA:T7\nP:^F\nA:T8\nP:^G\nA:T9\nP:^H\n"
                 "A:\\e`n!.\nP:^K\nA:\\e`n\".\nP:^L\nA:\\e`n#.\nP:^N\n"
                 "A:\\e`n$.\nP:^O\nA:\\e`n%.\nP:^P\nA:\\e`n&.\nP:^Q\n"
-                "A:\\e`n'.\nP:^R\nA:\\e`n(.\nP:^S\nA:\\e`n>.\nP:^T\n",
+                "A:\\e`n'.\nP:^R\nA:\\e`n(.\nP:^S\nA:\\e`n>.\nP:^T\n"
+                # The fast input cadence is only valid while the game stops
+                # discarding queued keys, so the pref must disable it.
+                "X:flush_failure\n",
                 encoding="ascii",
             )
             pid_file = logs / "hengband.pid"
