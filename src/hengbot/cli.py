@@ -12,6 +12,7 @@ from typing import Iterable, Mapping
 
 from hengbot.model import MissingMonraceKnowledgeError, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
+from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.terrain_knowledge import (
     find_terrain_definitions,
     load_damaging_terrain_ids,
@@ -1224,6 +1225,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"invalid monster definitions: {exc}", file=sys.stderr)
             return 2
 
+    baseitem_costs: dict[tuple[int, int], int] = {}
+    baseitem_path = monrace_path.with_name("BaseitemDefinitions.jsonc")
+    if baseitem_path.is_file():
+        try:
+            baseitem_costs = load_baseitem_costs(baseitem_path)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(f"could not load base-item definitions ({baseitem_path}): {exc}", file=sys.stderr)
+
     damaging_terrain_ids: frozenset[int] = frozenset()
     terrain_path = find_terrain_definitions(args.state_file)
     if terrain_path is not None:
@@ -1355,6 +1364,7 @@ def main(argv: list[str] | None = None) -> int:
         quest_knowledge=quest_knowledge,
         quest_strategies=quest_strategies,
         exploration_ledger_path=EXPLORATION_LEDGER_PATH,
+        baseitem_costs=baseitem_costs,
     )
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
@@ -1967,6 +1977,8 @@ def _dispatch_response_lines(complete_lines, policy, send) -> int:
                 tuple(_parse_items(knowledge.get("items", [])))
             )
             send(NUDGE_KEY)
+        elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
+            policy.consume_look(data)
     return consumed
 
 

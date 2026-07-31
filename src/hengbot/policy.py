@@ -11,6 +11,7 @@ from typing import Callable, Literal
 from pathlib import Path
 
 from hengbot.town_maps import TownMap
+from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.wilderness_map import WildernessMap
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
@@ -1329,6 +1330,7 @@ class HengbotPolicy:
         quest_strategies: "dict[int, StrategyProfile] | None" = None,
         home_disposal_state: HomeDisposalState | None = None,
         exploration_ledger_path: Path | None = None,
+        baseitem_costs: dict[tuple[int, int], int] | None = None,
     ) -> None:
         # A pre-loaded static town layout (lib/edit/towns) the bot may know in
         # advance, like a returning player — used to route across a dark town to a
@@ -1346,6 +1348,10 @@ class HengbotPolicy:
         self._damaging_terrain_ids = damaging_terrain_ids or frozenset()
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
+        self._baseitem_costs = dict(baseitem_costs or {})
+        self._look_floor_items: dict[Position, tuple[InventoryItem, ...]] = {}
+        self._look_floor_key: tuple[int, int, int] | None = None
+        self._look_probe_inflight = False
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
         self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
@@ -2332,6 +2338,32 @@ class HengbotPolicy:
         self._home_knowledge_scan_inflight = False
         self._home_scan_source = "~9"
         self._home_scan_item_count = len(items)
+
+    def consume_look(self, data: dict[str, object]) -> None:
+        """Record the floor identities returned by the existing look channel."""
+        from hengbot.model import _parse_items
+
+        look = data.get("look")
+        if not isinstance(look, dict):
+            return
+        records: dict[Position, tuple[InventoryItem, ...]] = {}
+        for grid_data in look.get("grids", []):
+            if not isinstance(grid_data, dict):
+                continue
+            try:
+                position = Position(int(grid_data["y"]), int(grid_data["x"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            records[position] = tuple(_parse_items(grid_data.get("items", [])))
+        self._look_floor_items = records
+        self._look_probe_inflight = False
+
+    def _look_probe_key(self, snapshot: Snapshot) -> str:
+        self._look_floor_key = snapshot.floor_key
+        self._look_floor_items.clear()
+        self._look_probe_inflight = True
+        self.last_reason = "loot:look-floor-items"
+        return "l\x1b"
 
     def request_character_dump(self) -> None:
         """Latch a CLI timer request until an ordinary quiet filler decision."""
@@ -5991,6 +6023,104 @@ class HengbotPolicy:
             "inventory:destroy-disposable-item",
         )
 
+    def _floor_item_identify_key(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> str | None:
+        if item.aware and item.sval >= 0:
+            return None
+        source = self._find_identification_source(snapshot, full=False)
+        if source is None:
+            return None
+        command, src = source
+        self._look_floor_items.clear()
+        self.last_reason = "loot:identify-floor-item"
+        # Hengband's item chooser uses '-' to select the floor object.
+        return command + src.slot + "-"
+
+    def _cheapest_exchange_item(self, snapshot: Snapshot) -> InventoryItem | None:
+        candidates = [
+            item
+            for item in snapshot.inventory
+            if not item.is_recall_scroll
+            and self._entire_stack_is_surplus(snapshot, item)
+            and item_base_cost(item, self._baseitem_costs) is not None
+            and self._item_signature(item) not in self._undestroyable_sigs
+        ]
+        return min(
+            candidates,
+            key=lambda item: (item_base_cost(item, self._baseitem_costs), item.slot),
+            default=None,
+        )
+
+    def _full_pack_loot_triage_key(self, snapshot: Snapshot) -> str | None:
+        """Identify and exchange valuable guardian loot before permitting return."""
+        destroy = self._full_pack_destroy_key(snapshot)
+        if destroy is not None:
+            return destroy
+        identify = self._pack_pressure_identify_key(snapshot)
+        if identify is not None:
+            return identify
+
+        if self._look_floor_key != snapshot.floor_key:
+            self._look_floor_items.clear()
+            self._look_probe_inflight = False
+        loot_positions = {
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.object_count > 0 and grid.position not in self._deferred_loot
+        }
+        if not loot_positions:
+            return None
+        if self._look_probe_inflight:
+            self.last_reason = "loot:await-look"
+            return WAIT_KEY
+        if self._look_floor_key != snapshot.floor_key or not any(
+            position in self._look_floor_items for position in loot_positions
+        ):
+            return self._look_probe_key(snapshot)
+
+        for position in sorted(
+            loot_positions,
+            key=lambda candidate: snapshot.player.position.distance_to(candidate),
+        ):
+            for floor_item in self._look_floor_items.get(position, ()):
+                if item_base_cost(floor_item, self._baseitem_costs) is None:
+                    if position == snapshot.player.position:
+                        identify = self._floor_item_identify_key(snapshot, floor_item)
+                        if identify is not None:
+                            return identify
+                    else:
+                        step = self._nearest_goal_step(
+                            snapshot, lambda grid, target=position: grid.position == target
+                        )
+                        if step is not None:
+                            self.last_reason = "loot:seek-unidentified-floor-item"
+                            return self._step_toward(snapshot, step)
+
+        carried = self._cheapest_exchange_item(snapshot)
+        if carried is None:
+            return None
+        carried_cost = item_base_cost(carried, self._baseitem_costs)
+        floor_costs = [
+            item_base_cost(item, self._baseitem_costs)
+            for position in loot_positions
+            for item in self._look_floor_items.get(position, ())
+        ]
+        if carried_cost is None or not any(
+            cost is not None and cost > carried_cost for cost in floor_costs
+        ):
+            return None
+        return self._verified_destroy_key(
+            snapshot,
+            lambda current, selected=carried: (
+                selected
+                if self._item_signature(selected) not in self._undestroyable_sigs
+                and self._entire_stack_is_surplus(current, selected)
+                else None
+            ),
+            "inventory:exchange-cheapest-surplus",
+        )
+
     def _quest_sweep_pack_space_key(
         self, snapshot: Snapshot, floor_grid: GridState
     ) -> str | None:
@@ -7559,6 +7689,7 @@ class HengbotPolicy:
             and player.hp >= player.max_hp
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
+            and self._find_town_organization_surplus(snapshot) is None
             and (
                 not self._home_available(snapshot)
                 or (
@@ -8424,7 +8555,7 @@ class HengbotPolicy:
         # Inferior weapons may be sold by the sale path, but enhanced weapons stay
         # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)
-        return self._first_item(
+        deposit = self._first_item(
             snapshot,
             lambda item: (
                 self._home_deposit_candidate(item, snapshot)
@@ -8451,6 +8582,18 @@ class HengbotPolicy:
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot,
         )
+        if deposit is not None:
+            return deposit
+        organization = self._find_town_organization_surplus(snapshot)
+        if (
+            organization is not None
+            and not self._home_deposit_candidate(organization, snapshot)
+            and not self._is_surplus_digging_tool(snapshot, organization)
+            and self._town_organization_sale_store(snapshot, organization) is None
+            and self._item_signature(organization) not in self._home_rejected_deposits
+        ):
+            return organization
+        return None
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # Fundraising stacks at most two digging tools across the weapon slots.
@@ -10325,6 +10468,14 @@ class HengbotPolicy:
         book_sale = self._find_book_sale(snapshot)
         if book_sale is not None:
             add(self._book_sale_store_type(book_sale), "book-sale")
+        organization = self._find_town_organization_surplus(snapshot)
+        organization_store = (
+            self._town_organization_sale_store(snapshot, organization)
+            if organization is not None
+            else None
+        )
+        if organization_store is not None:
+            add(organization_store, "organization-sale")
         if (
             self._home_available(snapshot)
             and STORE_HOME not in self._town_store_attempted
@@ -12913,6 +13064,75 @@ class HengbotPolicy:
             return False
         return item.tval in STORE_ACCEPTED_TVALS.get(store_type, frozenset())
 
+    def _find_town_organization_surplus(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        """Return surplus recognized by the existing sale/deposit authorities."""
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and not self._equipment_catalog.home_scan_complete
+        ):
+            # Complete the already-owned Home catalog/transaction pass before
+            # organization changes pack letters or consumes its reserved slots.
+            return None
+        finder_candidates = (
+            self._find_book_sale(snapshot),
+            self._find_low_level_sale(snapshot),
+            self._find_device_sale(snapshot),
+            self._find_weapon_sale(snapshot),
+            self._find_light_sale(snapshot),
+        )
+        candidates = [candidate for candidate in finder_candidates if candidate is not None]
+        candidates.extend(
+            item
+            for item in snapshot.inventory
+            if (
+                self._home_deposit_candidate(item, snapshot)
+                and not item.is_ammo
+                and not item.is_torch
+            )
+            or self._is_surplus_digging_tool(snapshot, item)
+        )
+        return self._first_item(
+            replace(snapshot, inventory=list(dict.fromkeys(candidates))),
+            lambda item: not item.is_recall_scroll
+            and self._entire_stack_is_surplus(snapshot, item)
+            and not item.is_bounty
+            and self._item_signature(item) not in self._home_rejected_deposits
+            and not (
+                (self._home_full or self._home_deposit_abandoned)
+                and self._town_organization_sale_store(snapshot, item) is None
+            )
+            and (
+                self._town_organization_sale_store(snapshot, item) is not None
+                or self._home_available(snapshot)
+            ),
+        )
+
+    def _town_organization_sale_store(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> int | None:
+        if self._item_signature(item) in self._unsellable_items:
+            return None
+        for store_type in (
+            STORE_WEAPON,
+            STORE_ARMOURY,
+            STORE_MAGIC,
+            STORE_GENERAL,
+            STORE_TEMPLE,
+        ):
+            if (
+                self._store_accepts_sale(store_type, item)
+                and self._town_need_supplier_reachable(
+                    snapshot, TownNeed(store_type, "organization-sale", "")
+                )
+                and store_type not in self._store_sale_refused
+                and store_type not in self._town_store_attempted
+            ):
+                return store_type
+        return None
+
     def _store_sell_key(
         self,
         snapshot: Snapshot,
@@ -13752,6 +13972,28 @@ class HengbotPolicy:
         batch_key = self._batch_sell_key(snapshot)
         if batch_key is not None:
             return batch_key
+
+        organization = self._find_town_organization_surplus(snapshot)
+        ordinary_sale = self._find_book_sale(snapshot, store.store_type)
+        if ordinary_sale is None and store.store_type == STORE_ALCHEMIST:
+            ordinary_sale = self._find_low_level_sale(snapshot)
+        if ordinary_sale is None and store.store_type == STORE_MAGIC:
+            ordinary_sale = self._find_device_sale(snapshot)
+        if ordinary_sale is None and store.store_type == STORE_WEAPON:
+            ordinary_sale = self._find_weapon_sale(snapshot)
+        if ordinary_sale is None and store.store_type == STORE_GENERAL:
+            ordinary_sale = self._find_light_sale(snapshot)
+        if (
+            organization is not None
+            and ordinary_sale is None
+            and self._next_purchase(snapshot) is None
+            and self._store_accepts_sale(store.store_type, organization)
+            and store.store_type
+            == self._town_organization_sale_store(snapshot, organization)
+        ):
+            return self._store_sell_key(
+                snapshot, organization, "shop:sell-town-surplus"
+            )
 
         book_sale = self._find_book_sale(snapshot, store.store_type)
         if book_sale is not None:
@@ -16991,9 +17233,9 @@ class HengbotPolicy:
         if not self._yeek_victory_loot or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE:
             return None
         if len(snapshot.inventory) >= PACK_CAPACITY:
-            destroy = self._full_pack_destroy_key(snapshot)
-            if destroy is not None:
-                return destroy
+            triage = self._full_pack_loot_triage_key(snapshot)
+            if triage is not None:
+                return triage
             self._returning_to_town = True
             return self._return_to_town_key(snapshot, self._hostiles(snapshot))
         current_loot = self._current_floor_item_key(
@@ -17020,9 +17262,9 @@ class HengbotPolicy:
         if snapshot.floor_key[0] != self._victory_loot_dungeon:
             return None
         if len(snapshot.inventory) >= PACK_CAPACITY:
-            destroy = self._full_pack_destroy_key(snapshot)
-            if destroy is not None:
-                return destroy
+            triage = self._full_pack_loot_triage_key(snapshot)
+            if triage is not None:
+                return triage
             self._returning_to_town = True
             return self._return_to_town_key(snapshot, self._hostiles(snapshot))
         current_loot = self._current_floor_item_key(
