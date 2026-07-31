@@ -1049,6 +1049,8 @@ def _duplicate_snapshot_ready(
     previous_line: str | None,
     elapsed: float,
     previous_reason: str | None = None,
+    snapshot=None,
+    previous_snapshot=None,
 ) -> bool:
     if line == previous_line and previous_reason is not None and (
         previous_reason.startswith("shop:buy-")
@@ -1062,7 +1064,58 @@ def _duplicate_snapshot_ready(
         # commands.  Wait for any newly serialized state (gold, inventory, or
         # store stock) before allowing another mutating transaction.
         return False
-    return line != previous_line or elapsed >= DUPLICATE_RETRY_SECONDS
+    if line != previous_line:
+        return True
+    if elapsed < DUPLICATE_RETRY_SECONDS:
+        return False
+    # A retry is justified only by a newly emitted board proving that the game
+    # rejected the command.  Merely waiting DUPLICATE_RETRY_SECONDS beside the
+    # same last-read line is not evidence: the posted key may simply be slow.
+    return _command_rejection_evident(previous_snapshot, snapshot)
+
+
+def _command_rejection_evident(before, after) -> bool:
+    """Return whether an emitted board positively shows a rejected command."""
+    if before is None or after is None:
+        return False
+    return (
+        before.turn == after.turn
+        and before.player.position == after.player.position
+        and before.messages == after.messages
+    )
+
+
+def _direction_desynchronized(before, key: str, after) -> bool:
+    """Detect an adjacent move that differs from its plain direction command."""
+    if before is None or key not in DIRECTION_KEYS:
+        return False
+    if before.floor_key != after.floor_key:
+        return False
+    start = before.player.position
+    end = after.player.position
+    dy, dx = end.y - start.y, end.x - start.x
+    if (dy, dx) == (0, 0):
+        return False
+    # Larger displacements are teleports, not evidence about the direction key.
+    if max(abs(dy), abs(dx)) != 1:
+        return False
+    return end != _movement_destination(start, key)
+
+
+def _look_barrier_allows_decision(complete_lines: list[str]) -> bool:
+    """Resume at an ordinary board after look, or make progress if look is lost."""
+    for line in complete_lines:
+        try:
+            response_type = json.loads(line).get("type")
+        except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if response_type == "look":
+            continue
+        elif response_type not in {"knowledge", "character"}:
+            # If the look record was lost, the first later ordinary snapshot is
+            # still a one-shot escape hatch; never wait, spin, or re-probe.
+            return True
+    return False
 
 
 def _movement_destination(position, key: str):
@@ -1509,6 +1562,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
         pending_chest_movement: tuple[
             tuple[int, int, int], object, object, float
         ] | None = None
+        pending_direction: tuple[object, str] | None = None
+        look_barrier_pending = False
+        previous_decision_snapshot = None
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
             _arm_decision_watchdog()
@@ -1529,12 +1585,12 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 # "step onto the monster" (an attack) degraded into a side-step —
                 # a speed-118 archer shot a full-HP character to death while it
                 # merely circled the archer, whose HP never dropped. Acting on the
-                # newest line keeps every key matched to the live board and is
-                # self-healing: even after a stray desync the next decision re-syncs
-                # to the current state. Rejected moves (wall/door bumps) still
-                # re-emit the same board and are retried at a bounded interval so
-                # the policy's livelock breaker can act without flooding the
-                # Windows input queue.
+                # newest line keeps batches from manufacturing stale commands.
+                # It cannot heal a surplus key already in the Windows input queue:
+                # that reaches a stable one-command-behind equilibrium. Direction
+                # acknowledgements below detect that state and drain it through
+                # the existing look channel. Rejected commands are retried only
+                # after a newly emitted board positively confirms rejection.
                 entry = _newest_snapshot_entry(complete_lines, monrace_knowledge)
                 if entry is not None:
                     snapshot, snapshot_line = entry
@@ -1544,6 +1600,25 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     last_player_level = snapshot.player.level
                     now = time.monotonic()
                     last_activity = now
+                    if look_barrier_pending:
+                        if not _look_barrier_allows_decision(complete_lines):
+                            continue
+                        look_barrier_pending = False
+                    if pending_direction is not None:
+                        command_snapshot, command_key = pending_direction
+                        pending_direction = None
+                        if _direction_desynchronized(
+                            command_snapshot, command_key, snapshot
+                        ):
+                            barrier_key = policy._look_probe_key(snapshot)
+                            print("<input-desync:look-barrier>", flush=True)
+                            if send(
+                                barrier_key,
+                                in_store=snapshot.store is not None,
+                            ):
+                                look_barrier_pending = True
+                            last_activity = time.monotonic()
+                            continue
                     if _floor_transition_needs_prompt_clear(
                         last_snapshot_floor_key, snapshot.floor_key
                     ):
@@ -1567,6 +1642,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         last_decision_line,
                         now - last_decision_at,
                         last_decision_reason,
+                        snapshot,
+                        previous_decision_snapshot,
                     ):
                         continue
                     if pending_action_wait is not None:
@@ -1579,6 +1656,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         pending_action_wait = None
                     last_decision_line = snapshot_line
                     last_decision_at = now
+                    previous_decision_snapshot = snapshot
                     next_dump_at = _request_due_dump(policy, now, next_dump_at)
                     recorder.before_floor_change(policy, snapshot.floor_key)
                     key = policy.choose_key(snapshot)
@@ -1710,6 +1788,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     print(key, flush=True)
                     sent = send(key, in_store=snapshot.store is not None)
                     last_activity = time.monotonic()
+                    if sent and key in DIRECTION_KEYS:
+                        pending_direction = (snapshot, key)
                     if (
                         sent
                         and _movement_command_needs_ack(key, policy.last_reason)

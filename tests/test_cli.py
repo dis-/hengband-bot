@@ -38,6 +38,9 @@ from hengbot.cli import (
     _input_delay_values,
     _decision_record,
     _duplicate_snapshot_ready,
+    _command_rejection_evident,
+    _direction_desynchronized,
+    _look_barrier_allows_decision,
     _chest_movement_response_pending,
     _movement_command_needs_ack,
     _fundraising_state,
@@ -956,9 +959,16 @@ class DecisionRecordTest(unittest.TestCase):
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
     def test_throttles_an_exact_duplicate_until_retry_interval(self):
         line = _snap_line(100, 5, 5)
+        snapshot = parse_snapshot(json.loads(line), {})
 
-        self.assertFalse(_duplicate_snapshot_ready(line, line, 1.9))
-        self.assertTrue(_duplicate_snapshot_ready(line, line, 2.0))
+        self.assertFalse(
+            _duplicate_snapshot_ready(line, line, 1.9, snapshot=snapshot,
+                                      previous_snapshot=snapshot)
+        )
+        self.assertTrue(
+            _duplicate_snapshot_ready(line, line, 2.0, snapshot=snapshot,
+                                      previous_snapshot=snapshot)
+        )
 
     def test_acts_immediately_when_snapshot_state_changes(self):
         previous = _snap_line(100, 5, 5)
@@ -987,6 +997,68 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertTrue(
             _duplicate_snapshot_ready(changed, previous_line, 0.0, previous_reason)
         )
+
+    def test_slow_accepted_command_is_not_retried_without_new_board_evidence(self):
+        line = _snap_line(100, 5, 5)
+
+        self.assertFalse(_duplicate_snapshot_ready(line, line, 20.0))
+
+    def test_message_effect_disproves_rejection(self):
+        before = parse_snapshot(json.loads(_snap_line(100, 5, 5)), {})
+        data = json.loads(_snap_line(100, 5, 5))
+        data["messages"] = ["You attack the Lurker."]
+        after = parse_snapshot(data, {})
+
+        self.assertFalse(_command_rejection_evident(before, after))
+
+
+class InputDesynchronizationTest(unittest.TestCase):
+    @staticmethod
+    def _snapshot(turn, y, x, *, floor=1, messages=()):
+        data = json.loads(_snap_line(turn, y, x))
+        data["floor"]["level"] = floor
+        data["messages"] = list(messages)
+        return parse_snapshot(data, {})
+
+    def test_real_orbit_tangential_move_is_desynchronized(self):
+        # Capture turn 968097: policy aimed northeast toward the stationary
+        # adjacent Lurker, but the queued previous key moved east instead.
+        before = self._snapshot(968097, 27, 180, floor=16)
+        after = self._snapshot(968108, 27, 181, floor=16)
+
+        self.assertTrue(_direction_desynchronized(before, "9", after))
+
+    def test_zero_displacement_attack_wall_and_door_are_not_desync(self):
+        before = self._snapshot(10, 5, 5)
+        for message in ("You hit the Lurker.", "There is a wall.", "The door is stuck."):
+            with self.subTest(message=message):
+                after = self._snapshot(11, 5, 5, messages=(message,))
+                self.assertFalse(_direction_desynchronized(before, "6", after))
+
+    def test_floor_change_and_teleport_are_not_desync(self):
+        before = self._snapshot(10, 5, 5, floor=16)
+        floor_change = self._snapshot(11, 7, 9, floor=17)
+        teleport = self._snapshot(11, 20, 30, floor=16)
+
+        self.assertFalse(_direction_desynchronized(before, "6", floor_change))
+        self.assertFalse(_direction_desynchronized(before, "6", teleport))
+
+    def test_matching_direction_and_non_direction_are_not_desync(self):
+        before = self._snapshot(10, 5, 5)
+        after = self._snapshot(11, 5, 6)
+
+        self.assertFalse(_direction_desynchronized(before, "6", after))
+        self.assertFalse(_direction_desynchronized(before, "T6", after))
+
+    def test_look_barrier_resumes_only_at_following_ordinary_snapshot(self):
+        look = json.dumps({"type": "look", "look": {}}) + "\n"
+        board = _snap_line(11, 5, 6)
+
+        self.assertFalse(_look_barrier_allows_decision([look]))
+        self.assertTrue(_look_barrier_allows_decision([look, board]))
+
+    def test_missing_look_response_makes_progress_without_reprobe(self):
+        self.assertTrue(_look_barrier_allows_decision([_snap_line(11, 5, 6)]))
 
 
 class ChestMovementAcknowledgementTest(unittest.TestCase):
