@@ -1277,6 +1277,75 @@ class CombatTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "melee:choke")
 
+    def test_moving_player_still_prepares_for_monsters_that_moved_closer(self):
+        snapshot = self._mouse_swarm_snapshot()
+        current_player = Position(10, 11)
+        current_monsters = [
+            replace(
+                monster,
+                position=Position(9 + index, 14),
+                distance=3,
+                can_multiply=False,
+            )
+            for index, monster in enumerate(snapshot.visible_monsters)
+        ]
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, position=current_player),
+            visible_monsters=current_monsters,
+        )
+        policy = HengbotPolicy()
+        policy._position_changed = True
+        previous_monsters = [
+            replace(
+                monster,
+                position=Position(monster.position.y, 15),
+                distance=5,
+            )
+            for monster in current_monsters
+        ]
+        policy._remember_swarm_distances(
+            replace(snapshot, visible_monsters=previous_monsters)
+        )
+        policy._build_grid_index(snapshot)
+
+        with patch.object(
+            policy, "_summoner_retreat_step", return_value=Position(10, 10)
+        ):
+            key = policy._melee_swarm_combat_key(snapshot, current_monsters, [])
+
+        self.assertEqual((key, policy.last_reason), ("4", "melee:choke"))
+
+    def test_player_approach_does_not_make_stationary_monsters_converge(self):
+        snapshot = self._mouse_swarm_snapshot()
+        current_player = Position(10, 11)
+        stationary_monsters = [
+            replace(
+                monster,
+                distance=current_player.distance_to(monster.position),
+                can_multiply=False,
+            )
+            for monster in snapshot.visible_monsters
+        ]
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, position=current_player),
+            visible_monsters=stationary_monsters,
+        )
+        policy = HengbotPolicy()
+        policy._position_changed = True
+        policy._remember_swarm_distances(
+            replace(
+                snapshot,
+                player=replace(snapshot.player, position=Position(10, 10)),
+            )
+        )
+        policy._build_grid_index(snapshot)
+
+        self.assertIsNone(
+            policy._melee_swarm_combat_key(snapshot, stationary_monsters, [])
+        )
+
     def test_choke_melees_adjacent_swarm_without_chasing(self):
         snapshot = self._mouse_swarm_snapshot(at_choke=True, adjacent=True)
         policy = HengbotPolicy()

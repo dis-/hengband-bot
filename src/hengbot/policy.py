@@ -1486,7 +1486,7 @@ class HengbotPolicy:
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
         self._swarm_distance_floor: tuple[int, int, int] | None = None
-        self._swarm_previous_distances: dict[int, int] = {}
+        self._swarm_previous_distances: dict[int, tuple[int, Position]] = {}
         # Consecutive in-town decisions spent wielding only a digging tool (no combat
         # weapon). The pre-recall weapon check blocks a dive until this clears (weapon
         # re-armed) or hits WEAPON_BLOCK_LIMIT (own no weapon → dive anyway).
@@ -24011,9 +24011,10 @@ class HengbotPolicy:
                     and monster.distance <= SWARM_LOOKAHEAD
                 )
                 or (
-                    not self._position_changed
-                    and self._swarm_previous_distances.get(monster.index, 0)
-                    > monster.distance
+                    (previous := self._swarm_previous_distances.get(monster.index))
+                    is not None
+                    and previous[1].distance_to(snapshot.player.position)
+                    > monster.position.distance_to(snapshot.player.position)
                 )
             )
         ]
@@ -24218,7 +24219,7 @@ class HengbotPolicy:
             self._swarm_distance_floor = floor_key
             self._swarm_previous_distances.clear()
         self._swarm_previous_distances = {
-            monster.index: monster.distance
+            monster.index: (monster.distance, monster.position)
             for monster in visible_monsters
             if monster.hostile and not monster.asleep
         }
