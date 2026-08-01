@@ -15628,6 +15628,14 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         hungry_identify_only = replace(hungry, inventory=[identify])
         self.assertEqual(policy._find_edible(hungry_identify_only), identify)
 
+        partial = replace(identify, slot="p", charges=6)
+        fresh = replace(identify, slot="q", charges=18)
+        partials = replace(hungry, inventory=[fresh, partial])
+        self.assertEqual(policy._find_edible(partials), partial)
+
+        with_filler = replace(hungry, inventory=[fresh, partial, filler])
+        self.assertEqual(policy._find_edible(with_filler), filler)
+
         floor = replace(identify, charges=IDENTIFY_CHARGE_FLOOR)
         hungry_floor = replace(hungry, inventory=[floor])
         self.assertIsNone(policy._find_edible(hungry_floor))
@@ -29162,11 +29170,12 @@ class IdentifyStaffTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._home_identify_staff_sale_pending = True
         staff = self._staff(3)
+        reserve = replace(self._staff(25), slot="r")
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[staff],
+            inventory=[staff, reserve],
         )
 
         self.assertEqual(pol._find_device_sale(snap).slot, staff.slot)
@@ -29254,7 +29263,9 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         self.assertEqual(pol._town_errand_plan.index, 1)
         self.assertEqual(
-            pol._next_required_store_type(replace(snap, store=None)),
+            pol._next_required_store_type(replace(
+                snap, store=None, inventory=[self._staff(25), replace(self._staff(3), slot="t")]
+            )),
             STORE_MAGIC,
         )
 
@@ -29447,7 +29458,7 @@ class IdentifyStaffTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[stack],
+            inventory=[stack, replace(self._staff(100), slot="t")],
         )
 
         self.assertEqual(pol._find_device_sale(snap).slot, "s")
@@ -29478,6 +29489,106 @@ class IdentifyStaffTest(unittest.TestCase):
 
         self.assertEqual(pol._device_food_reserve_slot(snap), "a")
         self.assertEqual(pol._find_device_sale(snap).slot, "f")
+
+    def test_pending_home_sale_rechecks_captured_mana_food_obligations(self):
+        # 01:58 capture: six edible charges existed before the freshly purchased
+        # 18-charge Identify staff arrived; Identify was 0/20 and food was 6/15.
+        filler = item("a", TVAL_WAND, 1, charges=6, name="filler")
+        purchased = item(
+            "b", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            charges=18, name="Staff of Identify",
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[filler, purchased],
+        )
+        pol = HengbotPolicy()
+        pol._home_identify_staff_sale_pending = True
+        pol._town_visit_purchases.add(pol._item_signature(purchased))
+
+        self.assertEqual(pol._count_mana_food_uses(replace(snap, inventory=[filler])), 6)
+        self.assertEqual(pol._total_identify_staff_charges(replace(snap, inventory=[filler])), 0)
+        self.assertIsNone(pol._find_device_sale(snap))
+
+    def test_same_visit_identify_purchase_is_never_a_sale_candidate(self):
+        staffs = [
+            item(chr(97 + index), TVAL_STAFF, SV_STAFF_IDENTIFY,
+                 charges=30, name="Staff of Identify")
+            for index in range(6)
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=staffs,
+        )
+        pol = HengbotPolicy()
+        pol._town_visit_purchases.add(pol._item_signature(staffs[-1]))
+
+        self.assertIsNone(pol._find_surplus_identify_staff(snap))
+
+    def test_identify_staff_sale_honours_all_obligations_and_allows_true_surplus(self):
+        def mana_snapshot(charges):
+            staffs = [
+                item(chr(97 + index), TVAL_STAFF, SV_STAFF_IDENTIFY,
+                     charges=value, name="Staff of Identify")
+                for index, value in enumerate(charges)
+            ]
+            return Snapshot(
+                player(10, 10, class_id=PLAYER_CLASS_WARRIOR, food_type=FOOD_TYPE_MANA),
+                {Position(10, 10): grid(10, 10)}, [], inventory=staffs,
+            )
+
+        pol = HengbotPolicy()
+        below_identify_and_food = mana_snapshot([3] * 6)
+        self.assertEqual(pol._total_identify_staff_charges(below_identify_and_food), 18)
+        self.assertEqual(pol._count_mana_food_uses(below_identify_and_food), 13)
+        self.assertIsNone(pol._find_surplus_identify_staff(below_identify_and_food))
+
+        five_devices = item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            count=5, charges=1, name="Staff of Identify",
+        )
+        sole_device = item(
+            "b", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            charges=40, name="Staff of Identify",
+        )
+        device_bound = replace(
+            mana_snapshot([]), inventory=[five_devices, sole_device]
+        )
+        self.assertIsNone(pol._find_surplus_identify_staff(device_bound))
+
+        surplus = mana_snapshot([30, 30, 30, 30, 30, 1])
+        self.assertEqual(pol._find_surplus_identify_staff(surplus).slot, "f")
+        with patch.object(pol, "_retention_surplus", return_value=0):
+            self.assertIsNone(pol._find_surplus_identify_staff(surplus))
+
+    def test_mana_food_purchase_caps_identify_slots_with_survival_exception(self):
+        identify = store_item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=18, pval=18, price=100,
+        )
+        wand = store_item("w", TVAL_WAND, 1, name="wand", charges=8, pval=8, price=100)
+        carried = [
+            item("a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=2, name="Identify"),
+            item("b", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=3, name="Identify"),
+        ]
+        base = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)}, [], inventory=carried,
+            store=StoreState(STORE_MAGIC, [identify, wand]),
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol._mana_food_purchase(base), wand)
+        identify_only = replace(base, store=StoreState(STORE_MAGIC, [identify]))
+        self.assertIsNone(pol._mana_food_purchase(identify_only))
+        weak = replace(
+            identify_only,
+            player=player(
+                10, 10, class_id=PLAYER_CLASS_WARRIOR,
+                food_type=FOOD_TYPE_MANA, food=750,
+            ),
+        )
+        self.assertEqual(pol._mana_food_purchase(weak), identify)
 
     def test_no_identify_in_town(self):
         # Town has its own identify errands; the pressure path is dungeon-only.

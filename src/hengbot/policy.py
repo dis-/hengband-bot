@@ -9935,7 +9935,7 @@ class HengbotPolicy:
         return None
 
     def _find_surplus_identify_staff(
-        self, snapshot: Snapshot
+        self, snapshot: Snapshot, *, pending_home_sale: bool = False
     ) -> InventoryItem | None:
         staffs = [
             item
@@ -9944,7 +9944,10 @@ class HengbotPolicy:
             and item.tval == TVAL_STAFF
             and item.sval == SV_STAFF_IDENTIFY
         ]
-        if sum(item.count for item in staffs) <= STAFF_IDENTIFY_MAX_COUNT:
+        if (
+            not pending_home_sale
+            and sum(item.count for item in staffs) <= STAFF_IDENTIFY_MAX_COUNT
+        ):
             return None
 
         # Preserve the MANA-food reserve when another staff can be sold. A
@@ -9953,10 +9956,26 @@ class HengbotPolicy:
         candidates = [item for item in staffs if item.slot != reserve_slot]
         if not candidates:
             candidates = staffs
-        if snapshot.player.food_type == FOOD_TYPE_MANA:
-            total_identify_charges = sum(
-                self._stack_charges(item) for item in staffs
+        candidates = [
+            item
+            for item in candidates
+            if self._item_signature(item) not in self._town_visit_purchases
+            and self._retention_surplus(snapshot, item) >= item.count
+        ]
+        if not candidates:
+            return None
+        total_identify_charges = sum(self._stack_charges(item) for item in staffs)
+
+        def preserves_identify(item: InventoryItem) -> bool:
+            return (
+                total_identify_charges - self._stack_charges(item)
+                >= STAFF_IDENTIFY_MIN_CHARGES
             )
+
+        candidates = [item for item in candidates if preserves_identify(item)]
+        if not candidates:
+            return None
+        if snapshot.player.food_type == FOOD_TYPE_MANA:
             total_food_charges = sum(
                 self._stack_charges(item)
                 for item in snapshot.inventory
@@ -9995,26 +10014,12 @@ class HengbotPolicy:
     def _find_device_sale(self, snapshot: Snapshot) -> InventoryItem | None:
         reserve_slot = self._device_food_reserve_slot(snapshot)
         if self._home_identify_staff_sale_pending:
-            withdrawn = [
-                item
-                for item in snapshot.inventory
-                if item.known
-                and item.tval == TVAL_STAFF
-                and item.sval == SV_STAFF_IDENTIFY
-                and (item.name, item.tval, item.sval) not in self._unsellable_items
-            ]
-            if withdrawn:
-                # Home stacks cannot be correlated with a particular pack slot
-                # after compaction.  Selling the lowest-charge staff preserves
-                # at least as much useful reserve as the withdrawn object did.
-                return min(
-                    withdrawn,
-                    key=lambda item: (
-                        item.charges,
-                        self._stack_charges(item),
-                        item.slot,
-                    ),
-                )
+            # Home compaction destroys the withdrawn object's slot identity, but
+            # it must not destroy any of the ordinary sale obligations.  Reuse
+            # the single surplus selector, including same-visit retention.
+            return self._find_surplus_identify_staff(
+                snapshot, pending_home_sale=True
+            )
         surplus_identify_staff = self._find_surplus_identify_staff(snapshot)
         surplus_slot = (
             surplus_identify_staff.slot
@@ -13041,6 +13046,26 @@ class HengbotPolicy:
             and it.price <= snapshot.player.gold
         ]
         if not candidates:
+            return None
+        identify_slots = sum(
+            1
+            for item in snapshot.inventory
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+        )
+        compliant = [
+            item
+            for item in candidates
+            if not (
+                item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+                and identify_slots >= 2
+            )
+        ]
+        if compliant:
+            candidates = compliant
+        elif snapshot.player.food_state not in {"weak", "fainting"}:
+            # Preserve the explicit two-slot ceiling.  A weak/fainting character
+            # may cross it only when the shelf has no compliant charged device.
             return None
         food = self._supply_ledger(snapshot, self._planned_depth())["food"]
         shortage = max(1, food.required_departure - food.count)
@@ -21947,7 +21972,10 @@ class HengbotPolicy:
                 snapshot.player.food_state in {"weak", "fainting"}
                 or identify_total > IDENTIFY_CHARGE_FLOOR
             ):
-                return min(identify, key=lambda it: (-it.count, -it.charges, it.slot))
+                return min(
+                    identify,
+                    key=lambda it: (self._stack_charges(it), it.charges, it.slot),
+                )
             return self._first_item(
                 snapshot, lambda it: it.is_wand_staff and not it.known
             )
