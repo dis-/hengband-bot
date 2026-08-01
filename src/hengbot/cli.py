@@ -661,6 +661,7 @@ def _decision_record(
     descent_refusal: str | None = None,
     home_scan: dict | None = None,
     choke_engagement: dict | None = None,
+    town_teleport_refusal: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -736,6 +737,11 @@ def _decision_record(
         **({"descent_refusal": descent_refusal} if descent_refusal else {}),
         **({"home_scan": home_scan} if home_scan else {}),
         **({"choke_engagement": choke_engagement} if choke_engagement else {}),
+        **(
+            {"town_teleport_refusal": town_teleport_refusal}
+            if town_teleport_refusal
+            else {}
+        ),
     }
 
 
@@ -1034,6 +1040,11 @@ def _write_decision(
                         policy.choke_engagement_state()
                         if policy is not None
                         else {}
+                    ),
+                    (
+                        policy.town_teleport_refusal
+                        if policy is not None
+                        else None
                     ),
                 ),
                 file,

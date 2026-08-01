@@ -191,6 +191,7 @@ from hengbot.policy import (
     TOWN_CYCLE_IGNORED_REASONS,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
+    TOWN_TELEPORT_COST,
     TOWN_STOP_PASS_LIMIT,
     TownErrandPlan,
     TownTravelProgress,
@@ -8129,6 +8130,45 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertEqual(policy._town_teleport_key(snapshot, 1), "6mb")
 
+    def test_town_teleport_departure_requires_home_fare_reserve(self):
+        inn = Position(26, 98)
+        town_map = replace(self._town_map(), buildings={0: inn})
+        base = replace(
+            self._town_snapshot(26, 97, {inn: grid(26, 98, building_type=0)}, 0),
+            town_id=0,
+        )
+        policy = HengbotPolicy(town_map)
+        policy._build_grid_index(base)
+
+        refused = replace(base, player=replace(base.player, gold=999))
+        self.assertIsNone(policy._town_teleport_key(refused, 2))
+        self.assertEqual(
+            policy.town_teleport_refusal,
+            {
+                "current_town_id": 0,
+                "destination_town_id": 2,
+                "gold": 999,
+                "required_gold": 2 * TOWN_TELEPORT_COST,
+            },
+        )
+        allowed = replace(base, player=replace(base.player, gold=1000))
+        self.assertEqual(policy._town_teleport_key(allowed, 2), "6mc")
+
+    def test_town_teleport_return_only_requires_the_fare(self):
+        inn = Position(26, 98)
+        town_map = replace(self._town_map(), buildings={4: inn})
+        base = replace(
+            self._telmora_q2_snapshot(QUEST_STATUS_REWARDED),
+            grids={Position(26, 97): grid(26, 97), inn: grid(26, 98, building_type=4)},
+        )
+        policy = HengbotPolicy(town_maps={1: town_map})
+        policy._build_grid_index(base)
+
+        refused = replace(base, player=replace(base.player, gold=499))
+        self.assertIsNone(policy._town_teleport_key(refused, 0))
+        allowed = replace(base, player=replace(base.player, gold=500))
+        self.assertEqual(policy._town_teleport_key(allowed, 0), "6ma")
+
     def test_other_executable_building_quest_acceptance_stays_unchanged(self):
         for quest_id in (1, 34):
             with self.subTest(quest_id=quest_id):
@@ -8217,9 +8257,8 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy._telmora_q2_errand = True
         policy.approved_quest_strategy = lambda _quest_id: object()
-        policy._town_teleport_key = lambda _snapshot, _town_id: "unexpected"
-
         self.assertIsNone(policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]))
+        self.assertEqual(policy.last_reason, "town:teleport-refused-fare")
 
     def test_q2_outpost_inn_selects_telmora_with_letter_b(self):
         inn = Position(26, 98)
@@ -26691,6 +26730,34 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         self.assertEqual(pol._town_special_key(departed), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
+    def test_481_gold_morivant_capture_refuses_without_an_inn_approach_retry(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        targets = self._full_identify_items()
+        inn = Position(snap.player.position.y, snap.player.position.x + 1)
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=481),
+            inventory=[*snap.inventory, *targets],
+            grids={**snap.grids, inn: grid(inn.y, inn.x, building_type=0)},
+            town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        pol._identification_need = "full"
+        pol._build_grid_index(snap)
+        pol._morivant_full_identify = policy_module.MorivantFullIdentifyExpedition(
+            0, tuple(pol._item_signature(target) for target in targets)
+        )
+
+        self.assertIsNone(pol._morivant_full_identify_key(snap))
+        self.assertNotEqual(pol.last_reason, "town:morivant-full-identify:travel-2")
+        self.assertEqual(pol.last_reason, "town:teleport-refused-fare")
+        self.assertIsNone(pol._morivant_full_identify)
+        with patch.object(pol, "_town_teleport_key", wraps=pol._town_teleport_key) as travel:
+            self.assertIsNone(pol._morivant_full_identify_key(snap))
+        travel.assert_not_called()
 
     def test_morivant_library_uses_action_a_for_each_item_prompt(self):
         pol = HengbotPolicy()

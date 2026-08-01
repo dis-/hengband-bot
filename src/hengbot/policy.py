@@ -1841,6 +1841,7 @@ class HengbotPolicy:
         self._escape_wait_budget_floor: tuple[int, int, int] | None = None
         self._escape_wait_decisions: Counter[str] = Counter()
         self.escape_ladder_telemetry: dict[str, object] | None = None
+        self.town_teleport_refusal: dict[str, int] | None = None
         self._town_wander_streak = 0
         self._deepest_level = 0
         self._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -2178,6 +2179,7 @@ class HengbotPolicy:
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
+        self.town_teleport_refusal = None
         self._fruitless_disengage_spent_this_decision = False
         if (
             snapshot.store is None
@@ -12233,10 +12235,14 @@ class HengbotPolicy:
             if key is not None:
                 self.last_reason = f"town:cross-town-shopping:travel-{next_town}"
                 return key
-            # The existing inn router has no route to this candidate from the
-            # current town. Count it once and continue the ordered cycle.
-            expedition.tried_towns.append(next_town)
+            # A refused or unroutable trip is terminal for this visit.  Do not
+            # approach another Inn destination on the following decision.
+            expedition.tried_towns.extend(
+                town_id for town_id in expedition.candidate_order
+                if town_id not in expedition.tried_towns
+            )
             expedition.target_town_id = None
+            return None
         return None
 
     def _carried_full_identify_targets(
@@ -20422,8 +20428,6 @@ class HengbotPolicy:
                 # reviewed preparation contract was complete.  Once no fixed
                 # quest is ready here, return by inn to the base town instead
                 # of dropping through to generic town wandering.
-                if snapshot.player.gold < 500:
-                    return None
                 key = self._town_teleport_key(snapshot, 0)
                 if key is not None:
                     self.last_reason = "fixedquest:prepare-return"
@@ -20433,8 +20437,6 @@ class HengbotPolicy:
                 if travel_quest is not None else None
             )
             if target_town is not None and current_town_id != target_town:
-                if snapshot.player.gold < 500:
-                    return None
                 if (
                     snapshot.visited_town_ids is None
                     or target_town not in snapshot.visited_town_ids
@@ -20543,8 +20545,6 @@ class HengbotPolicy:
             and self._telmora_q2_errand
             and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
         ):
-            if snapshot.player.gold < 500:
-                return None
             key = self._town_teleport_key(snapshot, 0)
             if key is not None:
                 self.last_reason = "fixedquest:q2-teleport"
@@ -20572,8 +20572,23 @@ class HengbotPolicy:
     def _town_teleport_key(
         self, snapshot: Snapshot, destination_town_id: int
     ) -> str | None:
+        current_town_id = self._effective_town_id(snapshot)
+        required_gold = (
+            TOWN_TELEPORT_COST
+            if destination_town_id == 0
+            else 2 * TOWN_TELEPORT_COST
+        )
+        if snapshot.player.gold < required_gold:
+            self.town_teleport_refusal = {
+                "current_town_id": current_town_id,
+                "destination_town_id": destination_town_id,
+                "gold": snapshot.player.gold,
+                "required_gold": required_gold,
+            }
+            self.last_reason = "town:teleport-refused-fare"
+            return None
         inn_type = TOWN_TELEPORT_BUILDING_TYPES.get(
-            self._effective_town_id(snapshot)
+            current_town_id
         )
         if inn_type is None:
             return None
