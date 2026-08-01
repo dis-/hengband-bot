@@ -12958,6 +12958,131 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "quest-strategy:q2-recover-dry-ammo-candidate",
         )
 
+    def _q2_live_firing_tail(self, knowledge):
+        policy = self._policy()
+        policy._monrace_knowledge[202] = knowledge
+        battlefield = QuestBattlefield(
+            terrain={
+                (y, x): "floor"
+                for y in range(5, 11)
+                for x in range(24, 38)
+            },
+            monster_placements=(((7, 35), 202), ((7, 36), 202)),
+        )
+        policy._quest_knowledge[2] = QuestInfo(
+            2, "The Sewer", 6, 15, 0, battlefield=battlefield
+        )
+        policy._q2_ammo_recovery_floor = (0, 15, 2)
+        current = Position(8, 28)
+        targets = [
+            replace(
+                hostile(index, y, x, distance=current.distance_to(Position(y, x))),
+                race_id=202,
+                can_multiply=True,
+            )
+            for index, (y, x) in enumerate(((8, 34), (7, 35), (7, 36)), start=10)
+        ]
+        snapshot = Snapshot(
+            player(current.y, current.x, hp=575, max_hp=575),
+            {
+                Position(y, x): grid(
+                    y,
+                    x,
+                    monster=(y, x) in {(8, 34), (7, 35), (7, 36)},
+                    objects=1 if (y, x) == (6, 26) else 0,
+                    object_tvals=(TVAL_BOLT,) if (y, x) == (6, 26) else (),
+                )
+                for y in range(5, 11)
+                for x in range(24, 38)
+            },
+            targets,
+            floor_key=(0, 15, 2),
+            inventory=[item("q", TVAL_BOLT, 0, count=12)],
+            equipment=[
+                item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)
+            ],
+        )
+        return policy, snapshot, QuestFloorNavigator(2, battlefield)
+
+    def test_q2_real_tail_keeps_firing_during_dry_ammo_recovery(self):
+        knowledge = MonraceKnowledge(
+            10,
+            110,
+            False,
+            False,
+            max_ranged_damage=0,
+            can_multiply=True,
+            flags=frozenset({"NEVER_MOVE"}),
+        )
+        policy, snapshot, navigator = self._q2_live_firing_tail(knowledge)
+
+        key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertEqual(key, "fq6")
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
+        self.assertFalse(key in {"7", "9"})
+        self.assertIsNotNone(policy._q2_ammo_recovery_floor)
+        self.assertTrue(
+            policy._visible_engagement_is_immobile_ranged_less(
+                snapshot.visible_monsters
+            )
+        )
+
+    def test_q2_mobile_hostile_does_not_defer_dry_ammo_recovery(self):
+        knowledge = MonraceKnowledge(10, 110, False, False)
+        policy, snapshot, navigator = self._q2_live_firing_tail(knowledge)
+
+        key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertIn(key, {"7", "9"})
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-recover-dry-ammo-candidate"
+        )
+
+    def test_q2_ranged_hostile_does_not_defer_dry_ammo_recovery(self):
+        knowledge = MonraceKnowledge(
+            10,
+            110,
+            False,
+            False,
+            max_ranged_damage=1,
+            flags=frozenset({"NEVER_MOVE"}),
+        )
+        policy, snapshot, navigator = self._q2_live_firing_tail(knowledge)
+
+        key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+
+        self.assertIn(key, {"7", "9"})
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-recover-dry-ammo-candidate"
+        )
+
+    def test_q2_emergency_still_precedes_stationary_engagement(self):
+        knowledge = MonraceKnowledge(
+            10,
+            110,
+            False,
+            False,
+            flags=frozenset({"NEVER_MOVE"}),
+        )
+        policy, snapshot, _ = self._q2_live_firing_tail(knowledge)
+        emergency_snapshot = replace(
+            snapshot, player=replace(snapshot.player, hp=10)
+        )
+
+        def emergency(_snapshot, _hostiles):
+            policy.last_reason = "emergency:teleport"
+            return "rt"
+
+        with (
+            patch.object(policy, "_emergency_item", side_effect=emergency),
+            patch.object(policy, "_q2_phase_key") as phase,
+        ):
+            key = policy.choose_key(emergency_snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("rt", "emergency:teleport"))
+        phase.assert_not_called()
+
     def test_q2_abandons_oscillating_dry_ammo_route_and_engages_cluster(self):
         policy = self._policy()
         cluster = (

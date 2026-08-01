@@ -18156,6 +18156,22 @@ class HengbotPolicy:
             )
         }
 
+    def _visible_engagement_is_immobile_ranged_less(
+        self, hostiles: list[MonsterState]
+    ) -> bool:
+        """Return whether every visible hostile must stay put and use melee."""
+        visible = [
+            monster
+            for monster in hostiles
+            if monster.perception != "detected"
+        ]
+        return bool(visible) and all(
+            (knowledge := self._monrace_knowledge.get(monster.race_id)) is not None
+            and "NEVER_MOVE" in knowledge.flags
+            and knowledge.max_ranged_damage <= 0
+            for monster in visible
+        )
+
     def _quest_strategy_emergency_hostiles(
         self,
         snapshot: Snapshot,
@@ -18493,6 +18509,35 @@ class HengbotPolicy:
         placements_by_race: dict[int, list[Position]] = {}
         for raw_position, race_id in battlefield.monster_placements:
             placements_by_race.setdefault(race_id, []).append(Position(*raw_position))
+
+        visible_hostiles = [
+            monster
+            for monster in self._strategic_hostiles(snapshot)
+            if monster.perception != "detected"
+        ]
+        uninterrupted_engagement = (
+            self._visible_engagement_is_immobile_ranged_less(visible_hostiles)
+        )
+        if uninterrupted_engagement:
+            ranged = self._q2_ranged_core_key(
+                snapshot, profile, visible_hostiles
+            )
+            if ranged is not None:
+                # Keep attacking from a usable firing cell.  Dry-ammo recovery
+                # and a different target's static vantage set must not take this
+                # decision away from the live engagement.
+                return ranged
+            adjacent_hostiles = [
+                monster
+                for monster in visible_hostiles
+                if snapshot.player.position.distance_to(monster.position) <= 1
+            ]
+            if adjacent_hostiles and not snapshot.player.afraid:
+                self.last_reason = "quest-strategy:melee"
+                return self._direction_key(
+                    snapshot.player.position,
+                    self._weakest(adjacent_hostiles).position,
+                )
 
         def recover_dry_ammo() -> str | None:
             if self._q2_ammo_recovery_floor != snapshot.floor_key:
