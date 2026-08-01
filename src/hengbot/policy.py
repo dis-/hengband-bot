@@ -181,6 +181,36 @@ DIRECTION_KEYS: dict[tuple[int, int], str] = {
 NEIGHBOR_OFFSETS = tuple(DIRECTION_KEYS.keys())
 CARDINAL_OFFSETS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 
+def _persistent_grid_signature(grid: GridState) -> tuple:
+    """All terrain/player-memory fields, deliberately excluding transients."""
+    return (
+        grid.position,
+        grid.known,
+        grid.passable,
+        grid.wall,
+        grid.has_down_stairs,
+        grid.has_up_stairs,
+        grid.unsafe,
+        grid.terrain_id,
+        grid.is_closed_door,
+        grid.is_door,
+        grid.trap,
+        grid.has_entrance,
+        grid.store_number,
+        grid.can_dig,
+        grid.tunnel,
+        grid.permanent,
+        grid.has_gold,
+        grid.entrance_dungeon_id,
+        grid.building_type,
+        grid.has_quest_enter,
+        grid.has_quest_exit,
+        grid.quest_id,
+        grid.building_special,
+        grid.allows_los,
+        grid.marked,
+    )
+
 WAIT_KEY = "5"
 # ``-o`` forces Hengband's original command set. In its travel-point selector,
 # the displayed store landmarks 1-8 are selected with their shifted number-row
@@ -1569,6 +1599,19 @@ class HengbotPolicy:
             tuple[int, int, int, int, int, int, bool] | None
         ) = None
         self._remembered_grids: dict[Position, GridState] = {}
+        self._remembered_grid_signatures: dict[Position, tuple] = {}
+        self._remembered_grid_sources: dict[Position, GridState] = {}
+        # Region-local town facts are updated from emitted cells. Missing cells
+        # retain their last known value, which is essential for unlit towns.
+        self._town_fact_region: tuple[int, int, int, int, int, int, bool] | None = None
+        self._town_store_positions: dict[int, set[Position]] = {}
+        self._town_emitted_entrances: set[Position] = set()
+        self._town_entrance_cache: frozenset[Position] | None = None
+        self._town_fact_snapshot: Snapshot | None = None
+        # Predicate results are valid only for one merged decision snapshot.
+        self._map_predicate_snapshot: Snapshot | None = None
+        self._hazard_cache: dict[Position, bool] = {}
+        self._town_border_cache: dict[Position, bool] = {}
         self._last_position: Position | None = None
         self._recent: deque[Position] = deque(maxlen=EXTENDED_STUCK_WINDOW)
         self._osc_positions: deque[Position] = deque(
@@ -2081,9 +2124,19 @@ class HengbotPolicy:
         if self._remembered_grid_region != region:
             self._remembered_grid_region = region
             self._remembered_grids = {}
+            self._remembered_grid_signatures = {}
+            self._remembered_grid_sources = {}
 
-        remembered = {
-            position: replace(
+        remembered = self._remembered_grids
+        for position, grid in snapshot.grids.items():
+            if self._remembered_grid_sources.get(position) is grid:
+                continue
+            signature = _persistent_grid_signature(grid)
+            self._remembered_grid_sources[position] = grid
+            if self._remembered_grid_signatures.get(position) == signature:
+                continue
+            self._remembered_grid_signatures[position] = signature
+            remembered[position] = replace(
                 grid,
                 has_monster=False,
                 monster_index=0,
@@ -2093,11 +2146,66 @@ class HengbotPolicy:
                 in_view=False,
                 currently_observed=False,
             )
-            for position, grid in self._remembered_grids.items()
-        }
-        remembered.update(snapshot.grids)
-        self._remembered_grids = remembered
-        return replace(snapshot, grids=dict(remembered))
+        merged = dict(remembered)
+        merged.update(snapshot.grids)
+        return replace(snapshot, grids=merged)
+
+    @staticmethod
+    def _grid_region(snapshot: Snapshot) -> tuple[int, int, int, int, int, int, bool]:
+        return (
+            *getattr(snapshot, "floor_key", (0, 0, 0)),
+            getattr(snapshot, "width", 0),
+            getattr(snapshot, "height", 0),
+            getattr(snapshot, "town_id", -1),
+            getattr(snapshot, "in_town", False),
+        )
+
+    def _refresh_town_facts(self, snapshot: Snapshot) -> None:
+        """Incrementally retain store/building facts for this floor visit."""
+        if snapshot is self._town_fact_snapshot:
+            return
+        self._town_fact_snapshot = snapshot
+        region = self._grid_region(snapshot)
+        if self._town_fact_region != region:
+            self._town_fact_region = region
+            self._town_store_positions = {}
+            self._town_emitted_entrances = set()
+            self._town_entrance_cache = None
+            emitted = getattr(snapshot, "grids", {}).items()
+        else:
+            grids = getattr(snapshot, "grids", {})
+            emitted = (
+                (Position(y, x), grids[Position(y, x)])
+                for y, x in self._emitted_t
+                if Position(y, x) in grids
+            )
+        changed = False
+        for position, grid in emitted:
+            for positions in self._town_store_positions.values():
+                if position in positions:
+                    positions.discard(position)
+                    changed = True
+            if grid.store_number >= 0:
+                self._town_store_positions.setdefault(grid.store_number, set()).add(position)
+                changed = True
+            was_entrance = position in self._town_emitted_entrances
+            # Preserve 4f41982 exactly: older/synthetic GridState producers may
+            # use None for a non-store even though current parsed snapshots use
+            # -1. Entrance-cache work must not alter that routing predicate.
+            is_entrance = grid.store_number is not None or grid.building_special >= 0
+            if is_entrance:
+                self._town_emitted_entrances.add(position)
+            else:
+                self._town_emitted_entrances.discard(position)
+            changed = changed or was_entrance != is_entrance
+        if changed:
+            self._town_entrance_cache = None
+
+    def _begin_map_predicate_cache(self, snapshot: Snapshot) -> None:
+        self._map_predicate_snapshot = snapshot
+        self._hazard_cache.clear()
+        self._town_border_cache.clear()
+        self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str:
         self._decision_sequence += 1
@@ -2117,6 +2225,7 @@ class HengbotPolicy:
             for position in getattr(snapshot, "grids", {})
         }
         snapshot = self._with_grid_memory(snapshot)
+        self._begin_map_predicate_cache(snapshot)
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction
         )
@@ -8456,11 +8565,11 @@ class HengbotPolicy:
         self._equipment_optimization_preparation = None
         return alternate
 
-    @staticmethod
-    def _home_available(snapshot: Snapshot) -> bool:
+    def _home_available(self, snapshot: Snapshot) -> bool:
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             return True
-        return any(grid.store_number == STORE_HOME for grid in snapshot.grids.values())
+        self._refresh_town_facts(snapshot)
+        return bool(self._town_store_positions.get(STORE_HOME))
 
     def _home_catalog_routable(self, snapshot: Snapshot) -> bool:
         """Whether this visit can still advance the Home catalog."""
@@ -26428,11 +26537,10 @@ class HengbotPolicy:
         """Known modal store/building cells that routes should avoid crossing."""
         if not snapshot.in_town:
             return set()
-        entrances = {
-            pos
-            for pos, grid in snapshot.grids.items()
-            if grid.store_number is not None or grid.building_special >= 0
-        }
+        self._refresh_town_facts(snapshot)
+        if self._town_entrance_cache is not None:
+            return set(self._town_entrance_cache)
+        entrances = set(self._town_emitted_entrances)
         if self._town_map_active(snapshot):
             entrances.update(self._town_map.stores.values())
             entrances.update(self._town_map.buildings.values())
@@ -26440,7 +26548,8 @@ class HengbotPolicy:
                 entrances.update(positions)
             for positions in self._town_map.quest_entrances.values():
                 entrances.update(positions)
-        return entrances
+        self._town_entrance_cache = frozenset(entrances)
+        return set(self._town_entrance_cache)
 
     def _nearest_goal_and_step(
         self, snapshot: Snapshot, predicate
@@ -27157,9 +27266,15 @@ class HengbotPolicy:
 
     def _is_avoidable_hazard_grid(self, grid: GridState | None) -> bool:
         """A visible hazard excluded by the primary navigation pass."""
-        return self._is_damaging_grid(grid) or (
+        if grid is not None and self._map_predicate_snapshot is not None:
+            if grid.position in self._hazard_cache:
+                return self._hazard_cache[grid.position]
+        result = self._is_damaging_grid(grid) or (
             grid is not None and grid.trap
         )
+        if grid is not None and self._map_predicate_snapshot is not None:
+            self._hazard_cache[grid.position] = result
+        return result
 
     def _is_step_open(
         self,
@@ -27426,14 +27541,23 @@ class HengbotPolicy:
         # that lead OFF this tile into the adjacent open wilderness. Stepping onto
         # one leaves the safe town (a clvl-4 bot wandered out this way and a
         # Cyclops killed it), so town wandering must shun the outer ring.
-        if not snapshot.in_town or snapshot.width <= 0 or snapshot.height <= 0:
-            return False
-        return (
+        if snapshot is self._map_predicate_snapshot:
+            if pos in self._town_border_cache:
+                return self._town_border_cache[pos]
+        result = bool(
+            snapshot.in_town
+            and snapshot.width > 0
+            and snapshot.height > 0
+            and (
             pos.y == 0
             or pos.x == 0
             or pos.y == snapshot.height - 1
             or pos.x == snapshot.width - 1
+            )
         )
+        if snapshot is self._map_predicate_snapshot:
+            self._town_border_cache[pos] = result
+        return result
 
     def _least_visited_neighbor(self, snapshot: Snapshot) -> Position | None:
         candidates = [
