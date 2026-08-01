@@ -7226,15 +7226,52 @@ class HengbotPolicy:
             and not self._equipment_transaction_session.complete
         ):
             return self._equipment_optimization_preparation
-        catalog = tuple(
+        optimization_depth = (
+            depth_override
+            if depth_override is not None
+            else self._equipment_optimization_depth(snapshot)
+        )
+        eligible_catalog = tuple(
             item
             for item in self._equipment_catalog.items
-            if item.id not in self._equipment_transaction_failed_items
-            and operational_equipment_candidate(item)
+            if operational_equipment_candidate(item)
             and not (
                 item.origin == "home"
                 and self._item_signature(item.item) in self._deferred_home_items
             )
+        )
+        # A failed transaction remains quarantined for this town visit unless it
+        # has become every owned source of a mandatory equipment flag.  Keeping
+        # that last source suppressed would make departure (which clears the
+        # visit quarantine) impossible, so release all failed sources of the
+        # missing flag and let the normal transaction machinery make progress.
+        required_flags = {
+            RESIST_FLAG_BY_ABILITY[ability]
+            for ability in required_depth_gates(optimization_depth)
+            if ability in RESIST_FLAG_BY_ABILITY
+        }
+        released_failed_ids: set[str] = set()
+        for required_flag in required_flags:
+            if any(
+                required_flag in item.flags
+                and item.id not in self._equipment_transaction_failed_items
+                for item in eligible_catalog
+            ):
+                continue
+            released_failed_ids.update(
+                item.id
+                for item in eligible_catalog
+                if required_flag in item.flags
+                and item.id in self._equipment_transaction_failed_items
+            )
+        if released_failed_ids:
+            self._equipment_transaction_failed_items.difference_update(
+                released_failed_ids
+            )
+        catalog = tuple(
+            item
+            for item in eligible_catalog
+            if item.id not in self._equipment_transaction_failed_items
         )
         cached_blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
@@ -8075,6 +8112,10 @@ class HengbotPolicy:
 
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
+        # Keep this final guard self-contained: every caller must probe relaxed
+        # depth bands before it can expose a terminal no-loadout state.
+        if self._activate_loadout_depth_fallback(snapshot) is not None:
+            return None
         preparation = self._prepare_equipment_optimization(snapshot)
         if (
             preparation is None
@@ -8101,11 +8142,6 @@ class HengbotPolicy:
             and self._loadout_depth_fallback_depth is not None
         ):
             self._target_dungeon_id = self._loadout_depth_fallback_dungeon
-            return None
-        if (
-            self._alternate_dungeon is not None
-            and self._equipment_optimization_depth(snapshot) <= 20
-        ):
             return None
         preparation = self._prepare_equipment_optimization(snapshot)
         optimization_depth = self._equipment_optimization_depth(snapshot)

@@ -35726,6 +35726,154 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
         self.assertNotIn(ids["light crossbow"], excluded)
 
 
+class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
+    """Regression for the 45-item depth-20 catalog captured at turn 1565400."""
+
+    @staticmethod
+    def _recorded_shape_snapshot():
+        # Preserve the incident's important shape: the incremental-search cutoff
+        # (45 equipment entries), exactly two free-action sources, and a separate
+        # fire-resistance source.  The remaining entries are irrelevant rings.
+        inventory = [
+            item(
+                chr(ord("a") + (index % 26)),
+                45,
+                index + 1,
+                name=f"recorded filler {index}",
+                known=True,
+                fully_known=True,
+                is_equipment=True,
+            )
+            for index in range(42)
+        ]
+        inventory.extend(
+            (
+                item(
+                    "x", 37, 1, name="free action boots", known=True,
+                    fully_known=True, is_equipment=True,
+                    known_flags=frozenset({46}),
+                ),
+                item(
+                    "y", 37, 2, name="Black Clothes", known=True,
+                    fully_known=True, is_equipment=True,
+                    known_flags=frozenset({46}),
+                ),
+                item(
+                    "z", 34, 1, name="fire source", known=True,
+                    fully_known=True, is_equipment=True,
+                    known_flags=frozenset({50}),
+                ),
+            )
+        )
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=inventory,
+            equipment=[],
+        )
+
+    @staticmethod
+    def _flag_sensitive_preparation(_snapshot, catalog, *_args, depth, **_kwargs):
+        required = {
+            policy_module.RESIST_FLAG_BY_ABILITY[ability]
+            for ability in policy_module.required_depth_gates(depth)
+            if ability in policy_module.RESIST_FLAG_BY_ABILITY
+        }
+        available = set().union(*(owned.flags for owned in catalog))
+        best = SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset())) \
+            if required <= available else None
+        return SimpleNamespace(
+            ready=best is not None,
+            result=SimpleNamespace(best=best, incomplete_item_ids=frozenset()),
+            transaction=None,
+            blockers=() if best is not None else ("no-valid-loadout",),
+        )
+
+    def test_both_recorded_free_action_sources_cannot_create_terminal_block(self):
+        snapshot = self._recorded_shape_snapshot()
+        policy = HengbotPolicy()
+        policy._deepest_level = 19
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        free_action_ids = {
+            owned.id for owned in policy._equipment_catalog.items
+            if 46 in owned.flags
+        }
+        policy._equipment_transaction_failed_items.update(free_action_ids)
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=self._flag_sensitive_preparation,
+        ):
+            preparation = policy._prepare_equipment_optimization(snapshot)
+
+        self.assertIsNotNone(preparation.result.best)
+        self.assertTrue(
+            free_action_ids.isdisjoint(
+                policy._equipment_transaction_failed_items
+            )
+        )
+        self.assertNotIn("no-valid-loadout", preparation.blockers)
+
+    def test_quarantining_each_mandatory_source_never_removes_the_last_one(self):
+        snapshot = self._recorded_shape_snapshot()
+        policy = HengbotPolicy()
+        policy._deepest_level = 19
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        required_sources = [
+            owned.id for owned in policy._equipment_catalog.items
+            if owned.flags.intersection({46, 50})
+        ]
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=self._flag_sensitive_preparation,
+        ):
+            for failed_id in required_sources:
+                policy._equipment_transaction_failed_items.add(failed_id)
+                policy._equipment_optimization_signature = None
+                preparation = policy._prepare_equipment_optimization(snapshot)
+                self.assertIsNotNone(preparation.result.best, failed_id)
+
+    def test_zero_candidate_twenty_floor_search_relaxes_with_alternate_latched(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 19
+        policy._target_dungeon_id = DUNGEON_ANGBAND
+        policy._alternate_dungeon = DUNGEON_YEEK_CAVE
+        snapshot = replace(
+            self._recorded_shape_snapshot(),
+            recall_depth=19,
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            dungeon_recall_depths={DUNGEON_YEEK_CAVE: 19},
+        )
+        invalid = SimpleNamespace(
+            blockers=("no-valid-loadout",), result=SimpleNamespace(best=None)
+        )
+        valid = SimpleNamespace(
+            blockers=(),
+            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
+        )
+
+        def prepare(_snapshot, *, depth_override=None):
+            return valid if depth_override == 19 else invalid
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", side_effect=prepare
+        ), patch.object(
+            policy, "_next_required_store_type", return_value=None
+        ):
+            selected = policy._activate_loadout_depth_fallback(snapshot)
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(policy._loadout_depth_fallback_depth, 19)
+        self.assertIs(policy._equipment_optimization_preparation, valid)
+
+
 class ResistanceGapReturnTest(unittest.TestCase):
     """_is_descent_target only ever gates the NEXT floor (dungeon_level + 1); nothing
     previously caught the character already standing somewhere its CURRENT gear no
