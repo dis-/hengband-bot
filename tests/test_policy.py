@@ -26036,6 +26036,149 @@ class TownRecallReturnTest(unittest.TestCase):
             self.assertEqual(pol._morivant_full_identify_key(snap), "TO-MORIVANT")
         self.assertEqual(pol.last_reason, "town:morivant-full-identify:travel-2")
 
+    def test_two_home_full_identify_items_plan_trip_and_begin_batch_withdrawal(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        wares = [
+            store_item(
+                chr(ord("a") + index), 45, index + 1,
+                name=f"home ego ring {index}", known=True,
+                fully_known=False, is_equipment=True, is_ego=True,
+            )
+            for index in range(2)
+        ]
+        pol._equipment_catalog.observe_home_page(wares)
+        pol._equipment_catalog.observe_home_page(wares)
+        snap = replace(
+            snap, player=replace(snap.player, gold=3600), town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        self.assertIsNone(pol._morivant_full_identify_key(snap))
+        self.assertEqual(
+            pol._morivant_full_identify.phase, "prepare-home"
+        )
+        home = replace(snap, store=StoreState(STORE_HOME, wares))
+        self.assertEqual(pol._shop(home), BUY_KEY + "a\r")
+        self.assertEqual(pol.last_reason, "home:batch-withdraw")
+
+    def test_carried_and_home_full_identify_items_share_trip_threshold(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        carried = self._full_identify_items(1)[0]
+        stored = store_item(
+            "a", 45, 9, name="home ego ring", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        pol._equipment_catalog.observe_home_page([stored])
+        pol._equipment_catalog.observe_home_page([stored])
+        snap = replace(
+            snap, player=replace(snap.player, gold=3600),
+            inventory=[*snap.inventory, carried], town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        self.assertIsNone(pol._morivant_full_identify_key(snap))
+        self.assertEqual(
+            set(pol._morivant_full_identify.target_signatures),
+            {pol._item_signature(carried), pol._item_signature(stored)},
+        )
+        self.assertEqual(
+            pol._morivant_full_identify.home_target_signatures,
+            (pol._item_signature(stored),),
+        )
+
+    def test_morivant_temporary_deposit_round_trip_restores_ledger(self):
+        pol = HengbotPolicy()
+        targets = [
+            store_item(
+                "a", 45, 1, name="home ego one", known=True,
+                fully_known=False, is_equipment=True, is_ego=True,
+            ),
+            store_item(
+                "b", 45, 2, name="home ego two", known=True,
+                fully_known=False, is_equipment=True, is_ego=True,
+            ),
+        ]
+        filler = [item(chr(65 + index), TVAL_BOTTLE, index, name=f"filler {index}") for index in range(PACK_CAPACITY - 1)]
+        signatures = tuple(pol._item_signature(target) for target in targets)
+        expedition = policy_module.MorivantFullIdentifyExpedition(
+            0, signatures, home_target_signatures=signatures,
+            phase="prepare-home",
+        )
+        pol._morivant_full_identify = expedition
+        pol._home_pending_batch.extend(signatures)
+        home = Snapshot(
+            player(10, 10, gold=3600), {Position(10, 10): grid(10, 10)}, [],
+            inventory=filler, store=StoreState(STORE_HOME, targets),
+            town_flag=True, town_id=0, visited_town_ids=(0, 2),
+        )
+
+        key = pol._morivant_home_item_key(home)
+        self.assertTrue(key.startswith(SELL_KEY))
+        deposited = filler[0]
+        deposited_ware = store_item(
+            "c", deposited.tval, deposited.sval, name=deposited.name
+        )
+        after_deposit = replace(
+            home, inventory=filler[1:],
+            store=StoreState(STORE_HOME, [*targets, deposited_ware]),
+        )
+        self.assertEqual(pol._morivant_home_item_key(after_deposit), BUY_KEY + "a\r")
+        self.assertEqual(
+            expedition.temporary_deposits,
+            [(pol._item_signature(deposited), 1)],
+        )
+
+        expedition.phase = "return-home"
+        expedition.home_inflight = None
+        pol._home_pending_batch.clear()
+        with patch.object(pol, "_find_home_deposit", return_value=None):
+            self.assertEqual(
+                pol._morivant_home_item_key(after_deposit), BUY_KEY + "c\r"
+            )
+        restored = replace(
+            after_deposit, inventory=[*after_deposit.inventory, deposited]
+        )
+        self.assertEqual(pol._morivant_home_item_key(restored), LEAVE_STORE_KEY)
+        self.assertEqual(expedition.temporary_deposits, [])
+        self.assertIsNone(pol._morivant_full_identify)
+
+    def test_morivant_recall_scroll_ledger_blocks_every_dungeon_entry(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        recall = next(it for it in snap.inventory if it.is_recall_scroll)
+        pol._morivant_full_identify = policy_module.MorivantFullIdentifyExpedition(
+            0, (), temporary_deposits=[(pol._item_signature(recall), recall.count)],
+            phase="restore-home",
+        )
+
+        self.assertFalse(
+            pol._dungeon_entry_allowed(snap, via_recall=True, destination_depth=8)
+        )
+        pol._fundraising_mode = "mine"
+        self.assertFalse(
+            pol._dungeon_entry_allowed(snap, via_recall=False, destination_depth=1)
+        )
+
+    def test_missing_morivant_ledger_item_is_visible_bounded_and_releases_departure(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        missing = ("missing recall", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        pol._morivant_full_identify = policy_module.MorivantFullIdentifyExpedition(
+            0, (), temporary_deposits=[(missing, 1)], phase="restore-home"
+        )
+        home = replace(snap, store=StoreState(STORE_HOME, []))
+
+        self.assertEqual(pol._morivant_home_item_key(home), " ")
+        self.assertEqual(pol._morivant_home_item_key(home), WAIT_KEY)
+        self.assertIn("ledger-drop-missing", pol.last_reason)
+        self.assertEqual(pol._morivant_home_item_key(home), LEAVE_STORE_KEY)
+        self.assertIsNone(pol._morivant_full_identify)
+        self.assertEqual(pol._town_special_key(snap), "rra")
+
     def test_one_carried_full_identify_item_keeps_existing_behavior(self):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True

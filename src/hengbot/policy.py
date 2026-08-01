@@ -310,6 +310,18 @@ class CrossTownShoppingExpedition:
 class MorivantFullIdentifyExpedition:
     origin_town_id: int
     target_signatures: tuple[tuple[str, int, int], ...]
+    home_target_signatures: tuple[tuple[str, int, int], ...] = ()
+    temporary_deposits: list[tuple[tuple[str, int, int], int]] = field(
+        default_factory=list
+    )
+    phase: str = "travel"
+    home_inflight: tuple[str, tuple[str, int, int], int, int] | None = None
+    home_failures: Counter[tuple[str, tuple[str, int, int]]] = field(
+        default_factory=Counter
+    )
+    seen_home_pages: set[tuple[tuple[str, int, int], ...]] = field(
+        default_factory=set
+    )
     returning: bool = False
 
 
@@ -6742,6 +6754,11 @@ class HengbotPolicy:
         destination_depth: int,
     ) -> bool:
         """Enforce recall stock when committing to enter a dungeon."""
+        if (
+            self._morivant_full_identify is not None
+            and self._morivant_full_identify.temporary_deposits
+        ):
+            return False
         mining_walk_in = (
             not via_recall
             and destination_depth == 1
@@ -8651,7 +8668,11 @@ class HengbotPolicy:
         return False
 
     def _home_deposit_key(
-        self, snapshot: Snapshot, deposit: InventoryItem
+        self,
+        snapshot: Snapshot,
+        deposit: InventoryItem,
+        *,
+        forced_count: int | None = None,
     ) -> str:
         sig = (
             deposit.slot,
@@ -8676,7 +8697,11 @@ class HengbotPolicy:
             self.last_reason = "home:deposit-rejected"
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
-        deposit_count = self._retention_surplus(snapshot, deposit)
+        deposit_count = (
+            forced_count
+            if forced_count is not None
+            else self._retention_surplus(snapshot, deposit)
+        )
         if (
             deposit.tval == TVAL_SCROLL
             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
@@ -11984,17 +12009,220 @@ class HengbotPolicy:
             and not item.fully_known
         ]
 
+    def _home_full_identify_targets(self) -> list[InventoryItem]:
+        return [
+            owned.item
+            for owned in self._equipment_catalog.items
+            if owned.origin == "home"
+            and owned.item.known
+            and item_requires_full_identification(owned.item)
+            and not owned.item.fully_known
+        ]
+
+    def _finish_morivant_full_identify(self) -> None:
+        expedition = self._morivant_full_identify
+        if expedition is None:
+            return
+        self._morivant_full_identify_attempted.add(expedition.target_signatures)
+        expedition_targets = set(expedition.home_target_signatures)
+        if self._home_pending_item in expedition_targets:
+            self._home_pending_item = None
+        self._home_pending_batch = [
+            signature for signature in self._home_pending_batch
+            if signature not in expedition_targets
+        ]
+        self._home_candidate_waiting = False
+        self._morivant_full_identify = None
+
+    def _morivant_home_item_key(self, snapshot: Snapshot) -> str | None:
+        """Run the expedition's Home withdrawals and bounded restore ledger."""
+        expedition = self._morivant_full_identify
+        store = snapshot.store
+        if (
+            expedition is None
+            or store is None
+            or store.store_type != STORE_HOME
+            or expedition.phase not in {"prepare-home", "return-home", "restore-home"}
+        ):
+            return None
+
+        inflight = expedition.home_inflight
+        if inflight is not None:
+            action, signature, count, before_count = inflight
+            after_count = self._inventory_signature_count(snapshot, signature)
+            succeeded = after_count < before_count if action == "deposit" else after_count > before_count
+            if succeeded:
+                if action == "deposit":
+                    expedition.temporary_deposits.append((signature, count))
+                elif expedition.phase == "prepare-home":
+                    if signature in self._home_pending_batch:
+                        self._home_pending_batch.remove(signature)
+                else:
+                    restored_index = next(
+                        (
+                            index for index, entry
+                            in enumerate(expedition.temporary_deposits)
+                            if entry[0] == signature
+                        ),
+                        None,
+                    )
+                    if restored_index is not None:
+                        expedition.temporary_deposits.pop(restored_index)
+                expedition.home_inflight = None
+                expedition.home_failures.pop((action, signature), None)
+                expedition.seen_home_pages.clear()
+            else:
+                failure = (action, signature)
+                expedition.home_failures[failure] += 1
+                if expedition.home_failures[failure] < STORE_STUCK_LIMIT:
+                    if action == "deposit":
+                        carried = self._first_item(
+                            snapshot,
+                            lambda item: self._item_signature(item) == signature,
+                        )
+                        if carried is not None:
+                            self.last_reason = "home:morivant-retry-temporary-deposit"
+                            return self._home_deposit_key(
+                                snapshot, carried, forced_count=count
+                            )
+                    else:
+                        ware = next(
+                            (
+                                item for item in store.items
+                                if self._item_signature(item) == signature
+                            ),
+                            None,
+                        )
+                        if ware is not None:
+                            self.last_reason = "home:morivant-retry-withdraw"
+                            suffix = f"{count}\r" if ware.count > 1 else "\r"
+                            return BUY_KEY + ware.letter + suffix
+                expedition.home_inflight = None
+                if action == "withdraw" and expedition.phase == "prepare-home":
+                    if signature in self._home_pending_batch:
+                        self._home_pending_batch.remove(signature)
+                    self.last_reason = "home:morivant-target-unavailable"
+                elif action == "withdraw":
+                    dropped_index = next(
+                        (
+                            index for index, entry
+                            in enumerate(expedition.temporary_deposits)
+                            if entry[0] == signature
+                        ),
+                        None,
+                    )
+                    if dropped_index is not None:
+                        expedition.temporary_deposits.pop(dropped_index)
+                    self.last_reason = "home:morivant-ledger-drop-unavailable"
+                else:
+                    self.last_reason = "home:morivant-space-deposit-rejected"
+                    self._finish_morivant_full_identify()
+                    return LEAVE_STORE_KEY
+
+        if expedition.phase == "return-home":
+            deposit = self._find_home_deposit(snapshot)
+            if deposit is not None:
+                return self._home_deposit_key(snapshot, deposit)
+            expedition.phase = "restore-home"
+            expedition.seen_home_pages.clear()
+
+        if expedition.phase == "restore-home":
+            if not expedition.temporary_deposits:
+                self.last_reason = "home:morivant-ledger-restored"
+                self._finish_morivant_full_identify()
+                return LEAVE_STORE_KEY
+            signature, count = expedition.temporary_deposits[0]
+            ware = next(
+                (item for item in store.items if self._item_signature(item) == signature),
+                None,
+            )
+            if ware is not None and len(snapshot.inventory) < PACK_CAPACITY:
+                expedition.home_inflight = (
+                    "withdraw", signature, min(count, ware.count),
+                    self._inventory_signature_count(snapshot, signature),
+                )
+                self.last_reason = "home:morivant-restore-temporary-deposit"
+                quantity = min(count, ware.count)
+                suffix = f"{quantity}\r" if ware.count > 1 else "\r"
+                return BUY_KEY + ware.letter + suffix
+
+        if expedition.phase == "prepare-home":
+            remaining = list(self._home_pending_batch)
+            free_slots = PACK_CAPACITY - len(snapshot.inventory)
+            if free_slots < len(remaining):
+                protected = set(expedition.target_signatures)
+                deposit = self._first_item(
+                    snapshot,
+                    lambda item: self._item_signature(item) not in protected
+                    and self._retention_surplus(snapshot, item) == item.count,
+                )
+                if deposit is None:
+                    deposit = self._first_item(
+                        snapshot,
+                        lambda item: self._item_signature(item) not in protected,
+                    )
+                if deposit is None:
+                    self.last_reason = "home:morivant-no-space-source"
+                    self._finish_morivant_full_identify()
+                    return LEAVE_STORE_KEY
+                signature = self._item_signature(deposit)
+                expedition.home_inflight = (
+                    "deposit", signature, deposit.count,
+                    self._inventory_signature_count(snapshot, signature),
+                )
+                self.last_reason = "home:morivant-temporary-deposit"
+                return self._home_deposit_key(
+                    snapshot, deposit, forced_count=deposit.count
+                )
+            if not remaining:
+                expedition.phase = "travel"
+                expedition.seen_home_pages.clear()
+                self._home_candidate_waiting = False
+                self.last_reason = "home:morivant-targets-withdrawn"
+                return LEAVE_STORE_KEY
+            signature = remaining[0]
+            ware = next(
+                (item for item in store.items if self._item_signature(item) == signature),
+                None,
+            )
+            if ware is not None:
+                expedition.home_inflight = (
+                    "withdraw", signature, 1,
+                    self._inventory_signature_count(snapshot, signature),
+                )
+                self.last_reason = "home:batch-withdraw"
+                return BUY_KEY + ware.letter + "\r"
+
+        page = tuple(self._item_signature(item) for item in store.items)
+        if page not in expedition.seen_home_pages:
+            expedition.seen_home_pages.add(page)
+            self.last_reason = "home:morivant-seek-page"
+            return " "
+        if expedition.phase == "restore-home":
+            signature, _ = expedition.temporary_deposits.pop(0)
+            reason = "no-space" if ware is not None else "missing"
+            self.last_reason = (
+                f"home:morivant-ledger-drop-{reason}:{signature[0]}"
+            )
+            expedition.seen_home_pages.clear()
+            return WAIT_KEY
+        self.last_reason = "home:morivant-target-page-missing"
+        self._finish_morivant_full_identify()
+        return LEAVE_STORE_KEY
+
     def _morivant_full_identify_key(self, snapshot: Snapshot) -> str | None:
         """Batch carried *Identify* work through Morivant's Library."""
         if not snapshot.in_town or snapshot.store is not None:
             return None
         targets = self._carried_full_identify_targets(snapshot)
-        signatures = tuple(sorted(self._item_signature(item) for item in targets))
+        home_targets = self._home_full_identify_targets()
+        all_targets = [*targets, *home_targets]
+        signatures = tuple(sorted(self._item_signature(item) for item in all_targets))
         expedition = self._morivant_full_identify
         if expedition is None:
             if (
-                len(targets) < MORIVANT_FULL_IDENTIFY_THRESHOLD
-                or self._identification_need != "full"
+                len(all_targets) < MORIVANT_FULL_IDENTIFY_THRESHOLD
+                or (self._identification_need != "full" and not home_targets)
                 or signatures in self._morivant_full_identify_attempted
                 or self._find_identification_source(snapshot, full=True) is not None
                 or snapshot.visited_town_ids is None
@@ -12003,18 +12231,36 @@ class HengbotPolicy:
                 < MORIVANT_FULL_IDENTIFY_COST + 2 * TOWN_TELEPORT_COST
             ):
                 return None
+            home_signatures = tuple(
+                sorted(self._item_signature(item) for item in home_targets)
+            )
             expedition = MorivantFullIdentifyExpedition(
-                self._effective_town_id(snapshot), signatures
+                self._effective_town_id(snapshot),
+                signatures,
+                home_target_signatures=home_signatures,
+                phase="prepare-home" if home_signatures else "travel",
             )
             self._morivant_full_identify = expedition
+            if home_signatures:
+                self._home_pending_batch.extend(
+                    signature for signature in home_signatures
+                    if signature not in self._home_pending_batch
+                )
+                self._home_candidate_waiting = True
+                self._identification_need = None
+
+        if expedition.phase in {"prepare-home", "return-home", "restore-home"}:
+            return None
 
         current = self._effective_town_id(snapshot)
         if current != MORIVANT_TOWN_ID:
             if expedition.returning and current == expedition.origin_town_id:
-                self._morivant_full_identify_attempted.add(
-                    expedition.target_signatures
-                )
-                self._morivant_full_identify = None
+                if expedition.temporary_deposits or expedition.home_target_signatures:
+                    expedition.phase = "return-home"
+                    self._home_candidate_waiting = True
+                    self._rearm_town_store_for_new_work(STORE_HOME)
+                    return None
+                self._finish_morivant_full_identify()
                 return None
             destination = (
                 expedition.origin_town_id
@@ -12027,8 +12273,7 @@ class HengbotPolicy:
                 return key
             # A missing Inn route is terminal for this attempt, not a departure
             # claim.  Preserve today's deferral behavior and never spin here.
-            self._morivant_full_identify_attempted.add(expedition.target_signatures)
-            self._morivant_full_identify = None
+            self._finish_morivant_full_identify()
             return None
 
         affordable = max(
@@ -12079,8 +12324,7 @@ class HengbotPolicy:
             if key is not None:
                 self.last_reason = "town:morivant-full-identify:return"
                 return key
-        self._morivant_full_identify_attempted.add(expedition.target_signatures)
-        self._morivant_full_identify = None
+        self._finish_morivant_full_identify()
         return None
 
     def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
@@ -13733,6 +13977,9 @@ class HengbotPolicy:
         if store.store_type == STORE_HOME:
             for stored in store.items:
                 self._home_catalog[self._item_signature(stored)] = stored
+            morivant_home_key = self._morivant_home_item_key(snapshot)
+            if morivant_home_key is not None:
+                return morivant_home_key
             reserve = next(
                 (
                     item
