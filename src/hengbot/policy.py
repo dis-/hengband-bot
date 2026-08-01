@@ -1060,11 +1060,10 @@ LANTERN_MIN_GOLD = 1
 # leave the store. The store re-emits a snapshot every loop with no loop-detector
 # or stall exit, so without this the bot would hammer the buy macro forever.
 STORE_STUCK_LIMIT = 8
-# Equipment commands can be separated from their resulting JSON snapshot by
-# prompt/animation frames.  Three unchanged observations are nevertheless a
-# bounded visit-local attempt: after that, exclude the failed item and optimize
-# the loadout that is actually achievable this visit so departure cannot stall.
-EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = 3
+# Posted equipment commands get the reviewed store no-progress budget.  The
+# observation count remains diagnostic: exhaustion releases the session as a
+# visible failure and never substitutes for the action's physical postcondition.
+EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = STORE_STUCK_LIMIT
 # Oscillating store-approach turns (while _is_oscillating) tolerated before giving
 # up an unreachable store and diving with what we have. Above STUCK_WINDOW so a
 # reachable store one tile on is still pursued; below the cli loop guard's window
@@ -2076,6 +2075,7 @@ class HengbotPolicy:
         self._warrior_evaluator_cache = WarriorEvaluatorCache()
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
+        self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_home_pages: set[tuple[str, ...]] = set()
         self._equipment_transaction_prepared_key: str | None = None
         self._equipment_transaction_prepared_catalog_update: tuple[
@@ -7851,6 +7851,10 @@ class HengbotPolicy:
             state["transaction_posted_context"] = (
                 session.posted_context_identity
             )
+        if self._equipment_transaction_last_failure is not None:
+            state["transaction_last_failure"] = dict(
+                self._equipment_transaction_last_failure
+            )
         return state
 
     def _block_equipment_transaction(self, reason: str) -> None:
@@ -7910,7 +7914,37 @@ class HengbotPolicy:
         self._equipment_transaction_home_pages.clear()
         self._town_blocked_reason = None
 
+    def _release_stalled_equipment_transaction(self) -> bool:
+        """Release a posted action after the reviewed store observation budget."""
+        session = self._equipment_transaction_session
+        if (
+            session is None
+            or session.pending_action is None
+            or session.unconfirmed_observations
+            < EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT
+        ):
+            return False
+        action = session.pending_action
+        self._equipment_transaction_last_failure = {
+            "reason": "confirmation-stall-bound",
+            "applied": False,
+            "phase": action.phase,
+            "kind": action.kind,
+            "item_id": action.item_id,
+            "target_slot": action.target_slot,
+            "item_identity": action.item_identity,
+            "observations": session.unconfirmed_observations,
+            "budget": EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+            "bound": "STORE_STUCK_LIMIT",
+            "target_loadout_id": session.target_loadout_id,
+        }
+        self._abandon_blocked_equipment_transaction()
+        self.last_reason = "equipment-transaction:confirmation-stall-bound"
+        return True
+
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
+        if self._release_stalled_equipment_transaction():
+            return LEAVE_STORE_KEY
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
@@ -8067,6 +8101,8 @@ class HengbotPolicy:
     def _equipment_transaction_town_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.store is not None:
             return None
+        if self._release_stalled_equipment_transaction():
+            return WAIT_KEY
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:

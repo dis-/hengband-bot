@@ -18,6 +18,7 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
 )
 from hengbot.equipment_transaction_session import (
+    EquipmentTransactionObservation,
     EquipmentTransactionSession,
     observe_equipment_transactions,
 )
@@ -29,7 +30,10 @@ from hengbot.model import (
     StoreItem,
 )
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
-from hengbot.policy import HengbotPolicy
+from hengbot.policy import (
+    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+    HengbotPolicy,
+)
 from hengbot.warrior_optimization import (
     INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
     WarriorOptimizationPreparation,
@@ -897,6 +901,90 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertIs(policy._equipment_transaction_session, session)
         self.assertNotIn("stored", policy._equipment_transaction_failed_items)
         self.assertIsNone(policy._town_blocked_reason)
+
+    def test_real_capture_deposit_confirmation_stall_releases_visibly(self):
+        """03:03:57: slot n spear and Home pages stayed physically unchanged."""
+        identity = "af7df9197aab84bc"
+        item_id = f"pack:{identity}:0"
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "deposit", item_id,
+            item_identity=identity,
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 23),
+            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        )
+        unchanged_home = EquipmentTransactionObservation.create(
+            in_home=True, pack_identities=(identity,),
+        )
+        self.assertTrue(
+            session.prepare(
+                action,
+                unchanged_home,
+                "dn\r",
+                ("home", 2242290, "n", identity),
+            )
+        )
+        self.assertTrue(session.confirm_posted("dn\r"))
+
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = session
+        policy._prepare_equipment_optimization = lambda _snapshot: None
+        home = SimpleNamespace(in_town=True, store=SimpleNamespace(
+            store_type=STORE_HOME, items=(),
+        ))
+        for _ in range(EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT - 1):
+            self.assertFalse(session.observe(unchanged_home))
+            self.assertEqual(policy._equipment_transaction_home_key(home), "\x1b")
+            self.assertIs(policy._equipment_transaction_session, session)
+
+        self.assertFalse(session.observe(unchanged_home))
+        self.assertEqual(policy._equipment_transaction_home_key(home), "\x1b")
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:confirmation-stall-bound",
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertIn(item_id, policy._equipment_transaction_failed_items)
+        failure = policy.equipment_optimization_state()["transaction_last_failure"]
+        self.assertFalse(failure["applied"])
+        self.assertEqual(failure["item_id"], item_id)
+        self.assertEqual(failure["bound"], "STORE_STUCK_LIMIT")
+        self.assertEqual(
+            failure["observations"], EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        )
+
+        # The next planning pass retains the durable catalog target but cannot
+        # silently recreate the identical visit-quarantined action.
+        self.assertIsNone(policy._equipment_transaction_home_key(home))
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertIn(item_id, policy._equipment_transaction_failed_items)
+
+    def test_confirmation_inside_store_stuck_budget_completes_normally(self):
+        identity = "slow-valid-item"
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "deposit", "pack:slow-valid-item:0",
+            item_identity=identity,
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1),
+            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        )
+        before = EquipmentTransactionObservation.create(
+            in_home=True, pack_identities=(identity,),
+        )
+        self.assertTrue(session.dispatch(action, before))
+        for _ in range(EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT - 1):
+            self.assertFalse(session.observe(before))
+        self.assertTrue(session.observe(EquipmentTransactionObservation.create(
+            in_home=False,
+        )))
+        self.assertTrue(session.complete)
+
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = session
+        self.assertFalse(policy._release_stalled_equipment_transaction())
+        self.assertIsNone(policy._equipment_transaction_last_failure)
 
     def test_departure_retains_target_during_home_shield_withdraw_stall(self):
         """Live shape: the optimal main hand is on; Home sub hand never moves."""
