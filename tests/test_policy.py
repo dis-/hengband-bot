@@ -95,7 +95,7 @@ from hengbot.model import (
     parse_snapshot,
 )
 from hengbot.dungeon_knowledge import DungeonInfo
-from hengbot.equipment_optimizer import TR_TELEPORT
+from hengbot.equipment_optimizer import Loadout, OwnedEquipment, TR_TELEPORT
 from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
@@ -36265,6 +36265,121 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertEqual(
             pol._restore_mining_combat_hand_key(second, "restore"), "wsb"
         )
+
+    def test_mining_restores_optimizer_single_hand_not_displaced_dual_wield(self):
+        pol = HengbotPolicy()
+        sword = item("s", TVAL_SWORD, 1, name="Long Sword", is_equipment=True)
+        optimal = Loadout(
+            (("main_hand", OwnedEquipment("optimal-sword", sword, "pack")),),
+            "one_handed",
+        )
+        pol._equipment_optimization_preparation = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout=optimal))
+        )
+        observed = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[sword, item("j", TVAL_DIGGING, 1, name="Shovel")],
+            equipment=[
+                item("main_hand", 21, 1, is_equipment=True, name="Flail"),
+                item("sub_hand", 22, 1, is_equipment=True, name="Naginata"),
+            ],
+        )
+        self.assertEqual(pol._wield_digging_tool_key(observed, "mine:wield"), "wja")
+
+        both_diggers = replace(
+            observed,
+            inventory=[
+                sword,
+                item("f", 21, 1, name="Flail", is_equipment=True),
+                item("n", 22, 1, name="Naginata", is_equipment=True),
+            ],
+            equipment=[
+                item("main_hand", TVAL_DIGGING, 1, is_equipment=True, name="Shovel"),
+                item("sub_hand", TVAL_DIGGING, 4, is_equipment=True, name="Pick"),
+            ],
+        )
+        self.assertEqual(
+            pol._restore_mining_combat_hand_key(both_diggers, "restore"), "wsa"
+        )
+        main_restored = replace(
+            both_diggers,
+            inventory=[item("n", 22, 1, name="Naginata", is_equipment=True)],
+            equipment=[
+                replace(sword, slot="main_hand", is_equipment=True),
+                item("sub_hand", TVAL_DIGGING, 4, is_equipment=True, name="Pick"),
+            ],
+        )
+        self.assertEqual(
+            pol._restore_mining_combat_hand_key(main_restored, "restore"), "tb"
+        )
+
+    def test_mining_restores_optimizer_dual_wield(self):
+        pol = HengbotPolicy()
+        sword = item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)
+        dagger = item("d", TVAL_SWORD, 2, name="Dagger", is_equipment=True)
+        optimal = Loadout(
+            (
+                ("main_hand", OwnedEquipment("sword", sword, "pack")),
+                ("sub_hand", OwnedEquipment("dagger", dagger, "pack")),
+            ),
+            "dual_wield",
+        )
+        pol._equipment_optimization_preparation = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout=optimal))
+        )
+        observed = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[item("j", TVAL_DIGGING, 1, name="Shovel")],
+            equipment=[
+                replace(sword, slot="main_hand", is_equipment=True),
+                replace(dagger, slot="sub_hand", is_equipment=True),
+            ],
+        )
+        pol._wield_digging_tool_key(observed, "mine:wield")
+        digging = replace(
+            observed,
+            inventory=[sword, dagger],
+            equipment=[
+                item("main_hand", TVAL_DIGGING, 1, is_equipment=True),
+                item("sub_hand", TVAL_DIGGING, 4, is_equipment=True),
+            ],
+        )
+        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wsa")
+        self.assertEqual(
+            pol._restore_mining_combat_hand_key(
+                replace(
+                    digging,
+                    inventory=[dagger],
+                    equipment=[
+                        replace(sword, slot="main_hand", is_equipment=True),
+                        item("sub_hand", TVAL_DIGGING, 4, is_equipment=True),
+                    ],
+                ),
+                "restore",
+            ),
+            "wdb",
+        )
+
+    def test_mining_restore_without_optimizer_falls_back_to_observed_weapon(self):
+        pol = HengbotPolicy()
+        observed = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[item("j", TVAL_DIGGING, 1, name="Shovel")],
+            equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True, name="Sword")],
+        )
+        pol._wield_digging_tool_key(observed, "mine:wield")
+        digging = replace(
+            observed,
+            inventory=[item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)],
+            equipment=[item("main_hand", TVAL_DIGGING, 1, is_equipment=True)],
+        )
+        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wsn")
 
     def test_combat_restore_abandons_when_target_identity_never_appears(self):
         from hengbot.policy import DIGGER_WIELD_LIMIT

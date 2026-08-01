@@ -1906,6 +1906,11 @@ class HengbotPolicy:
         self._sell_scavenged_consumables = False
         self._normal_weapon_name: str | None = None
         self._normal_sub_hand_name: str | None = None
+        self._normal_weapon_identity: str | None = None
+        self._normal_sub_hand_identity: str | None = None
+        self._normal_weapon_is_optimal = False
+        self._normal_sub_hand_is_optimal = False
+        self._mining_combat_loadout_remembered = False
         self._breakout_dig_floor: tuple[int, int, int] | None = None
         self._no_teleport_rearm_pending = False
         self._yeek_conquest_processed = False
@@ -16166,6 +16171,51 @@ class HengbotPolicy:
             (it for it in snapshot.equipment if it.slot == "sub_hand"), None
         )
         cursed_main_stays_wielded = self._cursed_main_stays_wielded(snapshot)
+        if not self._mining_combat_loadout_remembered:
+            preparation = self._equipment_optimization_preparation
+            result = getattr(preparation, "result", None)
+            best = getattr(result, "best", None)
+            loadout = getattr(best, "loadout", None)
+            optimal_main = (
+                loadout.item_at("main_hand")
+                if loadout is not None and hasattr(loadout, "item_at")
+                else None
+            )
+            optimal_sub = (
+                loadout.item_at("sub_hand")
+                if loadout is not None and hasattr(loadout, "item_at")
+                else None
+            )
+            # An optimizer winner makes an empty sub hand authoritative.  An
+            # absent main-hand choice cannot: retain the observed weapon so a
+            # cold/incomplete cache can never make the restore weaponless.
+            if optimal_main is not None:
+                self._normal_weapon_name = optimal_main.item.name
+                self._normal_weapon_identity = equipment_identity(optimal_main.item)
+                self._normal_weapon_is_optimal = True
+            elif (
+                main_hand is not None
+                and not main_hand.is_digging_tool
+                and not cursed_main_stays_wielded
+            ):
+                self._normal_weapon_name = main_hand.name
+                self._normal_weapon_identity = equipment_identity(main_hand)
+                self._normal_weapon_is_optimal = False
+            if loadout is not None and hasattr(loadout, "item_at"):
+                self._normal_sub_hand_name = (
+                    optimal_sub.item.name if optimal_sub is not None else None
+                )
+                self._normal_sub_hand_identity = (
+                    equipment_identity(optimal_sub.item)
+                    if optimal_sub is not None
+                    else None
+                )
+                self._normal_sub_hand_is_optimal = True
+            elif sub_hand is not None and not sub_hand.is_digging_tool:
+                self._normal_sub_hand_name = sub_hand.name
+                self._normal_sub_hand_identity = equipment_identity(sub_hand)
+                self._normal_sub_hand_is_optimal = False
+            self._mining_combat_loadout_remembered = True
         target_slot = (
             "sub_hand"
             if cursed_main_stays_wielded or (
@@ -16184,12 +16234,14 @@ class HengbotPolicy:
             main_hand is not None
             and not main_hand.is_digging_tool
             and not cursed_main_stays_wielded
+            and not self._normal_weapon_is_optimal
         ):
             self._normal_weapon_name = main_hand.name
         if (
             target_slot == "sub_hand"
             and sub_hand is not None
             and not sub_hand.is_digging_tool
+            and not self._normal_sub_hand_is_optimal
         ):
             self._normal_sub_hand_name = sub_hand.name
         self.last_reason = reason
@@ -16203,15 +16255,31 @@ class HengbotPolicy:
             (item for item in snapshot.equipment if item.slot == "main_hand"),
             None,
         )
-        for target_slot, remembered_name in (
-            ("main_hand", self._normal_weapon_name),
-            ("sub_hand", self._normal_sub_hand_name),
+        for target_slot, remembered_name, remembered_identity, optimal_known in (
+            (
+                "main_hand",
+                self._normal_weapon_name,
+                self._normal_weapon_identity,
+                self._normal_weapon_is_optimal,
+            ),
+            (
+                "sub_hand",
+                self._normal_sub_hand_name,
+                self._normal_sub_hand_identity,
+                self._normal_sub_hand_is_optimal,
+            ),
         ):
             equipped = next(
                 (item for item in snapshot.equipment if item.slot == target_slot),
                 None,
             )
             if equipped is None or not equipped.is_digging_tool:
+                continue
+            if target_slot == "sub_hand" and optimal_known and remembered_name is None:
+                if main_hand is not None and not main_hand.is_digging_tool:
+                    self._digger_wield_attempts = 0
+                    self.last_reason = reason
+                    return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
                 continue
             replacement = self._first_item(
                 snapshot,
@@ -16222,7 +16290,9 @@ class HengbotPolicy:
                 and not item.is_broken
                 and not self._blocks_teleport(item)
                 and (
-                    item.name == remembered_name
+                    equipment_identity(item) == remembered_identity
+                    if remembered_identity is not None
+                    else item.name == remembered_name
                     if remembered_name is not None
                     else (
                         item.is_melee_weapon
@@ -16249,6 +16319,7 @@ class HengbotPolicy:
             self.last_reason = reason
             return self._equip_macro(snapshot, replacement, target_slot)
         self._digger_wield_attempts = 0
+        self._mining_combat_loadout_remembered = False
         return None
 
     def _breakout_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
