@@ -10372,6 +10372,121 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._quest_knowledge[34] = load_quest_knowledge(definitions)[34]
         return policy
 
+    def _live_redacted_quest_fixture(self):
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
+            self.skipTest("real Hengband quest definitions are unavailable")
+        knowledge = load_quest_knowledge(definitions)
+        policy = HengbotPolicy(
+            quest_strategies=self.profiles,
+            quest_knowledge=knowledge,
+        )
+        quests = {
+            quest_id: QuestState(
+                id=quest_id, status=status, fixed=True,
+                level=knowledge[quest_id].level,
+            )
+            for quest_id, status in {
+                8: QUEST_STATUS_TAKEN,
+                9: QUEST_STATUS_TAKEN,
+                34: QUEST_STATUS_FINISHED,
+                1: QUEST_STATUS_FINISHED,
+                14: QUEST_STATUS_FINISHED,
+                49: QUEST_STATUS_FINISHED,
+                43: QUEST_STATUS_FINISHED,
+            }.items()
+        }
+        snapshot = Snapshot(
+            player(10, 10, level=30, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            visited_town_ids=frozenset({0, 1, 3}),
+            quests=quests,
+        )
+        return policy, snapshot
+
+    def test_redacted_live_export_synthesizes_q2_then_q22_then_q31(self):
+        policy, snapshot = self._live_redacted_quest_fixture()
+
+        self.assertEqual(policy._fixed_quest_head(snapshot).id, 2)
+        snapshot = replace(snapshot, quests={
+            **snapshot.quests,
+            2: QuestState(2, status=QUEST_STATUS_FINISHED, fixed=True),
+        })
+        self.assertEqual(policy._fixed_quest_head(snapshot).id, 22)
+        snapshot = replace(snapshot, quests={
+            **snapshot.quests,
+            22: QuestState(22, status=QUEST_STATUS_FINISHED, fixed=True),
+        })
+        self.assertEqual(policy._fixed_quest_head(snapshot).id, 31)
+
+    def test_exported_terminal_states_are_never_resurrected(self):
+        policy, snapshot = self._live_redacted_quest_fixture()
+        terminal = {1: 4, 14: 5, 34: 6}
+        snapshot = replace(snapshot, quests={
+            **snapshot.quests,
+            **{
+                quest_id: QuestState(quest_id, status=status, fixed=True)
+                for quest_id, status in terminal.items()
+            },
+        })
+
+        known = policy._known_fixed_quests(snapshot)
+
+        self.assertEqual(known[2].status, QUEST_STATUS_UNTAKEN)
+        self.assertEqual(
+            {quest_id: known[quest_id].status for quest_id in terminal},
+            terminal,
+        )
+
+    def test_redacted_export_preserves_taken_inflight_guard(self):
+        policy, snapshot = self._live_redacted_quest_fixture()
+        supported = replace(snapshot, quests={
+            **snapshot.quests,
+            22: QuestState(22, status=QUEST_STATUS_TAKEN, fixed=True),
+        })
+        unsupported = replace(snapshot, quests={
+            **snapshot.quests,
+            99: QuestState(99, status=QUEST_STATUS_TAKEN, fixed=True),
+        })
+
+        self.assertEqual(
+            policy._known_fixed_quests(snapshot)[2].status,
+            QUEST_STATUS_UNTAKEN,
+        )
+        self.assertEqual(policy._fixed_quest_head(supported).id, 22)
+        self.assertIsNone(policy._fixed_quest_head(unsupported))
+
+    def test_redacted_conditional_quests_still_require_live_offer(self):
+        policy, snapshot = self._live_redacted_quest_fixture()
+        snapshot = replace(snapshot, quests={
+            **snapshot.quests,
+            2: QuestState(2, status=QUEST_STATUS_FINISHED, fixed=True),
+            22: QuestState(22, status=QUEST_STATUS_FINISHED, fixed=True),
+            31: QuestState(31, status=QUEST_STATUS_FINISHED, fixed=True),
+        })
+
+        known = policy._known_fixed_quests(snapshot)
+        self.assertTrue({18, 25, 28}.issubset(known))
+        self.assertIsNone(policy._fixed_quest_head(snapshot))
+
+    def test_redacted_export_reconnects_q2_scroll_procurement(self):
+        policy, snapshot = self._live_redacted_quest_fixture()
+
+        strategy = policy._carry_procurement_strategy(snapshot)
+        needs = policy._enumerate_town_needs(snapshot)
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.quest_id, 2)
+        self.assertTrue(any(
+            need.store_type == STORE_ALCHEMIST
+            and need.category == "quest-scrolls"
+            for need in needs
+        ))
+
     def test_completed_q34_opens_floor_chest_before_sweep_pickup(self):
         policy = self._q34_source_policy()
         chest_position = Position(10, 8)
@@ -11492,6 +11607,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             town_id=0,
             visited_town_ids=frozenset({0, 3}),
             quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                ),
                 22: QuestState(
                     id=22,
                     status=QUEST_STATUS_UNTAKEN,
@@ -13218,7 +13336,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             snap,
             floor_key=(0, 0, 0),
             town_flag=True,
-            quests={34: QuestState(id=34, status=0, fixed=True, level=5)},
+            quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                ),
+                34: QuestState(id=34, status=0, fixed=True, level=5),
+            },
         )
         torches = snap.inventory[0]
 
@@ -13242,7 +13365,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         base = Snapshot(
             player(10, 10, level=2, class_id=PLAYER_CLASS_WARRIOR, gold=1000),
             {Position(10, 10): grid(10, 10, building_special=34)}, [], floor_key=(0, 0, 0),
-            town_flag=True, quests={34: quest},
+            town_flag=True, quests={
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                ),
+                34: quest,
+            },
             inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=12, fuel=5000)],
             store=StoreState(STORE_GENERAL, [torch]),
         )

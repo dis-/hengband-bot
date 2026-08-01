@@ -41,6 +41,7 @@ from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
+    QUEST_FLAG_SILENT,
     QUEST_TYPE_KILL_LEVEL,
     QUEST_TYPE_KILL_NUMBER,
     QUEST_TYPE_RANDOM,
@@ -159,6 +160,7 @@ from hengbot.model import (
     InventoryItem,
     MonsterState,
     Position,
+    QuestState,
     Snapshot,
     StoreItem,
     item_requires_full_identification,
@@ -5001,7 +5003,7 @@ class HengbotPolicy:
             or snapshot.player.level != 1
         ):
             return False
-        quest = snapshot.quests.get(34)
+        quest = self._known_fixed_quests(snapshot).get(34)
         if (
             quest is None
             or quest.status != QUEST_STATUS_UNTAKEN
@@ -20128,7 +20130,7 @@ class HengbotPolicy:
         # recursively returns here.  Supplies belong to the earliest approved
         # pending/taken quest regardless of whether departure is ready yet.
         candidates = [
-            quest for quest in snapshot.quests.values()
+            quest for quest in self._known_fixed_quests(snapshot).values()
             if quest.id in FIXED_QUEST_ALLOWLIST
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
@@ -20296,7 +20298,7 @@ class HengbotPolicy:
                 return None
 
             fixed_quest_candidates = [
-                quest for quest in snapshot.quests.values()
+                quest for quest in self._known_fixed_quests(snapshot).values()
                 if quest.id in FIXED_QUEST_ALLOWLIST
                 and quest.status in {
                     QUEST_STATUS_UNTAKEN,
@@ -20376,7 +20378,7 @@ class HengbotPolicy:
         quest_id = self._fixed_quest_target(snapshot)
         if quest_id is None:
             return None
-        quest = snapshot.quests.get(quest_id)
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
         if quest is None:
             return None
         if quest_id == 2:
@@ -20801,8 +20803,9 @@ class HengbotPolicy:
 
         # Never accept or prepare another fixed quest while real work is in
         # flight. The birth-time win quests are the only intentional exception.
+        known_quests = self._known_fixed_quests(snapshot)
         taken = [
-            quest for quest in snapshot.quests.values()
+            quest for quest in known_quests.values()
             if quest.fixed
             and quest.status == QUEST_STATUS_TAKEN
             and quest.id not in WIN_QUEST_IDS
@@ -20814,7 +20817,7 @@ class HengbotPolicy:
             return None
 
         completed = [
-            quest for quest in snapshot.quests.values()
+            quest for quest in known_quests.values()
             if supported(quest) and quest.status == QUEST_STATUS_COMPLETED
         ]
         if completed:
@@ -20825,12 +20828,12 @@ class HengbotPolicy:
         # ready.  The reviewed birth route is explicitly Q34-first; retain that
         # transaction head from procurement through acceptance.
         if self._opening_q34_active(snapshot):
-            opening_q34 = snapshot.quests.get(34)
+            opening_q34 = known_quests.get(34)
             if opening_q34 is not None and supported(opening_q34):
                 return opening_q34
 
         untaken = [
-            quest for quest in snapshot.quests.values()
+            quest for quest in known_quests.values()
             if supported(quest)
             and quest.status == QUEST_STATUS_UNTAKEN
             and (
@@ -20839,6 +20842,30 @@ class HengbotPolicy:
             )
         ]
         return min(untaken, key=self._fixed_quest_order) if untaken else None
+
+    def _known_fixed_quests(self, snapshot: Snapshot) -> dict[int, QuestState]:
+        """Join disclosed fixed-quest state with sanctioned static knowledge."""
+        known = dict(snapshot.quests)
+        for quest_id in FIXED_QUEST_ALLOWLIST:
+            if quest_id in known:
+                continue
+            info = self._quest_knowledge.get(quest_id)
+            if info is None or info.flags & QUEST_FLAG_SILENT:
+                continue
+            # The emitter exports TAKEN, COMPLETED, TOWER STAGE_COMPLETED,
+            # FINISHED, FAILED, and FAILED_DONE quests.  Therefore a missing,
+            # non-silent allowlisted quest from the static table can only be
+            # UNTAKEN.  Exported state always wins above, in every status.
+            known[quest_id] = QuestState(
+                id=quest_id,
+                name=info.name,
+                status=QUEST_STATUS_UNTAKEN,
+                type=info.type,
+                level=info.level,
+                flags=info.flags,
+                fixed=True,
+            )
+        return known
 
     def _fixed_quest_order(self, quest: QuestState) -> tuple[int, int]:
         quest_id = quest.id
