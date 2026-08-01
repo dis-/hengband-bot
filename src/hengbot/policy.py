@@ -1832,8 +1832,6 @@ class HengbotPolicy:
         self._breeder_kills = 0
         self._breeder_previous_exp: int | None = None
         self._breeder_previous_indices: set[int] = set()
-        self._choke_hold_floor: tuple[int, int, int] | None = None
-        self._choke_hold_start_breeders: int | None = None
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
@@ -2681,8 +2679,9 @@ class HengbotPolicy:
         # the CLI set here would introduce a policy/CLI cycle; these are the
         # bounded recall/confirmation waits and deliberate quest/rest holds.
         # A melee choke wait lets the queue approach without burning the escape
-        # kit. The breeder kill-window accounting bounds an unproductive hold;
-        # damage, ranged fire, or adjacent contact still enters the ladder below.
+        # kit. The engagement-stall bound and the choke plan's sight-loss bound
+        # limit an unproductive hold; damage, ranged fire, or adjacent contact
+        # still enters the ladder below.
         sanctioned = (
             reason
             in {
@@ -4729,8 +4728,6 @@ class HengbotPolicy:
             self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
-            self._choke_hold_floor = None
-            self._choke_hold_start_breeders = None
             if (
                 self._choke_engagement_plan is not None
                 and self._choke_engagement_plan.floor != snapshot.floor_key
@@ -4921,6 +4918,21 @@ class HengbotPolicy:
                 self._breeder_breakthrough_floor == snapshot.floor_key
                 and self._is_weak_breeder(snapshot, monster)
             )
+        ]
+
+    def _engagement_breeder_population(
+        self, snapshot: Snapshot
+    ) -> list[MonsterState]:
+        """Return the perceived breeder population used for engagement judgement.
+
+        Detection may inform counting, release decisions, and threat modelling,
+        but this perceived channel must never be passed to melee, ranged,
+        line-of-fire, or blocker-clearing target selection.
+        """
+        return [
+            monster
+            for monster in self._perceived_hostiles(snapshot)
+            if monster.can_multiply
         ]
 
     def _strategic_adjacent_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
@@ -22822,11 +22834,7 @@ class HengbotPolicy:
             self._breeder_kills = 0
             self._breeder_previous_exp = snapshot.player.exp
             self._breeder_previous_indices.clear()
-        perceived_breeders = [
-            monster
-            for monster in self._perceived_hostiles(snapshot)
-            if monster.hostile and monster.can_multiply
-        ]
+        perceived_breeders = self._engagement_breeder_population(snapshot)
         if (
             self._breeder_previous_indices
             and self._breeder_previous_exp is not None
@@ -22872,6 +22880,20 @@ class HengbotPolicy:
             else []
         )
         productive_choke = self._productive_choke_hold(snapshot)
+        plan = self._choke_engagement_plan
+        if (
+            not productive_choke
+            and plan is not None
+            and self._choke_plan_active(snapshot)
+            and (
+                snapshot.player.exp > plan.start_exp
+                or snapshot.player.gold > plan.start_gold
+            )
+        ):
+            # Breeder handling clears the general combat-outcome window below,
+            # so reward progress owned by an active choke plan must be read from
+            # that plan or a real kill would look like an unproductive hold.
+            productive_choke = True
         if breeders and not productive_choke:
             self._breeder_engagement_score += 1
         else:
@@ -22885,7 +22907,6 @@ class HengbotPolicy:
                 0, self._fruitless_disengage_decisions - 4
             )
         if breeders:
-            self._breeder_engagement_score = 0
             self._combat_outcomes.clear()
             self._combat_fruitful = True
             return
@@ -24863,8 +24884,8 @@ class HengbotPolicy:
                     },
                     start_exp=snapshot.player.exp,
                     start_gold=snapshot.player.gold,
-                    start_breeder_count=sum(
-                        monster.can_multiply for monster in hostiles
+                    start_breeder_count=len(
+                        self._engagement_breeder_population(snapshot)
                     ),
                     last_player_hp=snapshot.player.hp,
                     last_movement=(snapshot.player.position, step),
@@ -24884,15 +24905,11 @@ class HengbotPolicy:
                     },
                     start_exp=snapshot.player.exp,
                     start_gold=snapshot.player.gold,
-                    start_breeder_count=sum(
-                        monster.can_multiply for monster in hostiles
+                    start_breeder_count=len(
+                        self._engagement_breeder_population(snapshot)
                     ),
                     last_player_hp=snapshot.player.hp,
                 )
-            breeder_count = sum(monster.can_multiply for monster in hostiles)
-            if breeder_count and self._choke_hold_floor != snapshot.floor_key:
-                self._choke_hold_floor = snapshot.floor_key
-                self._choke_hold_start_breeders = breeder_count
             if adjacent and not snapshot.player.afraid:
                 self.last_reason = "melee:choke"
                 return self._direction_key(
@@ -25010,7 +25027,7 @@ class HengbotPolicy:
             self._release_choke_plan("ranged-threat")
             return None
         if (
-            sum(monster.can_multiply for monster in hostiles)
+            len(self._engagement_breeder_population(snapshot))
             > plan.start_breeder_count
         ):
             self._release_choke_plan("swarm-growth")
@@ -25032,7 +25049,9 @@ class HengbotPolicy:
         ):
             self._release_choke_plan("kill-progress")
             return None
-        if plan.sight_loss_decisions > COMBAT_OUTCOME_WINDOW:
+        # Holding blind is dead time in which an unseen swarm can multiply;
+        # the choke strategy promises only a bounded hold.
+        if plan.sight_loss_decisions > EXTENDED_STUCK_WINDOW:
             self._release_choke_plan("sight-loss-bound")
             return None
         if snapshot.player.position != plan.destination:

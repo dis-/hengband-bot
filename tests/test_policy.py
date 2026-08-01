@@ -471,6 +471,20 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             {12, 13},
         )
 
+    def test_engagement_population_is_judgement_only_not_target_selection(self):
+        breeder = replace(
+            hostile(7, 10, 11, distance=1, can_multiply=True),
+            perception="detected",
+        )
+        snapshot = self._corridor_snapshot([breeder])
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._engagement_breeder_population(snapshot), [breeder])
+        self.assertEqual(policy._physical_hostiles(snapshot), [])
+        self.assertEqual(policy._physical_adjacent_hostiles(snapshot), [])
+        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        self.assertIsNone(policy._ranged_attack_key(snapshot, [], []))
+
     def test_transition_from_detected_to_visible_is_not_double_counted(self):
         detected = replace(
             hostile(7, 10, 12, distance=2, can_multiply=True),
@@ -1595,13 +1609,34 @@ class CombatTest(unittest.TestCase):
             ranged.choke_engagement_state()["release_cause"], "ranged-threat"
         )
 
-    def test_choke_sight_loss_uses_existing_combat_outcome_bound(self):
+    def test_detected_out_of_sight_swarm_growth_releases_choke_plan(self):
+        policy = HengbotPolicy()
+        policy.choose_key(
+            self._orc_cave_choke_cycle_snapshot(Position(29, 169), 2)
+        )
+        hidden = self._orc_cave_choke_cycle_snapshot(Position(28, 170), 0)
+        detected = [
+            replace(monster, perception="detected")
+            for monster in self._orc_cave_choke_cycle_snapshot(
+                Position(28, 170), 3
+            ).visible_monsters
+        ]
+        hidden = replace(hidden, detected_monsters=detected)
+        policy._build_grid_index(hidden)
+
+        policy._choke_engagement_key(hidden, [], [])
+
+        self.assertEqual(
+            policy.choke_engagement_state()["release_cause"], "swarm-growth"
+        )
+
+    def test_choke_sight_loss_uses_existing_extended_stuck_bound(self):
         policy = HengbotPolicy()
         policy.choose_key(
             self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9)
         )
         policy._choke_engagement_plan.sight_loss_decisions = (
-            policy_module.COMBAT_OUTCOME_WINDOW
+            policy_module.EXTENDED_STUCK_WINDOW
         )
 
         policy.choose_key(
@@ -21314,6 +21349,51 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             self.assertEqual(policy.choose_key(snapshot), "6")
 
         self.assertEqual(policy.last_reason, "fundraise:eliminate-multiplier")
+
+    def test_unproductive_perceived_breeder_engagement_advances_score(self):
+        policy, snapshot = self._latched_mining_breeder()
+        policy._breeder_engagement_score = 0
+
+        for turn in range(1, 4):
+            policy._update_combat_outcome(replace(snapshot, turn=turn))
+
+        self.assertEqual(policy._breeder_engagement_score, 3)
+
+    def test_breeder_engagement_score_decays_in_genuine_absence(self):
+        policy, snapshot = self._latched_mining_breeder()
+        policy._breeder_engagement_score = 9
+        absent = replace(snapshot, visible_monsters=[], detected_monsters=[])
+
+        policy._update_combat_outcome(absent)
+
+        self.assertEqual(policy._breeder_engagement_score, 5)
+
+    def test_mining_preemption_stops_after_live_engagement_bound(self):
+        policy, snapshot = self._latched_mining_breeder()
+        policy._breeder_engagement_score = (
+            policy_module.BREEDER_CONTAINMENT_WINDOW
+            + policy_module.FRUITLESS_DISENGAGE_LIMIT
+            - 1
+        )
+        policy._update_combat_outcome(snapshot)
+
+        with patch.object(
+            policy,
+            "threat_prediction",
+            return_value={"operational_total": 1.0},
+        ):
+            key = policy._fruitless_disengage_key(
+                snapshot, snapshot.visible_monsters
+            )
+
+        self.assertIsNotNone(key)
+        self.assertEqual(policy._escape_state.owner, "disengage")
+
+    def test_deleted_choke_kill_window_state_has_no_references(self):
+        source = inspect.getsource(HengbotPolicy)
+
+        self.assertNotIn("_choke_hold_floor", source)
+        self.assertNotIn("_choke_hold_start_breeders", source)
 
     def test_cleared_mining_breeders_release_latched_disengage(self):
         policy, fighting = self._latched_mining_breeder()
