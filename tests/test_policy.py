@@ -1338,6 +1338,82 @@ class CombatTest(unittest.TestCase):
             grown._breeder_breakthrough_floor, grown_snapshot.floor_key
         )
 
+    def test_breeder_stalemate_timeout_ends_mining_through_floor_exit(self):
+        base = self._small_breeder_group_snapshot(ranged=False)
+
+        def observed(turn, count):
+            breeders = [
+                replace(
+                    base.visible_monsters[index % len(base.visible_monsters)],
+                    index=100 + index,
+                )
+                for index in range(count)
+            ]
+            return replace(base, turn=turn, visible_monsters=breeders)
+
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        for turn, count in ((100, 4), (900, 6), (1700, 7), (2500, 4), (3099, 5)):
+            policy._update_combat_outcome(observed(turn, count))
+            self.assertIsNone(policy._breeder_breakthrough_floor)
+
+        timed_out = observed(3100, 6)
+        policy._update_combat_outcome(timed_out)
+        self.assertEqual(policy._breeder_breakthrough_floor, timed_out.floor_key)
+
+        policy._floor_key = timed_out.floor_key
+        with patch.object(
+            policy, "_finish_mining_floor", return_value="FINISH"
+        ) as finish:
+            with patch.object(
+                policy, "_darkness_recovery_key", return_value=None
+            ):
+                self.assertEqual(policy.choose_key(timed_out), "FINISH")
+            finish.assert_called_once_with(timed_out)
+
+    def test_breeder_progress_resets_stalemate_clock(self):
+        base = self._small_breeder_group_snapshot(ranged=False)
+
+        def observed(turn, count):
+            breeders = [
+                replace(
+                    base.visible_monsters[index % len(base.visible_monsters)],
+                    index=200 + index,
+                )
+                for index in range(count)
+            ]
+            return replace(base, turn=turn, visible_monsters=breeders)
+
+        policy = HengbotPolicy()
+        for turn, count in (
+            (100, 4),
+            (3000, 6),
+            (3050, 3),
+            (5900, 5),
+            (5950, 2),
+            (8900, 7),
+        ):
+            policy._update_combat_outcome(observed(turn, count))
+            self.assertIsNone(policy._breeder_breakthrough_floor)
+
+    def test_non_breeder_combat_has_no_stalemate_timeout(self):
+        base = self._small_breeder_group_snapshot(ranged=False)
+        ordinary = [
+            replace(monster, can_multiply=False)
+            for monster in base.visible_monsters
+        ]
+        policy = HengbotPolicy()
+
+        policy._update_combat_outcome(
+            replace(base, turn=1, visible_monsters=ordinary)
+        )
+        policy._update_combat_outcome(
+            replace(base, turn=10000, visible_monsters=ordinary)
+        )
+
+        self.assertIsNone(policy._breeder_engagement_start_count)
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+
     def test_latched_weak_swarm_is_ignored_but_strong_swarm_leaves(self):
         weak = self._weak_breeder_incident_snapshot()
         policy = HengbotPolicy()

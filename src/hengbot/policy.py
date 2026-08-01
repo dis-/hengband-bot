@@ -589,6 +589,7 @@ COMBAT_OUTCOME_WINDOW = 300
 # below has to arm before the position loop guard hard-stops the bot.  At 120 it
 # never did, and the multiplier-combat loop guard stopped the bot instead.
 BREEDER_CONTAINMENT_WINDOW = 60
+BREEDER_STALEMATE_TURN_LIMIT = 3000
 WEAK_BREEDER_MAX_DAMAGE_RATIO = 0.05
 FRUITLESS_DISENGAGE_LIMIT = 100
 # WAIT terminals which are deliberately allowed to outlive the CLI's positional
@@ -1793,6 +1794,7 @@ class HengbotPolicy:
         self._breeder_engagement_floor: tuple[int, int, int] | None = None
         self._breeder_engagement_score = 0
         self._breeder_engagement_start_count: int | None = None
+        self._breeder_engagement_start_turn: int | None = None
         self._breeder_kills = 0
         self._breeder_previous_exp: int | None = None
         self._breeder_previous_indices: set[int] = set()
@@ -4670,6 +4672,7 @@ class HengbotPolicy:
             self._clear_unseen_retreat()
             self._breeder_breakthrough_floor = None
             self._breeder_engagement_start_count = None
+            self._breeder_engagement_start_turn = None
             self._breeder_kills = 0
             self._breeder_previous_exp = None
             self._breeder_previous_indices.clear()
@@ -22314,6 +22317,7 @@ class HengbotPolicy:
             self._breeder_engagement_floor = snapshot.floor_key
             self._breeder_engagement_score = 0
             self._breeder_engagement_start_count = None
+            self._breeder_engagement_start_turn = None
             self._breeder_kills = 0
             self._breeder_previous_exp = snapshot.player.exp
             self._breeder_previous_indices.clear()
@@ -22337,10 +22341,24 @@ class HengbotPolicy:
             self._breeder_kills += 1
         if perceived_breeders and self._breeder_engagement_start_count is None:
             self._breeder_engagement_start_count = len(perceived_breeders)
+            self._breeder_engagement_start_turn = snapshot.turn
+        if (
+            self._breeder_engagement_start_count is not None
+            and len(perceived_breeders) < self._breeder_engagement_start_count
+        ):
+            self._breeder_engagement_start_turn = snapshot.turn
         if (
             self._breeder_engagement_start_count is not None
             and self._breeder_kills >= 5
             and len(perceived_breeders) > self._breeder_engagement_start_count
+        ):
+            self._breeder_breakthrough_floor = snapshot.floor_key
+        if (
+            self._breeder_engagement_start_count is not None
+            and self._breeder_engagement_start_turn is not None
+            and len(perceived_breeders) >= self._breeder_engagement_start_count
+            and snapshot.turn - self._breeder_engagement_start_turn
+            >= BREEDER_STALEMATE_TURN_LIMIT
         ):
             self._breeder_breakthrough_floor = snapshot.floor_key
         self._breeder_previous_exp = snapshot.player.exp
