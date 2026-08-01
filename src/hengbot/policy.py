@@ -307,6 +307,13 @@ class CrossTownShoppingExpedition:
 
 
 @dataclass
+class MorivantFullIdentifyExpedition:
+    origin_town_id: int
+    target_signatures: tuple[tuple[str, int, int], ...]
+    returning: bool = False
+
+
+@dataclass
 class EscapeState:
     """Single owner and decision ledger for escape-family policy."""
 
@@ -420,6 +427,15 @@ FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})
 # Morivant, and Angwil are building 4.  Zul's tavern does not offer town
 # teleportation, so it is intentionally absent.
 TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
+# lib/edit/towns/03_Morivant.txt advertises building action 1 for 1300 gold;
+# every eligible Inn advertises action 42 for 500.  Building service prices are
+# not present in bot JSON, so these factual data-file values cannot be learned
+# from a runtime snapshot.
+MORIVANT_TOWN_ID = 2
+MORIVANT_LIBRARY_BUILDING_TYPE = 0
+MORIVANT_FULL_IDENTIFY_COST = 1300
+TOWN_TELEPORT_COST = 500
+MORIVANT_FULL_IDENTIFY_THRESHOLD = 2
 # Fixed quest maps are one-shot commitments.  Quest 25 and 28 are open rooms,
 # so model the eight most dangerous placed monsters occupying every adjacent
 # grid. Acceptance requires operational three-turn damage to be strictly below
@@ -1867,6 +1883,10 @@ class HengbotPolicy:
         self._observed_departure_prices: dict[str, tuple[int, int]] = {}
         self._cross_town_shopping: CrossTownShoppingExpedition | None = None
         self._cross_town_shopping_funds: dict[str, object] = {}
+        self._morivant_full_identify: MorivantFullIdentifyExpedition | None = None
+        self._morivant_full_identify_attempted: set[
+            tuple[tuple[str, int, int], ...]
+        ] = set()
         # A fixed quest's carry contract may ask for stock that no supplier has
         # this visit.  Town procurement may waive only those exhausted entries;
         # quest-entry readiness continues to check the original contract.
@@ -11950,6 +11970,116 @@ class HengbotPolicy:
             expedition.target_town_id = None
         return None
 
+    def _carried_full_identify_targets(
+        self, snapshot: Snapshot
+    ) -> list[InventoryItem]:
+        return [
+            item
+            for item in (*snapshot.inventory, *snapshot.equipment)
+            if item.known
+            and item_requires_full_identification(item)
+            and not item.fully_known
+        ]
+
+    def _morivant_full_identify_key(self, snapshot: Snapshot) -> str | None:
+        """Batch carried *Identify* work through Morivant's Library."""
+        if not snapshot.in_town or snapshot.store is not None:
+            return None
+        targets = self._carried_full_identify_targets(snapshot)
+        signatures = tuple(sorted(self._item_signature(item) for item in targets))
+        expedition = self._morivant_full_identify
+        if expedition is None:
+            if (
+                len(targets) < MORIVANT_FULL_IDENTIFY_THRESHOLD
+                or self._identification_need != "full"
+                or signatures in self._morivant_full_identify_attempted
+                or self._find_identification_source(snapshot, full=True) is not None
+                or snapshot.visited_town_ids is None
+                or MORIVANT_TOWN_ID not in snapshot.visited_town_ids
+                or snapshot.player.gold
+                < MORIVANT_FULL_IDENTIFY_COST + 2 * TOWN_TELEPORT_COST
+            ):
+                return None
+            expedition = MorivantFullIdentifyExpedition(
+                self._effective_town_id(snapshot), signatures
+            )
+            self._morivant_full_identify = expedition
+
+        current = self._effective_town_id(snapshot)
+        if current != MORIVANT_TOWN_ID:
+            if expedition.returning and current == expedition.origin_town_id:
+                self._morivant_full_identify_attempted.add(
+                    expedition.target_signatures
+                )
+                self._morivant_full_identify = None
+                return None
+            destination = (
+                expedition.origin_town_id
+                if expedition.returning
+                else MORIVANT_TOWN_ID
+            )
+            key = self._town_teleport_key(snapshot, destination)
+            if key is not None:
+                self.last_reason = f"town:morivant-full-identify:travel-{destination}"
+                return key
+            # A missing Inn route is terminal for this attempt, not a departure
+            # claim.  Preserve today's deferral behavior and never spin here.
+            self._morivant_full_identify_attempted.add(expedition.target_signatures)
+            self._morivant_full_identify = None
+            return None
+
+        affordable = max(
+            0,
+            (snapshot.player.gold - TOWN_TELEPORT_COST)
+            // MORIVANT_FULL_IDENTIFY_COST,
+        )
+        chosen = targets[:affordable]
+        if chosen:
+            library_pos = (
+                self._town_map.building_position(MORIVANT_LIBRARY_BUILDING_TYPE)
+                if self._town_map_active(snapshot)
+                else None
+            )
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: grid.building_type
+                == MORIVANT_LIBRARY_BUILDING_TYPE,
+            )
+            if step is None and library_pos is not None:
+                step = self._town_map_goal_step(snapshot, library_pos)
+            if step is not None:
+                enters = step == library_pos or (
+                    snapshot.grid_at(step) is not None
+                    and snapshot.grid_at(step).building_type
+                    == MORIVANT_LIBRARY_BUILDING_TYPE
+                )
+                self.last_reason = "town:morivant-full-identify:library"
+                if enters:
+                    selectors = "".join(
+                        "a"
+                        + (
+                            item.slot
+                            if item in snapshot.inventory
+                            else "/" + EQUIPMENT_SLOT_KEY[item.slot]
+                        )
+                        + FULL_IDENTIFY_DISMISS_SUFFIX
+                        for item in chosen
+                    )
+                    return self._step_toward(snapshot, step) + selectors + LEAVE_STORE_KEY
+                return self._step_toward(snapshot, step)
+
+        # No affordable/remaining target or no Library route: return home if
+        # possible; otherwise resolve this optional attempt immediately.
+        if current != expedition.origin_town_id:
+            expedition.returning = True
+            key = self._town_teleport_key(snapshot, expedition.origin_town_id)
+            if key is not None:
+                self.last_reason = "town:morivant-full-identify:return"
+                return key
+        self._morivant_full_identify_attempted.add(expedition.target_signatures)
+        self._morivant_full_identify = None
+        return None
+
     def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
         """Apply ordered state changes only after the plan walk is exhausted."""
         if self._town_restock_suppressed or snapshot.player.class_id < 0:
@@ -15586,6 +15716,9 @@ class HengbotPolicy:
         return recall_dest, recall_dungeon_id
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
+        full_identify_trip = self._morivant_full_identify_key(snapshot)
+        if full_identify_trip is not None:
+            return full_identify_trip
         if not snapshot.in_town or snapshot.player.class_id < 0:
             return None
         if self._town_cycle_pending:

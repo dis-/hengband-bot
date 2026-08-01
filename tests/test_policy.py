@@ -25933,6 +25933,139 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertNotEqual(pol.last_reason, "town:blocked:departure-unsatisfiable")
         self.assertEqual(pol.cross_town_shopping_state()["candidate_order"], [1, 2, 3])
 
+    @staticmethod
+    def _full_identify_items(count=2):
+        return [
+            item(
+                chr(ord("p") + index), 45, index + 1,
+                name=f"ego ring {index}", known=True, is_equipment=True,
+                is_ego=True,
+            )
+            for index in range(count)
+        ]
+
+    def test_two_carried_full_identify_items_plan_morivant_trip(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=3600),
+            inventory=snap.inventory + self._full_identify_items(),
+            town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        pol._identification_need = "full"
+        with patch.object(pol, "_town_teleport_key", return_value="TO-MORIVANT"):
+            self.assertEqual(pol._morivant_full_identify_key(snap), "TO-MORIVANT")
+        self.assertEqual(pol.last_reason, "town:morivant-full-identify:travel-2")
+
+    def test_one_carried_full_identify_item_keeps_existing_behavior(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=3600),
+            inventory=snap.inventory + self._full_identify_items(1),
+            town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        pol._identification_need = "full"
+        with patch.object(pol, "_town_teleport_key") as travel:
+            self.assertIsNone(pol._morivant_full_identify_key(snap))
+        travel.assert_not_called()
+
+    def test_morivant_full_identify_trip_requires_round_trip_and_one_service(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=2299),
+            inventory=snap.inventory + self._full_identify_items(),
+            town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        pol._identification_need = "full"
+        with patch.object(pol, "_town_teleport_key") as travel:
+            self.assertIsNone(pol._morivant_full_identify_key(snap))
+        travel.assert_not_called()
+
+    def test_unroutable_morivant_trip_resolves_and_town_still_departs(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=3600),
+            inventory=snap.inventory + self._full_identify_items(),
+            town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        pol._identification_need = "full"
+        with patch.object(pol, "_town_teleport_key", return_value=None):
+            self.assertIsNone(pol._morivant_full_identify_key(snap))
+        self.assertIsNone(pol._morivant_full_identify)
+        pol._identification_need = None
+        departed = replace(
+            snap,
+            inventory=[
+                carried
+                for carried in snap.inventory
+                if not carried.name.startswith("ego ring")
+            ],
+        )
+        self.assertEqual(pol._town_special_key(departed), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
+    def test_morivant_library_uses_action_a_for_each_item_prompt(self):
+        pol = HengbotPolicy()
+        targets = self._full_identify_items()
+        snap = Snapshot(
+            player(10, 10, gold=3100),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11, building_type=0),
+            },
+            [],
+            inventory=targets,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=2,
+            visited_town_ids=(0, 2),
+        )
+        pol._identification_need = "full"
+        pol._morivant_full_identify = policy_module.MorivantFullIdentifyExpedition(
+            0, tuple(pol._item_signature(target) for target in targets)
+        )
+        dismiss = policy_module.FULL_IDENTIFY_DISMISS_SUFFIX
+        with patch.object(pol, "_nearest_goal_step", return_value=Position(10, 11)):
+            self.assertEqual(
+                pol._morivant_full_identify_key(snap),
+                "6ap" + dismiss + "aq" + dismiss + policy_module.LEAVE_STORE_KEY,
+            )
+
+    def test_carried_star_identify_scroll_remains_preferred(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        scroll = item("o", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, known=True)
+        snap = replace(
+            snap,
+            player=replace(snap.player, gold=3600),
+            inventory=snap.inventory + [scroll] + self._full_identify_items(),
+            town_id=0,
+            visited_town_ids=(0, 2),
+        )
+        with patch.object(pol, "_town_teleport_key") as travel:
+            self.assertIsNone(pol._morivant_full_identify_key(snap))
+        travel.assert_not_called()
+        self.assertEqual(
+            pol._town_item_processing_key(snap),
+            "rop" + policy_module.FULL_IDENTIFY_DISMISS_SUFFIX,
+        )
+
     def test_capture_affordable_identify_staff_vetoes_cross_town_expedition(self):
         """Rebuild the 20260731 incident's shelf and workflow evidence."""
         pol, snap = self._ready_town(
