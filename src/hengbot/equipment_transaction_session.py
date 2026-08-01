@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from hashlib import sha256
 
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP,
@@ -59,6 +60,20 @@ class EquipmentTransactionSession:
         self._dispatched: EquipmentTransaction | None = None
         self._before: EquipmentTransactionObservation | None = None
         self._unconfirmed = 0
+        self._posted_command_id: str | None = None
+        self._posted_context_identity: tuple[object, ...] | None = None
+        self._prepared: tuple[
+            EquipmentTransaction,
+            EquipmentTransactionObservation,
+            str,
+            tuple[object, ...],
+        ] | None = None
+        target = "\n".join(
+            f"{action.phase}|{action.kind}|{action.item_id}|"
+            f"{action.target_slot or ''}|{action.item_identity}"
+            for action in plan.actions
+        )
+        self.target_loadout_id = sha256(target.encode("utf-8")).hexdigest()[:16]
 
     @property
     def complete(self) -> bool:
@@ -89,6 +104,54 @@ class EquipmentTransactionSession:
     def pending_action(self) -> EquipmentTransaction | None:
         return self._dispatched
 
+    @property
+    def prepared_action(self) -> EquipmentTransaction | None:
+        return None if self._prepared is None else self._prepared[0]
+
+    @property
+    def unconfirmed_observations(self) -> int:
+        return self._unconfirmed
+
+    @property
+    def posted_command_id(self) -> str | None:
+        return self._posted_command_id
+
+    @property
+    def posted_context_identity(self) -> tuple[object, ...] | None:
+        return self._posted_context_identity
+
+    def discard_prepared(self) -> None:
+        self._prepared = None
+
+    def prepare(
+        self,
+        action: EquipmentTransaction,
+        observation: EquipmentTransactionObservation,
+        command_id: str,
+        context_identity: tuple[object, ...],
+    ) -> bool:
+        """Bind a command to observed context without claiming it was posted."""
+        if not self.executable or action != self.current_action:
+            return False
+        needs_home = action.phase != PHASE_EQUIP
+        if observation.in_home != needs_home:
+            return False
+        candidate = (action, observation, command_id, context_identity)
+        if self._prepared is not None and self._prepared != candidate:
+            return False
+        self._prepared = candidate
+        return True
+
+    def confirm_posted(self, command_id: str) -> bool:
+        """Commit the prepared transition only after the transport posted it."""
+        if self._prepared is None or self._prepared[2] != command_id:
+            return False
+        action, observation, _, _ = self._prepared
+        self._posted_command_id = command_id
+        self._posted_context_identity = self._prepared[3]
+        self._prepared = None
+        return self.dispatch(action, observation)
+
     def dispatch(
         self,
         action: EquipmentTransaction,
@@ -118,10 +181,13 @@ class EquipmentTransactionSession:
             self._dispatched = None
             self._before = None
             self._unconfirmed = 0
+            self._posted_command_id = None
+            self._posted_context_identity = None
             return True
+        # An observation counter is not evidence that the physical item is
+        # impossible.  Retain the durable target and the posted action until a
+        # terminal postcondition or explicit item-specific evidence arrives.
         self._unconfirmed += 1
-        if self._unconfirmed >= self.max_unconfirmed_observations:
-            self.blockers.append(f"unconfirmed:{action.kind}:{action.item_id}")
         return False
 
     @staticmethod

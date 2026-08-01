@@ -23,6 +23,7 @@ from hengbot.equipment_optimizer import (
     random_teleport_is_suppressed,
 )
 from hengbot.equipment_transaction_session import (
+    EquipmentTransactionObservation,
     EquipmentTransactionSession,
     observe_equipment_transactions,
 )
@@ -2010,6 +2011,10 @@ class HengbotPolicy:
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_home_pages: set[tuple[str, ...]] = set()
+        self._equipment_transaction_prepared_key: str | None = None
+        self._equipment_transaction_prepared_catalog_update: tuple[
+            str, object, tuple[object, ...]
+        ] | None = None
         # A store-loop Home redraw may be separated from the Space decision by
         # a main-loop town snapshot.  last_reason is therefore not a reliable
         # proof that the next Home snapshot is the result of our page advance.
@@ -2192,14 +2197,15 @@ class HengbotPolicy:
                 self.last_reason = "shop:await-leave-generation"
                 key = "\r"
             else:
-                key = self._decide(snapshot)
-                if key.startswith((SELL_KEY, BUY_KEY, "s")) and len(key) > 1:
-                    # The bounded leave tolerance has expired, so ordinary
-                    # decisions may resume.  The unchanged store observation
-                    # still cannot prove that a d/p/s macro will reach a store:
-                    # after Esc those same keys can destructively act in town.
-                    self.last_reason = "shop:await-leave-confirmation"
-                    key = "\r"
+                # Planning itself may reserve inventory or transaction state.
+                # An unchanged store generation is therefore a hard barrier,
+                # not a filter applied after a side-effecting decision.
+                self.last_reason = "shop:await-leave-confirmation"
+                key = (
+                    "\r"
+                    if snapshot.store.store_type == STORE_HOME
+                    else LEAVE_STORE_KEY
+                )
         else:
             key = self._decide(snapshot)
         self._remember_swarm_distances(snapshot)
@@ -2264,6 +2270,11 @@ class HengbotPolicy:
             # The purchase never reached a confirming store generation.  Do not
             # retain it for a later visit or record it as a completed purchase.
             self._store_buy_inflight = None
+        if (
+            self._equipment_transaction_prepared_key is not None
+            and key != self._equipment_transaction_prepared_key
+        ):
+            self._discard_unposted_equipment_transaction_command()
         if snapshot.store is not None and key == LEAVE_STORE_KEY:
             self._store_leave_inflight = (
                 self._decision_sequence,
@@ -2295,6 +2306,7 @@ class HengbotPolicy:
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and key.startswith(BUY_KEY)
+            and key != self._equipment_transaction_prepared_key
         ):
             withdrawn = next(
                 (
@@ -2341,6 +2353,7 @@ class HengbotPolicy:
             and snapshot.store.store_type == STORE_HOME
             and key.startswith(SELL_KEY)
             and len(key) > 1
+            and key != self._equipment_transaction_prepared_key
         ):
             deposited = next(
                 (item for item in snapshot.inventory if item.slot == key[1]),
@@ -7631,6 +7644,15 @@ class HengbotPolicy:
                     "target_slot": pending.target_slot,
                 }
             )
+            state["transaction_target_loadout_id"] = session.target_loadout_id
+            state["transaction_applied"] = session.complete
+            state["transaction_unconfirmed_observations"] = (
+                session.unconfirmed_observations
+            )
+            state["transaction_posted_command_id"] = session.posted_command_id
+            state["transaction_posted_context"] = (
+                session.posted_context_identity
+            )
         return state
 
     def _block_equipment_transaction(self, reason: str) -> None:
@@ -7638,6 +7660,44 @@ class HengbotPolicy:
         if session is not None:
             session.block(reason)
         self._town_blocked_reason = f"equipment-transaction:{reason}"
+
+    def confirm_key_posted(self, key: str) -> bool:
+        """Commit policy state whose command was successfully posted by CLI."""
+        if key != self._equipment_transaction_prepared_key:
+            return False
+        session = self._equipment_transaction_session
+        committed = session is not None and session.confirm_posted(key)
+        if committed and self._equipment_transaction_prepared_catalog_update is not None:
+            kind, item, intent = self._equipment_transaction_prepared_catalog_update
+            if kind == "withdraw":
+                self._equipment_catalog.record_home_withdrawal(item, intent=intent)
+            elif kind == "deposit":
+                self._equipment_catalog.record_home_deposit(item, intent=intent)
+        self._equipment_transaction_prepared_key = None
+        self._equipment_transaction_prepared_catalog_update = None
+        return committed
+
+    def _discard_unposted_equipment_transaction_command(self) -> None:
+        self._equipment_transaction_prepared_key = None
+        self._equipment_transaction_prepared_catalog_update = None
+        session = self._equipment_transaction_session
+        if session is not None:
+            session.discard_prepared()
+
+    def _prepare_equipment_transaction_command(
+        self,
+        session: EquipmentTransactionSession,
+        action: EquipmentTransaction,
+        observation: EquipmentTransactionObservation,
+        key: str,
+        context_identity: tuple[object, ...],
+    ) -> bool:
+        if not session.prepare(
+            action, observation, key, context_identity
+        ):
+            return False
+        self._equipment_transaction_prepared_key = key
+        return True
 
     def _abandon_blocked_equipment_transaction(self) -> None:
         session = self._equipment_transaction_session
@@ -7722,11 +7782,33 @@ class HengbotPolicy:
                 # transaction so the re-arm pass retrieves the same weapon,
                 # rather than blindly wielding the first pack weapon.
                 self._normal_weapon_name = target.name
-            if not session.dispatch(action, observation):
+            key = SELL_KEY + target.slot + "\r"
+            if not self._prepare_equipment_transaction_command(
+                session,
+                action,
+                observation,
+                key,
+                (
+                    "home", getattr(snapshot, "turn", 0), target.slot,
+                    action.item_identity,
+                ),
+            ):
                 self._block_equipment_transaction("deposit-dispatch-rejected")
                 return LEAVE_STORE_KEY
             self.last_reason = "equipment-transaction:deposit"
-            return SELL_KEY + target.slot + "\r"
+            self._equipment_transaction_prepared_catalog_update = (
+                "deposit",
+                target,
+                (
+                    snapshot.turn,
+                    target.slot,
+                    self._item_signature(target),
+                    target.count,
+                    target.charges,
+                    len(snapshot.inventory),
+                ),
+            )
+            return key
 
         if action.kind == "withdraw":
             target = next(
@@ -7740,11 +7822,36 @@ class HengbotPolicy:
             )
             if target is not None:
                 self._equipment_transaction_home_pages.clear()
-                if not session.dispatch(action, observation):
+                key = BUY_KEY + target.letter + "\r"
+                page = tuple(
+                    (item.letter, equipment_identity(item))
+                    for item in store.items
+                )
+                if not self._prepare_equipment_transaction_command(
+                    session,
+                    action,
+                    observation,
+                    key,
+                    (
+                        "home", getattr(snapshot, "turn", 0), page,
+                        target.letter, action.item_identity,
+                    ),
+                ):
                     self._block_equipment_transaction("withdraw-dispatch-rejected")
                     return LEAVE_STORE_KEY
                 self.last_reason = "equipment-transaction:withdraw"
-                return BUY_KEY + target.letter + "\r"
+                self._equipment_transaction_prepared_catalog_update = (
+                    "withdraw",
+                    target,
+                    (
+                        getattr(snapshot, "floor_key", None),
+                        getattr(snapshot, "turn", 0),
+                        target.letter,
+                        self._item_signature(target),
+                        target.count,
+                    ),
+                )
+                return key
             page = tuple(sorted(equipment_identity(item) for item in store.items))
             if page in self._equipment_transaction_home_pages:
                 self._block_equipment_transaction(
@@ -7804,11 +7911,21 @@ class HengbotPolicy:
                     f"unknown-equipment-slot:{action.target_slot}"
                 )
                 return WAIT_KEY
-            if not session.dispatch(action, observation):
+            key = TAKEOFF_KEY + slot_key
+            if not self._prepare_equipment_transaction_command(
+                session,
+                action,
+                observation,
+                key,
+                (
+                    "town", getattr(snapshot, "turn", 0), action.target_slot,
+                    action.item_identity,
+                ),
+            ):
                 self._block_equipment_transaction("takeoff-dispatch-rejected")
                 return WAIT_KEY
             self.last_reason = "equipment-transaction:takeoff"
-            return TAKEOFF_KEY + slot_key
+            return key
 
         if action.kind in {"equip", "reposition"}:
             target = next(
@@ -7831,7 +7948,16 @@ class HengbotPolicy:
                     f"unknown-equipment-slot:{action.target_slot}"
                 )
                 return WAIT_KEY
-            if not session.dispatch(action, observation):
+            if not self._prepare_equipment_transaction_command(
+                session,
+                action,
+                observation,
+                macro,
+                (
+                    "town", getattr(snapshot, "turn", 0), target.slot,
+                    action.target_slot, action.item_identity,
+                ),
+            ):
                 self._block_equipment_transaction("equip-dispatch-rejected")
                 return WAIT_KEY
             self.last_reason = f"equipment-transaction:{action.kind}"

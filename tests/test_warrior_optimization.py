@@ -596,6 +596,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
 
         self.assertEqual(policy._equipment_transaction_town_key(before), "wa")
+        self.assertTrue(policy.confirm_key_posted("wa"))
         equipped = SimpleNamespace(
             in_town=True, store=None, inventory=(),
             equipment=(gear("shield", "equipped", slot="sub_hand", tval=34).item,),
@@ -628,6 +629,10 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertEqual(
             policy._equipment_transaction_home_key(snapshot), "pa\r"
         )
+        self.assertIsNone(
+            policy._equipment_transaction_session.pending_action
+        )
+        self.assertTrue(policy.confirm_key_posted("pa\r"))
 
         self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
         self.assertEqual(
@@ -856,7 +861,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertNotIn(wait_key, (" ", "-"))
         self.assertFalse(policy._home_page_advance_pending)
 
-    def test_policy_abandons_unconfirmed_home_withdraw_for_replanning(self):
+    def test_policy_retains_unconfirmed_home_withdraw_target(self):
         store_item = StoreItem(
             letter="a", name="stored", count=1, tval=23, sval=1,
             price=0, aware=True, known=True, fully_known=True,
@@ -880,17 +885,20 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
 
         self.assertEqual(policy._equipment_transaction_home_key(snapshot), "pa\r")
+        self.assertIsNone(session.pending_action)
+        self.assertTrue(policy.confirm_key_posted("pa\r"))
         session.observe(observe_equipment_transactions(snapshot))
-        self.assertFalse(session.executable)
+        self.assertTrue(session.executable)
         self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:abandon-blocked-home"
+            policy.last_reason,
+            "equipment-transaction:await-confirmation-leave-home",
         )
-        self.assertIsNone(policy._equipment_transaction_session)
-        self.assertIn("stored", policy._equipment_transaction_failed_items)
+        self.assertIs(policy._equipment_transaction_session, session)
+        self.assertNotIn("stored", policy._equipment_transaction_failed_items)
         self.assertIsNone(policy._town_blocked_reason)
 
-    def test_departure_releases_after_bounded_home_shield_withdraw_stall(self):
+    def test_departure_retains_target_during_home_shield_withdraw_stall(self):
         """Live shape: the optimal main hand is on; Home sub hand never moves."""
         main = gear("main", "equipped", slot="main_hand")
         shield = gear("shield", "home", slot="sub_hand", tval=34)
@@ -932,8 +940,9 @@ class WarriorOptimizationTest(unittest.TestCase):
         session.observe(before)
         self.assertFalse(policy._equipment_departure_ready(snapshot))
         session.observe(before)
-        self.assertTrue(policy._equipment_departure_ready(snapshot))
-        self.assertIn(shield.id, policy._equipment_transaction_failed_items)
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
+        self.assertNotIn(shield.id, policy._equipment_transaction_failed_items)
+        self.assertIs(policy._equipment_transaction_session, session)
 
     def test_departure_is_immediate_for_already_optimal_loadout(self):
         policy = HengbotPolicy()

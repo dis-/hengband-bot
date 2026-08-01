@@ -69,7 +69,7 @@ class EquipmentTransactionSessionTest(unittest.TestCase):
             )
         )
 
-    def test_blocks_after_repeated_unconfirmed_snapshots(self):
+    def test_repeated_unconfirmed_snapshots_retain_posted_action(self):
         action = EquipmentTransaction(
             PHASE_HOME_PREPARE, "deposit", "pack:item:0",
             item_identity="item",
@@ -82,9 +82,65 @@ class EquipmentTransactionSessionTest(unittest.TestCase):
         session.dispatch(action, before)
         self.assertFalse(session.observe(before))
         self.assertFalse(session.observe(before))
-        self.assertEqual(
-            session.blockers, ["unconfirmed:deposit:pack:item:0"]
+        self.assertEqual(session.blockers, [])
+        self.assertIs(session.pending_action, action)
+
+    def test_prepared_command_has_no_state_until_post_is_confirmed(self):
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "withdraw", "home:item:0",
+            item_identity="item",
         )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1)
+        )
+        before = observation(home=True)
+        self.assertTrue(session.prepare(action, before, "pa\r", ("home", 7)))
+        self.assertIsNone(session.pending_action)
+        self.assertIs(session.prepared_action, action)
+        self.assertFalse(session.confirm_posted("pb\r"))
+        self.assertIsNone(session.pending_action)
+        self.assertTrue(session.confirm_posted("pa\r"))
+        self.assertIs(session.pending_action, action)
+
+    def test_target_loadout_id_is_stable_for_same_plan(self):
+        action = EquipmentTransaction(
+            PHASE_EQUIP, "equip", "pack:item:0", "body", "item"
+        )
+        plan = EquipmentTransactionPlan((action,), (), 1)
+        self.assertEqual(
+            EquipmentTransactionSession(plan).target_loadout_id,
+            EquipmentTransactionSession(plan).target_loadout_id,
+        )
+
+    def test_free_action_home_item_withdraws_and_equips_exact_target_slot(self):
+        withdraw = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "withdraw",
+            "home:9dbac83f7ea707d2:0", item_identity="free-action-boots",
+        )
+        equip = EquipmentTransaction(
+            PHASE_EQUIP, "equip", "home:9dbac83f7ea707d2:0",
+            "feet", "free-action-boots",
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((withdraw, equip), (), 1)
+        )
+        home = observation(home=True)
+        self.assertTrue(session.prepare(withdraw, home, "pa\r", ("home", 1)))
+        self.assertTrue(session.confirm_posted("pa\r"))
+        carried = observation(home=False, pack=("free-action-boots",))
+        self.assertTrue(session.observe(carried))
+        self.assertTrue(session.prepare(equip, carried, "wa", ("town", 2)))
+        self.assertTrue(session.confirm_posted("wa"))
+        wrong_slot = observation(
+            home=False, equipped=(("body", "free-action-boots"),)
+        )
+        self.assertFalse(session.observe(wrong_slot))
+        worn = observation(
+            home=False, equipped=(("feet", "free-action-boots"),)
+        )
+        self.assertTrue(session.observe(worn))
+        self.assertTrue(session.complete)
+        self.assertFalse(session.prepare(equip, worn, "wa", ("town", 3)))
 
     def test_accepts_delayed_store_confirmation(self):
         action = EquipmentTransaction(

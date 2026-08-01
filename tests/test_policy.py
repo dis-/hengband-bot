@@ -23399,10 +23399,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._identification_need)
         self.assertIn(policy._item_signature(candidate), policy._deferred_home_items)
 
-        # A later Home scan in the same town visit must skip the deferred item
-        # and advance the page scan, not leave for capacity again.
-        self.assertEqual(policy.choose_key(home), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        # The unchanged Home snapshot is not a confirmed new store context, so
+        # it cannot drive even the next page command after the leave request.
+        self.assertEqual(policy.choose_key(home), "\r")
+        self.assertEqual(policy.last_reason, "shop:await-leave-confirmation")
 
     def test_home_batch_identification_does_not_trial_known_candidates(self):
         gloves = item(
@@ -38031,6 +38031,66 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         self.assertEqual(key, "dk\r")
         self.assertEqual(policy.last_reason, "equipment-transaction:deposit")
+
+    def test_recorded_free_action_withdrawals_survive_live_leave_latch(self):
+        for item_id, name in (
+            ("home:9dbac83f7ea707d2:0", "free action boots"),
+            ("home:e5b4dcf79746ccda:0", "Black Clothes"),
+        ):
+            with self.subTest(item_id=item_id):
+                ware = store_item(
+                    "a", 30, 1, name=name, known=True, fully_known=True,
+                    is_equipment=True, known_flags=frozenset({46}),
+                )
+                action = policy_module.EquipmentTransaction(
+                    policy_module.PHASE_HOME_PREPARE,
+                    "withdraw",
+                    item_id,
+                    item_identity=policy_module.equipment_identity(ware),
+                )
+                policy = HengbotPolicy()
+                session = policy_module.EquipmentTransactionSession(
+                    policy_module.EquipmentTransactionPlan((action,), (), 1)
+                )
+                policy._equipment_transaction_session = session
+                policy._prepare_equipment_optimization = lambda _snapshot: None
+                home = self._town(store=StoreState(STORE_HOME, [ware]))
+                policy._store_leave_inflight = (
+                    policy._decision_sequence, home.turn, STORE_HOME
+                )
+                with patch.object(
+                    policy, "_decide", side_effect=AssertionError("planned")
+                ):
+                    self.assertEqual(policy.choose_key(home), "\r")
+                self.assertIsNone(session.pending_action)
+                self.assertIsNone(session.prepared_action)
+                self.assertNotIn(item_id, policy._equipment_transaction_failed_items)
+
+                policy._store_leave_inflight = None
+                key = policy._equipment_transaction_home_key(home)
+                self.assertEqual(key, "pa\r")
+                self.assertIsNone(session.pending_action)
+                self.assertTrue(policy.confirm_key_posted(key))
+                self.assertIs(session.pending_action, action)
+                for _ in range(4):
+                    session.observe(
+                        policy_module.observe_equipment_transactions(home)
+                    )
+                self.assertEqual(session.blockers, [])
+                self.assertNotIn(item_id, policy._equipment_transaction_failed_items)
+
+    def test_unconfirmed_store_context_never_plans_item_command(self):
+        policy = HengbotPolicy()
+        home = self._town(store=StoreState(STORE_HOME, []))
+        policy._store_leave_inflight = (
+            policy._decision_sequence, home.turn, STORE_HOME
+        )
+        for command in ("pa\r", "da\r", "Ea", "ra", "ua", "qa"):
+            with self.subTest(command=command), patch.object(
+                policy, "_decide", return_value=command
+            ) as decide:
+                self.assertEqual(policy.choose_key(home), "\r")
+                decide.assert_not_called()
 
     def test_optimizer_preserves_inferior_pack_weapon_for_smith_sale(self):
         policy = HengbotPolicy()

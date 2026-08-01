@@ -1492,6 +1492,7 @@ def main(argv: list[str] | None = None) -> int:
             print(key, flush=True)
             if not send(key, in_store=snapshot.store is not None):
                 return 3
+            policy.confirm_key_posted(key)
             return 0
         return 1
 
@@ -1863,6 +1864,8 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         in_store=snapshot.store is not None,
                         suppress=suppress_unconfirmed_store_leave,
                     )
+                    if sent:
+                        policy.confirm_key_posted(key)
                     last_activity = time.monotonic()
                     if sent and key in DIRECTION_KEYS:
                         pending_direction = (snapshot, key)
