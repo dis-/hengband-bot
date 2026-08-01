@@ -1614,6 +1614,84 @@ class CombatTest(unittest.TestCase):
             ("release", "sight-loss-bound"),
         )
 
+    @staticmethod
+    def _stationary_choke_snapshot(monsters, *, hp=1000, turn=1):
+        grids = {
+            Position(10, x): grid(10, x, lit=True, in_view=True)
+            for x in range(6, 16)
+        }
+        for monster in monsters:
+            grids[monster.position] = replace(
+                grids[monster.position], has_monster=True
+            )
+        return Snapshot(
+            replace(player(10, 10, hp=hp, max_hp=1000, level=20), exp=1000),
+            grids,
+            monsters,
+            floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
+            turn=turn,
+        )
+
+    def test_choke_hold_releases_after_bounded_no_engagement_progress(self):
+        adjacent = [
+            hostile(1, 10, 11, distance=1, max_melee_damage=3, race_id=500),
+            hostile(2, 10, 9, distance=1, max_melee_damage=3, race_id=500),
+        ]
+        far = [
+            hostile(1, 10, 12, distance=2, max_melee_damage=3, race_id=500),
+            hostile(2, 10, 8, distance=2, max_melee_damage=3, race_id=500),
+        ]
+        policy = HengbotPolicy()
+        armed = self._stationary_choke_snapshot(adjacent)
+        policy.prime(armed)
+        self.assertEqual(policy.choose_key(armed), "6")
+
+        for turn in range(2, policy_module.COMBAT_OUTCOME_WINDOW + 3):
+            policy.choose_key(self._stationary_choke_snapshot(far, turn=turn))
+            if policy.choke_engagement_state()["release_cause"] is not None:
+                break
+
+        state = policy.choke_engagement_state()
+        self.assertLessEqual(
+            state["no_progress_decisions"], policy_module.COMBAT_OUTCOME_WINDOW
+        )
+        self.assertEqual(
+            (state["phase"], state["release_cause"]),
+            ("release", "engagement-stall-bound"),
+        )
+
+    def test_choke_hold_progress_resets_for_contact_and_damage(self):
+        adjacent = [
+            hostile(1, 10, 11, distance=1, max_melee_damage=3, race_id=500),
+            hostile(2, 10, 9, distance=1, max_melee_damage=3, race_id=500),
+        ]
+        far = [
+            hostile(1, 10, 12, distance=2, max_melee_damage=3, race_id=500),
+            hostile(2, 10, 8, distance=2, max_melee_damage=3, race_id=500),
+        ]
+        policy = HengbotPolicy()
+        armed = self._stationary_choke_snapshot(adjacent)
+        policy.prime(armed)
+        policy.choose_key(armed)
+
+        for turn in range(2, policy_module.COMBAT_OUTCOME_WINDOW + 4):
+            key = policy.choose_key(
+                self._stationary_choke_snapshot(adjacent, turn=turn)
+            )
+            self.assertIn(key, {"4", "6"})
+        self.assertEqual(policy.choke_engagement_state()["no_progress_decisions"], 0)
+        self.assertIsNone(policy.choke_engagement_state()["release_cause"])
+
+        policy._choke_engagement_plan.no_progress_decisions = (
+            policy_module.COMBAT_OUTCOME_WINDOW
+        )
+        damaged = self._stationary_choke_snapshot(
+            far, hp=999, turn=policy_module.COMBAT_OUTCOME_WINDOW + 4
+        )
+        policy.choose_key(damaged)
+        self.assertEqual(policy.choke_engagement_state()["no_progress_decisions"], 0)
+        self.assertIsNone(policy.choke_engagement_state()["release_cause"])
+
     def test_moving_player_still_prepares_for_monsters_that_moved_closer(self):
         snapshot = self._mouse_swarm_snapshot()
         current_player = Position(10, 11)

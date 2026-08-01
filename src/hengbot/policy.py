@@ -382,8 +382,10 @@ class ChokeEngagementPlan:
     start_exp: int
     start_gold: int
     start_breeder_count: int
+    last_player_hp: int
     last_movement: tuple[Position, Position] | None = None
     sight_loss_decisions: int = 0
+    no_progress_decisions: int = 0
     release_cause: str | None = None
 
 
@@ -24839,6 +24841,7 @@ class HengbotPolicy:
                     start_breeder_count=sum(
                         monster.can_multiply for monster in hostiles
                     ),
+                    last_player_hp=snapshot.player.hp,
                     last_movement=(snapshot.player.position, step),
                 )
                 self.last_reason = "melee:choke"
@@ -24859,6 +24862,7 @@ class HengbotPolicy:
                     start_breeder_count=sum(
                         monster.can_multiply for monster in hostiles
                     ),
+                    last_player_hp=snapshot.player.hp,
                 )
             breeder_count = sum(monster.can_multiply for monster in hostiles)
             if breeder_count and self._choke_hold_floor != snapshot.floor_key:
@@ -24890,6 +24894,7 @@ class HengbotPolicy:
                 for index, position in sorted(plan.trigger_last_seen.items())
             ],
             "sight_loss_decisions": plan.sight_loss_decisions,
+            "no_progress_decisions": plan.no_progress_decisions,
             "start_breeder_count": plan.start_breeder_count,
             "release_cause": plan.release_cause,
         }
@@ -25027,6 +25032,15 @@ class HengbotPolicy:
             self._release_choke_plan("destination-invalid")
             return None
         plan.phase = "hold"
+        took_damage = snapshot.player.hp < plan.last_player_hp
+        plan.last_player_hp = snapshot.player.hp
+        if adjacent or took_damage:
+            plan.no_progress_decisions = 0
+        else:
+            plan.no_progress_decisions += 1
+        if plan.no_progress_decisions >= COMBAT_OUTCOME_WINDOW:
+            self._release_choke_plan("engagement-stall-bound")
+            return None
         if not adjacent:
             ranged = self._ranged_attack_key(snapshot, visible_triggers, adjacent)
             if ranged is not None:
