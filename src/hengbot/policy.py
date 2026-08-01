@@ -10954,6 +10954,31 @@ class HengbotPolicy:
                 and STORE_GENERAL not in self._town_store_attempted
             ):
                 add(STORE_GENERAL, "fundraising-oil")
+            mandatory_supplies_ready = (
+                self._fundraising_kit_secured(snapshot)
+                and self._count_treasure_detection_scrolls(snapshot) >= scrolls_needed
+                and self._fundraising_food_ready(snapshot)
+                and self._fundraising_light_ready(snapshot)
+                and not (
+                    self._owns_lantern(snapshot)
+                    and self._oil_below_departure_target(snapshot)
+                )
+            )
+            if mandatory_supplies_ready:
+                if (
+                    self._equipped_launcher(snapshot) is not None
+                    and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+                    and STORE_WEAPON not in self._town_store_attempted
+                ):
+                    add(STORE_WEAPON, "ammo")
+                if (
+                    self._fundraising_mode in {"prepare", "mine", "scavenge"}
+                    and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
+                    and self._matching_ammo(snapshot) is None
+                    and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+                    and STORE_GENERAL not in self._town_store_attempted
+                ):
+                    add(STORE_GENERAL, "throwing-torches")
             return needs
 
         if self._identification_need is not None:

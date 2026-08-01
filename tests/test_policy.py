@@ -17472,6 +17472,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             inventory=[
                 *self._strict_supplies(detection=5),
                 item("y", TVAL_DIGGING, 4, name="pick"),
+                item(
+                    "u", TVAL_LITE, SV_LITE_TORCH,
+                    count=TORCH_THROW_TARGET, fuel=2500,
+                ),
                 spare,
             ],
             equipment=[self._lantern()],
@@ -19548,6 +19552,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             inventory=[
                 *self._strict_supplies(recall=1, detection=detection),
                 item("p", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+                item(
+                    "u", TVAL_LITE, SV_LITE_TORCH,
+                    count=TORCH_THROW_TARGET, fuel=2500,
+                ),
             ],
             equipment=[self._lantern()],
         )
@@ -35097,6 +35105,135 @@ class RangedAttackTest(unittest.TestCase):
         needs = policy._enumerate_town_needs(snap)
 
         self.assertIn(TownNeed(STORE_WEAPON, "ammo", "normal"), needs)
+        self.assertNotIn(
+            "ammo",
+            [need.category for need in policy._departure_blocking_town_needs(snap)],
+        )
+        policy._town_departure_ready = lambda candidate: True
+        self.assertFalse(policy._town_claims_active(snap))
+
+    def test_fundraising_restock_enumerates_optional_ammo_after_mandatory_supplies(self):
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[
+                item("a", TVAL_SHOT, 1, name="iron shots", count=60),
+                *self._strict_supplies_for_ammo(),
+            ],
+            equipment=[self._sling(), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertIn(
+            TownNeed(STORE_WEAPON, "ammo", "normal"),
+            policy._enumerate_town_needs(snap),
+        )
+
+    def test_fundraising_ammo_waits_for_kit_and_preserves_kit_reserve(self):
+        shots = StoreItem("d", "iron shot", 99, TVAL_SHOT, 1, price=2)
+        supplies = [
+            supply for supply in self._strict_supplies_for_ammo()
+            if not supply.is_digging_tool
+        ]
+        snap = Snapshot(
+            player(10, 10, gold=100, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=supplies,
+            equipment=[self._sling(), self._lantern()],
+            store=StoreState(STORE_WEAPON, [shots]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertNotIn(
+            "ammo", [need.category for need in policy._enumerate_town_needs(snap)]
+        )
+        self.assertGreater(policy._fundraising_kit_reserve(snap), 0)
+        self.assertIsNone(policy._next_purchase(snap))
+
+    def test_fundraising_ammo_waits_for_each_mandatory_supply(self):
+        ready = self._strict_supplies_for_ammo()
+        cases = {
+            "food": [supply for supply in ready if supply.tval != TVAL_FOOD],
+            "oil": [supply for supply in ready if supply.tval != TVAL_FLASK],
+            "detection": [
+                supply
+                for supply in ready
+                if not supply.is_treasure_detection_scroll
+            ],
+        }
+        for shortage, inventory in cases.items():
+            with self.subTest(shortage=shortage):
+                snap = Snapshot(
+                    player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+                    {Position(10, 10): grid(10, 10)},
+                    [], floor_key=(0, 0, 0), town_flag=True,
+                    inventory=inventory,
+                    equipment=[self._sling(), self._lantern()],
+                )
+                policy = HengbotPolicy()
+                policy._fundraising_mode = "prepare"
+                self.assertNotIn(
+                    "ammo",
+                    [need.category for need in policy._enumerate_town_needs(snap)],
+                )
+
+        dim_lantern = replace(self._lantern(), fuel=1)
+        dim = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=ready,
+            equipment=[self._sling(), dim_lantern],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        self.assertNotIn(
+            "ammo", [need.category for need in policy._enumerate_town_needs(dim)]
+        )
+
+    def test_fundraising_torch_need_requires_no_matching_launcher_ammo(self):
+        base = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[*self._strict_supplies_for_ammo()],
+            equipment=[self._sling(), self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        self.assertIn(
+            TownNeed(STORE_GENERAL, "throwing-torches", "normal"),
+            policy._enumerate_town_needs(base),
+        )
+
+        with_ammo = replace(
+            base,
+            inventory=[self._shots(), *self._strict_supplies_for_ammo()],
+        )
+        self.assertNotIn(
+            "throwing-torches",
+            [need.category for need in policy._enumerate_town_needs(with_ammo)],
+        )
+
+    def test_fundraising_optional_ammo_never_blocks_departure_without_stock_or_gold(self):
+        snap = Snapshot(
+            player(10, 10, gold=0, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[*self._strict_supplies_for_ammo()],
+            equipment=[self._sling(), self._lantern()],
+            store=StoreState(STORE_WEAPON, []),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertIn(
+            "ammo", [need.category for need in policy._enumerate_town_needs(snap)]
+        )
         self.assertNotIn(
             "ammo",
             [need.category for need in policy._departure_blocking_town_needs(snap)],
