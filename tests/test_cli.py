@@ -54,6 +54,7 @@ from hengbot.cli import (
     _request_due_dump,
     _rewind_if_truncated,
     _send_new_decision_key,
+    _send_stall_recovery_nudge,
     _last_activity_after_read,
     _stall_recovery_key,
     _split_complete_lines,
@@ -960,6 +961,73 @@ class DecisionRecordTest(unittest.TestCase):
 
 
 class DuplicateSnapshotThrottleTest(unittest.TestCase):
+    def test_sent_nudge_releases_real_captured_descend_key(self):
+        # Live turn 1839609: the first >y was swallowed after travel while the
+        # emitter kept returning this byte-identical board. A sent Escape
+        # permits exactly one fresh policy posting on that same board.
+        line = _snap_line(1839609, 31, 150)
+        posted = []
+        posted_line = None
+        posted_keys = set()
+
+        _, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            line, ">y", posted_line, posted_keys, in_store=False,
+        )
+        self.assertTrue(
+            _send_stall_recovery_nudge(
+                lambda value: posted.append(value) or True,
+                "\x1b",
+                posted_keys,
+            )
+        )
+        _, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            line, ">y", posted_line, posted_keys, in_store=False,
+        )
+
+        self.assertEqual(posted, [">y", "\x1b", ">y"])
+
+    def test_unsent_nudge_keeps_same_board_key_suppressed(self):
+        line = _snap_line(1839609, 31, 150)
+        posted = []
+        posted_line = None
+        posted_keys = set()
+
+        _, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            line, ">y", posted_line, posted_keys, in_store=False,
+        )
+        self.assertFalse(
+            _send_stall_recovery_nudge(lambda _value: False, "\x1b", posted_keys)
+        )
+        _, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            line, ">y", posted_line, posted_keys, in_store=False,
+        )
+
+        self.assertEqual(posted, [">y"])
+
+    def test_store_leave_suppression_survives_sent_nudge(self):
+        line = _snap_line(1099751, 45, 123)
+        posted = []
+        posted_line = None
+        posted_keys = {"\r"}
+
+        self.assertTrue(
+            _send_stall_recovery_nudge(
+                lambda value: posted.append(value) or True,
+                "\x1b",
+                posted_keys,
+            )
+        )
+        _, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            line, "\r", posted_line, posted_keys, in_store=True, suppress=True,
+        )
+
+        self.assertEqual(posted, ["\x1b"])
+
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's
         # Enter must not reach the command loop. After confirmation, the

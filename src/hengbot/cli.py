@@ -1220,6 +1220,14 @@ def _stall_recovery_key(nudge_streak: int, last_player_level: int | None) -> tup
     return NUDGE_KEY, "<esc>"
 
 
+def _send_stall_recovery_nudge(send, key: str, posted_keys: set[str]) -> bool:
+    """Send a recovery nudge and release same-board key suppression."""
+    sent = send(key)
+    if sent:
+        posted_keys.clear()
+    return sent
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
@@ -2016,7 +2024,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 recovery_key, recovery_marker = _stall_recovery_key(
                     nudge_streak, last_player_level
                 )
-                if send(recovery_key):
+                if _send_stall_recovery_nudge(
+                    send, recovery_key, posted_decision_keys
+                ):
                     print(recovery_marker, flush=True)
                 last_activity = now
                 nudge_streak += 1
