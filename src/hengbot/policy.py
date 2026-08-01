@@ -295,6 +295,8 @@ class TownVisitLedger:
     shelf_observations: dict[
         tuple[int, str], tuple[tuple[int, int], ...]
     ] = field(default_factory=dict)
+    pending_store_transaction: tuple[int, int] | None = None
+    pending_store_context_waits: int = 0
 
 
 @dataclass
@@ -2115,6 +2117,22 @@ class HengbotPolicy:
             for position in getattr(snapshot, "grids", {})
         }
         snapshot = self._with_grid_memory(snapshot)
+        pending_store_transaction = (
+            self._town_visit_ledger.pending_store_transaction
+        )
+        if (
+            snapshot.store is not None
+            and pending_store_transaction is not None
+            and snapshot.store.store_type == pending_store_transaction[0]
+            and self._decision_sequence > pending_store_transaction[1]
+        ):
+            # Any subsequent page from the same store is the observation the
+            # transaction was waiting for.  The individual buy/sell/Home
+            # handlers still decide whether it made progress; this correlation
+            # only prevents an interleaved surface page from authorizing a
+            # step-off/re-entry by itself.
+            self._town_visit_ledger.pending_store_transaction = None
+            self._town_visit_ledger.pending_store_context_waits = 0
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
         self._equipment_catalog.refresh_carried(
@@ -2288,7 +2306,16 @@ class HengbotPolicy:
         self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
-        if snapshot.store is None and self._store_buy_inflight is not None:
+        if (
+            snapshot.store is None
+            and self._store_buy_inflight is not None
+            and (
+                self._town_visit_ledger.pending_store_transaction is None
+                or snapshot.grid_at(snapshot.player.position) is None
+                or snapshot.grid_at(snapshot.player.position).store_number
+                != self._store_buy_inflight[0]
+            )
+        ):
             # The purchase never reached a confirming store generation.  Do not
             # retain it for a later visit or record it as a completed purchase.
             self._store_buy_inflight = None
@@ -2303,6 +2330,12 @@ class HengbotPolicy:
                 getattr(snapshot, "turn", 0),
                 snapshot.store.store_type,
             )
+        elif snapshot.store is not None and key not in {WAIT_KEY, "\r"}:
+            self._town_visit_ledger.pending_store_transaction = (
+                snapshot.store.store_type,
+                self._decision_sequence,
+            )
+            self._town_visit_ledger.pending_store_context_waits = 0
         if (
             snapshot.store is not None
             and snapshot.store.store_type != STORE_HOME
@@ -15038,6 +15071,23 @@ class HengbotPolicy:
                 # on a one-page Home) finish without the periodic step-off /
                 # step-back movement around Home.
                 return snapshot.player.position
+            pending_store_transaction = (
+                self._town_visit_ledger.pending_store_transaction
+            )
+            if (
+                pending_store_transaction is not None
+                and pending_store_transaction[0] == store_type
+                and self._town_visit_ledger.pending_store_context_waits
+                < STORE_STUCK_LIMIT
+            ):
+                # A null surface page at the unchanged entrance does not prove
+                # that the preceding store command failed or that the visit
+                # ended.  Wait for the confirming store generation.  The
+                # visit ledger grants only the existing bounded retry window;
+                # after it expires the ordinary step-off/re-entry path remains
+                # available for genuinely outstanding NeedSpec work.
+                self._town_visit_ledger.pending_store_context_waits += 1
+                return snapshot.player.position
             # A player-turn snapshot is emitted on the entrance before the
             # queued SPECIAL_KEY_STORE opens the UI. Do not mistake that for a
             # completed store visit and immediately step back off the entrance.
@@ -26343,24 +26393,54 @@ class HengbotPolicy:
         a normal floor).
         """
         start = snapshot.player.position
-        for allow_damaging in (False, True):
-            seen = {start}
-            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
-            while queue:
-                pos, first_step = queue.popleft()
-                grid = snapshot.grids.get(pos)
-                if pos != start and grid is not None and predicate(grid):
-                    return first_step
-                for neighbor in self._walkable_neighbors(
-                    snapshot, pos, allow_damaging=allow_damaging, goal=predicate
-                ):
-                    if neighbor in seen or neighbor in self._engagement_avoid_cells:
-                        continue
-                    seen.add(neighbor)
-                    queue.append(
-                        (neighbor, neighbor if first_step is None else first_step)
-                    )
+        entrance_cells = self._town_entrance_cells(snapshot)
+        entrance_cells.difference_update(
+            pos
+            for pos, grid in snapshot.grids.items()
+            if predicate(grid)
+        )
+        entrance_cells.discard(start)
+        for blocked_entrances in (entrance_cells, set()):
+            for allow_damaging in (False, True):
+                seen = {start}
+                queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+                while queue:
+                    pos, first_step = queue.popleft()
+                    grid = snapshot.grids.get(pos)
+                    if pos != start and grid is not None and predicate(grid):
+                        return first_step
+                    for neighbor in self._walkable_neighbors(
+                        snapshot, pos, allow_damaging=allow_damaging, goal=predicate
+                    ):
+                        if (
+                            neighbor in seen
+                            or neighbor in self._engagement_avoid_cells
+                            or neighbor in blocked_entrances
+                        ):
+                            continue
+                        seen.add(neighbor)
+                        queue.append(
+                            (neighbor, neighbor if first_step is None else first_step)
+                        )
         return None
+
+    def _town_entrance_cells(self, snapshot: Snapshot) -> set[Position]:
+        """Known modal store/building cells that routes should avoid crossing."""
+        if not snapshot.in_town:
+            return set()
+        entrances = {
+            pos
+            for pos, grid in snapshot.grids.items()
+            if grid.store_number is not None or grid.building_special >= 0
+        }
+        if self._town_map_active(snapshot):
+            entrances.update(self._town_map.stores.values())
+            entrances.update(self._town_map.buildings.values())
+            for positions in self._town_map.quest_buildings.values():
+                entrances.update(positions)
+            for positions in self._town_map.quest_entrances.values():
+                entrances.update(positions)
+        return entrances
 
     def _nearest_goal_and_step(
         self, snapshot: Snapshot, predicate
@@ -26408,17 +26488,23 @@ class HengbotPolicy:
         if start == target:
             return None
         blocked = blocked or set()
-        seen = {start}
-        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
-        while queue:
-            pos, first_step = queue.popleft()
-            if pos == target:
-                return first_step
-            for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen or neighbor in blocked:
-                    continue
-                seen.add(neighbor)
-                queue.append((neighbor, neighbor if first_step is None else first_step))
+        entrance_cells = self._town_entrance_cells(snapshot)
+        entrance_cells.discard(start)
+        entrance_cells.discard(target)
+        for route_blocked in (blocked | entrance_cells, blocked):
+            seen = {start}
+            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+            while queue:
+                pos, first_step = queue.popleft()
+                if pos == target:
+                    return first_step
+                for neighbor in self._walkable_neighbors(snapshot, pos):
+                    if neighbor in seen or neighbor in route_blocked:
+                        continue
+                    seen.add(neighbor)
+                    queue.append(
+                        (neighbor, neighbor if first_step is None else first_step)
+                    )
         return None
 
     def _town_map_descent_entrance(self, snapshot: Snapshot) -> Position | None:

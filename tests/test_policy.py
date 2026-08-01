@@ -4345,6 +4345,55 @@ class ShoppingTest(unittest.TestCase):
         pol.choose_key(incident_snapshot(7880))
         self.assertIsNone(pol._store_buy_inflight)
 
+    def test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase(self):
+        target = item(
+            "a",
+            23,
+            1,
+            name="ego sword",
+            known=True,
+            fully_known=False,
+            is_equipment=True,
+            is_ego=True,
+        )
+        ware = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, price=2541, count=2
+        )
+        entrance = Position(37, 91)
+        store = Snapshot(
+            player(
+                entrance.y,
+                entrance.x,
+                gold=10421,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {
+                entrance: replace(
+                    grid(entrance.y, entrance.x), store_number=STORE_ALCHEMIST
+                ),
+                Position(36, 90): grid(36, 90),
+            },
+            [],
+            inventory=[target],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[ware]),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        surface = replace(store, store=None)
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+        policy._identification_need = "full"
+
+        self.assertEqual(policy.choose_key(store), "pm1\r\r")
+        self.assertEqual(policy.last_reason, "shop:buy-star-identify")
+        self.assertEqual(policy.choose_key(surface), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
+        self.assertIsNotNone(policy._store_buy_inflight)
+
+        self.assertEqual(policy.choose_key(store), "\r")
+        self.assertEqual(policy.last_reason, "shop:await-buy-confirmation")
+        self.assertNotEqual(policy.choose_key(store), "pm1\r\r")
+
     def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
         items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)]
         pol = HengbotPolicy()
@@ -20065,6 +20114,64 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy._shopping_approach_step(snap), Position(9, 11))
 
+    def test_unconfirmed_alchemist_purchase_flicker_does_not_reenter(self):
+        entrance = Position(37, 91)
+        snap = Snapshot(
+            player(entrance.y, entrance.x, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                entrance: replace(
+                    grid(entrance.y, entrance.x), store_number=STORE_ALCHEMIST
+                ),
+                Position(36, 90): grid(36, 90),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda snapshot: STORE_ALCHEMIST
+        policy._last_snapshot_was_store = True
+        policy._town_visit_ledger.pending_store_transaction = (
+            STORE_ALCHEMIST,
+            1,
+        )
+        policy._build_grid_index(snap)
+
+        step = policy._shopping_approach_step(snap)
+
+        self.assertEqual(step, entrance)
+        self.assertEqual(
+            policy._shopping_approach_key(snap, step, "shop:travel"), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
+
+    def test_bounded_store_transaction_retry_still_reenters_for_real_work(self):
+        entrance = Position(37, 91)
+        retry = Position(36, 90)
+        snap = Snapshot(
+            player(entrance.y, entrance.x, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                entrance: replace(
+                    grid(entrance.y, entrance.x), store_number=STORE_ALCHEMIST
+                ),
+                retry: grid(retry.y, retry.x),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda snapshot: STORE_ALCHEMIST
+        policy._last_snapshot_was_store = True
+        policy._town_visit_ledger.pending_store_transaction = (
+            STORE_ALCHEMIST,
+            1,
+        )
+        policy._town_visit_ledger.pending_store_context_waits = STORE_STUCK_LIMIT
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._shopping_approach_step(snap), retry)
+
     def test_home_page_advance_surface_snapshot_waits_without_step_off(self):
         entrance = Position(10, 10)
         snap = Snapshot(
@@ -28662,6 +28769,72 @@ class TownNightNavigationTest(unittest.TestCase):
         pol, snap = self._night_town(tm)
         # Goal (2,5) is dark (not in grids) yet the corridor is remembered.
         self.assertEqual(pol._town_map_goal_step(snap, Position(2, 5)), Position(2, 2))
+
+    def test_telmora_inn_route_avoids_q2_building_entrance(self):
+        start = Position(21, 43)
+        quest_entrance = Position(21, 44)
+        target_inn = Position(21, 46)
+        detour = {
+            start,
+            quest_entrance,
+            Position(21, 45),
+            target_inn,
+            Position(20, 43),
+            Position(19, 44),
+            Position(19, 45),
+            Position(20, 46),
+        }
+        tm = TownMap(
+            name="Telmora",
+            width=132,
+            height=48,
+            walkable=frozenset(detour),
+            buildings={1: quest_entrance, 2: target_inn},
+            quest_buildings={2: frozenset({quest_entrance})},
+        )
+        snap = Snapshot(
+            player(start.y, start.x, class_id=PLAYER_CLASS_WARRIOR),
+            {start: grid(start.y, start.x)},
+            [],
+            floor_key=(0, 0, 0),
+            width=tm.width,
+            height=tm.height,
+            town_flag=True,
+        )
+        pol = HengbotPolicy(town_map=tm)
+        pol._build_grid_index(snap)
+        pol._observe(snap)
+
+        self.assertEqual(
+            pol._town_map_goal_step(snap, target_inn), Position(20, 43)
+        )
+
+    def test_town_route_uses_entrance_when_it_is_the_only_corridor(self):
+        entrance = Position(2, 3)
+        target = Position(2, 5)
+        tm = TownMap(
+            name="T",
+            width=7,
+            height=5,
+            walkable=self._corridor(),
+            buildings={1: entrance},
+        )
+        pol, snap = self._night_town(tm)
+
+        self.assertEqual(pol._town_map_goal_step(snap, target), Position(2, 2))
+
+    def test_town_route_keeps_goal_entrance_allowed(self):
+        entrance = Position(2, 5)
+        tm = TownMap(
+            name="T",
+            width=7,
+            height=5,
+            walkable=self._corridor(),
+            stores={STORE_GENERAL: entrance},
+        )
+        pol, snap = self._night_town(tm)
+
+        self.assertEqual(pol._town_map_goal_step(snap, entrance), Position(2, 2))
 
     def test_goal_step_none_when_already_on_target(self):
         tm = TownMap(name="T", width=7, height=5, walkable=self._corridor())
