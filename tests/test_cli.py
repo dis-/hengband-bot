@@ -1646,6 +1646,23 @@ class StationaryReasonsTest(unittest.TestCase):
 
         self.assertEqual(record["escape_ladder"], telemetry)
 
+    def test_choke_engagement_telemetry_is_written_to_decision_record(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+        telemetry = {
+            "phase": "hold",
+            "destination": {"y": 27, "x": 170},
+            "trigger_hostiles": [
+                {"index": 106, "last_seen": {"y": 30, "x": 168}}
+            ],
+            "release_cause": None,
+        }
+
+        record = _decision_record(
+            snapshot, "5", "melee:choke-hold", choke_engagement=telemetry
+        )
+
+        self.assertEqual(record["choke_engagement"], telemetry)
+
     def test_town_uses_policy_cycle_guard_instead_of_cell_guard(self):
         town = parse_snapshot(
             json.loads(_snap_line(1, 10, 10).replace('"level": 1', '"level": 0')),

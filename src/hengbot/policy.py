@@ -370,6 +370,23 @@ class EscapeState:
         self.stable_decisions = 0
 
 
+@dataclass
+class ChokeEngagementPlan:
+    """Persistent owner for one validated melee-swarm engagement."""
+
+    floor: tuple[int, int, int]
+    phase: str
+    destination: Position
+    covered_retreat_direction: tuple[int, int]
+    trigger_last_seen: dict[int, Position]
+    start_exp: int
+    start_gold: int
+    start_breeder_count: int
+    last_movement: tuple[Position, Position] | None = None
+    sight_loss_decisions: int = 0
+    release_cause: str | None = None
+
+
 @dataclass(frozen=True)
 class SupplyStatus:
     kind: str
@@ -1815,6 +1832,7 @@ class HengbotPolicy:
         self._breeder_previous_indices: set[int] = set()
         self._choke_hold_floor: tuple[int, int, int] | None = None
         self._choke_hold_start_breeders: int | None = None
+        self._choke_engagement_plan: ChokeEngagementPlan | None = None
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
@@ -2892,6 +2910,8 @@ class HengbotPolicy:
             return summoner_ranged
         emergency = self._emergency_item(snapshot, emergency_hostiles)
         if emergency is not None:
+            if self._choke_plan_active(snapshot):
+                self._release_choke_plan("hp-emergency")
             if self.last_reason.startswith(
                 ("emergency:", "unseen-recall:", "guardian:")
             ):
@@ -3032,11 +3052,24 @@ class HengbotPolicy:
             self.last_reason = "confused:wait"
             return WAIT_KEY
 
+        if (
+            self._choke_plan_active(snapshot)
+            and self._breeder_breakthrough_floor == snapshot.floor_key
+        ):
+            self._release_choke_plan("breeder-breakthrough")
         breakthrough = self._breeder_breakthrough_key(
             snapshot, strategic_hostiles
         )
         if breakthrough is not None:
+            if self._choke_plan_active(snapshot):
+                self._release_choke_plan("breeder-breakthrough")
             return breakthrough
+
+        choke_plan = self._choke_engagement_key(
+            snapshot, physical_hostiles, physical_adjacent
+        )
+        if choke_plan is not None:
+            return choke_plan
 
         breeders = [
             monster for monster in strategic_hostiles if monster.can_multiply
@@ -4696,6 +4729,11 @@ class HengbotPolicy:
             self._multiplier_target_grace = 0
             self._choke_hold_floor = None
             self._choke_hold_start_breeders = None
+            if (
+                self._choke_engagement_plan is not None
+                and self._choke_engagement_plan.floor != snapshot.floor_key
+            ):
+                self._release_choke_plan("floor-change")
             self._clear_unseen_retreat()
             self._breeder_breakthrough_floor = None
             self._breeder_engagement_start_count = None
@@ -24782,12 +24820,46 @@ class HengbotPolicy:
             return None
         openness = self._open_neighbor_count(snapshot, snapshot.player.position)
         if openness > SUMMONER_CHOKE_NEIGHBORS - 1:
-            step = self._summoner_retreat_step(snapshot, melee_hostiles, hostiles)
-            if step is not None:
+            route = self._validated_choke_route(snapshot, melee_hostiles)
+            if route is not None:
+                destination, step = route
+                self._choke_engagement_plan = ChokeEngagementPlan(
+                    floor=snapshot.floor_key,
+                    phase="reposition",
+                    destination=destination,
+                    covered_retreat_direction=(
+                        step.y - snapshot.player.position.y,
+                        step.x - snapshot.player.position.x,
+                    ),
+                    trigger_last_seen={
+                        monster.index: monster.position for monster in melee_hostiles
+                    },
+                    start_exp=snapshot.player.exp,
+                    start_gold=snapshot.player.gold,
+                    start_breeder_count=sum(
+                        monster.can_multiply for monster in hostiles
+                    ),
+                    last_movement=(snapshot.player.position, step),
+                )
                 self.last_reason = "melee:choke"
                 return self._step_toward(snapshot, step)
 
         if openness <= SUMMONER_CHOKE_NEIGHBORS - 1:
+            if not self._choke_plan_active(snapshot):
+                self._choke_engagement_plan = ChokeEngagementPlan(
+                    floor=snapshot.floor_key,
+                    phase="hold",
+                    destination=snapshot.player.position,
+                    covered_retreat_direction=(0, 0),
+                    trigger_last_seen={
+                        monster.index: monster.position for monster in melee_hostiles
+                    },
+                    start_exp=snapshot.player.exp,
+                    start_gold=snapshot.player.gold,
+                    start_breeder_count=sum(
+                        monster.can_multiply for monster in hostiles
+                    ),
+                )
             breeder_count = sum(monster.can_multiply for monster in hostiles)
             if breeder_count and self._choke_hold_floor != snapshot.floor_key:
                 self._choke_hold_floor = snapshot.floor_key
@@ -24800,6 +24872,181 @@ class HengbotPolicy:
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
+
+    def choke_engagement_state(self) -> dict[str, object]:
+        plan = self._choke_engagement_plan
+        if plan is None:
+            return {}
+        return {
+            "phase": plan.phase,
+            "floor": list(plan.floor),
+            "destination": {"y": plan.destination.y, "x": plan.destination.x},
+            "covered_retreat_direction": list(plan.covered_retreat_direction),
+            "trigger_hostiles": [
+                {
+                    "index": index,
+                    "last_seen": {"y": position.y, "x": position.x},
+                }
+                for index, position in sorted(plan.trigger_last_seen.items())
+            ],
+            "sight_loss_decisions": plan.sight_loss_decisions,
+            "start_breeder_count": plan.start_breeder_count,
+            "release_cause": plan.release_cause,
+        }
+
+    def _choke_plan_active(self, snapshot: Snapshot) -> bool:
+        plan = self._choke_engagement_plan
+        return bool(
+            plan is not None
+            and plan.floor == snapshot.floor_key
+            and plan.phase in {"reposition", "validate", "hold"}
+        )
+
+    def _release_choke_plan(self, cause: str) -> None:
+        plan = self._choke_engagement_plan
+        if plan is None:
+            return
+        plan.phase = "breakthrough" if cause == "breeder-breakthrough" else "release"
+        plan.release_cause = cause
+
+    def _validated_choke_route(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> tuple[Position, Position] | None:
+        """Return a first step and an observed terrain-only openness-2 goal."""
+        origin = snapshot.player.position
+        origin_distance = min(
+            origin.distance_to(monster.position) for monster in hostiles
+        )
+        queue: deque[Position] = deque([origin])
+        previous: dict[Position, Position | None] = {origin: None}
+        candidates: list[tuple[int, int, Position]] = []
+        while queue:
+            position = queue.popleft()
+            if position != origin:
+                grid = snapshot.grid_at(position)
+                distance = position.distance_to(origin)
+                if (
+                    grid is not None
+                    and grid.currently_observed
+                    and self._open_neighbor_count(snapshot, position)
+                    <= SUMMONER_CHOKE_NEIGHBORS - 1
+                    and min(
+                        position.distance_to(monster.position)
+                        for monster in hostiles
+                    )
+                    >= origin_distance
+                ):
+                    candidates.append(
+                        (
+                            distance,
+                            self._open_neighbor_count(snapshot, position),
+                            position,
+                        )
+                    )
+            for neighbor in self._walkable_neighbors(snapshot, position):
+                if neighbor not in previous:
+                    previous[neighbor] = position
+                    queue.append(neighbor)
+        if not candidates:
+            return None
+        destination = min(candidates, key=lambda candidate: candidate[:2])[2]
+        step = destination
+        while previous[step] != origin:
+            parent = previous[step]
+            if parent is None:
+                return None
+            step = parent
+        return destination, step
+
+    def _choke_engagement_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        adjacent: list[MonsterState],
+    ) -> str | None:
+        plan = self._choke_engagement_plan
+        if not self._choke_plan_active(snapshot) or plan is None:
+            return None
+        visible_triggers = [
+            monster for monster in hostiles if monster.index in plan.trigger_last_seen
+        ]
+        for monster in visible_triggers:
+            plan.trigger_last_seen[monster.index] = monster.position
+        if visible_triggers:
+            plan.sight_loss_decisions = 0
+        else:
+            plan.sight_loss_decisions += 1
+        if any(monster.max_ranged_damage > 0 for monster in visible_triggers):
+            self._release_choke_plan("ranged-threat")
+            return None
+        if (
+            sum(monster.can_multiply for monster in hostiles)
+            > plan.start_breeder_count
+        ):
+            self._release_choke_plan("swarm-growth")
+            return None
+        if (
+            snapshot.player.hp_ratio < FLEE_HP_RATIO
+            or self._predicted_damage(snapshot, hostiles, turns=3)
+            >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
+            or self._should_flee(snapshot, hostiles, adjacent)
+        ):
+            self._release_choke_plan("hp-authority")
+            return None
+        if (
+            (
+                snapshot.player.exp > plan.start_exp
+                or snapshot.player.gold > plan.start_gold
+            )
+            and len(visible_triggers) < len(plan.trigger_last_seen)
+        ):
+            self._release_choke_plan("kill-progress")
+            return None
+        if plan.sight_loss_decisions > COMBAT_OUTCOME_WINDOW:
+            self._release_choke_plan("sight-loss-bound")
+            return None
+        if snapshot.player.position != plan.destination:
+            plan.phase = "reposition"
+            step = self._nearest_goal_step(
+                snapshot, lambda grid: grid.position == plan.destination
+            )
+            if step is None:
+                self._release_choke_plan("destination-unreachable")
+                return None
+            plan.last_movement = (snapshot.player.position, step)
+            self.last_reason = "melee:choke-reposition"
+            return self._step_toward(snapshot, step)
+        plan.phase = "validate"
+        here = snapshot.grid_at(plan.destination)
+        if (
+            here is None
+            or not here.currently_observed
+            or self._open_neighbor_count(snapshot, plan.destination)
+            > SUMMONER_CHOKE_NEIGHBORS - 1
+        ):
+            self._release_choke_plan("destination-invalid")
+            return None
+        plan.phase = "hold"
+        if not adjacent:
+            ranged = self._ranged_attack_key(snapshot, visible_triggers, adjacent)
+            if ranged is not None:
+                return ranged
+        if (
+            self._mining_combat_contact_streak >= MINING_COMBAT_CONTACT_LIMIT
+            and self._equipped_digging_tool(snapshot) is not None
+        ):
+            restore = self._restore_mining_combat_hand_key(
+                snapshot, "melee:restore-weapon"
+            )
+            if restore is not None:
+                return restore
+        if adjacent and not snapshot.player.afraid:
+            self.last_reason = "melee:choke"
+            return self._direction_key(
+                snapshot.player.position, self._weakest(adjacent).position
+            )
+        self.last_reason = "melee:choke-hold"
+        return WAIT_KEY
 
     def _detected_threat_preparation_key(
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]

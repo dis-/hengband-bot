@@ -1456,6 +1456,164 @@ class CombatTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "melee:choke")
 
+    @staticmethod
+    def _orc_cave_choke_cycle_snapshot(position, visible_count, *, exp=25131, hp=565):
+        room = Position(29, 169)
+        mouth = Position(28, 170)
+        choke = Position(27, 170)
+        passable = {
+            room, mouth, choke, Position(29, 170), Position(28, 171),
+            Position(30, 168), Position(30, 169), Position(30, 170),
+        }
+        grids = {
+            Position(y, x): grid(
+                y, x, passable=Position(y, x) in passable, lit=True, in_view=True
+            )
+            for y in range(26, 32)
+            for x in range(167, 172)
+        }
+        monster_cells = [
+            Position(30, 168), Position(30, 169), Position(30, 170),
+            Position(29, 170), Position(29, 169), Position(28, 171),
+            Position(31, 168), Position(31, 169), Position(31, 170),
+        ][:visible_count]
+        monsters = [
+            hostile(
+                index, cell.y, cell.x,
+                distance=position.distance_to(cell), race_id=69,
+                can_multiply=True, max_melee_damage=3,
+            )
+            for index, cell in enumerate(monster_cells, 106)
+        ]
+        for monster in monsters:
+            if monster.position in grids:
+                grids[monster.position] = replace(
+                    grids[monster.position], has_monster=True
+                )
+        return Snapshot(
+            replace(
+                player(position.y, position.x, hp=hp, max_hp=565, level=25),
+                exp=exp,
+            ),
+            grids, monsters, floor_key=(3, 12, 0), turn=1676705,
+        )
+
+    def test_real_orc_cave_cycle_becomes_one_owned_validated_plan(self):
+        room = Position(29, 169)
+        mouth = Position(28, 170)
+        choke = Position(27, 170)
+        policy = HengbotPolicy()
+
+        first = self._orc_cave_choke_cycle_snapshot(room, 9)
+        self.assertEqual(policy.choose_key(first), "9")
+        self.assertEqual(policy._choke_engagement_plan.destination, choke)
+
+        contracted = self._orc_cave_choke_cycle_snapshot(mouth, 1)
+        second = policy.choose_key(contracted)
+        self.assertEqual((second, policy.last_reason), ("8", "melee:choke-reposition"))
+        self.assertNotIn(policy.last_reason, {"hunt", "seek-loot", "explore"})
+
+        unseen = self._orc_cave_choke_cycle_snapshot(choke, 0)
+        self.assertEqual(policy.choose_key(unseen), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "melee:choke-hold")
+        state = policy.choke_engagement_state()
+        self.assertEqual(state["phase"], "hold")
+        self.assertIsNone(state["release_cause"])
+
+    def test_open_capture_mouth_is_never_accepted_as_choke_hold(self):
+        policy = HengbotPolicy()
+        snapshot = self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9)
+        policy.choose_key(snapshot)
+
+        self.assertNotEqual(policy._choke_engagement_plan.destination, Position(28, 170))
+        self.assertGreater(
+            policy._open_neighbor_count(snapshot, Position(28, 170)),
+            policy_module.SUMMONER_CHOKE_NEIGHBORS - 1,
+        )
+
+    def test_choke_plan_records_kill_emergency_and_breakthrough_releases(self):
+        room = Position(29, 169)
+        mouth = Position(28, 170)
+
+        killed = HengbotPolicy()
+        killed.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
+        killed.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 1, exp=25132))
+        self.assertEqual(
+            killed.choke_engagement_state()["release_cause"], "kill-progress"
+        )
+
+        emergency = HengbotPolicy()
+        emergency.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
+        danger = replace(
+            self._orc_cave_choke_cycle_snapshot(mouth, 1, hp=20),
+            inventory=[item("p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR)],
+        )
+        emergency.choose_key(danger)
+        self.assertEqual(
+            emergency.choke_engagement_state()["release_cause"], "hp-authority"
+        )
+
+        breakthrough = HengbotPolicy()
+        active = self._orc_cave_choke_cycle_snapshot(room, 9)
+        breakthrough.choose_key(active)
+        breakthrough._breeder_breakthrough_floor = active.floor_key
+        breakthrough.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 1))
+        state = breakthrough.choke_engagement_state()
+        self.assertEqual((state["phase"], state["release_cause"]), (
+            "breakthrough", "breeder-breakthrough",
+        ))
+
+        growth = HengbotPolicy()
+        growth.choose_key(self._orc_cave_choke_cycle_snapshot(room, 2))
+        self.assertIsNotNone(growth._choke_engagement_plan)
+        self.assertEqual(growth._choke_engagement_plan.start_breeder_count, 2)
+        grown_snapshot = self._orc_cave_choke_cycle_snapshot(mouth, 3)
+        growth._build_grid_index(grown_snapshot)
+        growth._choke_engagement_key(
+            grown_snapshot, grown_snapshot.visible_monsters,
+            growth._physical_adjacent_hostiles(grown_snapshot),
+        )
+        self.assertEqual(
+            growth.choke_engagement_state()["release_cause"], "swarm-growth"
+        )
+
+        ranged = HengbotPolicy()
+        ranged.choose_key(self._orc_cave_choke_cycle_snapshot(room, 2))
+        ranged_snapshot = self._orc_cave_choke_cycle_snapshot(mouth, 1)
+        ranged_snapshot = replace(
+            ranged_snapshot,
+            visible_monsters=[
+                replace(ranged_snapshot.visible_monsters[0], max_ranged_damage=1)
+            ],
+        )
+        ranged._build_grid_index(ranged_snapshot)
+        ranged._choke_engagement_key(
+            ranged_snapshot, ranged_snapshot.visible_monsters,
+            ranged._physical_adjacent_hostiles(ranged_snapshot),
+        )
+        self.assertEqual(
+            ranged.choke_engagement_state()["release_cause"], "ranged-threat"
+        )
+
+    def test_choke_sight_loss_uses_existing_combat_outcome_bound(self):
+        policy = HengbotPolicy()
+        policy.choose_key(
+            self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9)
+        )
+        policy._choke_engagement_plan.sight_loss_decisions = (
+            policy_module.COMBAT_OUTCOME_WINDOW
+        )
+
+        policy.choose_key(
+            self._orc_cave_choke_cycle_snapshot(Position(28, 170), 0)
+        )
+
+        state = policy.choke_engagement_state()
+        self.assertEqual(
+            (state["phase"], state["release_cause"]),
+            ("release", "sight-loss-bound"),
+        )
+
     def test_moving_player_still_prepares_for_monsters_that_moved_closer(self):
         snapshot = self._mouse_swarm_snapshot()
         current_player = Position(10, 11)
@@ -1489,7 +1647,9 @@ class CombatTest(unittest.TestCase):
         policy._build_grid_index(snapshot)
 
         with patch.object(
-            policy, "_summoner_retreat_step", return_value=Position(10, 10)
+            policy,
+            "_validated_choke_route",
+            return_value=(Position(10, 10), Position(10, 10)),
         ):
             key = policy._melee_swarm_combat_key(snapshot, current_monsters, [])
 

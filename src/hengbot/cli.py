@@ -660,6 +660,7 @@ def _decision_record(
     map_memory: dict | None = None,
     descent_refusal: str | None = None,
     home_scan: dict | None = None,
+    choke_engagement: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -734,6 +735,7 @@ def _decision_record(
         "map_memory": map_memory or {},
         **({"descent_refusal": descent_refusal} if descent_refusal else {}),
         **({"home_scan": home_scan} if home_scan else {}),
+        **({"choke_engagement": choke_engagement} if choke_engagement else {}),
     }
 
 
@@ -1027,6 +1029,11 @@ def _write_decision(
                         if policy is not None
                         and getattr(policy, "_home_scan_source", None)
                         else None
+                    ),
+                    (
+                        policy.choke_engagement_state()
+                        if policy is not None
+                        else {}
                     ),
                 ),
                 file,
