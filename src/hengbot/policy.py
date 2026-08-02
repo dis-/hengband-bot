@@ -289,6 +289,26 @@ HOME_PAGE_PROBE_MESSAGE_PREFIXES = (
     "変愚蛮怒",
     "Hengband",
 )
+# The exported message text carries at most two decorations, both fixed in
+# source: a save-persisted cheat_turn option prepends `T:<turn> - `
+# (display-messages.cpp:289-291, format "T:%d - %s"; registered at
+# option-types-table.cpp:368 and restored from the save at
+# option-loader.cpp:58, so "assume it is off" is not an available invariant),
+# and a repeated message appends ` <x<count>>` (display-messages.cpp:107-110).
+# Matching therefore happens on the NORMALIZED body — decorations stripped,
+# then an exact match for the single-page message and a prefix match for the
+# version banner — so no registered decoration can render a currency signal
+# unrecognizable and leave the await-page-advance state latched.
+_HOME_PAGE_MESSAGE_DECORATION = re.compile(
+    r"^(?:T:\d+ - )?(?P<body>.*?)(?: <x\d+>)?$",
+    re.DOTALL,
+)
+
+
+def home_page_message_body(message: str) -> str:
+    """Strip the two registered game message decorations before matching."""
+    match = _HOME_PAGE_MESSAGE_DECORATION.match(message)
+    return match.group("body") if match else message
 
 
 @dataclass
@@ -2375,22 +2395,27 @@ class HengbotPolicy:
             page_advance_confirmed = not self._home_page_advance_pending
             page_advance_wrap = False
             if self._home_page_advance_pending:
-                # Message matches are prefix matches: a repeated message is
-                # exported with a trailing repeat count (display-messages.cpp
-                # :107-110, `... <x2>`), and every arming site binds
+                # Message signals are matched on the normalized body: the
+                # cheat_turn `T:<turn> - ` prefix and the ` <xN>` repeat
+                # suffix (see home_page_message_body) are stripped first, so
+                # neither registered decoration can hide a signal and latch
+                # this state.  Every arming site binds
                 # _home_page_advance_from_identity together with the flag, so
                 # an unbound identity never occurs and is not special-cased.
                 if page_identity != self._home_page_advance_from_identity:
                     page_advance_confirmed = True
                     page_advance_wrap = True
                 elif any(
-                    message.startswith(HOME_PAGE_SINGLE_PAGE_MESSAGES)
+                    home_page_message_body(message)
+                    in HOME_PAGE_SINGLE_PAGE_MESSAGES
                     for message in snapshot.messages
                 ):
                     page_advance_confirmed = True
                     page_advance_wrap = True
                 elif any(
-                    message.startswith(HOME_PAGE_PROBE_MESSAGE_PREFIXES)
+                    home_page_message_body(message).startswith(
+                        HOME_PAGE_PROBE_MESSAGE_PREFIXES
+                    )
                     for message in snapshot.messages
                 ):
                     page_advance_confirmed = True

@@ -42599,6 +42599,61 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         )
         self.assertFalse(policy._home_page_advance_pending)
 
+    def test_cheat_turn_prefixed_single_page_message_still_resolves(self):
+        # cheat_turn is save-persisted (option-types-table.cpp:368,
+        # option-loader.cpp:58) and prepends `T:<turn> - ` to every exported
+        # message (display-messages.cpp:289-291).  The signal must resolve on
+        # the normalized body — decorated with BOTH the turn prefix and the
+        # repeat suffix here — or the await-page-advance state would latch
+        # with no reachable exit while boards keep flowing.
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        self.assertEqual(
+            policy.choose_key(self._snapshot(self._one_page())),
+            HOME_PAGE_PROBE_KEY,
+        )
+        decorated = self._snapshot(
+            self._one_page(),
+            messages=(
+                "T:2459752 - " + HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x2>",
+            ),
+        )
+        key = policy.choose_key(decorated)
+        self.assertEqual(
+            key, LEAVE_STORE_KEY,
+            "a cheat_turn-decorated single-page message was not recognized: "
+            "the page-advance latch has no exit under this save option",
+        )
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertFalse(policy._home_page_advance_pending)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+
+    def test_cheat_turn_prefixed_probe_banner_still_resolves(self):
+        # Same save option, applied to the version-probe reply: currency must
+        # still be proven (without a wrap conclusion) from the decorated
+        # banner.
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        self.assertEqual(
+            policy.choose_key(self._snapshot(self._one_page())),
+            HOME_PAGE_PROBE_KEY,
+        )
+        decorated = self._snapshot(
+            self._one_page(),
+            messages=("T:2459793 - 変愚蛮怒 3.0.1.10(開発版)",),
+        )
+        key = policy.choose_key(decorated)
+        self.assertEqual(
+            key, LEAVE_STORE_KEY,
+            "a cheat_turn-decorated probe banner was not recognized: the "
+            "page-advance latch has no exit under this save option",
+        )
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertFalse(policy._home_page_advance_pending)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+
     def test_one_page_home_probe_reply_bounds_exit_without_false_wrap(self):
         policy = HengbotPolicy()
 
