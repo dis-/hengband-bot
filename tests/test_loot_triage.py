@@ -240,7 +240,7 @@ class TownOrganizationTest(unittest.TestCase):
         policy._unsellable_items.add(policy._item_signature(spare))
         snapshot = self._town([spare], STORE_HOME)
         self.assertIs(policy._find_home_deposit(snapshot), spare)
-        self.assertEqual(policy._home_deposit_key(snapshot, spare), "da\r")
+        self.assertEqual(policy._home_deposit_key(snapshot, spare), "da")
         self.assertEqual(policy.last_reason, "home:deposit")
 
     def test_fundraising_unsellable_surplus_routes_to_home_and_deposits(self):
@@ -255,7 +255,7 @@ class TownOrganizationTest(unittest.TestCase):
                             for need in needs))
         self.assertEqual(policy._home_deposit_key(
             self._town([spare], STORE_HOME), spare
-        ), "da\r")
+        ), "da")
 
     def test_exhausted_surplus_outlets_release_departure_gate(self):
         spare = carried("a", name="spare sword", is_equipment=True)

@@ -1799,6 +1799,11 @@ class HengbotPolicy:
         # while an item chooser is open can turn a repeated command letter into
         # an unintended pack selection.
         self._home_entry_operation_posted = False
+        # Ordinary Home deposits are posted from the adjacent outside snapshot
+        # as one entry/deposit/exit string.  This identifies that special visit
+        # until the next outside observation; withdrawals and transaction
+        # commands retain their existing in-store prepare/post/observe path.
+        self._home_atomic_deposit_pending: tuple[tuple[str, int, int], int] | None = None
         # Same target and shortage after a registered, money-spending buy is a
         # distinct defect from a transport failure at unchanged gold.
         self._last_buy_progress_sig: tuple[str, int, int] | None = None
@@ -2338,8 +2343,11 @@ class HengbotPolicy:
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
         )
-        if snapshot.store is None and leaving_home:
+        if snapshot.store is None and (
+            leaving_home or self._home_atomic_deposit_pending is not None
+        ):
             self._home_entry_operation_posted = False
+            self._home_atomic_deposit_pending = None
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -2382,6 +2390,17 @@ class HengbotPolicy:
                 )
         else:
             key = self._decide(snapshot)
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and not self._home_entry_operation_posted
+            and key.startswith(SELL_KEY)
+        ):
+            # A resumed process may first observe an already-open Home.  An
+            # ordinary deposit is only safe when its pack letter was bound in
+            # the adjacent outside snapshot and posted with entry and exit.
+            self.last_reason = "home:leave-unbound-deposit"
+            key = LEAVE_STORE_KEY
         self._remember_swarm_distances(snapshot)
         key = self._flee_sustain_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
@@ -9140,8 +9159,75 @@ class HengbotPolicy:
                 signature,
                 self._inventory_signature_count(snapshot, signature),
             )
-        quantity = f"{deposit_count}" if deposit_count > 1 else ""
-        return SELL_KEY + deposit.slot + quantity + "\r"
+        quantity = f"{deposit_count}\r" if deposit_count > 1 else ""
+        return SELL_KEY + deposit.slot + quantity
+
+    def _atomic_home_deposit_key(
+        self, snapshot: Snapshot, step: Position
+    ) -> str | None:
+        """Bind one ordinary Home deposit to its entry and exit movement."""
+        if (
+            snapshot.store is not None
+            or self._shopping_approach_store_type != STORE_HOME
+            or snapshot.player.position.distance_to(step) != 1
+        ):
+            return None
+        entrance = snapshot.grid_at(step)
+        if entrance is None or entrance.store_number != STORE_HOME:
+            return None
+        # A transaction owns its Home visits and retains the established
+        # prepare/post/observe contract.  This task changes ordinary deposits
+        # only, never withdrawal or optimizer commands.
+        if self._equipment_transaction_session is not None:
+            return None
+        plan = self._town_errand_plan
+        if (
+            plan is not None
+            and plan.index < len(plan.stops)
+            and plan.stops[plan.index] == STORE_HOME
+            and any(
+                category not in {"deposit", "weight-overload"}
+                for category in plan.need_categories.get(STORE_HOME, ())
+            )
+        ):
+            return None
+        deposit = self._find_home_deposit(snapshot)
+        if deposit is None:
+            return None
+        current = next(
+            (
+                item for item in snapshot.inventory
+                if item.slot == deposit.slot
+                and self._item_signature(item) == self._item_signature(deposit)
+            ),
+            None,
+        )
+        if current is None:
+            return None
+        operation = self._home_deposit_key(snapshot, current)
+        if operation == LEAVE_STORE_KEY:
+            return None
+        entry = self._step_toward(snapshot, step)
+        if entry == WAIT_KEY:
+            return None
+        self._home_entry_operation_posted = True
+        self._home_atomic_deposit_pending = (
+            self._item_signature(current),
+            self._inventory_signature_count(snapshot, self._item_signature(current)),
+        )
+        self._equipment_catalog.record_home_deposit(
+            current,
+            intent=(
+                snapshot.turn,
+                current.slot,
+                self._item_signature(current),
+                current.count,
+                current.charges,
+                len(snapshot.inventory),
+            ),
+        )
+        self.last_reason = "home:atomic-deposit"
+        return entry + operation + LEAVE_STORE_KEY
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_full or self._home_deposit_abandoned:
@@ -15372,6 +15458,9 @@ class HengbotPolicy:
         ):
             self.last_reason = f"{travel_reason}:await-entry"
             return WAIT_KEY
+        atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
+        if atomic_deposit is not None:
+            return atomic_deposit
         if not self._has_light_equipped(snapshot):
             return self._step_toward(snapshot, step)
         goal = self._shopping_approach_goal
