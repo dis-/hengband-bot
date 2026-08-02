@@ -160,6 +160,8 @@ from hengbot.policy import (
     CHEST_DISARM_BUDGET,
     CHEST_OPEN_BUDGET,
     LIVELOCK_LIMIT,
+    HOME_PAGE_PROBE_KEY,
+    HOME_PAGE_SINGLE_PAGE_MESSAGES,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
     DETECTION_SCROLL_BUFFER,
@@ -21439,7 +21441,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(home), " ")
-        self.assertEqual(policy.choose_key(home), "\x1b")
+        # The unchanged page alone does not prove the SPACE was processed; the
+        # single-page message does (store-key-processor.cpp:92).
+        self.assertEqual(policy.choose_key(home), HOME_PAGE_PROBE_KEY)
+        confirmed = replace(home, messages=("これで全部です。",))
+        self.assertEqual(policy.choose_key(confirmed), "\x1b")
         self.assertEqual(policy.last_reason, "home:no-combat-weapon")
         self.assertTrue(policy._combat_weapon_ready(home))
 
@@ -24088,7 +24094,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(home), " ")
         self.assertTrue(policy._home_candidate_waiting)
-        self.assertEqual(policy.choose_key(home), "\x1b")
+        # A byte-identical page without the single-page message may predate the
+        # posted SPACE, so processing must not conclude from it — the probe
+        # asks the game to prove the page state first.
+        self.assertEqual(policy.choose_key(home), HOME_PAGE_PROBE_KEY)
+        self.assertEqual(policy.last_reason, "home:await-page-advance")
+        confirmed = replace(home, messages=("これで全部です。",))
+        self.assertEqual(policy.choose_key(confirmed), "\x1b")
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertFalse(policy._home_candidate_waiting)
 
@@ -42388,6 +42400,410 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             ["5" + SELL_KEY + slot + "40\r" + policy_module.LEAVE_STORE_KEY for slot in "fgh"],
         )
         self.assertEqual([item_.slot for item_ in remaining], ["d", "e"])
+
+
+class HomePageAdvanceCurrencyTest(unittest.TestCase):
+    """Regressions for the 2026-08-02 20:03 turn-2459752 page-advance race.
+
+    home:seek-processing-page posted SPACE inside the Home; two seconds later
+    equipment-transaction:withdraw composed ``pJ\\r`` from a 52-item page-1
+    observation that predated the unobserved advance, while the game showed the
+    30-item page 2 whose letters stop at ``D``.  The withdraw never confirmed
+    and the stall quarantined the only resist_chaos source.  A key may only be
+    composed from a page observation proven current: identity change, the
+    single-page message, or the version-probe banner.
+    """
+
+    RING_NAME = "Ring of Law (+5,+0) [+5] (+2)"
+
+    @staticmethod
+    def _page_letter(index):
+        # index_to_label == I2A: a..z then A..Z, page-relative.
+        return chr(ord("a") + index) if index < 26 else chr(ord("A") + index - 26)
+
+    def _ring(self):
+        return store_item(
+            "J", TVAL_RING, 4, name=self.RING_NAME, known=True,
+            fully_known=True, is_equipment=True, known_flags=frozenset({62}),
+        )
+
+    def _page_one(self):
+        # 52 stacks with the ring at page-relative letter J (index 35), the
+        # letter layout the surviving flight-recorder pages show.
+        return [
+            self._ring() if self._page_letter(index) == "J" else store_item(
+                self._page_letter(index), TVAL_FOOD, 30 + index % 5,
+                name=f"stored ration {index}", price=0,
+            )
+            for index in range(52)
+        ]
+
+    def _page_two(self):
+        # The 30-item second page: letters restart at a and stop at D.
+        return [
+            store_item(
+                self._page_letter(index), TVAL_FOOD, 30 + index % 5,
+                name=f"late stored ration {index}", price=0,
+            )
+            for index in range(30)
+        ]
+
+    def _snapshot(self, page, *, turn=2459752, messages=()):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=turn,
+            floor_key=(0, 0, 0),
+            inventory=[
+                item("d", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=14, known=True),
+            ],
+            equipment=[
+                item(
+                    "main_hand", 23, 4, name="long sword", known=True,
+                    fully_known=True, is_equipment=True,
+                ),
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000,
+                    is_equipment=True, known=True, fully_known=True,
+                ),
+            ],
+            store=StoreState(store_type=STORE_HOME, items=list(page)),
+            messages=tuple(messages),
+        )
+
+    def _withdraw_session(self):
+        identity = policy_module.equipment_identity(self._ring())
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw",
+            "home:incident:0", item_identity=identity,
+        )
+        return policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 23)
+        ), action
+
+    def test_2459752_stale_page_withdraw_suppressed_until_advance_observed(self):
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._page_one())), " ")
+        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertTrue(policy._home_page_advance_pending)
+
+        session, _ = self._withdraw_session()
+        policy._equipment_transaction_session = session
+
+        # The second decision replays the page-1 observation the SPACE was
+        # posted from — the live emission order at turn 2459752.  The game may
+        # already display page 2 where letter J addresses nothing.
+        stale_key = policy.choose_key(self._snapshot(self._page_one()))
+        self.assertNotEqual(
+            stale_key, BUY_KEY + "J\r",
+            "withdraw was composed from a page observation that predates the "
+            "posted, unobserved page advance (the turn-2459752 defect)",
+        )
+        self.assertEqual(stale_key, HOME_PAGE_PROBE_KEY)
+        self.assertEqual(policy.last_reason, "home:await-page-advance")
+        self.assertIsNone(policy._equipment_transaction_prepared_key)
+        self.assertTrue(policy._home_page_advance_pending)
+        self.assertIsNotNone(
+            getattr(policy, "_home_page_advance_from_identity", None)
+        )
+
+        # Page 2 arrives: the identity change proves the advance happened and
+        # the withdraw's own content-addressed page seek proceeds.
+        seek_key = policy.choose_key(self._snapshot(self._page_two()))
+        self.assertEqual(seek_key, " ")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:seek-home-page"
+        )
+
+        # Page 1 recurs as the observed result of that SPACE: the withdraw is
+        # composed from a proven-current page and addresses the right letter.
+        withdraw_key = policy.choose_key(self._snapshot(self._page_one()))
+        self.assertEqual(withdraw_key, BUY_KEY + "J\r")
+        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
+        self.assertFalse(policy._home_page_advance_pending)
+
+    def test_two_page_home_withdraw_composes_from_current_page(self):
+        policy = HengbotPolicy()
+        session, _ = self._withdraw_session()
+        policy._equipment_transaction_session = session
+
+        # No advance is in flight: the target's page is current, compose now.
+        key = policy.choose_key(self._snapshot(self._page_one()))
+        self.assertEqual(key, BUY_KEY + "J\r")
+        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
+
+    def test_two_page_home_withdraw_completes_after_page_seek(self):
+        policy = HengbotPolicy()
+        session, _ = self._withdraw_session()
+        policy._equipment_transaction_session = session
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._page_two())), " ")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:seek-home-page"
+        )
+        key = policy.choose_key(self._snapshot(self._page_one()))
+        self.assertEqual(key, BUY_KEY + "J\r")
+        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
+
+    def _one_page(self):
+        return [
+            store_item(
+                chr(ord("a") + index), TVAL_FOOD, 30 + index % 5,
+                name=f"stored ration {index}", price=0,
+            )
+            for index in range(12)
+        ]
+
+    def test_one_page_home_message_resolves_and_completes_processing(self):
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+
+        # Same identity without a message: possibly a stale echo — probe.
+        self.assertEqual(
+            policy.choose_key(self._snapshot(self._one_page())),
+            HOME_PAGE_PROBE_KEY,
+        )
+        self.assertEqual(policy.last_reason, "home:await-page-advance")
+
+        # store-key-processor.cpp:92: SPACE on a single-page store prints the
+        # message and does not redraw — the page really is the whole stock.
+        confirmed = self._snapshot(
+            self._one_page(), messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],)
+        )
+        key = policy.choose_key(confirmed)
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertFalse(policy._home_page_advance_pending)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+
+    def test_one_page_home_probe_reply_bounds_exit_without_false_wrap(self):
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        self.assertEqual(
+            policy.choose_key(self._snapshot(self._one_page())),
+            HOME_PAGE_PROBE_KEY,
+        )
+
+        # The single-page message rode a skipped snapshot; the probe's version
+        # banner still proves the page is current.  Currency is not wrap proof,
+        # so the catalog must NOT conclude the scan — but the visit still ends
+        # through the ordinary bounded exit instead of latching.
+        replied = self._snapshot(
+            self._one_page(), messages=("変愚蛮怒 3.0.1.10(開発版)",)
+        )
+        key = policy.choose_key(replied)
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertFalse(policy._home_page_advance_pending)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+
+
+class EquipmentQuarantineInvariantTest(unittest.TestCase):
+    """A quarantine can never remove the last owned source of a required gate.
+
+    2026-08-02 20:06: quarantining the only resist_chaos source at optimization
+    depth 31 produced considered=0 / no-valid-loadout, equipment_departure_ready
+    false, and an absorbing town state whose only exit was the loop guard.  The
+    release valve could not fire because the deferred-Home filter had already
+    removed the item from the catalog the valve scans.
+    """
+
+    RING_NAME = "Ring of Law (+5,+0) [+5] (+2)"
+
+    def _monster(self):
+        return MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )
+
+    def _ring(self):
+        return store_item(
+            "J", TVAL_RING, 4, name=self.RING_NAME, known=True,
+            fully_known=True, is_equipment=True, known_flags=frozenset({62}),
+        )
+
+    def _town(self):
+        base = player(
+            10, 10, class_id=PLAYER_CLASS_WARRIOR, level=30, hp=400,
+            max_hp=400,
+        )
+        base = replace(
+            base,
+            stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18),
+            melee_skill=60, saving_skill=40, shield_skill=0,
+            two_weapon_skill=0,
+        )
+        return Snapshot(
+            base,
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[],
+            equipment=[
+                item(
+                    "main_hand", 23, 4, name="long sword", known=True,
+                    fully_known=True, is_equipment=True, to_h=5, to_d=5,
+                ),
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000,
+                    is_equipment=True, known=True, fully_known=True,
+                ),
+            ],
+        )
+
+    def _policy_with_home_ring(self):
+        policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
+        town = self._town()
+        ring = self._ring()
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page([ring])
+        policy._equipment_catalog.observe_home_page([])
+        policy._equipment_catalog.observe_home_page([ring])
+        ring_id = next(
+            owned.id
+            for owned in policy._equipment_catalog.items
+            if owned.origin == "home"
+        )
+        return policy, town, ring, ring_id
+
+    def test_deferred_quarantine_never_removes_last_required_gate_source(self):
+        policy, town, ring, ring_id = self._policy_with_home_ring()
+        policy._deferred_home_items.add(policy._item_signature(ring))
+
+        preparation = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+
+        self.assertNotIn(
+            "no-valid-loadout", preparation.blockers,
+            "the deferred-Home quarantine removed the only resist_chaos source "
+            "from the depth-31 optimization view (the 20:06:11 absorbing state)",
+        )
+        self.assertIn(ring_id, policy._equipment_quarantine_readmitted_ids)
+        # The quarantine itself is not mutated: readmission is view-only.
+        self.assertIn(
+            policy._item_signature(ring), policy._deferred_home_items
+        )
+
+    def test_deferred_and_stall_quarantine_overlap_keeps_last_gate_source(self):
+        # The live-consistent state: the withdraw stall blacklisted the item id
+        # while the identification deferral held its signature, which blinded
+        # the pre-existing release valve (it scans the already-filtered view).
+        policy, town, ring, ring_id = self._policy_with_home_ring()
+        policy._deferred_home_items.add(policy._item_signature(ring))
+        policy._equipment_transaction_failed_items.add(ring_id)
+
+        preparation = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+
+        self.assertNotIn("no-valid-loadout", preparation.blockers)
+        self.assertIn(ring_id, policy._equipment_quarantine_readmitted_ids)
+        self.assertIn(ring_id, policy._equipment_transaction_failed_items)
+
+    def test_stall_abandon_cannot_absorb_last_gate_source(self):
+        # End-to-end stall kind: the posted withdraw exhausts its confirmation
+        # budget, _release_stalled_equipment_transaction abandons and
+        # quarantines it — the next optimization pass must still see the item.
+        policy, town, ring, ring_id = self._policy_with_home_ring()
+        # Prime the town observation first: the fresh-town reset clears the
+        # visit-scoped deferral set, and both quarantines arise mid-visit.
+        policy.choose_key(town)
+        policy._deferred_home_items.add(policy._item_signature(ring))
+        identity = policy_module.equipment_identity(ring)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw",
+            ring_id, item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 23)
+        )
+        policy._equipment_transaction_session = session
+        home_observation = (
+            policy_module.EquipmentTransactionObservation.create(in_home=True)
+        )
+        self.assertTrue(session.dispatch(action, home_observation))
+        for _ in range(policy_module.EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT):
+            session.observe(home_observation)
+
+        home = replace(
+            town,
+            store=StoreState(store_type=STORE_HOME, items=[self._ring()]),
+        )
+        key = policy.choose_key(home)
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:confirmation-stall-bound",
+        )
+        self.assertIn(ring_id, policy._equipment_transaction_failed_items)
+
+        preparation = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+        self.assertNotIn(
+            "no-valid-loadout", preparation.blockers,
+            "the confirmation-stall quarantine removed the last owned "
+            "resist_chaos source from the depth-31 optimization view",
+        )
+        self.assertIn(ring_id, policy._equipment_quarantine_readmitted_ids)
+
+    def test_no_valid_loadout_telemetry_names_missing_gate_sources(self):
+        # A genuinely unowned gate is an honest no-valid-loadout; the state
+        # record must say WHICH gate lacks sources and expose both quarantine
+        # sets, which the 20:06:11 capture could not show.
+        policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
+        town = self._town()
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page([])
+
+        preparation = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+        self.assertIn("no-valid-loadout", preparation.blockers)
+
+        state = policy.equipment_optimization_state(None)
+        self.assertEqual(state["failed_transaction_item_ids"], [])
+        self.assertEqual(state["deferred_home_item_signatures"], [])
+        self.assertEqual(state["quarantine_readmitted_item_ids"], [])
+        report = state["required_gate_sources"]
+        self.assertEqual(
+            report,
+            [{
+                "gate": "resist_chaos",
+                "flag": 62,
+                "owned_sources": 0,
+                "operational_sources": 0,
+                "failed_quarantined_ids": [],
+                "deferred_home_ids": [],
+            }],
+        )
+
+    def test_policy_state_capture_serializes_quarantine_sets(self):
+        from hengbot.flight_recorder import policy_state
+
+        policy, town, ring, ring_id = self._policy_with_home_ring()
+        policy._deferred_home_items.add(policy._item_signature(ring))
+        policy._equipment_transaction_failed_items.add(ring_id)
+
+        captured = policy_state(policy)["state"]
+        self.assertEqual(
+            captured["_equipment_transaction_failed_items"], [ring_id]
+        )
+        self.assertEqual(
+            captured["_deferred_home_items"],
+            [[self.RING_NAME, TVAL_RING, 4]],
+        )
+        self.assertIn("_equipment_quarantine_readmitted_ids", captured)
+        self.assertIn("_home_page_advance_pending", captured)
+        self.assertIn("_home_page_advance_from_identity", captured)
 
 
 class QuestCarryVisitAbandonmentTest(unittest.TestCase):

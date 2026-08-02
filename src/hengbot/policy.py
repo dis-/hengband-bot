@@ -244,6 +244,26 @@ HOME_PAGE_ADVANCE_REASONS = frozenset(
 HOME_PLAN_OWNED_PROCESSING_REASONS = HOME_PAGE_ADVANCE_REASONS | {
     "home:processing-complete",
 }
+# Positive page-state observations after a posted Home SPACE.
+# store-key-processor.cpp:90-106: when the whole stock fits one page, SPACE
+# prints this message and does NOT redraw — the observation is current and the
+# page really is the entire inventory (a recurrence is a legitimate wrap).
+HOME_PAGE_SINGLE_PAGE_MESSAGES = (
+    "これで全部です。",
+    "Entire inventory is shown.",
+)
+# store-key-processor.cpp:237-239 'V' → do_cmd_version → msg_print of the
+# version banner (angband-version.cpp:30-38, always prefixed 変愚蛮怒/Hengband).
+# 'V' is store-legal, modal-free, changes no game state and consumes no game
+# turn.  Because keys are processed strictly in posting order, observing the
+# banner in a snapshot's message delta proves every key posted before the
+# probe — including the pending SPACE — has been processed, so a same-identity
+# page seen with the banner is the game's CURRENT page, not a stale echo.
+HOME_PAGE_PROBE_KEY = "V"
+HOME_PAGE_PROBE_MESSAGE_PREFIXES = (
+    "変愚蛮怒",
+    "Hengband",
+)
 
 
 @dataclass
@@ -2109,6 +2129,19 @@ class HengbotPolicy:
         # proof that the next Home snapshot is the result of our page advance.
         self._home_page_advance_pending = False
         self._home_page_advance_store_none_decisions = 0
+        # Page identity the last Home SPACE was posted from.  While the advance
+        # is pending, a Home snapshot showing this same identity may predate
+        # the advance (the game already shows another page), so no key may be
+        # composed from it; the choose_key prologue resolves the ambiguity from
+        # positive observations only (identity change, single-page message, or
+        # the version-probe reply).
+        self._home_page_advance_from_identity: tuple | None = None
+        # Item ids readmitted to the optimizer view because a quarantine held
+        # every owned source of a mandatory depth gate (strictly diagnostic).
+        self._equipment_quarantine_readmitted_ids: tuple[str, ...] = ()
+        # Depth the last optimization pass was asked about, for diagnostics
+        # emitted when no snapshot is at hand.
+        self._equipment_optimization_last_depth: int | None = None
         self._pending_disposal_slot: str | None = None
         self._pending_disposal_item: tuple[str, int, int] | None = None
         self._disposal_store_attempts: set[int] = set()
@@ -2288,27 +2321,60 @@ class HengbotPolicy:
                 if item.tval == TVAL_SCROLL
                 and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
             )
-            if not self._equipment_catalog.home_scan_complete:
-                self._home_star_remove_curse_scan_pages[page_identity] = (
-                    page_star_count
+            # Resolve a posted page advance from positive observations only.
+            # cmd-store.cpp:116 (entry shows page 1) and store-key-processor.cpp
+            # :90-106 (SPACE either advances-and-redraws or prints the
+            # single-page message) leave exactly three proofs that this
+            # snapshot reflects the posted SPACE:
+            #  * the identity changed — this page IS the advance result;
+            #  * the single-page message — SPACE did not redraw, the shown page
+            #    is the entire stock, so a recurrence is a legitimate wrap;
+            #  * the version-probe banner — every earlier key (including the
+            #    SPACE) has been processed, so the same-identity page is the
+            #    game's current page, though whether the SPACE wrapped onto an
+            #    identical page is unknown (currency yes, wrap proof no).
+            # Anything else may be a stale echo emitted before the game
+            # processed the SPACE (the 2026-08-02 20:03 pJ incident): keep the
+            # advance pending, feed nothing to the catalog, and let the Home
+            # decision gate answer with the probe instead of a composed key.
+            page_advance_confirmed = not self._home_page_advance_pending
+            page_advance_wrap = False
+            if self._home_page_advance_pending:
+                from_identity = self._home_page_advance_from_identity
+                if from_identity is None or page_identity != from_identity:
+                    page_advance_confirmed = True
+                    page_advance_wrap = True
+                elif any(
+                    message in HOME_PAGE_SINGLE_PAGE_MESSAGES
+                    for message in snapshot.messages
+                ):
+                    page_advance_confirmed = True
+                    page_advance_wrap = True
+                elif any(
+                    message.startswith(HOME_PAGE_PROBE_MESSAGE_PREFIXES)
+                    for message in snapshot.messages
+                ):
+                    page_advance_confirmed = True
+                if page_advance_confirmed:
+                    self._home_page_advance_pending = False
+                    self._home_page_advance_from_identity = None
+                    self._home_page_advance_store_none_decisions = 0
+            if page_advance_confirmed:
+                if not self._equipment_catalog.home_scan_complete:
+                    self._home_star_remove_curse_scan_pages[page_identity] = (
+                        page_star_count
+                    )
+                self._equipment_catalog.observe_home_page(
+                    snapshot.store.items,
+                    allow_wrap=(
+                        page_advance_wrap
+                        or self.last_reason in HOME_PAGE_ADVANCE_REASONS
+                    ),
                 )
-            pending_advance = self._home_page_advance_pending and not (
-                self._last_snapshot_was_store
-                and self.last_reason not in HOME_PAGE_ADVANCE_REASONS
-            )
-            self._equipment_catalog.observe_home_page(
-                snapshot.store.items,
-                allow_wrap=(
-                    pending_advance
-                    or self.last_reason in HOME_PAGE_ADVANCE_REASONS
-                ),
-            )
-            if self._equipment_catalog.home_scan_complete:
-                self._home_star_remove_curse_count = sum(
-                    self._home_star_remove_curse_scan_pages.values()
-                )
-            self._home_page_advance_pending = False
-            self._home_page_advance_store_none_decisions = 0
+                if self._equipment_catalog.home_scan_complete:
+                    self._home_star_remove_curse_count = sum(
+                        self._home_star_remove_curse_scan_pages.values()
+                    )
         elif (
             snapshot.store is not None
             and self._home_page_advance_pending
@@ -2316,6 +2382,7 @@ class HengbotPolicy:
             # 2026-07-28 incident: an Alchemist snapshot alternating with the
             # surface proves this is not the one-snapshot Home redraw bridge.
             self._home_page_advance_pending = False
+            self._home_page_advance_from_identity = None
             self._home_page_advance_store_none_decisions = 0
         elif self._home_page_advance_pending:
             self._home_page_advance_store_none_decisions += 1
@@ -2324,6 +2391,7 @@ class HengbotPolicy:
                 >= TOWN_CYCLE_BREAK_LIMIT
             ):
                 self._home_page_advance_pending = False
+                self._home_page_advance_from_identity = None
                 self._home_page_advance_store_none_decisions = 0
         if self._equipment_transaction_session is not None:
             self._equipment_transaction_session.observe(
@@ -2451,6 +2519,13 @@ class HengbotPolicy:
             and self.last_reason in HOME_PAGE_ADVANCE_REASONS
         ):
             self._home_page_advance_pending = True
+            # Bind the advance to the page it was posted from: only a changed
+            # identity or a positive message proves the next Home snapshot
+            # reflects this SPACE (see the choose_key prologue).
+            self._home_page_advance_from_identity = tuple(
+                (item.name, item.tval, item.sval, item.count)
+                for item in snapshot.store.items
+            )
             self._home_page_advance_store_none_decisions = 0
         if (
             snapshot.store is not None
@@ -7529,11 +7604,16 @@ class HengbotPolicy:
             if depth_override is not None
             else self._equipment_optimization_depth(snapshot)
         )
-        eligible_catalog = tuple(
+        self._equipment_optimization_last_depth = optimization_depth
+        operational_catalog = tuple(
             item
             for item in self._equipment_catalog.items
             if operational_equipment_candidate(item)
-            and not (
+        )
+        eligible_catalog = tuple(
+            item
+            for item in operational_catalog
+            if not (
                 item.origin == "home"
                 and self._item_signature(item.item) in self._deferred_home_items
             )
@@ -7571,6 +7651,33 @@ class HengbotPolicy:
             for item in eligible_catalog
             if item.id not in self._equipment_transaction_failed_items
         )
+        # INVARIANT: no quarantine (a stall-failed item id, a deferred Home
+        # signature, or both at once) may remove the LAST owned source of a
+        # flag this optimization depth requires.  The 2026-08-02 20:06 stop
+        # proved the release valve above cannot see an item the deferred filter
+        # already removed from eligible_catalog: quarantining the only
+        # resist_chaos source produced no-valid-loadout at depth 31 with no
+        # bot-reachable exit.  Readmit such last sources to the optimizer's
+        # VIEW without mutating either quarantine set, so the transaction
+        # machinery can still move them while ordinary quarantine behaviour
+        # (and its visit-scoped resets) stays intact.
+        catalog_ids = {item.id for item in catalog}
+        readmitted_ids: set[str] = set()
+        for required_flag in required_flags:
+            if any(required_flag in item.flags for item in catalog):
+                continue
+            readmitted_ids.update(
+                item.id
+                for item in operational_catalog
+                if required_flag in item.flags and item.id not in catalog_ids
+            )
+        if readmitted_ids:
+            catalog += tuple(
+                item
+                for item in operational_catalog
+                if item.id in readmitted_ids
+            )
+        self._equipment_quarantine_readmitted_ids = tuple(sorted(readmitted_ids))
         cached_blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
         )
@@ -7880,6 +7987,19 @@ class HengbotPolicy:
                 for tval in sorted({owned.item.tval for owned in catalog})
             },
             "evaluator": "warrior-composite-confirmed-transaction-execution-enabled",
+            # Quarantine visibility (2026-08-02 20:06 stop was undiagnosable
+            # without these): the two live quarantine sets and any last-source
+            # readmissions the optimizer view performed.  Strictly diagnostic.
+            "failed_transaction_item_ids": sorted(
+                self._equipment_transaction_failed_items
+            ),
+            "deferred_home_item_signatures": [
+                list(signature)
+                for signature in sorted(self._deferred_home_items)
+            ],
+            "quarantine_readmitted_item_ids": list(
+                self._equipment_quarantine_readmitted_ids
+            ),
         }
         if preparation is not None:
             if snapshot is not None:
@@ -7887,6 +8007,10 @@ class HengbotPolicy:
                     snapshot
                 )
             state["blockers"] = list(preparation.blockers)
+            if "no-valid-loadout" in preparation.blockers:
+                state["required_gate_sources"] = (
+                    self._required_gate_source_report(snapshot)
+                )
             state["encounters_total"] = preparation.encounters_total
             state["encounters_evaluated"] = preparation.encounters_evaluated
             state["optimization_timed_out"] = bool(
@@ -7943,6 +8067,54 @@ class HengbotPolicy:
                 self._equipment_transaction_last_failure
             )
         return state
+
+    def _required_gate_source_report(
+        self, snapshot: Snapshot | None
+    ) -> list[dict[str, object]]:
+        """Census of owned sources for every mandatory depth gate (diagnostic).
+
+        Emitted with a no-valid-loadout blocker so a live capture shows which
+        required flag lost its sources and to which quarantine each source
+        belongs.  Never gates behaviour.
+        """
+        depth = (
+            self._equipment_optimization_depth(snapshot)
+            if snapshot is not None
+            else self._equipment_optimization_last_depth
+        )
+        if depth is None:
+            return []
+        report: list[dict[str, object]] = []
+        for ability in sorted(required_depth_gates(depth)):
+            flag = RESIST_FLAG_BY_ABILITY.get(ability)
+            if flag is None:
+                continue
+            sources = [
+                item
+                for item in self._equipment_catalog.items
+                if flag in item.flags
+            ]
+            report.append({
+                "gate": ability,
+                "flag": flag,
+                "owned_sources": len(sources),
+                "operational_sources": sum(
+                    operational_equipment_candidate(item) for item in sources
+                ),
+                "failed_quarantined_ids": sorted(
+                    item.id
+                    for item in sources
+                    if item.id in self._equipment_transaction_failed_items
+                ),
+                "deferred_home_ids": sorted(
+                    item.id
+                    for item in sources
+                    if item.origin == "home"
+                    and self._item_signature(item.item)
+                    in self._deferred_home_items
+                ),
+            })
+        return report
 
     def _block_equipment_transaction(self, reason: str) -> None:
         session = self._equipment_transaction_session
@@ -14726,6 +14898,25 @@ class HengbotPolicy:
             self._town_store_attempted[store.store_type] = snapshot.turn
             self.last_reason = "survival:no-affordable-food"
             return LEAVE_STORE_KEY
+
+        if (
+            store.store_type == STORE_HOME
+            and self._home_page_advance_pending
+        ):
+            # A posted page advance has not been proven observed (choose_key
+            # prologue): this snapshot may show the page the SPACE was posted
+            # FROM while the game already displays another page, so any letter
+            # composed from it can address the wrong item (the 2026-08-02
+            # 20:03 pJ→stall→quarantine incident).  Suppress every Home
+            # decision — including the random-teleport suppression withdraw
+            # below — and post the state-free version probe; its banner in a
+            # later message delta proves currency even when the page identity
+            # never changes (single-page Home, re-entry, or identical
+            # neighbouring pages).  Keys are processed in posting order, so
+            # the reply — or the advance's own redraw — is at most one probe
+            # round-trip away: no counter is needed.
+            self.last_reason = "home:await-page-advance"
+            return HOME_PAGE_PROBE_KEY
 
         suppress_random_teleport = self._town_random_teleport_suppression_key(
             snapshot

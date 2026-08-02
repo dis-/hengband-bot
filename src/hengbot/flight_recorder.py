@@ -138,6 +138,13 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_identification_source_reservation",
         "_home_scan_source",
         "_home_scan_item_count",
+        # Equipment quarantine sets: without these the 2026-08-02 20:06
+        # no-valid-loadout stop could not be diagnosed post-hoc.
+        "_equipment_transaction_failed_items",
+        "_deferred_home_items",
+        "_equipment_quarantine_readmitted_ids",
+        "_home_page_advance_pending",
+        "_home_page_advance_from_identity",
     )
     # Include every simple mode/latch/counter as cheap insurance against a field
     # omitted from a hand-maintained diagnostic list.
