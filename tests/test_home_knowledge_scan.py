@@ -41,6 +41,12 @@ def town_with_home() -> Snapshot:
     )
 
 
+def confirm_outside_after_home_leave(
+    policy: HengbotPolicy, snapshot: Snapshot
+) -> None:
+    policy._home_knowledge_scan_leave_turn = snapshot.turn - 1
+
+
 def home_response() -> dict:
     return {
         "type": "knowledge",
@@ -123,6 +129,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
         snapshot = town_with_home()
+        confirm_outside_after_home_leave(policy, snapshot)
         self.assertEqual(policy.choose_key(snapshot), "~9")
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         self.assertFalse(policy._home_knowledge_scan_requested)
@@ -139,6 +146,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertEqual(policy._home_scan_source, "~9")
         self.assertEqual(policy._home_scan_item_count, 2)
         self.assertNotEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertNotEqual(policy.choose_key(snapshot), "~9")
 
     def test_response_types_never_become_board_snapshots(self):
         for response_type in ("knowledge", "look", "character"):
@@ -204,6 +212,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
         snapshot = town_with_home()
+        confirm_outside_after_home_leave(policy, snapshot)
         self.assertEqual(policy.choose_key(snapshot), "~9")
         policy.confirm_key_posted("~9")
 
@@ -222,6 +231,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._store_leave_inflight = (
             policy._decision_sequence, snapshot.turn, STORE_HOME
         )
+        policy._home_knowledge_scan_leave_turn = snapshot.turn
 
         # Reconstruct the 15:46:42 ordering: the first outside decision still
         # belongs to the unconfirmed Home leave and must not select any ~ key.
@@ -235,7 +245,15 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertFalse(suppress)
         self.assertFalse(policy._home_knowledge_scan_requested)
 
-        # The following decision is outside the barrier and is actually posted.
+        # A later turn confirms that the following decision is outside the
+        # store loop, so the request is actually posted.
+        snapshot = Snapshot(
+            snapshot.player,
+            snapshot.grids,
+            snapshot.visible_monsters,
+            turn=snapshot.turn + 1,
+            town_flag=True,
+        )
         self.assertEqual(policy.choose_key(snapshot), "~9")
         self.assertTrue(policy.confirm_key_posted("~9"))
         self.assertTrue(policy._home_knowledge_scan_inflight)
@@ -245,6 +263,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
         snapshot = town_with_home()
+        confirm_outside_after_home_leave(policy, snapshot)
 
         self.assertEqual(policy.choose_key(snapshot), "~9")
         self.assertFalse(policy._home_knowledge_scan_requested)
@@ -256,6 +275,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
         snapshot = town_with_home()
+        confirm_outside_after_home_leave(policy, snapshot)
 
         self.assertEqual(policy.choose_key(snapshot), "~9")
         policy.confirm_key_posted("~9")
@@ -265,6 +285,57 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy.choose_key(snapshot)  # abandon the one permitted re-request
         self.assertTrue(policy._home_knowledge_scan_requested)
         self.assertNotEqual(policy.choose_key(snapshot), "~9")
+
+    def test_real_capture_interleaved_surface_page_does_not_request_scan(self):
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda _snapshot: STORE_HOME
+        policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
+        position = Position(45, 123)
+        snapshot = Snapshot(
+            PlayerState(position, 596, 596, 0, 0, 27),
+            {
+                position: GridState(
+                    position,
+                    True,
+                    True,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    store_number=STORE_HOME,
+                )
+            },
+            [],
+            turn=2407269,
+            town_flag=True,
+        )
+        policy._store_leave_inflight = (
+            policy._decision_sequence, 2407269, STORE_HOME
+        )
+        policy._home_knowledge_scan_leave_turn = 2407269
+        policy._decide = Mock(return_value="5")
+
+        # Real 17:43:56-17:44:08 shape: a Home page was followed by a
+        # store=None page on (45,123), with the post-leave turn unchanged.
+        self.assertEqual(snapshot.player.position, Position(45, 123))
+        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertNotEqual(policy.choose_key(snapshot), "~9")
+        self.assertFalse(policy._home_knowledge_scan_requested)
+
+    def test_visit_without_confirmed_outside_context_never_waits_for_scan(self):
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda _snapshot: STORE_HOME
+        policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
+        snapshot = town_with_home()
+        policy._home_knowledge_scan_leave_turn = snapshot.turn
+        policy._decide = Mock(return_value="6")
+
+        keys = [policy.choose_key(snapshot) for _ in range(4)]
+
+        self.assertEqual(keys, ["6"] * 4)
+        self.assertNotIn("~9", keys)
+        self.assertNotIn("5", keys)
 
     def test_scan_source_and_count_are_recorded(self):
         record = _decision_record(

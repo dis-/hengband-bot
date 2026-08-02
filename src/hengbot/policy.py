@@ -2063,6 +2063,10 @@ class HengbotPolicy:
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False
         self._home_knowledge_scan_retries_remaining = 1
+        # A Home leave can briefly yield an interleaved surface page while the
+        # game still owns input in the store loop.  A later turn is positive
+        # evidence that an ordinary command was processed after that leave.
+        self._home_knowledge_scan_leave_turn: int | None = None
         self._home_scan_source: str | None = None
         self._home_scan_item_count: int | None = None
         self._star_remove_curse_shelf_seen = False
@@ -2265,6 +2269,7 @@ class HengbotPolicy:
                 self._home_knowledge_scan_requested = False
                 self._home_knowledge_scan_inflight = False
                 self._home_knowledge_scan_retries_remaining = 1
+                self._home_knowledge_scan_leave_turn = None
             page_identity = tuple(
                 (item.name, item.tval, item.sval, item.count)
                 for item in snapshot.store.items
@@ -2332,6 +2337,8 @@ class HengbotPolicy:
             and not self._equipment_catalog.home_scan_complete
             and not self._home_knowledge_scan_requested
             and self._store_leave_inflight is None
+            and self._home_knowledge_scan_leave_turn is not None
+            and snapshot.turn > self._home_knowledge_scan_leave_turn
             and self._identification_need is None
             and self._next_required_store_type(snapshot) == STORE_HOME
             and bool(self._home_processing_seen_pages)
@@ -2498,6 +2505,8 @@ class HengbotPolicy:
                 getattr(snapshot, "turn", 0),
                 snapshot.store.store_type,
             )
+            if snapshot.store.store_type == STORE_HOME:
+                self._home_knowledge_scan_leave_turn = getattr(snapshot, "turn", 0)
         elif snapshot.store is not None and key not in {WAIT_KEY, "\r"}:
             self._town_visit_ledger.pending_store_transaction = (
                 snapshot.store.store_type,
