@@ -43160,11 +43160,18 @@ class WarningGridAvoidanceTest(unittest.TestCase):
             messages=tuple(messages),
         )
 
-    def supply_items(self):
+    def movement_supplies(self):
+        # The user scoped the exhausted-supplies ledger to movement
+        # consumables only (「移動に関するルールなのでテレポート／ショート・
+        # テレポート／帰還の巻物に限定する」).
         return {
             "teleport-scroll": item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT),
             "phase-scroll": item("a", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR),
             "recall-scroll": item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+        }
+
+    def non_movement_potions(self):
+        return {
             "cure-critical": item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL),
             "healing": item("a", TVAL_POTION, SV_POTION_HEALING),
         }
@@ -43186,7 +43193,7 @@ class WarningGridAvoidanceTest(unittest.TestCase):
     def test_warning_prompt_is_answered_never_a_movement_key(self):
         # Revert-proof pin of the incident: at the prompt-bearing snapshot the
         # unfixed policy re-posts the movement key '8'; the fix answers 'n'.
-        supply = [item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)]
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(self.corridor(inventory=supply)), "8")
         key = policy.choose_key(
@@ -43202,7 +43209,7 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         self.assertIn(Position(26, 93), policy._engagement_avoid_cells)
 
     def test_refused_grid_is_not_retargeted_or_re_entered(self):
-        supply = [item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)]
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
         policy = self.refused_policy(supply)
 
         key = policy.choose_key(self.corridor(inventory=supply))
@@ -43221,7 +43228,7 @@ class WarningGridAvoidanceTest(unittest.TestCase):
             "en-plain": self.PROMPT_EN,
             "en-both-decorations": f"T:9214 - {self.PROMPT_EN} <x3>",
         }
-        supply = [item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)]
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
         for label, message in cases.items():
             with self.subTest(label):
                 policy = HengbotPolicy()
@@ -43239,9 +43246,9 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(self.corridor(inventory=[])), "8y")
         self.assertEqual(policy.last_reason, "seek-loot")
 
-        # Any single remaining supply forbids the forced walk: no 'y' is
-        # composed and the refused grid stays avoided.
-        for label, supply in self.supply_items().items():
+        # Any single remaining MOVEMENT supply forbids the forced walk: no
+        # 'y' is composed and the refused grid stays avoided.
+        for label, supply in self.movement_supplies().items():
             with self.subTest(label):
                 policy = self.refused_policy([supply])
                 key = policy.choose_key(self.corridor(inventory=[supply]))
@@ -43250,6 +43257,16 @@ class WarningGridAvoidanceTest(unittest.TestCase):
                 self.assertIn(
                     Position(26, 93), policy._engagement_avoid_cells
                 )
+
+        # This is a movement rule (user ruling): healing/status potions are
+        # not part of the ledger, so remaining potions do NOT block the
+        # forced walk.
+        for label, potion in self.non_movement_potions().items():
+            with self.subTest(f"non-blocking-{label}"):
+                policy = self.refused_policy([potion])
+                key = policy.choose_key(self.corridor(inventory=[potion]))
+                self.assertEqual(key, "8y")
+                self.assertEqual(policy.last_reason, "seek-loot")
 
     def test_unaware_copy_is_not_a_supply(self):
         # An unidentified Teleport scroll cannot be deliberately read; the

@@ -28292,20 +28292,19 @@ class HengbotPolicy:
     # --------------------------------------------------------------- utilities
     # ------------------------------------------------------- warning grids
     def _warning_supplies_exhausted(self, snapshot: Snapshot) -> bool:
-        """物資が全て尽きている (user spec, verbatim): no consumable that the
-        existing danger/escape machinery could spend on this situation
-        remains.  The ledger is the emergency ladder's own finders
-        (policy.py `_emergency_item`): the relocation reads (Teleport,
-        Teleport Level, Phase Door), the floor-escape read (Word of Recall),
-        and the healing/status potions (the heal-class svals plus Cure
-        Critical Wounds).  Every finder requires ``aware`` — an unidentified
-        copy cannot be deliberately spent, so it is not a supply."""
+        """物資が全て尽きている (user spec, verbatim), scoped by the user's
+        ruling 「移動に関するルールなのでテレポート／ショート・テレポート／
+        帰還の巻物に限定する」: this is a movement rule, so only the movement
+        consumables count — the relocation reads (Teleport, Teleport Level,
+        Phase Door) and the floor-escape read (Word of Recall).  Healing and
+        status-cure potions are deliberately NOT part of the ledger.  Every
+        finder requires ``aware`` — an unidentified copy cannot be
+        deliberately read, so it is not a supply; food and stairs are not
+        consumable supplies either."""
         return (
             self._find_teleport_scroll(snapshot) is None
             and self._find_phase_scroll(snapshot) is None
             and self._find_recall_scroll(snapshot) is None
-            and self._find_heal_potion(snapshot) is None
-            and self._find_status_cure_potion(snapshot) is None
         )
 
     def _refresh_warning_avoidance(self, snapshot: Snapshot) -> None:
