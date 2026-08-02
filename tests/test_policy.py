@@ -41863,14 +41863,14 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             store=StoreState(STORE_HOME, []) if at_home else None,
         )
 
-    def _approach_snapshot(self, inventory, *, turn=2247199):
+    def _entrance_snapshot(self, inventory, *, turn=2247201):
         return Snapshot(
-            player(45, 122, class_id=PLAYER_CLASS_WARRIOR),
+            player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
             {
-                Position(45, 122): grid(45, 122),
                 Position(45, 123): replace(
                     grid(45, 123), store_number=STORE_HOME
                 ),
+                Position(45, 122): grid(45, 122),
             },
             [],
             turn=turn,
@@ -41900,20 +41900,25 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             *extra,
         ]
 
-    def test_real_capture_posts_entry_deposit_and_exit_in_one_decision(self):
+    def test_real_capture_escape_then_posts_stay_deposit_exit_in_one_decision(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
-        approach = self._approach_snapshot(self._real_pack(target))
+        arrival = self._snapshot(self._real_pack(target), turn=2247200)
+        entrance = self._entrance_snapshot(self._real_pack(target))
 
-        key = self._post_atomic(policy, approach, target)
+        with patch.object(policy, "_decide", return_value=SELL_KEY + "f40\r"):
+            self.assertEqual(policy.choose_key(arrival), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
+        key = self._post_atomic(policy, entrance, target)
 
-        self.assertEqual(key, "6" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
         self.assertEqual(key.count(SELL_KEY), 1)
+        self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
 
     def test_pending_home_operation_never_waits_inside(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
-        approach = self._approach_snapshot(self._real_pack(target))
+        approach = self._entrance_snapshot(self._real_pack(target))
         home = self._snapshot(self._real_pack(target))
         self._post_atomic(policy, approach, target)
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
@@ -41930,16 +41935,31 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         stack = item("g", TVAL_ARROW, 2, count=7, name="seven arrows")
 
         single_key = self._post_atomic(
-            policy, self._approach_snapshot(self._real_pack(single)), single
+            policy, self._entrance_snapshot(self._real_pack(single)), single
         )
         policy._home_atomic_deposit_pending = None
         policy._home_entry_operation_posted = False
         stack_key = self._post_atomic(
-            policy, self._approach_snapshot(self._real_pack(stack)), stack
+            policy, self._entrance_snapshot(self._real_pack(stack)), stack
         )
 
-        self.assertEqual(single_key, "6df" + policy_module.LEAVE_STORE_KEY)
-        self.assertEqual(stack_key, "6dg7\r" + policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(single_key, "5df" + policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(stack_key, "5dg7\r" + policy_module.LEAVE_STORE_KEY)
+
+    def test_atomic_deposit_requires_player_on_home_entrance(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")
+        adjacent = replace(
+            self._entrance_snapshot(self._real_pack(target)),
+            player=player(45, 122, class_id=PLAYER_CLASS_WARRIOR),
+        )
+
+        policy._shopping_approach_store_type = STORE_HOME
+        with patch.object(policy, "_find_home_deposit", return_value=target):
+            self.assertIsNone(
+                policy._atomic_home_deposit_key(adjacent, Position(45, 123))
+            )
+        self.assertFalse(policy._home_entry_operation_posted)
 
     def test_already_inside_without_posted_operation_leaves_not_deposits(self):
         policy = HengbotPolicy()
@@ -41953,7 +41973,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
     def test_real_pack_teleport_and_recall_slots_cannot_be_side_effect_deposits(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
-        approach = self._approach_snapshot(self._real_pack(target))
+        approach = self._entrance_snapshot(self._real_pack(target))
         home = self._snapshot(self._real_pack(target))
         atomic = self._post_atomic(policy, approach, target)
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
@@ -41962,6 +41982,20 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertTrue(all("dd" not in key and "de" not in key for key in keys))
         self.assertEqual(sum("df40\r" in key for key in keys), 1)
+
+    def test_atomic_post_is_followed_directly_by_outside_observation(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")
+        entrance = self._entrance_snapshot(self._real_pack(target))
+        outside = self._snapshot(
+            self._real_pack(), at_home=False, turn=entrance.turn + 1
+        )
+
+        self.assertEqual(self._post_atomic(policy, entrance, target), "5df\x1b")
+        policy._decide = Mock(return_value=WAIT_KEY)
+        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        policy._decide.assert_called_once_with(outside)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
 
     def test_three_deposits_use_three_entries_and_finish(self):
         policy = HengbotPolicy()
@@ -41973,7 +42007,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         operations = []
 
         for target in targets:
-            approach = self._approach_snapshot(remaining)
+            approach = self._entrance_snapshot(remaining)
             operations.append(self._post_atomic(policy, approach, target))
             remaining = [item_ for item_ in remaining if item_.slot != target.slot]
             outside = self._snapshot(remaining, at_home=False, turn=approach.turn + 1)
@@ -41982,7 +42016,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             operations,
-            ["6" + SELL_KEY + slot + "40\r" + policy_module.LEAVE_STORE_KEY for slot in "fgh"],
+            ["5" + SELL_KEY + slot + "40\r" + policy_module.LEAVE_STORE_KEY for slot in "fgh"],
         )
         self.assertEqual([item_.slot for item_ in remaining], ["d", "e"])
 
