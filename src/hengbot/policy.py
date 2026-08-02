@@ -60,6 +60,7 @@ from hengbot.monster_ranged_evaluator import (
 )
 from hengbot.projection_path import projection_path
 from hengbot.warrior_optimization import (
+    PLAYER_ABILITY_FLAGS,
     WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
     prepare_warrior_optimization,
@@ -8575,12 +8576,10 @@ class HengbotPolicy:
             return None
         selected_depth = None
         selected_preparation = None
-        seen_requirements: set[frozenset[str]] = set()
-        for depth in range(optimization_depth - 1, 0, -1):
-            requirements = required_depth_gates(depth)
-            if requirements in seen_requirements:
-                continue
-            seen_requirements.add(requirements)
+        band_depths: dict[frozenset[str], int] = {}
+        for depth in range(1, optimization_depth):
+            band_depths[required_depth_gates(depth)] = depth
+        for depth in sorted(band_depths.values()):
             candidate = self._prepare_equipment_optimization(
                 snapshot, depth_override=depth
             )
@@ -8589,7 +8588,6 @@ class HengbotPolicy:
                 continue
             selected_depth = depth
             selected_preparation = candidate
-            break
         if selected_depth is None or selected_preparation is None:
             self._loadout_depth_fallback_depth = None
             self._equipment_optimization_signature = None
@@ -22258,6 +22256,62 @@ class HengbotPolicy:
             }
         self._prev_inv_counts = cur_counts
 
+    def _achievable_equipment_snapshot(
+        self, snapshot: Snapshot, depth: int
+    ) -> Snapshot | None:
+        """Return the player profile of the best legal owned loadout at *depth*.
+
+        This is a commitment-time projection only.  It never changes the source
+        snapshot used by stairs, current-floor safety, or live combat decisions.
+        """
+        if (
+            not snapshot.in_town
+            or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+            or not self._equipment_catalog.home_scan_complete
+        ):
+            return snapshot
+        preparation = self._prepare_equipment_optimization(
+            snapshot, depth_override=depth
+        )
+        result = getattr(preparation, "result", None)
+        best = getattr(result, "best", None)
+        loadout = getattr(best, "loadout", None)
+        if preparation is None or loadout is None:
+            return None
+
+        current_flags = {
+            flag
+            for owned in self._equipment_catalog.items
+            if owned.origin == "equipped"
+            for flag in owned.flags
+        }
+        intrinsic = {
+            ability
+            for ability in snapshot.player.abilities
+            if PLAYER_ABILITY_FLAGS.get(ability) not in current_flags
+        }
+        abilities = intrinsic | {
+            ability
+            for ability, flag in PLAYER_ABILITY_FLAGS.items()
+            if flag in loadout.flags
+        }
+        current_speed = sum(
+            owned.item.pval
+            for owned in self._equipment_catalog.items
+            if owned.origin == "equipped" and 12 in owned.flags
+        )
+        achievable_speed = sum(
+            owned.item.pval for _, owned in loadout.slots if 12 in owned.flags
+        )
+        return replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                abilities=frozenset(abilities),
+                speed=snapshot.player.speed - current_speed + achievable_speed,
+            ),
+        )
+
     def _resistance_depth_limit(self, snapshot: Snapshot) -> int:
         # The deepest floor the character can dive without a lethal resistance gap:
         # the deepest depth for which it (and every shallower band) has the mandatory
@@ -22265,13 +22319,18 @@ class HengbotPolicy:
         # resistance is additionally required from 21F through 25F.
         limit = 0
         for depth in range(1, 128):
-            if self._missing_required_abilities(snapshot, depth):
+            profile = self._achievable_equipment_snapshot(snapshot, depth)
+            if profile is None or self._missing_required_abilities(profile, depth):
                 break
             limit = depth
         return limit
 
     def _guardian_fight_viable(
-        self, snapshot: Snapshot, info: DungeonInfo
+        self,
+        snapshot: Snapshot,
+        info: DungeonInfo,
+        *,
+        equipment_profile: Snapshot | None = None,
     ) -> bool:
         """Whether current gear and consumables can clear this final guardian."""
         if info.guardian_id <= 0:
@@ -22314,10 +22373,11 @@ class HengbotPolicy:
             max_ranged_damage=knowledge.max_ranged_damage,
             can_multiply=knowledge.can_multiply,
         )
+        fight_source = equipment_profile or snapshot
         fight_snapshot = replace(
-            snapshot,
+            fight_source,
             player=replace(
-                snapshot.player,
+                fight_source.player,
                 position=player_position,
                 hp=snapshot.player.max_hp,
             ),
@@ -22401,7 +22461,10 @@ class HengbotPolicy:
                 continue
             if info.max_depth <= 0 or info.max_depth > limit:
                 continue  # cannot safely reach its guardian floor
-            if not self._guardian_fight_viable(snapshot, info):
+            profile = self._achievable_equipment_snapshot(snapshot, info.max_depth)
+            if profile is None or not self._guardian_fight_viable(
+                snapshot, info, equipment_profile=profile
+            ):
                 continue
             if best is None or info.max_depth > best.max_depth:
                 best = info

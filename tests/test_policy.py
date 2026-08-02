@@ -36938,6 +36938,139 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
         self.assertIs(policy._equipment_optimization_preparation, valid)
 
 
+class AchievableEquipmentProfileTest(unittest.TestCase):
+    """Regression shape from character #7's owned catalog: the mandatory
+    fire-resistance source is in Home while free action is already worn."""
+
+    @staticmethod
+    def _town_and_loadout():
+        boots = item(
+            "feet", 37, 1, name="free action boots", known=True,
+            fully_known=True, is_equipment=True,
+            known_flags=frozenset({46}),
+        )
+        light = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, name="Brass Lantern",
+            known=True, fully_known=True, is_equipment=True,
+            fuel=5000,
+        )
+        fire = store_item(
+            "a", 34, 1, name="home fire source", known=True,
+            fully_known=True, is_equipment=True, known_flags=frozenset({50}),
+        )
+        snapshot = Snapshot(
+            player(
+                10, 10, class_id=PLAYER_CLASS_WARRIOR,
+                abilities=frozenset({"free_action"}),
+            ),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            equipment=[boots, light],
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried([], snapshot.equipment)
+        policy._equipment_catalog.observe_home_page([fire])
+        policy._equipment_catalog.observe_home_page([])
+        policy._equipment_catalog.observe_home_page([fire])
+        owned = {entry.item.name: entry for entry in policy._equipment_catalog.items}
+        loadout = Loadout(
+            (("feet", owned["free action boots"]),
+             ("light", owned["Brass Lantern"]),
+             ("body", owned["home fire source"])),
+            "empty",
+        )
+        return policy, snapshot, loadout
+
+    def test_home_only_resistance_makes_deeper_profile_achievable(self):
+        policy, snapshot, loadout = self._town_and_loadout()
+        preparation = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout=loadout))
+        )
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ):
+            profile = policy._achievable_equipment_snapshot(snapshot, 20)
+
+        self.assertNotIn("resist_fire", snapshot.player.abilities)
+        self.assertIn("resist_fire", profile.player.abilities)
+        self.assertFalse(policy._missing_required_abilities(profile, 20))
+        self.assertTrue(policy._missing_required_abilities(snapshot, 20))
+
+    def test_home_only_resistance_commits_target_and_raises_optimizer_depth(self):
+        policy, snapshot, loadout = self._town_and_loadout()
+        target = DungeonInfo(4, "recorded deep target", 10, 20, 0)
+        policy._dungeon_knowledge = {4: target}
+        snapshot = replace(snapshot, entered_dungeon_ids=(4,))
+        preparation = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout=loadout))
+        )
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ):
+            self.assertEqual(policy._conquest_target(snapshot), 4)
+
+        policy._target_dungeon_id = 4
+        self.assertEqual(policy._equipment_optimization_depth(snapshot), 20)
+
+    def test_entry_and_current_floor_safety_still_use_worn_profile(self):
+        policy, town, loadout = self._town_and_loadout()
+        dungeon = replace(
+            town,
+            floor_key=(DUNGEON_ANGBAND, 19, 0),
+            town_flag=False,
+            grids={Position(10, 10): grid(10, 10, downstairs=True)},
+        )
+        preparation = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout=loadout))
+        )
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ):
+            self.assertFalse(
+                policy._is_descent_target(
+                    dungeon, dungeon.grid_at(Position(10, 10))
+                )
+            )
+            self.assertTrue(policy._should_start_town_return(replace(
+                dungeon, floor_key=(DUNGEON_ANGBAND, 20, 0)
+            )))
+
+    def test_depth_fallback_probes_ascending_and_keeps_deepest_valid_band(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 20
+        policy._target_dungeon_id = DUNGEON_ANGBAND
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            recall_depth=20, recall_dungeon_id=DUNGEON_ANGBAND,
+            dungeon_recall_depths={DUNGEON_ANGBAND: 20},
+        )
+        invalid = SimpleNamespace(
+            blockers=("no-valid-loadout",), result=SimpleNamespace(best=None)
+        )
+        valid = SimpleNamespace(
+            blockers=(), result=SimpleNamespace(best=SimpleNamespace(loadout=object()))
+        )
+        probes = []
+
+        def prepare(_snapshot, *, depth_override=None):
+            probes.append(depth_override)
+            if depth_override is None:
+                return invalid
+            return valid if depth_override in {19, 20} else invalid
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", side_effect=prepare
+        ), patch.object(policy, "_next_required_store_type", return_value=None):
+            self.assertEqual(
+                policy._activate_loadout_depth_fallback(snapshot), DUNGEON_ANGBAND
+            )
+
+        self.assertEqual(probes, [None, 19, 20])
+        self.assertEqual(policy._loadout_depth_fallback_depth, 20)
+
+
 class ResistanceGapReturnTest(unittest.TestCase):
     """_is_descent_target only ever gates the NEXT floor (dungeon_level + 1); nothing
     previously caught the character already standing somewhere its CURRENT gear no
