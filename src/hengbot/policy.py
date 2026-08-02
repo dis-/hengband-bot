@@ -2343,11 +2343,17 @@ class HengbotPolicy:
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
         )
-        if snapshot.store is None and (
-            leaving_home or self._home_atomic_deposit_pending is not None
-        ):
+        if snapshot.store is None and leaving_home:
             self._home_entry_operation_posted = False
             self._home_atomic_deposit_pending = None
+        elif (
+            snapshot.store is None
+            and self._home_atomic_deposit_pending is not None
+        ):
+            signature, count_before = self._home_atomic_deposit_pending
+            if self._inventory_signature_count(snapshot, signature) < count_before:
+                self._home_entry_operation_posted = False
+                self._home_atomic_deposit_pending = None
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -2433,6 +2439,7 @@ class HengbotPolicy:
                 snapshot,
                 STORE_HOME,
                 goal_satisfied=not self._home_owner_goal_pending(snapshot),
+                operation_completed=self._home_entry_operation_posted,
             )
         if (
             snapshot.store is not None
@@ -8176,7 +8183,7 @@ class HengbotPolicy:
             return WAIT_KEY
         if session.required_context == "home":
             step = self._shopping_approach_step(snapshot)
-            if step is None:
+            if step is None or self._shopping_approach_store_type != STORE_HOME:
                 self._block_equipment_transaction("home-unreachable")
                 self.last_reason = "equipment-transaction:home-unreachable"
                 return WAIT_KEY
@@ -12146,7 +12153,12 @@ class HengbotPolicy:
             self._home_withdraw_inflight = None
 
     def _report_town_stop_pass(
-        self, snapshot: Snapshot, store_type: int, *, goal_satisfied: bool
+        self,
+        snapshot: Snapshot,
+        store_type: int,
+        *,
+        goal_satisfied: bool,
+        operation_completed: bool = False,
     ) -> None:
         """Report one handler pass to the plan that owns this town objective."""
         self._town_visit_ledger.store_visits[store_type] += 1
@@ -12214,6 +12226,9 @@ class HengbotPolicy:
                         plan.rearmed_home_categories.append(need.category)
             plan.current_stop_passes = 0
             plan.index += 1
+            return
+        if operation_completed:
+            plan.current_stop_passes = 0
             return
         plan.current_stop_passes += 1
         self._town_visit_ledger.unsatisfied_passes[store_type] += 1

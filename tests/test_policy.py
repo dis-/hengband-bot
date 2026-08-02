@@ -42185,6 +42185,115 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._decide.assert_called_once_with(outside)
         self.assertIsNone(policy._home_atomic_deposit_pending)
 
+    def test_atomic_latch_survives_interleaved_outside_snapshot_until_confirmed(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")
+        entrance = self._entrance_snapshot(self._real_pack(target))
+        unchanged = self._snapshot(
+            self._real_pack(target), at_home=False, turn=entrance.turn + 1
+        )
+
+        self._post_atomic(policy, entrance, target)
+        pending = policy._home_atomic_deposit_pending
+        policy._decide = Mock(return_value=WAIT_KEY)
+        policy.choose_key(unchanged)
+
+        self.assertTrue(policy._home_entry_operation_posted)
+        self.assertEqual(policy._home_atomic_deposit_pending, pending)
+
+        confirmed = replace(
+            unchanged,
+            turn=unchanged.turn + 1,
+            inventory=self._real_pack(),
+        )
+        policy.choose_key(confirmed)
+        self.assertFalse(policy._home_entry_operation_posted)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+
+    def test_atomic_latch_clears_when_home_leave_is_observed(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")
+        entrance = self._entrance_snapshot(self._real_pack(target))
+        unchanged = self._snapshot(
+            self._real_pack(target), at_home=False, turn=entrance.turn + 1
+        )
+
+        self._post_atomic(policy, entrance, target)
+        policy._store_leave_inflight = (
+            policy._decision_sequence,
+            entrance.turn,
+            STORE_HOME,
+        )
+        policy._decide = Mock(return_value=WAIT_KEY)
+        policy.choose_key(unchanged)
+
+        self.assertFalse(policy._home_entry_operation_posted)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+
+    def test_real_capture_three_progress_leaves_keep_home_stop_available(self):
+        policy = HengbotPolicy()
+        snapshot = self._entrance_snapshot(self._real_pack(), turn=2247201)
+        home = self._snapshot(self._real_pack(), turn=2247202)
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+        )
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        policy._equipment_transaction_session = None
+
+        policy._home_entry_operation_posted = True
+        with patch.object(policy, "_home_owner_goal_pending", return_value=True):
+            for _ in range(3):
+                self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+                self.assertEqual(
+                    policy.last_reason, "home:leave-after-one-operation"
+                )
+
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0
+        )
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(policy._town_errand_plan.index, 0)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotEqual(
+            policy._town_blocked_reason, "departure-unsatisfiable"
+        )
+
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False
+        )
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 1
+        )
+
+    def test_transaction_home_route_rejects_non_home_approach_target(self):
+        policy = HengbotPolicy()
+        snapshot = self._entrance_snapshot(self._real_pack())
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True,
+            required_context="home",
+            pending_action=None,
+            current_action=None,
+        )
+        policy._shopping_approach_store_type = STORE_GENERAL
+
+        with (
+            patch.object(policy, "_prepare_equipment_optimization"),
+            patch.object(
+                policy, "_shopping_approach_step", return_value=Position(45, 84)
+            ),
+            patch.object(policy, "_block_equipment_transaction") as block,
+            patch.object(policy, "_shopping_approach_key") as approach_key,
+        ):
+            key = policy._equipment_transaction_town_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "equipment-transaction:home-unreachable")
+        block.assert_called_once_with("home-unreachable")
+        approach_key.assert_not_called()
+
     def test_three_deposits_use_three_entries_and_finish(self):
         policy = HengbotPolicy()
         targets = [
