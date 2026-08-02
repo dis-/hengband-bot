@@ -311,6 +311,21 @@ def home_page_message_body(message: str) -> str:
     return match.group("body") if match else message
 
 
+# A TR_WARNING item's forecast (object/warning.cpp:504-516, damage over half of
+# current HP) and its trap forecast (:528-538) both end in the same
+# input_check(「本当にこのまま進むか？」/"Really want to go ahead? ").
+# input_check appends "[y/n]" to the prompt before message_add records it
+# (core/asking-player.cpp:226-248), so the exported message carries that
+# suffix; recognition therefore matches the prompt as a PREFIX of the
+# normalized body (both registered decorations stripped first).  Matching the
+# prompt covers both call sites — the handler answers the prompt, not one
+# forecast.
+WARNING_PROMPT_MESSAGE_PREFIXES = (
+    "本当にこのまま進むか？",
+    "Really want to go ahead?",
+)
+
+
 @dataclass
 class TownTravelProgress:
     goal: Position
@@ -1702,6 +1717,18 @@ class HengbotPolicy:
         # Cells from which the material-engagement gate deliberately retreated.
         # Generic exploration/hunting must not immediately route back onto them.
         self._engagement_avoid_cells: set[Position] = set()
+        # Grids whose entry a TR_WARNING prompt refused (this floor).  Injected
+        # into _engagement_avoid_cells every decision — the same hard weight as
+        # a lethal-danger cell — until the supply ledger is entirely exhausted,
+        # at which point the user-sanctioned forced walk (direction key + 'y')
+        # is the only remaining way off the situation.
+        self._warning_refused_cells: set[Position] = set()
+        # The single walk issued by the previous decision, so the warning
+        # prompt reported by the NEXT snapshot can be attributed to the grid
+        # that was being entered: (decision_sequence, floor_key, origin, step).
+        self._warning_step_pending: (
+            tuple[int, tuple[int, int, int], Position, Position] | None
+        ) = None
         # Per-decision grid indexes (y, x) tuples: floor we can walk onto,
         # closed doors we can open, and all currently-known tiles. Rebuilt each
         # decision so the hot BFS loops use set lookups instead of dict access
@@ -3246,7 +3273,15 @@ class HengbotPolicy:
             self._record_shop_selector_diagnostics(snapshot, key)
             return key
 
+        # A TR_WARNING prompt reported by this snapshot is answered before any
+        # other purpose is pursued: the movement that raised it was refused,
+        # and re-choosing that movement is the loop this handler removes.
+        warning_response = self._warning_prompt_response_key(snapshot)
+        if warning_response is not None:
+            return warning_response
+
         self._build_grid_index(snapshot)
+        self._refresh_warning_avoidance(snapshot)
         player = snapshot.player
         strategic_hostiles = self._strategic_hostiles(snapshot)
         strategic_adjacent = self._strategic_adjacent_hostiles(snapshot)
@@ -5030,6 +5065,8 @@ class HengbotPolicy:
             self._window_edge_goals.clear()
             self._window_edge_fallback_pending = False
             self._engagement_avoid_cells.clear()
+            self._warning_refused_cells.clear()
+            self._warning_step_pending = None
             self._probe_counts.clear()
             self._floor_trap_disarm_attempts.clear()
             self._door_attempts.clear()
@@ -28253,6 +28290,91 @@ class HengbotPolicy:
         return min(candidates, key=score)
 
     # --------------------------------------------------------------- utilities
+    # ------------------------------------------------------- warning grids
+    def _warning_supplies_exhausted(self, snapshot: Snapshot) -> bool:
+        """物資が全て尽きている (user spec, verbatim): no consumable that the
+        existing danger/escape machinery could spend on this situation
+        remains.  The ledger is the emergency ladder's own finders
+        (policy.py `_emergency_item`): the relocation reads (Teleport,
+        Teleport Level, Phase Door), the floor-escape read (Word of Recall),
+        and the healing/status potions (the heal-class svals plus Cure
+        Critical Wounds).  Every finder requires ``aware`` — an unidentified
+        copy cannot be deliberately spent, so it is not a supply."""
+        return (
+            self._find_teleport_scroll(snapshot) is None
+            and self._find_phase_scroll(snapshot) is None
+            and self._find_recall_scroll(snapshot) is None
+            and self._find_heal_potion(snapshot) is None
+            and self._find_status_cure_potion(snapshot) is None
+        )
+
+    def _refresh_warning_avoidance(self, snapshot: Snapshot) -> None:
+        """Keep warning-refused grids at lethal-danger navigation weight.
+
+        Injected into (or withdrawn from) the shared avoid set once per
+        decision so every BFS — loot, exploration, flee, hunt, stairs —
+        prices them identically to a lethal-danger cell.  While supplies
+        remain, a destination only reachable through one is simply
+        unreachable by walking and the existing danger/escape machinery owns
+        the situation; only the entirely-exhausted ledger withdraws the
+        avoidance so the user-sanctioned forced walk can route through."""
+        cells = self._warning_refused_cells
+        if not cells:
+            return
+        if self._warning_supplies_exhausted(snapshot):
+            self._engagement_avoid_cells -= cells
+        else:
+            self._engagement_avoid_cells |= cells
+            if any(step in cells for step in self._explore_path):
+                # A committed exploration path replays without re-planning;
+                # drop it rather than march the tail back into the grid.
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+
+    def _warning_prompt_response_key(self, snapshot: Snapshot) -> str | None:
+        """Answer a TR_WARNING entry prompt reported by this snapshot.
+
+        Snapshots are emitted only from the command loop
+        (player-processor.cpp:312), so by the time the prompt's message is
+        visible the blocking input_check has already been dismissed — the
+        CLI's stall nudge posts Escape, which input_check treats as "no".
+        This handler makes the refusal DELIBERATE: it attributes the prompt
+        to the grid the previous decision walked into, latches that grid,
+        and answers 'n' itself.  At the original-keyset command loop 'n' is
+        an unbound command (pref-key.prf maps it only for the roguelike
+        keyset), so the posted 'n' answers the prompt when one is somehow
+        still pending and is a harmless no-op when it is not — never a
+        movement key chosen for another purpose."""
+        if not any(
+            home_page_message_body(message).startswith(
+                WARNING_PROMPT_MESSAGE_PREFIXES
+            )
+            for message in snapshot.messages
+        ):
+            return None
+        pending = self._warning_step_pending
+        self._warning_step_pending = None
+        if pending is not None:
+            sequence, floor_key, origin, target = pending
+            attributable = (
+                sequence == self._decision_sequence - 1
+                and floor_key == snapshot.floor_key
+            )
+            if attributable and snapshot.player.position == target:
+                # The walk went through: a forced walk's attached 'y'
+                # answered the prompt inline, or warning.cpp:501's
+                # old_damage suppression let the move pass.  The message is
+                # a record of that crossing, not an unanswered question.
+                return None
+            if attributable and snapshot.player.position == origin:
+                self._warning_refused_cells.add(target)
+                self._engagement_avoid_cells.add(target)
+                if self._loot_target == target:
+                    self._loot_target = None
+                if target in self._explore_path:
+                    self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        self.last_reason = "warning:refuse"
+        return "n"
+
     def _direction_key(self, origin: Position, target: Position) -> str:
         dy = max(-1, min(1, target.y - origin.y))
         dx = max(-1, min(1, target.x - origin.x))
@@ -28306,6 +28428,24 @@ class HengbotPolicy:
         ):
             tunnel = self._mining_tunnel_key(snapshot, step)
             return tunnel if tunnel is not None else key
+        # A plain walk may meet a TR_WARNING entry prompt; remember which grid
+        # this decision entered so the next snapshot's prompt message can be
+        # attributed to it (see _warning_prompt_response_key).
+        self._warning_step_pending = (
+            self._decision_sequence,
+            snapshot.floor_key,
+            snapshot.player.position,
+            step,
+        )
+        if step in self._warning_refused_cells and self._warning_supplies_exhausted(
+            snapshot
+        ):
+            # 物資が全て尽きている場合のみ徒歩強行を許す: the forced walk
+            # carries its deliberate 'y' with the movement key, so the
+            # re-raised input_check is answered inline.  When warning.cpp:501
+            # suppresses the re-check the move just executes and the trailing
+            # 'y' is an unbound original-keyset command — a no-op.
+            return key + "y"
         return key
 
 

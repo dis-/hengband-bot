@@ -43135,5 +43135,164 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         )
 
 
+class WarningGridAvoidanceTest(unittest.TestCase):
+    """The 2026-08-03 06:23 Orc cave 19F capture: loot at (25,93) two cells
+    north of (27,93), the step grid (26,93) raising the TR_WARNING prompt
+    「本当にこのまま進むか？[y/n]」, and the bot re-posting '8' forever."""
+
+    FLOOR = (3, 19, 0)
+    PROMPT_JA = "本当にこのまま進むか？[y/n]"
+    PROMPT_EN = "Really want to go ahead? [y/n]"
+
+    def corridor(self, *, position=Position(27, 93), messages=(), inventory=()):
+        grids = {
+            Position(28, 93): grid(28, 93),
+            Position(27, 93): grid(27, 93),
+            Position(26, 93): grid(26, 93),
+            Position(25, 93): grid(25, 93, objects=1, unsafe=True),
+        }
+        return Snapshot(
+            player(position.y, position.x, hp=606, max_hp=606, level=31),
+            grids,
+            [],
+            floor_key=self.FLOOR,
+            inventory=list(inventory),
+            messages=tuple(messages),
+        )
+
+    def supply_items(self):
+        return {
+            "teleport-scroll": item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            "phase-scroll": item("a", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR),
+            "recall-scroll": item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+            "cure-critical": item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL),
+            "healing": item("a", TVAL_POTION, SV_POTION_HEALING),
+        }
+
+    def refused_policy(self, inventory):
+        """Drive the capture through choose_key up to the answered prompt."""
+        policy = HengbotPolicy()
+        first = policy.choose_key(self.corridor(inventory=inventory))
+        self.assertEqual(first, "8")
+        self.assertEqual(policy.last_reason, "seek-loot")
+        policy.choose_key(
+            self.corridor(
+                messages=("T:12345 - ボロ布が鋭く震えた！", self.PROMPT_JA),
+                inventory=inventory,
+            )
+        )
+        return policy
+
+    def test_warning_prompt_is_answered_never_a_movement_key(self):
+        # Revert-proof pin of the incident: at the prompt-bearing snapshot the
+        # unfixed policy re-posts the movement key '8'; the fix answers 'n'.
+        supply = [item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)]
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(self.corridor(inventory=supply)), "8")
+        key = policy.choose_key(
+            self.corridor(
+                messages=("T:12345 - ボロ布が鋭く震えた！", self.PROMPT_JA),
+                inventory=supply,
+            )
+        )
+        self.assertNotIn(key, set("12346789"))
+        self.assertEqual(key, "n")
+        self.assertEqual(policy.last_reason, "warning:refuse")
+        self.assertIn(Position(26, 93), policy._warning_refused_cells)
+        self.assertIn(Position(26, 93), policy._engagement_avoid_cells)
+
+    def test_refused_grid_is_not_retargeted_or_re_entered(self):
+        supply = [item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)]
+        policy = self.refused_policy(supply)
+
+        key = policy.choose_key(self.corridor(inventory=supply))
+
+        # The only route to the loot runs through the refused grid, so the
+        # loot is unreachable by walking and must not be selected again.
+        self.assertIsNone(policy._loot_target)
+        self.assertNotEqual(policy.last_reason, "seek-loot")
+        self.assertNotEqual(key, "8")
+
+    def test_prompt_recognized_with_decorations_in_both_languages(self):
+        cases = {
+            "ja-plain": self.PROMPT_JA,
+            "ja-turn-prefix": f"T:9214 - {self.PROMPT_JA}",
+            "ja-repeat-suffix": f"{self.PROMPT_JA} <x2>",
+            "en-plain": self.PROMPT_EN,
+            "en-both-decorations": f"T:9214 - {self.PROMPT_EN} <x3>",
+        }
+        supply = [item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)]
+        for label, message in cases.items():
+            with self.subTest(label):
+                policy = HengbotPolicy()
+                policy.choose_key(self.corridor(inventory=supply))
+                key = policy.choose_key(
+                    self.corridor(messages=(message,), inventory=supply)
+                )
+                self.assertEqual(key, "n")
+                self.assertIn(Position(26, 93), policy._warning_refused_cells)
+
+    def test_forced_walk_only_when_supplies_entirely_exhausted(self):
+        # Entirely exhausted ledger: the refusal stands once ('n'), then the
+        # forced walk re-enters the grid with its deliberate 'y' attached.
+        policy = self.refused_policy([])
+        self.assertEqual(policy.choose_key(self.corridor(inventory=[])), "8y")
+        self.assertEqual(policy.last_reason, "seek-loot")
+
+        # Any single remaining supply forbids the forced walk: no 'y' is
+        # composed and the refused grid stays avoided.
+        for label, supply in self.supply_items().items():
+            with self.subTest(label):
+                policy = self.refused_policy([supply])
+                key = policy.choose_key(self.corridor(inventory=[supply]))
+                self.assertNotIn("y", key)
+                self.assertNotEqual(key, "8")
+                self.assertIn(
+                    Position(26, 93), policy._engagement_avoid_cells
+                )
+
+    def test_unaware_copy_is_not_a_supply(self):
+        # An unidentified Teleport scroll cannot be deliberately read; the
+        # ledger reports exhausted and the forced walk proceeds.
+        unaware = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT, aware=False)]
+        policy = self.refused_policy(unaware)
+        self.assertEqual(policy.choose_key(self.corridor(inventory=unaware)), "8y")
+
+    def test_walk_through_prompt_report_is_not_a_refusal(self):
+        # After the forced walk crosses, the next snapshot still carries the
+        # prompt message (input_check records it before the attached 'y' is
+        # consumed).  Standing ON the entered grid proves the crossing: no
+        # 'n', no re-latch, ordinary progress toward the loot resumes.
+        policy = self.refused_policy([])
+        self.assertEqual(policy.choose_key(self.corridor(inventory=[])), "8y")
+        key = policy.choose_key(
+            self.corridor(
+                position=Position(26, 93),
+                messages=(self.PROMPT_JA,),
+                inventory=[],
+            )
+        )
+        self.assertEqual(key, "8")
+        self.assertEqual(policy.last_reason, "seek-loot")
+
+    def test_unattributable_prompt_still_answered_without_a_record(self):
+        # A fresh process (restart over a pending prompt) sees the prompt
+        # message without having issued the walk: answer 'n' deliberately,
+        # record nothing — the retried movement re-raises the prompt and the
+        # next pass attributes it.
+        policy = HengbotPolicy()
+        key = policy.choose_key(self.corridor(messages=(self.PROMPT_JA,)))
+        self.assertEqual(key, "n")
+        self.assertEqual(policy.last_reason, "warning:refuse")
+        self.assertFalse(policy._warning_refused_cells)
+
+    def test_floor_change_clears_warning_refusals(self):
+        policy = self.refused_policy([])
+        other_floor = self.corridor(inventory=[])
+        other_floor = replace(other_floor, floor_key=(3, 20, 0))
+        policy.choose_key(other_floor)
+        self.assertFalse(policy._warning_refused_cells)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -80,6 +80,18 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_observe", "ExplorationPathOutcome.INVALIDATE"),
+                # Warning-grid avoidance: a committed path may not replay a
+                # step into a grid a TR_WARNING prompt refused, so both the
+                # refusal record and the per-decision avoidance refresh drop
+                # an intersecting committed path.
+                (
+                    "_refresh_warning_avoidance",
+                    "ExplorationPathOutcome.INVALIDATE",
+                ),
+                (
+                    "_warning_prompt_response_key",
+                    "ExplorationPathOutcome.INVALIDATE",
+                ),
                 ("_fundraising_key", "ExplorationPathOutcome.ABANDON"),
                 ("_return_to_town_key", "ExplorationPathOutcome.PAUSE"),
                 ("_return_to_town_key", "ExplorationPathOutcome.PAUSE"),
