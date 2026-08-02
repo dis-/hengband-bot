@@ -23620,6 +23620,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
         policy = HengbotPolicy()
+        policy._decide = Mock(return_value=SELL_KEY + gear.slot)
         self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
 
@@ -23651,6 +23652,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._equipment_catalog.observe_home_page([home_item])
         policy._equipment_catalog.observe_home_page([home_item])
+        policy._decide = Mock(return_value=SELL_KEY + surplus.slot)
 
         self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
@@ -29837,6 +29839,7 @@ class RemoveCurseTest(unittest.TestCase):
             inventory=[carried],
             store=StoreState(STORE_HOME, []),
         )
+        policy._home_entry_operation_posted = True
         self.assertEqual(policy._shop(home), "ds")
         self.assertEqual(policy.last_reason, "home:deposit")
 
@@ -29895,6 +29898,7 @@ class RemoveCurseTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_star_remove_curse_count = 0
         policy._star_remove_curse_reserve_deposit_pending = True
+        policy._home_entry_operation_posted = True
 
         first = policy._shop(home)
         second = policy._shop(home)
@@ -38472,6 +38476,7 @@ class HomeFullLatchTest(unittest.TestCase):
             store=StoreState(STORE_HOME, []),
         )
         pol = HengbotPolicy()
+        pol._home_entry_operation_posted = True
 
         keys = [pol._shop(snap) for _ in range(STORE_STUCK_LIMIT + 1)]
 
@@ -41914,6 +41919,81 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
         self.assertEqual(key.count(SELL_KEY), 1)
         self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
+
+    def test_133250_mixed_home_visit_yields_then_posts_atomic_deposit(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        categories = ("equipment-catalog", "identification-withdrawal", "deposit")
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_ALCHEMIST, STORE_HOME],
+            need_categories={STORE_HOME: categories},
+        )
+        home = self._snapshot(self._real_pack(target), turn=2323504)
+
+        with (
+            patch.object(policy, "_find_home_deposit", return_value=target),
+            patch.object(policy, "_home_deposit_key") as deposit_key,
+        ):
+            policy._shop(home)
+
+        deposit_key.assert_not_called()
+        self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
+
+        policy._town_visit_ledger.satisfied_needs.update(
+            {
+                (STORE_HOME, "equipment-catalog"),
+                (STORE_HOME, "identification-withdrawal"),
+            }
+        )
+        entrance = self._entrance_snapshot(self._real_pack(target), turn=2323505)
+        key = self._post_atomic(policy, entrance, target)
+
+        self.assertEqual(key, "5df40\r\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-deposit")
+        self.assertNotEqual(policy._town_blocked_reason, "departure-unsatisfiable")
+
+    def test_unfinishable_home_category_blocks_then_allows_atomic_deposit(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=1, name="surplus arrow")
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            need_categories={
+                STORE_HOME: ("equipment-catalog", "deposit"),
+            },
+        )
+        snapshot = self._snapshot(self._real_pack(target), turn=2323504)
+
+        with patch.object(
+            policy,
+            "_enumerate_town_needs",
+            return_value=[TownNeed(STORE_HOME, "equipment-catalog", "home-first")],
+        ):
+            for _ in range(TOWN_STOP_PASS_LIMIT):
+                policy._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=False
+                )
+
+        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
+        policy._town_errand_plan.index = 0
+        key = self._post_atomic(
+            policy, self._entrance_snapshot(self._real_pack(target)), target
+        )
+
+        self.assertEqual(key, "5df\x1b")
+
+    def test_warrior_incomplete_scan_does_not_emit_unbound_deposit(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        policy._equipment_catalog.home_scan_complete = False
+        home = self._snapshot(self._real_pack(target))
+
+        with (
+            patch.object(policy, "_find_home_deposit", return_value=target),
+            patch.object(policy, "_home_deposit_key") as deposit_key,
+        ):
+            policy._shop(home)
+
+        deposit_key.assert_not_called()
 
     def test_pending_home_operation_never_waits_inside(self):
         policy = HengbotPolicy()

@@ -9184,8 +9184,13 @@ class HengbotPolicy:
             plan is not None
             and plan.index < len(plan.stops)
             and plan.stops[plan.index] == STORE_HOME
+            and STORE_HOME not in plan.completed_this_visit
+            and STORE_HOME not in plan.blocked_this_visit
+            and STORE_HOME not in self._town_visit_ledger.blocked_stores
             and any(
                 category not in {"deposit", "weight-overload"}
+                and (STORE_HOME, category)
+                not in self._town_visit_ledger.satisfied_needs
                 for category in plan.need_categories.get(STORE_HOME, ())
             )
         ):
@@ -14781,7 +14786,7 @@ class HengbotPolicy:
                 # enter/leave/re-enter cycle.  Retention rules inside
                 # _find_home_deposit preserve the digger and consumable kit.
                 deposit = self._find_home_deposit(snapshot)
-                if deposit is not None:
+                if deposit is not None and self._home_entry_operation_posted:
                     return self._home_deposit_key(snapshot, deposit)
                 required_scrolls = self._mining_detection_scroll_target(snapshot)
                 scrolls_needed = required_scrolls + DETECTION_SCROLL_BUFFER
@@ -14919,7 +14924,7 @@ class HengbotPolicy:
                 return BUY_KEY + stored_book.letter + "\r"
 
             deposit = self._find_home_deposit(snapshot)
-            if deposit is not None:
+            if deposit is not None and self._home_entry_operation_posted:
                 return self._home_deposit_key(snapshot, deposit)
 
             if (
