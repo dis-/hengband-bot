@@ -259,6 +259,31 @@ HOME_PAGE_SINGLE_PAGE_MESSAGES = (
 # banner in a snapshot's message delta proves every key posted before the
 # probe — including the pending SPACE — has been processed, so a same-identity
 # page seen with the banner is the game's CURRENT page, not a stale echo.
+#
+# The probe cannot dead-end behind a `-more-` prompt.  msg_flush blocks only
+# from msg_print's two flush sites (display-messages.cpp:296, :313), and both
+# are unreachable for the banner:
+#  * every store command is acquired through
+#    InputKeyRequestor(player_ptr, true).request_command()
+#    (cmd-store.cpp:153), whose get_command() sets `msg_flag = false` before
+#    reading the key (input-key-requester.cpp:112) or first calls msg_erase()
+#    on the command-chaining path (input-key-requester.cpp:106);
+#  * the first msg_print of the command therefore starts from
+#    `msg_head_pos = 0` (display-messages.cpp:283-286), so the head-append
+#    flush condition `msg_head_pos > 0` (display-messages.cpp:296) is false —
+#    do_cmd_version prints exactly one message (cmd-dump.cpp:225);
+#  * the wrap flush (display-messages.cpp:310) needs the message to exceed
+#    `split_width = wid - 8` >= 72 on the 80-column minimum main window
+#    (gameterm.h:12-14, enforced in main-win.cpp:2170); the banner is
+#    ~27 bytes (~42 with cheat_turn).
+# The identical argument covers the single-page message above (24 bytes).
+# If a pre-existing multi-message command (a purchase) flushes mid-command
+# and its -more- consumes a posted probe as the flow key, the command then
+# completes, a fresh snapshot is emitted, and the gate re-posts the probe on
+# that new board — the reply is one further round-trip away.  The CLI's
+# pre-existing silence nudge (cli.py "blocked on a message/-more- prompt that
+# emits no snapshot" -> Escape, accepted at display-messages.cpp:189) remains
+# the system-level last resort for the whole -more- class.
 HOME_PAGE_PROBE_KEY = "V"
 HOME_PAGE_PROBE_MESSAGE_PREFIXES = (
     "変愚蛮怒",
@@ -2139,6 +2164,16 @@ class HengbotPolicy:
         # Item ids readmitted to the optimizer view because a quarantine held
         # every owned source of a mandatory depth gate (strictly diagnostic).
         self._equipment_quarantine_readmitted_ids: tuple[str, ...] = ()
+        # Monotonic second-chance ledger for last-source quarantine escapes.
+        # An id enters second_chance when the release valve or the last-source
+        # readmission puts it back in the optimizer view; if it is quarantined
+        # AGAIN afterwards it is burned and never released or readmitted for
+        # the rest of the town visit.  Each owned source is therefore retried
+        # at most once per visit and the withdraw->stall->release->withdraw
+        # cycle is structurally impossible: the candidate set only shrinks.
+        # Both sets share the failed-item lifecycle (cleared on town entry).
+        self._equipment_quarantine_second_chance_ids: set[str] = set()
+        self._equipment_quarantine_burned_ids: set[str] = set()
         # Depth the last optimization pass was asked about, for diagnostics
         # emitted when no snapshot is at hand.
         self._equipment_optimization_last_depth: int | None = None
@@ -2340,12 +2375,16 @@ class HengbotPolicy:
             page_advance_confirmed = not self._home_page_advance_pending
             page_advance_wrap = False
             if self._home_page_advance_pending:
-                from_identity = self._home_page_advance_from_identity
-                if from_identity is None or page_identity != from_identity:
+                # Message matches are prefix matches: a repeated message is
+                # exported with a trailing repeat count (display-messages.cpp
+                # :107-110, `... <x2>`), and every arming site binds
+                # _home_page_advance_from_identity together with the flag, so
+                # an unbound identity never occurs and is not special-cased.
+                if page_identity != self._home_page_advance_from_identity:
                     page_advance_confirmed = True
                     page_advance_wrap = True
                 elif any(
-                    message in HOME_PAGE_SINGLE_PAGE_MESSAGES
+                    message.startswith(HOME_PAGE_SINGLE_PAGE_MESSAGES)
                     for message in snapshot.messages
                 ):
                     page_advance_confirmed = True
@@ -4849,6 +4888,8 @@ class HengbotPolicy:
             self._home_identify_staff_sold_this_magic_visit = False
             self._home_digger_withdraw_pending = False
             self._equipment_transaction_failed_items.clear()
+            self._equipment_quarantine_second_chance_ids.clear()
+            self._equipment_quarantine_burned_ids.clear()
 
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
@@ -7621,8 +7662,11 @@ class HengbotPolicy:
         # A failed transaction remains quarantined for this town visit unless it
         # has become every owned source of a mandatory equipment flag.  Keeping
         # that last source suppressed would make departure (which clears the
-        # visit quarantine) impossible, so release all failed sources of the
+        # visit quarantine) impossible, so release the failed sources of the
         # missing flag and let the normal transaction machinery make progress.
+        # A release is a SECOND CHANCE: an id quarantined again after being
+        # released is burned and never released again this visit, so the
+        # candidate set shrinks monotonically instead of cycling.
         required_flags = {
             RESIST_FLAG_BY_ABILITY[ability]
             for ability in required_depth_gates(optimization_depth)
@@ -7641,9 +7685,13 @@ class HengbotPolicy:
                 for item in eligible_catalog
                 if required_flag in item.flags
                 and item.id in self._equipment_transaction_failed_items
+                and item.id not in self._equipment_quarantine_burned_ids
             )
         if released_failed_ids:
             self._equipment_transaction_failed_items.difference_update(
+                released_failed_ids
+            )
+            self._equipment_quarantine_second_chance_ids.update(
                 released_failed_ids
             )
         catalog = tuple(
@@ -7653,30 +7701,40 @@ class HengbotPolicy:
         )
         # INVARIANT: no quarantine (a stall-failed item id, a deferred Home
         # signature, or both at once) may remove the LAST owned source of a
-        # flag this optimization depth requires.  The 2026-08-02 20:06 stop
-        # proved the release valve above cannot see an item the deferred filter
-        # already removed from eligible_catalog: quarantining the only
-        # resist_chaos source produced no-valid-loadout at depth 31 with no
-        # bot-reachable exit.  Readmit such last sources to the optimizer's
-        # VIEW without mutating either quarantine set, so the transaction
-        # machinery can still move them while ordinary quarantine behaviour
-        # (and its visit-scoped resets) stays intact.
+        # flag this optimization depth requires while an untried source
+        # remains.  The 2026-08-02 20:06 stop proved the release valve above
+        # cannot see an item the deferred filter already removed from
+        # eligible_catalog: quarantining the only resist_chaos source produced
+        # no-valid-loadout at depth 31 with no bot-reachable exit.  Readmit
+        # ONE such source per missing flag to the optimizer's VIEW without
+        # mutating either quarantine set — never the whole hidden equivalence
+        # class, so a stall of the readmitted item burns it (see
+        # _abandon_blocked_equipment_transaction) and the next pass advances
+        # to a different source instead of repeating the same failed
+        # withdrawal.  When every source has been burned the state is an
+        # honest no-valid-loadout and the pre-existing depth fallback and
+        # town-ledger exits own it.
         catalog_ids = {item.id for item in catalog}
         readmitted_ids: set[str] = set()
         for required_flag in required_flags:
             if any(required_flag in item.flags for item in catalog):
                 continue
-            readmitted_ids.update(
+            candidates = sorted(
                 item.id
                 for item in operational_catalog
-                if required_flag in item.flags and item.id not in catalog_ids
+                if required_flag in item.flags
+                and item.id not in catalog_ids
+                and item.id not in self._equipment_quarantine_burned_ids
             )
+            if candidates:
+                readmitted_ids.add(candidates[0])
         if readmitted_ids:
             catalog += tuple(
                 item
                 for item in operational_catalog
                 if item.id in readmitted_ids
             )
+            self._equipment_quarantine_second_chance_ids.update(readmitted_ids)
         self._equipment_quarantine_readmitted_ids = tuple(sorted(readmitted_ids))
         cached_blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
@@ -8000,6 +8058,12 @@ class HengbotPolicy:
             "quarantine_readmitted_item_ids": list(
                 self._equipment_quarantine_readmitted_ids
             ),
+            "quarantine_second_chance_item_ids": sorted(
+                self._equipment_quarantine_second_chance_ids
+            ),
+            "quarantine_burned_item_ids": sorted(
+                self._equipment_quarantine_burned_ids
+            ),
         }
         if preparation is not None:
             if snapshot is not None:
@@ -8113,6 +8177,11 @@ class HengbotPolicy:
                     and self._item_signature(item.item)
                     in self._deferred_home_items
                 ),
+                "burned_ids": sorted(
+                    item.id
+                    for item in sources
+                    if item.id in self._equipment_quarantine_burned_ids
+                ),
             })
         return report
 
@@ -8170,6 +8239,16 @@ class HengbotPolicy:
             return
         action = session.pending_action or session.current_action
         if action is not None:
+            if (
+                action.item_id
+                in self._equipment_quarantine_second_chance_ids
+            ):
+                # The item already had its one release/readmission this visit
+                # and its transaction failed again: consume the second chance.
+                # Burned ids are excluded from both the release valve and the
+                # last-source readmission, so every quarantine escape strictly
+                # shrinks the remaining candidate set (monotonic exit).
+                self._equipment_quarantine_burned_ids.add(action.item_id)
             self._equipment_transaction_failed_items.add(action.item_id)
         self._equipment_transaction_session = None
         self._equipment_optimization_signature = None

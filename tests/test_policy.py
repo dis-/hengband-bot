@@ -41387,10 +41387,18 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
         self.assertEqual(policy._shop(home), " ")
         self.assertFalse(policy._equipment_catalog.home_scan_complete)
+        # Arm exactly as the production epilogue does: the pending flag is
+        # always bound to the page identity the SPACE was posted from.
         policy._home_page_advance_pending = True
+        policy._home_page_advance_from_identity = tuple(
+            (item.name, item.tval, item.sval, item.count) for item in page
+        )
         policy.choose_key(town)  # main-loop snapshot interleaved with store redraw
         self.assertTrue(policy._home_page_advance_pending)
-        policy.choose_key(home)
+        confirmed = replace(
+            home, messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],)
+        )
+        policy.choose_key(confirmed)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
 
     def test_transaction_home_override_is_blocked_by_same_three_pass_owner(self):
@@ -42412,6 +42420,10 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
     and the stall quarantined the only resist_chaos source.  A key may only be
     composed from a page observation proven current: identity change, the
     single-page message, or the version-probe banner.
+
+    The incident regression doubles as the two-page completion regression: its
+    final decisions drive the content-addressed page seek and the withdraw
+    composition from the proven-current page.
     """
 
     RING_NAME = "Ring of Law (+5,+0) [+5] (+2)"
@@ -42524,29 +42536,6 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
         self.assertFalse(policy._home_page_advance_pending)
 
-    def test_two_page_home_withdraw_composes_from_current_page(self):
-        policy = HengbotPolicy()
-        session, _ = self._withdraw_session()
-        policy._equipment_transaction_session = session
-
-        # No advance is in flight: the target's page is current, compose now.
-        key = policy.choose_key(self._snapshot(self._page_one()))
-        self.assertEqual(key, BUY_KEY + "J\r")
-        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
-
-    def test_two_page_home_withdraw_completes_after_page_seek(self):
-        policy = HengbotPolicy()
-        session, _ = self._withdraw_session()
-        policy._equipment_transaction_session = session
-
-        self.assertEqual(policy.choose_key(self._snapshot(self._page_two())), " ")
-        self.assertEqual(
-            policy.last_reason, "equipment-transaction:seek-home-page"
-        )
-        key = policy.choose_key(self._snapshot(self._page_one()))
-        self.assertEqual(key, BUY_KEY + "J\r")
-        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
-
     def _one_page(self):
         return [
             store_item(
@@ -42571,14 +42560,44 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
 
         # store-key-processor.cpp:92: SPACE on a single-page store prints the
         # message and does not redraw — the page really is the whole stock.
+        # A repeated message is exported with a trailing repeat count
+        # (display-messages.cpp:107-110), so the match must be a prefix match.
         confirmed = self._snapshot(
-            self._one_page(), messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],)
+            self._one_page(),
+            messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x2>",),
         )
         key = policy.choose_key(confirmed)
         self.assertEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertFalse(policy._home_page_advance_pending)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
+
+    def test_one_page_home_missing_target_keeps_bounded_withdraw_exit(self):
+        # The pre-existing withdraw-missing exit must survive the currency
+        # gate: a one-page Home without the target resolves via the (possibly
+        # repeat-suffixed) single-page message and then leaves through the
+        # content-addressed missing-target block, never a latch.
+        policy = HengbotPolicy()
+        session, _ = self._withdraw_session()
+        policy._equipment_transaction_session = session
+
+        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:seek-home-page"
+        )
+        self.assertEqual(
+            policy.choose_key(self._snapshot(self._one_page())),
+            HOME_PAGE_PROBE_KEY,
+        )
+        confirmed = self._snapshot(
+            self._one_page(),
+            messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x3>",),
+        )
+        self.assertEqual(policy.choose_key(confirmed), LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:withdraw-missing"
+        )
+        self.assertFalse(policy._home_page_advance_pending)
 
     def test_one_page_home_probe_reply_bounds_exit_without_false_wrap(self):
         policy = HengbotPolicy()
@@ -42755,6 +42774,173 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         )
         self.assertIn(ring_id, policy._equipment_quarantine_readmitted_ids)
 
+    def _second_ring(self):
+        return store_item(
+            "K", TVAL_RING, 4, name="Second Ring of Law [+3]", known=True,
+            fully_known=True, is_equipment=True, known_flags=frozenset({62}),
+        )
+
+    def _policy_with_two_home_rings(self):
+        policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
+        town = self._town()
+        rings = [self._ring(), self._second_ring()]
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page(rings)
+        policy._equipment_catalog.observe_home_page([])
+        policy._equipment_catalog.observe_home_page(rings)
+        ring_ids = sorted(
+            owned.id
+            for owned in policy._equipment_catalog.items
+            if owned.origin == "home"
+        )
+        self.assertEqual(len(ring_ids), 2)
+        return policy, town, rings, ring_ids
+
+    def _stall_withdraw(self, policy, town, rings, ring_id):
+        """Dispatch a withdraw of ring_id and exhaust its confirmation budget."""
+        if policy._store_leave_inflight is not None:
+            # A later outside snapshot confirms the previous stall's leave,
+            # exactly as the live snapshot stream does between Home visits.
+            policy.choose_key(
+                replace(town, turn=town.turn + policy._decision_sequence + 10)
+            )
+            self.assertIsNone(policy._store_leave_inflight)
+        # The one-cell fixture grid has no walkable Home approach, so the
+        # intermediate town decision may have latched home-unreachable for a
+        # session the optimizer built on its own.  Live towns have a real
+        # route; drop the fixture artifact before dispatching our withdraw.
+        policy._town_blocked_reason = None
+        identity = next(
+            policy_module.equipment_identity(owned.item)
+            for owned in policy._equipment_catalog.items
+            if owned.id == ring_id
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw",
+            ring_id, item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 23)
+        )
+        policy._equipment_transaction_session = session
+        home_observation = (
+            policy_module.EquipmentTransactionObservation.create(in_home=True)
+        )
+        self.assertTrue(session.dispatch(action, home_observation))
+        for _ in range(policy_module.EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT):
+            session.observe(home_observation)
+        home = replace(
+            town, store=StoreState(store_type=STORE_HOME, items=list(rings)),
+        )
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:confirmation-stall-bound",
+        )
+        self.assertIn(ring_id, policy._equipment_transaction_failed_items)
+
+    def test_readmission_grants_one_source_per_missing_gate(self):
+        # With SEVERAL quarantined sources of the same required flag, only ONE
+        # may be readmitted: releasing the whole hidden equivalence class is
+        # the rejected withdraw->stall->quarantine->release->withdraw cycle in
+        # view-only form.
+        policy, town, rings, ring_ids = self._policy_with_two_home_rings()
+        for ring in rings:
+            policy._deferred_home_items.add(policy._item_signature(ring))
+
+        preparation = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+
+        self.assertNotIn("no-valid-loadout", preparation.blockers)
+        self.assertEqual(
+            len(policy._equipment_quarantine_readmitted_ids), 1,
+            "readmission released the whole quarantined equivalence class "
+            "instead of the single next untried source",
+        )
+        self.assertIn(
+            policy._equipment_quarantine_readmitted_ids[0], ring_ids
+        )
+
+    def test_burned_sources_rotate_and_exhaust_monotonically(self):
+        # A readmitted source whose transaction stalls again is burned: the
+        # next pass advances to a DIFFERENT source, and when every source has
+        # been consumed the state is an honest no-valid-loadout owned by the
+        # pre-existing depth-fallback/ledger exits — never a repeat of the
+        # same failed withdrawal.
+        policy, town, rings, ring_ids = self._policy_with_two_home_rings()
+        policy.choose_key(town)  # fresh-town reset precedes the quarantines
+        for ring in rings:
+            policy._deferred_home_items.add(policy._item_signature(ring))
+
+        first = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertNotIn("no-valid-loadout", first.blockers)
+        first_id = policy._equipment_quarantine_readmitted_ids[0]
+
+        self._stall_withdraw(policy, town, rings, first_id)
+        self.assertIn(first_id, policy._equipment_quarantine_burned_ids)
+
+        second = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertNotIn("no-valid-loadout", second.blockers)
+        second_ids = policy._equipment_quarantine_readmitted_ids
+        self.assertEqual(len(second_ids), 1)
+        self.assertNotEqual(
+            second_ids[0], first_id,
+            "the burned source was readmitted again instead of rotating to "
+            "the untried one",
+        )
+
+        self._stall_withdraw(policy, town, rings, second_ids[0])
+        exhausted = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+        self.assertIn("no-valid-loadout", exhausted.blockers)
+        self.assertEqual(policy._equipment_quarantine_readmitted_ids, ())
+        self.assertEqual(
+            sorted(policy._equipment_quarantine_burned_ids), ring_ids
+        )
+        state = policy.equipment_optimization_state(None)
+        self.assertEqual(
+            state["quarantine_burned_item_ids"], ring_ids
+        )
+        self.assertEqual(
+            state["required_gate_sources"][0]["burned_ids"], ring_ids
+        )
+
+    def test_valve_release_is_a_single_second_chance(self):
+        # The pre-existing mutation valve releases a failed last source once;
+        # a second stall burns it and the valve must NOT release it again —
+        # otherwise the release/stall cycle continues through the valve even
+        # with readmission fixed.
+        policy, town, ring, ring_id = self._policy_with_home_ring()
+        policy.choose_key(town)
+
+        self._stall_withdraw(policy, town, [ring], ring_id)
+        self.assertNotIn(ring_id, policy._equipment_quarantine_burned_ids)
+
+        released = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+        self.assertNotIn("no-valid-loadout", released.blockers)
+        self.assertNotIn(ring_id, policy._equipment_transaction_failed_items)
+        self.assertIn(
+            ring_id, policy._equipment_quarantine_second_chance_ids
+        )
+
+        self._stall_withdraw(policy, town, [ring], ring_id)
+        self.assertIn(ring_id, policy._equipment_quarantine_burned_ids)
+
+        exhausted = policy._prepare_equipment_optimization(
+            town, depth_override=31
+        )
+        self.assertIn(
+            "no-valid-loadout", exhausted.blockers,
+            "the valve re-released a burned source: the "
+            "withdraw->stall->release->withdraw cycle is still open",
+        )
+        self.assertIn(ring_id, policy._equipment_transaction_failed_items)
+        self.assertEqual(policy._equipment_quarantine_readmitted_ids, ())
+
     def test_no_valid_loadout_telemetry_names_missing_gate_sources(self):
         # A genuinely unowned gate is an honest no-valid-loadout; the state
         # record must say WHICH gate lacks sources and expose both quarantine
@@ -42783,6 +42969,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
                 "operational_sources": 0,
                 "failed_quarantined_ids": [],
                 "deferred_home_ids": [],
+                "burned_ids": [],
             }],
         )
 
@@ -42802,6 +42989,8 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
             [[self.RING_NAME, TVAL_RING, 4]],
         )
         self.assertIn("_equipment_quarantine_readmitted_ids", captured)
+        self.assertIn("_equipment_quarantine_second_chance_ids", captured)
+        self.assertIn("_equipment_quarantine_burned_ids", captured)
         self.assertIn("_home_page_advance_pending", captured)
         self.assertIn("_home_page_advance_from_identity", captured)
 

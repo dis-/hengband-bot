@@ -143,6 +143,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_equipment_transaction_failed_items",
         "_deferred_home_items",
         "_equipment_quarantine_readmitted_ids",
+        "_equipment_quarantine_second_chance_ids",
+        "_equipment_quarantine_burned_ids",
         "_home_page_advance_pending",
         "_home_page_advance_from_identity",
     )
