@@ -2062,6 +2062,7 @@ class HengbotPolicy:
         self._home_star_remove_curse_scan_pages: dict[tuple, int] = {}
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False
+        self._home_knowledge_scan_retries_remaining = 1
         self._home_scan_source: str | None = None
         self._home_scan_item_count: int | None = None
         self._star_remove_curse_shelf_seen = False
@@ -2260,6 +2261,10 @@ class HengbotPolicy:
             snapshot.inventory, snapshot.equipment
         )
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            if not self._last_snapshot_was_store:
+                self._home_knowledge_scan_requested = False
+                self._home_knowledge_scan_inflight = False
+                self._home_knowledge_scan_retries_remaining = 1
             page_identity = tuple(
                 (item.name, item.tval, item.sval, item.count)
                 for item in snapshot.store.items
@@ -2326,20 +2331,22 @@ class HengbotPolicy:
             and self._home_available(snapshot)
             and not self._equipment_catalog.home_scan_complete
             and not self._home_knowledge_scan_requested
+            and self._store_leave_inflight is None
             and self._identification_need is None
             and self._next_required_store_type(snapshot) == STORE_HOME
             and bool(self._home_processing_seen_pages)
         ):
-            self._home_knowledge_scan_requested = True
-            self._home_knowledge_scan_inflight = True
             self.last_reason = "home:request-knowledge-scan"
             return "~9"
         if self._home_knowledge_scan_inflight:
             # An ordinary board snapshot after the request means the response
             # did not arrive (the CLI's bounded prompt recovery has returned to
-            # the command loop). Keep the request one-shot and let the existing
-            # page-based Home scan proceed unchanged.
+            # the command loop). Permit one more posted request during this
+            # Home visit, then let the existing page scan proceed unchanged.
             self._home_knowledge_scan_inflight = False
+            if self._home_knowledge_scan_retries_remaining:
+                self._home_knowledge_scan_retries_remaining -= 1
+                self._home_knowledge_scan_requested = False
         leaving_home = (
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
@@ -7924,6 +7931,10 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        if key == "~9":
+            self._home_knowledge_scan_requested = True
+            self._home_knowledge_scan_inflight = True
+            return True
         if key != self._equipment_transaction_prepared_key:
             return False
         session = self._equipment_transaction_session

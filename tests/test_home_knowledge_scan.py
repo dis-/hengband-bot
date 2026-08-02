@@ -77,6 +77,34 @@ def home_response() -> dict:
     }
 
 
+def home_digger_response() -> dict:
+    response = home_response()
+    response["knowledge"]["items"] = [
+        {
+            "slot": slot,
+            "name": name,
+            "count": count,
+            "tval": 20,
+            "sval": sval,
+            "aware": True,
+            "known": True,
+            "fully_known": True,
+            "is_equipment": True,
+            "pval": pval,
+            "to_h": to_h,
+            "to_d": to_d,
+            "damage_dice": {"num": 1, "sides": 2},
+        }
+        for slot, name, count, sval, pval, to_h, to_d in (
+            (1, "Shovel", 4, 1, 0, 0, 0),
+            (2, "Pick", 3, 4, 0, 0, 0),
+            (3, "Mattock", 2, 5, 0, 0, 0),
+            (4, "Dwarven Pick (1d2) (+9,+7) (+4)", 5, 4, 4, 9, 7),
+        )
+    ]
+    return response
+
+
 class HomeKnowledgeScanTest(unittest.TestCase):
     def test_stalled_capture_requests_home_knowledge_and_completes(self):
         capture = (
@@ -97,6 +125,8 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         snapshot = town_with_home()
         self.assertEqual(policy.choose_key(snapshot), "~9")
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertFalse(policy._home_knowledge_scan_requested)
+        self.assertTrue(policy.confirm_key_posted("~9"))
 
         sent = []
         consumed = _dispatch_response_lines(
@@ -175,13 +205,66 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
         snapshot = town_with_home()
         self.assertEqual(policy.choose_key(snapshot), "~9")
+        policy.confirm_key_posted("~9")
 
         # The next ordinary board is produced after bounded CLI prompt recovery.
         policy.choose_key(snapshot)
 
         self.assertFalse(policy._home_knowledge_scan_inflight)
-        self.assertTrue(policy._home_knowledge_scan_requested)
+        self.assertFalse(policy._home_knowledge_scan_requested)
         self.assertNotEqual(policy.last_reason, "home:request-knowledge-scan")
+
+    def test_real_capture_leave_barrier_clears_before_request_is_posted(self):
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda _snapshot: STORE_HOME
+        policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
+        snapshot = town_with_home()
+        policy._store_leave_inflight = (
+            policy._decision_sequence, snapshot.turn, STORE_HOME
+        )
+
+        # Reconstruct the 15:46:42 ordering: the first outside decision still
+        # belongs to the unconfirmed Home leave and must not select any ~ key.
+        policy._decide = Mock(return_value="6")
+        store_leave_was_inflight = policy._store_leave_inflight is not None
+        self.assertEqual(policy.choose_key(snapshot), "6")
+        suppress = (
+            store_leave_was_inflight
+            and policy._store_leave_inflight is not None
+        )
+        self.assertFalse(suppress)
+        self.assertFalse(policy._home_knowledge_scan_requested)
+
+        # The following decision is outside the barrier and is actually posted.
+        self.assertEqual(policy.choose_key(snapshot), "~9")
+        self.assertTrue(policy.confirm_key_posted("~9"))
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+
+    def test_unposted_or_replaced_request_does_not_consume_latch(self):
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda _snapshot: STORE_HOME
+        policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
+        snapshot = town_with_home()
+
+        self.assertEqual(policy.choose_key(snapshot), "~9")
+        self.assertFalse(policy._home_knowledge_scan_requested)
+        self.assertFalse(policy._home_knowledge_scan_inflight)
+        self.assertEqual(policy.choose_key(snapshot), "~9")
+
+    def test_abandonment_allows_exactly_one_rerequest_per_home_visit(self):
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda _snapshot: STORE_HOME
+        policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
+        snapshot = town_with_home()
+
+        self.assertEqual(policy.choose_key(snapshot), "~9")
+        policy.confirm_key_posted("~9")
+        policy.choose_key(snapshot)  # abandon the first posted request
+        self.assertEqual(policy.choose_key(snapshot), "~9")
+        policy.confirm_key_posted("~9")
+        policy.choose_key(snapshot)  # abandon the one permitted re-request
+        self.assertTrue(policy._home_knowledge_scan_requested)
+        self.assertNotEqual(policy.choose_key(snapshot), "~9")
 
     def test_scan_source_and_count_are_recorded(self):
         record = _decision_record(
@@ -191,6 +274,26 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             home_scan={"source": "~9", "item_count": 2},
         )
         self.assertEqual(record["home_scan"], {"source": "~9", "item_count": 2})
+
+    def test_complete_response_exposes_all_fourteen_home_diggers(self):
+        policy = HengbotPolicy()
+        policy._home_knowledge_scan_inflight = True
+
+        consumed = _dispatch_response_lines(
+            [json.dumps(home_digger_response())], policy, Mock(return_value=True)
+        )
+
+        home_diggers = [
+            owned.item
+            for owned in policy._equipment_catalog.items
+            if owned.origin == "home" and owned.item.tval == 20
+        ]
+        self.assertEqual(consumed, 1)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertEqual(policy._home_scan_source, "~9")
+        self.assertEqual(sum(item.count for item in home_diggers), 14)
+        self.assertTrue(policy._has_withdrawable_digging_tool(town_with_home()))
+        self.assertEqual(max(item.pval for item in home_diggers), 4)
 
 
 class CompleteHomeCatalogTest(unittest.TestCase):
