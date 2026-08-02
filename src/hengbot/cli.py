@@ -1500,7 +1500,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
-    policy._two_phase_store_items = True
     if args.decision_log is not None:
         policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
 
@@ -1550,7 +1549,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_follow(args, policy, send, monrace_knowledge) -> int:
-    input_delays = _input_delay_values(args)
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
     recorder_root = (
@@ -2014,26 +2012,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 continue
 
             # No new snapshot. If the game has gone quiet for too long it is
-            # exactly the acceptance signal for a store item chooser.  Release
-            # one prepared prompt answer; a fresh store record takes the other
-            # branch in Policy and re-posts only the command letter.
-            now = time.monotonic()
-            if (
-                args.send_to_window
-                and now - last_activity
-                >= input_delays["input_item_prompt_delay"]
-            ):
-                store_item_key = policy.store_item_key_after_silence()
-                if store_item_key is not None:
-                    if send(store_item_key, in_store=True):
-                        policy.confirm_store_item_key_posted(store_item_key)
-                        print(store_item_key, flush=True)
-                    last_activity = now
-                    continue
-
-            # If the game has gone quiet for too long it is
             # probably blocked on a message/"-more-" prompt that emits no
             # snapshot; nudge it with Escape to get back to the command loop.
+            now = time.monotonic()
             if (
                 args.send_to_window
                 and args.stall_timeout > 0

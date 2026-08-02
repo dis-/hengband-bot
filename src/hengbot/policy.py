@@ -1793,12 +1793,6 @@ class HengbotPolicy:
         # generation.  A leave owns older store snapshots until the feed shows
         # either the surface or a non-older in-store action generation.
         self._store_leave_inflight: tuple[int, int, int] | None = None
-        # Store item commands are posted through a chooser-aware transport
-        # handshake.  The command letter is sent from choose_key; only snapshot
-        # silence may release each following prompt answer.  A fresh record from
-        # the same store instead proves that the command was swallowed.
-        self._store_item_command: dict[str, object] | None = None
-        self._two_phase_store_items = False
         # Same target and shortage after a registered, money-spending buy is a
         # distinct defect from a transport failure at unchanged gold.
         self._last_buy_progress_sig: tuple[str, int, int] | None = None
@@ -2213,131 +2207,6 @@ class HengbotPolicy:
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
-    def _stage_store_item_command(self, snapshot: Snapshot, key: str) -> str:
-        """Replace an atomic store item macro with its command-letter phase."""
-        if (
-            self._store_item_command is not None
-            or not self._two_phase_store_items
-            or snapshot.store is None
-            or not self.last_reason
-            or len(key) < 2
-            or key[0] not in {BUY_KEY, SELL_KEY}
-        ):
-            return key
-        command, argument, suffix = key[0], key[1], key[2:]
-        target = (
-            next((it for it in snapshot.store.items if it.letter == argument), None)
-            if command == BUY_KEY
-            else next((it for it in snapshot.inventory if it.slot == argument), None)
-        )
-        if target is None:
-            return key
-        phases = [argument]
-        # A single item has no quantity prompt.  In particular, never leak the
-        # historical trailing Return into the store command loop.
-        if target.count > 1 and suffix:
-            quantity, separator, remainder = suffix.partition("\r")
-            if quantity:
-                phases.append(quantity + separator)
-            elif separator:
-                phases.append(separator)
-            if remainder:
-                phases.append(remainder)
-        signature = self._item_signature(target)
-        self._store_item_command = {
-            "store_type": snapshot.store.store_type,
-            "command": command,
-            "phases": phases,
-            "phase_index": 0,
-            "retries": 0,
-            "command_posted": False,
-            "reason": self.last_reason,
-            "original_key": key,
-            "snapshot": snapshot,
-            "signature": signature,
-            "before_count": self._inventory_signature_count(snapshot, signature),
-            "before_gold": snapshot.player.gold,
-            "awaiting_postcondition": False,
-            "awaiting_store_confirmation": False,
-        }
-        return command
-
-    def _store_item_postcondition_holds(
-        self, snapshot: Snapshot, pending: dict[str, object]
-    ) -> bool:
-        signature = pending["signature"]
-        before_count = int(pending["before_count"])
-        after_count = self._inventory_signature_count(snapshot, signature)  # type: ignore[arg-type]
-        if pending["command"] == BUY_KEY:
-            return after_count > before_count or snapshot.player.gold < int(
-                pending["before_gold"]
-            )
-        return after_count < before_count
-
-    def _observe_store_item_command(self, snapshot: Snapshot) -> str | None:
-        pending = self._store_item_command
-        if pending is None or bool(pending.get("awaiting_store_confirmation")):
-            return None
-        same_store = (
-            snapshot.store is not None
-            and snapshot.store.store_type == pending["store_type"]
-        )
-        if bool(pending["awaiting_postcondition"]):
-            if self._store_item_postcondition_holds(snapshot, pending):
-                self._store_item_command = None
-                return None
-            # The item answer did not produce the physical delta.  Escape closes
-            # a chooser that may still be active; no other planning is allowed
-            # until a following record confirms the store context again.
-            pending["awaiting_store_confirmation"] = True
-            self.last_reason = "shop:close-failed-item-chooser"
-            return LEAVE_STORE_KEY
-        if not same_store:
-            pending["awaiting_store_confirmation"] = True
-            self.last_reason = "shop:close-lost-item-chooser"
-            return LEAVE_STORE_KEY
-        retries = int(pending["retries"]) + 1
-        pending["retries"] = retries
-        pending["command_posted"] = False
-        if retries >= STORE_STUCK_LIMIT:
-            pending["awaiting_store_confirmation"] = True
-            self.last_reason = "shop:close-stuck-item-chooser"
-            return LEAVE_STORE_KEY
-        return str(pending["command"])
-
-    def store_item_key_after_silence(self) -> str | None:
-        """Release exactly one prompt answer after the emitter stayed silent."""
-        pending = self._store_item_command
-        if (
-            pending is None
-            or not bool(pending["command_posted"])
-            or bool(pending["awaiting_postcondition"])
-            or bool(pending["awaiting_store_confirmation"])
-        ):
-            return None
-        phases = pending["phases"]
-        index = int(pending["phase_index"])
-        if index >= len(phases):  # type: ignore[arg-type]
-            return None
-        return str(phases[index])  # type: ignore[index]
-
-    def confirm_store_item_key_posted(self, key: str) -> bool:
-        pending = self._store_item_command
-        if pending is None:
-            return False
-        phases = pending["phases"]
-        index = int(pending["phase_index"])
-        if index >= len(phases) or key != str(phases[index]):  # type: ignore[arg-type,index]
-            return False
-        pending["phase_index"] = index + 1
-        if index + 1 == len(phases):  # type: ignore[arg-type]
-            pending["awaiting_postcondition"] = True
-            original_key = str(pending["original_key"])
-            staged_snapshot = pending["snapshot"]
-            self.confirm_key_posted(original_key)
-            self._capture_home_history_intent(staged_snapshot, original_key)  # type: ignore[arg-type]
-        return True
-
     def choose_key(self, snapshot: Snapshot) -> str:
         self._decision_sequence += 1
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
@@ -2439,25 +2308,7 @@ class HengbotPolicy:
         self.escape_ladder_telemetry = None
         self.town_teleport_refusal = None
         self._fruitless_disengage_spent_this_decision = False
-        pending_store_key = self._observe_store_item_command(snapshot)
-        store_phase_handled = False
-        if pending_store_key is not None:
-            if pending_store_key != LEAVE_STORE_KEY:
-                self.last_reason = str(self._store_item_command["reason"])
-            key = pending_store_key
-            store_phase_handled = True
-        elif (
-            self._store_item_command is not None
-            and bool(self._store_item_command.get("awaiting_store_confirmation"))
-        ):
-            # Escape was posted after a failed physical postcondition.  Do not
-            # plan against the record that triggered that close; this fresh
-            # observation is the confirmation boundary itself.
-            self._store_item_command = None
-            self.last_reason = "shop:chooser-close-confirmed"
-            key = "\r" if snapshot.store is not None else WAIT_KEY
-            store_phase_handled = True
-        elif (
+        if (
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
             and self._home_available(snapshot)
@@ -2477,9 +2328,7 @@ class HengbotPolicy:
             # the command loop). Keep the request one-shot and let the existing
             # page-based Home scan proceed unchanged.
             self._home_knowledge_scan_inflight = False
-        if store_phase_handled:
-            pass
-        elif self._store_leave_inflight is not None:
+        if self._store_leave_inflight is not None:
             leave_generation, leave_turn, leave_store = self._store_leave_inflight
             if snapshot.store is None:
                 self._store_leave_inflight = None
@@ -2508,7 +2357,6 @@ class HengbotPolicy:
                 )
         else:
             key = self._decide(snapshot)
-        key = self._stage_store_item_command(snapshot, key)
         self._remember_swarm_distances(snapshot)
         key = self._flee_sustain_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
@@ -2583,11 +2431,6 @@ class HengbotPolicy:
         if (
             self._equipment_transaction_prepared_key is not None
             and key != self._equipment_transaction_prepared_key
-            and not (
-                self._store_item_command is not None
-                and self._store_item_command.get("original_key")
-                == self._equipment_transaction_prepared_key
-            )
         ):
             self._discard_unposted_equipment_transaction_command()
         if snapshot.store is not None and key == LEAVE_STORE_KEY:
@@ -8022,12 +7865,6 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
-        if (
-            self._store_item_command is not None
-            and key == self._store_item_command["command"]
-        ):
-            self._store_item_command["command_posted"] = True
-            return True
         if key != self._equipment_transaction_prepared_key:
             return False
         session = self._equipment_transaction_session
