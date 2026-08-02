@@ -9165,7 +9165,7 @@ class HengbotPolicy:
     def _atomic_home_deposit_key(
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
-        """Bind one ordinary Home deposit to its stay-entry and exit."""
+        """Bind one Home deposit to its stay-entry and exit."""
         if (
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
@@ -9174,11 +9174,65 @@ class HengbotPolicy:
         entrance = snapshot.grid_at(snapshot.player.position)
         if entrance is None or entrance.store_number != STORE_HOME:
             return None
-        # A transaction owns its Home visits and retains the established
-        # prepare/post/observe contract.  This task changes ordinary deposits
-        # only, never withdrawal or optimizer commands.
-        if self._equipment_transaction_session is not None:
-            return None
+        session = self._equipment_transaction_session
+        if session is not None:
+            action = session.current_action
+            if action is None or action.kind != "deposit":
+                return None
+            current = next(
+                (
+                    item
+                    for item in snapshot.inventory
+                    if item.is_equipment
+                    and equipment_identity(item) == action.item_identity
+                ),
+                None,
+            )
+            if current is None:
+                return None
+            if self._retention_reservation(snapshot, current) > 0:
+                return None
+            if self._identification_flow_owns(current):
+                return None
+            quantity = f"{current.count}\r" if current.count > 1 else ""
+            key = WAIT_KEY + SELL_KEY + current.slot + quantity + LEAVE_STORE_KEY
+            observation = replace(
+                observe_equipment_transactions(snapshot), in_home=True
+            )
+            if not self._prepare_equipment_transaction_command(
+                session,
+                action,
+                observation,
+                key,
+                (
+                    "home-entrance",
+                    getattr(snapshot, "turn", 0),
+                    current.slot,
+                    action.item_identity,
+                ),
+            ):
+                return None
+            self._equipment_transaction_prepared_catalog_update = (
+                "deposit",
+                current,
+                (
+                    snapshot.turn,
+                    current.slot,
+                    self._item_signature(current),
+                    current.count,
+                    current.charges,
+                    len(snapshot.inventory),
+                ),
+            )
+            self._home_entry_operation_posted = True
+            self._home_atomic_deposit_pending = (
+                self._item_signature(current),
+                self._inventory_signature_count(
+                    snapshot, self._item_signature(current)
+                ),
+            )
+            self.last_reason = "equipment-transaction:atomic-deposit"
+            return key
         plan = self._town_errand_plan
         if (
             plan is not None

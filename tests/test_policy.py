@@ -41920,6 +41920,114 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(key.count(SELL_KEY), 1)
         self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
 
+    def test_142251_transaction_deposit_uses_atomic_entrance_visit(self):
+        policy = HengbotPolicy()
+        target = item(
+            "n", 23, 3, count=1, name="transaction spear",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            f"pack:{identity}:0",
+            item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 23)
+        )
+        policy._equipment_transaction_session = session
+        entrance = self._entrance_snapshot(
+            self._real_pack(target), turn=2242290
+        )
+        policy._shopping_approach_store_type = STORE_HOME
+
+        key = policy._shopping_approach_key(
+            entrance, Position(45, 123), "equipment-transaction:travel-home"
+        )
+
+        self.assertEqual(key, "5dn\x1b")
+        self.assertEqual(key.count(SELL_KEY), 1)
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:atomic-deposit"
+        )
+        self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
+        self.assertIsNone(session.pending_action)
+        self.assertEqual(session.prepared_action, action)
+
+        self.assertTrue(policy.confirm_key_posted(key))
+        self.assertEqual(session.pending_action, action)
+        unchanged = policy_module.observe_equipment_transactions(
+            self._snapshot(self._real_pack(target), at_home=False, turn=2242291)
+        )
+        self.assertFalse(session.observe(unchanged))
+        self.assertEqual(session.pending_action, action)
+        applied = policy_module.observe_equipment_transactions(
+            self._snapshot(self._real_pack(), at_home=False, turn=2242292)
+        )
+        self.assertTrue(session.observe(applied))
+        self.assertTrue(session.complete)
+
+    def test_transaction_atomic_visit_ends_after_one_deposit(self):
+        policy = HengbotPolicy()
+        target = item(
+            "n", 23, 3, count=2, name="transaction spears",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            f"pack:{identity}:0",
+            item_identity=identity,
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 23)
+            )
+        )
+        entrance = self._entrance_snapshot(self._real_pack(target))
+        policy._shopping_approach_store_type = STORE_HOME
+
+        key = policy._shopping_approach_key(
+            entrance, Position(45, 123), "equipment-transaction:travel-home"
+        )
+        self.assertEqual(key, "5dn2\r\x1b")
+        self.assertEqual(key.count(SELL_KEY), 1)
+
+        inside = self._snapshot(self._real_pack(target), turn=entrance.turn + 1)
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
+
+    def test_replaced_transaction_atomic_key_discards_prepared_state(self):
+        policy = HengbotPolicy()
+        target = item(
+            "n", 23, 3, name="transaction spear",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            f"pack:{identity}:0",
+            item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 23)
+        )
+        policy._equipment_transaction_session = session
+        entrance = self._entrance_snapshot(self._real_pack(target))
+        policy._shopping_approach_store_type = STORE_HOME
+        prepared = policy._shopping_approach_key(
+            entrance, Position(45, 123), "equipment-transaction:travel-home"
+        )
+
+        policy._discard_unposted_equipment_transaction_command()
+
+        self.assertFalse(policy.confirm_key_posted(prepared))
+        self.assertIsNone(session.prepared_action)
+        self.assertIsNone(session.pending_action)
+
     def test_133250_mixed_home_visit_yields_then_posts_atomic_deposit(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
