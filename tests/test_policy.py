@@ -4036,13 +4036,13 @@ class ShoppingTest(unittest.TestCase):
         ):
             self.assertEqual(pol.choose_key(home), "dn\r")
             self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
-            self.assertEqual(pol.choose_key(home), "\r")
-            self.assertEqual(pol.last_reason, "shop:await-leave-confirmation")
+            self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
+            self.assertEqual(pol.last_reason, "home:leave-after-one-operation")
 
             fresh_home = replace(home, turn=895190)
-            self.assertEqual(pol.choose_key(fresh_home), "dm\r")
+            self.assertEqual(pol.choose_key(fresh_home), LEAVE_STORE_KEY)
 
-        self.assertIsNone(pol._store_leave_inflight)
+        self.assertIsNotNone(pol._store_leave_inflight)
 
     def test_stale_store_after_leave_blocks_every_item_command_family(self):
         home = replace(
@@ -23656,7 +23656,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
         catalog_size = len(policy._equipment_catalog.items)
 
-        self.assertEqual(policy.choose_key(home), "dq\r")
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
         self.assertEqual(len(policy._equipment_catalog.items), catalog_size)
 
@@ -25962,7 +25962,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         after = replace(snap, inventory=[withdrawn], store=replace(snap.store, items=[superior]))
         self.assertEqual(policy.choose_key(after), "\x1b")
-        self.assertEqual(policy.last_reason, "home:leave-with-dominated")
+        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
 
     def test_does_not_withdraw_dominated_armour_when_pack_is_full(self):
         superior = store_item(
@@ -41845,6 +41845,99 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
         )
         self.assertTrue(policy._home_deposit_candidate(arrows, snapshot))
         self.assertFalse(policy._town_departure_ready(snapshot))
+
+
+class HomeOneOperationPerEntryTest(unittest.TestCase):
+    """Regression for the 2026-08-02 10:03 Home chooser incident."""
+
+    def _snapshot(self, inventory, *, at_home=True, turn=2247200):
+        return Snapshot(
+            player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(45, 123): grid(45, 123)},
+            [],
+            turn=turn,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=list(inventory),
+            store=StoreState(STORE_HOME, []) if at_home else None,
+        )
+
+    def _real_pack(self, *extra):
+        return [
+            item(
+                "d", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=14,
+                known=True, name="Scrolls of Teleportation",
+            ),
+            item(
+                "e", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=8,
+                known=True, name="Word of Recall",
+            ),
+            *extra,
+        ]
+
+    def test_real_capture_repeated_home_records_leave_without_second_deposit(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        home = self._snapshot(self._real_pack(target))
+        policy._decide = Mock(return_value=SELL_KEY + "f\r")
+
+        keys = [policy.choose_key(home) for _ in range(4)]
+
+        self.assertEqual(keys[0], SELL_KEY + "f\r")
+        self.assertEqual(keys[1:], [policy_module.LEAVE_STORE_KEY] * 3)
+        self.assertEqual(policy._decide.call_count, 1)
+        self.assertEqual(sum(key.startswith(SELL_KEY) for key in keys), 1)
+
+    def test_pending_home_operation_never_waits_inside(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        home = self._snapshot(self._real_pack(target))
+        policy._decide = Mock(return_value=SELL_KEY + "f\r")
+
+        self.assertEqual(policy.choose_key(home), SELL_KEY + "f\r")
+        for _ in range(3):
+            key = policy.choose_key(home)
+            self.assertEqual(key, policy_module.LEAVE_STORE_KEY)
+            self.assertNotIn(key, {WAIT_KEY, "\r"})
+
+    def test_real_pack_teleport_and_recall_slots_cannot_be_side_effect_deposits(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
+        home = self._snapshot(self._real_pack(target))
+        policy._decide = Mock(return_value=SELL_KEY + "f\r")
+
+        keys = [policy.choose_key(home) for _ in range(5)]
+
+        self.assertNotIn(SELL_KEY + "d\r", keys)
+        self.assertNotIn(SELL_KEY + "e\r", keys)
+        self.assertEqual(keys.count(SELL_KEY + "f\r"), 1)
+
+    def test_three_deposits_use_three_entries_and_finish(self):
+        policy = HengbotPolicy()
+        targets = [
+            item(slot, TVAL_ARROW, sval, count=40, name=f"surplus-{slot}")
+            for slot, sval in zip("fgh", (1, 2, 3))
+        ]
+        remaining = self._real_pack(*targets)
+        operations = []
+
+        for target in targets:
+            home = self._snapshot(remaining)
+            policy._decide = Mock(return_value=SELL_KEY + target.slot + "\r")
+            operations.append(policy.choose_key(home))
+            self.assertEqual(
+                policy.choose_key(home), policy_module.LEAVE_STORE_KEY
+            )
+            remaining = [item_ for item_ in remaining if item_.slot != target.slot]
+            outside = self._snapshot(remaining, at_home=False, turn=home.turn + 1)
+            policy._decide = Mock(return_value="9")
+            policy.choose_key(outside)
+
+        self.assertEqual(
+            operations,
+            [SELL_KEY + slot + "\r" for slot in "fgh"],
+        )
+        self.assertEqual([item_.slot for item_ in remaining], ["d", "e"])
 
 
 class QuestCarryVisitAbandonmentTest(unittest.TestCase):

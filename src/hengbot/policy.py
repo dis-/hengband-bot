@@ -1793,6 +1793,12 @@ class HengbotPolicy:
         # generation.  A leave owns older store snapshots until the feed shows
         # either the surface or a non-older in-store action generation.
         self._store_leave_inflight: tuple[int, int, int] | None = None
+        # A Home entry may dispatch exactly one deposit or withdrawal.  Keep
+        # this latched across interleaved surface records until an Escape-owned
+        # outside snapshot proves that the visit ended; otherwise a redraw
+        # while an item chooser is open can turn a repeated command letter into
+        # an unintended pack selection.
+        self._home_entry_operation_posted = False
         # Same target and shortage after a registered, money-spending buy is a
         # distinct defect from a transport failure at unchanged gold.
         self._last_buy_progress_sig: tuple[str, int, int] | None = None
@@ -2328,7 +2334,23 @@ class HengbotPolicy:
             # the command loop). Keep the request one-shot and let the existing
             # page-based Home scan proceed unchanged.
             self._home_knowledge_scan_inflight = False
-        if self._store_leave_inflight is not None:
+        leaving_home = (
+            self._store_leave_inflight is not None
+            and self._store_leave_inflight[2] == STORE_HOME
+        )
+        if snapshot.store is None and leaving_home:
+            self._home_entry_operation_posted = False
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and self._home_entry_operation_posted
+        ):
+            # The combined command already completed this entry's sole input
+            # operation.  Leave immediately; confirmation comes from the next
+            # ordinary outside snapshot, never from waiting or retrying inside.
+            self.last_reason = "home:leave-after-one-operation"
+            key = LEAVE_STORE_KEY
+        elif self._store_leave_inflight is not None:
             leave_generation, leave_turn, leave_store = self._store_leave_inflight
             if snapshot.store is None:
                 self._store_leave_inflight = None
@@ -2351,7 +2373,10 @@ class HengbotPolicy:
                 # not a filter applied after a side-effecting decision.
                 self.last_reason = "shop:await-leave-confirmation"
                 key = (
-                    "\r"
+                    LEAVE_STORE_KEY
+                    if snapshot.store.store_type == STORE_HOME
+                    and self._home_entry_operation_posted
+                    else "\r"
                     if snapshot.store.store_type == STORE_HOME
                     else LEAVE_STORE_KEY
                 )
@@ -2538,6 +2563,13 @@ class HengbotPolicy:
                         len(snapshot.inventory),
                     ),
                 )
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and len(key) > 1
+            and key[0] in {BUY_KEY, SELL_KEY}
+        ):
+            self._home_entry_operation_posted = True
         self._capture_home_history_intent(snapshot, key)
         if self._dark_without_recovery(snapshot):
             # Preserve the chosen action while making the otherwise invisible
