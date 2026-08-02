@@ -877,6 +877,21 @@ class DecisionRecordTest(unittest.TestCase):
             record["identification_source_reservation"], reservation
         )
 
+    def test_decision_record_carries_read_binding_telemetry(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+        telemetry = {
+            "key": "rh",
+            "letter": "h",
+            "resolved": {"tval": 70, "sval": 26, "name": "Detect Treasure"},
+            "intended": {"tval": 70, "sval": 26, "name": "Detect Treasure"},
+        }
+
+        record = _decision_record(
+            snapshot, "rh", "fundraise:detect-treasure", read=telemetry
+        )
+
+        self.assertEqual(record["read"], telemetry)
+
     def test_records_policy_reason_and_observable_state(self):
         data = json.loads(_snap_line(123, 5, 7))
         data["floor"]["quest_id"] = 40

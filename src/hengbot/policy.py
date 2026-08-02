@@ -2049,6 +2049,13 @@ class HengbotPolicy:
         # the acquisition baseline so a pre-existing source remains unreserved
         # and a newly enlarged stack reserves only one unit.
         self._identification_source_reservation: dict[str, object] | None = None
+        # A read command is a capability bound to one scroll identity, not to a
+        # pack letter.  Loot can insert an item and shift every following letter
+        # between composition and the CLI post boundary.
+        self._read_binding: (
+            tuple[int, int, str, str, dict[str, object] | None] | None
+        ) = None
+        self.read_telemetry: dict[str, object] = {}
         self._device_identification_candidate: tuple[str, int, int] | None = None
         self._deferred_device_items: set[tuple[str, int, int]] = set()
         self._processed_home_items: set[tuple[str, int, int]] = set()
@@ -2225,6 +2232,8 @@ class HengbotPolicy:
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str:
+        self._read_binding = None
+        self.read_telemetry = {}
         self._decision_sequence += 1
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         decision_floor = getattr(snapshot, "floor_key", None)
@@ -2943,7 +2952,7 @@ class HengbotPolicy:
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "no-wait:escape-scroll"
-                return READ_KEY + scroll.slot
+                return self._read_key(snapshot, scroll)
 
             step = self._flee_step(snapshot, hostiles)
             if step is not None and not (
@@ -3380,7 +3389,7 @@ class HengbotPolicy:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
-                    return READ_KEY + scroll.slot
+                    return self._read_key(snapshot, scroll)
             step = self._flee_step(snapshot, status_threats)
             if step is not None:
                 # Make the retreat a persistent navigation veto for this floor.
@@ -3403,7 +3412,7 @@ class HengbotPolicy:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
-                    return READ_KEY + scroll.slot
+                    return self._read_key(snapshot, scroll)
             self.last_reason = "status-threat:wait"
             return WAIT_KEY
 
@@ -3460,7 +3469,7 @@ class HengbotPolicy:
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "flee:scroll"
-                return READ_KEY + scroll.slot
+                return self._read_key(snapshot, scroll)
             if strategic_adjacent and not player.afraid:
                 self.last_reason = "flee:cornered-attack"
                 return self._direction_key(
@@ -3574,7 +3583,7 @@ class HengbotPolicy:
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "threat:scroll"
-                return READ_KEY + scroll.slot
+                return self._read_key(snapshot, scroll)
             self.last_reason = "threat:wait"
             return WAIT_KEY
 
@@ -4091,7 +4100,7 @@ class HengbotPolicy:
             if teleport is not None:
                 self._stuck_escape_streak = 0
                 self.last_reason = "stuck:teleport-escape"
-                return READ_KEY + teleport.slot
+                return self._read_key(snapshot, teleport)
 
         # 8. If we are circling the same few tiles (frontiers whose unknown side
         #    the pathfinder can't reach), break out by stepping directly into an
@@ -6347,6 +6356,8 @@ class HengbotPolicy:
             self._identify_watch = watch
             self._identify_fail_streak = 0
         self.last_reason = "identify:pack-pressure"
+        if command == READ_KEY:
+            return self._read_key(snapshot, src, target.slot)
         return command + src.slot + target.slot
 
     def _is_spare_lantern(self, snapshot: Snapshot, item: InventoryItem) -> bool:
@@ -6466,6 +6477,8 @@ class HengbotPolicy:
         # Hengband's item chooser uses '-' to select the floor object.
         # This completes selection without another prompt only while the game
         # option `carry_query_flag` remains off (its current default).
+        if command == READ_KEY:
+            return self._read_key(snapshot, src, "-")
         return command + src.slot + "-"
 
     def _cheapest_exchange_item(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -9497,6 +9510,86 @@ class HengbotPolicy:
     def _item_signature(item: InventoryItem | StoreItem) -> tuple[str, int, int]:
         return (item.name, item.tval, item.sval)
 
+    def _read_key(
+        self, snapshot: Snapshot, item: InventoryItem, suffix: str = ""
+    ) -> str:
+        """Compose a read while retaining the selected scroll's identity."""
+        composed_item = next(
+            (candidate for candidate in snapshot.inventory if candidate.slot == item.slot),
+            None,
+        )
+        self._read_binding = (
+            item.tval,
+            item.sval,
+            item.name,
+            item.slot,
+            (
+                {
+                    "tval": composed_item.tval,
+                    "sval": composed_item.sval,
+                    "name": composed_item.name,
+                }
+                if composed_item is not None
+                else None
+            ),
+        )
+        return self.validate_read_key(snapshot, READ_KEY + item.slot + suffix)
+
+    def validate_read_key(self, snapshot: Snapshot, key: str) -> str:
+        """Rebind a composed read to its intended scroll in the acting snapshot."""
+        if not key.startswith(READ_KEY) or len(key) < 2 or self._read_binding is None:
+            return key
+        (
+            intended_tval,
+            intended_sval,
+            intended_name,
+            composed_letter,
+            composed_resolved,
+        ) = self._read_binding
+        old_letter = key[1]
+        suffix = key[2:]
+        resolved = next(
+            (item for item in snapshot.inventory if item.slot == old_letter), None
+        )
+        selected = resolved
+        if (
+            selected is None
+            or selected.tval != intended_tval
+            or selected.sval != intended_sval
+        ):
+            selected = next(
+                (
+                    item
+                    for item in snapshot.inventory
+                    if item.tval == intended_tval and item.sval == intended_sval
+                ),
+                None,
+            )
+        posted_key = READ_KEY + selected.slot + suffix if selected is not None else WAIT_KEY
+        self.read_telemetry = {
+            "key": posted_key,
+            "letter": selected.slot if selected is not None else None,
+            "resolved": (
+                {
+                    "tval": selected.tval,
+                    "sval": selected.sval,
+                    "name": selected.name,
+                }
+                if selected is not None
+                else None
+            ),
+            "intended": {
+                "tval": intended_tval,
+                "sval": intended_sval,
+                "name": intended_name,
+            },
+            "composed": {
+                "letter": composed_letter,
+                "resolved": composed_resolved,
+            },
+        }
+        return posted_key
+
     @staticmethod
     def _identification_flow_candidate(
         item: InventoryItem | StoreItem,
@@ -9658,6 +9751,8 @@ class HengbotPolicy:
             command, source_item = source
             self._identification_need = None
             self.last_reason = "home-disposal:identify-before-sale"
+            if command == READ_KEY:
+                return self._read_key(snapshot, source_item, target.slot)
             return command + source_item.slot + target.slot
         return None
 
@@ -10063,6 +10158,8 @@ class HengbotPolicy:
         self._identification_need = None
         self._device_identification_candidate = None
         self.last_reason = "identify:device"
+        if command == READ_KEY:
+            return self._read_key(snapshot, item, target.slot)
         return command + item.slot + target.slot
 
     @staticmethod
@@ -10456,6 +10553,10 @@ class HengbotPolicy:
             if self._identification_source_reservation is not None:
                 self._identification_source_reservation["state"] = "identifying"
             self.last_reason = "identify:full"
+            if command == READ_KEY:
+                return self._read_key(
+                    snapshot, item, target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
+                )
             return command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
 
         target_signature = self._item_signature(target)
@@ -15807,7 +15908,7 @@ class HengbotPolicy:
                 if blocks_teleport
                 else "town:cancel-unready-recall"
             )
-        return READ_KEY + recall.slot
+        return self._read_key(snapshot, recall)
 
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
@@ -16142,7 +16243,7 @@ class HengbotPolicy:
         if scroll.sval == SV_SCROLL_STAR_REMOVE_CURSE:
             self._star_remove_curse_reserve_withdraw_pending = False
         self.last_reason = "town:remove-curse"
-        return READ_KEY + scroll.slot
+        return self._read_key(snapshot, scroll)
 
     def _launcher_enchant_needed_svals(self, snapshot: Snapshot) -> tuple[int, ...]:
         launcher = self._equipped_launcher(snapshot)
@@ -16247,7 +16348,7 @@ class HengbotPolicy:
                 if sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
                 else "town:enchant-launcher-todam"
             )
-            return READ_KEY + scroll.slot + "/" + slot_key
+            return self._read_key(snapshot, scroll, "/" + slot_key)
         return None
 
     @staticmethod
@@ -16610,7 +16711,7 @@ class HengbotPolicy:
                             return WAIT_KEY
                     self.last_reason = "town:repetition-depart:recall"
                     self._emergency_recall_sanctioned = True
-                    return READ_KEY + recall.slot + selection
+                    return self._read_key(snapshot, recall, selection)
         return WAIT_KEY
 
     def _town_recall_destination(
@@ -16988,7 +17089,7 @@ class HengbotPolicy:
                         recall_count,
                     )
                     self.last_reason = f"town:recall-to-{recall_dest}"
-                    return READ_KEY + recall.slot + selection
+                    return self._read_key(snapshot, recall, selection)
 
         if recall_dest is not None and not departure_ok:
             if self._activate_loadout_depth_fallback(snapshot) is not None:
@@ -17472,7 +17573,7 @@ class HengbotPolicy:
             recall = self._find_recall_scroll(snapshot)
             if recall is not None and not player.blind and not player.confused:
                 self.last_reason = "fundraise:recall"
-                return READ_KEY + recall.slot
+                return self._read_key(snapshot, recall)
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "fundraise:ascend"
@@ -17504,7 +17605,7 @@ class HengbotPolicy:
                 self._stuck_escape_streak = 0
                 self._returning_to_town = True
                 self.last_reason = "fundraise:recall-stuck"
-                return READ_KEY + recall.slot
+                return self._read_key(snapshot, recall)
         else:
             step = self._explore_step(snapshot)
             if step is not None:
@@ -18228,7 +18329,7 @@ class HengbotPolicy:
                 self._mining_mark_bumps.clear()
                 self._mining_unmarkable_grids.clear()
                 self.last_reason = "fundraise:detect-treasure"
-                return READ_KEY + scroll.slot
+                return self._read_key(snapshot, scroll)
 
         # The detection command's snapshot does not contain its effect yet.  Assess
         # exactly once on the following decision, after _observe has incorporated
@@ -18726,7 +18827,7 @@ class HengbotPolicy:
                 if profile.quest_id == 2
                 else "quest-strategy:ranged-light-area"
             )
-            return READ_KEY + light.slot
+            return self._read_key(snapshot, light)
         self.last_reason = (
             "quest-strategy:q2-fire"
             if profile.quest_id == 2
@@ -18795,7 +18896,7 @@ class HengbotPolicy:
             teleport = self._find_teleport_scroll(snapshot)
             if teleport is not None:
                 self.last_reason = "quest-strategy:q2-teleport-reset"
-                return READ_KEY + teleport.slot
+                return self._read_key(snapshot, teleport)
         present = {monster.race_id for monster in hostiles}
         for race_id in (Q2_WERERAT_RACE, Q2_WHITE_CROCODILE_RACE):
             if race_id in present and race_id not in self._q2_speed_attempted:
@@ -19212,7 +19313,7 @@ class HengbotPolicy:
             if light is not None:
                 self._q2_phase_light_attempted.add(light_phase)
                 self.last_reason = "quest-strategy:q2-light-after-opening"
-                return READ_KEY + light.slot
+                return self._read_key(snapshot, light)
             return None
 
         opening_light = light_after_opening()
@@ -19305,7 +19406,7 @@ class HengbotPolicy:
                     ):
                         self._q2_phase_light_attempted.add(light_phase)
                         self.last_reason = f"quest-strategy:q2-light-phase-{race_id}"
-                        return READ_KEY + light.slot
+                        return self._read_key(snapshot, light)
 
             goals: set[Position] = set()
             for placement in unsurveyed:
@@ -19750,7 +19851,7 @@ class HengbotPolicy:
                         if profile.quest_id == 22
                         else "quest-strategy:opening-teleport"
                     )
-                    return READ_KEY + teleport.slot
+                    return self._read_key(snapshot, teleport)
                 phase = 2
             if phase == 2:
                 navigator = self._quest_navigators.get(profile.quest_id)
@@ -19979,7 +20080,7 @@ class HengbotPolicy:
             )
             if light is not None:
                 self.last_reason = "quest-strategy:post-wave-light"
-                return READ_KEY + light.slot
+                return self._read_key(snapshot, light)
         current_never_move = {
             monster.index for monster in hostiles
             if monster.race_id in never_move_races
@@ -22242,7 +22343,7 @@ class HengbotPolicy:
             snapshot.turn,
             recall_count,
         )
-        return READ_KEY + recall.slot
+        return self._read_key(snapshot, recall)
 
     def _track_idle_items(
         self, snapshot: Snapshot, previous_floor: tuple[int, int, int] | None
@@ -22802,7 +22903,7 @@ class HengbotPolicy:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "wilderness:escape-scroll"
-                    return READ_KEY + scroll.slot
+                    return self._read_key(snapshot, scroll)
         self.last_reason = "wilderness:enter-global"
         return UP_STAIRS_KEY
 
@@ -23200,7 +23301,7 @@ class HengbotPolicy:
                 self._nav_exhausted = False
                 self._nav_stall_count = 0
                 self.last_reason = "livelock:teleport-explore"
-                return READ_KEY + teleport.slot
+                return self._read_key(snapshot, teleport)
         self.last_reason = "livelock:exhausted"
         return WAIT_KEY
 
@@ -23585,7 +23686,7 @@ class HengbotPolicy:
             if recall is not None:
                 self._returning_to_town = True
                 self.last_reason = "combat:disengage-recall"
-                return READ_KEY + recall.slot
+                return self._read_key(snapshot, recall)
         # Once walk-out owns the fight, a known exit behind a survivable
         # single-file blocker chain is nearer than retreating away from it.
         blocker = self._blocking_escape_melee_key(
@@ -24332,7 +24433,7 @@ class HengbotPolicy:
             if teleport is not None:
                 self._quest_strategy_opening_phase[profile.quest_id] = 2
                 self.last_reason = "quest-strategy:q22-opening-teleport"
-                return READ_KEY + teleport.slot
+                return self._read_key(snapshot, teleport)
         return None
 
     def _q22_reposition_active(
@@ -24399,7 +24500,7 @@ class HengbotPolicy:
             item_kind,
         )
         self.last_reason = reason
-        return READ_KEY + item.slot
+        return self._read_key(snapshot, item)
 
     def _emergency_item(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

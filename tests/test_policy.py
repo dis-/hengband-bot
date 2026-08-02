@@ -406,6 +406,78 @@ def hostile(
     )
 
 
+class ReadLetterBindingTest(unittest.TestCase):
+    def snapshot(self, inventory):
+        return Snapshot(
+            player=player(5, 5), grids={}, visible_monsters=[], inventory=inventory
+        )
+
+    def test_detection_scroll_stale_letter_never_reads_monster_confusion(self):
+        policy = HengbotPolicy()
+        detection = item(
+            "h", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Detect Treasure",
+        )
+        composed = policy._read_key(self.snapshot([detection]), detection)
+        panic = item("h", TVAL_SCROLL, 36, name="Scroll of Monster Confusion")
+        moved_detection = replace(detection, slot="i")
+
+        posted = policy.validate_read_key(
+            self.snapshot([panic, moved_detection]), composed
+        )
+
+        self.assertEqual(posted, READ_KEY + "i")
+        self.assertNotEqual(posted, READ_KEY + "h")
+        self.assertEqual(policy.read_telemetry["resolved"]["sval"], SV_SCROLL_DETECT_TREASURE)
+        self.assertEqual(policy.read_telemetry["composed"]["letter"], "h")
+
+    def test_each_read_family_uses_identity_binding_and_preserves_suffix(self):
+        families = (
+            ("escape", SV_SCROLL_TELEPORT, ""),
+            ("recall", SV_SCROLL_WORD_OF_RECALL, "a"),
+            ("identify", SV_SCROLL_IDENTIFY, "b"),
+            ("detect-treasure", SV_SCROLL_DETECT_TREASURE, ""),
+            ("light", SV_SCROLL_LIGHT, ""),
+            ("remove-curse", SV_SCROLL_REMOVE_CURSE, ""),
+            ("enchant", SV_SCROLL_ENCHANT_WEAPON_TO_HIT, "/a"),
+        )
+        for family, sval, suffix in families:
+            with self.subTest(family=family):
+                policy = HengbotPolicy()
+                intended = item("h", TVAL_SCROLL, sval, name=family)
+                composed = policy._read_key(
+                    self.snapshot([intended]), intended, suffix
+                )
+                panic = item("h", TVAL_SCROLL, 36, name="panic")
+                moved = replace(intended, slot="j")
+                self.assertEqual(
+                    policy.validate_read_key(self.snapshot([panic, moved]), composed),
+                    READ_KEY + "j" + suffix,
+                )
+
+    def test_matching_letter_posts_unchanged_and_records_identity(self):
+        policy = HengbotPolicy()
+        scroll = item("h", TVAL_SCROLL, SV_SCROLL_LIGHT, name="Light")
+        snapshot = self.snapshot([scroll])
+
+        key = policy._read_key(snapshot, scroll, "\x1b")
+
+        self.assertEqual(key, READ_KEY + "h\x1b")
+        self.assertEqual(
+            policy.read_telemetry,
+            {
+                "key": key,
+                "letter": "h",
+                "resolved": {"tval": TVAL_SCROLL, "sval": SV_SCROLL_LIGHT, "name": "Light"},
+                "intended": {"tval": TVAL_SCROLL, "sval": SV_SCROLL_LIGHT, "name": "Light"},
+                "composed": {
+                    "letter": "h",
+                    "resolved": {"tval": TVAL_SCROLL, "sval": SV_SCROLL_LIGHT, "name": "Light"},
+                },
+            },
+        )
+
+
 class DetectedMonsterChannelTest(unittest.TestCase):
     @staticmethod
     def _corridor_snapshot(detected):

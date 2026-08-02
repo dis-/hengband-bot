@@ -662,6 +662,7 @@ def _decision_record(
     home_scan: dict | None = None,
     choke_engagement: dict | None = None,
     town_teleport_refusal: dict | None = None,
+    read: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -742,6 +743,7 @@ def _decision_record(
             if town_teleport_refusal
             else {}
         ),
+        **({"read": read} if read else {}),
     }
 
 
@@ -1043,6 +1045,11 @@ def _write_decision(
                     ),
                     (
                         policy.town_teleport_refusal
+                        if policy is not None
+                        else None
+                    ),
+                    (
+                        policy.read_telemetry
                         if policy is not None
                         else None
                     ),
@@ -1514,6 +1521,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             policy.prime(snapshot)
             key = policy.choose_key(snapshot)
+            key = policy.validate_read_key(snapshot, key)
             _write_decision(args.decision_log, snapshot, key, policy.last_reason, policy)
             print(key, flush=True)
             if not send(key, in_store=snapshot.store is not None):
@@ -1743,6 +1751,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         policy._store_leave_inflight is not None
                     )
                     key = policy.choose_key(snapshot)
+                    key = policy.validate_read_key(snapshot, key)
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
