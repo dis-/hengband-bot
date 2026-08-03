@@ -44092,51 +44092,124 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy.choose_key(snapshot)
         self.assertFalse(policy._calibration_stripped_unrestored)
 
-    def test_restore_exhaustion_under_threat_stops_visibly_never_departs(self):
-        """When convergence is impossible (hostile present / partially
-        dressed), exhaustion must end in the pre-existing visible-stop
-        machinery with departure still closed — never a silent naked loop and
-        never a naked departure through an escape valve.
-        """
+    def test_partial_strip_exhaustion_converges_to_dressed(self):
+        """REVIEW-p1-calibration3 BLOCKER regression: partial strip + failed
+        preconditions + exhausted restore budget.  The restore identities are
+        never discarded, the visit-block never kills the restore path, and
+        from that exact state the bot has a takeable transition chain to
+        DRESSED equipment and reachable departure: dormancy until the
+        interruption passes, converge-strip of the remaining worn items,
+        naked capture (opening calibration-required), optimizer dressing pass
+        releasing the guard."""
         policy = self._scan_complete_policy()
+        policy._mutation_signature = (1,)
         sword = item(
             "main_hand", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
         )
-        identity = policy_module.equipment_identity(sword)
-        in_pack = replace(sword, slot="c")
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, known=True,
+            fully_known=True, is_equipment=True,
+        )
+        sword_identity = policy_module.equipment_identity(sword)
+        lantern_identity = policy_module.equipment_identity(lantern)
+        sword_in_pack = replace(sword, slot="c")
         threat = hostile(1, 10, 11)
-        snapshot = self._snapshot(inventory=(in_pack,), monsters=(threat,))
+        # PARTIAL strip: the sword came off (in pack), the lantern is still
+        # worn, a hostile breaks the preconditions.
+        threatened = self._snapshot(
+            inventory=(sword_in_pack,), equipment=(lantern,),
+            monsters=(threat,),
+        )
         policy._calibration_phase = "restore-equip"
-        policy._calibration_worn_before = (("main_hand", identity),)
+        policy._calibration_worn_before = (
+            ("light", lantern_identity),
+            ("main_hand", sword_identity),
+        )
         policy._calibration_stripped_unrestored = True
 
+        # Exhaust the restore budget under threat (each lost LIVE session
+        # spends budget; simulate the stall-abandon by clearing the session).
         for _ in range(policy_module.STORE_STUCK_LIMIT + 3):
-            if policy._calibration_phase != "restore-equip":
+            if policy._equipment_transaction_session is not None:
+                policy._equipment_transaction_session = None
+            policy._calibration_observe(threatened)
+            if policy._calibration_blocked_this_visit:
                 break
-            policy._equipment_transaction_session = None
-            policy._calibration_observe(snapshot)
-
-        self.assertIsNone(policy._calibration_phase)
-        self.assertIsNone(policy._character_calibration)
-        # The pre-existing town-blocked machinery owns the state visibly.
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        # Dormant, not dead: the restore identities are RETAINED and the
+        # phase stays parked; dormancy spends no further budget.
+        self.assertEqual(policy._calibration_phase, "restore-equip")
         self.assertEqual(
-            policy._town_blocked_reason, "calibration:restore-exhausted"
+            policy._calibration_worn_before,
+            (("light", lantern_identity), ("main_hand", sword_identity)),
         )
-        # No further session cycling from the terminal state.
-        policy._calibration_observe(snapshot)
-        self.assertIsNone(policy._equipment_transaction_session)
-        # Departure is closed and STAYS closed even through the Home-blocked
-        # escape valve inside the equipment gate (the naked-departure hole).
+        spent = policy._calibration_aborts_this_visit
+        policy._calibration_observe(threatened)
+        policy._calibration_observe(threatened)
+        self.assertEqual(policy._calibration_aborts_this_visit, spent)
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertFalse(policy._town_departure_ready(threatened))
+
+        # The interruption passes: the takeable transition fires — a
+        # converge-strip session for the still-worn remainder.
+        calm = self._snapshot(inventory=(sword_in_pack,), equipment=(lantern,))
+        policy._calibration_observe(calm)
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertEqual(policy._calibration_phase, "strip")
+        self.assertEqual(
+            [(a.kind, a.target_slot) for a in session.plan.actions],
+            [("takeoff", "light")],
+        )
+        # The takeoff completes -> naked -> capture flow (naked C round trip).
+        lantern_in_pack = replace(lantern, slot="d")
+        naked = self._snapshot(inventory=(sword_in_pack, lantern_in_pack))
+        session.dispatch(
+            session.current_action,
+            policy_module.observe_equipment_transactions(calm),
+        )
+        session.observe(policy_module.observe_equipment_transactions(naked))
+        self.assertTrue(session.complete)
+        policy._calibration_observe(naked)
+        self.assertEqual(policy._calibration_phase, "capture")
+        self.assertEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+        self.assertTrue(policy.confirm_key_posted(
+            policy_module.CHARACTER_DUMP_MACRO
+        ))
+        policy.observe_character_snapshot(
+            {"mutations": [1], "characteristics": []}
+        )
+        policy._calibration_observe(naked)
+        # Captured: the gate the undressed state held closed is now open.
+        self.assertIsNotNone(policy._character_calibration)
+        preparation = policy._prepare_equipment_optimization(naked)
+        self.assertNotIn("calibration-required", preparation.blockers)
+        # Departure stays closed until the optimizer dressing pass completes
+        # — even through the Home-blocked escape valve inside the equipment
+        # gate (the naked-departure hole).
         self.assertTrue(policy._calibration_stripped_unrestored)
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        calm = self._snapshot(inventory=(in_pack,))
-        self.assertTrue(policy._equipment_departure_ready(calm))
-        self.assertFalse(policy._town_departure_ready(calm))
+        self.assertTrue(policy._equipment_departure_ready(naked))
+        self.assertFalse(policy._town_departure_ready(naked))
         gate = inspect.getsource(
             policy_module.HengbotPolicy._town_departure_ready
         )
         self.assertIn("not self._calibration_stripped_unrestored", gate)
+        # The optimizer-owned transaction completing IS the dressing pass:
+        # observing it on the re-dressed character releases the guard, and
+        # the departure conjunct it held closed opens.
+        dressed = self._snapshot(equipment=(sword, lantern))
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((), (), 0)
+            )
+        )
+        policy.choose_key(dressed)
+        self.assertFalse(policy._calibration_stripped_unrestored)
 
     def test_restore_completion_releases_the_stripped_guard(self):
         policy = self._scan_complete_policy()

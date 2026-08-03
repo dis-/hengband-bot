@@ -2223,6 +2223,11 @@ class HengbotPolicy:
         # transaction completes.  While set, town departure is impossible: no
         # escape valve may let a calibration-stripped character dive naked.
         self._calibration_stripped_unrestored = False
+        # Worn-set signature recorded when an exhausted-regime session attempt
+        # stalled: a fresh attempt is allowed only after the worn set is
+        # OBSERVED to have changed (progress/regression), so the regime can
+        # neither cycle unboundedly nor die into a lock.
+        self._calibration_stall_worn_signature: tuple | None = None
         # Mutation observation (sorted ids) from `C` character snapshots: the
         # calibration phase's naked dump records it at capture, and the
         # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
@@ -7898,6 +7903,7 @@ class HengbotPolicy:
         self._calibration_naked_dump_requested = False
         self._calibration_naked_dump_inflight = False
         self._calibration_naked_flags = None
+        self._calibration_stall_worn_signature = None
 
     def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
         """Interruption path: stop observing, put the equipment back on."""
@@ -7921,33 +7927,52 @@ class HengbotPolicy:
             )
 
     def _calibration_restore_exhausted(self, snapshot: Snapshot) -> None:
-        """Terminal for a spent failure budget: converge or stop visibly.
+        """Exhausted-budget regime: converge to dressed, never dead-lock.
 
-        Preferred exit: the strip already succeeded, so if the character is
-        naked and the observation preconditions hold, CAPTURE the calibration
-        right here.  That opens the calibration-required gate, and the
-        optimizer's own transaction machinery — with its independent budgets
-        and pre-existing quarantine/T3 exits — owns dressing the character.
-        Otherwise stop visibly through the pre-existing town-blocked
-        machinery.  In both cases _calibration_stripped_unrestored stays set
-        until a dressing pass completes, so no departure escape valve can let
-        the character dive naked.
+        The recorded stripped loadout (_calibration_worn_before) is NEVER
+        discarded while the stripped guard is set, and the visit-block never
+        kills the path to dressed.  The convergent transition the bot can
+        always take once the interruption passes: finish the STRIP of
+        whatever removable items remain (takeoffs, the phase's most reliable
+        operation), CAPTURE the calibration from the naked observation, and
+        let the optimizer's own transaction machinery — independent budgets,
+        pre-existing quarantine/T3 exits — dress the character, which
+        releases the guard on its completed session.
+
+        While the preconditions are broken (hostile, damage) the phase parks
+        DORMANT at restore-equip with no session: the combat/recovery ladder
+        above owns the turns, and every later snapshot re-enters here.  A new
+        session attempt after a stall additionally requires the worn set to
+        have OBSERVABLY changed, so a persistently stalling transport cannot
+        cycle sessions unboundedly — that frozen world belongs to the
+        pre-existing repetition/livelock detectors, with the guard still
+        holding departure closed.
         """
         self._calibration_session_target = None
-        if (
-            not self._calibration_removable_worn(snapshot)
-            and self._calibration_preconditions_met(snapshot)
-            and self._capture_character_calibration(snapshot)
-        ):
+        if not self._calibration_preconditions_met(snapshot):
+            self._calibration_phase = "restore-equip"
+            self.last_reason = "calibration:restore-dormant"
             return
-        self._calibration_worn_before = ()
-        self._calibration_phase = (
-            "restore-supplies"
-            if self._calibration_restore_signatures
-            else None
+        if not self._calibration_removable_worn(snapshot):
+            if self._capture_character_calibration(snapshot):
+                return
+            self._calibration_phase = "restore-equip"
+            self.last_reason = "calibration:restore-dormant"
+            return
+        worn_signature = tuple(
+            sorted(
+                (item.slot, equipment_identity(item))
+                for item in snapshot.equipment
+                if item.is_equipment
+            )
         )
-        self._town_blocked_reason = "calibration:restore-exhausted"
-        self.last_reason = "calibration:restore-equip-exhausted"
+        if worn_signature != self._calibration_stall_worn_signature:
+            self._calibration_stall_worn_signature = worn_signature
+            if self._install_calibration_strip_session(snapshot):
+                self.last_reason = "calibration:converge-strip"
+                return
+        self._calibration_phase = "restore-equip"
+        self.last_reason = "calibration:restore-dormant"
 
     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
         removable = sorted(
@@ -8119,18 +8144,25 @@ class HengbotPolicy:
                         else None
                     )
             else:
-                # The re-equip session was abandoned (confirmation stall
-                # bound).  Every reinstall consumes the same per-visit failure
-                # budget as an abort — an unbounded
-                # restore-equip -> stall -> abandon -> restore-equip cycle
-                # would be exactly the absorbing state this phase must never
-                # create.
-                self._calibration_aborts_this_visit += 1
-                if self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT:
-                    self._calibration_blocked_this_visit = True
-                if self._calibration_blocked_this_visit or (
-                    not self._install_calibration_restore_session(snapshot)
-                ):
+                # A LIVE session that vanished was abandoned by the stall
+                # bound; only that consumes the per-visit failure budget — an
+                # unbounded restore -> stall -> abandon -> restore cycle is
+                # exactly the absorbing state this phase must never create.
+                # A dormant park (no session) spends nothing and simply
+                # re-enters the exhausted regime with each observation.
+                if self._calibration_session_target is not None:
+                    self._calibration_session_target = None
+                    self._calibration_aborts_this_visit += 1
+                    if self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT:
+                        self._calibration_blocked_this_visit = True
+                if not self._calibration_blocked_this_visit:
+                    if not self._install_calibration_restore_session(snapshot):
+                        self._calibration_phase = (
+                            "restore-supplies"
+                            if self._calibration_restore_signatures
+                            else None
+                        )
+                else:
                     self._calibration_restore_exhausted(snapshot)
             return
         if phase == "restore-supplies":

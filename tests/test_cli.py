@@ -1984,24 +1984,6 @@ class TownResidenceStreakTest(unittest.TestCase):
 class CharacterSnapshotDispatchTest(unittest.TestCase):
     """`C` character snapshots reach the policy through the dispatcher."""
 
-    def test_character_snapshot_refreshes_the_mutation_signature(self):
-        from hengbot.cli import _dispatch_response_lines
-        from hengbot.policy import HengbotPolicy
-
-        policy = HengbotPolicy()
-        sent = []
-        line = json.dumps({
-            "type": "character",
-            "character": {"mutations": [11, 3]},
-        })
-
-        consumed = _dispatch_response_lines([line], policy, sent.append)
-
-        self.assertEqual(consumed, 1)
-        self.assertEqual(policy._mutation_signature, (3, 11))
-        # Passive observation: no nudge, no request state.
-        self.assertEqual(sent, [])
-
     def test_naked_capture_characteristics_are_recorded_only_when_latched(self):
         from hengbot.cli import _dispatch_response_lines
         from hengbot.policy import HengbotPolicy

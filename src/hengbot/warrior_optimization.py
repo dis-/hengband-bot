@@ -150,9 +150,9 @@ class CharacterCalibration:
 
         The invalidation triggers are exactly the approved list: character
         identity, level change, ``stat_cur`` change (augmentation / drain),
-        mutation gain or loss (observed through the `~c` knowledge snapshot
-        and the periodic `C` status snapshot the emitter already provides),
-        and a change in the pinned (cursed worn) set.  Pass
+        mutation gain or loss (observed through the `C` character snapshots —
+        the capture phase's naked dump and the periodic status dump the bot
+        already posts), and a change in the pinned (cursed worn) set.  Pass
         ``mutation_signature=None`` when no mutation observation exists yet;
         an observed signature that differs from the recorded one — including
         a capture made before any observation — invalidates the cache.

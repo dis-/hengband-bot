@@ -189,7 +189,31 @@ def _definitions():
 
 
 class OptimizerPurityFlipTest(unittest.TestCase):
-    """The measured two-cycle generator must be structurally impossible."""
+    """The measured two-cycle generator must be structurally impossible.
+
+    BASE-PROOF PROCEDURE (recorded because this module cannot import on the
+    pre-P1 base ``18dc21a`` — ``CharacterCalibration`` does not exist there,
+    so the revert-proof is a targeted source-hunk revert, executed and
+    observed on 2026-08-03):
+
+    1. In ``prepare_warrior_optimization`` (warrior_optimization.py), restore
+       the pre-P1 constants derivation in place of the calibrated block —
+       equivalently, on the first P1 commit ``6e83f80`` change the branch
+       ``if calibration is not None:`` to ``if calibration is not None and
+       False:`` so the retained legacy ``else`` branch (worn-snapshot
+       de-gearing: ``_base_stat_without_current_gear``,
+       ``player.ac - loadout_armor_class(current, ...)``) runs again.
+    2. Run this class.  Observed failures:
+       * ``test_ring_partition_flip_is_gone_at_every_measured_depth`` fails
+         at ALL FIVE depths (5/15/20/25/31) with the exact measured flip:
+         ``AssertionError: Tuples differ: (..., ('sub_ring',
+         '恐れ知らずの指輪')) != (..., ('sub_ring', '器用さの指輪 (+1)'))``
+         — state A selects 恐れ知らずの指輪, state B selects 器用さの指輪
+         (+1), the self-sustaining two-cycle from SOL-FINDINGS §1.2.
+       * ``test_base_hp_is_immune_to_a_con_bearing_armour_swap`` fails with
+         ``AssertionError: 361 != 403`` — the §1.4 survival-model error.
+    3. Restore the hunk; every test passes again.
+    """
 
     maxDiff = None
 
