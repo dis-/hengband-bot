@@ -1,0 +1,419 @@
+"""Stage P1: the loadout selector is a pure function of the owned multiset.
+
+The decisive revert-proof is the measured turn-2459793 partition flip
+(SOL-FINDINGS-optimizer-purity-measurement.md §1): with a provably identical
+32-item owned multiset and the same depth, moving 器用さの指輪 (+1) between
+``main_ring`` and Home flipped the winner at depths 5/15/20/25/31 because
+``base_ac_bonus`` was derived from the worn snapshot through the
+``ADJ_DEX_TO_AC`` step function.  The raw flight-recorder record rotated out
+before this stage started, so ``tests/fixtures/optimizer-purity-turn2459793``
+is a reconstruction from the measurement's complete item dump plus captured
+full records of the still-owned physical items; its fidelity is asserted below
+against the measurement's documented derived values (base_str 116 / base_dex
+65 / base_con 160 / base_hp 403 / base_ac_bonus 0, catalog 32 = 12+1+19), and
+it reproduced the exact measured flip on the unmodified pre-P1 code.
+"""
+
+import json
+import unittest
+from dataclasses import replace
+from pathlib import Path
+
+from hengbot.equipment_optimizer import (
+    OwnedEquipmentCatalog,
+    current_loadout,
+    equipment_identity,
+)
+from hengbot.model import InventoryItem, PlayerState, Position, parse_snapshot
+from hengbot.monrace_knowledge import (
+    find_monrace_definitions,
+    load_monrace_knowledge,
+)
+from hengbot.warrior_defense_evaluator import (
+    WarriorDefenseInputs,
+    loadout_armor_class,
+)
+from hengbot.warrior_equipment_evaluator import modify_stat_value
+from hengbot.warrior_loadout_evaluator import constitution_hp_bonus
+from hengbot.warrior_optimization import (
+    CharacterCalibration,
+    WarriorEvaluatorCache,
+    calibrate_character_constants,
+    load_character_calibration,
+    prepare_warrior_optimization,
+    save_character_calibration,
+)
+
+FIXTURE = Path(__file__).parent / "fixtures" / "optimizer-purity-turn2459793.json"
+DEX_RING = "器用さの指輪 (+1)"
+FEAR_RING = "恐れ知らずの指輪"
+DWARVEN_RING_MAIL = "ドワーフのリング・メイル (-2) [17,+6] (+2) {+耐r冷}"
+ELVISH_PLATE = (
+    "エルフの強化プレート・アーマー (-3) [28,+5] (+3隠密) {+隠r酸電火冷呪}"
+)
+# The measurement's §0.1 stat model: race+class+personality DEX add is 3, so
+# the naked DEX observation is modify_stat_value(stat_cur=35, 3).
+NAKED_DEX = modify_stat_value(35, 3)
+INTRINSIC = frozenset({"resist_neth", "resist_pois", "see_invisible"})
+
+
+def _load_record():
+    return json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+
+def _clone(record):
+    return json.loads(json.dumps(record, ensure_ascii=False))
+
+
+def _stat_add(stats):
+    return next(
+        add
+        for add in range(-40, 41)
+        if modify_stat_value(stats["cur"], add) == stats["use"]
+    )
+
+
+def _catalog_for(record, knowledge):
+    snapshot = parse_snapshot(record, knowledge)
+    catalog = OwnedEquipmentCatalog()
+    catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
+    catalog.complete_home_scan(snapshot.store.items)
+    return snapshot, tuple(catalog.items)
+
+
+def _move_home_item_to_slot(record, home_name, worn_name, slot, *, con_pval=0,
+                            dex_pval=0):
+    """§1.1 state construction: one physical move, owned multiset unchanged."""
+    rec = _clone(record)
+    store_items = rec["store"]["items"]
+    incoming = next(item for item in store_items if item["name"] == home_name)
+    outgoing = next(item for item in rec["equipment"] if item["name"] == worn_name)
+    store_items.remove(incoming)
+    rec["equipment"].remove(outgoing)
+    worn = dict(incoming)
+    letter = worn.pop("letter", None)
+    worn.pop("price", None)
+    worn["slot"] = slot
+    rec["equipment"].append(worn)
+    stored = dict(outgoing)
+    stored.pop("slot", None)
+    stored["letter"] = letter
+    stored["price"] = 0
+    store_items.append(stored)
+    player = rec["player"]
+    delta_ac = (
+        incoming.get("ac", 0) + incoming.get("to_a", 0)
+        - outgoing.get("ac", 0) - outgoing.get("to_a", 0)
+    )
+    player["ac"] += delta_ac
+    if dex_pval:
+        stats = player["stats"]["dex"]
+        stats["use"] = modify_stat_value(
+            stats["cur"], _stat_add(stats) + dex_pval
+        )
+    if con_pval:
+        # §1.1 recomputes stat_use only; max_hp deliberately stays as observed.
+        # The legacy derivation then subtracts a CON hit-point bonus that no
+        # longer matches the max_hp it is subtracted from — the measured
+        # base_hp 403 -> 361 error.  The calibrated constant cannot be
+        # corrupted by that coupling because it never de-gears max_hp.
+        stats = player["stats"]["con"]
+        stats["use"] = modify_stat_value(
+            stats["cur"], _stat_add(stats) + con_pval
+        )
+    outgoing_flags = set(outgoing.get("known_flags", ()))
+    incoming_flags = set(incoming.get("known_flags", ()))
+    other_worn_flags = set()
+    for item in rec["equipment"]:
+        if item["name"] != home_name:
+            other_worn_flags.update(item.get("known_flags", ()))
+    flag_names = {
+        48: "resist_acid", 49: "resist_elec", 50: "resist_fire",
+        51: "resist_cold", 52: "resist_pois", 53: "resist_fear",
+        57: "resist_conf", 58: "resist_sound", 60: "resist_neth",
+        62: "resist_chaos", 46: "free_action",
+    }
+    for flag, name in flag_names.items():
+        if flag in outgoing_flags and flag not in other_worn_flags \
+                and flag not in incoming_flags and name not in (
+                    "resist_neth", "resist_pois"):
+            player["abilities"][name] = False
+        if flag in incoming_flags:
+            player["abilities"][name] = True
+    return rec
+
+
+def _naked_record(record):
+    """The unequipped calibration observation for this character.
+
+    Constructed from the measurement's documented naked values: DEX add 3,
+    intrinsic {resist_neth, resist_pois, see_invisible}, base_ac_bonus 0.
+    """
+    rec = _clone(record)
+    rec["equipment"] = []
+    rec["inventory"] = []
+    player = rec["player"]
+    player["stats"]["dex"]["use"] = NAKED_DEX
+    for name in list(player["abilities"]):
+        player["abilities"][name] = name in INTRINSIC
+    player["ac"] = loadout_armor_class(
+        current_loadout(()),
+        WarriorDefenseInputs(
+            level=player["level"],
+            natural_dex=NAKED_DEX,
+            shield_skill=player["skills"]["shield"],
+            saving_skill=player["skills"]["saving"],
+        ),
+    )
+    return rec
+
+
+def _definitions():
+    return find_monrace_definitions(Path(__file__), None)
+
+
+class OptimizerPurityFlipTest(unittest.TestCase):
+    """The measured two-cycle generator must be structurally impossible."""
+
+    maxDiff = None
+
+    @classmethod
+    def setUpClass(cls):
+        definitions = _definitions()
+        if definitions is None:
+            raise unittest.SkipTest(
+                "lib/edit/MonraceDefinitions.jsonc is not reachable from this "
+                "checkout; the decisive purity fixture cannot be evaluated"
+            )
+        cls.knowledge = load_monrace_knowledge(definitions)
+        cls.record = _load_record()
+        cls.calibration = calibrate_character_constants(
+            parse_snapshot(_naked_record(cls.record), cls.knowledge)
+        )
+
+    def _winner(self, snapshot, items, depth):
+        prepared = prepare_warrior_optimization(
+            snapshot,
+            items,
+            self.knowledge,
+            depth=depth,
+            home_scan_complete=True,
+            timeout_seconds=120.0,
+            calibration=self.calibration,
+        )
+        result = prepared.result
+        self.assertIsNotNone(result, prepared.blockers)
+        self.assertIsNotNone(result.best, prepared.blockers)
+        return tuple(
+            sorted(
+                (slot, owned.item.name)
+                for slot, owned in result.best.loadout.slots
+            )
+        )
+
+    def test_calibration_reproduces_the_measured_naked_constants(self):
+        calibration = self.calibration
+        self.assertIsNotNone(calibration)
+        self.assertEqual(calibration.base_stats, (116, 3, 9, 65, 160, 13))
+        self.assertEqual(calibration.base_hp, 403)
+        self.assertEqual(calibration.base_ac_bonus, 0)
+        self.assertEqual(calibration.intrinsic_abilities, INTRINSIC)
+        self.assertEqual(calibration.pinned_identities, ())
+
+    def test_ring_partition_flip_is_gone_at_every_measured_depth(self):
+        """SOL-FINDINGS §1.1/§1.2: same owned multiset, same depth, one answer.
+
+        On the pre-P1 derivation this fixture reproduces the measured flip
+        exactly (different sub_ring winner at all five depths); with the
+        calibrated worn-independent constants the two partitions must agree.
+        """
+        snap_a, items_a = _catalog_for(self.record, self.knowledge)
+        record_b = _move_home_item_to_slot(
+            self.record, DEX_RING, FEAR_RING, "main_ring", dex_pval=1
+        )
+        snap_b, items_b = _catalog_for(record_b, self.knowledge)
+
+        # Fixture fidelity anchors from the measurement.
+        self.assertEqual(len(items_a), 32)
+        origins = {"equipped": 0, "pack": 0, "home": 0}
+        for owned in items_a:
+            origins[owned.origin] += 1
+        self.assertEqual(origins, {"equipped": 12, "pack": 1, "home": 19})
+        self.assertEqual(
+            sorted(equipment_identity(owned.item) for owned in items_a),
+            sorted(equipment_identity(owned.item) for owned in items_b),
+            "the two states must share one provably identical owned multiset",
+        )
+
+        for depth in (5, 15, 20, 25, 31):
+            with self.subTest(depth=depth):
+                self.assertEqual(
+                    self._winner(snap_a, items_a, depth),
+                    self._winner(snap_b, items_b, depth),
+                    "the worn/stored partition of the identical owned "
+                    "multiset changed the winner (the measured two-cycle "
+                    f"generator) at depth {depth}",
+                )
+
+    def test_base_hp_is_immune_to_a_con_bearing_armour_swap(self):
+        """SOL-FINDINGS §1.4: the survival model must keep base_hp 403, not 361.
+
+        Swapping the CON-bearing ドワーフのリング・メイル into the body slot
+        made the legacy de-gearing derive base_hp 361 from the same character
+        (modify_stat_value is not injective on the 18/xx scale) — a 10 %
+        survival-model error decided by where the armour was stored.
+        """
+        snap_a, items_a = _catalog_for(self.record, self.knowledge)
+        record_c = _move_home_item_to_slot(
+            self.record, DWARVEN_RING_MAIL, ELVISH_PLATE, "body", con_pval=2
+        )
+        snap_c, items_c = _catalog_for(record_c, self.knowledge)
+
+        for label, snapshot, items in (
+            ("worn Elvish plate", snap_a, items_a),
+            ("worn CON ring mail", snap_c, items_c),
+        ):
+            cache = WarriorEvaluatorCache()
+            prepare_warrior_optimization(
+                snapshot,
+                items,
+                self.knowledge,
+                depth=20,
+                home_scan_complete=True,
+                timeout_seconds=120.0,
+                evaluator_cache=cache,
+                calibration=self.calibration,
+            )
+            self.assertIsNotNone(cache.context, label)
+            self.assertEqual(
+                cache.context[0].base_hp,
+                403,
+                f"{label}: the survival model consumed a worn-dependent "
+                "base_hp instead of the calibrated constant",
+            )
+
+
+def _player(**overrides):
+    fields = dict(
+        position=Position(1, 1), hp=100, max_hp=100, mp=0, max_mp=0, level=10,
+        class_id=0, race_id=3, personality_id=1, ac=5, speed=110,
+        stat_cur=(18, 10, 10, 17, 16, 9), stat_use=(20, 10, 10, 18, 17, 9),
+        abilities=frozenset({"see_invisible"}), shield_skill=0,
+        saving_skill=20,
+    )
+    fields.update(overrides)
+    return PlayerState(**fields)
+
+
+def _worn(slot, name="worn item", *, cursed=False, tval=36, pval=0, flags=()):
+    return InventoryItem(
+        slot=slot, name=name, count=1, tval=tval, sval=1, aware=True,
+        known=True, fully_known=True, is_equipment=True, is_cursed=cursed,
+        pval=pval, known_flags=frozenset(flags),
+    )
+
+
+def _snapshot(player, equipment=()):
+    from hengbot.model import Snapshot
+
+    return Snapshot(
+        player, {}, [], turn=777, floor_key=(0, 0, 0), town_flag=True,
+        inventory=[], equipment=list(equipment),
+    )
+
+
+class CharacterCalibrationTest(unittest.TestCase):
+    def test_refuses_to_calibrate_while_a_removable_item_is_worn(self):
+        snapshot = _snapshot(_player(), [_worn("body")])
+        self.assertIsNone(calibrate_character_constants(snapshot))
+
+    def test_naked_observation_is_read_directly_without_inversion(self):
+        player = _player()
+        calibration = calibrate_character_constants(_snapshot(player))
+        self.assertIsNotNone(calibration)
+        self.assertEqual(calibration.base_stats, player.stat_use)
+        self.assertEqual(calibration.intrinsic_abilities, player.abilities)
+        self.assertEqual(
+            calibration.base_hp,
+            player.max_hp
+            - constitution_hp_bonus(player.stat_use[4], player.level),
+        )
+        naked_model = loadout_armor_class(
+            current_loadout(()),
+            WarriorDefenseInputs(
+                level=player.level,
+                natural_dex=player.stat_use[3],
+                shield_skill=player.shield_skill,
+                saving_skill=player.saving_skill,
+            ),
+        )
+        self.assertEqual(calibration.base_ac_bonus, player.ac - naked_model)
+        self.assertEqual(calibration.observed_turn, 777)
+
+    def test_pinned_cursed_item_is_folded_into_the_constants(self):
+        cursed = _worn("main_ring", "cursed ring", cursed=True, tval=45)
+        player = _player(abilities=frozenset({"see_invisible", "resist_fire"}))
+        calibration = calibrate_character_constants(
+            _snapshot(player, [cursed])
+        )
+        self.assertIsNotNone(calibration)
+        # The unremovable item's contributions stay inside the observation...
+        self.assertEqual(calibration.base_stats, player.stat_use)
+        self.assertIn("resist_fire", calibration.intrinsic_abilities)
+        # ...and the folded set is recorded so a curse change invalidates it.
+        self.assertEqual(
+            calibration.pinned_identities,
+            (("main_ring", equipment_identity(cursed)),),
+        )
+
+    def test_stale_reasons_cover_the_approved_invalidation_triggers(self):
+        player = _player()
+        calibration = calibrate_character_constants(_snapshot(player))
+        self.assertIsNone(calibration.stale_reason(player, ()))
+        self.assertEqual(
+            calibration.stale_reason(replace(player, level=11), ()), "level"
+        )
+        self.assertEqual(
+            calibration.stale_reason(
+                replace(player, stat_cur=(19, 10, 10, 17, 16, 9)), ()
+            ),
+            "stat_cur",
+        )
+        self.assertEqual(
+            calibration.stale_reason(replace(player, race_id=5), ()),
+            "character-identity",
+        )
+        self.assertEqual(
+            calibration.stale_reason(player, (("main_ring", "sig"),)),
+            "pinned-set",
+        )
+
+    def test_prepare_fails_closed_on_a_stale_calibration(self):
+        player = _player(class_id=0)
+        calibration = calibrate_character_constants(_snapshot(player))
+        older = replace(calibration, level=calibration.level - 1)
+        prepared = prepare_warrior_optimization(
+            _snapshot(player),
+            (),
+            {1: object()},
+            depth=1,
+            home_scan_complete=True,
+            calibration=older,
+        )
+        self.assertEqual(prepared.blockers, ("calibration-stale:level",))
+
+    def test_persistence_round_trip(self):
+        import tempfile
+
+        calibration = calibrate_character_constants(_snapshot(_player()))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "character-calibration.json"
+            save_character_calibration(path, calibration)
+            self.assertEqual(load_character_calibration(path), calibration)
+        self.assertIsNone(
+            load_character_calibration(Path(directory) / "missing.json")
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

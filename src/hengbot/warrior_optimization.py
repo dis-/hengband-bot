@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import json
 from math import isfinite
@@ -16,6 +16,7 @@ from hengbot.equipment_optimizer import (
     OptimizationResult,
     OwnedEquipment,
     current_loadout,
+    equipment_identity,
     optimize_loadout,
     required_abilities,
 )
@@ -105,6 +106,156 @@ def optimization_encounters(
     ):
         return representative_encounters(encounters)
     return encounters
+
+
+@dataclass(frozen=True)
+class CharacterCalibration:
+    """Worn-independent character constants observed with nothing removable worn.
+
+    Produced by the execution-layer unequipped calibration phase (the user's
+    sanctioned method): the pack is deposited at Home, every removable item is
+    taken off, and the naked snapshot IS the constants — no inversion of
+    ``modify_stat_value`` and no ``ADJ_DEX_TO_AC`` subtraction of a worn set
+    ever happens.  Cursed (unremovable) items stay worn during the observation,
+    so their contribution is folded into the constants; ``pinned_identities``
+    records that folded set so a curse change invalidates the calibration.
+    """
+
+    race_id: int
+    class_id: int
+    personality_id: int
+    level: int
+    stat_cur: tuple[int, ...]
+    base_stats: tuple[int, ...]
+    base_hp: int
+    base_ac_bonus: int
+    intrinsic_abilities: frozenset[str]
+    pinned_identities: tuple[tuple[str, str], ...] = ()
+    observed_turn: int = 0
+
+    def stale_reason(
+        self,
+        player,
+        pinned_identities: tuple[tuple[str, str], ...],
+    ) -> str | None:
+        """First reason the cached constants no longer describe this character.
+
+        The invalidation triggers are exactly the approved list: character
+        identity, level change, ``stat_cur`` change (augmentation / drain), and
+        a change in the pinned (cursed worn) set.  Mutation gain or loss has no
+        observable in the current emitter; see the P1 report.
+        """
+        if (
+            player.race_id != self.race_id
+            or player.class_id != self.class_id
+            or player.personality_id != self.personality_id
+        ):
+            return "character-identity"
+        if player.level != self.level:
+            return "level"
+        if tuple(player.stat_cur) != self.stat_cur:
+            return "stat_cur"
+        if tuple(pinned_identities) != self.pinned_identities:
+            return "pinned-set"
+        return None
+
+
+def calibrate_character_constants(snapshot: Snapshot) -> CharacterCalibration | None:
+    """Read the constants off a naked observation. Purely observational.
+
+    Returns None unless every worn item is unremovable (cursed): a removable
+    item still worn means the strip phase has not finished and the observation
+    would be contaminated.  The caller (execution layer) owns every other
+    precondition: town, temporary statuses clear, no visible hostiles, HP full.
+    """
+    player = snapshot.player
+    removable = [
+        item
+        for item in snapshot.equipment
+        if item.is_equipment and not item.is_cursed
+    ]
+    if removable:
+        return None
+    if len(player.stat_cur) < 6 or len(player.stat_use) < 6:
+        return None
+    if player.stat_use[0] <= 0 or player.stat_use[3] <= 0 or player.stat_use[4] <= 0:
+        return None
+    base_stats = tuple(player.stat_use)
+    naked = current_loadout(())
+    naked_defense = WarriorDefenseInputs(
+        level=player.level,
+        natural_dex=base_stats[3],
+        shield_skill=player.shield_skill,
+        base_speed=player.speed,
+        saving_skill=player.saving_skill,
+    )
+    base_ac_bonus = player.ac - loadout_armor_class(naked, naked_defense)
+    base_hp = max(
+        1,
+        player.max_hp - constitution_hp_bonus(base_stats[4], player.level),
+    )
+    pinned_identities = tuple(
+        sorted(
+            (item.slot, equipment_identity(item))
+            for item in snapshot.equipment
+            if item.is_equipment and item.is_cursed
+        )
+    )
+    return CharacterCalibration(
+        race_id=player.race_id,
+        class_id=player.class_id,
+        personality_id=player.personality_id,
+        level=player.level,
+        stat_cur=tuple(player.stat_cur),
+        base_stats=base_stats,
+        base_hp=base_hp,
+        base_ac_bonus=base_ac_bonus,
+        intrinsic_abilities=frozenset(player.abilities),
+        pinned_identities=pinned_identities,
+        observed_turn=getattr(snapshot, "turn", 0),
+    )
+
+
+def save_character_calibration(path: Path, calibration: CharacterCalibration) -> None:
+    data = asdict(calibration)
+    data["intrinsic_abilities"] = sorted(calibration.intrinsic_abilities)
+    data["pinned_identities"] = [list(pair) for pair in calibration.pinned_identities]
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
+    except OSError:
+        # Persistence is an optimization; the in-memory calibration stays valid.
+        return
+
+
+def load_character_calibration(path: Path) -> CharacterCalibration | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    try:
+        return CharacterCalibration(
+            race_id=int(data["race_id"]),
+            class_id=int(data["class_id"]),
+            personality_id=int(data["personality_id"]),
+            level=int(data["level"]),
+            stat_cur=tuple(int(v) for v in data["stat_cur"]),
+            base_stats=tuple(int(v) for v in data["base_stats"]),
+            base_hp=int(data["base_hp"]),
+            base_ac_bonus=int(data["base_ac_bonus"]),
+            intrinsic_abilities=frozenset(
+                str(v) for v in data["intrinsic_abilities"]
+            ),
+            pinned_identities=tuple(
+                (str(slot), str(identity))
+                for slot, identity in data.get("pinned_identities", [])
+            ),
+            observed_turn=int(data.get("observed_turn", 0)),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -247,6 +398,7 @@ def prepare_warrior_optimization(
     timeout_seconds: float = 25.0,
     loadout_report_path: Path | None = None,
     evaluator_cache: WarriorEvaluatorCache | None = None,
+    calibration: CharacterCalibration | None = None,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command."""
     current = current_loadout(items)
@@ -260,6 +412,17 @@ def prepare_warrior_optimization(
         blockers.append("missing-monrace-knowledge")
     if not home_scan_complete:
         blockers.append("home-scan-incomplete")
+    if calibration is not None:
+        pinned_identities = tuple(
+            sorted(
+                (item.equipped_slot or "", equipment_identity(item.item))
+                for item in items
+                if item.origin == "equipped" and item.item.is_cursed
+            )
+        )
+        stale = calibration.stale_reason(player, pinned_identities)
+        if stale is not None:
+            blockers.append(f"calibration-stale:{stale}")
     if blockers:
         return WarriorOptimizationPreparation(current, None, None, tuple(blockers))
 
@@ -273,52 +436,76 @@ def prepare_warrior_optimization(
         catalog_size=len(items),
     )
 
-    intrinsic_abilities = _conservative_intrinsic_abilities(
-        player.abilities, current
-    )
-    intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
-    displayed_stats = (
-        player.stat_use
-        if len(getattr(player, "stat_use", ())) >= 4
-        and player.stat_use[0] > 0
-        and player.stat_use[3] > 0
-        else player.stat_cur
-    )
-    base_str = _base_stat_without_current_gear(
-        displayed_stats[0], current, TR_STR
-    )
-    base_dex = _base_stat_without_current_gear(
-        displayed_stats[3], current, TR_DEX
-    )
-    base_con = (
-        _base_stat_without_current_gear(displayed_stats[4], current, TR_CON)
-        if len(displayed_stats) >= 5
-        else 3
-    )
-    current_con = modify_stat_value(
-        base_con,
-        sum(item.item.pval for _, item in current.slots if TR_CON in item.flags),
-    )
-    base_hp = max(
-        1,
-        player.max_hp - constitution_hp_bonus(current_con, player.level),
-    )
-    provisional_defense = WarriorDefenseInputs(
+    if calibration is not None:
+        # P1: every character constant comes from the unequipped calibration
+        # observation, never from de-gearing the currently worn snapshot.  The
+        # worn partition of the owned multiset can no longer move the answer
+        # through ADJ_DEX_TO_AC steps (base_ac_bonus), the non-injective
+        # modify_stat_value scale (base stats / base_hp), or ability shadowing
+        # (intrinsic set).
+        intrinsic_abilities = calibration.intrinsic_abilities
+        base_str = calibration.base_stats[0]
+        base_dex = calibration.base_stats[3]
+        base_con = calibration.base_stats[4]
+        base_hp = calibration.base_hp
+        base_ac_bonus = calibration.base_ac_bonus
+        intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
+    else:
+        intrinsic_abilities = _conservative_intrinsic_abilities(
+            player.abilities, current
+        )
+        intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
+        displayed_stats = (
+            player.stat_use
+            if len(getattr(player, "stat_use", ())) >= 4
+            and player.stat_use[0] > 0
+            and player.stat_use[3] > 0
+            else player.stat_cur
+        )
+        base_str = _base_stat_without_current_gear(
+            displayed_stats[0], current, TR_STR
+        )
+        base_dex = _base_stat_without_current_gear(
+            displayed_stats[3], current, TR_DEX
+        )
+        base_con = (
+            _base_stat_without_current_gear(displayed_stats[4], current, TR_CON)
+            if len(displayed_stats) >= 5
+            else 3
+        )
+        current_con = modify_stat_value(
+            base_con,
+            sum(
+                item.item.pval
+                for _, item in current.slots
+                if TR_CON in item.flags
+            ),
+        )
+        base_hp = max(
+            1,
+            player.max_hp - constitution_hp_bonus(current_con, player.level),
+        )
+        provisional_defense = WarriorDefenseInputs(
+            level=player.level,
+            natural_dex=base_dex,
+            shield_skill=player.shield_skill,
+            base_speed=player.speed - _equipment_speed(current),
+            saving_skill=player.saving_skill,
+            intrinsic_flags=intrinsic_flags,
+        )
+        base_ac_bonus = player.ac - loadout_armor_class(
+            current, provisional_defense
+        )
+    # Speed is deliberately NOT calibrated: its de-gearing is linear and exact,
+    # and a stripped observation would fold the changed carried weight into the
+    # base (roadmap P1 requirement 4).
+    defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_dex,
         shield_skill=player.shield_skill,
+        base_ac_bonus=base_ac_bonus,
         base_speed=player.speed - _equipment_speed(current),
         saving_skill=player.saving_skill,
-        intrinsic_flags=intrinsic_flags,
-    )
-    base_ac_bonus = player.ac - loadout_armor_class(current, provisional_defense)
-    defense = WarriorDefenseInputs(
-        level=provisional_defense.level,
-        natural_dex=provisional_defense.natural_dex,
-        shield_skill=provisional_defense.shield_skill,
-        base_ac_bonus=base_ac_bonus,
-        base_speed=provisional_defense.base_speed,
-        saving_skill=provisional_defense.saving_skill,
         intrinsic_flags=intrinsic_flags,
     )
     inputs = WarriorLoadoutInputs(

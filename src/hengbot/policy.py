@@ -18,6 +18,7 @@ from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS,
     TR_TELEPORT,
     OwnedEquipmentCatalog,
+    current_loadout,
     equipment_identity,
     operational_equipment_candidate,
     random_teleport_is_suppressed,
@@ -32,6 +33,7 @@ from hengbot.equipment_transaction_planner import (
     PHASE_HOME_PREPARE,
     EquipmentTransaction,
     EquipmentTransactionPlan,
+    _EQUIP_ORDER as EQUIP_ORDER,
     plan_equipment_transactions,
 )
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonraceKnowledge
@@ -60,9 +62,13 @@ from hengbot.monster_ranged_evaluator import (
 )
 from hengbot.projection_path import projection_path
 from hengbot.warrior_optimization import (
+    CharacterCalibration,
     WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
+    calibrate_character_constants,
+    load_character_calibration,
     prepare_warrior_optimization,
+    save_character_calibration,
     weapon_expected_dps,
 )
 from hengbot.warrior_loadout_evaluator import (
@@ -239,6 +245,7 @@ HOME_PAGE_ADVANCE_REASONS = frozenset(
         "home:seek-treasure-detection-page",
         "home:seek-digging-tool-page",
         "home:seek-processing-page",
+        "calibration:seek-restore-page",
     }
 )
 HOME_PLAN_OWNED_PROCESSING_REASONS = HOME_PAGE_ADVANCE_REASONS | {
@@ -2194,6 +2201,22 @@ class HengbotPolicy:
         ) = None
         self._equipment_optimization_timed_out_this_visit = False
         self._warrior_evaluator_cache = WarriorEvaluatorCache()
+        # P1 worn-independent character constants (SOL-ROADMAP-optimizer-purity
+        # stage P1).  The constants are OBSERVED by the execution-layer
+        # unequipped calibration phase and cached; the selector only consumes
+        # them and never triggers the phase itself.
+        self._character_calibration: CharacterCalibration | None = None
+        self._character_calibration_path: Path | None = None
+        self._character_calibration_loaded = False
+        # Calibration phase state machine: None | "deposit" | "strip" |
+        # "capture" | "restore-equip" | "restore-supplies".
+        self._calibration_phase: str | None = None
+        self._calibration_worn_before: tuple[tuple[str, str], ...] = ()
+        self._calibration_restore_signatures: list[tuple[str, int, int]] = []
+        self._calibration_restore_seen_pages: set[tuple[str, ...]] = set()
+        self._calibration_session_target: str | None = None
+        self._calibration_aborts_this_visit = 0
+        self._calibration_blocked_this_visit = False
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
@@ -2498,6 +2521,7 @@ class HengbotPolicy:
                 self._equipment_transaction_session = None
                 self._equipment_optimization_signature = None
                 self._equipment_transaction_home_pages.clear()
+        self._calibration_observe(snapshot)
         self._observe(snapshot)
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
@@ -4001,6 +4025,13 @@ class HengbotPolicy:
         if suppress_random_teleport is not None:
             return suppress_random_teleport
 
+        # The unequipped calibration phase owns the character before the
+        # optimizer may run: it strips at Home, observes the constants, and the
+        # optimizer (unblocked by the capture) dresses the character back.
+        calibration_key = self._calibration_town_key(snapshot)
+        if calibration_key is not None:
+            return calibration_key
+
         # Equipment changes have one owner: after Home identification and the
         # complete-page scan, execute the globally optimized loadout transaction.
         # Legacy per-item weapon trials and jewellery upgrades must not race this
@@ -4016,8 +4047,9 @@ class HengbotPolicy:
 
         # Keep a light lit before any town errand can approach a store or the
         # dungeon entrance: native town travel is rejected at night unless a
-        # light is equipped. Skip equipment changes while confused.
-        if not player.confused:
+        # light is equipped. Skip equipment changes while confused, and while
+        # the calibration phase deliberately holds the character stripped.
+        if not player.confused and not self._calibration_active():
             restore_lantern = self._empty_lantern_to_restore(snapshot)
             if restore_lantern is not None:
                 self.last_reason = "restore-lantern"
@@ -4522,6 +4554,8 @@ class HengbotPolicy:
             self._town_visit_ledger = TownVisitLedger()
             self._unknown_lantern_departure_refilled = False
             self._abandoned_quest_carry_requirements.clear()
+            self._calibration_aborts_this_visit = 0
+            self._calibration_blocked_this_visit = False
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -7712,6 +7746,388 @@ class HengbotPolicy:
 
         return requirements
 
+    # ---- P1 unequipped calibration phase (execution layer) -----------------
+    #
+    # Reachable exit from every phase state (roadmap P1 requirement 6):
+    #   deposit  -> strip (pack drained / enough free slots), or abort
+    #   strip    -> capture (session complete), or abort (session abandoned /
+    #               precondition break)
+    #   capture  -> done (constants cached) or abort (structural / break)
+    #   restore-equip    -> restore-supplies / None (session complete), or a
+    #               fresh abort attempt rebuilds it (bounded by the abort
+    #               counter); when the counter latches the visit blocked, the
+    #               phase clears and the pre-existing town-blocked machinery
+    #               owns the state.
+    #   restore-supplies -> None (queue drained, item deferred, or Home proved
+    #               blocked for this visit by T3).
+    # An abort always attempts to re-wear what was taken off; the departure
+    # gates stay closed while a phase or the restore queue is live, and the
+    # pre-existing T3 Home-blocked escape in _equipment_departure_ready remains
+    # the sanctioned "keep the current legal loadout" exit if Home itself dies.
+
+    def _current_pinned_identities(
+        self, snapshot: Snapshot
+    ) -> tuple[tuple[str, str], ...]:
+        return tuple(
+            sorted(
+                (item.slot, equipment_identity(item))
+                for item in snapshot.equipment
+                if item.is_equipment and item.is_cursed
+            )
+        )
+
+    def _validated_character_calibration(
+        self, snapshot: Snapshot
+    ) -> CharacterCalibration | None:
+        if (
+            not self._character_calibration_loaded
+            and self._character_calibration is None
+            and self._character_calibration_path is not None
+        ):
+            self._character_calibration = load_character_calibration(
+                self._character_calibration_path
+            )
+        self._character_calibration_loaded = True
+        calibration = self._character_calibration
+        if calibration is None:
+            return None
+        reason = calibration.stale_reason(
+            snapshot.player, self._current_pinned_identities(snapshot)
+        )
+        if reason is not None:
+            self._character_calibration = None
+            return None
+        return calibration
+
+    def _calibration_active(self) -> bool:
+        return self._calibration_phase is not None
+
+    def _calibration_session_owned(self) -> bool:
+        session = self._equipment_transaction_session
+        return (
+            session is not None
+            and self._calibration_session_target is not None
+            and session.target_loadout_id == self._calibration_session_target
+        )
+
+    def _calibration_preconditions_met(self, snapshot: Snapshot) -> bool:
+        player = snapshot.player
+        return (
+            snapshot.in_town
+            and self._temporary_status_clear(snapshot)
+            and player.hp >= player.max_hp
+            and not any(
+                monster.hostile for monster in snapshot.visible_monsters
+            )
+        )
+
+    def _calibration_removable_worn(
+        self, snapshot: Snapshot
+    ) -> list[InventoryItem]:
+        return [
+            item
+            for item in snapshot.equipment
+            if item.is_equipment and not item.is_cursed
+        ]
+
+    def _begin_character_calibration(self, snapshot: Snapshot) -> None:
+        self._calibration_phase = "deposit"
+        self._calibration_worn_before = tuple(
+            (item.slot, equipment_identity(item))
+            for item in snapshot.equipment
+            if item.is_equipment and not item.is_cursed
+        )
+        self._calibration_restore_seen_pages.clear()
+
+    def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
+        """Interruption path: stop observing, put the equipment back on."""
+        self._calibration_aborts_this_visit += 1
+        if self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT:
+            self._calibration_blocked_this_visit = True
+        if self._calibration_session_owned():
+            self._equipment_transaction_session = None
+        self._calibration_session_target = None
+        self.last_reason = f"calibration:abort:{reason}"
+        if not self._install_calibration_restore_session(snapshot):
+            self._calibration_phase = (
+                "restore-supplies"
+                if self._calibration_restore_signatures
+                else None
+            )
+
+    def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
+        removable = sorted(
+            self._calibration_removable_worn(snapshot),
+            key=lambda item: (-EQUIP_ORDER.get(item.slot, 1_000), item.slot),
+        )
+        if not removable:
+            self._calibration_phase = "capture"
+            return True
+        if (
+            PACK_CAPACITY - len(snapshot.inventory) < len(removable)
+            or self._equipment_transaction_session is not None
+        ):
+            return False
+        actions = tuple(
+            EquipmentTransaction(
+                PHASE_EQUIP,
+                "takeoff",
+                f"calibration:{item.slot}",
+                item.slot,
+                equipment_identity(item),
+            )
+            for item in removable
+        )
+        plan = EquipmentTransactionPlan(
+            actions, (), len(snapshot.inventory) + len(actions)
+        )
+        session = EquipmentTransactionSession(
+            plan,
+            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        )
+        self._equipment_transaction_session = session
+        self._calibration_session_target = session.target_loadout_id
+        self._calibration_phase = "strip"
+        return True
+
+    def _install_calibration_restore_session(self, snapshot: Snapshot) -> bool:
+        """Re-wear everything recorded at strip start that is now in the pack."""
+        worn_now = {
+            item.slot
+            for item in snapshot.equipment
+            if item.is_equipment
+        }
+        pack_identities = {
+            equipment_identity(item)
+            for item in snapshot.inventory
+            if item.is_equipment
+        }
+        missing = [
+            (slot, identity)
+            for slot, identity in self._calibration_worn_before
+            if slot not in worn_now and identity in pack_identities
+        ]
+        if not missing or self._equipment_transaction_session is not None:
+            return False
+        actions = tuple(
+            EquipmentTransaction(
+                PHASE_EQUIP,
+                "equip",
+                f"calibration-restore:{slot}",
+                slot,
+                identity,
+            )
+            for slot, identity in sorted(
+                missing, key=lambda entry: EQUIP_ORDER.get(entry[0], 1_000)
+            )
+        )
+        plan = EquipmentTransactionPlan(actions, (), len(snapshot.inventory))
+        session = EquipmentTransactionSession(
+            plan,
+            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        )
+        self._equipment_transaction_session = session
+        self._calibration_session_target = session.target_loadout_id
+        self._calibration_phase = "restore-equip"
+        return True
+
+    def _capture_character_calibration(self, snapshot: Snapshot) -> bool:
+        calibration = calibrate_character_constants(snapshot)
+        if calibration is None:
+            return False
+        self._character_calibration = calibration
+        if self._character_calibration_path is not None:
+            save_character_calibration(
+                self._character_calibration_path, calibration
+            )
+        self._calibration_phase = (
+            "restore-supplies" if self._calibration_restore_signatures else None
+        )
+        self._calibration_worn_before = ()
+        self._calibration_session_target = None
+        # The optimizer, now unblocked, owns dressing the character: force a
+        # fresh preparation and reopen Home for its withdrawals.
+        self._equipment_optimization_signature = None
+        self._equipment_optimization_preparation = None
+        self._rearm_town_store_for_new_work(STORE_HOME)
+        self.last_reason = "calibration:captured"
+        return True
+
+    def _calibration_observe(self, snapshot: Snapshot) -> None:
+        """Advance the calibration state machine from each new snapshot."""
+        phase = self._calibration_phase
+        if phase is None:
+            return
+        if not snapshot.in_town:
+            # The floor changed under a live phase (death reload, forced move):
+            # drop the phase; the calibration cache itself stays untouched and
+            # the next town visit re-runs the phase from the start.
+            self._calibration_phase = None
+            self._calibration_worn_before = ()
+            self._calibration_restore_signatures.clear()
+            if self._calibration_session_owned():
+                self._equipment_transaction_session = None
+            self._calibration_session_target = None
+            return
+        if phase in {"deposit", "strip", "capture"}:
+            if not self._calibration_preconditions_met(snapshot):
+                self._abort_character_calibration(snapshot, "precondition")
+                return
+        if phase == "strip":
+            if self._calibration_session_owned():
+                if self._equipment_transaction_session.complete:
+                    self._equipment_transaction_session = None
+                    self._calibration_session_target = None
+                    self._calibration_phase = "capture"
+                    phase = "capture"
+            elif not self._calibration_removable_worn(snapshot):
+                self._calibration_session_target = None
+                self._calibration_phase = "capture"
+                phase = "capture"
+            else:
+                # The strip session was abandoned (stall bound) out from under
+                # the phase: treat as interruption and restore.
+                self._abort_character_calibration(snapshot, "session-lost")
+                return
+        if phase == "capture" and snapshot.store is None:
+            if not self._capture_character_calibration(snapshot):
+                self._abort_character_calibration(snapshot, "capture-invalid")
+            return
+        if phase == "restore-equip":
+            if self._calibration_session_owned():
+                if self._equipment_transaction_session.complete:
+                    self._equipment_transaction_session = None
+                    self._calibration_session_target = None
+                    self._calibration_phase = (
+                        "restore-supplies"
+                        if self._calibration_restore_signatures
+                        else None
+                    )
+            else:
+                # Session abandoned; retry (bounded) or hand the state to the
+                # town-blocked machinery once the visit is latched blocked.
+                if not self._install_calibration_restore_session(snapshot):
+                    self._calibration_phase = (
+                        "restore-supplies"
+                        if self._calibration_restore_signatures
+                        else None
+                    )
+            return
+        if phase == "restore-supplies":
+            if not self._calibration_restore_signatures or (
+                STORE_HOME in self._town_visit_ledger.blocked_stores
+            ):
+                self._calibration_restore_signatures.clear()
+                self._calibration_phase = None
+            elif STORE_HOME in self._town_store_attempted:
+                self._rearm_town_store_for_new_work(STORE_HOME)
+            return
+        if phase == "deposit":
+            if STORE_HOME in self._town_store_attempted and (
+                self._find_home_deposit(snapshot) is not None
+            ):
+                self._rearm_town_store_for_new_work(STORE_HOME)
+
+    def _calibration_restore_withdraw_key(self, snapshot: Snapshot) -> str | None:
+        """Withdraw the calibration-deposited pack contents back from Home."""
+        store = snapshot.store
+        if store is None or store.store_type != STORE_HOME:
+            return None
+        if self._home_withdraw_inflight is not None:
+            return None
+        self._calibration_restore_signatures = [
+            signature
+            for signature in self._calibration_restore_signatures
+            if signature not in self._deferred_home_items
+        ]
+        remaining = self._calibration_restore_signatures
+        if not remaining:
+            return None
+        for signature in remaining:
+            target = next(
+                (
+                    item
+                    for item in store.items
+                    if self._item_signature(item) == signature
+                ),
+                None,
+            )
+            if target is None:
+                continue
+            self._calibration_restore_seen_pages.clear()
+            self._home_withdraw_inflight = (
+                signature,
+                len(snapshot.inventory),
+                self._inventory_signature_count(snapshot, signature),
+            )
+            remaining.remove(signature)
+            self.last_reason = "calibration:restore-withdraw"
+            quantity = f"{target.count}\r" if target.count > 1 else "\r"
+            return BUY_KEY + target.letter + quantity
+        page = tuple(
+            sorted(f"{item.name}|{item.count}" for item in store.items)
+        )
+        if page in self._calibration_restore_seen_pages:
+            # Every Home page was inspected and none of the remaining deposits
+            # is withdrawable this visit.  Leave them stored: the ordinary
+            # supply ledger buys replacements, so this never blocks departure.
+            self._calibration_restore_signatures = []
+            self.last_reason = "calibration:restore-missing"
+            return LEAVE_STORE_KEY
+        self._calibration_restore_seen_pages.add(page)
+        self.last_reason = "calibration:seek-restore-page"
+        return " "
+
+    def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
+        """Own the calibration phase while outside stores in town."""
+        if (
+            not snapshot.in_town
+            or snapshot.store is not None
+            or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+        ):
+            return None
+        phase = self._calibration_phase
+        if phase is None:
+            if (
+                self._calibration_blocked_this_visit
+                or self._calibration_restore_signatures
+                # The phase runs 装備最適化前: it starts only once the Home
+                # scan (the other optimizer prerequisite) is complete and the
+                # identification / Home processing flows are idle, so it can
+                # never race their withdrawals.
+                or not self._equipment_catalog.home_scan_complete
+                or self._validated_character_calibration(snapshot) is not None
+                or not self._calibration_preconditions_met(snapshot)
+                or not self._home_available(snapshot)
+                or self._equipment_transaction_session is not None
+                or self._identification_need is not None
+                or self._home_pending_item is not None
+                or self._home_pending_batch
+                or self._home_withdraw_inflight is not None
+            ):
+                return None
+            self._begin_character_calibration(snapshot)
+            phase = "deposit"
+        if phase == "deposit":
+            if self._find_home_deposit(snapshot) is None:
+                # Pack drained as far as Home accepts; strip if the takeoffs
+                # fit, otherwise the observation cannot be made this visit.
+                if self._install_calibration_strip_session(snapshot):
+                    self.last_reason = "calibration:strip-installed"
+                    return WAIT_KEY
+                self._abort_character_calibration(snapshot, "no-pack-space")
+                return WAIT_KEY
+            # Deposits ride the ordinary Home routing (atomic entry deposit,
+            # one operation per entry); nothing to post from here.
+            return None
+        if phase == "capture":
+            # The confirming snapshot normally captures inside
+            # _calibration_observe; reaching here means it could not (for
+            # example a store snapshot interleaved).  Wait one decision.
+            self.last_reason = "calibration:await-capture"
+            return WAIT_KEY
+        return None
+
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
@@ -7722,6 +8138,21 @@ class HengbotPolicy:
             and not self._equipment_transaction_session.complete
         ):
             return self._equipment_optimization_preparation
+        # P1: the search consumes only calibrated worn-independent character
+        # constants.  Without a valid calibration the optimizer fails closed;
+        # the town execution layer owns running the calibration phase — the
+        # selector itself never triggers it.
+        calibration = self._validated_character_calibration(snapshot)
+        if calibration is None:
+            preparation = WarriorOptimizationPreparation(
+                current_loadout(self._equipment_catalog.items),
+                None,
+                None,
+                ("calibration-required",),
+            )
+            self._equipment_optimization_signature = None
+            self._equipment_optimization_preparation = preparation
+            return preparation
         optimization_depth = (
             depth_override
             if depth_override is not None
@@ -7890,6 +8321,9 @@ class HengbotPolicy:
             has_destruction,
             self._fundraising_mode,
             required_launcher_ammo if required_launcher_available else None,
+            # P1: a re-calibration is a genuine input change even when level
+            # and stat_cur (already terms above) are unchanged.
+            calibration.observed_turn,
         )
 
         # Keep pack weapons that the ordinary town policy has already classified
@@ -7988,6 +8422,7 @@ class HengbotPolicy:
             search_excluded_item_ids=search_excluded,
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
+            calibration=calibration,
         )
         result = getattr(preparation, "result", None)
         best = getattr(result, "best", None)
@@ -8690,6 +9125,10 @@ class HengbotPolicy:
                     and not self._home_batch_review_items
                     and self._home_withdraw_inflight is None
                     and self._identification_need is None
+                    # P1 calibration: never depart mid-phase or with the
+                    # calibration-deposited pack contents still at Home.
+                    and self._calibration_phase is None
+                    and not self._calibration_restore_signatures
                     and self._equipment_departure_ready(snapshot)
                 )
             )
@@ -9520,8 +9959,14 @@ class HengbotPolicy:
         deposit_count = (
             forced_count
             if forced_count is not None
+            else deposit.count
+            if self._calibration_phase == "deposit"
             else self._retention_surplus(snapshot, deposit)
         )
+        if self._calibration_phase == "deposit":
+            signature = self._item_signature(deposit)
+            if signature not in self._calibration_restore_signatures:
+                self._calibration_restore_signatures.append(signature)
         if (
             deposit.tval == TVAL_SCROLL
             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
@@ -9660,6 +10105,18 @@ class HengbotPolicy:
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_full or self._home_deposit_abandoned:
             return None
+        if self._calibration_phase == "deposit":
+            # The unequipped calibration phase deposits the whole pack (the
+            # user-approved order: pack first, then every removable worn item),
+            # through the unchanged atomic-deposit / one-operation-per-entry
+            # machinery.  Only items Home already refused are skipped.
+            return self._first_item(
+                snapshot,
+                lambda item: self._item_signature(item)
+                not in self._home_rejected_deposits
+                and item.slot != self._home_pending_slot
+                and item.slot != self._pending_disposal_slot,
+            )
         overweight = self._overweight_home_deposit(snapshot)
         if overweight is not None:
             return overweight
@@ -11594,6 +12051,20 @@ class HengbotPolicy:
 
         def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
             needs.append(TownNeed(store_type, category, ordering_class))
+
+        if self._calibration_active():
+            # The unequipped calibration phase owns the town while it runs.
+            # The only legitimate errand is Home: deposits going in, the pack
+            # restore coming out.  Every other need is suppressed — in
+            # particular a supply purchase would feed the deposit loop its own
+            # replacements (deposit -> shortage -> buy -> deposit ...).
+            if (
+                self._calibration_phase in {"deposit", "restore-supplies"}
+                and self._home_available(snapshot)
+                and STORE_HOME not in self._town_store_attempted
+            ):
+                add(STORE_HOME, "deposit", "home-first")
+            return needs
 
         if self._home_disposal_pass:
             add(STORE_HOME, "idle-consumable-scan", "home-first")
@@ -15222,6 +15693,11 @@ class HengbotPolicy:
                     self._home_withdraw_fail_streak = 0
                     self._home_identify_staff_sale_pending = False
 
+            if self._calibration_restore_signatures:
+                restore = self._calibration_restore_withdraw_key(snapshot)
+                if restore is not None:
+                    return restore
+
             # Prefer owned Identify charges to buying another staff.  Once the
             # carried departure reserve is ready, drain legacy Home hoards one
             # staff at a time through the Magic shop.  Charged devices are not
@@ -16267,7 +16743,7 @@ class HengbotPolicy:
         return self._read_key(snapshot, recall)
 
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
-        if not snapshot.in_town:
+        if not snapshot.in_town or self._calibration_active():
             return None
         current = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None
@@ -18478,6 +18954,12 @@ class HengbotPolicy:
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
         if self._fundraising_mode not in {"mine", "scavenge"}:
+            return None
+        if snapshot.in_town and self._calibration_active():
+            # The unequipped calibration phase owns the town while it runs.
+            # Fundraising town work (kit purchases, departure) would feed the
+            # calibration deposit loop its own purchases; it resumes untouched
+            # once the phase releases the town.
             return None
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE

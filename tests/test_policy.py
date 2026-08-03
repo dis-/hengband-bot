@@ -374,6 +374,101 @@ def item(
     )
 
 
+def seed_character_calibration(policy, snapshot):
+    """Give the policy the P1 worn-independent constants for this snapshot.
+
+    Stage P1 makes a valid unequipped calibration a hard input of the loadout
+    optimizer (it fails closed with ``calibration-required`` otherwise).  Test
+    fixtures cannot run the multi-visit town calibration phase, so this helper
+    computes the constants with the same de-gearing formulas the pre-P1 code
+    applied inline — for every fixture snapshot the calibrated constants are
+    therefore *identical* to what the legacy derivation produced, and every
+    pre-existing assertion keeps its exact meaning.
+    """
+    from hengbot.equipment_optimizer import (
+        OwnedEquipment,
+        current_loadout,
+        equipment_identity,
+    )
+    from hengbot.warrior_defense_evaluator import (
+        WarriorDefenseInputs,
+        loadout_armor_class,
+    )
+    from hengbot.warrior_equipment_evaluator import (
+        TR_DEX,
+        TR_STR,
+        modify_stat_value,
+    )
+    from hengbot.warrior_loadout_evaluator import TR_CON, constitution_hp_bonus
+    from hengbot.warrior_optimization import (
+        CharacterCalibration,
+        _base_stat_without_current_gear,
+        _conservative_intrinsic_abilities,
+        _equipment_speed,
+        _intrinsic_flags,
+    )
+
+    p = snapshot.player
+    equipped = tuple(
+        OwnedEquipment(
+            f"calibration-seed:{index}", worn, "equipped", equipped_slot=worn.slot
+        )
+        for index, worn in enumerate(snapshot.equipment)
+        if worn.is_equipment
+    )
+    current = current_loadout(equipped)
+    displayed = tuple(
+        p.stat_use
+        if len(p.stat_use) >= 4 and p.stat_use[0] > 0 and p.stat_use[3] > 0
+        else p.stat_cur
+    )
+    padded = displayed + (10,) * max(0, 6 - len(displayed))
+    base_str = _base_stat_without_current_gear(padded[0], current, TR_STR)
+    base_dex = _base_stat_without_current_gear(padded[3], current, TR_DEX)
+    # Mirror the legacy fallback exactly: a 4-entry displayed vector meant CON
+    # was defaulted, so the calibrated constant must be the same default.
+    base_con = (
+        _base_stat_without_current_gear(padded[4], current, TR_CON)
+        if len(displayed) >= 5
+        else 3
+    )
+    base_stats = (
+        base_str, padded[1], padded[2], base_dex, base_con, padded[5],
+    )
+    current_con = modify_stat_value(
+        base_con,
+        sum(worn.item.pval for _, worn in current.slots if TR_CON in worn.flags),
+    )
+    intrinsic = _conservative_intrinsic_abilities(p.abilities, current)
+    provisional = WarriorDefenseInputs(
+        level=p.level,
+        natural_dex=base_dex,
+        shield_skill=p.shield_skill,
+        base_speed=p.speed - _equipment_speed(current),
+        saving_skill=p.saving_skill,
+        intrinsic_flags=_intrinsic_flags(intrinsic),
+    )
+    policy._character_calibration = CharacterCalibration(
+        race_id=p.race_id,
+        class_id=p.class_id,
+        personality_id=p.personality_id,
+        level=p.level,
+        stat_cur=tuple(p.stat_cur),
+        base_stats=base_stats,
+        base_hp=max(1, p.max_hp - constitution_hp_bonus(current_con, p.level)),
+        base_ac_bonus=p.ac - loadout_armor_class(current, provisional),
+        intrinsic_abilities=intrinsic,
+        pinned_identities=tuple(
+            sorted(
+                (worn.slot, equipment_identity(worn))
+                for worn in snapshot.equipment
+                if worn.is_equipment and worn.is_cursed
+            )
+        ),
+    )
+    policy._character_calibration_loaded = True
+
+
 def hostile(
     index,
     y,
@@ -34521,6 +34616,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         )
         snap = replace(self._town_snap(), inventory=[upgrade])
         pol = HengbotPolicy()
+        seed_character_calibration(pol, snap)
         pol._equipment_catalog.refresh_carried(
             snap.inventory, snap.equipment
         )
@@ -36785,6 +36881,7 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
         from unittest import mock
 
         pol = HengbotPolicy()
+        seed_character_calibration(pol, snap)
         with mock.patch(
             "hengbot.policy.prepare_warrior_optimization",
             return_value=mock.Mock(ready=False),
@@ -36811,6 +36908,7 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
         )
         snap = self._town_snapshot([torch])
         pol = HengbotPolicy()
+        seed_character_calibration(pol, snap)
         pol._equipment_catalog.refresh_carried(snap.inventory, snap.equipment)
         with mock.patch(
             "hengbot.policy.prepare_warrior_optimization",
@@ -36845,6 +36943,7 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
             equipment=[sling],
         )
         pol = HengbotPolicy()
+        seed_character_calibration(pol, snap)
         pol._equipment_catalog.refresh_carried(snap.inventory, snap.equipment)
         pol._equipment_catalog.observe_home_page(
             [
@@ -36942,6 +37041,7 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
     def test_both_recorded_free_action_sources_cannot_create_terminal_block(self):
         snapshot = self._recorded_shape_snapshot()
         policy = HengbotPolicy()
+        seed_character_calibration(policy, snapshot)
         policy._deepest_level = 19
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
@@ -36969,6 +37069,7 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
     def test_quarantining_each_mandatory_source_never_removes_the_last_one(self):
         snapshot = self._recorded_shape_snapshot()
         policy = HengbotPolicy()
+        seed_character_calibration(policy, snapshot)
         policy._deepest_level = 19
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
@@ -38661,6 +38762,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         snapshot = self._town(inventory=(artifact,))
         policy = HengbotPolicy()
+        seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -38697,6 +38799,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         snapshot = self._town(inventory=(artifact,))
         policy = HengbotPolicy()
+        seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -39013,6 +39116,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         snapshot = self._town(inventory=(pending,))
+        seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -39253,6 +39357,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 fully_known=True, is_equipment=True, is_ego=True,
             ),
         ))
+        seed_character_calibration(policy, snap)
         policy._equipment_catalog.refresh_carried(snap.inventory, snap.equipment)
         captured = {}
 
@@ -39272,6 +39377,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
     def test_consumable_purchase_does_not_invalidate_equipment_search_cache(self):
         policy = HengbotPolicy()
         snapshot = self._town()
+        seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -39291,6 +39397,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
     def test_pack_slot_change_replans_without_repeating_equipment_search(self):
         policy = HengbotPolicy()
         snapshot = self._town()
+        seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -39387,6 +39494,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 fully_known=True, is_equipment=True, to_d=4,
             ),
         ))
+        seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -39415,6 +39523,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
     def test_pending_fixed_quest_does_not_replace_dungeon_objective_depth(self):
         policy = HengbotPolicy()
+        seed_character_calibration(policy, self._town())
         policy._deepest_level = 20
         policy._target_dungeon_id = DUNGEON_ANGBAND
         policy._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -42735,6 +42844,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
     def _policy_with_home_ring(self):
         policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
         town = self._town()
+        seed_character_calibration(policy, town)
         ring = self._ring()
         policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
         policy._equipment_catalog.observe_home_page([ring])
@@ -42838,6 +42948,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
     def _policy_with_two_home_rings(self):
         policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
         town = self._town()
+        seed_character_calibration(policy, town)
         rings = [self._ring(), self._second_ring()]
         policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
         policy._equipment_catalog.observe_home_page(rings)
@@ -43002,6 +43113,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         # sets, which the 20:06:11 capture could not show.
         policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
         town = self._town()
+        seed_character_calibration(policy, town)
         policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
         policy._equipment_catalog.observe_home_page([])
 
@@ -43640,6 +43752,278 @@ class WarningGridComposedWalkTest(unittest.TestCase):
 
         self.assertIn(self.ENTRANCE, policy._warning_refused_cells)
         self.assertNotEqual(policy.last_reason, "warning:refuse")
+
+
+class CharacterCalibrationPhaseTest(unittest.TestCase):
+    """P1: the execution-layer unequipped calibration phase and its exits."""
+
+    HOME = Position(10, 12)
+
+    def _grids(self):
+        grids = {
+            Position(10, x): grid(10, x) for x in range(9, 14)
+        }
+        grids[self.HOME] = GridState(
+            position=self.HOME, known=True, passable=True, wall=False,
+            has_monster=False, has_down_stairs=False, has_up_stairs=False,
+            unsafe=False, store_number=STORE_HOME,
+        )
+        return grids
+
+    def _snapshot(self, *, inventory=(), equipment=(), monsters=(),
+                  store=None, hp=200, max_hp=200):
+        base = player(
+            10, 10, class_id=PLAYER_CLASS_WARRIOR, level=12,
+            hp=hp, max_hp=max_hp,
+        )
+        base = replace(
+            base,
+            race_id=3, personality_id=1, ac=10,
+            stat_cur=(18, 10, 10, 17, 16, 9),
+            stat_use=(20, 10, 10, 18, 17, 9),
+        )
+        return Snapshot(
+            base,
+            self._grids(),
+            list(monsters),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=list(inventory),
+            equipment=list(equipment),
+            store=store,
+        )
+
+    def _scan_complete_policy(self):
+        policy = HengbotPolicy()
+        policy._equipment_catalog.observe_home_page([])
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        return policy
+
+    def test_optimizer_fails_closed_and_never_triggers_the_phase_itself(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot()
+
+        preparation = policy._prepare_equipment_optimization(snapshot)
+
+        self.assertEqual(preparation.blockers, ("calibration-required",))
+        self.assertIsNone(preparation.transaction)
+        # The selector reports the missing input; only the execution layer may
+        # start the phase.
+        self.assertIsNone(policy._calibration_phase)
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
+
+    def test_phase_starts_only_after_home_scan_with_clear_preconditions(self):
+        worn = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        pack = item("a", TVAL_POTION, SV_POTION_CURE_CRITICAL)
+        threat = hostile(1, 10, 11)
+
+        unscanned = HengbotPolicy()
+        self.assertIsNone(
+            unscanned._calibration_town_key(
+                self._snapshot(inventory=(pack,), equipment=(worn,))
+            )
+        )
+        self.assertIsNone(unscanned._calibration_phase)
+
+        threatened = self._scan_complete_policy()
+        snapshot = self._snapshot(
+            inventory=(pack,), equipment=(worn,), monsters=(threat,)
+        )
+        self.assertIsNone(threatened._calibration_town_key(snapshot))
+        self.assertIsNone(threatened._calibration_phase)
+
+        hurt = self._scan_complete_policy()
+        self.assertIsNone(
+            hurt._calibration_town_key(
+                self._snapshot(inventory=(pack,), equipment=(worn,), hp=150)
+            )
+        )
+        self.assertIsNone(hurt._calibration_phase)
+
+        ready = self._scan_complete_policy()
+        ready._calibration_town_key(
+            self._snapshot(inventory=(pack,), equipment=(worn,))
+        )
+        self.assertEqual(ready._calibration_phase, "deposit")
+
+    def test_deposit_phase_deposits_protected_supplies_and_records_restore(self):
+        policy = self._scan_complete_policy()
+        cure = item(
+            "a", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
+            name="Cure Critical Wounds",
+        )
+        snapshot = self._snapshot(inventory=(cure,))
+        policy._calibration_phase = "deposit"
+
+        deposit = policy._find_home_deposit(snapshot)
+        self.assertIsNotNone(
+            deposit,
+            "the calibration deposit pass must offer even survival-kit items",
+        )
+        key = policy._home_deposit_key(snapshot, deposit)
+        self.assertEqual(key, policy_module.SELL_KEY + "a" + "5\r")
+        self.assertIn(
+            policy._item_signature(cure),
+            policy._calibration_restore_signatures,
+        )
+
+    def test_strip_session_takes_off_every_removable_item_but_not_cursed(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, known=True,
+            fully_known=True, is_equipment=True,
+        )
+        cursed = item(
+            "main_ring", TVAL_RING, 4, name="cursed ring", known=True,
+            fully_known=True, is_equipment=True, is_cursed=True,
+        )
+        snapshot = self._snapshot(equipment=(sword, lantern, cursed))
+        policy._calibration_phase = "deposit"
+        policy._calibration_worn_before = tuple(
+            (worn.slot, policy_module.equipment_identity(worn))
+            for worn in (sword, lantern)
+        )
+
+        key = policy._calibration_town_key(snapshot)
+
+        self.assertEqual(key, "5")
+        self.assertEqual(policy.last_reason, "calibration:strip-installed")
+        self.assertEqual(policy._calibration_phase, "strip")
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertEqual(session.required_context, "outside_home")
+        actions = session.plan.actions
+        self.assertEqual(
+            {action.kind for action in actions}, {"takeoff"}
+        )
+        self.assertEqual(
+            {action.target_slot for action in actions},
+            {"main_hand", "light"},
+            "a cursed (pinned) item must stay worn and be folded into the "
+            "constants instead",
+        )
+
+    def test_capture_caches_constants_and_does_not_rerun_per_optimization(self):
+        policy = self._scan_complete_policy()
+        naked = self._snapshot()
+        policy._calibration_phase = "capture"
+
+        policy._calibration_observe(naked)
+
+        self.assertIsNotNone(policy._character_calibration)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(
+            policy._character_calibration.base_stats,
+            naked.player.stat_use,
+        )
+        # Optimization passes now consume the cached constants; none of them
+        # restarts the phase.
+        for _ in range(3):
+            preparation = policy._prepare_equipment_optimization(naked)
+            self.assertNotIn("calibration-required", preparation.blockers)
+            self.assertIsNone(policy._calibration_phase)
+
+    def test_interruption_restores_the_taken_off_equipment(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        policy._calibration_phase = "strip"
+        policy._calibration_worn_before = (("main_hand", identity),)
+        # The strip session was abandoned (stall) and the sword is in the pack
+        # when a hostile appears: the phase must re-wear it, not keep observing.
+        in_pack = replace(sword, slot="c")
+        threat = hostile(1, 10, 11)
+        snapshot = self._snapshot(inventory=(in_pack,), monsters=(threat,))
+
+        policy._calibration_observe(snapshot)
+
+        self.assertEqual(policy._calibration_phase, "restore-equip")
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            [(action.kind, action.target_slot, action.item_identity)
+             for action in session.plan.actions],
+            [("equip", "main_hand", identity)],
+        )
+        self.assertIsNone(policy._character_calibration)
+
+    def test_restore_withdraws_deposits_back_and_terminates_when_missing(self):
+        policy = self._scan_complete_policy()
+        cure = item(
+            "a", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
+            name="Cure Critical Wounds",
+        )
+        signature = policy._item_signature(cure)
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [signature]
+        stored = store_item(
+            "d", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
+            name="Cure Critical Wounds",
+        )
+        in_home = self._snapshot(store=StoreState(STORE_HOME, [stored]))
+
+        key = policy._calibration_restore_withdraw_key(in_home)
+
+        self.assertEqual(key, policy_module.BUY_KEY + "d" + "5\r")
+        self.assertEqual(policy.last_reason, "calibration:restore-withdraw")
+        self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertIsNotNone(policy._home_withdraw_inflight)
+
+        # A deposit that never becomes visible terminates instead of looping:
+        # one full page cycle, then the queue clears and the ledger owns any
+        # replacement purchase.
+        empty_page = self._snapshot(store=StoreState(STORE_HOME, []))
+        policy._home_withdraw_inflight = None
+        policy._calibration_restore_signatures = [signature]
+        first = policy._calibration_restore_withdraw_key(empty_page)
+        self.assertEqual(first, " ")
+        self.assertEqual(policy.last_reason, "calibration:seek-restore-page")
+        second = policy._calibration_restore_withdraw_key(empty_page)
+        self.assertEqual(second, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "calibration:restore-missing")
+        self.assertEqual(policy._calibration_restore_signatures, [])
+
+    def test_departure_waits_for_the_phase_and_the_restore_queue(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        gate = policy_module.HengbotPolicy._town_departure_ready
+        source = inspect.getsource(gate)
+        self.assertIn("self._calibration_phase is None", source)
+        self.assertIn("not self._calibration_restore_signatures", source)
+
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [("x", 75, 1)]
+        self.assertFalse(policy._town_departure_ready(snapshot))
+
+    def test_abort_bound_latches_the_visit_blocked(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        for _ in range(policy_module.STORE_STUCK_LIMIT):
+            policy._calibration_phase = "capture"
+            policy._abort_character_calibration(snapshot, "test")
+
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertIsNone(
+            policy._calibration_town_key(
+                self._snapshot(equipment=(
+                    item(
+                        "main_hand", 23, 4, name="long sword", known=True,
+                        fully_known=True, is_equipment=True,
+                    ),
+                ))
+            )
+        )
+        self.assertIsNone(policy._calibration_phase)
 
 
 if __name__ == "__main__":

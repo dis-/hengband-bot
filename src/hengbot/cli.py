@@ -1509,6 +1509,9 @@ def main(argv: list[str] | None = None) -> int:
     policy._recorder_log_generations = args.recorder_log_generations
     if args.decision_log is not None:
         policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
+        policy._character_calibration_path = args.decision_log.with_name(
+            "character-calibration.json"
+        )
 
     if args.once:
         for line in _read_last_line(args.state_file):
