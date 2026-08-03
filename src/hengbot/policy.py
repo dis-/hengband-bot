@@ -2217,6 +2217,13 @@ class HengbotPolicy:
         self._calibration_session_target: str | None = None
         self._calibration_aborts_this_visit = 0
         self._calibration_blocked_this_visit = False
+        # Mutation observation from the `~c` knowledge snapshot (sorted ids).
+        # None until the first response arrives; refreshed once per town visit
+        # through the same request machinery as the `~9` Home scan.
+        self._mutation_signature: tuple[int, ...] | None = None
+        self._mutation_scan_requested = False
+        self._mutation_scan_inflight = False
+        self._mutation_scan_retries_remaining = 1
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
@@ -2551,6 +2558,14 @@ class HengbotPolicy:
             if self._home_knowledge_scan_retries_remaining:
                 self._home_knowledge_scan_retries_remaining -= 1
                 self._home_knowledge_scan_requested = False
+        if self._mutation_scan_inflight:
+            # Same bounded recovery for the `~c` mutation snapshot: one
+            # sanctioned re-request per town visit, then proceed without — the
+            # request is simply not made again this visit.
+            self._mutation_scan_inflight = False
+            if self._mutation_scan_retries_remaining:
+                self._mutation_scan_retries_remaining -= 1
+                self._mutation_scan_requested = False
         leaving_home = (
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
@@ -2832,6 +2847,31 @@ class HengbotPolicy:
         )
         self._exploration_ledger.note_decision(latest_snapshot)
         return key
+
+    def consume_mutation_knowledge(self, mutation_ids) -> None:
+        """Record the `~c` knowledge snapshot as a stable mutation signature."""
+        try:
+            signature = tuple(sorted(int(value) for value in mutation_ids))
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None:
+            self._mutation_signature = signature
+        self._mutation_scan_inflight = False
+
+    def observe_character_mutations(self, mutation_ids) -> None:
+        """Passively refresh the signature from a `C` status-screen snapshot.
+
+        The periodic character dump the bot already posts carries the same
+        mutation id set (make_character_json's ``mutations``), so gains and
+        losses observed mid-expedition update the signature at zero extra
+        keys.  This never consumes the `~c` request budget.
+        """
+        try:
+            self._mutation_signature = tuple(
+                sorted(int(value) for value in mutation_ids)
+            )
+        except (TypeError, ValueError):
+            return
 
     def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> None:
         """Consume the complete Home list returned by the emitter's ``~9``."""
@@ -4556,6 +4596,9 @@ class HengbotPolicy:
             self._abandoned_quest_carry_requirements.clear()
             self._calibration_aborts_this_visit = 0
             self._calibration_blocked_this_visit = False
+            self._mutation_scan_requested = False
+            self._mutation_scan_inflight = False
+            self._mutation_scan_retries_remaining = 1
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -7792,7 +7835,9 @@ class HengbotPolicy:
         if calibration is None:
             return None
         reason = calibration.stale_reason(
-            snapshot.player, self._current_pinned_identities(snapshot)
+            snapshot.player,
+            self._current_pinned_identities(snapshot),
+            mutation_signature=self._mutation_signature,
         )
         if reason is not None:
             self._character_calibration = None
@@ -7932,7 +7977,9 @@ class HengbotPolicy:
         return True
 
     def _capture_character_calibration(self, snapshot: Snapshot) -> bool:
-        calibration = calibrate_character_constants(snapshot)
+        calibration = calibrate_character_constants(
+            snapshot, mutation_signature=self._mutation_signature
+        )
         if calibration is None:
             return False
         self._character_calibration = calibration
@@ -8004,14 +8051,29 @@ class HengbotPolicy:
                         else None
                     )
             else:
-                # Session abandoned; retry (bounded) or hand the state to the
-                # town-blocked machinery once the visit is latched blocked.
-                if not self._install_calibration_restore_session(snapshot):
+                # The re-equip session was abandoned (confirmation stall
+                # bound).  Every reinstall consumes the same per-visit failure
+                # budget as an abort — an unbounded
+                # restore-equip -> stall -> abandon -> restore-equip cycle
+                # would be exactly the absorbing state this phase must never
+                # create.  When the budget latches the visit blocked, stop
+                # cycling, drop the recorded loadout, and let the fresh-visit
+                # reset (or the pre-existing town-blocked machinery, with the
+                # gear safe in the pack) own the state.
+                self._calibration_aborts_this_visit += 1
+                if self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT:
+                    self._calibration_blocked_this_visit = True
+                if self._calibration_blocked_this_visit or (
+                    not self._install_calibration_restore_session(snapshot)
+                ):
+                    self._calibration_worn_before = ()
+                    self._calibration_session_target = None
                     self._calibration_phase = (
                         "restore-supplies"
                         if self._calibration_restore_signatures
                         else None
                     )
+                    self.last_reason = "calibration:restore-equip-exhausted"
             return
         if phase == "restore-supplies":
             if not self._calibration_restore_signatures or (
@@ -8106,6 +8168,24 @@ class HengbotPolicy:
                 or self._home_withdraw_inflight is not None
             ):
                 return None
+            if (
+                not self._mutation_scan_requested
+                # Confirmed-outside gate: this snapshot AND the previous one
+                # are outside any store, and no store leave is in flight, so
+                # the `~c` menu keys cannot land in a store command loop.
+                and self._store_leave_inflight is None
+                and not self._last_snapshot_was_store
+            ):
+                # Acquire the mutation observation for the capture the phase
+                # is about to make (bounded: the posting-time latch in
+                # confirm_key_posted owns _mutation_scan_requested — a
+                # suppressed or replaced key must not consume the request —
+                # and the choose_key prologue grants one re-request per
+                # visit).  If no response ever arrives the phase proceeds and
+                # the first later observation re-arms the mutation trigger by
+                # invalidating the unarmed capture.
+                self.last_reason = "calibration:request-mutation-knowledge"
+                return "~c"
             self._begin_character_calibration(snapshot)
             phase = "deposit"
         if phase == "deposit":
@@ -8713,6 +8793,10 @@ class HengbotPolicy:
         if key == "~9":
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
+            return True
+        if key == "~c":
+            self._mutation_scan_requested = True
+            self._mutation_scan_inflight = True
             return True
         if key != self._equipment_transaction_prepared_key:
             return False

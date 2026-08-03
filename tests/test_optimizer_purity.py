@@ -169,7 +169,23 @@ def _naked_record(record):
 
 
 def _definitions():
-    return find_monrace_definitions(Path(__file__), None)
+    """Resolve MonraceDefinitions the way the production code does.
+
+    ``find_monrace_definitions`` honours HENGBAND_MONRACE_DEFINITIONS first,
+    then walks the anchor's parents.  Anchor on this test file AND on the
+    production jsonlog location so the decisive purity fixture runs under the
+    plain prescribed suite command from any checkout that can reach the game
+    data; the class skips (loudly) only when no candidate exists at all.
+    """
+    for anchor in (
+        Path(__file__),
+        Path.cwd() / "jsonlog" / "bot-state-fixed.jsonl",
+        Path(r"C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl"),
+    ):
+        found = find_monrace_definitions(anchor, None)
+        if found is not None:
+            return found
+    return None
 
 
 class OptimizerPurityFlipTest(unittest.TestCase):
@@ -388,6 +404,21 @@ class CharacterCalibrationTest(unittest.TestCase):
             "pinned-set",
         )
 
+    def test_prepare_requires_a_calibration_with_no_legacy_fallback(self):
+        """The worn-independent constants are mandatory at the selector
+        boundary: absence fails closed instead of selecting the pre-P1
+        de-gearing reconstruction."""
+        prepared = prepare_warrior_optimization(
+            _snapshot(_player()),
+            (),
+            {1: object()},
+            depth=1,
+            home_scan_complete=True,
+        )
+        self.assertEqual(prepared.blockers, ("calibration-required",))
+        self.assertIsNone(prepared.result)
+        self.assertIsNone(prepared.transaction)
+
     def test_prepare_fails_closed_on_a_stale_calibration(self):
         player = _player(class_id=0)
         calibration = calibrate_character_constants(_snapshot(player))
@@ -401,6 +432,51 @@ class CharacterCalibrationTest(unittest.TestCase):
             calibration=older,
         )
         self.assertEqual(prepared.blockers, ("calibration-stale:level",))
+
+    def test_mutation_signature_change_invalidates_the_calibration(self):
+        player = _player()
+        calibration = calibrate_character_constants(
+            _snapshot(player), mutation_signature=(2, 5)
+        )
+        self.assertEqual(calibration.mutation_signature, (2, 5))
+        # Unchanged observation: still valid.
+        self.assertIsNone(
+            calibration.stale_reason(player, (), mutation_signature=(2, 5))
+        )
+        # No observation available: the other triggers still own validity.
+        self.assertIsNone(
+            calibration.stale_reason(player, (), mutation_signature=None)
+        )
+        # Gained or lost mutation: stale.
+        self.assertEqual(
+            calibration.stale_reason(player, (), mutation_signature=(2, 5, 7)),
+            "mutations",
+        )
+        self.assertEqual(
+            calibration.stale_reason(player, (), mutation_signature=(2,)),
+            "mutations",
+        )
+        # A capture made before any `~c` observation is invalidated by the
+        # first observation, so the trigger is always armed afterwards.
+        unarmed = calibrate_character_constants(_snapshot(player))
+        self.assertIsNone(unarmed.mutation_signature)
+        self.assertEqual(
+            unarmed.stale_reason(player, (), mutation_signature=()),
+            "mutations",
+        )
+
+    def test_mutation_signature_persistence_round_trip(self):
+        import tempfile
+
+        calibration = calibrate_character_constants(
+            _snapshot(_player()), mutation_signature=(1, 12)
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "character-calibration.json"
+            save_character_calibration(path, calibration)
+            loaded = load_character_calibration(path)
+        self.assertEqual(loaded, calibration)
+        self.assertEqual(loaded.mutation_signature, (1, 12))
 
     def test_persistence_round_trip(self):
         import tempfile

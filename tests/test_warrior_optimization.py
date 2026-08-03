@@ -65,6 +65,94 @@ def gear(
     return OwnedEquipment(item_id, item, origin, equipped_slot=slot)
 
 
+
+
+def seed_calibration(snapshot, items=()):
+    """The constants a naked observation of this fixture player would yield.
+
+    P1 made the worn-independent calibration a MANDATORY selector input with
+    no legacy fallback.  This helper computes the constants with the exact
+    pre-P1 inline formulas (over the catalog's current loadout), so every
+    pre-existing assertion keeps its meaning unchanged.
+    """
+    from hengbot.equipment_optimizer import current_loadout as _current_loadout
+    from hengbot.warrior_defense_evaluator import (
+        WarriorDefenseInputs,
+        loadout_armor_class,
+    )
+    from hengbot.warrior_equipment_evaluator import modify_stat_value
+    from hengbot.warrior_loadout_evaluator import (
+        TR_CON,
+        constitution_hp_bonus,
+    )
+    from hengbot.warrior_optimization import (
+        CharacterCalibration,
+        _conservative_intrinsic_abilities,
+        _equipment_speed,
+        _intrinsic_flags,
+    )
+
+    player = snapshot.player
+    for name, default in (
+        ("race_id", -1), ("personality_id", -1), ("level", 1),
+    ):
+        if not hasattr(player, name):
+            setattr(player, name, default)
+    current = _current_loadout(items)
+    displayed = tuple(getattr(player, "stat_use", ()))
+    if not (len(displayed) >= 4 and displayed[0] > 0 and displayed[3] > 0):
+        displayed = tuple(player.stat_cur)
+    base_str = _base_stat_without_current_gear(displayed[0], current, TR_STR)
+    base_dex = _base_stat_without_current_gear(displayed[3], current, TR_DEX)
+    base_con = (
+        _base_stat_without_current_gear(displayed[4], current, TR_CON)
+        if len(displayed) >= 5
+        else 3
+    )
+    current_con = modify_stat_value(
+        base_con,
+        sum(o.item.pval for _, o in current.slots if TR_CON in o.flags),
+    )
+    intrinsic = _conservative_intrinsic_abilities(
+        frozenset(getattr(player, "abilities", frozenset())), current
+    )
+    provisional = WarriorDefenseInputs(
+        level=player.level,
+        natural_dex=base_dex,
+        shield_skill=getattr(player, "shield_skill", 0),
+        base_speed=getattr(player, "speed", 110) - _equipment_speed(current),
+        saving_skill=getattr(player, "saving_skill", 0),
+        intrinsic_flags=_intrinsic_flags(intrinsic),
+    )
+    padded = displayed + (10,) * max(0, 6 - len(displayed))
+    return CharacterCalibration(
+        race_id=player.race_id,
+        class_id=getattr(player, "class_id", -1),
+        personality_id=player.personality_id,
+        level=player.level,
+        stat_cur=tuple(player.stat_cur),
+        base_stats=(
+            base_str, padded[1], padded[2], base_dex, base_con, padded[5],
+        ),
+        base_hp=max(
+            1,
+            getattr(player, "max_hp", 1)
+            - constitution_hp_bonus(current_con, player.level),
+        ),
+        base_ac_bonus=getattr(player, "ac", 0)
+        - loadout_armor_class(current, provisional),
+        intrinsic_abilities=intrinsic,
+        pinned_identities=tuple(
+            sorted(
+                (owned.equipped_slot or "", equipment_identity(owned.item))
+                for owned in items
+                if getattr(owned, "origin", "") == "equipped"
+                and owned.item.is_cursed
+            )
+        ),
+    )
+
+
 class WarriorOptimizationTest(unittest.TestCase):
     def test_reference_ac_dual_wield_brand_dps_crosses_q1_gate(self):
         main = gear(
@@ -145,7 +233,8 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         snapshot = SimpleNamespace(player=player, inventory=())
         prepared = prepare_warrior_optimization(
-            snapshot, (), {}, depth=1, home_scan_complete=True
+            snapshot, (), {}, depth=1, home_scan_complete=True,
+            calibration=seed_calibration(snapshot),
         )
         self.assertEqual(prepared.blockers, ("missing-monrace-knowledge",))
 
@@ -155,7 +244,8 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         snapshot = SimpleNamespace(player=player, inventory=())
         prepared = prepare_warrior_optimization(
-            snapshot, (), {1: object()}, depth=1, home_scan_complete=False
+            snapshot, (), {1: object()}, depth=1, home_scan_complete=False,
+            calibration=seed_calibration(snapshot),
         )
         self.assertEqual(prepared.blockers, ("home-scan-incomplete",))
 
@@ -186,6 +276,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         prepared = prepare_warrior_optimization(
             snapshot, (light, old, better), {1: monster}, depth=1,
             home_scan_complete=True,
+            calibration=seed_calibration(snapshot, (light, old, better)),
         )
         self.assertTrue(prepared.ready, prepared.blockers)
         self.assertIn("better", prepared.result.best.loadout.item_ids)
@@ -255,6 +346,7 @@ class WarriorOptimizationTest(unittest.TestCase):
 
         prepared = prepare_warrior_optimization(
             snapshot, items, {1: monster}, depth=1, home_scan_complete=True,
+            calibration=seed_calibration(snapshot, items),
         )
 
         self.assertIsNotNone(prepared.result)
@@ -302,6 +394,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             {1: monster},
             depth=15,
             home_scan_complete=True,
+            calibration=seed_calibration(
+                snapshot, (light, weapon, stat_helm, steel_helm)
+            ),
         )
 
         self.assertTrue(prepared.ready, prepared.blockers)
@@ -354,6 +449,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             {1: monster},
             depth=15,
             home_scan_complete=True,
+            calibration=seed_calibration(
+                snapshot, (light, weapon, crown, steel_helm)
+            ),
         )
 
         self.assertTrue(prepared.ready, prepared.blockers)
@@ -406,6 +504,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             {1: monster},
             depth=15,
             home_scan_complete=True,
+            calibration=seed_calibration(
+                snapshot, (light, dagger, steel_helm, crown, extra_attack_sword)
+            ),
         )
 
         self.assertTrue(prepared.ready, prepared.blockers)
@@ -454,6 +555,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             {1: monster},
             depth=15,
             home_scan_complete=True,
+            calibration=seed_calibration(
+                snapshot, (light, weapon, crown, steel_helm)
+            ),
         )
 
         self.assertTrue(prepared.ready, prepared.blockers)
@@ -498,6 +602,9 @@ class WarriorOptimizationTest(unittest.TestCase):
         prepared = prepare_warrior_optimization(
             snapshot, (light, cursed_ring, old_weapon, better_weapon),
             {1: monster}, depth=1, home_scan_complete=True,
+            calibration=seed_calibration(
+                snapshot, (light, cursed_ring, old_weapon, better_weapon)
+            ),
         )
 
         self.assertTrue(prepared.ready, prepared.blockers)
@@ -550,6 +657,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             prepared = prepare_warrior_optimization(
                 snapshot, (light, saber, gauche, long_sword), {1: monster},
                 depth=1, home_scan_complete=True, loadout_report_path=report,
+                calibration=seed_calibration(
+                    snapshot, (light, saber, gauche, long_sword)
+                ),
             )
             record = json.loads(report.read_text(encoding="utf-8"))
         self.assertLessEqual(len(record["candidates"]), 3)

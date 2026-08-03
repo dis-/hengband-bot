@@ -2196,11 +2196,28 @@ def _dispatch_response_lines(complete_lines, policy, send) -> int:
             and knowledge.get("menu_key") == "9"
             and getattr(policy, "_home_knowledge_scan_inflight", False)
         )
+        requested_mutation_knowledge = (
+            response_type == "knowledge"
+            and isinstance(knowledge, dict)
+            and knowledge.get("category") == "mutations"
+            and knowledge.get("menu_key") == "c"
+            and getattr(policy, "_mutation_scan_inflight", False)
+        )
         if requested_home_knowledge:
             policy.consume_home_knowledge(
                 tuple(_parse_items(knowledge.get("items", [])))
             )
             send(NUDGE_KEY)
+        elif requested_mutation_knowledge:
+            policy.consume_mutation_knowledge(knowledge.get("mutation_ids", []))
+            send(NUDGE_KEY)
+        elif response_type == "character":
+            character = data.get("character")
+            if isinstance(character, dict) and "mutations" in character:
+                # The periodic status dump carries the mutation id set; refresh
+                # the signature passively (no request, no nudge, no state
+                # change beyond the observation itself).
+                policy.observe_character_mutations(character.get("mutations"))
         elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
             policy.consume_look(data)
     return consumed

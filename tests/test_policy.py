@@ -43844,6 +43844,9 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(hurt._calibration_phase)
 
         ready = self._scan_complete_policy()
+        # The mutation-knowledge request precedes the phase by design; treat
+        # it as already satisfied so this test keeps exercising the start gate.
+        ready._mutation_scan_requested = True
         ready._calibration_town_key(
             self._snapshot(inventory=(pack,), equipment=(worn,))
         )
@@ -44004,6 +44007,128 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_phase = "restore-supplies"
         policy._calibration_restore_signatures = [("x", 75, 1)]
         self.assertFalse(policy._town_departure_ready(snapshot))
+
+    def test_stalled_restore_equip_cannot_cycle_forever(self):
+        """A restore-equip whose session keeps hitting the stall bound must
+        consume the per-visit failure budget and reach a real exit — never the
+        naked-forever absorbing cycle restore -> stall -> abandon -> restore.
+        """
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        in_pack = replace(sword, slot="c")
+        snapshot = self._snapshot(inventory=(in_pack,))
+        policy._calibration_phase = "restore-equip"
+        policy._calibration_worn_before = (("main_hand", identity),)
+
+        reinstalls = 0
+        for _ in range(policy_module.STORE_STUCK_LIMIT + 3):
+            if policy._calibration_phase != "restore-equip":
+                break
+            # Simulate the confirmation stall bound abandoning the session.
+            policy._equipment_transaction_session = None
+            policy._calibration_observe(snapshot)
+            if policy._equipment_transaction_session is not None:
+                reinstalls += 1
+
+        self.assertGreater(reinstalls, 0, "the restore must be retried at all")
+        self.assertLessEqual(reinstalls, policy_module.STORE_STUCK_LIMIT)
+        self.assertNotEqual(
+            policy._calibration_phase, "restore-equip",
+            "the stalled restore-equip cycle never reached an exit",
+        )
+        self.assertIsNone(policy._calibration_phase)
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertEqual(policy._calibration_worn_before, ())
+
+    def test_mutation_request_is_latched_at_posting_and_bounded_per_visit(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        # Mid-visit semantics: the fresh-town-visit reset must not re-arm the
+        # budget between these decisions.
+        policy._town_was_in_town = True
+
+        # Offered before the phase starts, until the transport confirms the
+        # posted key: a suppressed or replaced key must not consume the
+        # request, so an unposted offer repeats and the phase stays unstarted.
+        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
+        self.assertEqual(
+            policy.last_reason, "calibration:request-mutation-knowledge"
+        )
+        self.assertFalse(policy._mutation_scan_requested)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
+
+        self.assertTrue(policy.confirm_key_posted("~c"))
+        self.assertTrue(policy._mutation_scan_requested)
+        self.assertTrue(policy._mutation_scan_inflight)
+        # With the request consumed, the phase begins instead of re-posting.
+        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
+        self.assertIsNotNone(policy._calibration_phase)
+
+        # The prologue's no-response recovery grants exactly ONE re-arm per
+        # visit; an exhausted budget leaves the request consumed, so a third
+        # post this visit is impossible.
+        policy._calibration_phase = None
+        policy._mutation_scan_requested = True
+        policy._mutation_scan_inflight = True
+        policy.choose_key(snapshot)
+        self.assertFalse(policy._mutation_scan_inflight)
+        self.assertFalse(policy._mutation_scan_requested)
+        self.assertEqual(policy._mutation_scan_retries_remaining, 0)
+        policy._mutation_scan_requested = True
+        policy._mutation_scan_inflight = True
+        policy.choose_key(snapshot)
+        self.assertFalse(policy._mutation_scan_inflight)
+        self.assertTrue(
+            policy._mutation_scan_requested,
+            "the exhausted retry budget must leave the request consumed, not "
+            "re-armed into an unbounded loop",
+        )
+
+    def test_mutation_request_respects_the_confirmed_outside_gate(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._store_leave_inflight = (1, snapshot.turn, STORE_HOME)
+        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
+        policy._store_leave_inflight = None
+        policy._last_snapshot_was_store = True
+        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
+
+    def test_mutation_response_populates_signature_and_capture_records_it(self):
+        policy = self._scan_complete_policy()
+        policy._mutation_scan_inflight = True
+
+        policy.consume_mutation_knowledge([9, 2, 5])
+
+        self.assertEqual(policy._mutation_signature, (2, 5, 9))
+        self.assertFalse(policy._mutation_scan_inflight)
+
+        naked = self._snapshot()
+        policy._calibration_phase = "capture"
+        policy._calibration_observe(naked)
+        self.assertEqual(
+            policy._character_calibration.mutation_signature, (2, 5, 9)
+        )
+
+    def test_mutation_change_invalidates_the_cached_calibration(self):
+        policy = self._scan_complete_policy()
+        policy._mutation_signature = (2, 5)
+        naked = self._snapshot()
+        policy._calibration_phase = "capture"
+        policy._calibration_observe(naked)
+        self.assertIsNotNone(policy._character_calibration)
+
+        # Unchanged observation keeps the cache.
+        self.assertIsNotNone(policy._validated_character_calibration(naked))
+
+        # A gained mutation reported by the next `~c` snapshot invalidates it.
+        policy.consume_mutation_knowledge([2, 5, 11])
+        self.assertIsNone(policy._validated_character_calibration(naked))
+        self.assertIsNone(policy._character_calibration)
 
     def test_abort_bound_latches_the_visit_blocked(self):
         policy = self._scan_complete_policy()

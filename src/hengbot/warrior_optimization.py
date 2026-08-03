@@ -132,18 +132,28 @@ class CharacterCalibration:
     intrinsic_abilities: frozenset[str]
     pinned_identities: tuple[tuple[str, str], ...] = ()
     observed_turn: int = 0
+    # Sorted mutation ids from the `~c` knowledge snapshot (or the periodic
+    # `C` status snapshot) at capture time; None when no mutation observation
+    # was available yet.
+    mutation_signature: tuple[int, ...] | None = None
 
     def stale_reason(
         self,
         player,
         pinned_identities: tuple[tuple[str, str], ...],
+        *,
+        mutation_signature: tuple[int, ...] | None = None,
     ) -> str | None:
         """First reason the cached constants no longer describe this character.
 
         The invalidation triggers are exactly the approved list: character
-        identity, level change, ``stat_cur`` change (augmentation / drain), and
-        a change in the pinned (cursed worn) set.  Mutation gain or loss has no
-        observable in the current emitter; see the P1 report.
+        identity, level change, ``stat_cur`` change (augmentation / drain),
+        mutation gain or loss (observed through the `~c` knowledge snapshot
+        and the periodic `C` status snapshot the emitter already provides),
+        and a change in the pinned (cursed worn) set.  Pass
+        ``mutation_signature=None`` when no mutation observation exists yet;
+        an observed signature that differs from the recorded one — including
+        a capture made before any observation — invalidates the cache.
         """
         if (
             player.race_id != self.race_id
@@ -157,10 +167,19 @@ class CharacterCalibration:
             return "stat_cur"
         if tuple(pinned_identities) != self.pinned_identities:
             return "pinned-set"
+        if (
+            mutation_signature is not None
+            and mutation_signature != self.mutation_signature
+        ):
+            return "mutations"
         return None
 
 
-def calibrate_character_constants(snapshot: Snapshot) -> CharacterCalibration | None:
+def calibrate_character_constants(
+    snapshot: Snapshot,
+    *,
+    mutation_signature: tuple[int, ...] | None = None,
+) -> CharacterCalibration | None:
     """Read the constants off a naked observation. Purely observational.
 
     Returns None unless every worn item is unremovable (cursed): a removable
@@ -213,6 +232,7 @@ def calibrate_character_constants(snapshot: Snapshot) -> CharacterCalibration | 
         intrinsic_abilities=frozenset(player.abilities),
         pinned_identities=pinned_identities,
         observed_turn=getattr(snapshot, "turn", 0),
+        mutation_signature=mutation_signature,
     )
 
 
@@ -253,6 +273,11 @@ def load_character_calibration(path: Path) -> CharacterCalibration | None:
                 for slot, identity in data.get("pinned_identities", [])
             ),
             observed_turn=int(data.get("observed_turn", 0)),
+            mutation_signature=(
+                tuple(int(v) for v in data["mutation_signature"])
+                if data.get("mutation_signature") is not None
+                else None
+            ),
         )
     except (KeyError, TypeError, ValueError):
         return None
@@ -412,7 +437,15 @@ def prepare_warrior_optimization(
         blockers.append("missing-monrace-knowledge")
     if not home_scan_complete:
         blockers.append("home-scan-incomplete")
-    if calibration is not None:
+    if calibration is None:
+        # P1: the worn-independent constants are a MANDATORY input of the
+        # selector.  There is deliberately no fallback derivation from the
+        # geared snapshot — that reconstruction (per-call modify_stat_value
+        # inversion, ADJ_DEX_TO_AC subtraction of the worn set) is the measured
+        # impurity this stage removes, so its absence fails closed here at the
+        # selector boundary, not just in the policy wrapper.
+        blockers.append("calibration-required")
+    else:
         pinned_identities = tuple(
             sorted(
                 (item.equipped_slot or "", equipment_identity(item.item))
@@ -436,66 +469,19 @@ def prepare_warrior_optimization(
         catalog_size=len(items),
     )
 
-    if calibration is not None:
-        # P1: every character constant comes from the unequipped calibration
-        # observation, never from de-gearing the currently worn snapshot.  The
-        # worn partition of the owned multiset can no longer move the answer
-        # through ADJ_DEX_TO_AC steps (base_ac_bonus), the non-injective
-        # modify_stat_value scale (base stats / base_hp), or ability shadowing
-        # (intrinsic set).
-        intrinsic_abilities = calibration.intrinsic_abilities
-        base_str = calibration.base_stats[0]
-        base_dex = calibration.base_stats[3]
-        base_con = calibration.base_stats[4]
-        base_hp = calibration.base_hp
-        base_ac_bonus = calibration.base_ac_bonus
-        intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
-    else:
-        intrinsic_abilities = _conservative_intrinsic_abilities(
-            player.abilities, current
-        )
-        intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
-        displayed_stats = (
-            player.stat_use
-            if len(getattr(player, "stat_use", ())) >= 4
-            and player.stat_use[0] > 0
-            and player.stat_use[3] > 0
-            else player.stat_cur
-        )
-        base_str = _base_stat_without_current_gear(
-            displayed_stats[0], current, TR_STR
-        )
-        base_dex = _base_stat_without_current_gear(
-            displayed_stats[3], current, TR_DEX
-        )
-        base_con = (
-            _base_stat_without_current_gear(displayed_stats[4], current, TR_CON)
-            if len(displayed_stats) >= 5
-            else 3
-        )
-        current_con = modify_stat_value(
-            base_con,
-            sum(
-                item.item.pval
-                for _, item in current.slots
-                if TR_CON in item.flags
-            ),
-        )
-        base_hp = max(
-            1,
-            player.max_hp - constitution_hp_bonus(current_con, player.level),
-        )
-        provisional_defense = WarriorDefenseInputs(
-            level=player.level,
-            natural_dex=base_dex,
-            shield_skill=player.shield_skill,
-            base_speed=player.speed - _equipment_speed(current),
-            saving_skill=player.saving_skill,
-            intrinsic_flags=intrinsic_flags,
-        )
-        base_ac_bonus = player.ac - loadout_armor_class(
-            current, provisional_defense
-        )
+    # P1: every character constant comes from the unequipped calibration
+    # observation, never from de-gearing the currently worn snapshot.  The
+    # worn partition of the owned multiset can no longer move the answer
+    # through ADJ_DEX_TO_AC steps (base_ac_bonus), the non-injective
+    # modify_stat_value scale (base stats / base_hp), or ability shadowing
+    # (intrinsic set).  There is no legacy derivation here by design.
+    intrinsic_abilities = calibration.intrinsic_abilities
+    base_str = calibration.base_stats[0]
+    base_dex = calibration.base_stats[3]
+    base_con = calibration.base_stats[4]
+    base_hp = calibration.base_hp
+    base_ac_bonus = calibration.base_ac_bonus
+    intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
     # Speed is deliberately NOT calibrated: its de-gearing is linear and exact,
     # and a stripped observation would fold the changed carried weight into the
     # base (roadmap P1 requirement 4).
