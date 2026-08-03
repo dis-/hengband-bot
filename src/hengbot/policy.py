@@ -1995,6 +1995,11 @@ class HengbotPolicy:
         self._breeder_previous_indices: set[int] = set()
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
+        # The frontier tile the breakthrough is currently routing to, keyed by
+        # floor.  Arrival that reveals nothing retires the tile (liveness).
+        self._breakthrough_frontier_goal: (
+            tuple[tuple[int, int, int], Position] | None
+        ) = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
         self._fruitless_disengage_marked_high = 0
@@ -3616,7 +3621,23 @@ class HengbotPolicy:
             )
             if combat_equip is not None:
                 return combat_equip
-            return self._finish_mining_floor(snapshot)
+            key = self._finish_mining_floor(snapshot)
+            if (
+                key != WAIT_KEY
+                or self.last_reason != "fundraise:upstairs-not-found"
+            ):
+                return key
+            # The fundraising exit ran out of actions: its terminal WAIT is
+            # absorbing (no recall to wait on, no reachable stairs, nothing
+            # to explore, wander, or dig — nothing external changes it).  The
+            # extermination-impossible latch owns leaving, so fall back to
+            # the breakthrough's own exits: through-the-swarm routing to a
+            # remembered up-stairs, else to the nearest live frontier.  With
+            # neither, fall through to the ordinary navigation ladder like
+            # the non-mining exhausted floor.
+            escape = self._breeder_breakthrough_escape_key(snapshot)
+            if escape is not None:
+                return escape
 
         # Mining/swarm contact has a deliberately ordered combat transition.
         # Keep the diggers on while a missile can repel the approach; once
@@ -26955,14 +26976,25 @@ class HengbotPolicy:
             and not self._is_weak_breeder(snapshot, monster)
             for monster in hostiles
         ):
-            # The latched fundraising floor-exit later in _decide (combat
-            # re-equip first, then _finish_mining_floor) is the established
-            # total handler for a weak-breeder mining floor.  Claiming the
-            # decision here would strip the digger re-arm step that keeps a
-            # shovel-armed miner from melee-ing its way out, so mining keeps
-            # its reviewed exit byte-for-byte.
+            # The latched fundraising floor-exit later in _decide runs its
+            # combat re-equip first (the digger re-arm a breakthrough claim
+            # here would strip), then _finish_mining_floor.  That exit is not
+            # total: its terminal is an absorbing WAIT, so the _decide site
+            # backstops it with _breeder_breakthrough_escape_key before the
+            # WAIT can be posted.  Every other fundraising decision stays
+            # byte-for-byte.
             return None
+        return self._breeder_breakthrough_escape_key(snapshot)
 
+    def _breeder_breakthrough_escape_key(self, snapshot: Snapshot) -> str | None:
+        """The breakthrough's own exits: ascend, route upstairs, or discover.
+
+        Returns None only when neither an up-stairs nor any live frontier is
+        remembered: the floor is exhausted, and the ordinary navigation
+        ladder already owns that state (probe, secret-wall search, stuck
+        stair-seeking, nav-exhausted floor departure) — never an unbounded
+        WAIT here.
+        """
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
@@ -26973,11 +27005,11 @@ class HengbotPolicy:
         if step is None:
             # No remembered route reaches a known up-stairs (or none is known
             # yet).  The exit is discovery: route through the swarm to the
-            # nearest remembered tile touching unknown terrain.  Each arrival
-            # reveals new tiles, so the remembered map strictly grows until an
-            # up-stairs is discovered and the route branch above takes over;
-            # unrevealable frontiers are retired by the existing
-            # _probed_frontiers / _blocked_unknown bookkeeping.
+            # nearest remembered tile touching unknown terrain.  Liveness is
+            # monotone: an arrival either reveals tiles (the remembered map
+            # grows, bounded by the floor) or retires that frontier from the
+            # candidate set (which strictly shrinks, emptying into the
+            # exhausted-floor handoff below).
             step = self._breeder_breakthrough_frontier_step(snapshot)
             seek_reason = "breeder-breakthrough:seek-frontier"
         if step is not None:
@@ -26988,10 +27020,6 @@ class HengbotPolicy:
                 else seek_reason
             )
             return self._step_toward(snapshot, step)
-        # Neither an up-stairs nor any unknown terrain is remembered: the
-        # floor is exhausted, and the ordinary navigation ladder already owns
-        # that state (probe, secret-wall search, stuck stair-seeking,
-        # nav-exhausted floor departure) — never an unbounded WAIT here.
         return None
 
     def _breeder_route_traversable(
@@ -27064,12 +27092,30 @@ class HengbotPolicy:
         Same traversability as the up-stairs route — monsters on the way are
         escape-route blockers, not walls — because the very swarm that armed
         the latch is what seals the pocket; ordinary exploration refuses to
-        path through occupied cells and goes blind exactly here.  The
-        frontier test is the ordinary one, so exhausted or unrevealable
-        frontiers are retired by the existing bookkeeping and this search
-        moves on to the next one.
+        path through occupied cells and goes blind exactly here.
+
+        Liveness lives in this handler, not in hope of revelation: adjacency
+        does not guarantee a dark or occluded grid is memorized (the emitter
+        includes grids on CAVE_MARK | CAVE_LITE | CAVE_MNLT, and view is a
+        function of position and light — standing on the tile longer changes
+        nothing).  So when the bot stands on the frontier it was routed to
+        and the snapshot still shows an unknown neighbour, that neighbour is
+        not revealable from here: the tile is retired into the existing
+        _probed_frontiers set immediately.  Every targeted arrival therefore
+        either grows the remembered map or strictly shrinks the candidate
+        set; both are bounded by the floor, so the search terminates into
+        the exhausted-floor handoff.
         """
         start = snapshot.player.position
+        stored = self._breakthrough_frontier_goal
+        if (
+            stored is not None
+            and stored[0] == snapshot.floor_key
+            and stored[1] == start
+        ):
+            if self._is_remembered_frontier(snapshot, start):
+                self._probed_frontiers.add(start)
+            self._breakthrough_frontier_goal = None
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         while queue:
@@ -27079,6 +27125,9 @@ class HengbotPolicy:
                 and first_step is not None
                 and self._is_remembered_frontier(snapshot, position)
             ):
+                self._breakthrough_frontier_goal = (
+                    snapshot.floor_key, position
+                )
                 return first_step
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
