@@ -1005,17 +1005,22 @@ class CombatTest(unittest.TestCase):
         )
 
     def test_incident_weak_breeders_make_ordinary_progress(self):
+        # Since the sanctioned breakthrough fix (user decision D, 2026-08-03),
+        # a latched weak-breeder floor is owned by the breakthrough: progress
+        # is directed at leaving (here toward the nearest frontier, as no
+        # up-stairs is remembered) instead of generic exploration.  The
+        # original pins stand: no disengage replay, no fruitless latch.
         snapshot = self._weak_breeder_incident_snapshot()
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
-        with patch.object(
-            policy, "_explore_step", return_value=Position(10, 11)
-        ):
-            key = policy.choose_key(snapshot)
+        key = policy.choose_key(snapshot)
 
-        self.assertEqual((key, policy.last_reason), ("6", "explore"))
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("7", "breeder-breakthrough:seek-frontier"),
+        )
         self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
 
@@ -1116,18 +1121,22 @@ class CombatTest(unittest.TestCase):
         )
 
     def test_only_path_blocking_weak_breeder_is_attacked(self):
+        # A suppressed weak breeder is only ever attacked when it stands on
+        # the breakthrough's escape route.  Here a monster-free route to the
+        # frontier exists, so neither adjacent breeder may be attacked — the
+        # step is the free diagonal, not "6" into (10,11) or "8" into (9,10).
         snapshot = self._weak_breeder_incident_snapshot(blocking=True)
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
-        with patch.object(
-            policy, "_explore_step", return_value=Position(10, 11)
-        ):
-            key = policy.choose_key(snapshot)
+        key = policy.choose_key(snapshot)
 
-        self.assertEqual((key, policy.last_reason), ("6", "explore"))
-        self.assertNotEqual(key, "8")
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("7", "breeder-breakthrough:seek-frontier"),
+        )
+        self.assertNotIn(key, {"6", "8"})
 
     def test_latched_adjacent_weak_breeders_forbid_unsanctioned_wait(self):
         base = self._weak_breeder_incident_snapshot(blocking=True)
@@ -1375,27 +1384,393 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(reasons[:2], ["no-wait:melee", "no-wait:melee"])
         self.assertNotIn(snapshot.player.position, cycle)
 
+    @staticmethod
+    def _forest_1616_breakthrough_snapshot():
+        # 2026-08-03 16:16 Forest (dungeon 7) 20F stop, reconstructed from the
+        # capture: player (17,55) at HP 615/615 in a pocket whose every open
+        # neighbour is breeder-occupied, six weak breeders (race 156,
+        # max_melee_damage 5 < 615 * WEAK_BREEDER_MAX_DAMAGE_RATIO 0.05), the
+        # extermination latch armed for floor (7, 20, 0), and the up-stairs
+        # remembered at (6, 68).  The pocket cells match the loop guard's
+        # confinement set; the only escape route leaves through the adjacent
+        # breeder at (18, 55).
+        origin = Position(17, 55)
+        pocket = [
+            Position(16, 53), Position(17, 53), Position(18, 53),
+            Position(17, 54), Position(18, 54), Position(18, 55),
+        ]
+        corridor = [
+            Position(19, 56), Position(19, 57), Position(18, 58),
+            Position(17, 59), Position(16, 60), Position(15, 61),
+            Position(14, 62), Position(13, 63), Position(12, 64),
+            Position(11, 65), Position(10, 66), Position(9, 67),
+            Position(8, 68), Position(7, 68),
+        ]
+        upstairs = Position(6, 68)
+        floor_cells = [origin, *pocket, *corridor]
+        grids = {
+            position: grid(position.y, position.x)
+            for position in floor_cells
+        }
+        grids[upstairs] = grid(upstairs.y, upstairs.x, upstairs=True)
+        for position in [*floor_cells, upstairs]:
+            for dy, dx in (
+                (-1, -1), (-1, 0), (-1, 1), (0, -1),
+                (0, 1), (1, -1), (1, 0), (1, 1),
+            ):
+                wall = Position(position.y + dy, position.x + dx)
+                if wall not in grids:
+                    grids[wall] = grid(wall.y, wall.x, passable=False)
+        breeders = [
+            hostile(
+                index, position.y, position.x,
+                hp=15, max_hp=15,
+                distance=origin.distance_to(position),
+                race_id=156, can_multiply=True, max_melee_damage=5,
+            )
+            for index, position in enumerate(
+                [
+                    Position(17, 54), Position(18, 54), Position(18, 55),
+                    Position(16, 53), Position(17, 53), Position(18, 53),
+                ],
+                1,
+            )
+        ]
+        for breeder in breeders:
+            grids[breeder.position] = replace(
+                grids[breeder.position], has_monster=True
+            )
+        return Snapshot(
+            player(
+                origin.y, origin.x, hp=615, max_hp=615, level=30,
+                main_hand_blows=3, main_hand_to_d=9,
+            ),
+            grids,
+            breeders,
+            floor_key=(7, 20, 0),
+            turn=1,
+            width=198,
+            height=66,
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+
+    def test_forest_1616_weak_breeder_latch_executes_breakthrough(self):
+        # The user's decision D: the breakthrough was selected (the latch
+        # fired) but the bot never acted on it — every decision degraded to
+        # no-wait:melee in the pocket.  Drive the public choose_key path
+        # across the whole escape and require breakthrough intent throughout.
+        snapshot = self._forest_1616_breakthrough_snapshot()
+        upstairs = Position(6, 68)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        # The stopped session had already burned its stationary searches at
+        # the pocket (reasons: search x16 before the stop); reconstruct that
+        # exhaustion so the pre-fix ladder reaches its WAIT rewrite at once.
+        policy._search_counts[(17, 55)] = SEARCH_LIMIT
+        offsets = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        distances = [snapshot.player.position.distance_to(upstairs)]
+        attacked = []
+        reasons = []
+
+        for _ in range(40):
+            key = policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+            self.assertTrue(
+                policy.last_reason.startswith("breeder-breakthrough:"),
+                f"decision {len(reasons)}: reason {policy.last_reason!r} "
+                f"(key {key!r}) is not a breakthrough decision",
+            )
+            if key == UP_STAIRS_KEY:
+                break
+            self.assertIn(key, offsets)
+            dy, dx = offsets[key]
+            destination = Position(
+                snapshot.player.position.y + dy,
+                snapshot.player.position.x + dx,
+            )
+            destination_grid = snapshot.grid_at(destination)
+            if destination_grid is not None and destination_grid.has_monster:
+                attacked.append(destination)
+                grids = dict(snapshot.grids)
+                grids[destination] = replace(
+                    destination_grid, has_monster=False
+                )
+                snapshot = replace(
+                    snapshot,
+                    grids=grids,
+                    visible_monsters=[
+                        monster
+                        for monster in snapshot.visible_monsters
+                        if monster.position != destination
+                    ],
+                    turn=snapshot.turn + 1,
+                )
+            else:
+                snapshot = replace(
+                    snapshot,
+                    player=replace(snapshot.player, position=destination),
+                    turn=snapshot.turn + 1,
+                )
+                distances.append(
+                    snapshot.player.position.distance_to(upstairs)
+                )
+
+        self.assertEqual(key, UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+        self.assertEqual(snapshot.player.position, upstairs)
+        self.assertGreaterEqual(len(reasons), 3)
+        # Purposeful melee only: the single monster attacked is the blocker
+        # on the escape route, never the adjacent off-route breeders at
+        # (17,54)/(18,54).
+        self.assertEqual(attacked, [Position(18, 55)])
+        # The distance to the upstairs never increases, and strictly
+        # decreases across (far more than) three consecutive decisions.
+        self.assertTrue(
+            all(b <= a for a, b in zip(distances, distances[1:])),
+            distances,
+        )
+        strict_run = longest = 0
+        for earlier, later in zip(distances, distances[1:]):
+            strict_run = strict_run + 1 if later < earlier else 0
+            longest = max(longest, strict_run)
+        self.assertGreaterEqual(longest, 3)
+        self.assertEqual(distances[-1], 0)
+
+    def test_breakthrough_attacks_route_blocker_not_weakest_adjacent(self):
+        # Two adjacent weak breeders: one stands on the remembered route to
+        # the upstairs, the other (deliberately the weaker one, which the
+        # pre-fix no-wait:melee rewrite would pick) sits in a dead-end off
+        # the route.  Only the route blocker may be attacked.
+        origin = Position(10, 10)
+        upstairs = Position(10, 7)
+        floor_cells = [
+            origin, Position(10, 9), Position(10, 8), Position(9, 11),
+        ]
+        grids = {
+            position: grid(position.y, position.x)
+            for position in floor_cells
+        }
+        grids[upstairs] = grid(upstairs.y, upstairs.x, upstairs=True)
+        for position in [*floor_cells, upstairs]:
+            for dy, dx in (
+                (-1, -1), (-1, 0), (-1, 1), (0, -1),
+                (0, 1), (1, -1), (1, 0), (1, 1),
+            ):
+                wall = Position(position.y + dy, position.x + dx)
+                if wall not in grids:
+                    grids[wall] = grid(wall.y, wall.x, passable=False)
+        blocker = hostile(
+            1, 10, 9, hp=15, max_hp=15, distance=1, race_id=156,
+            can_multiply=True, max_melee_damage=5,
+        )
+        bystander = hostile(
+            2, 9, 11, hp=3, max_hp=3, distance=1, race_id=156,
+            can_multiply=True, max_melee_damage=5,
+        )
+        for monster in (blocker, bystander):
+            grids[monster.position] = replace(
+                grids[monster.position], has_monster=True
+            )
+        snapshot = Snapshot(
+            player(
+                origin.y, origin.x, hp=615, max_hp=615, level=30,
+                main_hand_blows=3, main_hand_to_d=9,
+            ),
+            grids,
+            [blocker, bystander],
+            floor_key=(7, 20, 0),
+            turn=1,
+            width=30,
+            height=30,
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._search_counts[(10, 10)] = SEARCH_LIMIT
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("4", "breeder-breakthrough:clear-escape-path"),
+        )
+        self.assertNotEqual(key, "9")  # never the weaker off-route breeder
+
+        # Blocker down: the remaining decisions walk the route and ascend.
+        grids = dict(snapshot.grids)
+        grids[blocker.position] = replace(
+            grids[blocker.position], has_monster=False
+        )
+        snapshot = replace(
+            snapshot, grids=grids, visible_monsters=[bystander], turn=2
+        )
+        for expected in (Position(10, 9), Position(10, 8), Position(10, 7)):
+            self.assertEqual(policy.choose_key(snapshot), "4")
+            self.assertEqual(
+                policy.last_reason, "breeder-breakthrough:seek-upstairs"
+            )
+            snapshot = replace(
+                snapshot,
+                player=replace(snapshot.player, position=expected),
+                turn=snapshot.turn + 1,
+            )
+        self.assertEqual(policy.choose_key(snapshot), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+
+    def test_breakthrough_without_known_upstairs_seeks_frontier_not_wait(self):
+        # With the strong-breeder gate removed the upstairs-not-found branch
+        # is reachable in the weak-breeder case; it must have a concrete exit:
+        # route through the swarm to the nearest remembered frontier, let the
+        # arrival reveal terrain, and hand over to the upstairs route the
+        # moment one is discovered.
+        origin = Position(10, 10)
+        corridor = [
+            Position(10, 9), Position(10, 8), Position(10, 7),
+            Position(10, 6), Position(10, 5),
+        ]
+        grids = {
+            position: grid(position.y, position.x)
+            for position in [origin, *corridor]
+        }
+        unknown = Position(10, 4)
+        for position in [origin, *corridor]:
+            for dy, dx in (
+                (-1, -1), (-1, 0), (-1, 1), (0, -1),
+                (0, 1), (1, -1), (1, 0), (1, 1),
+            ):
+                wall = Position(position.y + dy, position.x + dx)
+                if wall not in grids and wall != unknown:
+                    grids[wall] = grid(wall.y, wall.x, passable=False)
+        blocker = hostile(
+            1, 10, 9, hp=15, max_hp=15, distance=1, race_id=156,
+            can_multiply=True, max_melee_damage=5,
+        )
+        grids[blocker.position] = replace(
+            grids[blocker.position], has_monster=True
+        )
+        snapshot = Snapshot(
+            player(
+                origin.y, origin.x, hp=615, max_hp=615, level=30,
+                main_hand_blows=3, main_hand_to_d=9,
+            ),
+            grids,
+            [blocker],
+            floor_key=(7, 20, 0),
+            turn=1,
+            width=30,
+            height=30,
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1, name="Broad Sword",
+                    is_equipment=True, damage_dice_num=2, damage_dice_sides=5,
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        policy._search_counts[(10, 10)] = SEARCH_LIMIT
+
+        key = policy.choose_key(snapshot)
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("4", "breeder-breakthrough:clear-escape-path"),
+        )
+        self.assertNotEqual(key, WAIT_KEY)
+
+        grids = dict(snapshot.grids)
+        grids[blocker.position] = replace(
+            grids[blocker.position], has_monster=False
+        )
+        snapshot = replace(snapshot, grids=grids, visible_monsters=[], turn=2)
+        for expected in corridor[:4]:
+            self.assertEqual(policy.choose_key(snapshot), "4")
+            self.assertEqual(
+                policy.last_reason, "breeder-breakthrough:seek-frontier"
+            )
+            snapshot = replace(
+                snapshot,
+                player=replace(snapshot.player, position=expected),
+                turn=snapshot.turn + 1,
+            )
+
+        # Standing next to the unknown tile reveals it (the game lights the
+        # adjacent square): the corridor continues to an up-stairs, and the
+        # discovery flips the breakthrough onto the upstairs route.
+        revealed_stairs = Position(10, 3)
+        grids = dict(snapshot.grids)
+        grids[unknown] = grid(unknown.y, unknown.x)
+        grids[revealed_stairs] = grid(
+            revealed_stairs.y, revealed_stairs.x, upstairs=True
+        )
+        for position in (unknown, revealed_stairs):
+            for dy, dx in (
+                (-1, -1), (-1, 0), (-1, 1), (0, -1),
+                (0, 1), (1, -1), (1, 0), (1, 1),
+            ):
+                wall = Position(position.y + dy, position.x + dx)
+                if wall not in grids:
+                    grids[wall] = grid(wall.y, wall.x, passable=False)
+        snapshot = replace(snapshot, grids=grids)
+        for expected in (Position(10, 5), unknown, revealed_stairs):
+            self.assertEqual(policy.choose_key(snapshot), "4")
+            self.assertEqual(
+                policy.last_reason, "breeder-breakthrough:seek-upstairs"
+            )
+            snapshot = replace(
+                snapshot,
+                player=replace(snapshot.player, position=expected),
+                turn=snapshot.turn + 1,
+            )
+        self.assertEqual(policy.choose_key(snapshot), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+
     def test_strong_multiplied_breeders_keep_existing_breakthrough(self):
-        snapshot = self._weak_breeder_incident_snapshot()
+        # Strong-breeder escape is byte-for-byte what it was before the gate
+        # removal: with the latch set, a strong breeder visible, and an
+        # up-stairs remembered, the route blocker is cleared and the route is
+        # walked.  This test also passes on the pre-fix parent (only the
+        # blocker is strong — a fully lethal swarm belongs to the emergency
+        # ladder, before and after alike).
+        snapshot = self._forest_1616_breakthrough_snapshot()
         strong = [
-            replace(monster, max_melee_damage=15)
+            replace(monster, max_melee_damage=31)
+            if monster.position == Position(18, 55)
+            else monster
             for monster in snapshot.visible_monsters
         ]
         snapshot = replace(snapshot, visible_monsters=strong)
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
+        key = policy.choose_key(snapshot)
+
         self.assertEqual(
-            policy._breeder_breakthrough_key(
-                snapshot, policy._strategic_hostiles(snapshot)
-            ),
-            WAIT_KEY,
-        )
-        self.assertEqual(
-            policy.last_reason, "breeder-breakthrough:upstairs-not-found"
+            (key, policy.last_reason),
+            ("2", "breeder-breakthrough:clear-escape-path"),
         )
 
     def test_weak_breeder_replay_does_not_drain_disengage_allowance(self):
+        # The latched floor is now owned by the breakthrough, which sits
+        # above the disengage rung — so a weak-breeder replay can never spend
+        # the fruitless allowance, and the untouched allowance decays every
+        # decision instead of being drained toward the combat:fruitless stop.
         policy = HengbotPolicy()
         base = self._weak_breeder_incident_snapshot()
         policy._floor_key = base.floor_key
@@ -1404,18 +1779,15 @@ class CombatTest(unittest.TestCase):
         policy._fruitless_disengage_decisions = 99
         reasons = []
 
-        with patch.object(
-            policy, "_explore_step", return_value=Position(10, 11)
-        ):
-            for turn in range(1, 7):
-                key = policy.choose_key(replace(base, turn=turn))
-                reasons.append(policy.last_reason)
-                self.assertNotEqual(key, WAIT_KEY)
+        for turn in range(1, 7):
+            key = policy.choose_key(replace(base, turn=turn))
+            reasons.append(policy.last_reason)
+            self.assertNotEqual(key, WAIT_KEY)
 
-        self.assertEqual(policy._fruitless_disengage_decisions, 0)
+        self.assertLess(policy._fruitless_disengage_decisions, 99)
         self.assertTrue(
             all(
-                reason == "explore" or reason == "breakout"
+                reason.startswith("breeder-breakthrough:")
                 for reason in reasons
             )
         )
@@ -1614,6 +1986,10 @@ class CombatTest(unittest.TestCase):
         self.assertIsNone(policy._breeder_breakthrough_floor)
 
     def test_latched_weak_swarm_is_ignored_but_strong_swarm_leaves(self):
+        # The strategic suppression of latched weak breeders is unchanged;
+        # since the breakthrough gate removal (user decision D) the latch
+        # itself carries the departure, so weak and strong swarms alike are
+        # walked away from via breakthrough routing instead of being fought.
         weak = self._weak_breeder_incident_snapshot()
         policy = HengbotPolicy()
         policy._floor_key = weak.floor_key
@@ -1621,11 +1997,14 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy._strategic_hostiles(weak), [])
 
         blocking = self._weak_breeder_incident_snapshot(blocking=True)
-        with patch.object(
-            policy, "_explore_step", return_value=Position(10, 11)
-        ):
-            self.assertEqual(policy.choose_key(blocking), "6")
+        self.assertEqual(policy.choose_key(blocking), "7")
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:seek-frontier"
+        )
 
+        # A strong swarm this size is lethal, so the emergency ladder (which
+        # sits above the breakthrough, before and after the gate removal
+        # alike) owns the decision — and it, too, leaves upward.
         strong = replace(
             weak,
             visible_monsters=[
@@ -1633,12 +2012,8 @@ class CombatTest(unittest.TestCase):
                 for monster in weak.visible_monsters
             ],
         )
-        self.assertEqual(
-            policy._breeder_breakthrough_key(
-                strong, policy._strategic_hostiles(strong)
-            ),
-            WAIT_KEY,
-        )
+        self.assertNotEqual(policy.choose_key(strong), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "emergency:seek-upstairs")
 
     def test_open_melee_swarm_repositions_to_corridor_choke(self):
         snapshot = self._mouse_swarm_snapshot(adjacent=True)
@@ -2450,9 +2825,12 @@ class CombatTest(unittest.TestCase):
         policy.choose_key(hidden)
         self.assertEqual(policy._breeder_breakthrough_floor, visible.floor_key)
 
-        self.assertEqual(policy.choose_key(visible), WAIT_KEY)
+        # No up-stairs is remembered here; since the upstairs-not-found WAIT
+        # was replaced (user decision D) the breakthrough routes toward the
+        # nearest frontier instead of holding still.
+        self.assertEqual(policy.choose_key(visible), "4")
         self.assertEqual(
-            policy.last_reason, "breeder-breakthrough:upstairs-not-found"
+            policy.last_reason, "breeder-breakthrough:seek-frontier"
         )
         self.assertEqual(
             policy._breeder_breakthrough_floor, visible.floor_key
@@ -21913,10 +22291,15 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._floor_key = visible.floor_key
         policy._breeder_breakthrough_floor = visible.floor_key
 
+        # Pre-fix, the strong-breeder breakthrough with no remembered
+        # up-stairs returned the absorbing upstairs-not-found WAIT, which the
+        # no-wait ladder rewrote into burning an escape scroll.  Since user
+        # decision D replaced that WAIT with frontier routing, the same board
+        # walks toward undiscovered terrain and keeps the scroll.
         first_key = policy.choose_key(visible)
         self.assertEqual(
             (first_key, policy.last_reason),
-            ("rt", "no-wait:escape-scroll"),
+            ("4", "breeder-breakthrough:seek-frontier"),
         )
 
         hidden = replace(

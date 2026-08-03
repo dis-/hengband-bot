@@ -26938,14 +26938,29 @@ class HengbotPolicy:
     def _breeder_breakthrough_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
-        """Leave upward for strong breeders after extermination becomes impossible."""
+        """Leave upward once extermination on this floor proved impossible.
+
+        The strong/weak breeder distinction governs whether the latch is SET
+        (in _update_combat_outcome), not whether the escape executes: the
+        latch means "this population cannot be exterminated, leave", and a
+        weak-breeder stalemate arms it too.  Refusing to act without a strong
+        breeder left the bot oscillating in a monster-sealed pocket until the
+        loop guard stopped it (Forest 20F, 2026-08-03 16:16), so once the
+        latch names this floor the breakthrough owns the decision.
+        """
         if self._breeder_breakthrough_floor != snapshot.floor_key:
             return None
-        if not any(
+        if self._fundraising_mode in {"mine", "scavenge"} and not any(
             monster.can_multiply
             and not self._is_weak_breeder(snapshot, monster)
             for monster in hostiles
         ):
+            # The latched fundraising floor-exit later in _decide (combat
+            # re-equip first, then _finish_mining_floor) is the established
+            # total handler for a weak-breeder mining floor.  Claiming the
+            # decision here would strip the digger re-arm step that keeps a
+            # shovel-armed miner from melee-ing its way out, so mining keeps
+            # its reviewed exit byte-for-byte.
             return None
 
         here = snapshot.grid_at(snapshot.player.position)
@@ -26954,16 +26969,57 @@ class HengbotPolicy:
             self.last_reason = "breeder-breakthrough:ascend"
             return UP_STAIRS_KEY
         step = self._breeder_breakthrough_step(snapshot)
+        seek_reason = "breeder-breakthrough:seek-upstairs"
+        if step is None:
+            # No remembered route reaches a known up-stairs (or none is known
+            # yet).  The exit is discovery: route through the swarm to the
+            # nearest remembered tile touching unknown terrain.  Each arrival
+            # reveals new tiles, so the remembered map strictly grows until an
+            # up-stairs is discovered and the route branch above takes over;
+            # unrevealable frontiers are retired by the existing
+            # _probed_frontiers / _blocked_unknown bookkeeping.
+            step = self._breeder_breakthrough_frontier_step(snapshot)
+            seek_reason = "breeder-breakthrough:seek-frontier"
         if step is not None:
             grid = snapshot.grid_at(step)
             self.last_reason = (
                 "breeder-breakthrough:clear-escape-path"
                 if grid is not None and grid.has_monster
-                else "breeder-breakthrough:seek-upstairs"
+                else seek_reason
             )
             return self._step_toward(snapshot, step)
-        self.last_reason = "breeder-breakthrough:upstairs-not-found"
-        return WAIT_KEY
+        # Neither an up-stairs nor any unknown terrain is remembered: the
+        # floor is exhausted, and the ordinary navigation ladder already owns
+        # that state (probe, secret-wall search, stuck stair-seeking,
+        # nav-exhausted floor departure) — never an unbounded WAIT here.
+        return None
+
+    def _breeder_route_traversable(
+        self, snapshot: Snapshot, neighbor: Position, dy: int, dx: int
+    ) -> bool:
+        """Remembered-terrain traversability for breakthrough routing.
+
+        A monster standing on a known enterable cell counts: on a latched
+        floor it is an escape-route blocker to clear by attacking, not a
+        wall.  Ordinary routing deliberately excludes occupied cells, which
+        is exactly what blinds it when the swarm seals the pocket.
+        """
+        grid = snapshot.grid_at(neighbor)
+        key = (neighbor.y, neighbor.x)
+        return (
+            key in self._remembered_floor_t
+            or key in self._remembered_door_t
+            or (
+                (dy == 0 or dx == 0)
+                and key in self._remembered_rubble_t
+            )
+            or (
+                grid is not None
+                and grid.known
+                and grid.has_monster
+                and grid.enterable
+            )
+        )
 
     def _breeder_breakthrough_step(
         self, snapshot: Snapshot
@@ -26988,23 +27044,9 @@ class HengbotPolicy:
                         and neighbor.distance_to(goal) > position.distance_to(goal)
                     ):
                         continue
-                    grid = snapshot.grid_at(neighbor)
-                    key = (neighbor.y, neighbor.x)
-                    traversable = (
-                        key in self._remembered_floor_t
-                        or key in self._remembered_door_t
-                        or (
-                            (dy == 0 or dx == 0)
-                            and key in self._remembered_rubble_t
-                        )
-                        or (
-                            grid is not None
-                            and grid.known
-                            and grid.has_monster
-                            and grid.enterable
-                        )
-                    )
-                    if not traversable:
+                    if not self._breeder_route_traversable(
+                        snapshot, neighbor, dy, dx
+                    ):
                         continue
                     seen.add(neighbor)
                     queue.append(
@@ -27013,6 +27055,44 @@ class HengbotPolicy:
             return None
 
         return route(monotone=True) or route(monotone=False)
+
+    def _breeder_breakthrough_frontier_step(
+        self, snapshot: Snapshot
+    ) -> Position | None:
+        """Route through the swarm to the nearest remembered frontier tile.
+
+        Same traversability as the up-stairs route — monsters on the way are
+        escape-route blockers, not walls — because the very swarm that armed
+        the latch is what seals the pocket; ordinary exploration refuses to
+        path through occupied cells and goes blind exactly here.  The
+        frontier test is the ordinary one, so exhausted or unrevealable
+        frontiers are retired by the existing bookkeeping and this search
+        moves on to the next one.
+        """
+        start = snapshot.player.position
+        seen = {start}
+        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        while queue:
+            position, first_step = queue.popleft()
+            if (
+                position != start
+                and first_step is not None
+                and self._is_remembered_frontier(snapshot, position)
+            ):
+                return first_step
+            for dy, dx in NEIGHBOR_OFFSETS:
+                neighbor = Position(position.y + dy, position.x + dx)
+                if neighbor in seen:
+                    continue
+                if not self._breeder_route_traversable(
+                    snapshot, neighbor, dy, dx
+                ):
+                    continue
+                seen.add(neighbor)
+                queue.append(
+                    (neighbor, neighbor if first_step is None else first_step)
+                )
+        return None
 
     def _remember_swarm_distances(self, snapshot: Snapshot) -> None:
         """Retain one observation so awake monsters moving closer can converge."""
