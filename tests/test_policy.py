@@ -43135,6 +43135,70 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         )
 
 
+def step_toward_concatenation_offenders(tree: ast.Module) -> list[tuple[str, int]]:
+    """Find every composition of a ``_step_toward`` result outside the owner.
+
+    Flags a ``_step_toward`` call anywhere inside a BinOp at any nesting
+    depth, and the laundered forms: the call's result bound to a name
+    (assignment, annotated assignment, walrus, augmented assignment) that is
+    later used in a BinOp or augmented assignment within the same function.
+    """
+
+    def is_step_toward(node):
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_step_toward"
+        )
+
+    def contains_call(expr):
+        return any(is_step_toward(sub) for sub in ast.walk(expr))
+
+    offenders = []
+    for function in (
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ):
+        tainted = set()
+        for node in ast.walk(function):
+            if not isinstance(
+                node, (ast.Assign, ast.AnnAssign, ast.NamedExpr, ast.AugAssign)
+            ):
+                continue
+            if node.value is None or not contains_call(node.value):
+                continue
+            if isinstance(node, ast.Assign):
+                tainted.update(
+                    target.id
+                    for target in node.targets
+                    if isinstance(target, ast.Name)
+                )
+            elif isinstance(node.target, ast.Name):
+                tainted.add(node.target.id)
+
+        def references_taint(expr):
+            return any(
+                isinstance(sub, ast.Name) and sub.id in tainted
+                for sub in ast.walk(expr)
+            )
+
+        for node in ast.walk(function):
+            if isinstance(node, ast.BinOp) and (
+                contains_call(node) or references_taint(node)
+            ):
+                offenders.append((function.name, node.lineno))
+            elif isinstance(node, ast.AugAssign) and (
+                contains_call(node.value)
+                or (
+                    isinstance(node.target, ast.Name)
+                    and node.target.id in tainted
+                )
+            ):
+                offenders.append((function.name, node.lineno))
+    return offenders
+
+
 class WarningGridAvoidanceTest(unittest.TestCase):
     """The 2026-08-03 06:23 Orc cave 19F capture: loot at (25,93) two cells
     north of (27,93), the step grid (26,93) raising the TR_WARNING prompt
@@ -43311,15 +43375,47 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         self.assertFalse(policy._warning_refused_cells)
 
     def test_latched_cell_yields_a_different_objective_across_decisions(self):
-        # Two consecutive post-refusal decisions on the same static floor:
-        # the latched cell's objective (the loot behind it) is abandoned and
-        # the bot pursues a different objective (exploration) BOTH times —
-        # it never sits in warning:blocked-step, which has no owner above
-        # the navigation-livelock rung.
+        # Two consecutive post-refusal decisions on the same static floor,
+        # driven through the device-recovery selector (_mana_food_loot_key →
+        # _nearest_position_step), which sits ABOVE the navigation-livelock
+        # rung: with an avoid-unaware BFS the latched step is re-picked and
+        # warning:blocked-step repeats forever, starving the livelock.  The
+        # avoid-aware BFS abandons the unreachable device and the bot
+        # pursues a different objective (exploration) BOTH times.
         supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
-        policy = self.refused_policy(supply)
+
+        def device_corridor(*, messages=()):
+            grids = {
+                Position(28, 93): grid(28, 93),
+                Position(27, 93): grid(27, 93),
+                Position(26, 93): grid(26, 93),
+                Position(25, 93): grid(
+                    25, 93, objects=1, object_tvals=(TVAL_WAND,)
+                ),
+            }
+            return Snapshot(
+                player(
+                    27, 93, hp=606, max_hp=606, level=31,
+                    food_type=FOOD_TYPE_MANA,
+                ),
+                grids,
+                [],
+                floor_key=self.FLOOR,
+                inventory=list(supply),
+                messages=tuple(messages),
+            )
+
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(device_corridor()), "8")
+        self.assertEqual(policy.last_reason, "mana-food:seek-device")
+        self.assertEqual(
+            policy.choose_key(device_corridor(messages=(self.PROMPT_JA,))),
+            "n",
+        )
+        self.assertIn(Position(26, 93), policy._warning_refused_cells)
+
         for _ in range(2):
-            key = policy.choose_key(self.corridor(inventory=supply))
+            key = policy.choose_key(device_corridor())
             self.assertNotEqual(policy.last_reason, "warning:blocked-step")
             self.assertNotEqual(key, "5")
             self.assertNotIn(key, {"8", "8y"})
@@ -43386,67 +43482,55 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         # walk macro.  A caller-side concatenation would queue keys that
         # input_check can consume as the answer to a TR_WARNING prompt the
         # caller never anticipated, bypassing the exhausted-supplies gate.
-        # Covers the direct form (a BinOp anywhere containing the call, at
-        # any nesting depth) and the laundered form (the call's result bound
-        # to a name that is later used in a BinOp or augmented assignment).
+        # The scanner itself is pinned by
+        # test_concatenation_scanner_flags_all_bypass_shapes; this test
+        # applies it to the production tree.
         source = (
             Path(policy_module.__file__).read_text(encoding="utf-8")
         )
-        tree = ast.parse(source)
+        self.assertEqual(
+            step_toward_concatenation_offenders(ast.parse(source)), []
+        )
 
-        def is_step_toward(node):
-            return (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_step_toward"
-            )
-
-        def contains_call(expr):
-            return any(is_step_toward(sub) for sub in ast.walk(expr))
-
-        offenders = []
-        for function in (
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        ):
-            tainted = set()
-            for node in ast.walk(function):
-                if not isinstance(
-                    node, (ast.Assign, ast.AnnAssign, ast.NamedExpr, ast.AugAssign)
-                ):
-                    continue
-                if node.value is None or not contains_call(node.value):
-                    continue
-                if isinstance(node, ast.Assign):
-                    tainted.update(
-                        target.id
-                        for target in node.targets
-                        if isinstance(target, ast.Name)
-                    )
-                elif isinstance(node.target, ast.Name):
-                    tainted.add(node.target.id)
-
-            def references_taint(expr):
-                return any(
-                    isinstance(sub, ast.Name) and sub.id in tainted
-                    for sub in ast.walk(expr)
+    def test_concatenation_scanner_flags_all_bypass_shapes(self):
+        # The scanner must flag every known bypass shape against synthetic
+        # source — direct, nested at any depth, and the laundered forms —
+        # while accepting the two legitimate patterns the production tree
+        # uses (tail= ownership, and a bare comparison of a bound result).
+        flagged = {
+            "direct": "def f(self):\n"
+            "    return self._step_toward(s, p) + 'y'\n",
+            "nested-call-argument": "def f(self):\n"
+            "    return g(self._step_toward(s, p) + 'y')\n",
+            "deeply-nested": "def f(self):\n"
+            "    return ('a' + (self._step_toward(s, p) + 'y'))\n",
+            "laundered-name": "def f(self):\n"
+            "    walk = self._step_toward(s, p)\n"
+            "    return walk + 'y'\n",
+            "augmented-assignment": "def f(self):\n"
+            "    walk = self._step_toward(s, p)\n"
+            "    walk += 'y'\n"
+            "    return walk\n",
+            "walrus": "def f(self):\n"
+            "    return (w := self._step_toward(s, p)) and w + 'y'\n",
+        }
+        clean = {
+            "tail-ownership": "def f(self):\n"
+            "    return self._step_toward(s, p, tail='y')\n",
+            "bound-comparison": "def f(self):\n"
+            "    walk = self._step_toward(s, p)\n"
+            "    return walk if walk != '5' else None\n",
+        }
+        for label, code in flagged.items():
+            with self.subTest(label):
+                self.assertTrue(
+                    step_toward_concatenation_offenders(ast.parse(code))
                 )
-
-            for node in ast.walk(function):
-                if isinstance(node, ast.BinOp) and (
-                    contains_call(node) or references_taint(node)
-                ):
-                    offenders.append((function.name, node.lineno))
-                elif isinstance(node, ast.AugAssign) and (
-                    contains_call(node.value)
-                    or (
-                        isinstance(node.target, ast.Name)
-                        and node.target.id in tainted
-                    )
-                ):
-                    offenders.append((function.name, node.lineno))
-        self.assertEqual(offenders, [])
+        for label, code in clean.items():
+            with self.subTest(label):
+                self.assertEqual(
+                    step_toward_concatenation_offenders(ast.parse(code)), []
+                )
 
 
 class WarningGridComposedWalkTest(unittest.TestCase):
