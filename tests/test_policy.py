@@ -401,12 +401,27 @@ def seed_character_calibration(policy, snapshot):
     )
     from hengbot.warrior_loadout_evaluator import TR_CON, constitution_hp_bonus
     from hengbot.warrior_optimization import (
+        PLAYER_ABILITY_FLAGS,
         CharacterCalibration,
-        _base_stat_without_current_gear,
-        _conservative_intrinsic_abilities,
         _equipment_speed,
         _intrinsic_flags,
     )
+
+    def _base_stat_without_current_gear(displayed_value, current, flag):
+        # Test-only copy of the deleted pre-P1 formula: production contains
+        # no per-call modify_stat_value inversion any more.
+        equipment_bonus = sum(
+            worn.item.pval for _, worn in current.slots if flag in worn.flags
+        )
+        return modify_stat_value(displayed_value, -equipment_bonus)
+
+    def _conservative_intrinsic_abilities(abilities, current):
+        equipment_abilities = {
+            name
+            for name, flag in PLAYER_ABILITY_FLAGS.items()
+            if flag in current.flags
+        }
+        return frozenset(abilities).difference(equipment_abilities)
 
     p = snapshot.player
     equipped = tuple(
@@ -32274,6 +32289,7 @@ class WeaponSaleTest(unittest.TestCase):
     def test_sale_target_only_with_high_grade_wielded(self):
         pol = HengbotPolicy()
         inf = self._inferior()
+        seed_character_calibration(pol, self._town([inf], [self._ego()]))
         self.assertEqual(pol._find_weapon_sale(self._town([inf], [self._ego()])).slot, "b")
         plain = item("main_hand", 23, 0, is_equipment=True, known=True, pseudo_feeling="good")
         self.assertIsNone(pol._find_weapon_sale(self._town([inf], [plain])))
@@ -32422,6 +32438,7 @@ class WeaponSaleTest(unittest.TestCase):
     def test_routes_to_and_sells_at_weapon_smith(self):
         pol = HengbotPolicy()
         inf = self._inferior()
+        seed_character_calibration(pol, self._town([inf], [self._ego()]))
         self.assertEqual(
             pol._next_required_store_type(self._town([inf], [self._ego()])), STORE_WEAPON
         )
@@ -32448,6 +32465,7 @@ class WeaponSaleTest(unittest.TestCase):
         short = item("n", 23, 8, known=True, name="short sword")
         broad = item("o", 23, 16, known=True, name="broad sword")
         equip = [self._ego()]
+        seed_character_calibration(pol, self._town([short, broad], equip))
         self.assertEqual(pol._find_weapon_sale(self._town([short, broad], equip)).slot, "n")
         self.assertEqual(
             pol._next_required_store_type(self._town([short, broad], equip)), STORE_WEAPON
@@ -44008,12 +44026,14 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_restore_signatures = [("x", 75, 1)]
         self.assertFalse(policy._town_departure_ready(snapshot))
 
-    def test_stalled_restore_equip_cannot_cycle_forever(self):
-        """A restore-equip whose session keeps hitting the stall bound must
-        consume the per-visit failure budget and reach a real exit — never the
-        naked-forever absorbing cycle restore -> stall -> abandon -> restore.
+    def test_stalled_restore_equip_converges_to_capture_never_naked_depart(self):
+        """Exhausting the restore budget while naked and calm must CONVERGE:
+        capture the calibration (opening the calibration-required gate) and
+        hand dressing to the optimizer — while the stripped guard keeps every
+        departure path closed until a dressing pass completes.
         """
         policy = self._scan_complete_policy()
+        policy._mutation_signature = (1,)
         sword = item(
             "main_hand", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
@@ -44023,6 +44043,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         snapshot = self._snapshot(inventory=(in_pack,))
         policy._calibration_phase = "restore-equip"
         policy._calibration_worn_before = (("main_hand", identity),)
+        policy._calibration_stripped_unrestored = True
 
         reinstalls = 0
         for _ in range(policy_module.STORE_STUCK_LIMIT + 3):
@@ -44036,13 +44057,108 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         self.assertGreater(reinstalls, 0, "the restore must be retried at all")
         self.assertLessEqual(reinstalls, policy_module.STORE_STUCK_LIMIT)
-        self.assertNotEqual(
-            policy._calibration_phase, "restore-equip",
-            "the stalled restore-equip cycle never reached an exit",
-        )
         self.assertIsNone(policy._calibration_phase)
-        self.assertTrue(policy._calibration_blocked_this_visit)
-        self.assertEqual(policy._calibration_worn_before, ())
+        # CONVERGED: the constants were captured from the naked observation,
+        # so the gate the undressed state used to hold closed is now open and
+        # the optimizer owns dressing.
+        self.assertIsNotNone(policy._character_calibration)
+        preparation = policy._prepare_equipment_optimization(snapshot)
+        self.assertNotIn("calibration-required", preparation.blockers)
+        # ...but departure stays unreachable until a dressing pass completes:
+        # the stripped guard holds even though the calibration gate is open.
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertFalse(policy._town_departure_ready(snapshot))
+        # An optimizer-owned equipment transaction running to completion IS
+        # the dressing pass: it releases the guard.
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((), (), 0)
+            )
+        )
+        policy.choose_key(snapshot)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+
+    def test_restore_exhaustion_under_threat_stops_visibly_never_departs(self):
+        """When convergence is impossible (hostile present / partially
+        dressed), exhaustion must end in the pre-existing visible-stop
+        machinery with departure still closed — never a silent naked loop and
+        never a naked departure through an escape valve.
+        """
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        in_pack = replace(sword, slot="c")
+        threat = hostile(1, 10, 11)
+        snapshot = self._snapshot(inventory=(in_pack,), monsters=(threat,))
+        policy._calibration_phase = "restore-equip"
+        policy._calibration_worn_before = (("main_hand", identity),)
+        policy._calibration_stripped_unrestored = True
+
+        for _ in range(policy_module.STORE_STUCK_LIMIT + 3):
+            if policy._calibration_phase != "restore-equip":
+                break
+            policy._equipment_transaction_session = None
+            policy._calibration_observe(snapshot)
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertIsNone(policy._character_calibration)
+        # The pre-existing town-blocked machinery owns the state visibly.
+        self.assertEqual(
+            policy._town_blocked_reason, "calibration:restore-exhausted"
+        )
+        # No further session cycling from the terminal state.
+        policy._calibration_observe(snapshot)
+        self.assertIsNone(policy._equipment_transaction_session)
+        # Departure is closed and STAYS closed even through the Home-blocked
+        # escape valve inside the equipment gate (the naked-departure hole).
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        calm = self._snapshot(inventory=(in_pack,))
+        self.assertTrue(policy._equipment_departure_ready(calm))
+        self.assertFalse(policy._town_departure_ready(calm))
+        gate = inspect.getsource(
+            policy_module.HengbotPolicy._town_departure_ready
+        )
+        self.assertIn("not self._calibration_stripped_unrestored", gate)
+
+    def test_restore_completion_releases_the_stripped_guard(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        in_pack = replace(sword, slot="c")
+        snapshot = self._snapshot(inventory=(in_pack,))
+        policy._calibration_phase = "strip"
+        policy._calibration_worn_before = (("main_hand", identity),)
+        # Interruption: hostile appears mid-strip.
+        threat = hostile(1, 10, 11)
+        threatened = self._snapshot(inventory=(in_pack,), monsters=(threat,))
+        policy._calibration_stripped_unrestored = True
+        policy._calibration_observe(threatened)
+        self.assertEqual(policy._calibration_phase, "restore-equip")
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        # The restore session completing (sword back on) releases the guard.
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        dressed = self._snapshot(equipment=(sword,))
+        session.dispatch(
+            session.current_action,
+            policy_module.observe_equipment_transactions(
+                self._snapshot(inventory=(in_pack,))
+            ),
+        )
+        session.observe(
+            policy_module.observe_equipment_transactions(dressed)
+        )
+        self.assertTrue(session.complete)
+        policy._calibration_observe(dressed)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertFalse(policy._calibration_stripped_unrestored)
 
     def test_mutation_request_is_latched_at_posting_and_bounded_per_visit(self):
         policy = self._scan_complete_policy()
@@ -44069,34 +44185,61 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
         self.assertIsNotNone(policy._calibration_phase)
 
-        # The prologue's no-response recovery grants exactly ONE re-arm per
-        # visit; an exhausted budget leaves the request consumed, so a third
-        # post this visit is impossible.
+        # No numeric retry budget exists: a board snapshot with the response
+        # missing clears the inflight OBSERVATION and the request stays
+        # consumed for the visit — the fresh-town-visit observation is the
+        # only re-arm.
         policy._calibration_phase = None
-        policy._mutation_scan_requested = True
-        policy._mutation_scan_inflight = True
-        policy.choose_key(snapshot)
-        self.assertFalse(policy._mutation_scan_inflight)
-        self.assertFalse(policy._mutation_scan_requested)
-        self.assertEqual(policy._mutation_scan_retries_remaining, 0)
         policy._mutation_scan_requested = True
         policy._mutation_scan_inflight = True
         policy.choose_key(snapshot)
         self.assertFalse(policy._mutation_scan_inflight)
         self.assertTrue(
             policy._mutation_scan_requested,
-            "the exhausted retry budget must leave the request consumed, not "
-            "re-armed into an unbounded loop",
+            "a missing response must leave the request consumed for the "
+            "visit, not re-armed into a retry loop",
         )
+        self.assertFalse(hasattr(policy, "_mutation_scan_retries_remaining"))
+        # Arriving in town afresh is the observation that re-arms the budget.
+        policy._town_was_in_town = False
+        policy.choose_key(snapshot)
+        self.assertFalse(policy._mutation_scan_requested)
 
     def test_mutation_request_respects_the_confirmed_outside_gate(self):
         policy = self._scan_complete_policy()
         snapshot = self._snapshot()
+        # Positive control first (parent-differentiating): with a clean
+        # outside context the request IS offered...
+        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
+        # ...and each store-context guard suppresses exactly it.
         policy._store_leave_inflight = (1, snapshot.turn, STORE_HOME)
         self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
         policy._store_leave_inflight = None
         policy._last_snapshot_was_store = True
         self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
+
+    def test_valid_calibration_without_observation_issues_arming_request(self):
+        """A calibration captured before any mutation observation (or a
+        fresh process with a persisted calibration) must autonomously issue
+        the arming `~c`; the first observation then invalidates the unarmed
+        capture so the trigger is live from then on."""
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        seed_character_calibration(policy, snapshot)
+        self.assertIsNone(policy._mutation_signature)
+
+        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
+        self.assertEqual(
+            policy.last_reason, "calibration:request-mutation-knowledge"
+        )
+        self.assertTrue(policy.confirm_key_posted("~c"))
+        policy.consume_mutation_knowledge([4, 2])
+
+        # Once a signature exists the arming branch is dead for the process...
+        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
+        # ...and the unarmed capture is invalidated, re-running calibration
+        # with the observation recorded.
+        self.assertIsNone(policy._validated_character_calibration(snapshot))
 
     def test_mutation_response_populates_signature_and_capture_records_it(self):
         policy = self._scan_complete_policy()
@@ -44132,6 +44275,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
     def test_abort_bound_latches_the_visit_blocked(self):
         policy = self._scan_complete_policy()
+        policy._mutation_signature = (1,)
         snapshot = self._snapshot()
         for _ in range(policy_module.STORE_STUCK_LIMIT):
             policy._calibration_phase = "capture"

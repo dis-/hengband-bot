@@ -36,12 +36,36 @@ from hengbot.policy import (
 )
 from hengbot.warrior_optimization import (
     INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
+    PLAYER_ABILITY_FLAGS,
     WarriorOptimizationPreparation,
-    _base_stat_without_current_gear,
-    _conservative_intrinsic_abilities,
     prepare_warrior_optimization,
     weapon_expected_dps,
 )
+
+
+def _legacy_base_stat_without_gear(displayed_value, current, flag):
+    """Test-only copy of the deleted pre-P1 de-gearing formula.
+
+    Production no longer contains any per-call modify_stat_value inversion;
+    the fixtures keep this copy solely to seed calibrations whose constants
+    equal what the pre-P1 code derived, preserving every assertion's meaning.
+    """
+    from hengbot.warrior_equipment_evaluator import modify_stat_value
+
+    equipment_bonus = sum(
+        owned.item.pval for _, owned in current.slots if flag in owned.flags
+    )
+    return modify_stat_value(displayed_value, -equipment_bonus)
+
+
+def _legacy_conservative_intrinsic(abilities, current):
+    """Test-only copy of the deleted pre-P1 intrinsic-ability subtraction."""
+    equipment_abilities = {
+        name
+        for name, flag in PLAYER_ABILITY_FLAGS.items()
+        if flag in current.flags
+    }
+    return frozenset(abilities).difference(equipment_abilities)
 from hengbot.warrior_loadout_search import (
     enumerate_single_slot_variants,
     enumerate_warrior_loadouts,
@@ -87,7 +111,6 @@ def seed_calibration(snapshot, items=()):
     )
     from hengbot.warrior_optimization import (
         CharacterCalibration,
-        _conservative_intrinsic_abilities,
         _equipment_speed,
         _intrinsic_flags,
     )
@@ -102,10 +125,10 @@ def seed_calibration(snapshot, items=()):
     displayed = tuple(getattr(player, "stat_use", ()))
     if not (len(displayed) >= 4 and displayed[0] > 0 and displayed[3] > 0):
         displayed = tuple(player.stat_cur)
-    base_str = _base_stat_without_current_gear(displayed[0], current, TR_STR)
-    base_dex = _base_stat_without_current_gear(displayed[3], current, TR_DEX)
+    base_str = _legacy_base_stat_without_gear(displayed[0], current, TR_STR)
+    base_dex = _legacy_base_stat_without_gear(displayed[3], current, TR_DEX)
     base_con = (
-        _base_stat_without_current_gear(displayed[4], current, TR_CON)
+        _legacy_base_stat_without_gear(displayed[4], current, TR_CON)
         if len(displayed) >= 5
         else 3
     )
@@ -113,7 +136,7 @@ def seed_calibration(snapshot, items=()):
         base_con,
         sum(o.item.pval for _, o in current.slots if TR_CON in o.flags),
     )
-    intrinsic = _conservative_intrinsic_abilities(
+    intrinsic = _legacy_conservative_intrinsic(
         frozenset(getattr(player, "abilities", frozenset())), current
     )
     provisional = WarriorDefenseInputs(
@@ -169,9 +192,17 @@ class WarriorOptimizationTest(unittest.TestCase):
             level=14, melee_skill=136, two_weapon_skill=6000,
         )
         snapshot = SimpleNamespace(player=player, equipment=(main, branded_sub))
+        calibration = seed_calibration(snapshot)
 
-        self.assertGreaterEqual(weapon_expected_dps(snapshot, main, 24), 28)
-        self.assertLess(weapon_expected_dps(snapshot, main, 100), 28)
+        self.assertGreaterEqual(
+            weapon_expected_dps(snapshot, main, 24, calibration), 28
+        )
+        self.assertLess(
+            weapon_expected_dps(snapshot, main, 100, calibration), 28
+        )
+        # P1: without the calibrated constants the score is unknowable and
+        # the caller must fail closed.
+        self.assertIsNone(weapon_expected_dps(snapshot, main, 24, None))
 
     def test_weapon_dps_includes_branded_off_hand(self):
         main = gear(
@@ -189,24 +220,11 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         dual = SimpleNamespace(player=player, equipment=(main, branded_sub))
         single = SimpleNamespace(player=player, equipment=(main,))
+        calibration = seed_calibration(dual)
 
         self.assertGreater(
-            weapon_expected_dps(dual, main, 24),
-            weapon_expected_dps(single, main, 24),
-        )
-
-    def test_removes_only_current_equipment_pval_from_displayed_stats(self):
-        ring = gear(
-            "strength-ring", "equipped", slot="main_ring", tval=45,
-            pval=2, flags=(TR_STR,),
-        )
-        current = current_loadout((ring,))
-
-        self.assertEqual(
-            _base_stat_without_current_gear(162, current, TR_STR), 142
-        )
-        self.assertEqual(
-            _base_stat_without_current_gear(61, current, TR_DEX), 61
+            weapon_expected_dps(dual, main, 24, calibration),
+            weapon_expected_dps(single, main, 24, calibration),
         )
 
     def test_reconstructs_weapon_and_shield(self):
@@ -215,17 +233,6 @@ class WarriorOptimizationTest(unittest.TestCase):
         loadout = current_loadout((weapon, shield))
         self.assertEqual(loadout.hand_mode, "weapon_shield")
         self.assertEqual(loadout.item_ids, frozenset({"weapon", "shield"}))
-
-    def test_current_equipment_ability_is_not_treated_as_intrinsic(self):
-        ring = gear(
-            "fire-ring", "equipped", slot="main_ring", tval=45,
-            flags=(50,),
-        )
-        abilities = _conservative_intrinsic_abilities(
-            frozenset({"resist_fire", "free_action"}),
-            current_loadout((ring,)),
-        )
-        self.assertEqual(abilities, frozenset({"free_action"}))
 
     def test_fails_closed_without_static_monster_knowledge(self):
         player = SimpleNamespace(

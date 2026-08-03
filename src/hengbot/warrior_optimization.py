@@ -33,15 +33,11 @@ from hengbot.warrior_defense_evaluator import (
     loadout_armor_class,
 )
 from hengbot.warrior_equipment_evaluator import (
-    TR_DEX,
-    TR_STR,
     WarriorCombatInputs,
     evaluate_warrior_melee,
-    modify_stat_value,
 )
 from hengbot.warrior_loadout_evaluator import (
     CachedWarriorLoadoutEvaluator,
-    TR_CON,
     WarriorLoadoutInputs,
     constitution_hp_bonus,
 )
@@ -320,8 +316,23 @@ class WarriorEvaluatorCache:
             self.evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
         return self.evaluator
 
-def weapon_expected_dps(snapshot: Snapshot, weapon, reference_ac: int) -> float | None:
-    """Score both wielded hands against a visible, non-immune neutral target."""
+def weapon_expected_dps(
+    snapshot: Snapshot,
+    weapon,
+    reference_ac: int,
+    calibration: CharacterCalibration | None,
+) -> float | None:
+    """Score both wielded hands against a visible, non-immune neutral target.
+
+    P1: the natural stats come from the unequipped calibration observation —
+    the same mandatory input the loadout selector uses — never from inverting
+    the geared ``stat_use``.  Without a calibration the score is unknowable
+    and the caller must fail closed (defer the sale / readiness decision).
+    The worn slot layout itself is a legitimate physical input here: the
+    question asked is "this weapon in MY current off-hand configuration".
+    """
+    if calibration is None:
+        return None
     equipped = tuple(
         OwnedEquipment(
             f"equipped:{index}", item, "equipped", equipped_slot=item.slot
@@ -330,19 +341,10 @@ def weapon_expected_dps(snapshot: Snapshot, weapon, reference_ac: int) -> float 
         if item.is_equipment
     )
     current = current_loadout(equipped)
-    if len(snapshot.player.stat_cur) < 4 and len(snapshot.player.stat_use) < 4:
-        return None
-    displayed_stats = (
-        snapshot.player.stat_use
-        if len(snapshot.player.stat_use) >= 4
-        and snapshot.player.stat_use[0] > 0
-        and snapshot.player.stat_use[3] > 0
-        else snapshot.player.stat_cur
-    )
     inputs = WarriorCombatInputs(
         level=snapshot.player.level,
-        natural_str=_base_stat_without_current_gear(displayed_stats[0], current, TR_STR),
-        natural_dex=_base_stat_without_current_gear(displayed_stats[3], current, TR_DEX),
+        natural_str=calibration.base_stats[0],
+        natural_dex=calibration.base_stats[3],
         melee_skill=snapshot.player.melee_skill,
         two_weapon_skill=snapshot.player.two_weapon_skill,
     )
@@ -371,43 +373,16 @@ def _intrinsic_flags(abilities: frozenset[str]) -> frozenset[int]:
     )
 
 
-def _conservative_intrinsic_abilities(
-    abilities: frozenset[str], current: Loadout
-) -> frozenset[str]:
-    """Remove every ability that the current equipment could be supplying.
-
-    The snapshot exposes only the combined player result. If race and equipment
-    both grant the same resistance this deliberately underestimates the intrinsic
-    set; retaining an equipment resistance after removing its item would be the
-    dangerous error.
-    """
-    equipment_abilities = {
-        name
-        for name, flag in PLAYER_ABILITY_FLAGS.items()
-        if flag in current.flags
-    }
-    return abilities.difference(equipment_abilities)
-
-
 def _equipment_speed(loadout: Loadout) -> int:
+    # Deliberately the only worn de-gearing left in this module: it is linear
+    # and exact (roadmap P1 requirement 4).  The stat de-gearing helpers
+    # (_base_stat_without_current_gear, _conservative_intrinsic_abilities)
+    # were deleted with the legacy derivation: every stat/ability constant now
+    # comes from the calibration observation, and no per-call
+    # modify_stat_value inversion exists anywhere in production.
     return sum(
         item.item.pval for _, item in loadout.slots if TR_SPEED in item.flags
     )
-
-
-def _base_stat_without_current_gear(
-    displayed_value: int, current: Loadout, flag: int
-) -> int:
-    """Remove current equipment pval from Hengband's displayed stat value.
-
-    ``stat_use`` already includes race, class, personality, mutations, and other
-    player-visible modifiers. Only the current loadout's pval must be removed
-    before candidate loadouts apply their own pval during evaluation.
-    """
-    equipment_bonus = sum(
-        item.item.pval for _, item in current.slots if flag in item.flags
-    )
-    return modify_stat_value(displayed_value, -equipment_bonus)
 
 
 def prepare_warrior_optimization(

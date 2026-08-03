@@ -2217,13 +2217,17 @@ class HengbotPolicy:
         self._calibration_session_target: str | None = None
         self._calibration_aborts_this_visit = 0
         self._calibration_blocked_this_visit = False
+        # True from the moment a calibration strip session is installed until
+        # either the restore-equip session or an optimizer-owned equipment
+        # transaction completes.  While set, town departure is impossible: no
+        # escape valve may let a calibration-stripped character dive naked.
+        self._calibration_stripped_unrestored = False
         # Mutation observation from the `~c` knowledge snapshot (sorted ids).
         # None until the first response arrives; refreshed once per town visit
         # through the same request machinery as the `~9` Home scan.
         self._mutation_signature: tuple[int, ...] | None = None
         self._mutation_scan_requested = False
         self._mutation_scan_inflight = False
-        self._mutation_scan_retries_remaining = 1
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
@@ -2525,6 +2529,11 @@ class HengbotPolicy:
                 observe_equipment_transactions(snapshot)
             )
             if self._equipment_transaction_session.complete:
+                if not self._calibration_session_owned():
+                    # An optimizer-owned equipment transaction ran to
+                    # completion: the character is dressed per the executed
+                    # plan, releasing the calibration stripped guard.
+                    self._calibration_stripped_unrestored = False
                 self._equipment_transaction_session = None
                 self._equipment_optimization_signature = None
                 self._equipment_transaction_home_pages.clear()
@@ -2559,13 +2568,12 @@ class HengbotPolicy:
                 self._home_knowledge_scan_retries_remaining -= 1
                 self._home_knowledge_scan_requested = False
         if self._mutation_scan_inflight:
-            # Same bounded recovery for the `~c` mutation snapshot: one
-            # sanctioned re-request per town visit, then proceed without — the
-            # request is simply not made again this visit.
+            # Observation-bounded recovery for the `~c` mutation snapshot: an
+            # ordinary board snapshot after the request means the response did
+            # not arrive.  The request is simply not made again this visit
+            # (_mutation_scan_requested stays latched); the fresh-town-visit
+            # observation re-arms it.
             self._mutation_scan_inflight = False
-            if self._mutation_scan_retries_remaining:
-                self._mutation_scan_retries_remaining -= 1
-                self._mutation_scan_requested = False
         leaving_home = (
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
@@ -4598,7 +4606,6 @@ class HengbotPolicy:
             self._calibration_blocked_this_visit = False
             self._mutation_scan_requested = False
             self._mutation_scan_inflight = False
-            self._mutation_scan_retries_remaining = 1
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -7893,12 +7900,46 @@ class HengbotPolicy:
             self._equipment_transaction_session = None
         self._calibration_session_target = None
         self.last_reason = f"calibration:abort:{reason}"
+        if self._calibration_blocked_this_visit:
+            # The failure budget is spent: no more session cycling.  Converge
+            # or stop visibly instead of aborting in a loop.
+            self._calibration_restore_exhausted(snapshot)
+            return
         if not self._install_calibration_restore_session(snapshot):
             self._calibration_phase = (
                 "restore-supplies"
                 if self._calibration_restore_signatures
                 else None
             )
+
+    def _calibration_restore_exhausted(self, snapshot: Snapshot) -> None:
+        """Terminal for a spent failure budget: converge or stop visibly.
+
+        Preferred exit: the strip already succeeded, so if the character is
+        naked and the observation preconditions hold, CAPTURE the calibration
+        right here.  That opens the calibration-required gate, and the
+        optimizer's own transaction machinery — with its independent budgets
+        and pre-existing quarantine/T3 exits — owns dressing the character.
+        Otherwise stop visibly through the pre-existing town-blocked
+        machinery.  In both cases _calibration_stripped_unrestored stays set
+        until a dressing pass completes, so no departure escape valve can let
+        the character dive naked.
+        """
+        self._calibration_session_target = None
+        if (
+            not self._calibration_removable_worn(snapshot)
+            and self._calibration_preconditions_met(snapshot)
+            and self._capture_character_calibration(snapshot)
+        ):
+            return
+        self._calibration_worn_before = ()
+        self._calibration_phase = (
+            "restore-supplies"
+            if self._calibration_restore_signatures
+            else None
+        )
+        self._town_blocked_reason = "calibration:restore-exhausted"
+        self.last_reason = "calibration:restore-equip-exhausted"
 
     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
         removable = sorted(
@@ -7933,6 +7974,7 @@ class HengbotPolicy:
         self._equipment_transaction_session = session
         self._calibration_session_target = session.target_loadout_id
         self._calibration_phase = "strip"
+        self._calibration_stripped_unrestored = True
         return True
 
     def _install_calibration_restore_session(self, snapshot: Snapshot) -> bool:
@@ -8043,6 +8085,9 @@ class HengbotPolicy:
         if phase == "restore-equip":
             if self._calibration_session_owned():
                 if self._equipment_transaction_session.complete:
+                    # Every recorded item is back on: release the stripped
+                    # guard along with the phase.
+                    self._calibration_stripped_unrestored = False
                     self._equipment_transaction_session = None
                     self._calibration_session_target = None
                     self._calibration_phase = (
@@ -8056,24 +8101,14 @@ class HengbotPolicy:
                 # budget as an abort — an unbounded
                 # restore-equip -> stall -> abandon -> restore-equip cycle
                 # would be exactly the absorbing state this phase must never
-                # create.  When the budget latches the visit blocked, stop
-                # cycling, drop the recorded loadout, and let the fresh-visit
-                # reset (or the pre-existing town-blocked machinery, with the
-                # gear safe in the pack) own the state.
+                # create.
                 self._calibration_aborts_this_visit += 1
                 if self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT:
                     self._calibration_blocked_this_visit = True
                 if self._calibration_blocked_this_visit or (
                     not self._install_calibration_restore_session(snapshot)
                 ):
-                    self._calibration_worn_before = ()
-                    self._calibration_session_target = None
-                    self._calibration_phase = (
-                        "restore-supplies"
-                        if self._calibration_restore_signatures
-                        else None
-                    )
-                    self.last_reason = "calibration:restore-equip-exhausted"
+                    self._calibration_restore_exhausted(snapshot)
             return
         if phase == "restore-supplies":
             if not self._calibration_restore_signatures or (
@@ -8150,6 +8185,22 @@ class HengbotPolicy:
             return None
         phase = self._calibration_phase
         if phase is None:
+            if (
+                self._character_calibration is not None
+                and self._mutation_signature is None
+                and not self._mutation_scan_requested
+                and self._calibration_preconditions_met(snapshot)
+                and self._store_leave_inflight is None
+                and not self._last_snapshot_was_store
+            ):
+                # A calibration exists but this process has never observed the
+                # mutation set (restart, or the capture predates the
+                # observation): issue the arming `~c` so the mutation
+                # invalidation trigger becomes live.  Bounded by the same
+                # posting-time latch; once a signature exists this branch can
+                # never fire again.
+                self.last_reason = "calibration:request-mutation-knowledge"
+                return "~c"
             if (
                 self._calibration_blocked_this_visit
                 or self._calibration_restore_signatures
@@ -9172,6 +9223,11 @@ class HengbotPolicy:
 
         return (
             self._recall_departure_ready(snapshot)
+            # A calibration-stripped character must be re-dressed (by the
+            # restore session or a completed optimizer transaction) before ANY
+            # departure path — including every pre-existing escape valve
+            # deeper in this conjunction — can open.
+            and not self._calibration_stripped_unrestored
             and (
                 self._fundraising_food_ready(snapshot)
                 if self._fundraising_mode in {"prepare", "mine", "scavenge"}
@@ -11111,12 +11167,17 @@ class HengbotPolicy:
             ),
             None,
         )
+        calibration = self._validated_character_calibration(snapshot)
         wielded_dps = (
-            weapon_expected_dps(snapshot, wielded, 100) if wielded is not None else 0.0
+            weapon_expected_dps(snapshot, wielded, 100, calibration)
+            if wielded is not None
+            else 0.0
         )
 
         def sale_quality_allows(item: InventoryItem) -> bool:
-            candidate_dps = weapon_expected_dps(snapshot, item, 100)
+            # Without a calibration the DPS comparison is unknowable: fail
+            # closed and keep the spare until the constants exist.
+            candidate_dps = weapon_expected_dps(snapshot, item, 100, calibration)
             return (
                 candidate_dps is not None
                 and wielded_dps is not None
@@ -21800,9 +21861,16 @@ class HengbotPolicy:
         # preserves old third-party profiles without silently changing them.
         reference_ac = int(force.get("reference_ac", 100))
         dps = (
-            weapon_expected_dps(snapshot, weapon, reference_ac)
+            weapon_expected_dps(
+                snapshot,
+                weapon,
+                reference_ac,
+                self._validated_character_calibration(snapshot),
+            )
             if weapon is not None else 0.0
         )
+        # A missing calibration scores 0.0 and keeps the readiness check
+        # conservative (fail closed) until the constants are observed.
         dps = float(dps or 0.0)
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
