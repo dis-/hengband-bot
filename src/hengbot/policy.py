@@ -7946,7 +7946,7 @@ class HengbotPolicy:
         _calibration_redress_key dress the character one item per decision
         with no preconditions and no session/confirmation machinery at all.
         When every recorded item is observed worn again (or observed lost),
-        the guard clears and the observed recovery re-arms the visit budget.
+        the guard clears; the visit's calibration budget stays spent.
         """
         self._calibration_session_target = None
         if (
@@ -8067,9 +8067,9 @@ class HengbotPolicy:
         identity is neither worn nor in the pack (observed lost — death
         reload, destruction); holding the guard for it would be a lock with
         no transition.  When nothing recoverable remains outstanding the
-        guard clears and the OBSERVED recovery re-arms the visit's failure
-        budget, so a fresh calibration attempt (or departure, once the
-        ordinary gates pass) becomes reachable in the same visit.
+        guard clears, making departure reachable again through the ordinary
+        gates; the visit's spent calibration budget stays spent, so the next
+        calibration attempt belongs to a later visit.
         """
         if not (
             self._calibration_stripped_unrestored
@@ -8099,8 +8099,11 @@ class HengbotPolicy:
             return
         self._calibration_worn_before = ()
         self._calibration_stripped_unrestored = False
-        self._calibration_aborts_this_visit = 0
-        self._calibration_blocked_this_visit = False
+        # Deliberately NOT re-armed: _calibration_blocked_this_visit and the
+        # abort count stay spent.  Recovery must reopen DEPARTURE (the guard),
+        # never the calibration budget — resetting it here re-armed an
+        # indefinitely repeatable same-town strip/fail/redress cycle.
+        # Calibration retries on a later visit via the fresh-visit reset.
         self.last_reason = "calibration:redressed"
 
     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:

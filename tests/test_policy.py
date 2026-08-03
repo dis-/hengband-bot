@@ -44100,10 +44100,14 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         present in EVERY snapshot (never hand-edited calm) and only simulates
         the game's response to the wear keys the bot itself emits; the bot
         must dress itself, the retained identities must never be discarded,
-        and the observed recovery must clear the guard and re-arm the visit.
+        and the observed recovery must clear the guard while leaving the
+        visit's spent calibration budget spent.
         """
         policy = self._scan_complete_policy()
         policy._mutation_signature = (1,)
+        # One continuous town visit: the fresh-visit observation is the only
+        # legitimate budget re-arm and must not fire mid-test.
+        policy._town_was_in_town = True
         sword = item(
             "c", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
@@ -44189,12 +44193,17 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             {sword_identity, lantern_identity},
             "the bot never dressed itself under the persistent hostile",
         )
-        # The observed recovery cleared the guard and re-armed the visit:
-        # the departure conjunct the guard held closed is open again.
+        # The observed recovery cleared the guard — the departure conjunct
+        # it held closed is open again — while the visit's calibration
+        # budget stays SPENT: recovery reopens departure, never a fresh
+        # same-visit strip.
         self.assertFalse(policy._calibration_stripped_unrestored)
         self.assertEqual(policy._calibration_worn_before, ())
-        self.assertFalse(policy._calibration_blocked_this_visit)
-        self.assertEqual(policy._calibration_aborts_this_visit, 0)
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertGreaterEqual(
+            policy._calibration_aborts_this_visit,
+            policy_module.STORE_STUCK_LIMIT,
+        )
 
     def test_duplicate_identities_never_double_satisfy_the_redress(self):
         """REVIEW-p1-calibration5 BLOCKER regression: equipment_identity
@@ -44251,6 +44260,77 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_observe(dressed)
         self.assertFalse(policy._calibration_stripped_unrestored)
         self.assertEqual(policy._calibration_worn_before, ())
+
+    def test_redress_recovery_does_not_rearm_a_same_visit_strip_cycle(self):
+        """REVIEW-p1-calibration6 BLOCKER regression: the observed redress
+        must reopen DEPARTURE (clear the stripped guard), never the visit's
+        calibration budget.  Re-arming the budget made the same calm town
+        visit strip, fail, redress and strip again indefinitely.  This drives
+        the whole loop through public choose_key — dressed -> strip ->
+        exhaustion -> redress -> dressed — and pins that the second dressed
+        observation does NOT begin a fresh strip while the guard is cleared.
+        """
+        policy = self._scan_complete_policy()
+        policy._mutation_signature = (1,)
+        policy._town_was_in_town = True
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, known=True,
+            fully_known=True, is_equipment=True,
+        )
+        dressed = self._snapshot(equipment=(sword, lantern))
+
+        # First dressed calm observation legitimately starts calibration and
+        # installs the strip (empty pack -> straight to the takeoffs).
+        key = policy.choose_key(dressed)
+        self.assertEqual(key, "5")
+        self.assertEqual(policy._calibration_phase, "strip")
+        self.assertTrue(policy._calibration_stripped_unrestored)
+
+        # Partial strip: the sword comes off, then an interruption aborts the
+        # phase into restore-equip and the restore budget is exhausted.
+        sword_in_pack = replace(sword, slot="c")
+        threat = hostile(1, 10, 13, distance=3)
+        partial_threatened = self._snapshot(
+            inventory=(sword_in_pack,), equipment=(lantern,),
+            monsters=(threat,),
+        )
+        policy._calibration_observe(partial_threatened)
+        self.assertEqual(policy._calibration_phase, "restore-equip")
+        for _ in range(policy_module.STORE_STUCK_LIMIT + 3):
+            if policy._calibration_blocked_this_visit:
+                break
+            policy._equipment_transaction_session = None
+            policy._calibration_observe(partial_threatened)
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertIsNone(policy._calibration_phase)
+
+        # Redress under the ordinary machinery, still one visit.
+        partial_calm = self._snapshot(
+            inventory=(sword_in_pack,), equipment=(lantern,)
+        )
+        key = policy.choose_key(partial_calm)
+        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertEqual(policy.last_reason, "calibration:redress")
+
+        # Dressed again: the guard clears (departure conjunct reopens) and
+        # the SAME calm dressed observation must NOT begin a fresh strip —
+        # the visit's calibration budget stays spent.
+        key = policy.choose_key(dressed)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertEqual(policy._calibration_worn_before, ())
+        self.assertNotEqual(
+            policy._calibration_phase, "strip",
+            "the redress recovery re-armed a same-visit strip cycle",
+        )
+        self.assertIsNone(policy._calibration_phase)
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        # And once more, to pin that the loop cannot restart later either.
+        policy.choose_key(dressed)
+        self.assertIsNone(policy._calibration_phase)
 
     def test_restore_completion_releases_the_stripped_guard(self):
         policy = self._scan_complete_policy()
