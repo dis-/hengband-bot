@@ -44196,6 +44196,62 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertFalse(policy._calibration_blocked_this_visit)
         self.assertEqual(policy._calibration_aborts_this_visit, 0)
 
+    def test_duplicate_identities_never_double_satisfy_the_redress(self):
+        """REVIEW-p1-calibration5 BLOCKER regression: equipment_identity
+        collapses physically identical copies, so the redress accounting must
+        consume one OCCURRENCE per recorded entry (digest + occurrence, the
+        quarantine shape) on both the wear-edge and guard-release sides.  Two
+        identical recorded swords with one worn and one in the pack must
+        still produce a wear edge, and the guard must release only once both
+        slots are filled — never with a slot naked."""
+        policy = self._scan_complete_policy()
+        policy._mutation_signature = (1,)
+        worn_sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        pack_sword = replace(worn_sword, slot="c")
+        identity = policy_module.equipment_identity(worn_sword)
+        policy._calibration_worn_before = (
+            ("main_hand", identity),
+            ("sub_hand", identity),
+        )
+        policy._calibration_stripped_unrestored = True
+
+        partial = self._snapshot(
+            inventory=(pack_sword,), equipment=(worn_sword,)
+        )
+        # The wear edge exists: one occurrence satisfies only ONE entry.
+        outstanding = policy._calibration_redress_items(partial)
+        self.assertEqual(outstanding, [("sub_hand", identity)])
+
+        key = policy.choose_key(partial)
+        # The guard must NOT release while the pack copy remains...
+        self.assertTrue(
+            policy._calibration_stripped_unrestored,
+            "one worn duplicate falsely satisfied both recorded entries",
+        )
+        self.assertEqual(
+            policy._calibration_worn_before,
+            (("main_hand", identity), ("sub_hand", identity)),
+        )
+        # ...and the decision itself is the wear edge for the pack copy.
+        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertIn("c", key)
+        self.assertEqual(policy.last_reason, "calibration:redress")
+
+        # Both slots filled: the observed release is now correct.  (Driving
+        # choose_key here would release the guard in the prologue and then
+        # legitimately START a fresh calibration on the dressed calm
+        # character, re-arming the flag for the new phase — so pin the
+        # release mechanism itself.)
+        dressed = self._snapshot(
+            equipment=(worn_sword, replace(pack_sword, slot="sub_hand"))
+        )
+        policy._calibration_observe(dressed)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertEqual(policy._calibration_worn_before, ())
+
     def test_restore_completion_releases_the_stripped_guard(self):
         policy = self._scan_complete_policy()
         sword = item(

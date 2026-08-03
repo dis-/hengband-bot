@@ -7962,10 +7962,63 @@ class HengbotPolicy:
         )
         self.last_reason = "calibration:redress-mode"
 
+    def _calibration_redress_accounting(
+        self, snapshot: Snapshot
+    ) -> tuple[
+        list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str]]
+    ]:
+        """Match recorded (slot, identity) entries against copies by COUNT.
+
+        ``equipment_identity`` deliberately collapses physically identical
+        duplicates into one digest (the same property the quarantine work
+        handles as digest + occurrence), so set membership must never stand
+        in for satisfaction: each recorded entry CONSUMES one occurrence.
+        Worn copies are consumed first — slot-matched entries before
+        displaced ones, so a copy worn at its own recorded slot never
+        satisfies a different entry — then pack copies mark entries as
+        outstanding (a wear edge exists); entries with no copy left anywhere
+        are lost.  Returns (satisfied, outstanding, lost).
+        """
+        worn_counts = Counter(
+            equipment_identity(item)
+            for item in snapshot.equipment
+            if item.is_equipment
+        )
+        worn_slots = {
+            (item.slot, equipment_identity(item))
+            for item in snapshot.equipment
+            if item.is_equipment
+        }
+        pack_counts = Counter(
+            equipment_identity(item)
+            for item in snapshot.inventory
+            if item.is_equipment
+        )
+        satisfied: dict[tuple[str, str], None] = {}
+        remainder: list[tuple[str, str]] = []
+        for slot, identity in self._calibration_worn_before:
+            if (slot, identity) in worn_slots and worn_counts[identity] > 0:
+                worn_counts[identity] -= 1
+                satisfied[(slot, identity)] = None
+            else:
+                remainder.append((slot, identity))
+        outstanding: list[tuple[str, str]] = []
+        lost: list[tuple[str, str]] = []
+        for slot, identity in remainder:
+            if worn_counts[identity] > 0:
+                worn_counts[identity] -= 1
+                satisfied[(slot, identity)] = None
+            elif pack_counts[identity] > 0:
+                pack_counts[identity] -= 1
+                outstanding.append((slot, identity))
+            else:
+                lost.append((slot, identity))
+        return list(satisfied), outstanding, lost
+
     def _calibration_redress_items(
         self, snapshot: Snapshot
     ) -> list[tuple[str, str]]:
-        """Recorded stripped items not yet back on and still in the pack."""
+        """Recorded stripped entries not yet back on, with a pack copy left."""
         if not (
             self._calibration_stripped_unrestored
             and self._calibration_worn_before
@@ -7973,21 +8026,8 @@ class HengbotPolicy:
             return []
         if self._calibration_phase not in (None, "restore-supplies"):
             return []
-        worn_identities = {
-            equipment_identity(item)
-            for item in snapshot.equipment
-            if item.is_equipment
-        }
-        pack_identities = {
-            equipment_identity(item)
-            for item in snapshot.inventory
-            if item.is_equipment
-        }
-        return [
-            (slot, identity)
-            for slot, identity in self._calibration_worn_before
-            if identity not in worn_identities and identity in pack_identities
-        ]
+        _, outstanding, _ = self._calibration_redress_accounting(snapshot)
+        return outstanding
 
     def _calibration_redress_key(self, snapshot: Snapshot) -> str | None:
         """Dress a calibration-stripped character UNCONDITIONALLY.
@@ -8040,28 +8080,21 @@ class HengbotPolicy:
             return
         if not snapshot.in_town:
             return
-        worn_identities = {
-            equipment_identity(item)
-            for item in snapshot.equipment
-            if item.is_equipment
-        }
-        pack_identities = {
-            equipment_identity(item)
-            for item in snapshot.inventory
-            if item.is_equipment
-        }
-        outstanding = tuple(
-            (slot, identity)
-            for slot, identity in self._calibration_worn_before
-            if identity not in worn_identities and identity in pack_identities
+        satisfied, outstanding, lost = self._calibration_redress_accounting(
+            snapshot
         )
-        pruned = tuple(
-            (slot, identity)
-            for slot, identity in self._calibration_worn_before
-            if identity in worn_identities or identity in pack_identities
-        )
-        if pruned != self._calibration_worn_before:
-            self._calibration_worn_before = pruned
+        if lost:
+            # Drop only the LOST entries, preserving recorded order; every
+            # satisfied and outstanding entry keeps consuming its own
+            # occurrence so a duplicate identity can never double-satisfy.
+            lost_remaining = list(lost)
+            pruned = []
+            for entry in self._calibration_worn_before:
+                if entry in lost_remaining:
+                    lost_remaining.remove(entry)
+                    continue
+                pruned.append(entry)
+            self._calibration_worn_before = tuple(pruned)
         if outstanding:
             return
         self._calibration_worn_before = ()
