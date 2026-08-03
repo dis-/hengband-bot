@@ -43310,6 +43310,58 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         policy.choose_key(other_floor)
         self.assertFalse(policy._warning_refused_cells)
 
+    def test_latched_cell_yields_a_different_objective_across_decisions(self):
+        # Two consecutive post-refusal decisions on the same static floor:
+        # the latched cell's objective (the loot behind it) is abandoned and
+        # the bot pursues a different objective (exploration) BOTH times —
+        # it never sits in warning:blocked-step, which has no owner above
+        # the navigation-livelock rung.
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
+        policy = self.refused_policy(supply)
+        for _ in range(2):
+            key = policy.choose_key(self.corridor(inventory=supply))
+            self.assertNotEqual(policy.last_reason, "warning:blocked-step")
+            self.assertNotEqual(key, "5")
+            self.assertNotIn(key, {"8", "8y"})
+
+    def test_static_wiggle_exits_to_pickup_when_neighbor_is_latched(self):
+        # The stationary loot wiggle re-picks the min-visit neighbour every
+        # decision.  In a dead-end whose only neighbour is warning-latched,
+        # an avoid-unaware pick would repeat _step_toward's WAIT forever
+        # (the rung sits above the navigation livelock, starving it).  The
+        # avoid-aware pick leaves no admissible neighbour, so the pickup is
+        # the exit — pinned across two consecutive decisions.
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
+
+        def deadend(*, messages=()):
+            grids = {
+                Position(27, 93): grid(27, 93, objects=2),
+                Position(26, 93): grid(26, 93),
+            }
+            return Snapshot(
+                player(27, 93, hp=606, max_hp=606, level=31),
+                grids,
+                [],
+                floor_key=self.FLOOR,
+                inventory=list(supply),
+                messages=tuple(messages),
+            )
+
+        policy = HengbotPolicy()
+        # The wiggle steps toward the only neighbour; the warning refuses it.
+        self.assertEqual(policy.choose_key(deadend()), "8")
+        self.assertEqual(policy.last_reason, "trigger-autodestroy")
+        self.assertEqual(policy.choose_key(deadend()), "8")
+        self.assertEqual(
+            policy.choose_key(deadend(messages=(self.PROMPT_JA,))), "n"
+        )
+        self.assertIn(Position(26, 93), policy._warning_refused_cells)
+
+        for _ in range(2):
+            key = policy.choose_key(deadend())
+            self.assertNotEqual(policy.last_reason, "warning:blocked-step")
+            self.assertNotEqual(key, "5")
+
     def test_exhaustion_never_erases_engagement_owned_avoidance(self):
         # A coordinate can be owned by BOTH the warning latch and the
         # engagement/status-threat avoidance.  The forced-walk withdrawal may
@@ -43334,6 +43386,9 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         # walk macro.  A caller-side concatenation would queue keys that
         # input_check can consume as the answer to a TR_WARNING prompt the
         # caller never anticipated, bypassing the exhausted-supplies gate.
+        # Covers the direct form (a BinOp anywhere containing the call, at
+        # any nesting depth) and the laundered form (the call's result bound
+        # to a name that is later used in a BinOp or augmented assignment).
         source = (
             Path(policy_module.__file__).read_text(encoding="utf-8")
         )
@@ -43346,12 +43401,51 @@ class WarningGridAvoidanceTest(unittest.TestCase):
                 and node.func.attr == "_step_toward"
             )
 
-        offenders = [
-            node.lineno
+        def contains_call(expr):
+            return any(is_step_toward(sub) for sub in ast.walk(expr))
+
+        offenders = []
+        for function in (
+            node
             for node in ast.walk(tree)
-            if isinstance(node, ast.BinOp)
-            and (is_step_toward(node.left) or is_step_toward(node.right))
-        ]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ):
+            tainted = set()
+            for node in ast.walk(function):
+                if not isinstance(
+                    node, (ast.Assign, ast.AnnAssign, ast.NamedExpr, ast.AugAssign)
+                ):
+                    continue
+                if node.value is None or not contains_call(node.value):
+                    continue
+                if isinstance(node, ast.Assign):
+                    tainted.update(
+                        target.id
+                        for target in node.targets
+                        if isinstance(target, ast.Name)
+                    )
+                elif isinstance(node.target, ast.Name):
+                    tainted.add(node.target.id)
+
+            def references_taint(expr):
+                return any(
+                    isinstance(sub, ast.Name) and sub.id in tainted
+                    for sub in ast.walk(expr)
+                )
+
+            for node in ast.walk(function):
+                if isinstance(node, ast.BinOp) and (
+                    contains_call(node) or references_taint(node)
+                ):
+                    offenders.append((function.name, node.lineno))
+                elif isinstance(node, ast.AugAssign) and (
+                    contains_call(node.value)
+                    or (
+                        isinstance(node.target, ast.Name)
+                        and node.target.id in tainted
+                    )
+                ):
+                    offenders.append((function.name, node.lineno))
         self.assertEqual(offenders, [])
 
 

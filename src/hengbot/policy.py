@@ -6211,7 +6211,16 @@ class HengbotPolicy:
                 self._chest_preopen_objects = None
                 return None
             if distance == 0:
-                neighbors = self._walkable_neighbors(snapshot, player.position)
+                # An avoided step-off pick would re-run _step_toward's refusal
+                # every decision from this same tile; abandon the chest (the
+                # no-neighbour exit) rather than repeat it.
+                neighbors = [
+                    neighbor
+                    for neighbor in self._walkable_neighbors(
+                        snapshot, player.position
+                    )
+                    if neighbor not in self._engagement_avoid_cells
+                ]
                 if not neighbors:
                     self._chest_position = None
                     self._chest_phase_counts = {}
@@ -18080,6 +18089,11 @@ class HengbotPolicy:
                 if (
                     neighbor in seen
                     or neighbor in self._mining_unmarkable_grids
+                    # Avoided cells carry lethal-danger weight in every
+                    # routing BFS; a dig-breakout route walking one would
+                    # repeat _step_toward's refusal forever on this static
+                    # floor.
+                    or neighbor in self._engagement_avoid_cells
                 ):
                     continue
                 grid = snapshot.grids.get(neighbor)
@@ -18420,7 +18434,12 @@ class HengbotPolicy:
                     self._mining_route_visits.clear()
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen:
+                # Avoided cells (latched warning grids, engagement retreats)
+                # cost lethal-danger weight in every other routing BFS; a
+                # mining route through one would repeat _step_toward's
+                # refusal forever on this static floor.  Veins reachable only
+                # through them are simply not selected.
+                if neighbor in seen or neighbor in self._engagement_avoid_cells:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -18444,7 +18463,10 @@ class HengbotPolicy:
             ):
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen:
+                # Same lethal-danger weight as every other routing BFS (see
+                # _treasure_step): never route the mining walk through an
+                # avoided cell.
+                if neighbor in seen or neighbor in self._engagement_avoid_cells:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -18933,7 +18955,18 @@ class HengbotPolicy:
         if here.position in self._deferred_loot:
             return None
         if not self._position_changed:
-            neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
+            # Avoided cells (latched warning grids, engagement retreats) are
+            # excluded up front: this static wiggle re-picks the same
+            # min-visit neighbour every decision, so an avoided pick would
+            # repeat _step_toward's refusal forever.  With no admissible
+            # neighbour the pickup below is the exit.
+            neighbors = [
+                neighbor
+                for neighbor in self._walkable_neighbors(
+                    snapshot, snapshot.player.position
+                )
+                if neighbor not in self._engagement_avoid_cells
+            ]
             if neighbors:
                 step = min(neighbors, key=lambda pos: self._visit_counts[pos])
                 self.last_reason = trigger_reason
@@ -22568,7 +22601,10 @@ class HengbotPolicy:
             if position != start and position in targets:
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, position):
-                if neighbor in seen:
+                # Same lethal-danger weight as every other routing BFS: a
+                # device-recovery route through an avoided cell would repeat
+                # _step_toward's refusal forever on this static floor.
+                if neighbor in seen or neighbor in self._engagement_avoid_cells:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -28506,9 +28542,26 @@ class HengbotPolicy:
                 # grid is never entered while a movement scroll remains (or
                 # while the engagement owner independently requires the cell
                 # avoided) — not even by a caller whose tail would have
-                # answered the re-raised prompt.  Routing already excludes
-                # latched cells, so this is the backstop for callers that
-                # pick steps outside the avoid-aware BFS.
+                # answered the re-raised prompt.  A bare walk is not a safer
+                # fallback: warning.cpp:501's old_damage suppression lets a
+                # repeated attempt enter silently.
+                #
+                # Reachability of this WAIT, honestly: dungeon routing is
+                # avoid-aware everywhere a picker can re-select statically
+                # (loot/goal/mining/dig/device BFS, the loot wiggle, the
+                # chest step-off), so a dungeon repeat requires one of the
+                # windowed one-shot breakers (oscillation breakout,
+                # _breakout_step) or a quest-floor navigator static route —
+                # the former re-arm only after a fresh no-progress window,
+                # the latter terminates at the CLI loop-detector visible
+                # stop, the navigator's pre-existing terminal for its own
+                # quest:blocked states.  The reachable-in-principle
+                # unbounded route is a TOWN composed caller re-selecting a
+                # latched special tile (e.g. a fixed-quest entrance) every
+                # decision; the user has ruled that case out of scope
+                # (2026-08-03: 町で警告ブロックが発生することはほぼなく、
+                # 固定クエスト入口が封鎖されることは考えなくて良い), so it
+                # is recorded here rather than defended against.
                 self.last_reason = "warning:blocked-step"
                 return WAIT_KEY
             # 物資が全て尽きている場合のみ徒歩強行を許す: the forced walk
