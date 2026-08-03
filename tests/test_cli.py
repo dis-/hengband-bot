@@ -1981,68 +1981,48 @@ class TownResidenceStreakTest(unittest.TestCase):
         self.assertEqual(streak, 1)
 
 
-class MutationKnowledgeDispatchTest(unittest.TestCase):
-    """The `~c` response reaches the policy through the reviewed dispatcher."""
+class CharacterSnapshotDispatchTest(unittest.TestCase):
+    """`C` character snapshots reach the policy through the dispatcher."""
 
-    def test_inflight_mutation_response_is_consumed_and_nudged(self):
+    def test_character_snapshot_refreshes_the_mutation_signature(self):
         from hengbot.cli import _dispatch_response_lines
         from hengbot.policy import HengbotPolicy
 
         policy = HengbotPolicy()
-        policy._mutation_scan_inflight = True
-        sent = []
-        line = json.dumps({
-            "type": "knowledge",
-            "knowledge": {
-                "category": "mutations",
-                "menu_key": "c",
-                "mutation_ids": [7, 1, 4],
-            },
-        })
-
-        consumed = _dispatch_response_lines([line], policy, sent.append)
-
-        self.assertEqual(consumed, 1)
-        self.assertEqual(policy._mutation_signature, (1, 4, 7))
-        self.assertFalse(policy._mutation_scan_inflight)
-        self.assertEqual(len(sent), 1)
-
-    def test_character_snapshot_mutations_refresh_the_signature_passively(self):
-        from hengbot.cli import _dispatch_response_lines
-        from hengbot.policy import HengbotPolicy
-
-        policy = HengbotPolicy()
-        policy._mutation_scan_requested = True
-        policy._mutation_scan_inflight = True
         sent = []
         line = json.dumps({
             "type": "character",
             "character": {"mutations": [11, 3]},
         })
 
-        _dispatch_response_lines([line], policy, sent.append)
+        consumed = _dispatch_response_lines([line], policy, sent.append)
 
+        self.assertEqual(consumed, 1)
         self.assertEqual(policy._mutation_signature, (3, 11))
-        # A passive observation never consumes the `~c` request budget.
-        self.assertTrue(policy._mutation_scan_inflight)
+        # Passive observation: no nudge, no request state.
         self.assertEqual(sent, [])
 
-    def test_unrequested_mutation_response_is_ignored(self):
+    def test_naked_capture_characteristics_are_recorded_only_when_latched(self):
         from hengbot.cli import _dispatch_response_lines
         from hengbot.policy import HengbotPolicy
 
         policy = HengbotPolicy()
+        policy._calibration_phase = "capture"
+        policy._calibration_naked_dump_requested = True
+        policy._calibration_naked_dump_inflight = True
         sent = []
         line = json.dumps({
-            "type": "knowledge",
-            "knowledge": {
-                "category": "mutations",
-                "menu_key": "c",
-                "mutation_ids": [7],
+            "type": "character",
+            "character": {
+                "mutations": [7],
+                "characteristics": [
+                    {"flag_id": 152, "player": False, "vulnerability": True},
+                ],
             },
         })
 
         _dispatch_response_lines([line], policy, sent.append)
 
-        self.assertIsNone(policy._mutation_signature)
-        self.assertEqual(sent, [])
+        self.assertEqual(policy._mutation_signature, (7,))
+        self.assertEqual(policy._calibration_naked_flags, frozenset({152}))
+        self.assertFalse(policy._calibration_naked_dump_inflight)

@@ -43862,9 +43862,6 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(hurt._calibration_phase)
 
         ready = self._scan_complete_policy()
-        # The mutation-knowledge request precedes the phase by design; treat
-        # it as already satisfied so this test keeps exercising the start gate.
-        ready._mutation_scan_requested = True
         ready._calibration_town_key(
             self._snapshot(inventory=(pack,), equipment=(worn,))
         )
@@ -43936,6 +43933,23 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         naked = self._snapshot()
         policy._calibration_phase = "capture"
 
+        # The capture waits for the naked `C` acquisition it posted.
+        policy._calibration_observe(naked)
+        self.assertIsNone(policy._character_calibration)
+        self.assertEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+        self.assertEqual(
+            policy.last_reason, "calibration:request-naked-character"
+        )
+        self.assertTrue(policy.confirm_key_posted(
+            policy_module.CHARACTER_DUMP_MACRO
+        ))
+        policy.observe_character_snapshot({
+            "mutations": [],
+            "characteristics": [],
+        })
         policy._calibration_observe(naked)
 
         self.assertIsNotNone(policy._character_calibration)
@@ -44160,116 +44174,139 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(policy._calibration_phase)
         self.assertFalse(policy._calibration_stripped_unrestored)
 
-    def test_mutation_request_is_latched_at_posting_and_bounded_per_visit(self):
+    def test_naked_dump_is_latched_at_posting_with_no_retry_counter(self):
+        """The capture-phase `C` request follows the reviewed request rules:
+        offered until the transport confirms the posted key, then consumed;
+        a missing response is bounded by ONE board-snapshot observation and
+        the capture proceeds degraded — no counter, no wait loop."""
         policy = self._scan_complete_policy()
-        snapshot = self._snapshot()
-        # Mid-visit semantics: the fresh-town-visit reset must not re-arm the
-        # budget between these decisions.
-        policy._town_was_in_town = True
-
-        # Offered before the phase starts, until the transport confirms the
-        # posted key: a suppressed or replaced key must not consume the
-        # request, so an unposted offer repeats and the phase stays unstarted.
-        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
-        self.assertEqual(
-            policy.last_reason, "calibration:request-mutation-knowledge"
-        )
-        self.assertFalse(policy._mutation_scan_requested)
-        self.assertIsNone(policy._calibration_phase)
-        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
-
-        self.assertTrue(policy.confirm_key_posted("~c"))
-        self.assertTrue(policy._mutation_scan_requested)
-        self.assertTrue(policy._mutation_scan_inflight)
-        # With the request consumed, the phase begins instead of re-posting.
-        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
-        self.assertIsNotNone(policy._calibration_phase)
-
-        # No numeric retry budget exists: a board snapshot with the response
-        # missing clears the inflight OBSERVATION and the request stays
-        # consumed for the visit — the fresh-town-visit observation is the
-        # only re-arm.
-        policy._calibration_phase = None
-        policy._mutation_scan_requested = True
-        policy._mutation_scan_inflight = True
-        policy.choose_key(snapshot)
-        self.assertFalse(policy._mutation_scan_inflight)
-        self.assertTrue(
-            policy._mutation_scan_requested,
-            "a missing response must leave the request consumed for the "
-            "visit, not re-armed into a retry loop",
-        )
-        self.assertFalse(hasattr(policy, "_mutation_scan_retries_remaining"))
-        # Arriving in town afresh is the observation that re-arms the budget.
-        policy._town_was_in_town = False
-        policy.choose_key(snapshot)
-        self.assertFalse(policy._mutation_scan_requested)
-
-    def test_mutation_request_respects_the_confirmed_outside_gate(self):
-        policy = self._scan_complete_policy()
-        snapshot = self._snapshot()
-        # Positive control first (parent-differentiating): with a clean
-        # outside context the request IS offered...
-        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
-        # ...and each store-context guard suppresses exactly it.
-        policy._store_leave_inflight = (1, snapshot.turn, STORE_HOME)
-        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
-        policy._store_leave_inflight = None
-        policy._last_snapshot_was_store = True
-        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
-
-    def test_valid_calibration_without_observation_issues_arming_request(self):
-        """A calibration captured before any mutation observation (or a
-        fresh process with a persisted calibration) must autonomously issue
-        the arming `~c`; the first observation then invalidates the unarmed
-        capture so the trigger is live from then on."""
-        policy = self._scan_complete_policy()
-        snapshot = self._snapshot()
-        seed_character_calibration(policy, snapshot)
-        self.assertIsNone(policy._mutation_signature)
-
-        self.assertEqual(policy._calibration_town_key(snapshot), "~c")
-        self.assertEqual(
-            policy.last_reason, "calibration:request-mutation-knowledge"
-        )
-        self.assertTrue(policy.confirm_key_posted("~c"))
-        policy.consume_mutation_knowledge([4, 2])
-
-        # Once a signature exists the arming branch is dead for the process...
-        self.assertNotEqual(policy._calibration_town_key(snapshot), "~c")
-        # ...and the unarmed capture is invalidated, re-running calibration
-        # with the observation recorded.
-        self.assertIsNone(policy._validated_character_calibration(snapshot))
-
-    def test_mutation_response_populates_signature_and_capture_records_it(self):
-        policy = self._scan_complete_policy()
-        policy._mutation_scan_inflight = True
-
-        policy.consume_mutation_knowledge([9, 2, 5])
-
-        self.assertEqual(policy._mutation_signature, (2, 5, 9))
-        self.assertFalse(policy._mutation_scan_inflight)
-
         naked = self._snapshot()
         policy._calibration_phase = "capture"
-        policy._calibration_observe(naked)
+
+        # Offered until confirmed: a suppressed or replaced key must not
+        # consume the request.
         self.assertEqual(
-            policy._character_calibration.mutation_signature, (2, 5, 9)
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
         )
+        self.assertFalse(policy._calibration_naked_dump_requested)
+        policy._calibration_naked_dump_prepared = False
+        self.assertEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+        self.assertTrue(policy.confirm_key_posted(
+            policy_module.CHARACTER_DUMP_MACRO
+        ))
+        self.assertTrue(policy._calibration_naked_dump_requested)
+        self.assertTrue(policy._calibration_naked_dump_inflight)
+        # A periodic dump posted OUTSIDE the capture latch never converts.
+        self.assertFalse(policy.confirm_key_posted(
+            policy_module.CHARACTER_DUMP_MACRO
+        ))
+
+        # Missing response: one observation clears the inflight, the next
+        # captures without characteristics — degraded, never absorbing.
+        policy._calibration_observe(naked)
+        self.assertFalse(policy._calibration_naked_dump_inflight)
+        self.assertIsNone(policy._character_calibration)
+        policy._calibration_observe(naked)
+        self.assertIsNotNone(policy._character_calibration)
+        self.assertEqual(
+            policy._character_calibration.intrinsic_tr_flags, frozenset()
+        )
+        self.assertFalse(hasattr(policy, "_mutation_scan_retries_remaining"))
+
+    def test_naked_dump_respects_the_confirmed_outside_gate(self):
+        policy = self._scan_complete_policy()
+        naked = self._snapshot()
+        policy._calibration_phase = "capture"
+        # Positive control first (parent-differentiating): with a clean
+        # outside context the naked dump IS offered...
+        self.assertEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+        # ...and each store-context guard suppresses exactly it.
+        policy._calibration_naked_dump_prepared = False
+        policy._store_leave_inflight = (1, naked.turn, STORE_HOME)
+        self.assertNotEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+        policy._store_leave_inflight = None
+        policy._last_snapshot_was_store = True
+        self.assertNotEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+
+    def test_naked_characteristics_reach_the_captured_constants(self):
+        """The naked `C` response's characteristics table (permanent
+        vulnerabilities and friends) becomes worn-independent search input,
+        and its mutation set arms the invalidation trigger at capture."""
+        policy = self._scan_complete_policy()
+        naked = self._snapshot()
+        policy._calibration_phase = "capture"
+        self.assertEqual(
+            policy._calibration_town_key(naked),
+            policy_module.CHARACTER_DUMP_MACRO,
+        )
+        self.assertTrue(policy.confirm_key_posted(
+            policy_module.CHARACTER_DUMP_MACRO
+        ))
+        policy.observe_character_snapshot({
+            "mutations": [9, 2],
+            "characteristics": [
+                {"flag_id": 155, "player": False, "vulnerability": True},
+                {"flag_id": 36, "player": True, "vulnerability": False},
+                {"flag_id": 48, "player": False, "vulnerability": False},
+            ],
+        })
+        self.assertFalse(policy._calibration_naked_dump_inflight)
+
+        policy._calibration_observe(naked)
+
+        calibration = policy._character_calibration
+        self.assertIsNotNone(calibration)
+        self.assertEqual(calibration.intrinsic_tr_flags, frozenset({155, 36}))
+        self.assertEqual(calibration.mutation_signature, (2, 9))
+
+    def test_periodic_character_snapshot_is_the_autonomous_trigger(self):
+        """The pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS
+        -> CHARACTER_DUMP_MACRO -> type:'character') refreshes the mutation
+        signature during normal play with zero extra keys — the
+        observation-bounded post-calibration mutation trigger.  Outside the
+        capture latch it must never overwrite the calibrated flags."""
+        policy = self._scan_complete_policy()
+
+        policy.observe_character_snapshot({
+            "mutations": [9, 2, 5],
+            "characteristics": [
+                {"flag_id": 155, "player": True},
+            ],
+        })
+
+        self.assertEqual(policy._mutation_signature, (2, 5, 9))
+        # Geared characteristics are worn-dependent: never recorded outside
+        # the capture-phase naked-dump latch.
+        self.assertIsNone(policy._calibration_naked_flags)
 
     def test_mutation_change_invalidates_the_cached_calibration(self):
         policy = self._scan_complete_policy()
         policy._mutation_signature = (2, 5)
         naked = self._snapshot()
         policy._calibration_phase = "capture"
+        policy._calibration_naked_dump_requested = True
         policy._calibration_observe(naked)
         self.assertIsNotNone(policy._character_calibration)
 
         # Unchanged observation keeps the cache.
         self.assertIsNotNone(policy._validated_character_calibration(naked))
 
-        # A gained mutation reported by the next `~c` snapshot invalidates it.
-        policy.consume_mutation_knowledge([2, 5, 11])
+        # A gained mutation reported by the next periodic character snapshot
+        # invalidates it.
+        policy.observe_character_snapshot({"mutations": [2, 5, 11]})
         self.assertIsNone(policy._validated_character_calibration(naked))
         self.assertIsNone(policy._character_calibration)
 

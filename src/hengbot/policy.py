@@ -66,6 +66,7 @@ from hengbot.warrior_optimization import (
     WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
     calibrate_character_constants,
+    character_intrinsic_flags,
     load_character_calibration,
     prepare_warrior_optimization,
     save_character_calibration,
@@ -2222,12 +2223,20 @@ class HengbotPolicy:
         # transaction completes.  While set, town departure is impossible: no
         # escape valve may let a calibration-stripped character dive naked.
         self._calibration_stripped_unrestored = False
-        # Mutation observation from the `~c` knowledge snapshot (sorted ids).
-        # None until the first response arrives; refreshed once per town visit
-        # through the same request machinery as the `~9` Home scan.
+        # Mutation observation (sorted ids) from `C` character snapshots: the
+        # calibration phase's naked dump records it at capture, and the
+        # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
+        # refreshes it autonomously during normal play — the observation-based
+        # bound for the mutation invalidation trigger.
         self._mutation_signature: tuple[int, ...] | None = None
-        self._mutation_scan_requested = False
-        self._mutation_scan_inflight = False
+        # Naked `C` acquisition latches for the capture step.  prepared is set
+        # when the macro is offered, converted to requested/inflight only by
+        # confirm_key_posted (a suppressed or replaced key must not consume
+        # the request); the response records _calibration_naked_flags.
+        self._calibration_naked_dump_prepared = False
+        self._calibration_naked_dump_requested = False
+        self._calibration_naked_dump_inflight = False
+        self._calibration_naked_flags: frozenset[int] | None = None
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
@@ -2567,13 +2576,6 @@ class HengbotPolicy:
             if self._home_knowledge_scan_retries_remaining:
                 self._home_knowledge_scan_retries_remaining -= 1
                 self._home_knowledge_scan_requested = False
-        if self._mutation_scan_inflight:
-            # Observation-bounded recovery for the `~c` mutation snapshot: an
-            # ordinary board snapshot after the request means the response did
-            # not arrive.  The request is simply not made again this visit
-            # (_mutation_scan_requested stays latched); the fresh-town-visit
-            # observation re-arms it.
-            self._mutation_scan_inflight = False
         leaving_home = (
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
@@ -2856,30 +2858,34 @@ class HengbotPolicy:
         self._exploration_ledger.note_decision(latest_snapshot)
         return key
 
-    def consume_mutation_knowledge(self, mutation_ids) -> None:
-        """Record the `~c` knowledge snapshot as a stable mutation signature."""
-        try:
-            signature = tuple(sorted(int(value) for value in mutation_ids))
-        except (TypeError, ValueError):
-            signature = None
-        if signature is not None:
-            self._mutation_signature = signature
-        self._mutation_scan_inflight = False
+    def observe_character_snapshot(self, character) -> None:
+        """Consume a `C` character snapshot (naked capture or periodic dump).
 
-    def observe_character_mutations(self, mutation_ids) -> None:
-        """Passively refresh the signature from a `C` status-screen snapshot.
-
-        The periodic character dump the bot already posts carries the same
-        mutation id set (make_character_json's ``mutations``), so gains and
-        losses observed mid-expedition update the signature at zero extra
-        keys.  This never consumes the `~c` request budget.
+        Always refreshes the mutation signature from ``mutations`` — the
+        pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS) makes
+        this the autonomous, observation-bounded post-calibration trigger for
+        the mutation invalidation.  While the calibration capture step's
+        naked dump is in flight, the ``characteristics`` table is additionally
+        recorded as the worn-independent intrinsic TR flag set.
         """
-        try:
-            self._mutation_signature = tuple(
-                sorted(int(value) for value in mutation_ids)
-            )
-        except (TypeError, ValueError):
+        if not isinstance(character, dict):
             return
+        mutations = character.get("mutations")
+        if mutations is not None:
+            try:
+                self._mutation_signature = tuple(
+                    sorted(int(value) for value in mutations)
+                )
+            except (TypeError, ValueError):
+                pass
+        if (
+            self._calibration_naked_dump_inflight
+            and self._calibration_phase == "capture"
+        ):
+            self._calibration_naked_flags = character_intrinsic_flags(
+                character.get("characteristics")
+            )
+            self._calibration_naked_dump_inflight = False
 
     def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> None:
         """Consume the complete Home list returned by the emitter's ``~9``."""
@@ -4604,8 +4610,6 @@ class HengbotPolicy:
             self._abandoned_quest_carry_requirements.clear()
             self._calibration_aborts_this_visit = 0
             self._calibration_blocked_this_visit = False
-            self._mutation_scan_requested = False
-            self._mutation_scan_inflight = False
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -7890,6 +7894,10 @@ class HengbotPolicy:
             if item.is_equipment and not item.is_cursed
         )
         self._calibration_restore_seen_pages.clear()
+        self._calibration_naked_dump_prepared = False
+        self._calibration_naked_dump_requested = False
+        self._calibration_naked_dump_inflight = False
+        self._calibration_naked_flags = None
 
     def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
         """Interruption path: stop observing, put the equipment back on."""
@@ -8020,7 +8028,9 @@ class HengbotPolicy:
 
     def _capture_character_calibration(self, snapshot: Snapshot) -> bool:
         calibration = calibrate_character_constants(
-            snapshot, mutation_signature=self._mutation_signature
+            snapshot,
+            mutation_signature=self._mutation_signature,
+            intrinsic_tr_flags=self._calibration_naked_flags or frozenset(),
         )
         if calibration is None:
             return False
@@ -8079,6 +8089,19 @@ class HengbotPolicy:
                 self._abort_character_calibration(snapshot, "session-lost")
                 return
         if phase == "capture" and snapshot.store is None:
+            if not self._calibration_naked_dump_requested:
+                # The town key posts the naked `C` first; its characteristics
+                # and mutation set belong in the captured constants.
+                return
+            if (
+                self._calibration_naked_dump_inflight
+                and self._calibration_naked_flags is None
+            ):
+                # One ordinary board snapshot without the response: clear the
+                # observation and capture without characteristics on the next
+                # snapshot (bounded by observations, never a wait loop).
+                self._calibration_naked_dump_inflight = False
+                return
             if not self._capture_character_calibration(snapshot):
                 self._abort_character_calibration(snapshot, "capture-invalid")
             return
@@ -8186,22 +8209,6 @@ class HengbotPolicy:
         phase = self._calibration_phase
         if phase is None:
             if (
-                self._character_calibration is not None
-                and self._mutation_signature is None
-                and not self._mutation_scan_requested
-                and self._calibration_preconditions_met(snapshot)
-                and self._store_leave_inflight is None
-                and not self._last_snapshot_was_store
-            ):
-                # A calibration exists but this process has never observed the
-                # mutation set (restart, or the capture predates the
-                # observation): issue the arming `~c` so the mutation
-                # invalidation trigger becomes live.  Bounded by the same
-                # posting-time latch; once a signature exists this branch can
-                # never fire again.
-                self.last_reason = "calibration:request-mutation-knowledge"
-                return "~c"
-            if (
                 self._calibration_blocked_this_visit
                 or self._calibration_restore_signatures
                 # The phase runs 装備最適化前: it starts only once the Home
@@ -8219,24 +8226,6 @@ class HengbotPolicy:
                 or self._home_withdraw_inflight is not None
             ):
                 return None
-            if (
-                not self._mutation_scan_requested
-                # Confirmed-outside gate: this snapshot AND the previous one
-                # are outside any store, and no store leave is in flight, so
-                # the `~c` menu keys cannot land in a store command loop.
-                and self._store_leave_inflight is None
-                and not self._last_snapshot_was_store
-            ):
-                # Acquire the mutation observation for the capture the phase
-                # is about to make (bounded: the posting-time latch in
-                # confirm_key_posted owns _mutation_scan_requested — a
-                # suppressed or replaced key must not consume the request —
-                # and the choose_key prologue grants one re-request per
-                # visit).  If no response ever arrives the phase proceeds and
-                # the first later observation re-arms the mutation trigger by
-                # invalidating the unarmed capture.
-                self.last_reason = "calibration:request-mutation-knowledge"
-                return "~c"
             self._begin_character_calibration(snapshot)
             phase = "deposit"
         if phase == "deposit":
@@ -8252,9 +8241,24 @@ class HengbotPolicy:
             # one operation per entry); nothing to post from here.
             return None
         if phase == "capture":
-            # The confirming snapshot normally captures inside
-            # _calibration_observe; reaching here means it could not (for
-            # example a store snapshot interleaved).  Wait one decision.
+            if (
+                not self._calibration_naked_dump_requested
+                and not self._calibration_naked_dump_prepared
+                # Confirmed-outside gate: this snapshot AND the previous one
+                # are outside any store, and no store leave is in flight, so
+                # the status-screen keys cannot land in a store command loop.
+                and self._store_leave_inflight is None
+                and not self._last_snapshot_was_store
+            ):
+                # The character is naked: post `C` so the capture records the
+                # characteristics table (permanent vulnerabilities,
+                # immunities, sustains, ...) and the mutation set — the
+                # user-approved acquisition, one key inside a phase that
+                # already exists.  The posting-time latch in
+                # confirm_key_posted owns the request.
+                self._calibration_naked_dump_prepared = True
+                self.last_reason = "calibration:request-naked-character"
+                return CHARACTER_DUMP_MACRO
             self.last_reason = "calibration:await-capture"
             return WAIT_KEY
         return None
@@ -8845,9 +8849,10 @@ class HengbotPolicy:
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
             return True
-        if key == "~c":
-            self._mutation_scan_requested = True
-            self._mutation_scan_inflight = True
+        if key == CHARACTER_DUMP_MACRO and self._calibration_naked_dump_prepared:
+            self._calibration_naked_dump_prepared = False
+            self._calibration_naked_dump_requested = True
+            self._calibration_naked_dump_inflight = True
             return True
         if key != self._equipment_transaction_prepared_key:
             return False

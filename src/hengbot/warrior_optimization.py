@@ -128,10 +128,16 @@ class CharacterCalibration:
     intrinsic_abilities: frozenset[str]
     pinned_identities: tuple[tuple[str, str], ...] = ()
     observed_turn: int = 0
-    # Sorted mutation ids from the `~c` knowledge snapshot (or the periodic
-    # `C` status snapshot) at capture time; None when no mutation observation
-    # was available yet.
+    # Sorted mutation ids from the naked `C` character snapshot at capture
+    # time (the periodic status dump refreshes the live observation); None
+    # when no mutation observation was available yet.
     mutation_signature: tuple[int, ...] | None = None
+    # Permanent TR flag ids read off the naked `C` character snapshot's
+    # characteristics table (player/immunity/vulnerability columns).  These
+    # carry what the 19-boolean abilities set cannot express — permanent
+    # elemental vulnerabilities and immunities, sustains, TR_RES_TIME and the
+    # rest — and become worn-independent search input.
+    intrinsic_tr_flags: frozenset[int] = frozenset()
 
     def stale_reason(
         self,
@@ -171,10 +177,35 @@ class CharacterCalibration:
         return None
 
 
+def character_intrinsic_flags(characteristics) -> frozenset[int]:
+    """Permanent TR flag ids from a NAKED `C` snapshot's characteristics.
+
+    Rows are the emitter's make_flag_table_json shape.  With nothing worn the
+    player/immunity/vulnerability columns are exactly the character's own
+    permanent flags (race, class, mutations); the temporary columns are
+    deliberately excluded — the calibration preconditions forbid temporary
+    effects, and folding one in would contaminate the constants.
+    """
+    flags: set[int] = set()
+    for row in characteristics or ():
+        if not isinstance(row, dict):
+            continue
+        try:
+            flag_id = int(row.get("flag_id"))
+        except (TypeError, ValueError):
+            continue
+        if bool(row.get("player")) or bool(row.get("immunity")) or bool(
+            row.get("vulnerability")
+        ):
+            flags.add(flag_id)
+    return frozenset(flags)
+
+
 def calibrate_character_constants(
     snapshot: Snapshot,
     *,
     mutation_signature: tuple[int, ...] | None = None,
+    intrinsic_tr_flags: frozenset[int] = frozenset(),
 ) -> CharacterCalibration | None:
     """Read the constants off a naked observation. Purely observational.
 
@@ -229,6 +260,7 @@ def calibrate_character_constants(
         pinned_identities=pinned_identities,
         observed_turn=getattr(snapshot, "turn", 0),
         mutation_signature=mutation_signature,
+        intrinsic_tr_flags=frozenset(intrinsic_tr_flags),
     )
 
 
@@ -236,6 +268,7 @@ def save_character_calibration(path: Path, calibration: CharacterCalibration) ->
     data = asdict(calibration)
     data["intrinsic_abilities"] = sorted(calibration.intrinsic_abilities)
     data["pinned_identities"] = [list(pair) for pair in calibration.pinned_identities]
+    data["intrinsic_tr_flags"] = sorted(calibration.intrinsic_tr_flags)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -273,6 +306,9 @@ def load_character_calibration(path: Path) -> CharacterCalibration | None:
                 tuple(int(v) for v in data["mutation_signature"])
                 if data.get("mutation_signature") is not None
                 else None
+            ),
+            intrinsic_tr_flags=frozenset(
+                int(v) for v in data.get("intrinsic_tr_flags", [])
             ),
         )
     except (KeyError, TypeError, ValueError):
@@ -456,7 +492,15 @@ def prepare_warrior_optimization(
     base_con = calibration.base_stats[4]
     base_hp = calibration.base_hp
     base_ac_bonus = calibration.base_ac_bonus
-    intrinsic_flags = _intrinsic_flags(intrinsic_abilities)
+    # The naked characteristics enrich the evaluator's intrinsic flag set with
+    # what the abilities booleans cannot express.  Consumed today by the
+    # defense model: TR_IM_* (zero elemental damage), TR_VUL_* (+1/3 damage),
+    # TR_SUST_* (drain exposure) and TR_RES_TIME; every other recorded flag
+    # (slays, brands, ESP, ...) has no evaluator consumer yet and is
+    # deliberately carried without invented scoring.
+    intrinsic_flags = (
+        _intrinsic_flags(intrinsic_abilities) | calibration.intrinsic_tr_flags
+    )
     # Speed is deliberately NOT calibrated: its de-gearing is linear and exact,
     # and a stripped observation would fold the changed carried weight into the
     # base (roadmap P1 requirement 4).

@@ -469,7 +469,9 @@ class CharacterCalibrationTest(unittest.TestCase):
         import tempfile
 
         calibration = calibrate_character_constants(
-            _snapshot(_player()), mutation_signature=(1, 12)
+            _snapshot(_player()),
+            mutation_signature=(1, 12),
+            intrinsic_tr_flags=frozenset({152, 36}),
         )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "character-calibration.json"
@@ -477,6 +479,57 @@ class CharacterCalibrationTest(unittest.TestCase):
             loaded = load_character_calibration(path)
         self.assertEqual(loaded, calibration)
         self.assertEqual(loaded.mutation_signature, (1, 12))
+        self.assertEqual(loaded.intrinsic_tr_flags, frozenset({152, 36}))
+
+    def test_character_intrinsic_flags_reads_the_naked_flag_table(self):
+        from hengbot.warrior_optimization import character_intrinsic_flags
+
+        rows = [
+            {"flag_id": 155, "player": False, "vulnerability": True},
+            {"flag_id": 40, "player": False, "immunity": True},
+            {"flag_id": 36, "player": True},
+            {"flag_id": 48, "player": False},
+            # Temporary effects must never contaminate the constants.
+            {"flag_id": 50, "player": False, "temporary": True,
+             "temporary_immunity": True},
+            "garbage",
+        ]
+        self.assertEqual(
+            character_intrinsic_flags(rows), frozenset({155, 40, 36})
+        )
+        self.assertEqual(character_intrinsic_flags(None), frozenset())
+
+    def test_permanent_vulnerability_reaches_the_search_inputs(self):
+        """A mutation-granted elemental vulnerability recorded by the naked
+        `C` capture must reach the defense evaluator's intrinsic flag set so
+        the loadout search can compensate for it (TR_VUL_* consumers:
+        _element_rate's +1/3 damage)."""
+        from hengbot.warrior_defense_evaluator import TR_VUL_FIRE
+
+        definitions = _definitions()
+        if definitions is None:
+            raise unittest.SkipTest("MonraceDefinitions unavailable")
+        knowledge = load_monrace_knowledge(definitions)
+        player = _player(class_id=0)
+        vulnerable = calibrate_character_constants(
+            _snapshot(player), intrinsic_tr_flags=frozenset({TR_VUL_FIRE})
+        )
+        cache = WarriorEvaluatorCache()
+        prepare_warrior_optimization(
+            _snapshot(player),
+            (),
+            knowledge,
+            depth=1,
+            home_scan_complete=True,
+            evaluator_cache=cache,
+            calibration=vulnerable,
+        )
+        self.assertIsNotNone(cache.context)
+        self.assertIn(
+            TR_VUL_FIRE,
+            cache.context[0].defense.intrinsic_flags,
+            "the recorded permanent vulnerability never reached the search",
+        )
 
     def test_persistence_round_trip(self):
         import tempfile
