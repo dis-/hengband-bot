@@ -1995,6 +1995,12 @@ class HengbotPolicy:
         self._breeder_previous_indices: set[int] = set()
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
+        # A breeder floor left by stairs remains an observed walk-out fact until
+        # town (or another dungeon) proves the escape complete.  This is not a
+        # cooldown: while we are above that floor in the same dungeon, the
+        # return owner keeps taking concrete up-stair exits and ordinary descent
+        # cannot send us back into the multiplied population.
+        self._breeder_fled_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
         self._fruitless_disengage_marked_high = 0
@@ -3548,6 +3554,19 @@ class HengbotPolicy:
             self.last_reason = "confused:wait"
             return WAIT_KEY
 
+        if self._breeder_walkout_active(snapshot):
+            self._returning_to_town = True
+            walkout = self._return_to_town_key(
+                snapshot,
+                strategic_hostiles,
+                allow_recall=(
+                    self._fundraising_mode != "mine"
+                    and self._active_quest_id(snapshot) is None
+                ),
+            )
+            if walkout is not None:
+                return walkout
+
         if (
             self._choke_plan_active(snapshot)
             and self._breeder_breakthrough_floor == snapshot.floor_key
@@ -4620,6 +4639,11 @@ class HengbotPolicy:
         self._observe_launcher_enchant(snapshot)
         self._observe_departure_prices(snapshot)
         previous_floor = self._floor_key
+        if self._breeder_fled_floor is not None and (
+            snapshot.in_town
+            or snapshot.floor_key[0] != self._breeder_fled_floor[0]
+        ):
+            self._breeder_fled_floor = None
         if self._emergency_recall_sanctioned:
             if previous_floor is not None and previous_floor != snapshot.floor_key:
                 self._emergency_recall_sanctioned = False
@@ -18730,11 +18754,19 @@ class HengbotPolicy:
             self._mining_threat_free_streak = 0
 
     def _finish_mining_floor(self, snapshot: Snapshot) -> str:
-        return self._leave_fundraising_floor(snapshot)
+        return self._leave_fundraising_floor(
+            snapshot,
+            allow_recall=not (
+                self._fundraising_mode == "mine"
+                and self._breeder_breakthrough_floor == snapshot.floor_key
+            ),
+        )
 
-    def _leave_fundraising_floor(self, snapshot: Snapshot) -> str:
+    def _leave_fundraising_floor(
+        self, snapshot: Snapshot, *, allow_recall: bool = True
+    ) -> str:
         player = snapshot.player
-        if snapshot.dungeon_level >= RECALL_MIN_DEPTH:
+        if allow_recall and snapshot.dungeon_level >= RECALL_MIN_DEPTH:
             if player.recalling:
                 self.last_reason = "fundraise:wait-recall"
                 return WAIT_KEY
@@ -18767,7 +18799,7 @@ class HengbotPolicy:
             self.last_reason = "fundraise:clear-escape-path"
             return blocker
         upstairs_search_expired = self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
-        if upstairs_search_expired:
+        if upstairs_search_expired and allow_recall:
             recall = self._find_recall_scroll(snapshot)
             if recall is not None and not player.blind and not player.confused:
                 self._stuck_escape_streak = 0
@@ -22444,6 +22476,12 @@ class HengbotPolicy:
                 return quest.id
         return None
 
+    def _active_quest_id(self, snapshot: Snapshot) -> int | None:
+        """Return any active fixed, kill, or random quest on this floor."""
+        return self._active_fixed_quest_id(snapshot) or self._active_kill_quest_id(
+            snapshot
+        )
+
     def _quest_target_race_id(self, quest: QuestState) -> int | None:
         """Join a fixed target from knowledge, otherwise use disclosed runtime data."""
         info = self._quest_knowledge.get(quest.id)
@@ -24050,7 +24088,11 @@ class HengbotPolicy:
         return UP_STAIRS_KEY
 
     def _return_to_town_key(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        *,
+        allow_recall: bool = True,
     ) -> str | None:
         player = snapshot.player
         if snapshot.in_town:
@@ -24116,7 +24158,8 @@ class HengbotPolicy:
 
         recall = self._find_recall_scroll(snapshot)
         if (
-            snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
+            allow_recall
+            and snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
             and recall is not None
             and not player.blind
             and not player.confused
@@ -26966,6 +27009,22 @@ class HengbotPolicy:
         """
         if self._breeder_breakthrough_floor != snapshot.floor_key:
             return None
+        active_quest = self._active_quest_id(snapshot)
+        if (
+            self._fundraising_mode != "mine"
+            and active_quest is None
+            and not self._emergency_return_active
+            and not snapshot.player.blind
+            and not snapshot.player.confused
+        ):
+            if snapshot.player.recalling:
+                self.last_reason = "breeder-breakthrough:wait-recall"
+                return WAIT_KEY
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                self._returning_to_town = True
+                self.last_reason = "breeder-breakthrough:recall"
+                return self._read_dungeon_recall_scroll_key(snapshot, recall)
         if self._fundraising_mode in {"mine", "scavenge"} and not any(
             monster.can_multiply
             and not self._is_weak_breeder(snapshot, monster)
@@ -26981,6 +27040,15 @@ class HengbotPolicy:
             return None
         return self._breeder_breakthrough_escape_key(snapshot)
 
+    def _breeder_walkout_active(self, snapshot: Snapshot) -> bool:
+        fled = self._breeder_fled_floor
+        return (
+            fled is not None
+            and not snapshot.in_town
+            and snapshot.floor_key[0] == fled[0]
+            and snapshot.dungeon_level < fled[1]
+        )
+
     def _breeder_breakthrough_escape_key(self, snapshot: Snapshot) -> str | None:
         """The breakthrough's own exits: ascend, route upstairs, or discover.
 
@@ -26992,6 +27060,9 @@ class HengbotPolicy:
         """
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and self._is_upstairs_target(here):
+            if self._active_quest_id(snapshot) is None:
+                self._breeder_fled_floor = snapshot.floor_key
+                self._returning_to_town = True
             self._defer_descent(snapshot)
             self.last_reason = "breeder-breakthrough:ascend"
             return UP_STAIRS_KEY

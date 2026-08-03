@@ -1545,6 +1545,103 @@ class CombatTest(unittest.TestCase):
         self.assertGreaterEqual(longest, 3)
         self.assertEqual(distances[-1], 0)
 
+    def test_forest_20_latched_breakthrough_reads_bound_recall_scroll(self):
+        """Real-capture reconstruction: recall owns the public decision."""
+        snapshot = replace(
+            self._forest_1616_breakthrough_snapshot(),
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, READ_KEY + "r")
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:recall")
+        self.assertIsNotNone(policy._read_binding)
+        self.assertEqual(policy._read_binding[1], SV_SCROLL_WORD_OF_RECALL)
+        self.assertEqual(policy._read_binding[3], "r")
+
+    @staticmethod
+    def _latched_breeder_stair_snapshot(*, depth=20, inventory=(), quests=None):
+        position = Position(10, 10)
+        return Snapshot(
+            player(10, 10, hp=615, max_hp=615, level=30),
+            {position: grid(10, 10, upstairs=True, downstairs=True)},
+            [],
+            floor_key=(7, depth, 0 if quests is None else 49),
+            turn=depth,
+            inventory=list(inventory),
+            quests=quests or {},
+        )
+
+    def test_breeder_stair_escape_walks_out_without_redescending_fled_floor(self):
+        policy = HengbotPolicy()
+        floor_20 = self._latched_breeder_stair_snapshot()
+        policy._floor_key = floor_20.floor_key
+        policy._breeder_breakthrough_floor = floor_20.floor_key
+
+        self.assertEqual(policy.choose_key(floor_20), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+
+        # This is the measured next decision: both stairs are underfoot on 19F.
+        # Ordinary policy used to choose '>' and recreate the breeder floor.
+        floor_19 = replace(
+            floor_20,
+            floor_key=(7, 19, 0),
+            turn=21,
+        )
+        self.assertEqual(policy.choose_key(floor_19), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "return:ascend")
+        self.assertNotEqual(policy.last_reason, "descend")
+
+        # The observation that town was reached ends the fact-based avoidance;
+        # town's ordinary entry policy remains a concrete future descent exit.
+        town = replace(
+            floor_19,
+            player=replace(floor_19.player, position=Position(1, 1)),
+            grids={Position(1, 1): grid(1, 1)},
+            floor_key=(0, 0, 0),
+            turn=22,
+        )
+        policy.choose_key(town)
+        self.assertIsNone(policy._breeder_fled_floor)
+
+    def test_active_random_quest_keeps_breeder_stair_exit_and_does_not_recall(self):
+        quest = QuestState(
+            id=49,
+            status=QUEST_STATUS_TAKEN,
+            type=QUEST_TYPE_RANDOM,
+            level=20,
+            dungeon_id=7,
+            cur_num=0,
+            max_num=1,
+        )
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snapshot = self._latched_breeder_stair_snapshot(
+            inventory=[recall], quests={49: quest}
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        self.assertEqual(policy.choose_key(snapshot), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+        self.assertIsNone(policy._breeder_fled_floor)
+
+    def test_latched_mining_walks_upstairs_without_spending_recall(self):
+        recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        snapshot = self._latched_breeder_stair_snapshot(inventory=[recall])
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        self.assertEqual(policy.choose_key(snapshot), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "fundraise:ascend")
+        self.assertIsNone(policy._dungeon_recall_issue_watch)
+
     def test_breakthrough_attacks_route_blocker_not_weakest_adjacent(self):
         # Two adjacent weak breeders: one stands on the remembered route to
         # the upstairs, the other (deliberately the weaker one, which the
