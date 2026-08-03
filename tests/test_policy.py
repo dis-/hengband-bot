@@ -1876,12 +1876,13 @@ class CombatTest(unittest.TestCase):
             policy.last_reason.startswith("breeder-breakthrough:")
         )
 
-    def test_unrevealing_frontier_is_retired_until_floor_exhausted(self):
-        # Liveness of the frontier exit lives in the handler: arriving on a
-        # targeted frontier that reveals nothing (both unknowns here are
-        # diagonal behind wall corners, which the game legitimately does not
-        # memorize) retires that frontier, so the candidate set strictly
-        # shrinks and finally empties into the exhausted-floor handoff.
+    @staticmethod
+    def _occluded_frontier_snapshot(*, lit=True, blind=False, inventory=(),
+                                    monsters=()):
+        # Two frontier tiles whose unknown neighbours sit diagonally behind
+        # wall corners — tiles the game legitimately does not memorize from
+        # the frontier itself — plus a known downstairs as the ordinary
+        # ladder's exit once the frontier candidates are exhausted.
         origin = Position(10, 10)
         floors = [
             origin,
@@ -1891,10 +1892,10 @@ class CombatTest(unittest.TestCase):
         ]
         unknowns = {Position(9, 7), Position(9, 13)}
         grids = {
-            position: grid(position.y, position.x)
+            position: grid(position.y, position.x, lit=lit)
             for position in floors
         }
-        grids[Position(12, 10)] = grid(12, 10, downstairs=True)
+        grids[Position(12, 10)] = grid(12, 10, downstairs=True, lit=lit)
         for position in floors:
             for dy, dx in (
                 (-1, -1), (-1, 0), (-1, 1), (0, -1),
@@ -1903,15 +1904,32 @@ class CombatTest(unittest.TestCase):
                 wall = Position(position.y + dy, position.x + dx)
                 if wall not in grids and wall not in unknowns:
                     grids[wall] = grid(wall.y, wall.x, passable=False)
-        snapshot = Snapshot(
-            player(origin.y, origin.x, hp=615, max_hp=615, level=30),
+        for monster in monsters:
+            grids[monster.position] = replace(
+                grids[monster.position], has_monster=True
+            )
+        return Snapshot(
+            player(
+                origin.y, origin.x, hp=615, max_hp=615, level=30,
+                blind=blind,
+            ),
             grids,
-            [],
+            list(monsters),
             floor_key=(7, 20, 0),
             turn=1,
             width=30,
             height=30,
+            inventory=list(inventory),
         )
+
+    def test_unrevealing_frontier_is_retired_until_floor_exhausted(self):
+        # Liveness of the frontier exit lives in the handler: a CAPABLE
+        # observation (not blind, own light radius >= 1 — the emitted lite
+        # flag on the player's own square) arriving on a targeted frontier
+        # that reveals nothing retires that frontier, so the candidate set
+        # strictly shrinks and finally empties into the exhausted-floor
+        # handoff.
+        snapshot = self._occluded_frontier_snapshot(lit=True)
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
@@ -1960,6 +1978,120 @@ class CombatTest(unittest.TestCase):
         )
         self.assertNotEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "seek-downstairs")
+
+    def _walk_to_first_frontier(self, policy, snapshot):
+        for expected in (Position(10, 9), Position(10, 8)):
+            self.assertEqual(policy.choose_key(snapshot), "4")
+            self.assertEqual(
+                policy.last_reason, "breeder-breakthrough:seek-frontier"
+            )
+            snapshot = replace(
+                snapshot,
+                player=replace(snapshot.player, position=expected),
+                turn=snapshot.turn + 1,
+            )
+        return snapshot
+
+    def test_blind_arrival_does_not_retire_frontier(self):
+        # bot-json-output.cpp:118 emits every non-REMEMBER grid unknown
+        # while the player is blind, before light flags are consulted: a
+        # blind arrival was incapable of revealing anything, so the frontier
+        # must survive (a status cure can reveal from this very tile later).
+        # The stale lit flag on the remembered square must not override the
+        # blindness veto.
+        snapshot = self._occluded_frontier_snapshot(lit=True, blind=True)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        snapshot = self._walk_to_first_frontier(policy, snapshot)
+        key = policy.choose_key(snapshot)
+
+        self.assertNotIn(Position(10, 8), policy._probed_frontiers)
+        self.assertEqual(key, "6")
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:seek-frontier"
+        )
+
+    def test_unlit_arrival_does_not_retire_frontier(self):
+        # The emitted lite flag is grid.is_lite() — CAVE_LITE, player light
+        # only (bot-json-output.cpp:191).  Its absence on the player's own
+        # square means light radius 0 (cave-map.cpp update_lite): the
+        # arrival could not have revealed the neighbour, so the frontier
+        # must survive for a re-visit after the light is repaired.
+        snapshot = self._occluded_frontier_snapshot(lit=False)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        snapshot = self._walk_to_first_frontier(policy, snapshot)
+        key = policy.choose_key(snapshot)
+
+        self.assertNotIn(Position(10, 8), policy._probed_frontiers)
+        self.assertEqual(key, "6")
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:seek-frontier"
+        )
+
+    def test_monster_lit_arrival_does_not_retire_frontier(self):
+        # Grids can be known through transient monster light (CAVE_MNLT,
+        # cleared and recomputed as monsters move, floor-info.cpp:690-719),
+        # but the emitted lite flag never includes it — so an arrival that
+        # only a nearby monster's torch made possible fails the capability
+        # test and the frontier survives: the monster moving later can
+        # reveal the neighbour from this same tile.
+        lantern_bearer = hostile(
+            1, 11, 10, hp=15, max_hp=15, distance=1, race_id=156,
+            can_multiply=True, max_melee_damage=5,
+        )
+        snapshot = self._occluded_frontier_snapshot(
+            lit=False, monsters=[lantern_bearer]
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        snapshot = self._walk_to_first_frontier(policy, snapshot)
+        policy.choose_key(snapshot)
+
+        self.assertNotIn(Position(10, 8), policy._probed_frontiers)
+        self.assertEqual(
+            policy.last_reason, "breeder-breakthrough:seek-frontier"
+        )
+
+    def test_unlit_frontier_walk_yields_to_darkness_recovery(self):
+        # The rung that owns fixing a broken light precondition is
+        # _darkness_recovery_key, consulted above the breakthrough in
+        # _decide — with a torch in the pack it claims the decision before
+        # any frontier routing, so "do not retire" cannot become a stall.
+        snapshot = self._occluded_frontier_snapshot(
+            lit=False,
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "wield-light")
+
+    def test_frontier_goal_cleared_on_floor_transition(self):
+        # A later visit can reuse the same (dungeon, depth, quest) floor
+        # key, so a stale recorded goal must not count as a completed
+        # targeted arrival there.
+        snapshot = self._occluded_frontier_snapshot()
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        policy.choose_key(snapshot)
+        self.assertIsNotNone(policy._breakthrough_frontier_goal)
+
+        policy.choose_key(replace(snapshot, floor_key=(7, 21, 0)))
+        self.assertIsNone(policy._breakthrough_frontier_goal)
 
     def test_weak_breeder_replay_does_not_drain_disengage_allowance(self):
         # The latched floor is now owned by the breakthrough, which sits
