@@ -7,7 +7,7 @@ from itertools import count
 from math import ceil
 import re
 from enum import Enum
-from typing import Callable, Literal
+from typing import Callable, Iterable, Literal
 from pathlib import Path
 
 from hengbot.town_maps import TownMap
@@ -1716,7 +1716,13 @@ class HengbotPolicy:
         ] = {}
         # Cells from which the material-engagement gate deliberately retreated.
         # Generic exploration/hunting must not immediately route back onto them.
+        # Two owners contribute members: the engagement/status-threat retreat
+        # logic (via _claim_engagement_avoid_cells, tracked in
+        # _engagement_owned_avoid_cells) and the warning-grid latch below.
+        # Only the warning owner ever withdraws cells, and it may never remove
+        # another owner's claim (see _refresh_warning_avoidance).
         self._engagement_avoid_cells: set[Position] = set()
+        self._engagement_owned_avoid_cells: set[Position] = set()
         # Grids whose entry a TR_WARNING prompt refused (this floor).  Injected
         # into _engagement_avoid_cells every decision — the same hard weight as
         # a lethal-danger cell — until the supply ledger is entirely exhausted,
@@ -3256,6 +3262,15 @@ class HengbotPolicy:
         return key
 
     def _decide(self, snapshot: Snapshot) -> str:
+        # A TR_WARNING prompt reported by this snapshot is disposed of before
+        # any other purpose is pursued: a refused movement is latched so it is
+        # not re-chosen (the loop this handler removes), and an unsanctioned
+        # tail-answered crossing is latched even when the walk opened a store
+        # screen (the handler posts nothing in that case).
+        warning_response = self._warning_prompt_response_key(snapshot)
+        if warning_response is not None:
+            return warning_response
+
         # A town-block latch owns the store exit before ordinary Home/shop page
         # processing. WAIT_KEY is not a valid store command.
         if (
@@ -3272,13 +3287,6 @@ class HengbotPolicy:
             key = self._shop(snapshot)
             self._record_shop_selector_diagnostics(snapshot, key)
             return key
-
-        # A TR_WARNING prompt reported by this snapshot is answered before any
-        # other purpose is pursued: the movement that raised it was refused,
-        # and re-choosing that movement is the loop this handler removes.
-        warning_response = self._warning_prompt_response_key(snapshot)
-        if warning_response is not None:
-            return warning_response
 
         self._build_grid_index(snapshot)
         self._refresh_warning_avoidance(snapshot)
@@ -3573,7 +3581,7 @@ class HengbotPolicy:
                 # cell we happened to retreat from: loot routing can approach the
                 # same unsafe drop from several different directions.
                 for threat in status_threats:
-                    self._engagement_avoid_cells.update(
+                    self._claim_engagement_avoid_cells(
                         grid.position
                         for grid in snapshot.grids.values()
                         if grid.position.distance_to(threat.position) <= 1
@@ -3634,7 +3642,9 @@ class HengbotPolicy:
                 ) >= (
                     player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
                 ):
-                    self._engagement_avoid_cells.add(snapshot.player.position)
+                    self._claim_engagement_avoid_cells(
+                        (snapshot.player.position,)
+                    )
                     self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "flee"
                 return self._step_toward(snapshot, step)
@@ -3749,7 +3759,7 @@ class HengbotPolicy:
                 # below.  Without persisting the abandoned square, generic
                 # secret-wall exploration can immediately reverse this retreat
                 # and alternate with it forever.
-                self._engagement_avoid_cells.add(snapshot.player.position)
+                self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
                 return self._step_toward(snapshot, step)
@@ -4181,7 +4191,7 @@ class HengbotPolicy:
             if step is not None:
                 # Treat the retreat as a navigation veto, not a one-turn move.
                 # A committed explore path otherwise walks straight back here.
-                self._engagement_avoid_cells.add(snapshot.player.position)
+                self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:avoid-engagement"
                 return self._step_toward(snapshot, step)
@@ -5065,6 +5075,7 @@ class HengbotPolicy:
             self._window_edge_goals.clear()
             self._window_edge_fallback_pending = False
             self._engagement_avoid_cells.clear()
+            self._engagement_owned_avoid_cells.clear()
             self._warning_refused_cells.clear()
             self._warning_step_pending = None
             self._probe_counts.clear()
@@ -13365,7 +13376,9 @@ class HengbotPolicy:
                         + FULL_IDENTIFY_DISMISS_SUFFIX
                         for item in chosen
                     )
-                    return self._step_toward(snapshot, step) + selectors + LEAVE_STORE_KEY
+                    return self._step_toward(
+                        snapshot, step, tail=selectors + LEAVE_STORE_KEY
+                    )
                 return self._step_toward(snapshot, step)
 
         # No affordable/remaining target or no Library route: return home if
@@ -17259,10 +17272,10 @@ class HengbotPolicy:
                         max(1, (player.gold - RUMOR_GOLD_RESERVE) // RUMOR_COST),
                     )
                     self.last_reason = "town:rumor-batch"
-                    return (
-                        self._step_toward(snapshot, step)
-                        + RUMOR_READ_KEY * reads
-                        + LEAVE_STORE_KEY
+                    return self._step_toward(
+                        snapshot,
+                        step,
+                        tail=RUMOR_READ_KEY * reads + LEAVE_STORE_KEY,
                     )
                 return self._step_toward(snapshot, step)
             # Inn unreachable, or we are already standing on it. Do NOT latch a
@@ -21525,7 +21538,7 @@ class HengbotPolicy:
             return None
         self.last_reason = "town:teleport"
         suffix = "m" + chr(ord("a") + destination_town_id) if step in positions else ""
-        return self._step_toward(snapshot, step) + suffix
+        return self._step_toward(snapshot, step, tail=suffix)
 
     def _active_fixed_quest_id(self, snapshot: Snapshot) -> int | None:
         """Return the allowlisted TAKEN fixed quest whose floor we occupy."""
@@ -22235,7 +22248,7 @@ class HengbotPolicy:
             if set_reward_pending:
                 self._fixed_quest_reward_pending = quest_id
             self.last_reason = reason
-            return self._step_toward(snapshot, step) + "q" + LEAVE_STORE_KEY
+            return self._step_toward(snapshot, step, tail="q" + LEAVE_STORE_KEY)
         self.last_reason = f"{reason}:approach"
         return self._step_toward(snapshot, step)
 
@@ -22320,7 +22333,7 @@ class HengbotPolicy:
             return None
         self.last_reason = "fixedquest:enter" if step in positions else "fixedquest:approach"
         suffix = "y" if step in positions else ""
-        return self._step_toward(snapshot, step) + suffix
+        return self._step_toward(snapshot, step, tail=suffix)
 
     def _fixed_quest_exit_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         here = snapshot.grid_at(snapshot.player.position)
@@ -22459,11 +22472,10 @@ class HengbotPolicy:
         ) or (office_pos is not None and step == office_pos)
         if enters_office:
             self.last_reason = "bounty:cashout"
-            return (
-                self._step_toward(snapshot, step)
-                + "c"
-                + ("y" * len(bounties))
-                + LEAVE_STORE_KEY
+            return self._step_toward(
+                snapshot,
+                step,
+                tail="c" + ("y" * len(bounties)) + LEAVE_STORE_KEY,
             )
         return self._step_toward(snapshot, step)
 
@@ -28307,6 +28319,18 @@ class HengbotPolicy:
             and self._find_recall_scroll(snapshot) is None
         )
 
+    def _claim_engagement_avoid_cells(
+        self, cells: Iterable[Position]
+    ) -> None:
+        """Record an engagement/status-threat avoidance claim with ownership.
+
+        The engagement owner's claims are tracked separately so the warning
+        owner's exhaustion withdrawal can never remove them from the shared
+        routing set."""
+        owned = set(cells)
+        self._engagement_owned_avoid_cells |= owned
+        self._engagement_avoid_cells |= owned
+
     def _refresh_warning_avoidance(self, snapshot: Snapshot) -> None:
         """Keep warning-refused grids at lethal-danger navigation weight.
 
@@ -28321,7 +28345,13 @@ class HengbotPolicy:
         if not cells:
             return
         if self._warning_supplies_exhausted(snapshot):
-            self._engagement_avoid_cells -= cells
+            # Withdraw ONLY the warning owner's contribution: a coordinate the
+            # engagement/status-threat owner also claims stays avoided — the
+            # forced-walk permission must never erase another owner's
+            # lethal-danger weight.
+            self._engagement_avoid_cells -= (
+                cells - self._engagement_owned_avoid_cells
+            )
         else:
             self._engagement_avoid_cells |= cells
             if any(step in cells for step in self._explore_path):
@@ -28334,15 +28364,28 @@ class HengbotPolicy:
 
         Snapshots are emitted only from the command loop
         (player-processor.cpp:312), so by the time the prompt's message is
-        visible the blocking input_check has already been dismissed — the
-        CLI's stall nudge posts Escape, which input_check treats as "no".
-        This handler makes the refusal DELIBERATE: it attributes the prompt
-        to the grid the previous decision walked into, latches that grid,
-        and answers 'n' itself.  At the original-keyset command loop 'n' is
-        an unbound command (pref-key.prf maps it only for the roguelike
-        keyset), so the posted 'n' answers the prompt when one is somehow
-        still pending and is a harmless no-op when it is not — never a
-        movement key chosen for another purpose."""
+        visible the blocking input_check has already been dismissed — by the
+        CLI's stall nudge Escape (input_check treats Escape as "no"), or by
+        a key from the walk's own composed tail.  input_check accepts only
+        y/n/Escape; every other queued key rings the bell and the prompt
+        keeps waiting, so which of those outcomes happened depends entirely
+        on what was queued — suffix ownership (see _step_toward) is the
+        safety-critical invariant, not any claimed harmlessness of stray
+        keys.  This handler makes the disposition DELIBERATE:
+
+        * player back on the walk's origin — the entry was refused; latch
+          the grid and post 'n'.  At the ordinary original-keyset command
+          loop 'n' has no keymap (pref-key.prf maps n/y only for the
+          roguelike keyset) and falls into the illegal-command default —
+          bounded and non-acting, while still being the correct answer in
+          the rare case a prompt is genuinely pending.  Never a movement
+          key chosen for another purpose.
+        * player standing on the walk's target — the crossing happened.  If
+          it was the sanctioned forced walk, the message is just its
+          record.  Otherwise a composed tail answered the prompt the caller
+          never anticipated: latch the grid so the unsanctioned crossing
+          happens at most once per floor, and let the decision continue.
+        """
         if not any(
             home_page_message_body(message).startswith(
                 WARNING_PROMPT_MESSAGE_PREFIXES
@@ -28353,47 +28396,75 @@ class HengbotPolicy:
         pending = self._warning_step_pending
         self._warning_step_pending = None
         if pending is not None:
-            sequence, floor_key, origin, target = pending
+            sequence, floor_key, origin, target, sanctioned = pending
             attributable = (
                 sequence == self._decision_sequence - 1
                 and floor_key == snapshot.floor_key
             )
             if attributable and snapshot.player.position == target:
-                # The walk went through: a forced walk's attached 'y'
-                # answered the prompt inline, or warning.cpp:501's
-                # old_damage suppression let the move pass.  The message is
-                # a record of that crossing, not an unanswered question.
+                if not sanctioned:
+                    # An unsanctioned crossing: the warning prompt was
+                    # answered by a queued tail key, not by the exhausted-
+                    # supplies forced walk.  Record the grid so it is
+                    # avoided from now on; the crossing itself cannot be
+                    # undone, so the decision proceeds normally.
+                    self._latch_warning_refusal(target)
                 return None
             if attributable and snapshot.player.position == origin:
-                self._warning_refused_cells.add(target)
-                self._engagement_avoid_cells.add(target)
-                if self._loot_target == target:
-                    self._loot_target = None
-                if target in self._explore_path:
-                    self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+                self._latch_warning_refusal(target)
+        if snapshot.store is not None:
+            # The prompt was decided before this store screen opened; store
+            # command sets give n/y real meanings, so post nothing here.
+            return None
         self.last_reason = "warning:refuse"
         return "n"
+
+    def _latch_warning_refusal(self, target: Position) -> None:
+        self._warning_refused_cells.add(target)
+        self._engagement_avoid_cells.add(target)
+        if self._loot_target == target:
+            self._loot_target = None
+        if target in self._explore_path:
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
 
     def _direction_key(self, origin: Position, target: Position) -> str:
         dy = max(-1, min(1, target.y - origin.y))
         dx = max(-1, min(1, target.x - origin.x))
         return DIRECTION_KEYS[(dy, dx)]
 
-    def _step_toward(self, snapshot: Snapshot, step: Position) -> str:
+    def _step_toward(
+        self, snapshot: Snapshot, step: Position, *, tail: str = ""
+    ) -> str:
         """Direction key toward an adjacent tile, but if it is a CLOSED door,
         open it (``o`` + direction) instead of walking — a closed door is a
         frontier the pathfinder heads for, yet walking into it may not open it.
-        Doors that refuse to open (jammed / hard lock) are abandoned."""
+        Doors that refuse to open (jammed / hard lock) are abandoned.
+
+        SUFFIX OWNERSHIP INVARIANT: this method is the single owner of the
+        final composed walk macro.  Callers that need follow-up keys for the
+        screen the walk opens (quest-entry confirm, building command chains)
+        pass them as ``tail`` — never by concatenating onto the returned key.
+        input_check consumes queued keys (y/n answer it, Escape refuses it,
+        anything else rings the bell and the prompt keeps waiting), so any
+        queued suffix can decide a TR_WARNING entry prompt the caller never
+        anticipated.  Owning the tail here lets the warning gate rule on the
+        complete key: a latched grid is never entered while movement supplies
+        remain regardless of what a caller wanted to append, and the walk's
+        pending record notes whether the crossing was the sanctioned
+        forced-walk so an unsanctioned tail-answered crossing is detected and
+        latched by _warning_prompt_response_key instead of passing silently.
+        A structural test pins that no other call site concatenates onto
+        _step_toward's result."""
         if step == snapshot.player.position:
             self.last_reason = "nav:step-self"
-            return WAIT_KEY
+            return WAIT_KEY + tail
         key = self._direction_key(snapshot.player.position, step)
         grid = snapshot.grids.get(step)
         if grid is not None and grid.trap:
             yx = (step.y, step.x)
             if self._floor_trap_disarm_attempts[yx] < CHEST_DISARM_BUDGET:
                 self._floor_trap_disarm_attempts[yx] += 1
-                return CHEST_DISARM_KEY + key
+                return CHEST_DISARM_KEY + key + tail
         elif grid is not None:
             self._floor_trap_disarm_attempts.pop((step.y, step.x), None)
         if grid is not None and grid.is_closed_door:
@@ -28401,7 +28472,7 @@ class HengbotPolicy:
             self._door_attempts[yx] += 1
             if self._door_attempts[yx] >= DOOR_OPEN_LIMIT:
                 self._blocked_doors.add(yx)
-            return OPEN_KEY + key
+            return OPEN_KEY + key + tail
         if grid is not None and grid.is_rubble:
             # Dig through the rubble; it clears to floor after a few turns, then
             # the next step walks in. Give up (route around) if it won't budge.
@@ -28418,7 +28489,7 @@ class HengbotPolicy:
                 or self._rejected_dig_attempts >= RUBBLE_REJECT_LIMIT
             ):
                 self._blocked_rubble.add(yx)
-            return TUNNEL_KEY + key
+            return TUNNEL_KEY + key + tail
         if (
             grid is not None
             and grid.can_dig
@@ -28426,26 +28497,47 @@ class HengbotPolicy:
             and self._equipped_digging_tool(snapshot) is not None
         ):
             tunnel = self._mining_tunnel_key(snapshot, step)
-            return tunnel if tunnel is not None else key
-        # A plain walk may meet a TR_WARNING entry prompt; remember which grid
-        # this decision entered so the next snapshot's prompt message can be
-        # attributed to it (see _warning_prompt_response_key).
+            return (tunnel if tunnel is not None else key) + tail
+        if step in self._warning_refused_cells:
+            if not self._warning_supplies_exhausted(snapshot) or (
+                step in self._engagement_owned_avoid_cells
+            ):
+                # The gate on the COMPLETE composed key: a latched warning
+                # grid is never entered while a movement scroll remains (or
+                # while the engagement owner independently requires the cell
+                # avoided) — not even by a caller whose tail would have
+                # answered the re-raised prompt.  Routing already excludes
+                # latched cells, so this is the backstop for callers that
+                # pick steps outside the avoid-aware BFS.
+                self.last_reason = "warning:blocked-step"
+                return WAIT_KEY
+            # 物資が全て尽きている場合のみ徒歩強行を許す: the forced walk
+            # carries its deliberate 'y' with the movement key, so the
+            # re-raised input_check is answered inline; the caller's tail
+            # then feeds the screen the crossing opens.  When warning.cpp:501
+            # suppresses the re-check, the move executes and the stray 'y'
+            # falls into the original-keyset illegal-command default (no
+            # keymap for 'y' outside roguelike mode) — bounded, non-acting.
+            self._warning_step_pending = (
+                self._decision_sequence,
+                snapshot.floor_key,
+                snapshot.player.position,
+                step,
+                True,
+            )
+            return key + "y" + tail
+        # A plain walk may meet a first-encounter TR_WARNING entry prompt;
+        # remember which grid this decision entered — and that the crossing
+        # was NOT the sanctioned forced walk — so the next snapshot's prompt
+        # message is attributed to it (see _warning_prompt_response_key).
         self._warning_step_pending = (
             self._decision_sequence,
             snapshot.floor_key,
             snapshot.player.position,
             step,
+            False,
         )
-        if step in self._warning_refused_cells and self._warning_supplies_exhausted(
-            snapshot
-        ):
-            # 物資が全て尽きている場合のみ徒歩強行を許す: the forced walk
-            # carries its deliberate 'y' with the movement key, so the
-            # re-raised input_check is answered inline.  When warning.cpp:501
-            # suppresses the re-check the move just executes and the trailing
-            # 'y' is an unbound original-keyset command — a no-op.
-            return key + "y"
-        return key
+        return key + tail
 
 
 # Backwards-compatible alias for existing callers.

@@ -43310,6 +43310,159 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         policy.choose_key(other_floor)
         self.assertFalse(policy._warning_refused_cells)
 
+    def test_exhaustion_never_erases_engagement_owned_avoidance(self):
+        # A coordinate can be owned by BOTH the warning latch and the
+        # engagement/status-threat avoidance.  The forced-walk withdrawal may
+        # only remove the warning owner's contribution: while the engagement
+        # owner still claims the cell, exhausted supplies must not re-open it.
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
+        policy = self.refused_policy(supply)
+        policy._claim_engagement_avoid_cells((Position(26, 93),))
+
+        key = policy.choose_key(self.corridor(inventory=[]))
+
+        self.assertNotIn(key, {"8", "8y"})
+        self.assertIn(Position(26, 93), policy._engagement_avoid_cells)
+
+        # Control: without the engagement claim the same exhausted flow
+        # performs the sanctioned forced walk.
+        control = self.refused_policy(supply)
+        self.assertEqual(control.choose_key(self.corridor(inventory=[])), "8y")
+
+    def test_no_caller_concatenates_onto_step_toward(self):
+        # Suffix-ownership invariant: _step_toward owns the final composed
+        # walk macro.  A caller-side concatenation would queue keys that
+        # input_check can consume as the answer to a TR_WARNING prompt the
+        # caller never anticipated, bypassing the exhausted-supplies gate.
+        source = (
+            Path(policy_module.__file__).read_text(encoding="utf-8")
+        )
+        tree = ast.parse(source)
+
+        def is_step_toward(node):
+            return (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "_step_toward"
+            )
+
+        offenders = [
+            node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.BinOp)
+            and (is_step_toward(node.left) or is_step_toward(node.right))
+        ]
+        self.assertEqual(offenders, [])
+
+
+class WarningGridComposedWalkTest(unittest.TestCase):
+    """The composed-walk callers (walk + follow-up tail) against the warning
+    gate, pinned on the fixed-quest entrance shape: the caller's tail ('y')
+    is exactly a key input_check accepts, so ungated it silently confirms a
+    first-encounter TR_WARNING prompt (codex review BLOCKER 1)."""
+
+    QUEST_ID = 1
+    PROMPT = "本当にこのまま進むか？[y/n]"
+    ENTRANCE = Position(35, 177)
+
+    def _town_map(self) -> TownMap:
+        walkable = frozenset(
+            Position(y, x) for y in range(66) for x in range(198)
+        )
+        return TownMap(
+            name="Outpost",
+            width=198,
+            height=66,
+            walkable=walkable,
+            quest_buildings={self.QUEST_ID: frozenset({Position(26, 98)})},
+            quest_entrances={self.QUEST_ID: frozenset({self.ENTRANCE})},
+            reward_positions=frozenset({Position(27, 98)}),
+        )
+
+    def _snapshot(self, y, x, *, messages=(), inventory=()):
+        quest = QuestState(
+            id=self.QUEST_ID,
+            name="Thieves Hideout",
+            status=1,
+            type=6,
+            level=5,
+            flags=6,
+            fixed=True,
+            has_reward=True,
+            reward_baseitem_id=42,
+        )
+        grids = {
+            Position(35, 176): grid(35, 176),
+            self.ENTRANCE: grid(
+                self.ENTRANCE.y,
+                self.ENTRANCE.x,
+                has_quest_enter=True,
+                quest_id=self.QUEST_ID,
+            ),
+        }
+        return Snapshot(
+            player(y, x, level=8, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(0, 0, 0),
+            width=198,
+            height=66,
+            town_flag=True,
+            town_id=0,
+            town_index=1,
+            quests={self.QUEST_ID: quest},
+            inventory=list(inventory),
+            messages=tuple(messages),
+        )
+
+    def test_latched_entrance_walk_is_blocked_while_supplies_remain(self):
+        # After a refusal, the composed quest-entry walk (direction + 'y')
+        # must not be issued while a movement scroll remains: the gate rules
+        # on the COMPLETE key, so the caller's tail cannot confirm the
+        # re-raised prompt.
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
+        policy = HengbotPolicy(self._town_map())
+        self.assertEqual(
+            policy.choose_key(self._snapshot(35, 176, inventory=supply)), "6y"
+        )
+        self.assertEqual(policy.last_reason, "fixedquest:enter")
+
+        refusal = policy.choose_key(
+            self._snapshot(35, 176, messages=(self.PROMPT,), inventory=supply)
+        )
+        self.assertEqual(refusal, "n")
+        self.assertIn(self.ENTRANCE, policy._warning_refused_cells)
+
+        key = policy.choose_key(self._snapshot(35, 176, inventory=supply))
+        self.assertNotIn("y", key)
+        self.assertNotEqual(key[:1], "6")
+        self.assertEqual(policy.last_reason, "warning:blocked-step")
+
+    def test_tail_answered_crossing_is_latched_not_silent(self):
+        # First encounter: the entrance is unlatched, so the composed walk
+        # goes out with its tail and the warning prompt (if it fires) is
+        # answered by that tail.  The next snapshot shows the player ON the
+        # target with the prompt message: the crossing was NOT sanctioned by
+        # the exhausted-supplies rule, so the grid must be latched — at most
+        # one such crossing per floor, never silent.
+        supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
+        policy = HengbotPolicy(self._town_map())
+        self.assertEqual(
+            policy.choose_key(self._snapshot(35, 176, inventory=supply)), "6y"
+        )
+
+        policy.choose_key(
+            self._snapshot(
+                self.ENTRANCE.y,
+                self.ENTRANCE.x,
+                messages=(self.PROMPT,),
+                inventory=supply,
+            )
+        )
+
+        self.assertIn(self.ENTRANCE, policy._warning_refused_cells)
+        self.assertNotEqual(policy.last_reason, "warning:refuse")
+
 
 if __name__ == "__main__":
     unittest.main()

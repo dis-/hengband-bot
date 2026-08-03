@@ -89,7 +89,7 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                     "ExplorationPathOutcome.INVALIDATE",
                 ),
                 (
-                    "_warning_prompt_response_key",
+                    "_latch_warning_refusal",
                     "ExplorationPathOutcome.INVALIDATE",
                 ),
                 ("_fundraising_key", "ExplorationPathOutcome.ABANDON"),
