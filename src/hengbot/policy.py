@@ -2223,11 +2223,6 @@ class HengbotPolicy:
         # transaction completes.  While set, town departure is impossible: no
         # escape valve may let a calibration-stripped character dive naked.
         self._calibration_stripped_unrestored = False
-        # Worn-set signature recorded when an exhausted-regime session attempt
-        # stalled: a fresh attempt is allowed only after the worn set is
-        # OBSERVED to have changed (progress/regression), so the regime can
-        # neither cycle unboundedly nor die into a lock.
-        self._calibration_stall_worn_signature: tuple | None = None
         # Mutation observation (sorted ids) from `C` character snapshots: the
         # calibration phase's naked dump records it at capture, and the
         # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
@@ -3451,6 +3446,14 @@ class HengbotPolicy:
         darkness_recovery = self._darkness_recovery_key(snapshot)
         if darkness_recovery is not None:
             return darkness_recovery
+
+        # A calibration-stripped character gets dressed before ANY other town
+        # activity: one wear key per decision, unconditionally — under threat,
+        # at any HP, with temporary statuses active.  Only the emergency and
+        # threat-response owners above may preempt it.
+        redress = self._calibration_redress_key(snapshot)
+        if redress is not None:
+            return redress
 
         if (
             self._breakout_dig_floor is not None
@@ -7903,7 +7906,6 @@ class HengbotPolicy:
         self._calibration_naked_dump_requested = False
         self._calibration_naked_dump_inflight = False
         self._calibration_naked_flags = None
-        self._calibration_stall_worn_signature = None
 
     def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
         """Interruption path: stop observing, put the equipment back on."""
@@ -7927,52 +7929,146 @@ class HengbotPolicy:
             )
 
     def _calibration_restore_exhausted(self, snapshot: Snapshot) -> None:
-        """Exhausted-budget regime: converge to dressed, never dead-lock.
+        """Exhausted-budget regime: hand recovery to redress-mode.
 
-        The recorded stripped loadout (_calibration_worn_before) is NEVER
-        discarded while the stripped guard is set, and the visit-block never
-        kills the path to dressed.  The convergent transition the bot can
-        always take once the interruption passes: finish the STRIP of
-        whatever removable items remain (takeoffs, the phase's most reliable
-        operation), CAPTURE the calibration from the naked observation, and
-        let the optimizer's own transaction machinery — independent budgets,
-        pre-existing quarantine/T3 exits — dress the character, which
-        releases the guard on its completed session.
+        Two DIFFERENT precondition sets govern this phase.  The strict calm /
+        full-HP / no-hostile set belongs to the calibration OBSERVATION only —
+        a naked capture is worthless if a buff or damage contaminates it.
+        Putting the clothes back on needs none of that: wearing an item is
+        one key, available under threat, at any HP, with statuses active.
 
-        While the preconditions are broken (hostile, damage) the phase parks
-        DORMANT at restore-equip with no session: the combat/recovery ladder
-        above owns the turns, and every later snapshot re-enters here.  A new
-        session attempt after a stall additionally requires the worn set to
-        have OBSERVABLY changed, so a persistently stalling transport cannot
-        cycle sessions unboundedly — that frozen world belongs to the
-        pre-existing repetition/livelock detectors, with the guard still
-        holding departure closed.
+        So when the session budget is spent: if the character happens to be
+        fully naked with the observation preconditions intact, finish the
+        capture on the spot (the optimizer then owns dressing).  In every
+        other case enter REDRESS-MODE — the phase ends, but the recorded
+        stripped loadout (_calibration_worn_before) and the departure guard
+        remain, and the ordinary equipment machinery plus the unconditional
+        _calibration_redress_key dress the character one item per decision
+        with no preconditions and no session/confirmation machinery at all.
+        When every recorded item is observed worn again (or observed lost),
+        the guard clears and the observed recovery re-arms the visit budget.
         """
         self._calibration_session_target = None
-        if not self._calibration_preconditions_met(snapshot):
-            self._calibration_phase = "restore-equip"
-            self.last_reason = "calibration:restore-dormant"
+        if (
+            not self._calibration_removable_worn(snapshot)
+            and self._calibration_preconditions_met(snapshot)
+            and self._capture_character_calibration(snapshot)
+        ):
             return
-        if not self._calibration_removable_worn(snapshot):
-            if self._capture_character_calibration(snapshot):
-                return
-            self._calibration_phase = "restore-equip"
-            self.last_reason = "calibration:restore-dormant"
-            return
-        worn_signature = tuple(
-            sorted(
-                (item.slot, equipment_identity(item))
-                for item in snapshot.equipment
-                if item.is_equipment
-            )
+        self._calibration_phase = (
+            "restore-supplies"
+            if self._calibration_restore_signatures
+            else None
         )
-        if worn_signature != self._calibration_stall_worn_signature:
-            self._calibration_stall_worn_signature = worn_signature
-            if self._install_calibration_strip_session(snapshot):
-                self.last_reason = "calibration:converge-strip"
-                return
-        self._calibration_phase = "restore-equip"
-        self.last_reason = "calibration:restore-dormant"
+        self.last_reason = "calibration:redress-mode"
+
+    def _calibration_redress_items(
+        self, snapshot: Snapshot
+    ) -> list[tuple[str, str]]:
+        """Recorded stripped items not yet back on and still in the pack."""
+        if not (
+            self._calibration_stripped_unrestored
+            and self._calibration_worn_before
+        ):
+            return []
+        if self._calibration_phase not in (None, "restore-supplies"):
+            return []
+        worn_identities = {
+            equipment_identity(item)
+            for item in snapshot.equipment
+            if item.is_equipment
+        }
+        pack_identities = {
+            equipment_identity(item)
+            for item in snapshot.inventory
+            if item.is_equipment
+        }
+        return [
+            (slot, identity)
+            for slot, identity in self._calibration_worn_before
+            if identity not in worn_identities and identity in pack_identities
+        ]
+
+    def _calibration_redress_key(self, snapshot: Snapshot) -> str | None:
+        """Dress a calibration-stripped character UNCONDITIONALLY.
+
+        Re-dressing has no preconditions: it runs under threat, at any HP,
+        with temporary statuses active — only genuine emergencies and combat
+        responses above it in the ladder may preempt a single wear key.  It
+        deliberately uses the ordinary fire-and-observe equip path (like the
+        weapon re-arm and light-wield owners), not the session machinery
+        whose stall budget got the phase here.
+        """
+        if not snapshot.in_town or snapshot.store is not None:
+            return None
+        for slot, identity in self._calibration_redress_items(snapshot):
+            target = next(
+                (
+                    item
+                    for item in snapshot.inventory
+                    if item.is_equipment
+                    and equipment_identity(item) == identity
+                ),
+                None,
+            )
+            if target is None:
+                continue
+            macro = self._equip_macro(snapshot, target, slot)
+            if macro is None:
+                continue
+            self.last_reason = "calibration:redress"
+            return macro
+        return None
+
+    def _calibration_redress_observe(self, snapshot: Snapshot) -> None:
+        """Clear the stripped guard once every recorded item is accounted for.
+
+        Satisfied: the identity is worn again (any slot).  Unrecoverable: the
+        identity is neither worn nor in the pack (observed lost — death
+        reload, destruction); holding the guard for it would be a lock with
+        no transition.  When nothing recoverable remains outstanding the
+        guard clears and the OBSERVED recovery re-arms the visit's failure
+        budget, so a fresh calibration attempt (or departure, once the
+        ordinary gates pass) becomes reachable in the same visit.
+        """
+        if not (
+            self._calibration_stripped_unrestored
+            and self._calibration_worn_before
+        ):
+            return
+        if self._calibration_phase not in (None, "restore-supplies"):
+            return
+        if not snapshot.in_town:
+            return
+        worn_identities = {
+            equipment_identity(item)
+            for item in snapshot.equipment
+            if item.is_equipment
+        }
+        pack_identities = {
+            equipment_identity(item)
+            for item in snapshot.inventory
+            if item.is_equipment
+        }
+        outstanding = tuple(
+            (slot, identity)
+            for slot, identity in self._calibration_worn_before
+            if identity not in worn_identities and identity in pack_identities
+        )
+        pruned = tuple(
+            (slot, identity)
+            for slot, identity in self._calibration_worn_before
+            if identity in worn_identities or identity in pack_identities
+        )
+        if pruned != self._calibration_worn_before:
+            self._calibration_worn_before = pruned
+        if outstanding:
+            return
+        self._calibration_worn_before = ()
+        self._calibration_stripped_unrestored = False
+        self._calibration_aborts_this_visit = 0
+        self._calibration_blocked_this_visit = False
+        self.last_reason = "calibration:redressed"
 
     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
         removable = sorted(
@@ -8079,6 +8175,7 @@ class HengbotPolicy:
 
     def _calibration_observe(self, snapshot: Snapshot) -> None:
         """Advance the calibration state machine from each new snapshot."""
+        self._calibration_redress_observe(snapshot)
         phase = self._calibration_phase
         if phase is None:
             return
@@ -8092,6 +8189,11 @@ class HengbotPolicy:
             if self._calibration_session_owned():
                 self._equipment_transaction_session = None
             self._calibration_session_target = None
+            # Off the town floor the departure gate this guard feeds is
+            # meaningless and the recorded loadout is gone; holding the guard
+            # would make it unclearable.  (Departure itself was gated, so
+            # this is only reachable through death reloads and forced moves.)
+            self._calibration_stripped_unrestored = False
             return
         if phase in {"deposit", "strip", "capture"}:
             if not self._calibration_preconditions_met(snapshot):
