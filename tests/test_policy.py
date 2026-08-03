@@ -1922,62 +1922,61 @@ class CombatTest(unittest.TestCase):
             inventory=list(inventory),
         )
 
-    def test_unrevealing_frontier_is_retired_until_floor_exhausted(self):
-        # Liveness of the frontier exit lives in the handler: a CAPABLE
-        # observation (not blind, own light radius >= 1 — the emitted lite
-        # flag on the player's own square) arriving on a targeted frontier
-        # that reveals nothing retires that frontier, so the candidate set
-        # strictly shrinks and finally empties into the exhausted-floor
-        # handoff.
-        snapshot = self._occluded_frontier_snapshot(lit=True)
+    def test_dark_frontier_revisits_exhaust_via_preexisting_visit_bound(self):
+        # A capable (non-blind, lit) arrival cannot leave an adjacent tile
+        # unknown — update_lite lights all eight neighbours
+        # (specific-object/torch.cpp:159-175) and the emitter's only filter
+        # is perceivability — so no arrival-retirement branch exists.  In
+        # this EMITTABLE dark scenario (lampless; both unknowns are occluded
+        # diagonals that legitimately stay unknown) the only frontier
+        # exclusion is the pre-existing FRONTIER_EXHAUST_VISITS visit
+        # bound: the breakthrough bounces between the two candidates until
+        # the bound retires them, then hands the exhausted floor to the
+        # ordinary ladder.  Fails on 0e2a441, whose unconditional
+        # arrival-retirement discards the frontier at first arrival.
+        snapshot = self._occluded_frontier_snapshot(lit=False)
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
+        offsets = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
 
-        def advance(destination):
-            return replace(
-                snapshot,
-                player=replace(snapshot.player, position=destination),
-                turn=snapshot.turn + 1,
-            )
-
-        # Walk to the first frontier.
-        for expected in (Position(10, 9), Position(10, 8)):
-            self.assertEqual(policy.choose_key(snapshot), "4")
-            self.assertEqual(
-                policy.last_reason, "breeder-breakthrough:seek-frontier"
-            )
-            snapshot = advance(expected)
-
-        # Arrival revealed nothing: the frontier is retired immediately and
-        # the next decision targets the other frontier.
-        self.assertEqual(policy.choose_key(snapshot), "6")
+        snapshot = self._walk_to_first_frontier(policy, snapshot)
+        key = policy.choose_key(snapshot)
+        # The first dark arrival must NOT retire the frontier.
+        self.assertNotIn(Position(10, 8), policy._probed_frontiers)
         self.assertEqual(
             policy.last_reason, "breeder-breakthrough:seek-frontier"
         )
+
+        for _ in range(200):
+            if not policy.last_reason.startswith("breeder-breakthrough:"):
+                break
+            self.assertIn(key, offsets)
+            dy, dx = offsets[key]
+            snapshot = replace(
+                snapshot,
+                player=replace(
+                    snapshot.player,
+                    position=Position(
+                        snapshot.player.position.y + dy,
+                        snapshot.player.position.x + dx,
+                    ),
+                ),
+                turn=snapshot.turn + 1,
+            )
+            key = policy.choose_key(snapshot)
+
+        # The west frontier was retired by the pre-existing visit bound
+        # (_is_frontier's FRONTIER_EXHAUST_VISITS branch), never by an
+        # arrival; with the bot standing on the last remaining candidate
+        # the breakthrough has no other goal and hands off to the ordinary
+        # ladder, which claims a real action — no WAIT.
         self.assertIn(Position(10, 8), policy._probed_frontiers)
-
-        for expected in (
-            Position(10, 9), Position(10, 10), Position(10, 11),
-            Position(10, 12),
-        ):
-            snapshot = advance(expected)
-            if expected != Position(10, 12):
-                self.assertEqual(policy.choose_key(snapshot), "6")
-                self.assertEqual(
-                    policy.last_reason, "breeder-breakthrough:seek-frontier"
-                )
-
-        # Second unrevealing arrival: the last frontier is retired, the
-        # candidate set is empty, and the breakthrough hands the exhausted
-        # floor to the ordinary ladder, which takes the known stairs.
-        key = policy.choose_key(snapshot)
-        self.assertIn(Position(10, 12), policy._probed_frontiers)
-        self.assertFalse(
-            policy.last_reason.startswith("breeder-breakthrough:")
-        )
-        self.assertNotEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "seek-downstairs")
+        self.assertNotEqual(key, WAIT_KEY)
 
     def _walk_to_first_frontier(self, policy, snapshot):
         for expected in (Position(10, 9), Position(10, 8)):
@@ -2060,10 +2059,14 @@ class CombatTest(unittest.TestCase):
         )
 
     def test_unlit_frontier_walk_yields_to_darkness_recovery(self):
-        # The rung that owns fixing a broken light precondition is
-        # _darkness_recovery_key, consulted above the breakthrough in
-        # _decide — with a torch in the pack it claims the decision before
-        # any frontier routing, so "do not retire" cannot become a stall.
+        # INTENTIONAL unchanged-behaviour pin — deliberately also green on
+        # the parent commit, exactly like
+        # test_strong_breeder_with_known_upstairs_route_unchanged: it
+        # documents (does not introduce) that the rung owning a broken
+        # light precondition is the pre-existing _darkness_recovery_key,
+        # consulted above the breakthrough in _decide — with a torch in the
+        # pack it claims the decision before any frontier routing, so a
+        # dark frontier walk cannot become a stall.
         snapshot = self._occluded_frontier_snapshot(
             lit=False,
             inventory=[
@@ -2078,20 +2081,21 @@ class CombatTest(unittest.TestCase):
 
         self.assertEqual(policy.last_reason, "wield-light")
 
-    def test_frontier_goal_cleared_on_floor_transition(self):
-        # A later visit can reuse the same (dungeon, depth, quest) floor
-        # key, so a stale recorded goal must not count as a completed
-        # targeted arrival there.
-        snapshot = self._occluded_frontier_snapshot()
-        policy = HengbotPolicy()
-        policy._floor_key = snapshot.floor_key
-        policy._breeder_breakthrough_floor = snapshot.floor_key
-
-        policy.choose_key(snapshot)
-        self.assertIsNotNone(policy._breakthrough_frontier_goal)
-
-        policy.choose_key(replace(snapshot, floor_key=(7, 21, 0)))
-        self.assertIsNone(policy._breakthrough_frontier_goal)
+    def test_no_frontier_goal_tracking_state_remains(self):
+        # The arrival-retirement bookkeeping was deleted outright: the C++
+        # chain proves a capable arrival cannot leave an adjacent tile
+        # unknown (update_lite lights all eight neighbours,
+        # specific-object/torch.cpp:159-175; the emitter's only filter is
+        # is_grid_perceivable; a wall beside the player's floor square
+        # always passes is_revealed_wall, display-map.cpp:92), so the
+        # "capable but still unknown" state the branch fired on is not
+        # emittable.  Deleting the goal state also deletes the stale-goal
+        # defect on a reused floor key.  This structural pin is the
+        # deletion's revert-proof: it fails while the dead bookkeeping
+        # exists.
+        self.assertFalse(
+            hasattr(HengbotPolicy(), "_breakthrough_frontier_goal")
+        )
 
     def test_weak_breeder_replay_does_not_drain_disengage_allowance(self):
         # The latched floor is now owned by the breakthrough, which sits

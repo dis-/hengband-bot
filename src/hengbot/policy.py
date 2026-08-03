@@ -1995,11 +1995,6 @@ class HengbotPolicy:
         self._breeder_previous_indices: set[int] = set()
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
-        # The frontier tile the breakthrough is currently routing to, keyed by
-        # floor.  Arrival that reveals nothing retires the tile (liveness).
-        self._breakthrough_frontier_goal: (
-            tuple[tuple[int, int, int], Position] | None
-        ) = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_decisions = 0
         self._fruitless_disengage_marked_high = 0
@@ -5268,10 +5263,6 @@ class HengbotPolicy:
                 self._release_choke_plan("floor-change")
             self._clear_unseen_retreat()
             self._breeder_breakthrough_floor = None
-            # A later visit can legitimately reuse the same floor key, so a
-            # stale recorded goal must not count as a completed targeted
-            # arrival there.
-            self._breakthrough_frontier_goal = None
             self._breeder_engagement_start_count = None
             self._breeder_engagement_start_turn = None
             self._breeder_kills = 0
@@ -27098,52 +27089,32 @@ class HengbotPolicy:
         the latch is what seals the pocket; ordinary exploration refuses to
         path through occupied cells and goes blind exactly here.
 
-        Liveness lives in this handler, not in hope of revelation: when the
-        bot stands on the frontier it was routed to with an observation that
-        was CAPABLE of revealing, and the snapshot still shows an unknown
-        neighbour, that neighbour is not revealable by the bot's own means
-        from here — the tile is retired into the existing _probed_frontiers
-        set.  Every capable targeted arrival therefore either grows the
-        remembered map or strictly shrinks the candidate set; both are
-        bounded by the floor, so the search terminates into the
-        exhausted-floor handoff.
+        Liveness rests on the emitter contract, not on handler bookkeeping.
+        A CAPABLE arrival — player not blind (bot-json-output.cpp:118 emits
+        every non-REMEMBER grid unknown while blind), own square carrying
+        the emitted `lite` flag, which is grid.is_lite() = CAVE_LITE only
+        (bot-json-output.cpp:191), i.e. light radius >= 1 — reveals every
+        adjacent in-bounds grid in that same snapshot: update_lite lights
+        all eight neighbours unconditionally (specific-object/torch.cpp:
+        159-175), the emitter iterates the whole floor with perceivability
+        as its only filter (make_nearby_grids_json), and a wall beside the
+        player's floor square always passes is_revealed_wall
+        (display-map.cpp:92 — it has a non-wall neighbour).  So a capable
+        arrival makes the goal simply stop being a frontier: the remembered
+        map grew and the tile drops out of the candidate set by itself.  An
+        INCAPABLE arrival (blind, or lampless — including squares visible
+        only through transient CAVE_MNLT monster light, which never sets
+        the lite flag, floor-info.cpp:690-719) legitimately reveals
+        nothing, and the frontier must survive for a later capable visit;
+        the repair is a real action owned by rungs above this handler in
+        _decide (_emergency_item's status-cure quaff for blindness,
+        _darkness_recovery_key's refuel/wield for light), and while
+        neither has materials the pre-existing FRONTIER_EXHAUST_VISITS
+        bookkeeping inside _is_remembered_frontier bounds repeated visits,
+        so the candidate set still empties into the exhausted-floor
+        handoff.
         """
         start = snapshot.player.position
-        stored = self._breakthrough_frontier_goal
-        if (
-            stored is not None
-            and stored[0] == snapshot.floor_key
-            and stored[1] == start
-        ):
-            # Retire ONLY when this observation could actually have revealed
-            # an adjacent tile.  Emitter contract (bot-json-output.cpp
-            # 110-125): while blind, every non-REMEMBER grid is emitted
-            # unknown before light flags are even consulted; otherwise
-            # revelation needs CAVE_MARK | CAVE_LITE | CAVE_MNLT or
-            # view+glow.  The emitted `lite` flag is grid.is_lite() —
-            # CAVE_LITE only (bot-json-output.cpp:191) — and CAVE_LITE on
-            # the player's own square is exactly "player light radius >= 1"
-            # (cave-map.cpp update_lite).  CAVE_MNLT is transient monster
-            # light, cleared and recomputed as monsters move
-            # (floor-info.cpp:690-719), so a monster-lit-but-lampless or
-            # blind arrival proves nothing about the tile: do NOT retire it
-            # — a status cure, a refuel, or the monster moving can reveal
-            # from this very tile later.  Fixing the broken precondition is
-            # a real action owned by rungs consulted above the breakthrough
-            # in _decide (_emergency_item's status-cure quaff for
-            # blindness, _darkness_recovery_key's refuel/wield for light),
-            # and the pre-existing FRONTIER_EXHAUST_VISITS bookkeeping in
-            # _is_remembered_frontier still bounds revisits while neither
-            # fix has materials.
-            here = snapshot.grid_at(start)
-            if (
-                not snapshot.player.blind
-                and here is not None
-                and here.lit
-                and self._is_remembered_frontier(snapshot, start)
-            ):
-                self._probed_frontiers.add(start)
-            self._breakthrough_frontier_goal = None
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         while queue:
@@ -27153,9 +27124,6 @@ class HengbotPolicy:
                 and first_step is not None
                 and self._is_remembered_frontier(snapshot, position)
             ):
-                self._breakthrough_frontier_goal = (
-                    snapshot.floor_key, position
-                )
                 return first_step
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
