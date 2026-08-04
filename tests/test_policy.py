@@ -1705,29 +1705,61 @@ class CombatTest(unittest.TestCase):
             "the navigation-livelock owner must fire while the fled fact is set",
         )
 
-    def test_breeder_walkout_does_not_take_over_disengage_escape_owner(self):
+    def test_breeder_walkout_never_redescends_for_any_escape_owner(self):
         snapshot = Snapshot(
             player(10, 10, hp=615, max_hp=615, level=30),
             {
-                Position(10, 10): grid(10, 10),
+                Position(10, 10): grid(10, 10, downstairs=True),
                 Position(10, 9): grid(10, 9),
             },
             [],
             floor_key=(7, 19, 0),
             turn=21,
         )
-        policy = HengbotPolicy()
-        policy._floor_key = snapshot.floor_key
-        policy._breeder_fled_floor = (7, 20, 0)
-        policy._escape_state.floor = snapshot.floor_key
-        policy._escape_state.enter("disengage", "combat:disengage")
+        for owner in (None, "return", "disengage", "unseen", "emergency"):
+            with self.subTest(owner=owner):
+                policy = HengbotPolicy()
+                policy._floor_key = snapshot.floor_key
+                policy._breeder_fled_floor = (7, 20, 0)
+                policy._escape_state.floor = snapshot.floor_key
+                if owner is not None:
+                    policy._escape_state.enter(owner, f"{owner}:active")
 
-        policy.choose_key(snapshot)
+                keys = []
+                reasons = []
+                current = snapshot
+                for decision in range(60):
+                    # Fresh observed coverage keeps this focused on the
+                    # descent constraint while each owner is exercised over
+                    # multiple public decisions, rather than handing control
+                    # to the separately-tested navigation-livelock rung.
+                    revealed = Position(1, 1 + decision)
+                    current = replace(
+                        current,
+                        grids={
+                            **current.grids,
+                            revealed: grid(revealed.y, revealed.x),
+                        },
+                        turn=current.turn + 1,
+                    )
+                    keys.append(policy.choose_key(current))
+                    reasons.append(policy.last_reason)
 
-        self.assertFalse(
-            policy.last_reason.startswith("return:"),
-            "a breeder walkout must not replace the active disengage owner",
-        )
+                self.assertNotIn(
+                    policy_module.DOWN_STAIRS_KEY,
+                    keys,
+                    f"owner {owner!r} must not permit breeder-floor re-entry",
+                )
+                self.assertNotIn(
+                    "descend",
+                    reasons,
+                    f"owner {owner!r} must not reach the descent decision",
+                )
+                if owner == "disengage":
+                    self.assertFalse(
+                        reasons[0].startswith("return:"),
+                        "the walkout must not replace the active disengage owner",
+                    )
 
     def test_active_random_quest_keeps_breeder_stair_exit_and_does_not_recall(self):
         quest = QuestState(

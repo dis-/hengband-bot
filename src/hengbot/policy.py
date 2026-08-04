@@ -4288,6 +4288,9 @@ class HengbotPolicy:
             )
             and player.hp_ratio >= DESCEND_MIN_HP_RATIO
             and not self._descent_is_blocked(snapshot)
+            # Routing toward town may yield to another escape owner, but no
+            # owner may route us back into the breeder floor we just fled.
+            and not self._breeder_walkout_active(snapshot)
             and (
                 not static_entrance_here
                 or self._dungeon_entry_allowed(
