@@ -3554,19 +3554,6 @@ class HengbotPolicy:
             self.last_reason = "confused:wait"
             return WAIT_KEY
 
-        if self._breeder_walkout_active(snapshot):
-            self._returning_to_town = True
-            walkout = self._return_to_town_key(
-                snapshot,
-                strategic_hostiles,
-                allow_recall=(
-                    self._fundraising_mode != "mine"
-                    and self._active_quest_id(snapshot) is None
-                ),
-            )
-            if walkout is not None:
-                return walkout
-
         if (
             self._choke_plan_active(snapshot)
             and self._breeder_breakthrough_floor == snapshot.floor_key
@@ -4069,6 +4056,26 @@ class HengbotPolicy:
         livelock = self._navigation_livelock_key(snapshot)
         if livelock is not None:
             return livelock
+
+        # A fled breeder floor turns the ordinary return into a persistent
+        # walk-out, but it remains a navigation owner: survival/combat above
+        # and the livelock escape immediately above must retain priority.
+        if (
+            self._breeder_walkout_active(snapshot)
+            and self._escape_state.owner in {None, "return"}
+        ):
+            self._returning_to_town = True
+            walkout = self._return_to_town_key(
+                snapshot,
+                strategic_hostiles,
+                allow_recall=(
+                    self._fundraising_mode != "mine"
+                    and self._active_quest_id(snapshot) is None
+                ),
+            )
+            if walkout is not None:
+                self._escape_state.enter("return", self.last_reason)
+                return walkout
 
         # Low supplies and a full pack are expedition-ending conditions. Once
         # triggered, keep heading upward even if using an item opens a pack slot.
@@ -23590,6 +23597,35 @@ class HengbotPolicy:
         )
         return self._read_key(snapshot, recall)
 
+    def _dungeon_recall_confirmation_key(
+        self, snapshot: Snapshot
+    ) -> str | None:
+        """Share the pending dungeon-recall read guard between all issuers."""
+        issue_watch = self._dungeon_recall_issue_watch
+        if snapshot.player.recalling or issue_watch is None:
+            return None
+        watched_floor, issue_turn, pre_read_count = issue_watch
+        if watched_floor != snapshot.floor_key:
+            self._dungeon_recall_issue_watch = None
+            return None
+        recall_count = sum(
+            item.count for item in snapshot.inventory if item.is_recall_scroll
+        )
+        if snapshot.turn <= issue_turn or (
+            recall_count < pre_read_count
+            and snapshot.turn <= issue_turn + RECALL_ISSUE_CONFIRM_TURNS
+        ):
+            # Treat both the unchanged command-turn redraw and a consumed
+            # scroll within the confirmation window as pending states. The
+            # exported recalling flag can lag behind either, so reading again
+            # can consume a second scroll.
+            self.last_reason = "return:await-recall-confirmation"
+            return WAIT_KEY
+        # The turn advanced without consuming the scroll: the command was
+        # genuinely rejected, so one ordinary retry is safe.
+        self._dungeon_recall_issue_watch = None
+        return None
+
     def _track_idle_items(
         self, snapshot: Snapshot, previous_floor: tuple[int, int, int] | None
     ) -> None:
@@ -24119,28 +24155,9 @@ class HengbotPolicy:
             self.last_reason = "return:ascend"
             return UP_STAIRS_KEY
 
-        recall_count = sum(
-            item.count for item in snapshot.inventory if item.is_recall_scroll
-        )
-        issue_watch = self._dungeon_recall_issue_watch
-        if not player.recalling and issue_watch is not None:
-            watched_floor, issue_turn, pre_read_count = issue_watch
-            if watched_floor != snapshot.floor_key:
-                self._dungeon_recall_issue_watch = None
-            elif snapshot.turn <= issue_turn or (
-                recall_count < pre_read_count
-                and snapshot.turn <= issue_turn + RECALL_ISSUE_CONFIRM_TURNS
-            ):
-                # Treat both the unchanged command-turn redraw and a consumed
-                # scroll within the confirmation window as pending states. The
-                # exported recalling flag can lag behind either, so reading
-                # again here can consume a second scroll.
-                self.last_reason = "return:await-recall-confirmation"
-                return WAIT_KEY
-            else:
-                # The turn advanced without consuming the scroll: the command
-                # was genuinely rejected, so one ordinary retry is safe.
-                self._dungeon_recall_issue_watch = None
+        pending_recall = self._dungeon_recall_confirmation_key(snapshot)
+        if pending_recall is not None:
+            return pending_recall
 
         if player.recalling:
             self.last_reason = "return:wait-recall"
@@ -27017,6 +27034,9 @@ class HengbotPolicy:
             and not snapshot.player.blind
             and not snapshot.player.confused
         ):
+            pending_recall = self._dungeon_recall_confirmation_key(snapshot)
+            if pending_recall is not None:
+                return pending_recall
             if snapshot.player.recalling:
                 self.last_reason = "breeder-breakthrough:wait-recall"
                 return WAIT_KEY

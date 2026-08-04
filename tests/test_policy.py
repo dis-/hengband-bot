@@ -1567,8 +1567,11 @@ class CombatTest(unittest.TestCase):
     def _latched_breeder_stair_snapshot(*, depth=20, inventory=(), quests=None):
         position = Position(10, 10)
         return Snapshot(
-            player(10, 10, hp=615, max_hp=615, level=30),
-            {position: grid(10, 10, upstairs=True, downstairs=True)},
+            player(
+                10, 10, hp=615, max_hp=615, level=30,
+                abilities=frozenset({"free_action", "resist_fire"}),
+            ),
+            {position: grid(10, 10, upstairs=True)},
             [],
             floor_key=(7, depth, 0 if quests is None else 49),
             turn=depth,
@@ -1585,16 +1588,38 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(floor_20), UP_STAIRS_KEY)
         self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
 
-        # This is the measured next decision: both stairs are underfoot on 19F.
-        # Ordinary policy used to choose '>' and recreate the breeder floor.
+        # On the next emitted floor the arrival terrain is a down-stair and a
+        # distinct adjacent terrain is the up-stair. Once the ascent's existing
+        # descent deferral expires, the parent chooses '>' and recreates the
+        # breeder floor; the fled-floor fact keeps owning the upward walk.
         floor_19 = replace(
             floor_20,
+            grids={
+                Position(10, 10): grid(10, 10, downstairs=True),
+                Position(10, 9): grid(10, 9, upstairs=True),
+            },
             floor_key=(7, 19, 0),
             turn=21,
         )
-        self.assertEqual(policy.choose_key(floor_19), UP_STAIRS_KEY)
-        self.assertEqual(policy.last_reason, "return:ascend")
-        self.assertNotEqual(policy.last_reason, "descend")
+        keys = []
+        for decision in range(201):
+            # Model fresh emitted coverage while the native move is pending.
+            # That keeps this proof about the real post-ascent descent gate,
+            # rather than letting a synthetic frozen snapshot trip livelock.
+            revealed = Position(1 + decision // 100, 1 + decision % 100)
+            floor_19 = replace(
+                floor_19,
+                grids={**floor_19.grids, revealed: grid(revealed.y, revealed.x)},
+                turn=21 + decision,
+            )
+            keys.append(policy.choose_key(floor_19))
+        self.assertNotIn(
+            policy_module.DOWN_STAIRS_KEY,
+            keys,
+            "a fled breeder floor must not be re-entered from its parent",
+        )
+        self.assertEqual(keys[0], "4")
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
 
         # The observation that town was reached ends the fact-based avoidance;
         # town's ordinary entry policy remains a concrete future descent exit.
@@ -1603,10 +1628,106 @@ class CombatTest(unittest.TestCase):
             player=replace(floor_19.player, position=Position(1, 1)),
             grids={Position(1, 1): grid(1, 1)},
             floor_key=(0, 0, 0),
-            turn=22,
+            town_flag=True,
+            turn=floor_19.turn + 1,
         )
         policy.choose_key(town)
         self.assertIsNone(policy._breeder_fled_floor)
+
+    def test_breeder_recall_read_waits_for_exported_flag_confirmation(self):
+        recall = item(
+            "r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=2
+        )
+        snapshot = replace(
+            self._forest_1616_breakthrough_snapshot(), inventory=[recall]
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+
+        self.assertEqual(policy.choose_key(snapshot), READ_KEY + "r")
+        consumed = replace(
+            snapshot, turn=snapshot.turn + 1,
+            inventory=[replace(recall, count=1)],
+        )
+        self.assertEqual(
+            policy.choose_key(consumed), WAIT_KEY,
+            "a lagging recalling flag must not consume a second recall scroll",
+        )
+        self.assertEqual(
+            policy.last_reason, "return:await-recall-confirmation"
+        )
+
+    def test_breeder_walkout_yields_to_starvation_gate(self):
+        food = item("f", TVAL_FOOD, FOOD)
+        snapshot = Snapshot(
+            player(10, 10, hp=615, max_hp=615, level=30, food=1500),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(7, 19, 0),
+            turn=21,
+            inventory=[food],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_fled_floor = (7, 20, 0)
+
+        self.assertEqual(
+            policy.choose_key(snapshot), "Ef",
+            "a breeder walkout must not starve the survival gate",
+        )
+        self.assertEqual(policy.last_reason, "survival:eat")
+
+    def test_breeder_walkout_keeps_navigation_livelock_exit_reachable(self):
+        position = Position(10, 10)
+        snapshot = Snapshot(
+            player(10, 10, hp=615, max_hp=615, level=30),
+            {position: grid(10, 10)},
+            [],
+            floor_key=(7, 19, 0),
+            turn=21,
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_fled_floor = (7, 20, 0)
+
+        reasons = []
+        for _ in range(2500):
+            policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+
+        self.assertTrue(
+            any(reason.startswith("livelock:") for reason in reasons),
+            "a fled-floor walkout must leave the navigation-livelock exit reachable",
+        )
+        self.assertGreater(
+            policy._nav_escape_steps, 0,
+            "the navigation-livelock owner must fire while the fled fact is set",
+        )
+
+    def test_breeder_walkout_does_not_take_over_disengage_escape_owner(self):
+        snapshot = Snapshot(
+            player(10, 10, hp=615, max_hp=615, level=30),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9),
+            },
+            [],
+            floor_key=(7, 19, 0),
+            turn=21,
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_fled_floor = (7, 20, 0)
+        policy._escape_state.floor = snapshot.floor_key
+        policy._escape_state.enter("disengage", "combat:disengage")
+
+        policy.choose_key(snapshot)
+
+        self.assertFalse(
+            policy.last_reason.startswith("return:"),
+            "a breeder walkout must not replace the active disengage owner",
+        )
 
     def test_active_random_quest_keeps_breeder_stair_exit_and_does_not_recall(self):
         quest = QuestState(
