@@ -44179,48 +44179,116 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         self.assertEqual(stale["search_telemetry_freshness"], "stale-republished")
         self.assertEqual(stale["result_source"], "calibration-required-return")
 
+        policy._equipment_optimization_preparation = replace(
+            fresh, blockers=("optimization-timeout",)
+        )
+        policy._equipment_optimization_timed_out_this_visit = True
+        timed_out = policy._prepare_equipment_optimization(town)
+        self.assertIs(timed_out, policy._equipment_optimization_preparation)
+        timeout_state = policy.equipment_optimization_state(None)
+        self.assertEqual(timeout_state["result_source"], "town-visit-timeout-return")
+        self.assertEqual(
+            timeout_state["search_telemetry_freshness"], "stale-republished"
+        )
+
+        guard = policy._prepare_equipment_optimization(dungeon)
+        self.assertIsNone(guard)
+        self.assertEqual(
+            policy._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ],
+            "stale-republished",
+        )
+
     def test_optimizer_strategy_telemetry_names_full_search_nonempty_seed(self):
+        from hengbot import warrior_optimization as warrior_module
+
         policy, town, _ring, _ring_id = self._policy_with_home_ring()
 
-        policy._prepare_equipment_optimization(town, depth_override=31)
+        with patch.object(
+            warrior_module,
+            "enumerate_warrior_loadouts",
+            wraps=warrior_module.enumerate_warrior_loadouts,
+        ) as selected_factory:
+            policy._prepare_equipment_optimization(town, depth_override=31)
         state = policy.equipment_optimization_state(None)
 
+        selected_factory.assert_called_once()
         self.assertEqual(state["search_strategy"], "enumerate_warrior_loadouts")
         self.assertEqual(state["search_seed"], "catalog")
         self.assertEqual(state["search_catalog_threshold"], 44)
         self.assertFalse(state["search_catalog_threshold_crossed"])
         self.assertEqual(state["current_loadout_slots"], 2)
         self.assertFalse(state["current_loadout_empty"])
+        policy._prepare_equipment_optimization(replace(town, town_flag=False))
+        self.assertEqual(
+            policy._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ],
+            "stale-republished",
+        )
 
     def test_optimizer_strategy_telemetry_names_incremental_empty_seed(self):
+        from hengbot import warrior_optimization as warrior_module
+
+        pack = [
+            item(
+                f"ring-{index}", TVAL_RING, index + 1,
+                name=f"ring {index}", known=True, fully_known=True,
+                is_equipment=True,
+            )
+            for index in range(PACK_CAPACITY)
+        ]
+        home = [
+            store_item(
+                f"H{index}", TVAL_RING, PACK_CAPACITY + index + 1,
+                name=f"home ring {index}", known=True, fully_known=True,
+                is_equipment=True,
+            )
+            for index in range(44 - PACK_CAPACITY)
+        ]
         town = replace(
             self._town(),
             equipment=[],
-            inventory=[
-                item(
-                    f"ring-{index}", TVAL_RING, index + 1,
-                    name=f"ring {index}", known=True, fully_known=True,
-                    is_equipment=True,
-                )
-                for index in range(44)
-            ],
+            inventory=pack,
         )
         policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
         seed_character_calibration(policy, town)
         policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page(home)
         policy._equipment_catalog.observe_home_page([])
 
-        policy._prepare_equipment_optimization(town, depth_override=1)
+        self.assertLessEqual(len(town.inventory), PACK_CAPACITY)
+        self.assertEqual(len(policy._equipment_catalog.items), 44)
+
+        with patch.object(
+            warrior_module,
+            "enumerate_single_slot_variants",
+            wraps=warrior_module.enumerate_single_slot_variants,
+        ) as selected_factory:
+            policy._prepare_equipment_optimization(town, depth_override=1)
         state = policy.equipment_optimization_state(None)
 
+        selected_factory.assert_called_once()
         self.assertEqual(
             state["search_strategy"], "enumerate_single_slot_variants"
         )
         self.assertEqual(state["search_seed"], "current-loadout")
         self.assertEqual(state["search_catalog_items"], 44)
+        self.assertEqual(
+            state["search_catalog_origins"],
+            {"equipped": 0, "pack": PACK_CAPACITY, "home": 21},
+        )
         self.assertTrue(state["search_catalog_threshold_crossed"])
         self.assertEqual(state["current_loadout_slots"], 0)
         self.assertTrue(state["current_loadout_empty"])
+        policy._prepare_equipment_optimization(replace(town, town_flag=False))
+        self.assertEqual(
+            policy._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ],
+            "stale-republished",
+        )
 
     def test_optimizer_strategy_telemetry_names_full_search_empty_seed(self):
         town = replace(
@@ -44250,21 +44318,34 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         self.assertTrue(state["current_loadout_empty"])
 
     def test_optimizer_strategy_telemetry_names_incremental_nonempty_seed(self):
+        pack = [
+            item(
+                f"ring-{index}", TVAL_RING, index + 1,
+                name=f"ring {index}", known=True, fully_known=True,
+                is_equipment=True,
+            )
+            for index in range(PACK_CAPACITY - 2)
+        ]
+        home = [
+            store_item(
+                f"H{index}", TVAL_RING, PACK_CAPACITY + index + 1,
+                name=f"home ring {index}", known=True, fully_known=True,
+                is_equipment=True,
+            )
+            for index in range(44 - len(self._town().equipment) - len(pack))
+        ]
         town = replace(
             self._town(),
-            inventory=[
-                item(
-                    f"ring-{index}", TVAL_RING, index + 1,
-                    name=f"ring {index}", known=True, fully_known=True,
-                    is_equipment=True,
-                )
-                for index in range(42)
-            ],
+            inventory=pack,
         )
         policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
         seed_character_calibration(policy, town)
         policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page(home)
         policy._equipment_catalog.observe_home_page([])
+
+        self.assertLessEqual(len(town.inventory), PACK_CAPACITY)
+        self.assertEqual(len(policy._equipment_catalog.items), 44)
 
         policy._prepare_equipment_optimization(town, depth_override=1)
         state = policy.equipment_optimization_state(None)
@@ -44274,8 +44355,33 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         )
         self.assertEqual(state["search_seed"], "current-loadout")
         self.assertTrue(state["search_catalog_threshold_crossed"])
+        self.assertEqual(
+            state["search_catalog_origins"],
+            {"equipped": 2, "pack": 21, "home": 21},
+        )
         self.assertEqual(state["current_loadout_slots"], 2)
         self.assertFalse(state["current_loadout_empty"])
+        policy._prepare_equipment_optimization(replace(town, town_flag=False))
+        self.assertEqual(
+            policy._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ],
+            "stale-republished",
+        )
+
+    def test_optimizer_strategy_telemetry_is_absent_when_search_is_blocked(self):
+        town = self._town()
+        policy = HengbotPolicy(monrace_knowledge={})
+        seed_character_calibration(policy, town)
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page([])
+
+        preparation = policy._prepare_equipment_optimization(town, depth_override=1)
+        state = policy.equipment_optimization_state(None)
+
+        self.assertIn("missing-monrace-knowledge", preparation.blockers)
+        self.assertNotIn("search_strategy", state)
+        self.assertNotIn("search_seed", state)
 
     def test_search_surviving_gate_source_reports_post_exclusion_zero(self):
         town = replace(

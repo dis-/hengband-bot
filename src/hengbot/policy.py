@@ -8555,6 +8555,9 @@ class HengbotPolicy:
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR or not snapshot.in_town:
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "stale-republished"
             return None
         if (
             self._equipment_transaction_session is not None
@@ -8700,6 +8703,9 @@ class HengbotPolicy:
             self._equipment_optimization_telemetry["result_source"] = (
                 "town-visit-timeout-return"
             )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "stale-republished"
             return self._equipment_optimization_preparation
         has_destruction = self._has_destruction_method(snapshot)
         quest_strategy = (
@@ -8925,23 +8931,27 @@ class HengbotPolicy:
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
         )
-        incremental_search = (
-            len(search_catalog) >= INCREMENTAL_SEARCH_CATALOG_THRESHOLD
-        )
-        search_seed_loadout = current_loadout(search_catalog)
-        self._equipment_optimization_telemetry.update({
-            "search_strategy": (
-                "enumerate_single_slot_variants"
-                if incremental_search
-                else "enumerate_warrior_loadouts"
-            ),
-            "search_catalog_threshold": INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
-            "search_catalog_threshold_crossed": incremental_search,
-            "search_seed": "current-loadout" if incremental_search else "catalog",
-            "current_loadout_slots": len(search_seed_loadout.slots),
-            "current_loadout_empty": not search_seed_loadout.slots,
-        })
         result = getattr(preparation, "result", None)
+        if result is not None:
+            # Observation-only mirror of warrior_optimization's search-factory
+            # selection.  A coupling test patches the real factories and pins
+            # these names to the factory that was actually called.
+            incremental_search = (
+                len(search_catalog) >= INCREMENTAL_SEARCH_CATALOG_THRESHOLD
+            )
+            search_seed_loadout = current_loadout(search_catalog)
+            self._equipment_optimization_telemetry.update({
+                "search_strategy": (
+                    "enumerate_single_slot_variants"
+                    if incremental_search
+                    else "enumerate_warrior_loadouts"
+                ),
+                "search_catalog_threshold": INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
+                "search_catalog_threshold_crossed": incremental_search,
+                "search_seed": "current-loadout" if incremental_search else "catalog",
+                "current_loadout_slots": len(search_seed_loadout.slots),
+                "current_loadout_empty": not search_seed_loadout.slots,
+            })
         best = getattr(result, "best", None)
         loadout = getattr(best, "loadout", None)
         selected_ids = getattr(loadout, "item_ids", frozenset())
