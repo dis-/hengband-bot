@@ -16,12 +16,18 @@ from hengbot.wilderness_map import WildernessMap
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS,
+    FIXED_SLOTS,
+    SLOT_MAIN_HAND,
+    SLOT_MAIN_RING,
+    SLOT_SUB_HAND,
+    SLOT_SUB_RING,
     TR_TELEPORT,
     OwnedEquipmentCatalog,
     current_loadout,
     equipment_identity,
     operational_equipment_candidate,
     random_teleport_is_suppressed,
+    slot_for,
 )
 from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
@@ -2207,6 +2213,10 @@ class HengbotPolicy:
             WarriorOptimizationPreparation | None
         ) = None
         self._equipment_optimization_timed_out_this_visit = False
+        self._equipment_optimization_telemetry: dict[str, object] = {}
+        self._equipment_optimization_search_surviving_ids: frozenset[str] = (
+            frozenset()
+        )
         self._warrior_evaluator_cache = WarriorEvaluatorCache()
         # P1 worn-independent character constants (SOL-ROADMAP-optimizer-purity
         # stage P1).  The constants are OBSERVED by the execution-layer
@@ -8483,6 +8493,63 @@ class HengbotPolicy:
             return WAIT_KEY
         return None
 
+    @staticmethod
+    def _equipment_exclusion_telemetry(
+        catalog: tuple,
+        reasons_by_id: dict[str, list[str]],
+    ) -> dict[str, object]:
+        """Bounded, human-readable diagnostics for a search exclusion set."""
+        display_cap = 25
+        by_id = {item.id: item for item in catalog}
+        details = [
+            {
+                "id": item_id,
+                "name": getattr(by_id[item_id].item, "name", ""),
+                "identity": equipment_identity(by_id[item_id].item),
+                "reasons": reasons_by_id[item_id],
+            }
+            for item_id in sorted(reasons_by_id)
+            if item_id in by_id
+        ]
+        return {
+            "total": len(details),
+            "display_cap": display_cap,
+            "truncated": len(details) > display_cap,
+            "items": details[:display_cap],
+        }
+
+    @staticmethod
+    def _equipment_slot_candidate_counts(
+        catalog: tuple, excluded_ids: frozenset[str]
+    ) -> dict[str, int]:
+        """Count candidates that enter enumeration, before its pruning steps."""
+        counts: Counter[str] = Counter({
+            slot: 0
+            for slot in (
+                *FIXED_SLOTS,
+                SLOT_MAIN_HAND,
+                SLOT_SUB_HAND,
+                SLOT_MAIN_RING,
+                SLOT_SUB_RING,
+            )
+        })
+        for owned in catalog:
+            if not owned.exploration_legal or owned.id in excluded_ids:
+                continue
+            item = owned.item
+            slot = slot_for(item)
+            if slot is not None:
+                counts[slot] += 1
+            elif item.tval in {21, 22, 23}:
+                counts[SLOT_MAIN_HAND] += 1
+                counts[SLOT_SUB_HAND] += 1
+            elif item.tval == 34:
+                counts[SLOT_SUB_HAND] += 1
+            elif item.tval == 45:
+                counts[SLOT_MAIN_RING] += 1
+                counts[SLOT_SUB_RING] += 1
+        return dict(sorted(counts.items()))
+
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
@@ -8492,6 +8559,9 @@ class HengbotPolicy:
             self._equipment_transaction_session is not None
             and not self._equipment_transaction_session.complete
         ):
+            self._equipment_optimization_telemetry["result_source"] = (
+                "in-flight-session-return"
+            )
             return self._equipment_optimization_preparation
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
@@ -8499,6 +8569,10 @@ class HengbotPolicy:
         # selector itself never triggers it.
         calibration = self._validated_character_calibration(snapshot)
         if calibration is None:
+            self._equipment_optimization_telemetry = {
+                "result_source": "calibration-required-return"
+            }
+            self._equipment_optimization_search_surviving_ids = frozenset()
             preparation = WarriorOptimizationPreparation(
                 current_loadout(self._equipment_catalog.items),
                 None,
@@ -8618,6 +8692,9 @@ class HengbotPolicy:
             # launcher enchant) must not restart the same minute-long search for
             # every town action. Keep the confirmed current loadout unchanged for
             # the remainder of this town visit.
+            self._equipment_optimization_telemetry["result_source"] = (
+                "town-visit-timeout-return"
+            )
             return self._equipment_optimization_preparation
         has_destruction = self._has_destruction_method(snapshot)
         quest_strategy = (
@@ -8704,6 +8781,9 @@ class HengbotPolicy:
             )
         )
         if signature == self._equipment_optimization_signature:
+            self._equipment_optimization_telemetry["result_source"] = (
+                "signature-cache-hit"
+            )
             preparation = self._equipment_optimization_preparation
             if (
                 preparation is not None
@@ -8758,6 +8838,63 @@ class HengbotPolicy:
             )
             else item
             for item in catalog
+        )
+        preserve_reasons: dict[str, list[str]] = {}
+        search_excluded_reasons: dict[str, list[str]] = {}
+        for owned in catalog:
+            if owned.id in preserve:
+                reasons: list[str] = []
+                if self._identification_flow_owns(owned.item):
+                    reasons.append("identification-flow")
+                if self._retention_reservation(snapshot, owned.item) > 0:
+                    reasons.append("retention-reservation")
+                if (
+                    owned.item.is_digging_tool
+                    and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+                ):
+                    reasons.append("digging-tool-in-fundraising")
+                if (
+                    self._equipped_weapon_high_grade(snapshot)
+                    and self._weapon_is_inferior(owned.item)
+                ):
+                    reasons.append("inferior-weapon")
+                preserve_reasons[owned.id] = reasons
+            if owned.id in search_excluded:
+                reasons = []
+                if (
+                    owned.origin == "pack"
+                    and owned.item.is_torch
+                    and self._retention_reservation(snapshot, owned.item) > 0
+                ):
+                    reasons.append("torch-retention-reservation")
+                if (
+                    required_launcher_available
+                    and owned.item.tval == TVAL_BOW
+                    and owned.item.ammo_tval != required_launcher_ammo
+                ):
+                    reasons.append("launcher-ammo-mismatch")
+                search_excluded_reasons[owned.id] = reasons
+        self._equipment_optimization_telemetry = {
+            "result_source": "fresh-search",
+            "search_catalog_items": len(search_catalog),
+            "search_catalog_origins": {
+                origin: sum(item.origin == origin for item in search_catalog)
+                for origin in ("equipped", "pack", "home")
+            },
+            "preserve_pack_items": self._equipment_exclusion_telemetry(
+                catalog, preserve_reasons
+            ),
+            "search_excluded_items": self._equipment_exclusion_telemetry(
+                catalog, search_excluded_reasons
+            ),
+            "search_slot_candidate_counts": self._equipment_slot_candidate_counts(
+                search_catalog, search_excluded
+            ),
+        }
+        self._equipment_optimization_search_surviving_ids = frozenset(
+            item.id
+            for item in search_catalog
+            if item.exploration_legal and item.id not in search_excluded
         )
         # Score safe partial-ID candidates as they will exist after `{.}` is
         # applied. If one wins, the pending blocker below prevents transaction
@@ -8937,6 +9074,7 @@ class HengbotPolicy:
                 self._equipment_quarantine_burned_ids
             ),
         }
+        state.update(self._equipment_optimization_telemetry)
         if preparation is not None:
             if snapshot is not None:
                 state["optimization_depth"] = self._equipment_optimization_depth(
@@ -8947,6 +9085,19 @@ class HengbotPolicy:
                 state["required_gate_sources"] = (
                     self._required_gate_source_report(snapshot)
                 )
+                state["required_gate_search_surviving_sources"] = [
+                    {
+                        "gate": entry["gate"],
+                        "flag": entry["flag"],
+                        "search_surviving_sources": sum(
+                            item.id
+                            in self._equipment_optimization_search_surviving_ids
+                            for item in catalog
+                            if entry["flag"] in item.flags
+                        ),
+                    }
+                    for entry in state["required_gate_sources"]
+                ]
             state["encounters_total"] = preparation.encounters_total
             state["encounters_evaluated"] = preparation.encounters_evaluated
             state["optimization_timed_out"] = bool(

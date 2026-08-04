@@ -44122,6 +44122,106 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
             }],
         )
 
+    def test_optimizer_candidate_telemetry_names_search_return_paths(self):
+        policy, town, _ring, _ring_id = self._policy_with_home_ring()
+
+        fresh = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertIsNotNone(fresh)
+        state = policy.equipment_optimization_state(None)
+        self.assertEqual(state["result_source"], "fresh-search")
+        self.assertEqual(state["search_catalog_items"], 3)
+        self.assertEqual(
+            state["search_catalog_origins"],
+            {"equipped": 2, "pack": 0, "home": 1},
+        )
+        self.assertEqual(state["search_slot_candidate_counts"]["main_ring"], 1)
+
+        policy._equipment_transaction_session = None
+        cached = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertIs(cached, fresh)
+        self.assertEqual(
+            policy.equipment_optimization_state(None)["result_source"],
+            "signature-cache-hit",
+        )
+
+        policy._equipment_transaction_session = SimpleNamespace(complete=False)
+        inflight = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertIs(inflight, fresh)
+        self.assertEqual(
+            policy._equipment_optimization_telemetry["result_source"],
+            "in-flight-session-return",
+        )
+
+    def test_search_surviving_gate_source_reports_post_exclusion_zero(self):
+        town = replace(
+            self._town(),
+            inventory=[
+                item(
+                    "a", TVAL_LITE, SV_LITE_TORCH,
+                    name="Torch of Chaos", fuel=5000, known=True,
+                    fully_known=True, is_equipment=True,
+                    known_flags=frozenset({62}),
+                )
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
+        seed_character_calibration(policy, town)
+        policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
+        policy._equipment_catalog.observe_home_page([])
+
+        with patch.object(policy, "_retention_reservation", return_value=1):
+            preparation = policy._prepare_equipment_optimization(
+                town, depth_override=31
+            )
+
+        self.assertIn("no-valid-loadout", preparation.blockers)
+        state = policy.equipment_optimization_state(None)
+        self.assertEqual(
+            state["required_gate_sources"][0]["operational_sources"], 1
+        )
+        self.assertEqual(
+            state["required_gate_search_surviving_sources"],
+            [{
+                "gate": "resist_chaos",
+                "flag": 62,
+                "search_surviving_sources": 0,
+            }],
+        )
+        excluded = state["search_excluded_items"]
+        self.assertEqual(excluded["total"], 1)
+        self.assertEqual(
+            excluded["items"][0]["reasons"],
+            ["torch-retention-reservation"],
+        )
+
+    def test_equipment_telemetry_observation_does_not_change_decision(self):
+        for calibrated in (False, True):
+            with self.subTest(calibrated=calibrated):
+                if calibrated:
+                    observed, town, _ring, _ring_id = self._policy_with_home_ring()
+                    control, _, _, _ = self._policy_with_home_ring()
+                else:
+                    town = self._town()
+                    observed = HengbotPolicy(
+                        monrace_knowledge={1: self._monster()}
+                    )
+                    control = HengbotPolicy(
+                        monrace_knowledge={1: self._monster()}
+                    )
+                    observed._equipment_catalog.refresh_carried(
+                        town.inventory, town.equipment
+                    )
+                    control._equipment_catalog.refresh_carried(
+                        town.inventory, town.equipment
+                    )
+
+                observed.equipment_optimization_state(town)
+                observed_key = observed.choose_key(town)
+                control_key = control.choose_key(town)
+
+                self.assertEqual(observed_key, control_key)
+                self.assertEqual(observed.last_reason, control.last_reason)
+
     def test_policy_state_capture_serializes_quarantine_sets(self):
         from hengbot.flight_recorder import policy_state
 
