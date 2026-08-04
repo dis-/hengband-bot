@@ -68,6 +68,7 @@ from hengbot.monster_ranged_evaluator import (
 )
 from hengbot.projection_path import projection_path
 from hengbot.warrior_optimization import (
+    INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
     CharacterCalibration,
     WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
@@ -8562,6 +8563,9 @@ class HengbotPolicy:
             self._equipment_optimization_telemetry["result_source"] = (
                 "in-flight-session-return"
             )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "current-inputs"
             return self._equipment_optimization_preparation
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
@@ -8570,7 +8574,8 @@ class HengbotPolicy:
         calibration = self._validated_character_calibration(snapshot)
         if calibration is None:
             self._equipment_optimization_telemetry = {
-                "result_source": "calibration-required-return"
+                "result_source": "calibration-required-return",
+                "search_telemetry_freshness": "current-inputs",
             }
             self._equipment_optimization_search_surviving_ids = frozenset()
             preparation = WarriorOptimizationPreparation(
@@ -8784,6 +8789,9 @@ class HengbotPolicy:
             self._equipment_optimization_telemetry["result_source"] = (
                 "signature-cache-hit"
             )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "current-inputs"
             preparation = self._equipment_optimization_preparation
             if (
                 preparation is not None
@@ -8876,6 +8884,7 @@ class HengbotPolicy:
                 search_excluded_reasons[owned.id] = reasons
         self._equipment_optimization_telemetry = {
             "result_source": "fresh-search",
+            "search_telemetry_freshness": "current-inputs",
             "search_catalog_items": len(search_catalog),
             "search_catalog_origins": {
                 origin: sum(item.origin == origin for item in search_catalog)
@@ -8916,6 +8925,22 @@ class HengbotPolicy:
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
         )
+        incremental_search = (
+            len(search_catalog) >= INCREMENTAL_SEARCH_CATALOG_THRESHOLD
+        )
+        search_seed_loadout = current_loadout(search_catalog)
+        self._equipment_optimization_telemetry.update({
+            "search_strategy": (
+                "enumerate_single_slot_variants"
+                if incremental_search
+                else "enumerate_warrior_loadouts"
+            ),
+            "search_catalog_threshold": INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
+            "search_catalog_threshold_crossed": incremental_search,
+            "search_seed": "current-loadout" if incremental_search else "catalog",
+            "current_loadout_slots": len(search_seed_loadout.slots),
+            "current_loadout_empty": not search_seed_loadout.slots,
+        })
         result = getattr(preparation, "result", None)
         best = getattr(result, "best", None)
         loadout = getattr(best, "loadout", None)
@@ -9075,6 +9100,11 @@ class HengbotPolicy:
             ),
         }
         state.update(self._equipment_optimization_telemetry)
+        if snapshot is not None and (
+            snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+            or not snapshot.in_town
+        ):
+            state["search_telemetry_freshness"] = "stale-republished"
         if preparation is not None:
             if snapshot is not None:
                 state["optimization_depth"] = self._equipment_optimization_depth(
