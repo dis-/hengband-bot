@@ -2194,6 +2194,11 @@ class HengbotPolicy:
         self._retried_home_identification_items: set[tuple[str, int, int]] = set()
         self._home_catalog: dict[tuple[str, int, int], StoreItem] = {}
         self._home_catalog_page_size: int | None = None
+        # Authoritative withdrawal addresses from one completed Home scan.
+        # Each entry is a physical displayed slot; duplicate signatures remain
+        # distinct because page and the emitter-provided letter are retained.
+        self._home_address_pages: list[tuple[StoreItem, ...]] = []
+        self._home_address_scan_valid = False
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in a small
         # duplicate-preserving page scan alongside that catalog.
@@ -2566,6 +2571,7 @@ class HengbotPolicy:
                 # Preserve the current scan's absolute order and its observed
                 # page width.  Store entry starts on page zero, so these are
                 # exactly the facts needed to compose a later atomic take.
+                scan_was_complete = self._equipment_catalog.home_scan_complete
                 self._home_catalog_page_size = max(
                     len(snapshot.store.items), self._home_catalog_page_size or 0
                 )
@@ -2575,13 +2581,23 @@ class HengbotPolicy:
                     self._home_star_remove_curse_scan_pages[page_identity] = (
                         page_star_count
                     )
-                self._equipment_catalog.observe_home_page(
+                scan_completed = self._equipment_catalog.observe_home_page(
                     snapshot.store.items,
                     allow_wrap=(
                         page_advance_wrap
                         or self.last_reason in HOME_PAGE_ADVANCE_REASONS
                     ),
                 )
+                observed_page = tuple(snapshot.store.items)
+                if not scan_was_complete:
+                    if not self._home_address_pages:
+                        self._home_address_pages.append(observed_page)
+                    elif observed_page != self._home_address_pages[0]:
+                        self._home_address_pages.append(observed_page)
+                    elif scan_completed:
+                        self._home_address_scan_valid = True
+                if not observed_page and scan_completed:
+                    self._home_address_scan_valid = True
                 if self._equipment_catalog.home_scan_complete:
                     self._home_star_remove_curse_count = sum(
                         self._home_star_remove_curse_scan_pages.values()
@@ -2913,6 +2929,7 @@ class HengbotPolicy:
             and key[0] in {BUY_KEY, SELL_KEY}
         ):
             self._home_entry_operation_posted = True
+            self._invalidate_home_observation()
         self._capture_home_history_intent(snapshot, key)
         if self._dark_without_recovery(snapshot):
             # Preserve the chosen action while making the otherwise invisible
@@ -9533,56 +9550,22 @@ class HengbotPolicy:
             return key
 
         if action.kind == "withdraw":
-            target = next(
-                (
-                    item
-                    for item in store.items
-                    if item.is_equipment
+            if self._home_address_scan_valid:
+                target_observed = any(
+                    item.is_equipment
                     and equipment_identity(item) == action.item_identity
-                ),
-                None,
-            )
-            if target is not None:
-                self._equipment_transaction_home_pages.clear()
-                key = BUY_KEY + target.letter + "\r"
-                page = tuple(
-                    (item.letter, equipment_identity(item))
-                    for item in store.items
+                    for page in self._home_address_pages
+                    for item in page
                 )
-                if not self._prepare_equipment_transaction_command(
-                    session,
-                    action,
-                    observation,
-                    key,
-                    (
-                        "home", getattr(snapshot, "turn", 0), page,
-                        target.letter, action.item_identity,
-                    ),
-                ):
-                    self._block_equipment_transaction("withdraw-dispatch-rejected")
+                if not target_observed:
+                    self._block_equipment_transaction(
+                        f"withdraw-item-missing:{action.item_id}"
+                    )
+                    self.last_reason = "equipment-transaction:withdraw-missing"
                     return LEAVE_STORE_KEY
-                self.last_reason = "equipment-transaction:withdraw"
-                self._equipment_transaction_prepared_catalog_update = (
-                    "withdraw",
-                    target,
-                    (
-                        getattr(snapshot, "floor_key", None),
-                        getattr(snapshot, "turn", 0),
-                        target.letter,
-                        self._item_signature(target),
-                        target.count,
-                    ),
-                )
-                return key
-            page = tuple(sorted(equipment_identity(item) for item in store.items))
-            if page in self._equipment_transaction_home_pages:
-                self._block_equipment_transaction(
-                    f"withdraw-item-missing:{action.item_id}"
-                )
-                self.last_reason = "equipment-transaction:withdraw-missing"
+                self.last_reason = "equipment-transaction:leave-for-atomic-withdraw"
                 return LEAVE_STORE_KEY
-            self._equipment_transaction_home_pages.add(page)
-            self.last_reason = "equipment-transaction:seek-home-page"
+            self.last_reason = "home:scan-catalog-page"
             return " "
 
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
@@ -10645,42 +10628,71 @@ class HengbotPolicy:
         entrance = snapshot.grid_at(snapshot.player.position)
         if entrance is None or entrance.store_number != STORE_HOME:
             return None
-        if not self._equipment_catalog.home_scan_complete:
-            return None
-        page_size = self._home_catalog_page_size
-        if page_size is None or page_size <= 0:
+        if not self._home_address_scan_valid:
+            self.last_reason = "home:atomic-withdraw-needs-observation"
             return None
 
         signature: tuple[str, int, int] | None = None
         quantity: int | None = None
         reason = "home:atomic-withdraw"
+        address_slots = tuple(
+            (page, item)
+            for page, items in enumerate(self._home_address_pages)
+            for item in items
+        )
+        observed_signatures = {self._item_signature(item) for _, item in address_slots}
         for restore_signature in self._calibration_restore_signatures:
-            if restore_signature in self._home_catalog:
+            if restore_signature in observed_signatures:
                 signature = restore_signature
-                quantity = self._home_catalog[signature].count
                 reason = "calibration:atomic-restore-withdraw"
                 break
-        if signature is None and self._home_pending_item in self._home_catalog:
+        if signature is None and self._home_pending_item in observed_signatures:
             signature = self._home_pending_item
         if signature is None and self._home_pending_batch:
             batch_signature = self._home_pending_batch[0]
-            if batch_signature in self._home_catalog:
+            if batch_signature in observed_signatures:
                 signature = batch_signature
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if signature is None and action is not None and action.kind == "withdraw":
+            transaction_slot = next(
+                (
+                    (page, item)
+                    for page, item in address_slots
+                    if item.is_equipment
+                    and equipment_identity(item) == action.item_identity
+                ),
+                None,
+            )
+            if transaction_slot is not None:
+                signature = self._item_signature(transaction_slot[1])
+                reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
+            self.last_reason = "home:atomic-withdraw-target-unobserved"
             return None
-
-        catalog = list(self._home_catalog.items())
-        absolute_index = next(
-            index for index, (item_signature, _) in enumerate(catalog)
-            if item_signature == signature
+        selected = next(
+            (
+                (page, item)
+                for page, item in address_slots
+                if self._item_signature(item) == signature
+                and (
+                    action is None
+                    or action.kind != "withdraw"
+                    or equipment_identity(item) == action.item_identity
+                )
+            ),
+            None,
         )
-        item = catalog[absolute_index][1]
-        page, page_index = divmod(absolute_index, page_size)
-        letter = (
-            chr(ord("a") + page_index)
-            if page_index < 26
-            else chr(ord("A") + page_index - 26)
-        )
+        if selected is None:
+            self.last_reason = "home:atomic-withdraw-slot-unobserved"
+            return None
+        page, item = selected
+        letter = item.letter
+        if signature in self._calibration_restore_signatures:
+            quantity = item.count
+        if not letter or len(letter) != 1:
+            self.last_reason = "home:atomic-withdraw-address-invalid"
+            return None
         requested_quantity = (
             quantity
             if quantity is not None
@@ -10690,6 +10702,33 @@ class HengbotPolicy:
         )
         take_count = min(item.count, requested_quantity)
         quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
+        key = (
+            WAIT_KEY
+            + (" " * page)
+            + BUY_KEY
+            + letter
+            + quantity_suffix
+            + LEAVE_STORE_KEY
+        )
+        if session is not None and action is not None and action.kind == "withdraw":
+            observation = replace(
+                observe_equipment_transactions(snapshot), in_home=True
+            )
+            if not self._prepare_equipment_transaction_command(
+                session,
+                action,
+                observation,
+                key,
+                (
+                    "home-entrance",
+                    getattr(snapshot, "turn", 0),
+                    page,
+                    letter,
+                    action.item_identity,
+                ),
+            ):
+                self.last_reason = "equipment-transaction:atomic-withdraw-refused"
+                return None
         self._home_atomic_withdraw_pending = (
             signature,
             self._inventory_signature_count(snapshot, signature),
@@ -10701,15 +10740,24 @@ class HengbotPolicy:
         self._home_pending_quantity = None
         self._home_candidate_waiting = False
         self._home_entry_operation_posted = True
+        self._invalidate_home_observation()
         self.last_reason = reason
-        return (
-            WAIT_KEY
-            + (" " * page)
-            + BUY_KEY
-            + letter
-            + quantity_suffix
-            + LEAVE_STORE_KEY
-        )
+        return key
+
+    def _invalidate_home_observation(self) -> None:
+        """Discard every address fact after a command that may mutate Home."""
+        self._home_address_pages.clear()
+        self._home_address_scan_valid = False
+        self._home_catalog.clear()
+        self._home_catalog_page_size = None
+        self._equipment_catalog.invalidate_home()
+        self._home_processing_seen_pages.clear()
+        self._home_star_remove_curse_scan_pages.clear()
+        self._home_star_remove_curse_count = None
+        self._home_knowledge_scan_requested = False
+        self._home_knowledge_scan_inflight = False
+        self._home_scan_source = None
+        self._home_scan_item_count = None
 
     def _atomic_home_deposit_key(
         self, snapshot: Snapshot, step: Position
@@ -10774,6 +10822,7 @@ class HengbotPolicy:
                 ),
             )
             self._home_entry_operation_posted = True
+            self._invalidate_home_observation()
             self._home_atomic_deposit_pending = (
                 self._item_signature(current),
                 self._inventory_signature_count(
@@ -10815,6 +10864,7 @@ class HengbotPolicy:
         if operation == LEAVE_STORE_KEY:
             return None
         self._home_entry_operation_posted = True
+        self._invalidate_home_observation()
         self._home_atomic_deposit_pending = (
             self._item_signature(current),
             self._inventory_signature_count(snapshot, self._item_signature(current)),
@@ -16255,8 +16305,6 @@ class HengbotPolicy:
             return suppress_random_teleport
 
         if store.store_type == STORE_HOME:
-            for stored in store.items:
-                self._home_catalog[self._item_signature(stored)] = stored
             morivant_home_key = self._morivant_home_item_key(snapshot)
             if morivant_home_key is not None:
                 return morivant_home_key
@@ -16341,6 +16389,14 @@ class HengbotPolicy:
             if (
                 self._home_pending_item is not None
                 and self._pending_inventory_item(snapshot) is None
+                and not self._home_address_scan_valid
+            ):
+                self.last_reason = "home:scan-catalog-page"
+                return " "
+            if (
+                self._home_pending_item is not None
+                and self._pending_inventory_item(snapshot) is None
+                and self._home_address_scan_valid
             ):
                 self.last_reason = "home:leave-for-atomic-withdraw"
                 return LEAVE_STORE_KEY

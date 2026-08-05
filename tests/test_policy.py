@@ -18423,8 +18423,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(policy._shop(with_scrolls), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:leave-for-atomic-withdraw")
+        self.assertEqual(policy._shop(with_scrolls), " ")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
 
     def test_fundraising_withdraws_detection_buffer_from_home(self):
         target = 4
@@ -20142,8 +20142,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[candidate]),
         )
 
-        self.assertEqual(pol.choose_key(snap), "\x1b")
-        self.assertEqual(pol.last_reason, "home:leave-for-atomic-withdraw")
+        self.assertEqual(pol.choose_key(snap), " ")
+        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
         self.assertEqual(pol._home_pending_item, pol._item_signature(candidate))
         self.assertNotIn(pol._item_signature(candidate), pol._deferred_home_items)
 
@@ -25268,7 +25268,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         with patch.object(policy, "_decide", return_value=BUY_KEY + "a\r"):
             policy.choose_key(home)
 
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
         self.assertFalse(any(
             owned.origin == "home"
             for owned in policy._equipment_catalog.items
@@ -40906,10 +40906,8 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
                 policy._store_leave_inflight = None
                 key = policy._equipment_transaction_home_key(home)
-                self.assertEqual(key, "pa\r")
+                self.assertEqual(key, " ")
                 self.assertIsNone(session.pending_action)
-                self.assertTrue(policy.confirm_key_posted(key))
-                self.assertIs(session.pending_action, action)
                 for _ in range(4):
                     session.observe(
                         policy_module.observe_equipment_transactions(home)
@@ -43700,9 +43698,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._equipment_catalog.home_scan_complete = True
         policy._home_catalog_page_size = page_size
-        policy._home_catalog = {
-            policy._item_signature(ware): ware for ware in wares
-        }
+        policy._home_address_pages = [
+            tuple(wares[index:index + page_size])
+            for index in range(0, len(wares), page_size)
+        ]
+        policy._home_address_scan_valid = True
         policy._shopping_approach_store_type = STORE_HOME
         return policy
 
@@ -43783,6 +43783,48 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(
             self._choose_atomic_withdrawal(stack_policy, self._entrance_snapshot([])),
             "5pb7\r\x1b",
+        )
+
+    def test_duplicate_signature_slots_keep_their_displayed_addresses(self):
+        first = store_item("a", TVAL_POTION, 350, count=99, name="duplicate")
+        second = store_item("b", TVAL_POTION, 350, count=7, name="duplicate")
+        later = store_item("c", TVAL_POTION, 351, name="later")
+        policy = self._catalogued_withdrawal_policy([first, second, later])
+
+        self.assertEqual(
+            [(item.letter, item.count) for item in policy._home_address_pages[0]],
+            [("a", 99), ("b", 7), ("c", 1)],
+        )
+        policy._home_pending_item = policy._item_signature(later)
+        self.assertEqual(
+            self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
+            "5pc\x1b",
+        )
+
+    def test_invalidated_address_refuses_until_home_is_reobserved(self):
+        target = store_item("a", TVAL_POTION, 360, name="target")
+        policy = self._catalogued_withdrawal_policy([target])
+        policy._home_pending_item = policy._item_signature(target)
+        policy._invalidate_home_observation()
+
+        self.assertIsNone(
+            policy._atomic_home_withdraw_key(
+                self._entrance_snapshot([]), Position(45, 123)
+            )
+        )
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-needs-observation"
+        )
+        self.assertFalse(policy._home_address_scan_valid)
+
+    def test_observed_page_letter_is_authoritative_not_absolute_index(self):
+        target = store_item("Q", TVAL_POTION, 370, name="unusual displayed letter")
+        policy = self._catalogued_withdrawal_policy([target])
+        policy._home_pending_item = policy._item_signature(target)
+
+        self.assertEqual(
+            self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
+            "5pQ\x1b",
         )
 
     def test_failed_atomic_withdrawal_is_reported_and_never_reposted(self):
@@ -44336,14 +44378,17 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         seek_key = policy.choose_key(self._snapshot(self._page_two()))
         self.assertEqual(seek_key, " ")
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:seek-home-page"
+            policy.last_reason, "home:scan-catalog-page"
         )
 
         # Page 1 recurs as the observed result of that SPACE: the withdraw is
         # composed from a proven-current page and addresses the right letter.
         withdraw_key = policy.choose_key(self._snapshot(self._page_one()))
-        self.assertEqual(withdraw_key, BUY_KEY + "J\r")
-        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
+        self.assertEqual(withdraw_key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:leave-for-atomic-withdraw",
+        )
         self.assertFalse(policy._home_page_advance_pending)
 
     def _one_page(self):
@@ -44393,7 +44438,7 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:seek-home-page"
+            policy.last_reason, "home:scan-catalog-page"
         )
         self.assertEqual(
             policy.choose_key(self._snapshot(self._one_page())),
@@ -46453,6 +46498,8 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         policy._home_catalog = {signature: stored}
         policy._home_catalog_page_size = 12
+        policy._home_address_pages = [(stored,)]
+        policy._home_address_scan_valid = True
         policy._shopping_approach_store_type = STORE_HOME
         entrance = replace(
             self._snapshot(store=None),
@@ -46465,7 +46512,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         key = policy._atomic_home_withdraw_key(entrance, Position(10, 10))
 
-        self.assertEqual(key, "5" + policy_module.BUY_KEY + "a" + "5\r\x1b")
+        self.assertEqual(key, "5" + policy_module.BUY_KEY + "d" + "5\r\x1b")
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
         self.assertEqual(policy._calibration_restore_signatures, [])
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)

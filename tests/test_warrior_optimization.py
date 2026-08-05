@@ -752,19 +752,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             inventory=(), equipment=(),
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
-        self.assertEqual(
-            policy._equipment_transaction_home_key(snapshot), "pa\r"
-        )
-        self.assertIsNone(
-            policy._equipment_transaction_session.pending_action
-        )
-        self.assertTrue(policy.confirm_key_posted("pa\r"))
-
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
-        self.assertEqual(
-            policy.last_reason,
-            "equipment-transaction:await-confirmation-leave-home",
-        )
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
+        self.assertIsNone(policy._equipment_transaction_session.pending_action)
         self.assertTrue(policy._equipment_transaction_session.executable)
 
     def test_policy_scans_home_pages_and_uses_visible_page_letter(self):
@@ -811,7 +801,7 @@ class WarriorOptimizationTest(unittest.TestCase):
 
         self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:seek-home-page"
+            policy.last_reason, "home:scan-catalog-page"
         )
         snapshot.store = SimpleNamespace(store_type=STORE_HOME, items=(
             StoreItem(
@@ -821,7 +811,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             ),
             target,
         ))
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "pb\r")
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
 
     def test_policy_waits_for_home_page_after_interleaved_town_snapshot(self):
         policy = HengbotPolicy()
@@ -1010,16 +1000,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
 
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "pa\r")
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
         self.assertIsNone(session.pending_action)
-        self.assertTrue(policy.confirm_key_posted("pa\r"))
-        session.observe(observe_equipment_transactions(snapshot))
-        self.assertTrue(session.executable)
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
-        self.assertEqual(
-            policy.last_reason,
-            "equipment-transaction:await-confirmation-leave-home",
-        )
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         self.assertIs(policy._equipment_transaction_session, session)
         self.assertNotIn("stored", policy._equipment_transaction_failed_items)
         self.assertIsNone(policy._town_blocked_reason)
