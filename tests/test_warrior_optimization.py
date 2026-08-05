@@ -1430,7 +1430,7 @@ class WarriorOptimizationTest(unittest.TestCase):
     def test_optimizer_input_key_orders_duplicate_ids_without_comparing_payloads(self):
         light = gear("duplicate", "equipped", slot="light", tval=39)
         weapon = replace(
-            gear("duplicate", "pack"),
+            gear("duplicate", "equipped"),
             id=light.id,
         )
         player = SimpleNamespace(

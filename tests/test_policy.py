@@ -44417,7 +44417,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             ),
         ]
 
-    def _town(self, *, fuel=5000, inventory=()):
+    def _town(self, *, fuel=5000, inventory=(), equipment=None):
         base = replace(
             player(
                 10, 10, class_id=PLAYER_CLASS_WARRIOR, level=10,
@@ -44434,7 +44434,11 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             town_flag=True,
             inventory=[*self._supplies(), *inventory],
-            equipment=self._equipment(fuel=fuel),
+            equipment=(
+                self._equipment(fuel=fuel)
+                if equipment is None
+                else list(equipment)
+            ),
             recall_dungeon_id=DUNGEON_ANGBAND,
             yeek_cave_conquered=True,
             angband_recall_unlocked=True,
@@ -44537,6 +44541,238 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
 
             self.assertEqual(key, "rra")
             self.assertEqual(restarted.last_reason, "town:recall-to-angband")
+
+    def test_light_only_home_upgrade_refuses_through_choose_key(self):
+        light = self._equipment()[-1]
+        snapshot = self._town(equipment=[light])
+        home_gear = [
+            store_item(
+                "A", TVAL_SWORD, 17,
+                name="Blade of Chaos (6d5) (+15,+20)", known=True,
+                fully_known=True, is_equipment=True, to_h=15, to_d=20,
+                damage_dice_num=6, damage_dice_sides=5,
+            ),
+            store_item(
+                "B", 37, 3, name="Mithril Plate Mail", known=True,
+                fully_known=True, is_equipment=True, ac=35, to_a=15,
+            ),
+        ]
+        with TemporaryDirectory() as directory:
+            policy = self._policy(
+                snapshot, Path(directory) / "confirmed-loadout.json"
+            )
+            policy._equipment_catalog.home_scan_complete = False
+            policy._equipment_catalog.observe_home_page(home_gear)
+            policy._equipment_catalog.observe_home_page([])
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, "rra")
+        self.assertEqual(
+            policy.last_reason, "town:blocked:equipment-optimization-timeout"
+        )
+
+    def test_dual_shovel_incident_refuses_through_choose_key(self):
+        shovels = [
+            item(
+                letter, TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                name=f"Shovel {letter}", known=True, fully_known=True,
+                is_equipment=True, damage_dice_num=1, damage_dice_sides=2,
+            )
+            for letter in ("u", "v")
+        ]
+        snapshot = self._town(
+            inventory=shovels, equipment=[self._equipment()[-1]]
+        )
+        with TemporaryDirectory() as directory:
+            policy = self._policy(
+                snapshot, Path(directory) / "confirmed-loadout.json"
+            )
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, "rra")
+        self.assertEqual(
+            policy.last_reason, "town:blocked:equipment-optimization-timeout"
+        )
+
+    def test_light_only_pack_incident_refuses_through_choose_key(self):
+        packed = [
+            item(
+                "u", TVAL_SWORD, 1, name="packed sword", known=True,
+                fully_known=True, is_equipment=True,
+                damage_dice_num=1, damage_dice_sides=6,
+            ),
+            item(
+                "v", 36, 1, name="packed armour", known=True,
+                fully_known=True, is_equipment=True, ac=8,
+            ),
+        ]
+        snapshot = self._town(
+            inventory=packed, equipment=[self._equipment()[-1]]
+        )
+        with TemporaryDirectory() as directory:
+            policy = self._policy(
+                snapshot, Path(directory) / "confirmed-loadout.json"
+            )
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, "rra")
+        self.assertEqual(
+            policy.last_reason, "town:blocked:equipment-optimization-timeout"
+        )
+
+    def test_changed_inputs_do_not_republish_stale_confirmation(self):
+        baseline = self._town()
+        upgrade = item(
+            "u", TVAL_SWORD, 17,
+            name="Blade of Chaos (6d5) (+15,+20)", known=True,
+            fully_known=True, is_equipment=True, to_h=15, to_d=20,
+            damage_dice_num=6, damage_dice_sides=5,
+        )
+        first = replace(
+            baseline, inventory=[*baseline.inventory, upgrade],
+            turn=baseline.turn + 1,
+        )
+        changed = replace(
+            first,
+            inventory=[
+                *first.inventory,
+                item(
+                    "v", 37, 3, name="Mithril Plate Mail", known=True,
+                    fully_known=True, is_equipment=True, ac=35, to_a=15,
+                ),
+            ],
+            turn=first.turn + 1,
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            completed = self._policy(baseline, path)
+            self.assertEqual(completed.choose_key(baseline), "rra")
+
+            policy = self._policy(first, path)
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                self.assertNotEqual(policy.choose_key(first), "rra")
+                key = policy.choose_key(changed)
+        self.assertNotEqual(key, "rra")
+        self.assertEqual(
+            policy._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ],
+            "stale-republished",
+        )
+
+    def test_known_best_not_worn_refuses_through_choose_key(self):
+        upgrade = item(
+            "u", TVAL_SWORD, 17,
+            name="Blade of Chaos (6d5) (+15,+20)", known=True,
+            fully_known=True, is_equipment=True, to_h=15, to_d=20,
+            damage_dice_num=6, damage_dice_sides=5,
+        )
+        snapshot = self._town(inventory=[upgrade])
+        with TemporaryDirectory() as directory:
+            policy = self._policy(
+                snapshot, Path(directory) / "confirmed-loadout.json"
+            )
+            key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, "rra")
+        preparation = policy._equipment_optimization_preparation
+        self.assertIsNotNone(preparation.result.best)
+        self.assertNotEqual(
+            preparation.current.item_ids,
+            preparation.result.best.loadout.item_ids,
+        )
+
+    def test_write_oserror_allows_completion_but_not_fresh_process(self):
+        snapshot = self._town()
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            completed = self._policy(snapshot, path)
+            with patch.object(Path, "write_text", side_effect=OSError("read-only")):
+                self.assertEqual(completed.choose_key(snapshot), "rra")
+            self.assertFalse(path.exists())
+
+            restarted = self._policy(snapshot, path)
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                key = restarted.choose_key(snapshot)
+        self.assertNotEqual(key, "rra")
+        self.assertEqual(
+            restarted.last_reason,
+            "town:blocked:equipment-optimization-timeout",
+        )
+
+    def test_record_fail_closed_shapes_refuse_through_choose_key(self):
+        snapshot = self._town()
+        shapes = {
+            "missing": None,
+            "corrupt": "not json",
+            "old-schema": json.dumps({"item_ids": ["legacy"]}),
+            "empty": json.dumps({}),
+            "partial": json.dumps({
+                "item_ids": ["equipped:partial:0"],
+                "optimizer_input_key": "short",
+            }),
+        }
+        for name, contents in shapes.items():
+            with self.subTest(name=name), TemporaryDirectory() as directory:
+                path = Path(directory) / "confirmed-loadout.json"
+                if contents is not None:
+                    path.write_text(contents, encoding="utf-8")
+                policy = self._policy(snapshot, path)
+                real_prepare = policy_module.prepare_warrior_optimization
+                with patch(
+                    "hengbot.policy.prepare_warrior_optimization",
+                    side_effect=self._zero_budget(real_prepare),
+                ):
+                    key = policy.choose_key(snapshot)
+                self.assertNotEqual(key, "rra")
+                self.assertEqual(
+                    policy.last_reason,
+                    "town:blocked:equipment-optimization-timeout",
+                )
+
+    def test_policy_signature_orders_duplicate_ids_by_identity_only(self):
+        snapshot = self._town()
+        policy = self._policy(snapshot, None)
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        owned = list(policy._equipment_catalog._carried.values())
+        first, second = owned[:2]
+        duplicate = replace(
+            second, id=first.id, origin=first.origin,
+            equipped_slot=None if first.equipped_slot is not None else "light",
+        )
+        policy._equipment_catalog._carried = {
+            "first": first,
+            "duplicate": duplicate,
+            **{
+                f"rest-{index}": entry
+                for index, entry in enumerate(owned[2:])
+            },
+        }
+
+        preparation = policy._prepare_equipment_optimization(snapshot)
+
+        self.assertIsNotNone(preparation)
 
 
 class EquipmentQuarantineInvariantTest(unittest.TestCase):
