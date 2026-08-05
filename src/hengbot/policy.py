@@ -8827,7 +8827,10 @@ class HengbotPolicy:
         # reuse exact while leaving the immutable monster catalog out of the hot
         # path; projected items intentionally omit volatile transport fields.
         signature = (
-            tuple(sorted(optimizer_item_projection(item) for item in search_catalog)),
+            tuple(sorted(
+                (optimizer_item_projection(item) for item in search_catalog),
+                key=lambda projection: projection[0],
+            )),
             optimization_depth,
             self._equipment_catalog.home_scan_complete,
             has_destruction,

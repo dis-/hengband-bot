@@ -1372,15 +1372,15 @@ class WarriorOptimizationTest(unittest.TestCase):
         baseline = key()
         variants = (
             key(items=(light, weapon, home)),
-            key(knowledge={1: SimpleNamespace(**{**vars(monster), "max_hp": 21})}),
+            key(knowledge={1: replace(monster, max_hp=21)}),
             key(depth=20),
             key(home_scan_complete=False),
             key(has_destruction=True),
             key(preserve_pack_item_ids=frozenset({weapon.id})),
             key(search_excluded_item_ids=frozenset({weapon.id})),
-            key(calibration=SimpleNamespace(**{
-                **vars(calibration), "observed_turn": calibration.observed_turn + 1,
-            })),
+            key(calibration=replace(
+                calibration, observed_turn=calibration.observed_turn + 1,
+            )),
             key(snapshot=SimpleNamespace(
                 player=SimpleNamespace(**{**vars(player), "level": 11}),
                 inventory=(),
@@ -1426,6 +1426,29 @@ class WarriorOptimizationTest(unittest.TestCase):
 
         self.assertEqual(key((noisy_light, noisy_weapon)), baseline)
         self.assertEqual(key((weapon, light)), baseline)
+
+    def test_optimizer_input_key_orders_duplicate_ids_without_comparing_payloads(self):
+        light = gear("duplicate", "equipped", slot="light", tval=39)
+        weapon = replace(
+            gear("duplicate", "pack"),
+            id=light.id,
+        )
+        player = SimpleNamespace(
+            race_id=1, class_id=PLAYER_CLASS_WARRIOR, personality_id=2,
+            stat_cur=(18, 10, 10, 18), level=10, shield_skill=0,
+            speed=110, saving_skill=30, melee_skill=60, shooting_skill=50,
+            two_weapon_skill=0, max_hp=100, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+
+        digest = warrior_optimizer_input_key(
+            snapshot, (light, weapon), {}, depth=1,
+            home_scan_complete=True, has_destruction=False,
+            preserve_pack_item_ids=frozenset(),
+            search_excluded_item_ids=frozenset(), calibration=None,
+        )
+
+        self.assertEqual(len(digest), 64)
 
     def test_optimizer_input_key_tracks_each_extended_item_semantic(self):
         weapon = gear("weapon", "pack")

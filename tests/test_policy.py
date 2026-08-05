@@ -44375,6 +44375,170 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         self.assertFalse(policy._equipment_catalog.home_scan_complete)
 
 
+class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
+    """Pin confirmed-loadout reuse through choose_key and the real optimizer."""
+
+    @staticmethod
+    def _monster():
+        return MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+        )
+
+    @staticmethod
+    def _supplies():
+        return [
+            item("f", TVAL_FOOD, 35, count=5),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+        ]
+
+    @staticmethod
+    def _equipment(*, fuel=5000):
+        return [
+            item(
+                "main_hand", TVAL_SWORD, 4, name="Main Gauche",
+                known=True, fully_known=True, is_equipment=True,
+                damage_dice_num=1, damage_dice_sides=5,
+            ),
+            item(
+                "sub_hand", 34, 2, name="Small Metal Shield",
+                known=True, fully_known=True, is_equipment=True, ac=3,
+            ),
+            item(
+                "body", 36, 2, name="Soft Leather Armour",
+                known=True, fully_known=True, is_equipment=True, ac=4,
+            ),
+            item(
+                "light", TVAL_LITE, SV_LITE_LANTERN, name="Brass Lantern",
+                fuel=fuel, known=True, fully_known=True, is_equipment=True,
+            ),
+        ]
+
+    def _town(self, *, fuel=5000, inventory=()):
+        base = replace(
+            player(
+                10, 10, class_id=PLAYER_CLASS_WARRIOR, level=10,
+                hp=100, max_hp=100,
+            ),
+            stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18),
+            melee_skill=60, saving_skill=30, shield_skill=0,
+            two_weapon_skill=0,
+        )
+        return Snapshot(
+            base,
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._supplies(), *inventory],
+            equipment=self._equipment(fuel=fuel),
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            yeek_cave_conquered=True,
+            angband_recall_unlocked=True,
+        )
+
+    def _policy(self, snapshot, path):
+        policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
+        policy._confirmed_loadout_path = path
+        policy._floor_key = snapshot.floor_key
+        policy._char_dump_done_this_visit = True
+        policy._equipment_catalog.home_scan_complete = True
+        seed_character_calibration(policy, snapshot)
+        return policy
+
+    @staticmethod
+    def _zero_budget(real_prepare):
+        def prepare(*args, **kwargs):
+            return real_prepare(*args, **kwargs, timeout_seconds=0.0)
+        return prepare
+
+    def test_home_upgrade_invalidates_confirmation_through_choose_key(self):
+        baseline = self._town()
+        carried_blade = item(
+            "u", TVAL_SWORD, 17, name="Blade of Chaos (6d5) (+15,+20)",
+            known=True, fully_known=True, is_equipment=True,
+            to_h=15, to_d=20, damage_dice_num=6, damage_dice_sides=5,
+        )
+        carried_plate = item(
+            "v", 37, 3, name="Mithril Plate Mail", known=True,
+            fully_known=True, is_equipment=True, ac=35, to_a=15,
+        )
+        blade = store_item(
+            "A", TVAL_SWORD, 17, name="Blade of Chaos (6d5) (+15,+20)",
+            known=True, fully_known=True, is_equipment=True,
+            to_h=15, to_d=20, damage_dice_num=6, damage_dice_sides=5,
+        )
+        plate = store_item(
+            "B", 37, 3, name="Mithril Plate Mail", known=True,
+            fully_known=True, is_equipment=True, ac=35, to_a=15,
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            completed = self._policy(baseline, path)
+            self.assertEqual(completed.choose_key(baseline), "rra")
+            self.assertTrue(path.is_file())
+
+            looted = replace(
+                baseline,
+                inventory=[
+                    *baseline.inventory, carried_blade, carried_plate,
+                ],
+                turn=baseline.turn + 1,
+            )
+            carrying = self._policy(looted, path)
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                carried_key = carrying.choose_key(looted)
+            self.assertNotEqual(carried_key, "rra")
+            self.assertEqual(
+                carrying.last_reason,
+                "town:blocked:equipment-optimization-timeout",
+            )
+
+            restarted = self._policy(baseline, path)
+            restarted._equipment_catalog.home_scan_complete = False
+            restarted._equipment_catalog.observe_home_page([blade, plate])
+            restarted._equipment_catalog.observe_home_page([])
+            restarted._equipment_catalog.observe_home_page([blade, plate])
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                key = restarted.choose_key(baseline)
+
+            self.assertNotEqual(key, "rra")
+            self.assertEqual(
+                restarted.last_reason,
+                "town:blocked:equipment-optimization-timeout",
+            )
+
+    def test_fuel_tick_reuses_confirmation_through_choose_key(self):
+        baseline = self._town(fuel=5000)
+        ticked = self._town(fuel=4999)
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            completed = self._policy(baseline, path)
+            self.assertEqual(completed.choose_key(baseline), "rra")
+            self.assertTrue(path.is_file())
+
+            restarted = self._policy(ticked, path)
+            real_prepare = policy_module.prepare_warrior_optimization
+            with patch(
+                "hengbot.policy.prepare_warrior_optimization",
+                side_effect=self._zero_budget(real_prepare),
+            ):
+                key = restarted.choose_key(ticked)
+
+            self.assertEqual(key, "rra")
+            self.assertEqual(restarted.last_reason, "town:recall-to-angband")
+
+
 class EquipmentQuarantineInvariantTest(unittest.TestCase):
     """A quarantine can never remove the last owned source of a required gate.
 
