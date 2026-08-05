@@ -30825,6 +30825,40 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertNotIn(STORE_HOME, pol._town_errand_plan.completed_this_visit)
         self.assertNotIn(STORE_HOME, pol._town_errand_plan.skipped_latched)
 
+    def test_new_work_rearm_preserves_visit_bound_unless_progress_releases_it(self):
+        pol = HengbotPolicy()
+        pol._town_visit_ledger.blocked_stores.update(
+            {STORE_MAGIC, STORE_HOME}
+        )
+        pol._town_visit_ledger.approach_fails.update(
+            {STORE_MAGIC: 2, STORE_HOME: 3}
+        )
+
+        pol._rearm_town_store_for_new_work(STORE_MAGIC)
+        pol._rearm_town_store_for_new_work(STORE_HOME)
+
+        self.assertEqual(
+            pol._town_visit_ledger.blocked_stores,
+            {STORE_MAGIC, STORE_HOME},
+        )
+        self.assertEqual(
+            pol._town_visit_ledger.approach_fails,
+            Counter({STORE_HOME: 3, STORE_MAGIC: 2}),
+        )
+
+        pol._calibration_restore_signatures = [("restore", 1, 1)]
+        pol._town_visit_ledger.need_attempts["calibration-restore"] = 2
+        pol._rearm_town_store_for_new_work(
+            STORE_HOME, release_visit_bound=True
+        )
+
+        self.assertNotIn(STORE_HOME, pol._town_visit_ledger.blocked_stores)
+        self.assertNotIn(STORE_HOME, pol._town_visit_ledger.approach_fails)
+        self.assertNotIn(
+            "calibration-restore", pol._town_visit_ledger.need_attempts
+        )
+        self.assertIn(STORE_MAGIC, pol._town_visit_ledger.blocked_stores)
+
     def test_home_cleanup_preserves_departure_pack_space(self):
         carried = [self._staff(25)]
         carried.extend(
@@ -43874,6 +43908,91 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertFalse(policy._home_address_scan_valid)
         self.assertIsNone(policy._home_address_page_count)
 
+    def test_public_version_probe_discard_leaves_to_restart_address_scan(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1250 + index,
+                name=f"version route {index}",
+            )
+            for index in range(60)
+        ]
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(wares[50])
+        pack = self._real_pack()
+
+        self.assertEqual(
+            policy.choose_key(
+                self._home_page_snapshot(pack, wares[:12], turn=2247350)
+            ),
+            " ",
+        )
+        self.assertEqual(
+            policy.choose_key(
+                self._home_page_snapshot(pack, wares[12:24], turn=2247351)
+            ),
+            " ",
+        )
+        self.assertEqual(
+            policy.choose_key(
+                self._home_page_snapshot(pack, wares[12:24], turn=2247352)
+            ),
+            HOME_PAGE_PROBE_KEY,
+        )
+
+        keys = []
+        for decision in range(400):
+            snapshot = self._home_page_snapshot(
+                pack, wares[12:24], turn=2247353 + decision
+            )
+            snapshot = replace(snapshot, messages=("Hengband 3.0",))
+            key = policy.choose_key(snapshot)
+            keys.append(key)
+            if key == LEAVE_STORE_KEY:
+                break
+
+        self.assertEqual(keys, [LEAVE_STORE_KEY])
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
+        self.assertEqual(policy._home_address_pages, [])
+
+    def test_public_reobserved_page_discard_leaves_to_restart_address_scan(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1275 + index,
+                name=f"recurrence route {index}",
+            )
+            for index in range(60)
+        ]
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(wares[50])
+        pack = self._real_pack()
+        pages = [wares[:12], wares[12:24], wares[24:36]]
+
+        for offset, page in enumerate(pages):
+            self.assertEqual(
+                policy.choose_key(
+                    self._home_page_snapshot(
+                        pack, page, turn=2247380 + offset
+                    )
+                ),
+                " ",
+            )
+
+        keys = []
+        for decision in range(200):
+            page = pages[1 + decision % 2]
+            key = policy.choose_key(
+                self._home_page_snapshot(
+                    pack, page, turn=2247383 + decision
+                )
+            )
+            keys.append(key)
+            if key == LEAVE_STORE_KEY:
+                break
+
+        self.assertEqual(keys, [LEAVE_STORE_KEY])
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
+        self.assertEqual(policy._home_address_pages, [])
+
     def test_public_composer_refuses_corrupt_out_of_range_ordinal(self):
         wares = [
             store_item(
@@ -43906,6 +44025,42 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         key = policy.choose_key(entrance)
 
         self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-address-invalid"
+        )
+
+    def test_public_composer_requires_complete_ordinal_provenance_guard(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1325 + index,
+                name=f"provenance {index}",
+            )
+            for index in range(24)
+        ]
+        target = wares[13]
+        policy = HengbotPolicy()
+        policy._calibration_blocked_this_visit = True
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(target)
+        ]
+        policy._home_candidate_waiting = True
+        pack = self._real_pack()
+        self._observe_home_address_publicly(
+            policy, wares, inventory=pack, turn=2247420
+        )
+
+        # The pages came from choose_key.  Corrupt only the derived proof:
+        # accepted ordinals must still prove the complete 0..page_count-1
+        # sequence before list position may be used as an equivalent address.
+        policy._home_address_ordinals.pop()
+        policy._last_snapshot_was_store = False
+        entrance = replace(
+            self._entrance_snapshot(pack, turn=2247430),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+
+        self.assertEqual(policy.choose_key(entrance), LEAVE_STORE_KEY)
         self.assertEqual(
             policy.last_reason, "home:atomic-withdraw-address-invalid"
         )

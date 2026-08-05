@@ -2194,6 +2194,7 @@ class HengbotPolicy:
         # Each entry is a physical displayed slot; duplicate signatures remain
         # distinct because page and the emitter-provided letter are retained.
         self._home_address_pages: list[tuple[StoreItem, ...]] = []
+        self._home_address_restart_required = False
         self._home_address_ordinals: list[int] = []
         self._home_address_scan_valid = False
         self._home_address_page_count: int | None = None
@@ -2488,7 +2489,9 @@ class HengbotPolicy:
                     # remaining physical slots are a new Home operation, not a
                     # repeated failed need.  Release the per-stop ledger so a
                     # multi-item restore cannot abandon its tail.
-                    self._rearm_town_store_for_new_work(STORE_HOME)
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
             else:
                 self._deferred_home_items.add(signature)
                 if signature in self._home_pending_batch:
@@ -2516,6 +2519,7 @@ class HengbotPolicy:
                 self._home_address_ordinals.clear()
                 self._home_address_scan_valid = False
                 self._home_address_page_count = None
+                self._home_address_restart_required = False
             page_identity = tuple(
                 (item.name, item.tval, item.sval, item.count)
                 for item in snapshot.store.items
@@ -2619,6 +2623,7 @@ class HengbotPolicy:
                             self._home_address_pages.clear()
                             self._home_address_ordinals.clear()
                             self._home_address_page_count = None
+                            self._home_address_restart_required = True
                 if self._equipment_catalog.home_scan_complete:
                     self._home_star_remove_curse_count = sum(
                         self._home_star_remove_curse_scan_pages.values()
@@ -8351,7 +8356,10 @@ class HengbotPolicy:
         # fresh preparation and reopen Home for its withdrawals.
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
-        self._rearm_town_store_for_new_work(STORE_HOME)
+        self._rearm_town_store_for_new_work(
+            STORE_HOME,
+            release_visit_bound=bool(self._calibration_restore_signatures),
+        )
         self.last_reason = "calibration:captured"
         return True
 
@@ -8464,12 +8472,16 @@ class HengbotPolicy:
                     # A current Home page is positive progress toward the
                     # fresh address scan.  A visit-budget latch from an earlier
                     # one-shot item must not discard the remaining restore.
-                    self._rearm_town_store_for_new_work(STORE_HOME)
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
                 else:
                     self._calibration_restore_signatures.clear()
                     self._calibration_phase = None
             elif STORE_HOME in self._town_store_attempted:
-                self._rearm_town_store_for_new_work(STORE_HOME)
+                self._rearm_town_store_for_new_work(
+                    STORE_HOME, release_visit_bound=True
+                )
             return
         if phase == "deposit":
             if STORE_HOME in self._town_store_attempted and (
@@ -13973,12 +13985,19 @@ class HengbotPolicy:
         ):
             self._abandon_blocked_equipment_transaction()
 
-    def _rearm_town_store_for_new_work(self, store_type: int) -> None:
+    def _rearm_town_store_for_new_work(
+        self, store_type: int, *, release_visit_bound: bool = False
+    ) -> None:
         """Release a completed stop when the current stop creates new work there."""
         self._town_store_attempted.pop(store_type, None)
-        self._town_visit_ledger.blocked_stores.discard(store_type)
-        self._town_visit_ledger.approach_fails.pop(store_type, None)
-        if store_type == STORE_HOME and self._calibration_restore_signatures:
+        if release_visit_bound:
+            self._town_visit_ledger.blocked_stores.discard(store_type)
+            self._town_visit_ledger.approach_fails.pop(store_type, None)
+        if (
+            release_visit_bound
+            and store_type == STORE_HOME
+            and self._calibration_restore_signatures
+        ):
             self._town_visit_ledger.need_attempts.pop(
                 "calibration-restore", None
             )
@@ -16440,6 +16459,9 @@ class HengbotPolicy:
 
             if self._home_atomic_withdraw_pending is not None:
                 self.last_reason = "home:leave-after-one-operation"
+                return LEAVE_STORE_KEY
+            if self._home_address_restart_required:
+                self.last_reason = "home:restart-address-scan"
                 return LEAVE_STORE_KEY
             if (
                 self._home_pending_item is not None
