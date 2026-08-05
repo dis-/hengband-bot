@@ -1578,8 +1578,6 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
     recent_reasons: deque[str] = deque(maxlen=20)
 
     def incident_stop(kind: str, snapshot) -> int:
-        if kind == "player-death":
-            policy.invalidate_confirmed_loadout()
         recorder.freeze(
             kind, policy, snapshot, args.decision_log, list(recent_reasons)
         )

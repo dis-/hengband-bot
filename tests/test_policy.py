@@ -5,6 +5,7 @@ import textwrap
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -393,6 +394,7 @@ def set_completed_equipment_optimization(policy):
             snapshot.inventory, snapshot.equipment
         )
         worn = current_loadout(policy._equipment_catalog.items)
+        policy._equipment_optimizer_input_key = "0" * 64
         return SimpleNamespace(
             ready=True,
             result=SimpleNamespace(best=SimpleNamespace(loadout=worn)),
@@ -406,6 +408,10 @@ def set_completed_equipment_optimization(policy):
 
 def seed_confirmed_loadout(policy, snapshot):
     """Pass a zero-action completion through the production record gate."""
+    if policy._confirmed_loadout_path is None:
+        directory = TemporaryDirectory()
+        policy._test_confirmed_loadout_directory = directory
+        policy._confirmed_loadout_path = Path(directory.name) / "confirmed-loadout.json"
     previous = policy._prepare_equipment_optimization
     previous_catalog = policy._equipment_catalog
     try:
@@ -27169,8 +27175,17 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._next_required_store_type(snap), STORE_ALCHEMIST
         )
 
+        self.assertFalse(policy._identification_need_unsatisfiable(snap))
+
         policy._identification_need = "full"
         self.assertTrue(policy._identification_need_unsatisfiable(snap))
+
+        normal_unavailable = HengbotPolicy()
+        normal_unavailable._identification_need = "normal"
+        normal_unavailable._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        self.assertTrue(
+            normal_unavailable._identification_need_unsatisfiable(snap)
+        )
 
     def test_obtainable_basic_identify_is_used_not_deferred(self):
         weapon = item(

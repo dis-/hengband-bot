@@ -35,10 +35,14 @@ from hengbot.policy import (
     HengbotPolicy,
 )
 from hengbot.warrior_optimization import (
+    ConfirmedLoadoutRecord,
     INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
     PLAYER_ABILITY_FLAGS,
     WarriorOptimizationPreparation,
+    load_confirmed_loadout,
     prepare_warrior_optimization,
+    save_confirmed_loadout,
+    warrior_optimizer_input_key,
     weapon_expected_dps,
 )
 
@@ -1168,6 +1172,9 @@ class WarriorOptimizationTest(unittest.TestCase):
 
     def test_timeout_keeps_confirmed_loadout_but_requires_its_premise(self):
         policy = HengbotPolicy()
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy._confirmed_loadout_path = Path(directory.name) / "confirmed-loadout.json"
         light = gear("light", "equipped", slot="light", tval=39)
         snapshot = SimpleNamespace(
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
@@ -1184,6 +1191,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             EquipmentTransactionPlan((), (), 0), (),
         )
         policy._prepare_equipment_optimization = lambda _snapshot: complete
+        policy._equipment_optimizer_input_key = "0" * 64
         self.assertTrue(policy._equipment_departure_ready(snapshot))
         policy._prepare_equipment_optimization = lambda _snapshot: timed_out
         policy._equipment_optimization_timed_out_this_visit = True
@@ -1202,7 +1210,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         self.assertFalse(policy._equipment_departure_ready(stripped))
 
-    def test_confirmed_loadout_survives_restart_and_is_character_bound(self):
+    def test_confirmed_loadout_survives_restart_and_is_input_key_bound(self):
         light = gear("light", "equipped", slot="light", tval=39)
         player_state = SimpleNamespace(
             class_id=PLAYER_CLASS_WARRIOR, race_id=1, personality_id=2,
@@ -1222,6 +1230,7 @@ class WarriorOptimizationTest(unittest.TestCase):
                 EquipmentTransactionPlan((), (), 0), (),
             )
             policy._prepare_equipment_optimization = lambda _snapshot: complete
+            policy._equipment_optimizer_input_key = "0" * 64
             self.assertTrue(policy._equipment_departure_ready(snapshot))
             self.assertTrue(path.is_file())
 
@@ -1231,7 +1240,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             )
             restarted = HengbotPolicy()
             restarted._confirmed_loadout_path = path
+            restarted._equipment_catalog.refresh_carried((), snapshot.equipment)
             restarted._prepare_equipment_optimization = lambda _snapshot: timeout
+            restarted._equipment_optimizer_input_key = "0" * 64
             restarted._equipment_optimization_timed_out_this_visit = True
             self.assertTrue(restarted._equipment_departure_ready(snapshot))
 
@@ -1251,11 +1262,16 @@ class WarriorOptimizationTest(unittest.TestCase):
                 player=player_state, inventory=(blade,),
                 equipment=(light.item,), turn=502,
             )
+            restarted._equipment_catalog.refresh_carried(
+                grown_catalog.inventory, grown_catalog.equipment
+            )
+            restarted._equipment_optimizer_input_key = "1" * 64
             self.assertFalse(restarted._equipment_departure_ready(grown_catalog))
 
             stripped = SimpleNamespace(
                 player=player_state, inventory=(), equipment=(), turn=501,
             )
+            restarted._equipment_catalog.refresh_carried((), ())
             self.assertFalse(restarted._equipment_departure_ready(stripped))
 
             other_character = SimpleNamespace(
@@ -1267,21 +1283,110 @@ class WarriorOptimizationTest(unittest.TestCase):
             )
             fresh = HengbotPolicy()
             fresh._confirmed_loadout_path = path
+            fresh._equipment_catalog.refresh_carried((), other_character.equipment)
             fresh._prepare_equipment_optimization = lambda _snapshot: timeout
+            fresh._equipment_optimizer_input_key = "1" * 64
             self.assertFalse(fresh._equipment_departure_ready(other_character))
             self.assertTrue(path.is_file(), "an identity mismatch must not unlink")
 
-            restarted.invalidate_confirmed_loadout()
-            self.assertFalse(path.exists())
             successor = HengbotPolicy()
             successor._confirmed_loadout_path = path
+            successor._equipment_catalog.refresh_carried((), snapshot.equipment)
             successor._prepare_equipment_optimization = lambda _snapshot: timeout
+            successor._equipment_optimizer_input_key = "0" * 64
             successor._equipment_optimization_timed_out_this_visit = True
             clone = SimpleNamespace(
                 player=player_state, inventory=(), equipment=(light.item,),
                 turn=5001,
             )
-            self.assertFalse(successor._equipment_departure_ready(clone))
+            self.assertTrue(successor._equipment_departure_ready(clone))
+
+    def test_confirmed_loadout_old_schema_and_hostile_shapes_fail_closed(self):
+        old_schema = {
+            "race_id": 1,
+            "class_id": PLAYER_CLASS_WARRIOR,
+            "personality_id": 2,
+            "confirmed_turn": 500,
+            "item_ids": ["equipped:light"],
+            "catalog_item_ids": ["equipped:light"],
+        }
+        hostile = (
+            old_schema,
+            {},
+            {"item_ids": [], "optimizer_input_key": "0" * 64},
+            {"item_ids": ["equipped:light"], "optimizer_input_key": None},
+            {"item_ids": ["equipped:light"], "optimizer_input_key": "z" * 64},
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            for data in hostile:
+                with self.subTest(data=data):
+                    path.write_text(json.dumps(data), encoding="utf-8")
+                    self.assertIsNone(load_confirmed_loadout(path))
+            path.write_text("not json", encoding="utf-8")
+            self.assertIsNone(load_confirmed_loadout(path))
+
+    def test_confirmed_loadout_round_trips_new_input_key_schema(self):
+        record = ConfirmedLoadoutRecord(
+            frozenset({"equipped:weapon", "equipped:light"}), "a" * 64
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            self.assertTrue(save_confirmed_loadout(path, record))
+            self.assertEqual(load_confirmed_loadout(path), record)
+
+    def test_optimizer_input_key_covers_search_and_planner_inputs(self):
+        light = gear("light", "equipped", slot="light", tval=39)
+        weapon = gear("weapon", "equipped", slot="main_hand")
+        home = gear("home-upgrade", "home", to_d=20)
+        player = SimpleNamespace(
+            race_id=1, class_id=PLAYER_CLASS_WARRIOR, personality_id=2,
+            stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18),
+            level=10, shield_skill=0, speed=110, saving_skill=30,
+            abilities=frozenset(), ac=0, melee_skill=60, shooting_skill=50,
+            two_weapon_skill=0, max_hp=100, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        calibration = seed_calibration(snapshot, (light, weapon))
+        monster = MonraceKnowledge(
+            20, 110, False, False, level=1, average_hp=20,
+            armor_class=0, rarity=1,
+        )
+
+        def key(**changes):
+            arguments = {
+                "snapshot": snapshot,
+                "items": (light, weapon),
+                "knowledge": {1: monster},
+                "depth": 1,
+                "home_scan_complete": True,
+                "has_destruction": False,
+                "preserve_pack_item_ids": frozenset(),
+                "search_excluded_item_ids": frozenset(),
+                "calibration": calibration,
+            }
+            arguments.update(changes)
+            return warrior_optimizer_input_key(**arguments)
+
+        baseline = key()
+        variants = (
+            key(items=(light, weapon, home)),
+            key(knowledge={1: SimpleNamespace(**{**vars(monster), "max_hp": 21})}),
+            key(depth=20),
+            key(home_scan_complete=False),
+            key(has_destruction=True),
+            key(preserve_pack_item_ids=frozenset({weapon.id})),
+            key(search_excluded_item_ids=frozenset({weapon.id})),
+            key(calibration=SimpleNamespace(**{
+                **vars(calibration), "observed_turn": calibration.observed_turn + 1,
+            })),
+            key(snapshot=SimpleNamespace(
+                player=SimpleNamespace(**{**vars(player), "level": 11}),
+                inventory=(),
+            )),
+            key(snapshot=SimpleNamespace(player=player, inventory=(light.item,))),
+        )
+        self.assertTrue(all(candidate != baseline for candidate in variants))
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
+import hashlib
 import json
 from math import isfinite
 from pathlib import Path
@@ -181,69 +182,124 @@ class CharacterCalibration:
 class ConfirmedLoadoutRecord:
     """A live worn set recorded only after optimization genuinely completes."""
 
-    race_id: int
-    class_id: int
-    personality_id: int
-    confirmed_turn: int
     item_ids: frozenset[str]
-    catalog_item_ids: frozenset[str]
-
-    def belongs_to(self, snapshot: Snapshot) -> bool:
-        player = snapshot.player
-        return (
-            getattr(player, "race_id", -1) == self.race_id
-            and getattr(player, "class_id", -1) == self.class_id
-            and getattr(player, "personality_id", -1) == self.personality_id
-            and getattr(snapshot, "turn", 0) >= self.confirmed_turn
-        )
+    optimizer_input_key: str
 
 
 def confirmed_loadout_record(
-    snapshot: Snapshot,
     item_ids: frozenset[str],
-    catalog_item_ids: frozenset[str],
+    optimizer_input_key: str,
 ) -> ConfirmedLoadoutRecord:
-    player = snapshot.player
     return ConfirmedLoadoutRecord(
-        race_id=getattr(player, "race_id", -1),
-        class_id=getattr(player, "class_id", -1),
-        personality_id=getattr(player, "personality_id", -1),
-        confirmed_turn=getattr(snapshot, "turn", 0),
         item_ids=frozenset(item_ids),
-        catalog_item_ids=frozenset(catalog_item_ids),
+        optimizer_input_key=optimizer_input_key,
     )
 
 
-def save_confirmed_loadout(path: Path, record: ConfirmedLoadoutRecord) -> None:
+def save_confirmed_loadout(path: Path, record: ConfirmedLoadoutRecord) -> bool:
     data = asdict(record)
     data["item_ids"] = sorted(record.item_ids)
-    data["catalog_item_ids"] = sorted(record.catalog_item_ids)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        return True
     except OSError:
-        return
+        return False
 
 
 def load_confirmed_loadout(path: Path) -> ConfirmedLoadoutRecord | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         item_ids = frozenset(str(value) for value in data["item_ids"])
-        catalog_item_ids = frozenset(
-            str(value) for value in data["catalog_item_ids"]
-        )
-        if not item_ids or not catalog_item_ids or not item_ids <= catalog_item_ids:
+        optimizer_input_key = data["optimizer_input_key"]
+        if (
+            not item_ids
+            or not isinstance(optimizer_input_key, str)
+            or len(optimizer_input_key) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in optimizer_input_key
+            )
+        ):
             return None
         return ConfirmedLoadoutRecord(
-            race_id=int(data["race_id"]),
-            class_id=int(data["class_id"]),
-            personality_id=int(data["personality_id"]),
-            confirmed_turn=int(data["confirmed_turn"]),
             item_ids=item_ids,
-            catalog_item_ids=catalog_item_ids,
+            optimizer_input_key=optimizer_input_key,
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def _canonical_optimizer_input(value):
+    """Return a JSON-safe, ordering-stable representation of optimizer input."""
+    if hasattr(value, "__dataclass_fields__"):
+        return {
+            field: _canonical_optimizer_input(getattr(value, field))
+            for field in value.__dataclass_fields__
+        }
+    if isinstance(value, Mapping):
+        return [
+            (_canonical_optimizer_input(key), _canonical_optimizer_input(item))
+            for key, item in sorted(value.items(), key=lambda pair: repr(pair[0]))
+        ]
+    if isinstance(value, (set, frozenset)):
+        members = [_canonical_optimizer_input(item) for item in value]
+        return sorted(members, key=lambda item: json.dumps(item, sort_keys=True))
+    if isinstance(value, (tuple, list)):
+        return [_canonical_optimizer_input(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return repr(value)
+
+
+def warrior_optimizer_input_key(
+    snapshot: Snapshot,
+    items: tuple[OwnedEquipment, ...],
+    knowledge: Mapping[int, MonraceKnowledge],
+    *,
+    depth: int,
+    home_scan_complete: bool,
+    has_destruction: bool,
+    preserve_pack_item_ids: frozenset[str],
+    search_excluded_item_ids: frozenset[str],
+    calibration: CharacterCalibration | None,
+) -> str:
+    """Digest every semantic input consumed by preparation and planning."""
+    player = snapshot.player
+    inputs = {
+        "schema": 1,
+        "items": items,
+        "knowledge": knowledge,
+        "depth": depth,
+        "home_scan_complete": home_scan_complete,
+        "has_destruction": has_destruction,
+        "preserve_pack_item_ids": preserve_pack_item_ids,
+        "search_excluded_item_ids": search_excluded_item_ids,
+        "calibration": calibration,
+        "current_pack_items": len(snapshot.inventory),
+        "player": {
+            "race_id": player.race_id,
+            "class_id": player.class_id,
+            "personality_id": player.personality_id,
+            "level": player.level,
+            "stat_cur": player.stat_cur,
+            "speed": player.speed,
+            "melee_skill": player.melee_skill,
+            "shooting_skill": getattr(player, "shooting_skill", player.melee_skill),
+            "saving_skill": player.saving_skill,
+            "two_weapon_skill": player.two_weapon_skill,
+            "shield_skill": player.shield_skill,
+            "max_hp": player.max_hp,
+            "max_mp": player.max_mp,
+        },
+    }
+    encoded = json.dumps(
+        _canonical_optimizer_input(inputs),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def character_intrinsic_flags(characteristics) -> frozenset[int]:

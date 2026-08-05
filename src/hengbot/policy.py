@@ -82,6 +82,7 @@ from hengbot.warrior_optimization import (
     prepare_warrior_optimization,
     save_character_calibration,
     save_confirmed_loadout,
+    warrior_optimizer_input_key,
     weapon_expected_dps,
 )
 from hengbot.warrior_loadout_evaluator import (
@@ -2236,6 +2237,7 @@ class HengbotPolicy:
         self._confirmed_loadout: ConfirmedLoadoutRecord | None = None
         self._confirmed_loadout_path: Path | None = None
         self._confirmed_loadout_loaded = False
+        self._equipment_optimizer_input_key: str | None = None
         # Calibration phase state machine: None | "deposit" | "strip" |
         # "capture" | "restore-equip" | "restore-supplies".
         self._calibration_phase: str | None = None
@@ -8741,24 +8743,6 @@ class HengbotPolicy:
         cached_blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
         )
-        if (
-            depth_override is None
-            and self._equipment_optimization_timed_out_this_visit
-            and self._equipment_optimization_preparation is not None
-            and isinstance(cached_blockers, (tuple, list, set, frozenset))
-            and "optimization-timeout" in cached_blockers
-        ):
-            # Small equipment mutations after a bounded search (for example one
-            # launcher enchant) must not restart the same minute-long search for
-            # every town action. Keep the confirmed current loadout unchanged for
-            # the remainder of this town visit.
-            self._equipment_optimization_telemetry["result_source"] = (
-                "town-visit-timeout-return"
-            )
-            self._equipment_optimization_telemetry[
-                "search_telemetry_freshness"
-            ] = "stale-republished"
-            return self._equipment_optimization_preparation
         has_destruction = self._has_destruction_method(snapshot)
         quest_strategy = (
             self._carry_procurement_strategy(snapshot)
@@ -8843,6 +8827,62 @@ class HengbotPolicy:
                 )
             )
         )
+        # Quest replenishment is a pack-supply count target, not equipment
+        # search input. Lit throwing torches happen to have an equipment tval;
+        # exclude their reserved physical stacks from loadout candidacy while
+        # retaining them in the catalog for transaction preservation.
+        search_excluded = frozenset(
+            item.id
+            for item in catalog
+            if (
+                item.origin == "pack"
+                and item.item.is_torch
+                and self._retention_reservation(snapshot, item.item) > 0
+            )
+            or (
+                required_launcher_available
+                and item.item.tval == TVAL_BOW
+                and item.item.ammo_tval != required_launcher_ammo
+            )
+        )
+        search_catalog = tuple(
+            replace(item, random_teleport_suppressed=True)
+            if (
+                item.evaluable
+                and not item.item.fully_known
+                and item_requires_full_identification(item.item)
+            )
+            else item
+            for item in catalog
+        )
+        self._equipment_optimizer_input_key = warrior_optimizer_input_key(
+            snapshot,
+            search_catalog,
+            self._monrace_knowledge,
+            depth=optimization_depth,
+            home_scan_complete=self._equipment_catalog.home_scan_complete,
+            has_destruction=has_destruction,
+            preserve_pack_item_ids=preserve,
+            search_excluded_item_ids=search_excluded,
+            calibration=calibration,
+        )
+        if (
+            depth_override is None
+            and self._equipment_optimization_timed_out_this_visit
+            and self._equipment_optimization_preparation is not None
+            and isinstance(cached_blockers, (tuple, list, set, frozenset))
+            and "optimization-timeout" in cached_blockers
+        ):
+            # Avoid repeating a bounded search during this visit. Departure is
+            # still closed unless this current key equals a genuinely completed
+            # search recorded on disk.
+            self._equipment_optimization_telemetry["result_source"] = (
+                "town-visit-timeout-return"
+            )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "stale-republished"
+            return self._equipment_optimization_preparation
         if signature == self._equipment_optimization_signature:
             self._equipment_optimization_telemetry["result_source"] = (
                 "signature-cache-hit"
@@ -8877,34 +8917,6 @@ class HengbotPolicy:
                 )
             self._equipment_optimization_pack_items = len(snapshot.inventory)
             return self._equipment_optimization_preparation
-        # Quest replenishment is a pack-supply count target, not equipment
-        # search input. Lit throwing torches happen to have an equipment tval;
-        # exclude their reserved physical stacks from loadout candidacy while
-        # retaining them in the catalog for transaction preservation.
-        search_excluded = frozenset(
-            item.id
-            for item in catalog
-            if (
-                item.origin == "pack"
-                and item.item.is_torch
-                and self._retention_reservation(snapshot, item.item) > 0
-            )
-            or (
-                required_launcher_available
-                and item.item.tval == TVAL_BOW
-                and item.item.ammo_tval != required_launcher_ammo
-            )
-        )
-        search_catalog = tuple(
-            replace(item, random_teleport_suppressed=True)
-            if (
-                item.evaluable
-                and not item.item.fully_known
-                and item_requires_full_identification(item.item)
-            )
-            else item
-            for item in catalog
-        )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
         for owned in catalog:
@@ -9843,11 +9855,9 @@ class HengbotPolicy:
                 ready = True
             elif (
                 "optimization-timeout" in preparation.blockers
-                and self._equipment_optimization_timed_out_this_visit
             ):
-                # A real search timeout latches further optimization for this
-                # visit. Catalog equality separately proves nothing owned has
-                # changed since the recorded complete search.
+                # The memo key proves that this timed-out search has exactly the
+                # same semantic inputs as the earlier completed search.
                 ready = True
             elif (
                 "pending-random-teleport-suppression" in preparation.blockers
@@ -9886,61 +9896,49 @@ class HengbotPolicy:
         self, snapshot: Snapshot, preparation: object | None
     ) -> bool:
         """Match live snapshot equipment to the disk-backed confirmation."""
-        live_catalog = OwnedEquipmentCatalog()
-        live_catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
-        current = current_loadout(live_catalog.items)
+        live_carried = OwnedEquipmentCatalog()
+        live_carried.refresh_carried(snapshot.inventory, snapshot.equipment)
+        current = current_loadout(live_carried.items)
         result = getattr(preparation, "result", None)
         best = getattr(result, "best", None)
         if best is not None and not isinstance(getattr(best, "loadout", None), Loadout):
             return False
-        record = self._validated_confirmed_loadout(snapshot)
-        catalog_item_ids = frozenset(owned.id for owned in live_catalog.items)
+        record = self._validated_confirmed_loadout()
         return bool(
             current.item_ids
             and record is not None
             and current.item_ids == record.item_ids
-            and catalog_item_ids == record.catalog_item_ids
+            and self._equipment_optimizer_input_key is not None
+            and self._equipment_optimizer_input_key == record.optimizer_input_key
         )
 
-    def _validated_confirmed_loadout(self, snapshot: Snapshot) -> ConfirmedLoadoutRecord | None:
+    def _validated_confirmed_loadout(self) -> ConfirmedLoadoutRecord | None:
         if not self._confirmed_loadout_loaded and self._confirmed_loadout_path is not None:
             self._confirmed_loadout = load_confirmed_loadout(self._confirmed_loadout_path)
-        self._confirmed_loadout_loaded = True
-        record = self._confirmed_loadout
-        if record is None or not record.belongs_to(snapshot):
-            self._confirmed_loadout = None
-            return None
-        return record
-
-    def invalidate_confirmed_loadout(self) -> None:
-        """Forget a record after the CLI has positively confirmed player death."""
-        self._confirmed_loadout = None
-        self._confirmed_loadout_loaded = True
-        if self._confirmed_loadout_path is not None:
-            try:
-                self._confirmed_loadout_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+            self._confirmed_loadout_loaded = True
+        return self._confirmed_loadout
 
     def _record_confirmed_loadout(self, snapshot: Snapshot) -> None:
-        live_catalog = OwnedEquipmentCatalog()
-        live_catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
-        item_ids = current_loadout(live_catalog.items).item_ids
-        catalog_item_ids = frozenset(owned.id for owned in live_catalog.items)
-        if not item_ids:
+        live_carried = OwnedEquipmentCatalog()
+        live_carried.refresh_carried(snapshot.inventory, snapshot.equipment)
+        item_ids = current_loadout(live_carried.items).item_ids
+        optimizer_input_key = self._equipment_optimizer_input_key
+        if not item_ids or optimizer_input_key is None:
             return
-        existing = self._validated_confirmed_loadout(snapshot)
+        existing = self._validated_confirmed_loadout()
         if (
             existing is not None
             and existing.item_ids == item_ids
-            and existing.catalog_item_ids == catalog_item_ids
+            and existing.optimizer_input_key == optimizer_input_key
         ):
             return
-        record = confirmed_loadout_record(snapshot, item_ids, catalog_item_ids)
+        record = confirmed_loadout_record(item_ids, optimizer_input_key)
+        if self._confirmed_loadout_path is None:
+            return
+        if not save_confirmed_loadout(self._confirmed_loadout_path, record):
+            return
         self._confirmed_loadout = record
         self._confirmed_loadout_loaded = True
-        if self._confirmed_loadout_path is not None:
-            save_confirmed_loadout(self._confirmed_loadout_path, record)
 
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
