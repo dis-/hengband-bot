@@ -111,12 +111,23 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         owner._fixed_quest_entrance_positions = lambda _snapshot, _quest_id: {entrance}
         owner._nearest_goal_step = lambda _snapshot, _predicate: entrance
         owner._step_toward = lambda _snapshot, _step: "6"
+        owner._dungeon_entry_allowed = lambda *_args, **_kwargs: True
         action = QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 1), 1)
         self.assertEqual(action, "6")
         self.assertEqual(owner.last_reason, "quest:enter:approach")
         action = QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 2), 1)
         self.assertEqual(action, ">y")
         self.assertEqual(owner.last_reason, "quest:enter")
+
+    def test_enter_from_town_obeys_dungeon_departure_gate(self):
+        entrance = Position(8, 2)
+        owner = SimpleNamespace(last_reason=None)
+        owner._fixed_quest_entrance_positions = lambda _snapshot, _quest_id: {entrance}
+        owner._dungeon_entry_allowed = lambda *_args, **_kwargs: False
+
+        self.assertIsNone(
+            QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 2), 1)
+        )
 
     def test_real_q31_trees_allow_routes_to_every_stationary_target_vantage(self):
         definitions = REAL_QUEST_DEFINITIONS

@@ -7954,9 +7954,14 @@ class OverflowDisposalTest(unittest.TestCase):
 
     def test_optimizer_pack_space_block_keeps_current_loadout_at_terminal_four(self):
         snapshot = self._town(self._inventory(PACK_CAPACITY - 4))
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, class_id=PLAYER_CLASS_WARRIOR),
+        )
         policy = HengbotPolicy()
         preparation = SimpleNamespace(
-            blockers=("pack-space-required:4",), ready=False, transaction=None
+            blockers=("pack-space-required:4",), ready=False, transaction=None,
+            result=SimpleNamespace(best=SimpleNamespace(loadout="confirmed")),
         )
 
         with patch.object(
@@ -7965,6 +7970,13 @@ class OverflowDisposalTest(unittest.TestCase):
             policy, "_town_pack_space_ready", return_value=True
         ):
             self.assertTrue(policy._equipment_departure_ready(snapshot))
+
+        preparation.result = None
+        policy = HengbotPolicy()
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=preparation
+        ), patch.object(policy, "_town_pack_space_ready", return_value=True):
+            self.assertFalse(policy._equipment_departure_ready(snapshot))
 
     def _incomplete_catalog_policy(self):
         policy = HengbotPolicy()
@@ -7990,7 +8002,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
         return policy, snapshot, preparation
 
-    def test_unbuyable_identify_remains_optimization_incomplete(self):
+    def test_unbuyable_identify_opens_confirmed_legal_escape_valve(self):
         policy, snapshot, preparation = self._incomplete_catalog_policy()
         # Alchemist already tried and holds no *Identify*: the need cannot be
         # satisfied this visit, so the escape valve must open (depart, retry
@@ -7999,6 +8011,18 @@ class OverflowDisposalTest(unittest.TestCase):
             policy, "_prepare_equipment_optimization", return_value=preparation
         ), patch.object(
             policy, "_find_identification_source", return_value=None
+        ):
+            self.assertTrue(policy._equipment_departure_ready(snapshot))
+
+        refused = SimpleNamespace(
+            blockers=preparation.blockers,
+            result=None,
+            ready=False,
+            transaction=None,
+        )
+        policy = HengbotPolicy()
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=refused
         ):
             self.assertFalse(policy._equipment_departure_ready(snapshot))
 
@@ -10445,6 +10469,7 @@ class FixedQuestTest(unittest.TestCase):
             ),
         }
         policy = HengbotPolicy(town_map)
+        policy._dungeon_entry_allowed = lambda *_args, **_kwargs: True
 
         position = origin
         visited = {position}
@@ -19347,6 +19372,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_depth_two_departure_requires_all_new_supplies(self):
         policy = HengbotPolicy()
+        set_completed_equipment_optimization(policy)
         policy._deepest_level = 1
         base = dict(
             player=player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -22221,7 +22247,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             equipment=[self._lantern()],
         )
         policy = HengbotPolicy(town_map=town_map)
-        policy._fundraising_mode = "scavenge"
+        policy._fundraising_mode = None
         policy._prepare_equipment_optimization = lambda _snapshot: SimpleNamespace(
             ready=False,
             result=None,
@@ -22232,6 +22258,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(
             policy.choose_key(snap), policy_module.ENTER_DUNGEON_MACRO
         )
+
+        self.assertFalse(policy._town_departure_ready(snap))
+        self.assertFalse(
+            policy._dungeon_entry_allowed(
+                snap, via_recall=False, destination_depth=1
+            )
+        )
+        self.assertIn("equipment_departure_ready", policy._departure_block["failed"])
 
     def test_town_restores_a_weapon_even_when_the_name_is_unknown(self):
         # A fresh bot process that inherited an already-wielded pickaxe has no recorded
@@ -24622,6 +24656,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
+        set_completed_equipment_optimization(policy)
         # Adjacent inn one step east: walk on, read a bounded batch, then leave
         # so exported unlock progress is checked before another batch is sent.
         self.assertEqual(policy.choose_key(snap), "6" + "u\r" * 40 + "\x1b")
@@ -24643,6 +24678,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
+        set_completed_equipment_optimization(policy)
         self.assertEqual(policy.choose_key(snap), "6" + "u\r" * 40 + "\x1b")
         self.assertEqual(policy.last_reason, "town:rumor-batch")
 
@@ -24662,6 +24698,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
+        set_completed_equipment_optimization(policy)
         self.assertEqual(policy.choose_key(snap), WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:rumor-needs-funds")
 
@@ -24684,6 +24721,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
         )
         policy = HengbotPolicy()
+        set_completed_equipment_optimization(policy)
         self.assertEqual(policy.choose_key(snap), "6")
         self.assertEqual(policy.last_reason, "town:rumor")
 
@@ -24798,14 +24836,22 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._char_dump_done_this_visit = True
         policy._prepare_equipment_optimization = lambda _snapshot: incomplete
 
-        key = policy.choose_key(snap)
+        keys = []
+        reasons = []
+        for offset in range(200):
+            key = policy.choose_key(replace(snap, turn=snap.turn + offset))
+            keys.append(key)
+            reasons.append(policy.last_reason)
 
-        self.assertNotEqual(
-            key,
+        self.assertNotIn(
             "rra",
+            keys,
             "fresh restart must not post recall while home-scan-incomplete has no result",
         )
-        self.assertNotEqual(key, WAIT_KEY, "town optimization work must remain reachable")
+        self.assertTrue(
+            any(reason.startswith("town:blocked:equipment-") for reason in reasons),
+            reasons[-10:],
+        )
         self.assertFalse(policy._equipment_departure_ready(snap))
 
     def test_stale_home_candidate_latch_does_not_block_ready_recall(self):
@@ -26158,7 +26204,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             "equipment-incomplete-catalog",
         )
 
-    def test_unavailable_full_identify_remains_optimization_incomplete(self):
+    def test_unavailable_full_identify_defers_confirmed_pack_candidate(self):
         town = self._ready_home_town(gold=6411)
         policy = HengbotPolicy()
         owned = SimpleNamespace(id="pack:ego:0", origin="pack")
@@ -26170,7 +26216,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             transaction=None,
         )
 
-        self.assertFalse(policy._equipment_departure_ready(town))
+        self.assertTrue(policy._equipment_departure_ready(town))
 
     def test_unavailable_full_identify_keeps_equipped_candidate_blocking(self):
         town = self._ready_home_town(gold=6411)
@@ -26192,7 +26238,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertFalse(policy._equipment_departure_ready(town))
 
-    def test_exhausted_identify_stock_remains_optimization_incomplete(self):
+    def test_exhausted_identify_stock_allows_confirmed_deferred_candidate(self):
         town = self._ready_home_town(gold=6411)
         policy = HengbotPolicy()
         equipped = item(
@@ -26211,7 +26257,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             transaction=None,
         )
 
-        self.assertFalse(policy._equipment_departure_ready(town))
+        self.assertTrue(policy._equipment_departure_ready(town))
 
     def test_non_mining_town_arrival_preserves_processed_home_items(self):
         # The identification retry boundary is a completed MINING trip only. A
@@ -31511,7 +31557,7 @@ class RemoveCurseTest(unittest.TestCase):
         policy._town_store_attempted[STORE_TEMPLE] = temple.turn
         self.assertIsNone(policy._retry_after_store_restock(temple, (STORE_TEMPLE,)))
 
-    def test_heavy_curse_optimizer_blocker_is_incomplete(self):
+    def test_heavy_curse_optimizer_blocker_allows_confirmed_loadout(self):
         cursed = item(
             "a", 23, 0, is_equipment=True, is_cursed=True,
             known=True, name="incident cursed ring",
@@ -31519,25 +31565,33 @@ class RemoveCurseTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._heavy_cursed_items.add(policy._item_signature(cursed))
         blocked = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout="confirmed")),
             blockers=("cursed-equipped:equipped:ring:0",),
             transaction=None,
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
 
+        self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
+
+        blocked.result = None
+        policy = HengbotPolicy()
+        policy._heavy_cursed_items.add(policy._item_signature(cursed))
+        policy._prepare_equipment_optimization = lambda _snapshot: blocked
         self.assertFalse(policy._equipment_departure_ready(self._town([cursed])))
 
-    def test_unactionable_curse_optimizer_blocker_is_incomplete(self):
+    def test_unactionable_curse_optimizer_blocker_allows_confirmed_loadout(self):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_TEMPLE] = 0
         blocked = SimpleNamespace(
+            result=SimpleNamespace(best=SimpleNamespace(loadout="confirmed")),
             blockers=("cursed-equipped:equipped:ring:0",),
             transaction=None,
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
-        self.assertFalse(policy._equipment_departure_ready(self._town([cursed])))
+        self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
 
     def test_actionable_normal_scroll_keeps_departure_blocked(self):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
@@ -35590,7 +35644,6 @@ class TownCycleDetectorTest(unittest.TestCase):
     def test_mining_walk_in_is_the_only_zero_recall_entry(self):
         snap = replace(self._town_snap(), inventory=[])
         mining = HengbotPolicy()
-        set_completed_equipment_optimization(mining)
         mining._target_dungeon_id = DUNGEON_YEEK_CAVE
         mining._fundraising_mode = "mine"
         self.assertTrue(
@@ -40165,7 +40218,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         self.assertTrue(ready)
 
-    def test_unactionable_suppression_remains_optimization_incomplete(self):
+    def test_unactionable_suppression_keeps_confirmed_loadout(self):
         stored = store_item(
             "b", 23, 17, name="Werewindle", known=True,
             fully_known=False, is_equipment=True, is_artifact=True,
@@ -40186,6 +40239,14 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
 
+        self.assertTrue(policy._equipment_departure_ready(self._town()))
+
+        refused = policy_module.WarriorOptimizationPreparation(
+            SimpleNamespace(), None, None,
+            ("pending-random-teleport-suppression",),
+        )
+        policy = HengbotPolicy()
+        policy._prepare_equipment_optimization = lambda _snapshot: refused
         self.assertFalse(policy._equipment_departure_ready(self._town()))
 
     def test_blocked_home_does_not_complete_equipment_optimization(self):
@@ -41407,10 +41468,12 @@ class DungeonConquestTest(unittest.TestCase):
             max_melee_damage=26,
             blows=(MonsterBlow("HIT", "HURT", 2, 6),),
         )
-        return HengbotPolicy(
+        policy = HengbotPolicy(
             dungeon_knowledge=knowledge,
             monrace_knowledge={237: guardian},
         )
+        set_completed_equipment_optimization(policy)
+        return policy
 
     def _launchable_yeek_snapshot(self, *, recall_count=10):
         snapshot = replace(
@@ -43365,6 +43428,7 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
         snapshot = self._snapshot([arrows, *fillers])
         policy = HengbotPolicy()
         self._make_other_departure_gates_ready(policy)
+        set_completed_equipment_optimization(policy)
 
         self.assertEqual(PACK_CAPACITY - len(snapshot.inventory), 9)
         self.assertIs(policy._find_home_deposit(snapshot), arrows)
@@ -45403,6 +45467,22 @@ class WarningGridComposedWalkTest(unittest.TestCase):
         self.assertNotIn("y", key)
         self.assertNotEqual(key[:1], "6")
         self.assertEqual(policy.last_reason, "warning:blocked-step")
+
+    def test_fixed_quest_entry_obeys_incomplete_optimizer_gate(self):
+        policy = HengbotPolicy(self._town_map())
+        policy._prepare_equipment_optimization = lambda _snapshot: SimpleNamespace(
+            ready=False,
+            result=None,
+            transaction=None,
+            blockers=("home-scan-incomplete",),
+        )
+        snapshot = self._snapshot(
+            35, 177,
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3)],
+        )
+
+        self.assertIsNone(policy._fixed_quest_enter_key(snapshot, self.QUEST_ID))
+        self.assertIn("equipment_departure_ready", policy._departure_block["failed"])
 
     def test_tail_answered_crossing_is_latched_not_silent(self):
         # First encounter: the entrance is unlatched, so the composed walk

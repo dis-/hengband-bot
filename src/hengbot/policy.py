@@ -1704,6 +1704,8 @@ class HengbotPolicy:
         self._town_fact_snapshot: Snapshot | None = None
         # Predicate results are valid only for one merged decision snapshot.
         self._map_predicate_snapshot: Snapshot | None = None
+        self._equipment_departure_cache_token: int | None = None
+        self._equipment_departure_cache_value = False
         self._hazard_cache: dict[Position, bool] = {}
         self._town_border_cache: dict[Position, bool] = {}
         self._last_position: Position | None = None
@@ -2415,6 +2417,7 @@ class HengbotPolicy:
         self._read_binding = None
         self.read_telemetry = {}
         self._decision_sequence += 1
+        self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         decision_floor = getattr(snapshot, "floor_key", None)
         if self._unviable_quest_floor != decision_floor:
@@ -7423,12 +7426,6 @@ class HengbotPolicy:
             and self._morivant_full_identify.temporary_deposits
         ):
             return False
-        # Recall, direct entrance confirmation, and native entrance travel all
-        # share this boundary. Derive completion from the current snapshot on
-        # every decision because a restart loses process-local calibration state
-        # while the game's worn equipment remains stripped or short of target.
-        if snapshot.dungeon_level == 0 and not self._equipment_departure_ready(snapshot):
-            return False
         mining_walk_in = (
             not via_recall
             and destination_depth == 1
@@ -7437,6 +7434,20 @@ class HengbotPolicy:
         )
         if mining_walk_in:
             return True
+        # Recall, direct entrance confirmation, native entrance travel, and
+        # fixed-quest entry share this boundary. Mining is the sole absolute
+        # exception. Open wilderness is explicitly outside the town gate.
+        if (
+            snapshot.dungeon_level == 0
+            and snapshot.in_town
+            and not self._equipment_departure_ready(snapshot)
+        ):
+            self._departure_block = self._departure_block_state(snapshot)
+            if not self._departure_block.get("failed"):
+                self._departure_block["failed"] = ["equipment_departure_ready"]
+            if self._town_blocked_reason is None:
+                self._town_blocked_reason = "equipment-departure-incomplete"
+            return False
         recall = self._supply_ledger(snapshot, destination_depth)["recall"]
         return recall.count >= max(1, recall.required_return)
 
@@ -7902,8 +7913,8 @@ class HengbotPolicy:
     #               blocked for this visit by T3).
     # An abort always attempts to re-wear what was taken off; the departure
     # gates stay closed while a phase or the restore queue is live, and the
-    # pre-existing T3 Home-blocked escape in _equipment_departure_ready remains
-    # the sanctioned "keep the current legal loadout" exit if Home itself dies.
+    # If Home itself becomes T3-blocked, departure stays closed because no full
+    # catalog result exists; the ordinary town terminal exposes that refusal.
 
     def _current_pinned_identities(
         self, snapshot: Snapshot
@@ -9680,6 +9691,7 @@ class HengbotPolicy:
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
             and self._find_town_organization_surplus(snapshot) is None
+            and self._equipment_departure_ready(snapshot)
             and (
                 not self._home_available(snapshot)
                 or (
@@ -9702,7 +9714,6 @@ class HengbotPolicy:
                     # calibration-deposited pack contents still at Home.
                     and self._calibration_phase is None
                     and not self._calibration_restore_signatures
-                    and self._equipment_departure_ready(snapshot)
                 )
             )
         )
@@ -9769,38 +9780,102 @@ class HengbotPolicy:
         return True
 
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
+        """Derive departure safety from this decision's evaluated worn set.
+
+        A concrete result proves the full owned catalog was evaluated. With no
+        live session and no remaining executable action, the evaluated worn set
+        is the last confirmed legal loadout. This also derives "not mid-strip":
+        stripped-but-unrestored gear necessarily leaves an equip action or no
+        result after restart, while disk-backed calibration reconstruction does
+        not manufacture either fact.
+        """
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
+        cacheable = snapshot is self._map_predicate_snapshot
+        if (
+            cacheable
+            and self._equipment_departure_cache_token == self._decision_sequence
+        ):
+            return self._equipment_departure_cache_value
         preparation = self._prepare_equipment_optimization(snapshot)
-        session = self._equipment_transaction_session
-        if session is not None and not session.executable:
-            # Confirmation is deliberately bounded.  The normal transaction
-            # dispatcher also abandons a blocked session, but departure may be
-            # the next policy path reached after a partially successful Home
-            # loadout (for example, main hand equipped while the Home shield
-            # withdrawal never confirms).  Resolve the same failed-item
-            # exclusion here instead of retaining a permanently-false gate.
-            self._abandon_blocked_equipment_transaction()
-            preparation = self._prepare_equipment_optimization(snapshot)
-        # Completion has one positive representation: preparation succeeded,
-        # produced a plan with no remaining actions, and no live transaction
-        # owns a change. No result, any blocker, pending actions, and an active
-        # session are all incomplete even when their town work is blocked.
-        return bool(
+        premise = bool(
+            preparation is not None
+            and getattr(preparation, "result", None) is not None
+            and self._equipment_transaction_session is None
+            and (
+                preparation.transaction is None
+                or not preparation.transaction.actions
+            )
+        )
+        ready = premise and bool(
             preparation is not None
             and preparation.ready
             and preparation.transaction is not None
             and not preparation.transaction.actions
             and self._equipment_transaction_session is None
         )
+        if premise and preparation is not None:
+            if (
+                preparation.blockers
+                and all(blocker.startswith("cursed-equipped:") for blocker in preparation.blockers)
+                and (
+                    any(item.is_cursed and self._curse_unremovable(item) for item in snapshot.equipment)
+                    or not self._normal_remove_curse_actionable_this_visit(snapshot)
+                )
+            ):
+                ready = True
+            elif "optimization-timeout" in preparation.blockers:
+                # A timeout proves no new optimum, not that the last evaluated
+                # legal worn loadout became unsafe. Never execute a partial plan.
+                ready = True
+            elif (
+                "pending-random-teleport-suppression" in preparation.blockers
+                and not self._random_teleport_suppression_actionable(snapshot, preparation)
+            ):
+                ready = True
+            elif (
+                preparation.blockers
+                and all(blocker.startswith("pack-space-required:") for blocker in preparation.blockers)
+                and self._town_pack_space_ready(snapshot)
+            ):
+                ready = True
+            elif (
+                "incomplete-equipment-catalog" in preparation.blockers
+                and (
+                    self._identification_need is None
+                    or self._identification_need_unsatisfiable(snapshot)
+                )
+            ):
+                catalog = {owned.id: owned for owned in self._equipment_catalog.items}
+                incomplete = [
+                    catalog.get(item_id)
+                    for item_id in preparation.result.incomplete_item_ids
+                ]
+                ready = bool(incomplete) and all(
+                    owned is not None
+                    and (
+                        owned.origin != "equipped"
+                        or self._item_signature(owned.item) in self._deferred_home_items
+                    )
+                    for owned in incomplete
+                )
+        if cacheable:
+            self._equipment_departure_cache_token = self._decision_sequence
+            self._equipment_departure_cache_value = ready
+        return ready
 
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
+        preparation = self._prepare_equipment_optimization(snapshot)
+        if (
+            STORE_HOME in self._town_visit_ledger.blocked_stores
+            and (preparation is None or preparation.result is None)
+        ):
+            return "equipment-home-unavailable"
         # Keep this final guard self-contained: every caller must probe relaxed
         # depth bands before it can expose a terminal no-loadout state.
         if self._activate_loadout_depth_fallback(snapshot) is not None:
             return None
-        preparation = self._prepare_equipment_optimization(snapshot)
         if (
             preparation is None
             or self._next_required_store_type(snapshot) is not None
@@ -9810,6 +9885,8 @@ class HengbotPolicy:
             return "equipment-no-valid-loadout"
         if "incomplete-equipment-catalog" in preparation.blockers:
             return "equipment-incomplete-catalog"
+        if "optimization-timeout" in preparation.blockers:
+            return "equipment-optimization-timeout"
         return None
 
     def _activate_loadout_depth_fallback(self, snapshot: Snapshot) -> int | None:
@@ -18460,9 +18537,7 @@ class HengbotPolicy:
             "home_available": home_available,
             "home_candidate_waiting": self._home_candidate_waiting,
             "home_scan_complete": self._equipment_catalog.home_scan_complete,
-            "equipment_departure_ready": (
-                self._equipment_departure_ready(snapshot) if home_available else True
-            ),
+            "equipment_departure_ready": self._equipment_departure_ready(snapshot),
             "fundraising_departure_ready": self._fundraising_departure_ready(snapshot),
             "town_departure_ready": self._town_departure_ready(snapshot),
             "recall_departure_ready": self._recall_departure_ready(snapshot),
@@ -18488,7 +18563,7 @@ class HengbotPolicy:
                 ("identification_need", values["identification_need"] is not None),
                 ("home_candidate_waiting", home_available and values["home_candidate_waiting"]),
                 ("home_scan_complete", home_available and not values["home_scan_complete"]),
-                ("equipment_departure_ready", home_available and not values["equipment_departure_ready"]),
+                ("equipment_departure_ready", not values["equipment_departure_ready"]),
                 (selected_gate, not values[selected_gate]),
             )
             if failed
@@ -23276,6 +23351,10 @@ class HengbotPolicy:
             return None
         if snapshot.player.position in positions:
             if not self._kill_quest_descent_allowed(snapshot):
+                return None
+            if not self._dungeon_entry_allowed(
+                snapshot, via_recall=False, destination_depth=1
+            ):
                 return None
             self.last_reason = "fixedquest:enter"
             return DOWN_STAIRS_KEY + "y"

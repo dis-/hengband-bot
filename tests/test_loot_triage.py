@@ -246,6 +246,7 @@ class TownOrganizationTest(unittest.TestCase):
         policy._cure_critical_ready = lambda _snapshot: True
         policy._identify_staff_ready = lambda _snapshot: True
         policy._inventory_overweight = lambda _snapshot: False
+        policy._equipment_departure_ready = lambda _snapshot: True
         self.assertFalse(policy._town_departure_ready(self._town([spare])))
         policy._home_available = lambda _snapshot: False
         self.assertTrue(policy._town_departure_ready(self._town([])))
