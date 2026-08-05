@@ -3022,9 +3022,7 @@ class HengbotPolicy:
             # the fresh policy does not immediately deposit it again.
             withdrawn = self._first_item(
                 snapshot,
-                lambda item: item.is_equipment
-                and not item.is_light
-                and not item.is_digging_tool
+                lambda item: self._home_equipment_deposit_shape(item)
                 and not item.known,
             )
             if withdrawn is not None:
@@ -10384,9 +10382,9 @@ class HengbotPolicy:
         )
         # Spare wearable gear (armour, rings, amulets, junk weapons) is shelved at Home —
         # the equipment optimiser wields the best and this stashes the rest.
+        equipment_deposit_shape = self._home_equipment_deposit_shape(item)
         spare_equipment = (
-            item.is_equipment
-            and not item.is_light
+            equipment_deposit_shape
             and not item.is_digging_tool
             and not good_weapon
             and self._target_loadout_known()
@@ -10457,6 +10455,10 @@ class HengbotPolicy:
             or obsolete_oil
             or incompatible_ammo
         )
+
+    def _home_equipment_deposit_shape(self, item: InventoryItem) -> bool:
+        """Equipment shape shared by Home disposal and resume reconstruction."""
+        return item.is_equipment and not item.is_light
 
     def _target_loadout_known(self) -> bool:
         """Whether the optimizer currently supplies a concrete target loadout."""

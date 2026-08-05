@@ -20268,6 +20268,81 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(key, "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-item")
 
+    def test_prime_restores_an_average_digger_without_redepositing_it(self):
+        withdrawn = item(
+            "e", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="a Shovel",
+            is_equipment=True, aware=False, pseudo_feeling="average",
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[withdrawn],
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+        pol = HengbotPolicy()
+
+        pol.prime(snap)
+        preparation = set_known_target(pol)
+
+        def prepare(*_args, **_kwargs):
+            pol._equipment_optimization_preparation = preparation
+            return preparation
+
+        with patch.object(
+            pol, "_prepare_equipment_optimization", side_effect=prepare
+        ):
+            key = pol.choose_key(snap)
+
+        self.assertEqual(key, "\x1b")
+        self.assertEqual(pol.last_reason, "home:leave-with-item")
+
+    def test_prime_and_home_disposal_share_equipment_shape_recognition(self):
+        pol = HengbotPolicy()
+        set_known_target(pol)
+        samples = (
+            item("a", 23, 5, is_equipment=True, aware=False),
+            item(
+                "b", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                is_equipment=True, aware=False,
+            ),
+            item(
+                "c", TVAL_LITE, SV_LITE_TORCH,
+                is_equipment=True, aware=False,
+            ),
+            item("d", 70, 1, is_equipment=False, aware=False),
+        )
+
+        for candidate in samples:
+            with self.subTest(item=candidate.name):
+                shared = pol._home_equipment_deposit_shape(candidate)
+                disposal = pol._home_deposit_candidate(candidate)
+                self.assertEqual(shared, disposal)
+
+    def test_prime_reconstruction_only_sets_pending_withdrawal_fields(self):
+        withdrawn = item(
+            "e", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="a Shovel",
+            is_equipment=True, aware=False, pseudo_feeling="average",
+        )
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[withdrawn],
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+        pol = HengbotPolicy()
+
+        pol.prime(snap)
+
+        self.assertEqual(pol._home_pending_item, pol._item_signature(withdrawn))
+        self.assertEqual(pol._home_pending_slot, withdrawn.slot)
+        self.assertIsNone(pol._last_sell_sig)
+        self.assertIsNone(pol._pending_disposal_item)
+        self.assertIsNone(pol._pending_disposal_slot)
+
     def test_prime_does_not_rebuild_known_equipment_as_a_trial_batch(self):
         gloves = item(
             "a", 31, 1, name="known gloves", known=True,
