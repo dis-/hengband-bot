@@ -43954,6 +43954,40 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:restart-address-scan")
         self.assertEqual(policy._home_address_pages, [])
 
+    def test_public_page_zero_echo_leaves_to_restart_address_scan(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1260 + index,
+                name=f"page-zero echo {index}",
+            )
+            for index in range(24)
+        ]
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(wares[20])
+        pack = self._real_pack()
+        page_zero = self._home_page_snapshot(
+            pack, wares[:12], turn=2247360
+        )
+
+        keys = []
+        reasons = Counter()
+        for decision in range(2000):
+            snapshot = replace(page_zero, turn=2247360 + decision)
+            if policy.last_reason == "home:await-page-advance":
+                snapshot = replace(snapshot, messages=("Hengband 3.0",))
+            key = policy.choose_key(snapshot)
+            keys.append(key)
+            reasons[policy.last_reason] += 1
+            if key == LEAVE_STORE_KEY:
+                break
+
+        self.assertEqual(
+            keys, [" ", HOME_PAGE_PROBE_KEY, LEAVE_STORE_KEY],
+            (Counter(keys), reasons),
+        )
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
+        self.assertEqual(policy._home_address_pages, [])
+
     def test_public_reobserved_page_discard_leaves_to_restart_address_scan(self):
         wares = [
             store_item(
@@ -44211,6 +44245,54 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "entries": entries,
             "withdrawal_decisions": withdrawal_decisions,
         }
+
+    def test_public_restore_attempt_does_not_release_home_approach_bound(self):
+        policy = HengbotPolicy()
+        pack = self._real_pack()
+        entrance = self._entrance_snapshot(pack, turn=2247800)
+        surface = replace(
+            entrance,
+            player=replace(entrance.player, position=Position(45, 122)),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+
+        # Settle the visit through ordinary public decisions before reproducing
+        # the approach-limit ledger state written by _shopping_approach_step.
+        for decision in range(4):
+            policy.choose_key(replace(surface, turn=2247800 + decision))
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [("restore", 1, 1)]
+        policy._home_candidate_waiting = True
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        policy._town_visit_ledger.need_attempts["calibration-restore"] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        policy._town_store_attempted[STORE_HOME] = 2247803
+
+        reasons = Counter()
+        maximum_approach_fails = 0
+        for decision in range(600):
+            policy.choose_key(
+                replace(surface, turn=2247810 + decision)
+            )
+            reasons[policy.last_reason] += 1
+            maximum_approach_fails = max(
+                maximum_approach_fails,
+                policy._town_visit_ledger.approach_fails[STORE_HOME],
+            )
+
+        self.assertEqual(
+            policy._town_visit_ledger.approach_fails[STORE_HOME],
+            TOWN_STOP_PASS_LIMIT,
+            (reasons, maximum_approach_fails),
+        )
+        self.assertEqual(
+            policy._town_visit_ledger.need_attempts["calibration-restore"],
+            TOWN_STOP_PASS_LIMIT,
+        )
+        self.assertEqual(reasons["shop:travel"] + reasons["shop:approach"], 0)
 
     def test_atomic_withdrawal_derives_first_later_and_last_page_letters(self):
         wares = [

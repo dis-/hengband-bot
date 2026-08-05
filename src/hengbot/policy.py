@@ -2611,6 +2611,18 @@ class HengbotPolicy:
                                 self._home_address_page_count = len(
                                     self._home_address_pages
                                 )
+                            elif self._home_pending_item is not None:
+                                # A page-zero echo without wrap proof cannot
+                                # establish the address needed by a queued
+                                # withdrawal.  Discard the ambiguous record and
+                                # leave this visit, just as for a later-page
+                                # recurrence below.  An ordinary catalog scan
+                                # retains its established processing-complete
+                                # exit without claiming address validity.
+                                self._home_address_pages.clear()
+                                self._home_address_ordinals.clear()
+                                self._home_address_page_count = None
+                                self._home_address_restart_required = True
                         elif observed_page not in self._home_address_pages:
                             self._home_address_pages.append(observed_page)
                             self._home_address_ordinals.append(
@@ -8479,9 +8491,7 @@ class HengbotPolicy:
                     self._calibration_restore_signatures.clear()
                     self._calibration_phase = None
             elif STORE_HOME in self._town_store_attempted:
-                self._rearm_town_store_for_new_work(
-                    STORE_HOME, release_visit_bound=True
-                )
+                self._rearm_town_store_for_new_work(STORE_HOME)
             return
         if phase == "deposit":
             if STORE_HOME in self._town_store_attempted and (
