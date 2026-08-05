@@ -3022,8 +3022,9 @@ class HengbotPolicy:
             # the fresh policy does not immediately deposit it again.
             withdrawn = self._first_item(
                 snapshot,
-                lambda item: self._home_deposit_candidate(item, snapshot)
-                and item.is_equipment
+                lambda item: item.is_equipment
+                and not item.is_light
+                and not item.is_digging_tool
                 and not item.known,
             )
             if withdrawn is not None:

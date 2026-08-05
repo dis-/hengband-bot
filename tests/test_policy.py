@@ -20240,7 +20240,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_prime_restores_a_home_withdrawal_from_the_initial_snapshot(self):
         withdrawn = item(
-            "e", 23, 5, name="a Long Sword", is_equipment=True, aware=False
+            "e", 23, 5, name="a Long Sword", is_equipment=True, aware=False,
+            pseudo_feeling="average",
         )
         snap = Snapshot(
             player(10, 10),
@@ -20252,7 +20253,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
 
-        set_known_target(pol)
         pol.prime(snap)
         preparation = set_known_target(pol)
 
