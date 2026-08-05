@@ -66,9 +66,7 @@ class QuestFloorNavigator:
         if not positions:
             return None
         if snapshot.player.position in positions:
-            if not owner._dungeon_entry_allowed(
-                snapshot, via_recall=False, destination_depth=1
-            ):
+            if not owner._quest_equipment_entry_allowed(snapshot):
                 return None
             owner.last_reason = "quest:enter"
             return ">y"

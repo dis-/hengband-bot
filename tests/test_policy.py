@@ -95,7 +95,9 @@ from hengbot.model import (
     parse_snapshot,
 )
 from hengbot.dungeon_knowledge import DungeonInfo
-from hengbot.equipment_optimizer import Loadout, OwnedEquipment, TR_TELEPORT
+from hengbot.equipment_optimizer import (
+    Loadout, OwnedEquipment, TR_TELEPORT, current_loadout,
+)
 from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
 )
@@ -386,14 +388,20 @@ def set_known_target(policy):
 
 def set_completed_equipment_optimization(policy):
     """Install a known, already-worn zero-action optimizer result."""
-    preparation = SimpleNamespace(
-        ready=True,
-        result=SimpleNamespace(best=SimpleNamespace(loadout="already-worn")),
-        transaction=SimpleNamespace(actions=()),
-        blockers=(),
-    )
-    policy._prepare_equipment_optimization = lambda _snapshot: preparation
-    return preparation
+    def prepare(snapshot):
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        worn = current_loadout(policy._equipment_catalog.items)
+        return SimpleNamespace(
+            ready=True,
+            result=SimpleNamespace(best=SimpleNamespace(loadout=worn)),
+            transaction=SimpleNamespace(actions=()),
+            blockers=(),
+        )
+
+    policy._prepare_equipment_optimization = prepare
+    return prepare
 
 
 def seed_character_calibration(policy, snapshot):
@@ -7953,15 +7961,38 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertFalse(policy._town_pack_space_ready(snapshot))
 
     def test_optimizer_pack_space_block_keeps_current_loadout_at_terminal_four(self):
-        snapshot = self._town(self._inventory(PACK_CAPACITY - 4))
+        worn = [
+            item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+            item("light", TVAL_LITE, SV_LITE_TORCH, is_equipment=True),
+            item("body", 36, 1, is_equipment=True),
+            item("head", 32, 1, is_equipment=True),
+            item("arms", 31, 1, is_equipment=True),
+        ]
+        snapshot = replace(
+            self._town(self._inventory(PACK_CAPACITY - 4)), equipment=worn
+        )
         snapshot = replace(
             snapshot,
             player=replace(snapshot.player, class_id=PLAYER_CLASS_WARRIOR),
         )
         policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        current = current_loadout(policy._equipment_catalog.items)
+        target = Loadout((), "empty")
+        transaction = policy_module.plan_equipment_transactions(
+            policy._equipment_catalog.items, current, target,
+            current_pack_items=len(snapshot.inventory), home_scan_complete=True,
+        )
+        self.assertTrue(transaction.actions)
+        self.assertTrue(any(
+            blocker.startswith("pack-space-required:")
+            for blocker in transaction.blockers
+        ))
         preparation = SimpleNamespace(
-            blockers=("pack-space-required:4",), ready=False, transaction=None,
-            result=SimpleNamespace(best=SimpleNamespace(loadout="confirmed")),
+            blockers=transaction.blockers, ready=False, transaction=transaction,
+            result=SimpleNamespace(best=SimpleNamespace(loadout=target)),
         )
 
         with patch.object(
@@ -7999,6 +8030,10 @@ class OverflowDisposalTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 0),
             inventory=[],
+            equipment=[
+                item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+                item("light", TVAL_LITE, SV_LITE_TORCH, is_equipment=True),
+            ],
         )
         return policy, snapshot, preparation
 
@@ -10469,7 +10504,7 @@ class FixedQuestTest(unittest.TestCase):
             ),
         }
         policy = HengbotPolicy(town_map)
-        policy._dungeon_entry_allowed = lambda *_args, **_kwargs: True
+        policy._quest_equipment_entry_allowed = lambda *_args, **_kwargs: True
 
         position = origin
         visited = {position}
@@ -24838,7 +24873,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         keys = []
         reasons = []
-        for offset in range(200):
+        for offset in range(300):
             key = policy.choose_key(replace(snap, turn=snap.turn + offset))
             keys.append(key)
             reasons.append(policy.last_reason)
@@ -24852,7 +24887,65 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             any(reason.startswith("town:blocked:equipment-") for reason in reasons),
             reasons[-10:],
         )
+        self.assertIn("livelock:exhausted", reasons)
         self.assertFalse(policy._equipment_departure_ready(snap))
+
+    def test_timed_out_optimizer_cannot_recall_while_wearable_gear_is_packed(self):
+        """A real timeout shape proves no best; live gear must remain authority."""
+        packed = [
+            item("w", TVAL_SWORD, 1, is_equipment=True, known=True),
+            item("a", 36, 1, is_equipment=True, known=True),
+        ]
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[*packed, *self._strict_supplies(recall=6)],
+            equipment=[self._lantern()],
+            recall_dungeon_id=DUNGEON_ANGBAND,
+            yeek_cave_conquered=True,
+            angband_recall_unlocked=True,
+        )
+        timed_out = SimpleNamespace(
+            ready=False,
+            result=SimpleNamespace(best=None, timed_out=True),
+            transaction=None,
+            blockers=("optimization-timeout",),
+        )
+        policy = HengbotPolicy()
+        policy.prime(snap)
+        policy._char_dump_done_this_visit = True
+        policy._prepare_equipment_optimization = lambda _snapshot: timed_out
+
+        self.assertNotEqual(policy.choose_key(snap), "rra")
+        self.assertFalse(policy._equipment_departure_ready(snap))
+
+    def test_stale_dressed_timeout_is_refused_for_currently_stripped_snapshot(self):
+        dressed = Loadout((), "stale-dressed")
+        timed_out = SimpleNamespace(
+            current=dressed,
+            ready=False,
+            result=SimpleNamespace(best=None, timed_out=True),
+            transaction=None,
+            blockers=("optimization-timeout",),
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            inventory=[item("w", TVAL_SWORD, 1, is_equipment=True, known=True)],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        policy._equipment_optimization_preparation = timed_out
+        policy._equipment_optimization_timed_out_this_visit = True
+
+        with patch.object(
+            policy, "_prepare_equipment_optimization", return_value=timed_out
+        ):
+            self.assertFalse(policy._equipment_departure_ready(snapshot))
 
     def test_stale_home_candidate_latch_does_not_block_ready_recall(self):
         snap = Snapshot(
@@ -26205,7 +26298,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
     def test_unavailable_full_identify_defers_confirmed_pack_candidate(self):
-        town = self._ready_home_town(gold=6411)
+        town = replace(
+            self._ready_home_town(gold=6411),
+            equipment=(
+                item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+                item("light", TVAL_LITE, SV_LITE_TORCH, is_equipment=True),
+            ),
+        )
         policy = HengbotPolicy()
         owned = SimpleNamespace(id="pack:ego:0", origin="pack")
         policy._equipment_catalog = SimpleNamespace(items=(owned,))
@@ -26225,6 +26324,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             "neck", 40, 4, name="unknown amulet", known=False,
             pseudo_feeling="good", is_equipment=True,
         )
+        town = replace(town, equipment=(*town.equipment, equipped))
         owned = SimpleNamespace(
             id="equipped:ego:0", origin="equipped", item=equipped
         )
@@ -26245,6 +26345,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             "neck", 40, 4, name="unknown amulet", known=False,
             pseudo_feeling="good", is_equipment=True,
         )
+        town = replace(town, equipment=(*town.equipment, equipped))
         owned = SimpleNamespace(
             id="equipped:ego:0", origin="equipped", item=equipped
         )
@@ -31564,15 +31665,30 @@ class RemoveCurseTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._heavy_cursed_items.add(policy._item_signature(cursed))
+        snapshot = self._town([cursed])
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        current = current_loadout(policy._equipment_catalog.items)
+        target = Loadout((), "empty")
+        transaction = policy_module.plan_equipment_transactions(
+            policy._equipment_catalog.items, current, target,
+            current_pack_items=0, home_scan_complete=True,
+        )
+        self.assertTrue(transaction.actions)
+        self.assertTrue(all(
+            blocker.startswith("cursed-equipped:")
+            for blocker in transaction.blockers
+        ))
         blocked = SimpleNamespace(
-            result=SimpleNamespace(best=SimpleNamespace(loadout="confirmed")),
-            blockers=("cursed-equipped:equipped:ring:0",),
-            transaction=None,
+            result=SimpleNamespace(best=SimpleNamespace(loadout=target)),
+            blockers=transaction.blockers,
+            transaction=transaction,
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
 
-        self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
 
         blocked.result = None
         policy = HengbotPolicy()
@@ -31584,14 +31700,24 @@ class RemoveCurseTest(unittest.TestCase):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_TEMPLE] = 0
+        snapshot = self._town([cursed])
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        current = current_loadout(policy._equipment_catalog.items)
+        target = Loadout((), "empty")
+        transaction = policy_module.plan_equipment_transactions(
+            policy._equipment_catalog.items, current, target,
+            current_pack_items=0, home_scan_complete=True,
+        )
         blocked = SimpleNamespace(
-            result=SimpleNamespace(best=SimpleNamespace(loadout="confirmed")),
-            blockers=("cursed-equipped:equipped:ring:0",),
-            transaction=None,
+            result=SimpleNamespace(best=SimpleNamespace(loadout=target)),
+            blockers=transaction.blockers,
+            transaction=transaction,
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
-        self.assertTrue(policy._equipment_departure_ready(self._town([cursed])))
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
 
     def test_actionable_normal_scroll_keeps_departure_blocked(self):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
@@ -35643,14 +35769,23 @@ class TownCycleDetectorTest(unittest.TestCase):
 
     def test_mining_walk_in_is_the_only_zero_recall_entry(self):
         snap = replace(self._town_snap(), inventory=[])
-        mining = HengbotPolicy()
-        mining._target_dungeon_id = DUNGEON_YEEK_CAVE
-        mining._fundraising_mode = "mine"
-        self.assertTrue(
-            mining._dungeon_entry_allowed(
-                snap, via_recall=False, destination_depth=1
-            )
-        )
+        for mode in ("mine", "scavenge"):
+            with self.subTest(mode=mode):
+                mining = HengbotPolicy()
+                mining._target_dungeon_id = DUNGEON_YEEK_CAVE
+                mining._fundraising_mode = mode
+                preparation = mining._prepare_equipment_optimization(snap)
+                self.assertEqual(preparation.blockers, ("calibration-required",))
+                self.assertTrue(
+                    mining._dungeon_entry_allowed(
+                        snap, via_recall=False, destination_depth=1
+                    )
+                )
+                self.assertFalse(
+                    mining._dungeon_entry_allowed(
+                        snap, via_recall=True, destination_depth=5
+                    )
+                )
 
         ordinary = HengbotPolicy()
         ordinary._target_dungeon_id = DUNGEON_YEEK_CAVE
@@ -40188,7 +40323,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             fully_known=False, is_equipment=True, is_artifact=True,
             known_flags=frozenset({38, 74}),
         )
-        snapshot = self._town(inventory=(artifact,))
+        snapshot = self._town(equipment=(replace(artifact, slot="main_hand"),))
         policy = HengbotPolicy()
         seed_character_calibration(policy, snapshot)
         policy._equipment_catalog.refresh_carried(
@@ -40226,20 +40361,27 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._equipment_catalog.observe_home_page([stored])
+        worn = (
+            item("main_hand", TVAL_SWORD, 1, is_equipment=True),
+            item("light", TVAL_LITE, SV_LITE_TORCH, is_equipment=True),
+        )
+        snapshot = self._town(equipment=worn)
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
         owned = policy._equipment_catalog.items[0]
+        current = current_loadout(policy._equipment_catalog.items)
         blocked = policy_module.WarriorOptimizationPreparation(
-            SimpleNamespace(),
+            current,
             SimpleNamespace(
-                best=SimpleNamespace(
-                    loadout=SimpleNamespace(item_ids=frozenset({owned.id}))
-                )
+                best=SimpleNamespace(loadout=current)
             ),
             None,
             ("pending-random-teleport-suppression",),
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
 
-        self.assertTrue(policy._equipment_departure_ready(self._town()))
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
 
         refused = policy_module.WarriorOptimizationPreparation(
             SimpleNamespace(), None, None,
@@ -40249,7 +40391,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda _snapshot: refused
         self.assertFalse(policy._equipment_departure_ready(self._town()))
 
-    def test_blocked_home_does_not_complete_equipment_optimization(self):
+    def test_blocked_home_refuses_departure_and_names_visible_exit(self):
         policy = HengbotPolicy()
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
         blocked = SimpleNamespace(
@@ -40261,8 +40403,14 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         with patch.object(
             policy, "_prepare_equipment_optimization", return_value=blocked
-        ):
+        ), patch.object(
+            policy, "_activate_loadout_depth_fallback", return_value=None
+        ), patch.object(policy, "_next_required_store_type", return_value=None):
             self.assertFalse(policy._equipment_departure_ready(self._town()))
+            self.assertEqual(
+                policy._terminal_equipment_blocker(self._town()),
+                "equipment-home-unavailable",
+            )
 
     def test_pending_home_equipment_work_blocks_when_home_is_available(self):
         policy = HengbotPolicy()
@@ -45483,6 +45631,15 @@ class WarningGridComposedWalkTest(unittest.TestCase):
 
         self.assertIsNone(policy._fixed_quest_enter_key(snapshot, self.QUEST_ID))
         self.assertIn("equipment_departure_ready", policy._departure_block["failed"])
+
+    def test_fixed_quest_entry_needs_no_recall_when_equipment_is_ready(self):
+        policy = HengbotPolicy(self._town_map())
+        set_completed_equipment_optimization(policy)
+        snapshot = self._snapshot(35, 177, inventory=[])
+
+        self.assertEqual(
+            policy._fixed_quest_enter_key(snapshot, self.QUEST_ID), ">y"
+        )
 
     def test_tail_answered_crossing_is_latched_not_silent(self):
         # First encounter: the entrance is unlatched, so the composed walk

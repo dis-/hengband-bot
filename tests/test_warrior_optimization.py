@@ -1137,6 +1137,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         snapshot = SimpleNamespace(
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+            inventory=(), equipment=(),
         )
 
         self.assertFalse(policy._equipment_departure_ready(snapshot))
@@ -1151,29 +1152,34 @@ class WarriorOptimizationTest(unittest.TestCase):
 
     def test_departure_is_immediate_for_already_optimal_loadout(self):
         policy = HengbotPolicy()
-        current = Loadout((), "empty")
+        light = gear("light", "equipped", slot="light", tval=39)
+        snapshot = SimpleNamespace(
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+            inventory=(), equipment=(light.item,),
+        )
+        policy._equipment_catalog.refresh_carried((), snapshot.equipment)
+        current = current_loadout(policy._equipment_catalog.items)
         prepared = WarriorOptimizationPreparation(
             current, SimpleNamespace(best=SimpleNamespace(loadout=current)),
             EquipmentTransactionPlan((), (), 0), (),
         )
         policy._prepare_equipment_optimization = lambda _snapshot: prepared
-        snapshot = SimpleNamespace(
-            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
-        )
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
     def test_timeout_keeps_confirmed_loadout_but_requires_its_premise(self):
         policy = HengbotPolicy()
-        current = Loadout((), "empty")
+        light = gear("light", "equipped", slot="light", tval=39)
+        snapshot = SimpleNamespace(
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+            inventory=(), equipment=(light.item,),
+        )
+        policy._equipment_catalog.refresh_carried((), snapshot.equipment)
+        current = current_loadout(policy._equipment_catalog.items)
         timed_out = WarriorOptimizationPreparation(
             current, SimpleNamespace(best=SimpleNamespace(loadout=current)),
             None, ("optimization-timeout",),
         )
         policy._prepare_equipment_optimization = lambda _snapshot: timed_out
-        snapshot = SimpleNamespace(
-            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
-        )
-
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
         policy._equipment_transaction_session = SimpleNamespace(executable=True)

@@ -7451,6 +7451,17 @@ class HengbotPolicy:
         recall = self._supply_ledger(snapshot, destination_depth)["recall"]
         return recall.count >= max(1, recall.required_return)
 
+    def _quest_equipment_entry_allowed(self, snapshot: Snapshot) -> bool:
+        """Apply only the equipment boundary to a fixed quest entered on foot."""
+        if self._equipment_departure_ready(snapshot):
+            return True
+        self._departure_block = self._departure_block_state(snapshot)
+        if not self._departure_block.get("failed"):
+            self._departure_block["failed"] = ["equipment_departure_ready"]
+        if self._town_blocked_reason is None:
+            self._town_blocked_reason = "equipment-departure-incomplete"
+        return False
+
     def _dungeon_entry_depth(
         self, snapshot: Snapshot, dungeon_id: int, *, via_recall: bool
     ) -> int:
@@ -7912,8 +7923,8 @@ class HengbotPolicy:
     #   restore-supplies -> None (queue drained, item deferred, or Home proved
     #               blocked for this visit by T3).
     # An abort always attempts to re-wear what was taken off; the departure
-    # gates stay closed while a phase or the restore queue is live, and the
-    # If Home itself becomes T3-blocked, departure stays closed because no full
+    # gates stay closed while a phase or the restore queue is live. If Home
+    # itself becomes T3-blocked, departure stays closed because no full
     # catalog result exists; the ordinary town terminal exposes that refusal.
 
     def _current_pinned_identities(
@@ -9780,15 +9791,7 @@ class HengbotPolicy:
         return True
 
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
-        """Derive departure safety from this decision's evaluated worn set.
-
-        A concrete result proves the full owned catalog was evaluated. With no
-        live session and no remaining executable action, the evaluated worn set
-        is the last confirmed legal loadout. This also derives "not mid-strip":
-        stripped-but-unrestored gear necessarily leaves an equip action or no
-        result after restart, while disk-backed calibration reconstruction does
-        not manufacture either fact.
-        """
+        """Derive departure safety from the currently worn, confirmed loadout."""
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
         cacheable = snapshot is self._map_predicate_snapshot
@@ -9802,10 +9805,7 @@ class HengbotPolicy:
             preparation is not None
             and getattr(preparation, "result", None) is not None
             and self._equipment_transaction_session is None
-            and (
-                preparation.transaction is None
-                or not preparation.transaction.actions
-            )
+            and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
         ready = premise and bool(
             preparation is not None
@@ -9864,18 +9864,79 @@ class HengbotPolicy:
             self._equipment_departure_cache_value = ready
         return ready
 
+    def _current_worn_loadout_confirmed(
+        self, snapshot: Snapshot, preparation: object
+    ) -> bool:
+        """Confirm the live worn set, never a preparation's cached ``current``.
+
+        A completed search confirms only its exact best loadout. A bounded or
+        incomplete search may have no best at all; in that case the weaker
+        escape-valve premise is safe only when no legal owned item can be worn
+        immediately into an empty slot. This is deliberately reconstructed
+        from the current snapshot and current owned catalog, so a stale timeout
+        preparation cannot bless a character that has since been stripped.
+        """
+        catalog = tuple(self._equipment_catalog.items)
+        live_catalog = OwnedEquipmentCatalog()
+        live_catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
+        current = current_loadout(live_catalog.items)
+        result = getattr(preparation, "result", None)
+        best = getattr(result, "best", None)
+        best_loadout = getattr(best, "loadout", None)
+        best_ids = getattr(best_loadout, "item_ids", None)
+        if best_ids is not None:
+            if current.item_ids == frozenset(best_ids):
+                return True
+            # A result that identifies a different target is confirmation only
+            # when the real planner also proves that target cannot advance this
+            # visit (the cursed/terminal-pack-space valves below).
+            transaction = getattr(preparation, "transaction", None)
+            blockers = tuple(getattr(preparation, "blockers", ()))
+            transaction_blocked = transaction is not None and bool(blockers) and all(
+                blocker.startswith("cursed-equipped:")
+                or blocker.startswith("pack-space-required:")
+                for blocker in blockers
+            )
+            if not transaction_blocked:
+                return False
+
+        occupied = {slot for slot, _item in current.slots}
+        for owned in catalog:
+            if (
+                getattr(owned, "origin", None) == "equipped"
+                or not getattr(owned, "exploration_legal", False)
+            ):
+                continue
+            item = getattr(owned, "item", None)
+            if item is None:
+                continue
+            fixed_slot = slot_for(item)
+            if fixed_slot is not None and fixed_slot not in occupied:
+                return False
+            if item.tval in {21, 22, 23} and (
+                SLOT_MAIN_HAND not in occupied or SLOT_SUB_HAND not in occupied
+            ):
+                return False
+            if item.tval == TVAL_SHIELD and SLOT_SUB_HAND not in occupied:
+                return False
+            if item.tval == TVAL_RING and (
+                SLOT_MAIN_RING not in occupied or SLOT_SUB_RING not in occupied
+            ):
+                return False
+        return bool(current.item_ids)
+
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
         preparation = self._prepare_equipment_optimization(snapshot)
+        # Keep this final guard self-contained: every caller must probe relaxed
+        # depth bands before it can expose a terminal no-loadout state.
+        if self._activate_loadout_depth_fallback(snapshot) is not None:
+            return None
         if (
             STORE_HOME in self._town_visit_ledger.blocked_stores
             and (preparation is None or preparation.result is None)
         ):
             return "equipment-home-unavailable"
-        # Keep this final guard self-contained: every caller must probe relaxed
-        # depth bands before it can expose a terminal no-loadout state.
-        if self._activate_loadout_depth_fallback(snapshot) is not None:
-            return None
         if (
             preparation is None
             or self._next_required_store_type(snapshot) is not None
@@ -23352,9 +23413,7 @@ class HengbotPolicy:
         if snapshot.player.position in positions:
             if not self._kill_quest_descent_allowed(snapshot):
                 return None
-            if not self._dungeon_entry_allowed(
-                snapshot, via_recall=False, destination_depth=1
-            ):
+            if not self._quest_equipment_entry_allowed(snapshot):
                 return None
             self.last_reason = "fixedquest:enter"
             return DOWN_STAIRS_KEY + "y"

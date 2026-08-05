@@ -111,7 +111,7 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         owner._fixed_quest_entrance_positions = lambda _snapshot, _quest_id: {entrance}
         owner._nearest_goal_step = lambda _snapshot, _predicate: entrance
         owner._step_toward = lambda _snapshot, _step: "6"
-        owner._dungeon_entry_allowed = lambda *_args, **_kwargs: True
+        owner._quest_equipment_entry_allowed = lambda *_args, **_kwargs: True
         action = QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 1), 1)
         self.assertEqual(action, "6")
         self.assertEqual(owner.last_reason, "quest:enter:approach")
@@ -123,7 +123,7 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         entrance = Position(8, 2)
         owner = SimpleNamespace(last_reason=None)
         owner._fixed_quest_entrance_positions = lambda _snapshot, _quest_id: {entrance}
-        owner._dungeon_entry_allowed = lambda *_args, **_kwargs: False
+        owner._quest_equipment_entry_allowed = lambda *_args, **_kwargs: False
 
         self.assertIsNone(
             QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 2), 1)
