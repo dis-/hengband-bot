@@ -20298,27 +20298,92 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(key, "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-item")
 
-    def test_prime_and_home_disposal_share_equipment_shape_recognition(self):
-        pol = HengbotPolicy()
-        set_known_target(pol)
+    def test_spare_equipment_shape_matches_disposal_for_its_shared_domain(self):
         samples = (
-            item("a", 23, 5, is_equipment=True, aware=False),
+            item("a", 23, 5, is_equipment=True, aware=False, name="armour"),
             item(
                 "b", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-                is_equipment=True, aware=False,
+                is_equipment=True, aware=False, name="shovel",
             ),
-            item(
-                "c", TVAL_LITE, SV_LITE_TORCH,
-                is_equipment=True, aware=False,
-            ),
-            item("d", 70, 1, is_equipment=False, aware=False),
         )
 
         for candidate in samples:
             with self.subTest(item=candidate.name):
-                shared = pol._home_equipment_deposit_shape(candidate)
-                disposal = pol._home_deposit_candidate(candidate)
+                snap = Snapshot(
+                    player(10, 10),
+                    {Position(10, 10): grid(10, 10)},
+                    [],
+                    floor_key=(0, 0, 0),
+                    inventory=[candidate],
+                    store=StoreState(store_type=STORE_HOME, items=[]),
+                )
+                pol = HengbotPolicy()
+                set_known_target(pol)
+
+                shared = pol._spare_equipment_deposit_shape(candidate)
+                disposal = pol._home_deposit_candidate(candidate, snap)
                 self.assertEqual(shared, disposal)
+
+    def test_prime_binds_to_home_disposals_unknown_nonlight_equipment_class(self):
+        samples = (
+            item("a", 23, 5, is_equipment=True, aware=False, name="armour"),
+            item(
+                "b", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                is_equipment=True, aware=False, name="shovel",
+            ),
+        )
+
+        for candidate in samples:
+            with self.subTest(item=candidate.name):
+                snap = Snapshot(
+                    player(10, 10),
+                    {Position(10, 10): grid(10, 10)},
+                    [],
+                    floor_key=(0, 0, 0),
+                    inventory=[candidate],
+                    store=StoreState(store_type=STORE_HOME, items=[]),
+                )
+                pol = HengbotPolicy()
+
+                pol.prime(snap)
+
+                self.assertEqual(
+                    pol._home_pending_item,
+                    pol._item_signature(candidate),
+                    "prime must recognize unknown non-light equipment, including diggers",
+                )
+
+        torch = item(
+            "c", TVAL_LITE, SV_LITE_TORCH, is_equipment=True,
+            aware=False, name="torch",
+        )
+        arrows = item("d", TVAL_ARROW, 1, name="arrows")
+        launcher = item(
+            "e", TVAL_BOW, SV_BOW_SHORT, is_equipment=True, name="bow",
+        )
+        torch_snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            inventory=[torch, arrows],
+            equipment=[launcher],
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+        potion = item(
+            "f", TVAL_POTION, SV_POTION_SLEEP, aware=False,
+            name="unidentified potion",
+        )
+        potion_snap = replace(torch_snap, inventory=[potion])
+        pol = HengbotPolicy()
+        pol._deepest_level = 25
+
+        # Lights and consumables belong to other disposal branches; their real
+        # snapshot classifications deliberately do not define prime's class.
+        self.assertFalse(pol._spare_equipment_deposit_shape(torch))
+        self.assertTrue(pol._home_deposit_candidate(torch, torch_snap))
+        self.assertFalse(pol._spare_equipment_deposit_shape(potion))
+        self.assertTrue(pol._home_deposit_candidate(potion, potion_snap))
 
     def test_prime_reconstruction_only_sets_pending_withdrawal_fields(self):
         withdrawn = item(

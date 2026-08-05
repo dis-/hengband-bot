@@ -3020,9 +3020,14 @@ class HengbotPolicy:
             # long-lived policy starts. If that turn withdrew Home equipment,
             # reconstruct the pending item from the resulting store snapshot so
             # the fresh policy does not immediately deposit it again.
+            # No current Home withdrawal path selects a light, so excluding
+            # unknown lights is narrower than the old disposal-based check but
+            # unreachable across all withdrawal emitters. When optimizer target
+            # knowledge is unavailable, this may conservatively pin equipment
+            # that disposal would retain; that mismatch is suppressive only.
             withdrawn = self._first_item(
                 snapshot,
-                lambda item: self._home_equipment_deposit_shape(item)
+                lambda item: self._spare_equipment_deposit_shape(item)
                 and not item.known,
             )
             if withdrawn is not None:
@@ -10382,7 +10387,7 @@ class HengbotPolicy:
         )
         # Spare wearable gear (armour, rings, amulets, junk weapons) is shelved at Home —
         # the equipment optimiser wields the best and this stashes the rest.
-        equipment_deposit_shape = self._home_equipment_deposit_shape(item)
+        equipment_deposit_shape = self._spare_equipment_deposit_shape(item)
         spare_equipment = (
             equipment_deposit_shape
             and not item.is_digging_tool
@@ -10456,8 +10461,8 @@ class HengbotPolicy:
             or incompatible_ammo
         )
 
-    def _home_equipment_deposit_shape(self, item: InventoryItem) -> bool:
-        """Equipment shape shared by Home disposal and resume reconstruction."""
+    def _spare_equipment_deposit_shape(self, item: InventoryItem) -> bool:
+        """Item shape used by Home's spare-equipment disposal branch."""
         return item.is_equipment and not item.is_light
 
     def _target_loadout_known(self) -> bool:
