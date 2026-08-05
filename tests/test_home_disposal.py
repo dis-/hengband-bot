@@ -109,7 +109,7 @@ class HomeDisposalTests(unittest.TestCase):
             inventory=(), turn=50,
         )
         policy._home_disposal_pass = True
-        self.assertEqual(policy._home_disposal_home_key(snapshot), "pa\r")
+        self.assertEqual(policy._home_disposal_home_key(snapshot), "\x1b")
         self.assertEqual(policy._home_disposal_pending[1], "sell")
         self.assertEqual(policy._home_disposal_store(policy._item_signature(potion)), STORE_ALCHEMIST)
         self.assertEqual(policy._home_disposal_store(policy._item_signature(staff)), STORE_MAGIC)

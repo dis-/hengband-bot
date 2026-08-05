@@ -47,7 +47,7 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
             home.store.items, allow_wrap=True
         )
         policy._home_disposal_pass = True
-        self.assertEqual(policy._home_dominated_disposal_key(home), "pc\r")
+        self.assertEqual(policy._home_dominated_disposal_key(home), "\x1b")
 
         carried = item(
             "d", TVAL_SWORD, 1, name="weak sword", known=True,

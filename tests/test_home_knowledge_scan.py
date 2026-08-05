@@ -145,7 +145,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
         self.assertEqual(policy._home_scan_source, "~9")
         self.assertEqual(policy._home_scan_item_count, 2)
-        self.assertNotEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertNotEqual(policy.last_reason, "home:scan-catalog-page")
         self.assertNotEqual(policy.choose_key(snapshot), "~9")
 
     def test_response_types_never_become_board_snapshots(self):

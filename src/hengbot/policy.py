@@ -260,7 +260,7 @@ HOME_PAGE_ADVANCE_REASONS = frozenset(
         "home:seek-combat-weapon-page",
         "home:seek-treasure-detection-page",
         "home:seek-digging-tool-page",
-        "home:seek-processing-page",
+        "home:scan-catalog-page",
         "calibration:seek-restore-page",
     }
 )
@@ -2156,13 +2156,16 @@ class HengbotPolicy:
         self._yeek_conquest_processed = False
         self._home_pending_item: tuple[str, int, int] | None = None
         self._home_pending_slot: str | None = None
+        self._home_pending_quantity: int | None = None
         self._home_pending_batch: list[tuple[str, int, int]] = []
         self._home_batch_review_items: set[tuple[str, int, int]] = set()
         self._home_active_from_batch = False
-        self._home_withdraw_inflight: tuple[
-            tuple[str, int, int], int, int
+        # One Home take is bound to a fresh-entry macro.  The pending record is
+        # observation-only: it is cleared as success or reported as failure on
+        # the first ordinary outside snapshot and is never used to repost.
+        self._home_atomic_withdraw_pending: tuple[
+            tuple[str, int, int], int, StoreItem, int
         ] | None = None
-        self._home_withdraw_fail_streak = 0
         # True only while a charged Identify staff withdrawn from Home is being
         # carried to the Magic shop for sale.  Home used to be a one-way sink:
         # departure readiness counted pack charges only, while useful charged
@@ -2190,6 +2193,7 @@ class HengbotPolicy:
         self._deferred_home_items: set[tuple[str, int, int]] = set()
         self._retried_home_identification_items: set[tuple[str, int, int]] = set()
         self._home_catalog: dict[tuple[str, int, int], StoreItem] = {}
+        self._home_catalog_page_size: int | None = None
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in a small
         # duplicate-preserving page scan alongside that catalog.
@@ -2466,6 +2470,32 @@ class HengbotPolicy:
             self._town_visit_ledger.pending_store_context_waits = 0
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
+        pending_withdrawal = self._home_atomic_withdraw_pending
+        if pending_withdrawal is not None and snapshot.store is None:
+            signature, before_count, withdrawn, quantity = pending_withdrawal
+            after_count = self._inventory_signature_count(snapshot, signature)
+            self._home_atomic_withdraw_pending = None
+            self._home_entry_operation_posted = False
+            if after_count >= before_count + quantity:
+                self._equipment_catalog.record_home_withdrawal(
+                    withdrawn,
+                    intent=(snapshot.turn, signature, before_count, quantity),
+                )
+                remaining = withdrawn.count - quantity
+                if remaining > 0:
+                    self._home_catalog[signature] = replace(
+                        withdrawn, count=remaining
+                    )
+                else:
+                    self._home_catalog.pop(signature, None)
+            else:
+                self._deferred_home_items.add(signature)
+                if signature in self._home_pending_batch:
+                    self._home_pending_batch.remove(signature)
+                if self._home_pending_item == signature:
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                self.last_reason = "home:atomic-withdraw-failed"
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -2533,6 +2563,14 @@ class HengbotPolicy:
                     self._home_page_advance_from_identity = None
                     self._home_page_advance_store_none_decisions = 0
             if page_advance_confirmed:
+                # Preserve the current scan's absolute order and its observed
+                # page width.  Store entry starts on page zero, so these are
+                # exactly the facts needed to compose a later atomic take.
+                self._home_catalog_page_size = max(
+                    len(snapshot.store.items), self._home_catalog_page_size or 0
+                )
+                for stored in snapshot.store.items:
+                    self._home_catalog[self._item_signature(stored)] = stored
                 if not self._equipment_catalog.home_scan_complete:
                     self._home_star_remove_curse_scan_pages[page_identity] = (
                         page_star_count
@@ -5136,8 +5174,7 @@ class HengbotPolicy:
             self._home_pending_batch.clear()
             self._home_batch_review_items.clear()
             self._home_active_from_batch = False
-            self._home_withdraw_inflight = None
-            self._home_withdraw_fail_streak = 0
+            self._home_atomic_withdraw_pending = None
             self._home_identify_staff_sale_pending = False
             self._home_identify_staff_sold_this_magic_visit = False
             self._home_digger_withdraw_pending = False
@@ -8436,56 +8473,6 @@ class HengbotPolicy:
             ):
                 self._rearm_town_store_for_new_work(STORE_HOME)
 
-    def _calibration_restore_withdraw_key(self, snapshot: Snapshot) -> str | None:
-        """Withdraw the calibration-deposited pack contents back from Home."""
-        store = snapshot.store
-        if store is None or store.store_type != STORE_HOME:
-            return None
-        if self._home_withdraw_inflight is not None:
-            return None
-        self._calibration_restore_signatures = [
-            signature
-            for signature in self._calibration_restore_signatures
-            if signature not in self._deferred_home_items
-        ]
-        remaining = self._calibration_restore_signatures
-        if not remaining:
-            return None
-        for signature in remaining:
-            target = next(
-                (
-                    item
-                    for item in store.items
-                    if self._item_signature(item) == signature
-                ),
-                None,
-            )
-            if target is None:
-                continue
-            self._calibration_restore_seen_pages.clear()
-            self._home_withdraw_inflight = (
-                signature,
-                len(snapshot.inventory),
-                self._inventory_signature_count(snapshot, signature),
-            )
-            remaining.remove(signature)
-            self.last_reason = "calibration:restore-withdraw"
-            quantity = f"{target.count}\r" if target.count > 1 else "\r"
-            return BUY_KEY + target.letter + quantity
-        page = tuple(
-            sorted(f"{item.name}|{item.count}" for item in store.items)
-        )
-        if page in self._calibration_restore_seen_pages:
-            # Every Home page was inspected and none of the remaining deposits
-            # is withdrawable this visit.  Leave them stored: the ordinary
-            # supply ledger buys replacements, so this never blocks departure.
-            self._calibration_restore_signatures = []
-            self.last_reason = "calibration:restore-missing"
-            return LEAVE_STORE_KEY
-        self._calibration_restore_seen_pages.add(page)
-        self.last_reason = "calibration:seek-restore-page"
-        return " "
-
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
         if (
@@ -8511,7 +8498,7 @@ class HengbotPolicy:
                 or self._identification_need is not None
                 or self._home_pending_item is not None
                 or self._home_pending_batch
-                or self._home_withdraw_inflight is not None
+                or self._home_atomic_withdraw_pending is not None
             ):
                 return None
             self._begin_character_calibration(snapshot)
@@ -9773,7 +9760,7 @@ class HengbotPolicy:
                     and self._home_pending_item is None
                     and not self._home_pending_batch
                     and not self._home_batch_review_items
-                    and self._home_withdraw_inflight is None
+                    and self._home_atomic_withdraw_pending is None
                     and self._identification_need is None
                     # P1 calibration: never depart mid-phase or with the
                     # calibration-deposited pack contents still at Home.
@@ -10645,6 +10632,85 @@ class HengbotPolicy:
         quantity = f"{deposit_count}\r" if deposit_count > 1 else ""
         return SELL_KEY + deposit.slot + quantity
 
+    def _atomic_home_withdraw_key(
+        self, snapshot: Snapshot, step: Position
+    ) -> str | None:
+        """Bind one catalogued Home take to fresh entry, operation, and exit."""
+        if (
+            snapshot.store is not None
+            or self._shopping_approach_store_type != STORE_HOME
+            or self._home_atomic_withdraw_pending is not None
+        ):
+            return None
+        entrance = snapshot.grid_at(snapshot.player.position)
+        if entrance is None or entrance.store_number != STORE_HOME:
+            return None
+        if not self._equipment_catalog.home_scan_complete:
+            return None
+        page_size = self._home_catalog_page_size
+        if page_size is None or page_size <= 0:
+            return None
+
+        signature: tuple[str, int, int] | None = None
+        quantity: int | None = None
+        reason = "home:atomic-withdraw"
+        for restore_signature in self._calibration_restore_signatures:
+            if restore_signature in self._home_catalog:
+                signature = restore_signature
+                quantity = self._home_catalog[signature].count
+                reason = "calibration:atomic-restore-withdraw"
+                break
+        if signature is None and self._home_pending_item in self._home_catalog:
+            signature = self._home_pending_item
+        if signature is None and self._home_pending_batch:
+            batch_signature = self._home_pending_batch[0]
+            if batch_signature in self._home_catalog:
+                signature = batch_signature
+        if signature is None:
+            return None
+
+        catalog = list(self._home_catalog.items())
+        absolute_index = next(
+            index for index, (item_signature, _) in enumerate(catalog)
+            if item_signature == signature
+        )
+        item = catalog[absolute_index][1]
+        page, page_index = divmod(absolute_index, page_size)
+        letter = (
+            chr(ord("a") + page_index)
+            if page_index < 26
+            else chr(ord("A") + page_index - 26)
+        )
+        requested_quantity = (
+            quantity
+            if quantity is not None
+            else self._home_pending_quantity
+            if self._home_pending_quantity is not None
+            else 1
+        )
+        take_count = min(item.count, requested_quantity)
+        quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
+        self._home_atomic_withdraw_pending = (
+            signature,
+            self._inventory_signature_count(snapshot, signature),
+            item,
+            take_count,
+        )
+        if signature in self._calibration_restore_signatures:
+            self._calibration_restore_signatures.remove(signature)
+        self._home_pending_quantity = None
+        self._home_candidate_waiting = False
+        self._home_entry_operation_posted = True
+        self.last_reason = reason
+        return (
+            WAIT_KEY
+            + (" " * page)
+            + BUY_KEY
+            + letter
+            + quantity_suffix
+            + LEAVE_STORE_KEY
+        )
+
     def _atomic_home_deposit_key(
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
@@ -10809,8 +10875,8 @@ class HengbotPolicy:
             )
             and self._item_signature(item) not in self._home_pending_batch
             and (
-                self._home_withdraw_inflight is None
-                or self._item_signature(item) != self._home_withdraw_inflight[0]
+                self._home_atomic_withdraw_pending is None
+                or self._item_signature(item) != self._home_atomic_withdraw_pending[0]
             )
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot,
@@ -11169,8 +11235,9 @@ class HengbotPolicy:
             decision = self._home_disposal.decision(signature)
             if decision in {"sell", "destroy"}:
                 self._home_disposal_pending = (signature, decision)
-                self.last_reason = f"home-disposal:withdraw-{decision}"
-                return BUY_KEY + item.letter + "\r"
+                self._home_pending_item = signature
+                self.last_reason = f"home-disposal:queue-withdraw-{decision}"
+                return LEAVE_STORE_KEY
 
         if page not in self._home_disposal_seen_pages:
             self._home_disposal_seen_pages.add(page)
@@ -11222,8 +11289,8 @@ class HengbotPolicy:
         if store is None or store.store_type != STORE_HOME:
             return None
         queued = set(self._home_pending_batch)
-        if self._home_withdraw_inflight is not None:
-            queued.add(self._home_withdraw_inflight[0])
+        if self._home_atomic_withdraw_pending is not None:
+            queued.add(self._home_atomic_withdraw_pending[0])
         full_identify_available = (
             self._find_identification_source(snapshot, full=True) is not None
         )
@@ -11975,11 +12042,10 @@ class HengbotPolicy:
                 return self._town_item_processing_key(snapshot)
             return None
         if (
-            self._home_withdraw_inflight is not None
-            and self._home_withdraw_inflight[0] == self._home_pending_item
+            self._home_atomic_withdraw_pending is not None
+            and self._home_atomic_withdraw_pending[0] == self._home_pending_item
         ):
-            self._home_withdraw_inflight = None
-            self._home_withdraw_fail_streak = 0
+            self._home_atomic_withdraw_pending = None
 
         if not target.known and target.pseudo_feeling != "average":
             key = self._carried_identify_command(
@@ -12419,8 +12485,6 @@ class HengbotPolicy:
         if self._pending_disposal_item is not None:
             target = self._pending_disposal(snapshot)
             if target is not None:
-                self._home_withdraw_inflight = None
-                self._home_withdraw_fail_streak = 0
                 self.last_reason = "home:leave-with-dominated"
                 return LEAVE_STORE_KEY
 
@@ -12431,39 +12495,7 @@ class HengbotPolicy:
             # space immediately; the candidate remains eligible on a later
             # Home snapshot.
             if len(snapshot.inventory) >= PACK_CAPACITY:
-                self._home_withdraw_inflight = None
-                self._home_withdraw_fail_streak = 0
                 self._clear_pending_disposal()
-                return None
-
-            inflight = self._home_withdraw_inflight
-            if inflight is not None and inflight[0] == self._pending_disposal_item:
-                signature, before_length, before_count = inflight
-                after_count = self._inventory_signature_count(snapshot, signature)
-                if len(snapshot.inventory) > before_length or after_count > before_count:
-                    # The item moved but its display signature unexpectedly changed.
-                    # Fail closed instead of selecting a different pack item for sale.
-                    self._deferred_home_items.add(signature)
-                    self._home_withdraw_inflight = None
-                    self._clear_pending_disposal()
-                    self.last_reason = "home:dominated-withdraw-signature-changed"
-                    return None
-                self._home_withdraw_fail_streak += 1
-                retry = next(
-                    (
-                        item
-                        for item in store.items
-                        if self._item_signature(item) == signature
-                    ),
-                    None,
-                )
-                if retry is not None and self._home_withdraw_fail_streak < STORE_STUCK_LIMIT:
-                    self.last_reason = "home:retry-dominated-withdraw"
-                    return BUY_KEY + retry.letter + "\r"
-                self._deferred_home_items.add(signature)
-                self._home_withdraw_inflight = None
-                self._clear_pending_disposal()
-                self.last_reason = "home:dominated-withdraw-deferred"
                 return None
 
         if not self._home_disposal_pass:
@@ -12490,14 +12522,9 @@ class HengbotPolicy:
         self._pending_disposal_slot = None
         self._pending_disposal_item = signature
         self._disposal_store_attempts.clear()
-        self._home_withdraw_inflight = (
-            signature,
-            len(snapshot.inventory),
-            self._inventory_signature_count(snapshot, signature),
-        )
-        self._home_withdraw_fail_streak = 0
-        self.last_reason = "home:withdraw-dominated"
-        return BUY_KEY + candidate.letter + "\r"
+        self._home_pending_item = signature
+        self.last_reason = "home:queue-dominated-withdraw"
+        return LEAVE_STORE_KEY
 
     def _pending_disposal(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._pending_disposal_slot is not None:
@@ -12534,7 +12561,7 @@ class HengbotPolicy:
             and self._home_pending_item is None
             and not self._home_pending_batch
             and not self._home_batch_review_items
-            and self._home_withdraw_inflight is None
+            and self._home_atomic_withdraw_pending is None
             and self._identification_need is None
             and (
                 self._equipment_catalog.home_scan_complete
@@ -13745,7 +13772,7 @@ class HengbotPolicy:
             self._home_candidate_waiting = False
             self._home_pending_item = None
             self._home_pending_batch.clear()
-            self._home_withdraw_inflight = None
+            self._home_atomic_withdraw_pending = None
 
     def _report_town_stop_pass(
         self,
@@ -14307,9 +14334,11 @@ class HengbotPolicy:
                             None,
                         )
                         if ware is not None:
-                            self.last_reason = "home:morivant-retry-withdraw"
-                            suffix = f"{count}\r" if ware.count > 1 else "\r"
-                            return BUY_KEY + ware.letter + suffix
+                            self._home_pending_item = signature
+                            self._home_pending_quantity = count
+                            expedition.home_inflight = None
+                            self.last_reason = "home:morivant-withdraw-failed"
+                            return LEAVE_STORE_KEY
                 expedition.home_inflight = None
                 if action == "withdraw" and expedition.phase == "prepare-home":
                     if signature in self._home_pending_batch:
@@ -14356,8 +14385,9 @@ class HengbotPolicy:
                 )
                 self.last_reason = "home:morivant-restore-temporary-deposit"
                 quantity = min(count, ware.count)
-                suffix = f"{quantity}\r" if ware.count > 1 else "\r"
-                return BUY_KEY + ware.letter + suffix
+                self._home_pending_item = signature
+                self._home_pending_quantity = quantity
+                return LEAVE_STORE_KEY
 
         if expedition.phase == "prepare-home":
             remaining = list(self._home_pending_batch)
@@ -14403,8 +14433,9 @@ class HengbotPolicy:
                     "withdraw", signature, 1,
                     self._inventory_signature_count(snapshot, signature),
                 )
-                self.last_reason = "home:batch-withdraw"
-                return BUY_KEY + ware.letter + "\r"
+                self._home_pending_item = signature
+                self.last_reason = "home:queue-batch-withdraw"
+                return LEAVE_STORE_KEY
 
         page = tuple(self._item_signature(item) for item in store.items)
         if page not in expedition.seen_home_pages:
@@ -15135,14 +15166,9 @@ class HengbotPolicy:
             self._home_quest_launcher_seen_pages.clear()
             self._home_pending_item = signature
             self._home_pending_slot = None
-            self._home_withdraw_inflight = (
-                signature,
-                len(snapshot.inventory),
-                self._inventory_signature_count(snapshot, signature),
-            )
             self._home_candidate_waiting = False
-            self.last_reason = "home:withdraw-quest-launcher"
-            return BUY_KEY + candidate.letter + "\r"
+            self.last_reason = "home:queue-quest-launcher-withdraw"
+            return LEAVE_STORE_KEY
         page = tuple(
             (item.letter, item.name, item.tval, item.sval)
             for item in store.items
@@ -15767,8 +15793,8 @@ class HengbotPolicy:
             self._home_pending_slot = None
             self._identification_candidate = None
             self._home_candidate_waiting = False
-            self.last_reason = "home:withdraw-combat-weapon"
-            return BUY_KEY + weapon.letter + "\r"
+            self.last_reason = "home:queue-combat-weapon-withdraw"
+            return LEAVE_STORE_KEY
 
         page = tuple(
             (item.letter, item.name, item.tval, item.sval) for item in store.items
@@ -16249,8 +16275,9 @@ class HengbotPolicy:
                 and not self._recall_departure_shortage(snapshot)
             ):
                 self._star_remove_curse_reserve_withdraw_pending = True
-                self.last_reason = "home:withdraw-star-remove-curse-reserve"
-                return BUY_KEY + reserve.letter + "\r"
+                self._home_pending_item = self._item_signature(reserve)
+                self.last_reason = "home:queue-star-remove-curse-withdraw"
+                return LEAVE_STORE_KEY
             # An active transaction session OWNS the Home visit: its town-side
             # dispatcher keeps walking back in while it has Home work, so a
             # disposal leave that preempts it just bounces the bot in and out of
@@ -16308,65 +16335,15 @@ class HengbotPolicy:
             if rearm is not None:
                 return rearm
 
-            if self._home_withdraw_inflight is not None:
-                signature, before_length, before_count = self._home_withdraw_inflight
-                after_count = self._inventory_signature_count(snapshot, signature)
-                if len(snapshot.inventory) > before_length or after_count > before_count:
-                    self._home_withdraw_inflight = None
-                    self._home_withdraw_fail_streak = 0
-                    if self._home_identify_staff_sale_pending:
-                        self._rearm_town_store_for_new_work(STORE_MAGIC)
-                        self._report_town_stop_pass(
-                            snapshot, STORE_HOME, goal_satisfied=True
-                        )
-                        self.last_reason = "home:leave-with-identify-staff-sale"
-                        return LEAVE_STORE_KEY
-                else:
-                    if self._home_identify_staff_sale_pending:
-                        # Do not issue another Home withdrawal from the same
-                        # pre-delta store snapshot.  Leave after exactly one
-                        # attempt; the Magic-shop sale may safely consume the
-                        # lowest-charge carried staff even if Home rejected it.
-                        self._home_withdraw_inflight = None
-                        self._home_withdraw_fail_streak = 0
-                        self._rearm_town_store_for_new_work(STORE_MAGIC)
-                        self._report_town_stop_pass(
-                            snapshot, STORE_HOME, goal_satisfied=True
-                        )
-                        self.last_reason = "home:leave-after-identify-staff-attempt"
-                        return LEAVE_STORE_KEY
-                    self._home_withdraw_fail_streak += 1
-                    retry = next(
-                        (
-                            item
-                            for item in store.items
-                            if self._item_signature(item) == signature
-                        ),
-                        None,
-                    )
-                    if (
-                        retry is not None
-                        # Retry only while the Home interaction remained
-                        # contiguous.  A rejected withdrawal can eject the
-                        # player into town; walking back in and replaying the
-                        # same command costs an entire town round-trip and was
-                        # observed repeating up to STORE_STUCK_LIMIT times.
-                        and self._last_snapshot_was_store
-                        and self._home_withdraw_fail_streak < STORE_STUCK_LIMIT
-                    ):
-                        self.last_reason = "home:retry-batch-withdraw"
-                        return BUY_KEY + retry.letter + "\r"
-                    self._deferred_home_items.add(signature)
-                    if signature in self._home_pending_batch:
-                        self._home_pending_batch.remove(signature)
-                    self._home_withdraw_inflight = None
-                    self._home_withdraw_fail_streak = 0
-                    self._home_identify_staff_sale_pending = False
-
-            if self._calibration_restore_signatures:
-                restore = self._calibration_restore_withdraw_key(snapshot)
-                if restore is not None:
-                    return restore
+            if self._home_atomic_withdraw_pending is not None:
+                self.last_reason = "home:leave-after-one-operation"
+                return LEAVE_STORE_KEY
+            if (
+                self._home_pending_item is not None
+                and self._pending_inventory_item(snapshot) is None
+            ):
+                self.last_reason = "home:leave-for-atomic-withdraw"
+                return LEAVE_STORE_KEY
 
             # Prefer owned Identify charges to buying another staff.  Once the
             # carried departure reserve is ready, drain legacy Home hoards one
@@ -16407,13 +16384,9 @@ class HengbotPolicy:
                     self._rearm_town_store_for_new_work(STORE_MAGIC)
                     reason = "home:withdraw-surplus-identify-staff"
                 signature = self._item_signature(candidate)
-                self._home_withdraw_inflight = (
-                    signature,
-                    len(snapshot.inventory),
-                    self._inventory_signature_count(snapshot, signature),
-                )
-                self.last_reason = reason
-                return BUY_KEY + candidate.letter + "\r"
+                self._home_pending_item = signature
+                self.last_reason = reason.replace("withdraw", "queue-withdraw")
+                return LEAVE_STORE_KEY
 
             additional_home_digger = next(
                 (
@@ -16500,15 +16473,10 @@ class HengbotPolicy:
                 if scrolls_missing and stored_scrolls is not None:
                     self._home_digger_seen_pages.clear()
                     signature = self._item_signature(stored_scrolls)
-                    self._home_withdraw_inflight = (
-                        signature,
-                        len(snapshot.inventory),
-                        self._inventory_signature_count(snapshot, signature),
-                    )
                     quantity = min(scrolls_missing, stored_scrolls.count)
-                    self.last_reason = "home:withdraw-treasure-detection"
-                    suffix = f"{quantity}\r" if stored_scrolls.count > 1 else "\r"
-                    return BUY_KEY + stored_scrolls.letter + suffix
+                    self._home_pending_item = signature
+                    self.last_reason = "home:queue-treasure-detection-withdraw"
+                    return LEAVE_STORE_KEY
 
                 if self._digging_tool_count(snapshot) < 2:
                     digger = max(
@@ -16525,14 +16493,10 @@ class HengbotPolicy:
                     if digger is not None:
                         self._home_digger_seen_pages.clear()
                         signature = self._item_signature(digger)
-                        self._home_withdraw_inflight = (
-                            signature,
-                            len(snapshot.inventory),
-                            self._inventory_signature_count(snapshot, signature),
-                        )
+                        self._home_pending_item = signature
                         self._home_digger_withdraw_pending = True
-                        self.last_reason = "home:withdraw-digging-tool"
-                        return BUY_KEY + digger.letter + "\r"
+                        self.last_reason = "home:queue-digging-tool-withdraw"
+                        return LEAVE_STORE_KEY
 
                 withdrawable_digger_missing = (
                     self._digging_tool_count(snapshot) < 2
@@ -16610,8 +16574,9 @@ class HengbotPolicy:
                 None,
             )
             if stored_book is not None:
-                self.last_reason = "home:withdraw-book-sale"
-                return BUY_KEY + stored_book.letter + "\r"
+                self._home_pending_item = self._item_signature(stored_book)
+                self.last_reason = "home:queue-book-sale-withdraw"
+                return LEAVE_STORE_KEY
 
             deposit = self._find_home_deposit(snapshot)
             if deposit is not None and self._home_entry_operation_posted:
@@ -16651,8 +16616,9 @@ class HengbotPolicy:
                     # with unsold weapons (STORE_WEAPON stays latched until
                     # STORE_RETRY_TURNS) and town departure stalls until self-stop.
                     self._town_store_attempted.pop(STORE_WEAPON, None)
-                    self.last_reason = "home:withdraw-inferior-weapon"
-                    return BUY_KEY + inferior.letter + "\r"
+                    self._home_pending_item = self._item_signature(inferior)
+                    self.last_reason = "home:queue-inferior-weapon-withdraw"
+                    return LEAVE_STORE_KEY
 
             candidate = self._find_home_candidate(snapshot)
             if candidate is not None:
@@ -16716,14 +16682,9 @@ class HengbotPolicy:
 
                 signature = self._item_signature(candidate)
                 self._home_pending_batch.append(signature)
-                self._home_withdraw_inflight = (
-                    signature,
-                    len(snapshot.inventory),
-                    self._inventory_signature_count(snapshot, signature),
-                )
                 self._home_candidate_waiting = False
-                self.last_reason = "home:batch-withdraw"
-                return BUY_KEY + candidate.letter + "\r"
+                self.last_reason = "home:queue-batch-withdraw"
+                return LEAVE_STORE_KEY
 
             if (
                 self._home_pending_batch
@@ -16741,7 +16702,7 @@ class HengbotPolicy:
             if page not in self._home_processing_seen_pages:
                 self._home_processing_seen_pages.add(page)
                 self._home_candidate_waiting = True
-                self.last_reason = "home:seek-processing-page"
+                self.last_reason = "home:scan-catalog-page"
                 return " "
 
             self._home_processing_seen_pages.clear()
@@ -17141,6 +17102,9 @@ class HengbotPolicy:
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
+        atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
+        if atomic_withdrawal is not None:
+            return atomic_withdrawal
         atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
         if atomic_deposit is not None:
             return atomic_deposit
@@ -17973,8 +17937,9 @@ class HengbotPolicy:
         )
         if home_item is None:
             return None
-        self.last_reason = "home:withdraw-random-teleport-for-inscription"
-        return BUY_KEY + home_item.letter + "\r"
+        self._home_pending_item = self._item_signature(home_item)
+        self.last_reason = "home:queue-random-teleport-for-inscription"
+        return LEAVE_STORE_KEY
 
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
         player = snapshot.player
@@ -18468,7 +18433,7 @@ class HengbotPolicy:
         # ready recall into generic town wandering.
         if (
             self._home_pending_item is not None
-            and self._home_withdraw_inflight is None
+            and self._home_atomic_withdraw_pending is None
             and self._pending_inventory_item(snapshot) is None
             and not self._home_candidate_waiting
         ):
@@ -18496,7 +18461,7 @@ class HengbotPolicy:
             and self._home_pending_item is None
             and not self._home_pending_batch
             and not self._home_batch_review_items
-            and self._home_withdraw_inflight is None
+            and self._home_atomic_withdraw_pending is None
             # Deep fundraising already requires every full-identification
             # candidate to be secured outside the pack/equipment and rejects a
             # pending Home deposit in _fundraising_departure_ready.  Once that
@@ -18637,7 +18602,7 @@ class HengbotPolicy:
             "home_pending_item": self._home_pending_item,
             "home_pending_batch": list(self._home_pending_batch),
             "home_batch_review_items": list(self._home_batch_review_items),
-            "home_withdraw_inflight": self._home_withdraw_inflight,
+            "home_atomic_withdraw_pending": self._home_atomic_withdraw_pending,
             "identification_need": self._identification_need,
             "identification_source_reservation": (
                 self._identification_source_reservation
@@ -18670,7 +18635,10 @@ class HengbotPolicy:
                 ("home_pending_item", values["home_pending_item"] is not None),
                 ("home_pending_batch", bool(values["home_pending_batch"])),
                 ("home_batch_review_items", bool(values["home_batch_review_items"])),
-                ("home_withdraw_inflight", values["home_withdraw_inflight"] is not None),
+                (
+                    "home_atomic_withdraw_pending",
+                    values["home_atomic_withdraw_pending"] is not None,
+                ),
                 ("identification_need", values["identification_need"] is not None),
                 ("home_candidate_waiting", home_available and values["home_candidate_waiting"]),
                 ("home_scan_complete", home_available and not values["home_scan_complete"]),

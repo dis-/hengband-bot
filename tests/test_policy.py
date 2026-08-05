@@ -13874,8 +13874,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         with patch.object(
             policy, "_carry_procurement_strategy", return_value=profile
         ):
-            self.assertEqual(policy._home_quest_launcher_key(home), "pa\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-quest-launcher")
+            self.assertEqual(policy._home_quest_launcher_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-quest-launcher-withdraw")
 
         weapon_store = replace(
             base, store=StoreState(STORE_WEAPON, [plain, bolts])
@@ -18408,8 +18408,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy._shop(snap), "pa10\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-treasure-detection")
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-treasure-detection-withdraw")
 
         with_scrolls = replace(
             snap,
@@ -18423,8 +18423,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(policy._shop(with_scrolls), "pb\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-digging-tool")
+        self.assertEqual(policy._shop(with_scrolls), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-for-atomic-withdraw")
 
     def test_fundraising_withdraws_detection_buffer_from_home(self):
         target = 4
@@ -18452,8 +18452,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._fundraising_mode = "prepare"
         policy._planned_mining_runs = target
 
-        self.assertEqual(policy._shop(snap), f"pa{stored_count}\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-treasure-detection")
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-treasure-detection-withdraw")
 
     def test_fundraising_withdraws_second_digger_from_home(self):
         held_digger = item("p", TVAL_DIGGING, 1, name="held shovel")
@@ -18475,8 +18475,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy._shop(snap), "pb\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-digging-tool")
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
 
         with_second = replace(
             snap,
@@ -18505,21 +18505,24 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
         signature = policy._item_signature(digger)
-        policy._home_withdraw_inflight = (
+        policy._home_atomic_withdraw_pending = (
             signature,
-            len(inventory),
             policy._inventory_signature_count(snap, signature),
+            digger,
+            1,
         )
         policy._home_digger_withdraw_pending = True
         # The failed command left Home, town navigation ran, and this is a new
         # entry.  Replaying the item letter here created the live town loop.
         policy._last_snapshot_was_store = False
 
-        key = policy._shop(snap)
+        outside = replace(snap, store=None)
+        policy._decide = Mock(return_value=WAIT_KEY)
+        key = policy.choose_key(outside)
 
         self.assertFalse(key.startswith(BUY_KEY))
-        self.assertIsNone(policy._home_withdraw_inflight)
-        self.assertIn(signature, policy._deferred_home_items)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-failed")
 
     def test_fundraising_empty_torch_waits_for_general_store_restock(self):
         snap = Snapshot(
@@ -18699,16 +18702,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._fundraising_mode = "prepare"
 
-        self.assertEqual(pol._shop(snap), "pc\r")
-        self.assertEqual(pol.last_reason, "home:withdraw-digging-tool")
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-digging-tool-withdraw")
 
         with_mattock = replace(
             snap,
             inventory=[*inventory, item("z", TVAL_DIGGING, 5, name="mattock")],
             store=StoreState(STORE_HOME, first_store.items[:2]),
         )
-        self.assertEqual(pol._shop(with_mattock), "pb\r")
-        self.assertEqual(pol.last_reason, "home:withdraw-digging-tool")
+        self.assertEqual(pol._shop(with_mattock), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:leave-with-item")
 
         with_two = replace(
             with_mattock,
@@ -18739,7 +18742,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy._shop(snap), "pa\r")
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
         with_digger = replace(
             snap,
             inventory=[
@@ -19035,8 +19038,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(pol._shop(first_page), " ")
         self.assertEqual(pol.last_reason, "home:seek-digging-tool-page")
-        self.assertEqual(pol._shop(second_page), "pb\r")
-        self.assertEqual(pol.last_reason, "home:withdraw-digging-tool")
+        self.assertEqual(pol._shop(second_page), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-digging-tool-withdraw")
 
     def test_scavenge_mode_promotes_to_mine_when_home_tool_is_recovered(self):
         snap = Snapshot(
@@ -19825,7 +19828,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIn(STORE_WEAPON, pol._town_store_attempted)
         pol.choose_key(snap)
 
-        self.assertEqual(pol.last_reason, "home:withdraw-inferior-weapon")
+        self.assertEqual(pol.last_reason, "home:queue-inferior-weapon-withdraw")
         self.assertNotIn(STORE_WEAPON, pol._town_store_attempted)
 
     def test_home_inferior_weapon_pull_stops_at_the_batch_reserve(self):
@@ -20124,7 +20127,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             pol._town_errand_plan.completed_this_visit, [STORE_HOME]
         )
 
-    def test_failed_home_withdrawal_is_deferred_instead_of_looping(self):
+    def test_queued_home_withdrawal_exits_for_atomic_reentry(self):
         candidate = store_item(
             "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=False
         )
@@ -20140,12 +20143,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertEqual(pol.choose_key(snap), "\x1b")
-        self.assertEqual(pol.last_reason, "home:withdraw-failed-deferred")
-        self.assertIsNone(pol._home_pending_item)
-        self.assertIn(pol._item_signature(candidate), pol._deferred_home_items)
+        self.assertEqual(pol.last_reason, "home:leave-for-atomic-withdraw")
+        self.assertEqual(pol._home_pending_item, pol._item_signature(candidate))
+        self.assertNotIn(pol._item_signature(candidate), pol._deferred_home_items)
 
-    def test_failed_home_withdrawal_preempts_mining_supply_exit(self):
-        """A stale Q22 launcher request must clear before mining leaves Home."""
+    def test_queued_home_withdrawal_preempts_mining_supply_exit(self):
+        """A Q22 launcher request exits Home for its atomic fresh re-entry."""
         candidate = store_item(
             "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
             name="a Light Crossbow", is_equipment=True,
@@ -20168,9 +20171,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertEqual(pol.choose_key(snap), "\x1b")
-        self.assertEqual(pol.last_reason, "home:withdraw-failed-deferred")
-        self.assertIsNone(pol._home_pending_item)
-        self.assertIn(signature, pol._deferred_home_items)
+        self.assertEqual(pol.last_reason, "home:leave-for-atomic-withdraw")
+        self.assertEqual(pol._home_pending_item, signature)
+        self.assertNotIn(signature, pol._deferred_home_items)
 
     def test_prime_restores_fundraising_from_multiple_detection_scrolls(self):
         snap = Snapshot(
@@ -22650,8 +22653,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._shop(snap), "pb\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-combat-weapon")
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
 
     def test_pre_recall_check_backstop_dives_when_no_weapon_can_be_found(self):
         # If we own no combat weapon at all, the check must eventually give up and dive on
@@ -22741,8 +22744,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(home), "pc\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-combat-weapon")
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
         self.assertEqual(policy._home_pending_item, policy._item_signature(hammer))
 
     def test_home_rearm_prefers_remembered_deposited_weapon(self):
@@ -22769,7 +22772,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._normal_weapon_name = "remembered sword"
 
-        self.assertEqual(policy.choose_key(home), "pb\r")
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
         self.assertEqual(
             policy._home_pending_item, policy._item_signature(remembered)
         )
@@ -22806,8 +22809,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(base), " ")
         self.assertEqual(policy.last_reason, "home:seek-combat-weapon-page")
-        self.assertEqual(policy.choose_key(weapon_page), "pa\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-combat-weapon")
+        self.assertEqual(policy.choose_key(weapon_page), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
 
     def test_home_rearm_stops_after_wrapping_all_pages_without_weapon(self):
         tool = item(
@@ -25331,8 +25334,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ),
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(home), "pa\r")
-        self.assertEqual(policy.last_reason, "home:batch-withdraw")
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
 
         withdrawn = item(
             "a",
@@ -25389,8 +25392,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         home = replace(base, inventory=[scroll])
-        self.assertEqual(policy.choose_key(home), BUY_KEY + "a\r")
-        self.assertEqual(policy.last_reason, "home:batch-withdraw")
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
 
         withdrawn = item(
             "a", 23, -1, name="unknown home sword", aware=False, known=False,
@@ -25553,7 +25556,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(base), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         town = replace(
             base,
             grids={
@@ -25569,7 +25572,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[later_gloves]),
         )
         self.assertEqual(policy.choose_key(later_page), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
 
     def test_home_processing_completes_only_after_page_wraps(self):
         average = store_item(
@@ -25658,7 +25661,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(first_page), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         self.assertEqual(policy._home_pending_batch, [])
 
     def test_home_batch_keeps_three_pack_slots_free(self):
@@ -25685,7 +25688,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(home), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         self.assertEqual(policy._home_pending_batch, [])
 
     def test_home_capacity_defers_candidate_instead_of_reentering_forever(self):
@@ -26052,7 +26055,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         policy._equipment_catalog.observe_home_page([candidate], allow_wrap=False)
         self.assertEqual(policy._shop(home), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         policy._equipment_catalog.observe_home_page([candidate], allow_wrap=True)
         self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
@@ -26084,8 +26087,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._deferred_home_items.add(signature)
 
         self.assertEqual(policy._find_home_candidate(home), candidate)
-        self.assertEqual(policy._shop(home), BUY_KEY + "a\r")
-        self.assertEqual(policy.last_reason, "home:batch-withdraw")
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
 
     def test_deferred_home_item_does_not_block_equipment_departure(self):
         town = Snapshot(
@@ -26456,7 +26459,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(home), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
 
     def test_withdrawn_average_equipment_does_not_consume_identify(self):
         target = item(
@@ -27562,19 +27565,15 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy._home_disposal_pass = True
 
-        self.assertEqual(policy.choose_key(snap), "pb\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-dominated")
+        self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-dominated-withdraw")
         self.assertEqual(
             policy._pending_disposal_item, policy._item_signature(inferior)
         )
 
-        withdrawn = item(
-            "c", 37, 1, name="inferior armour", known=True,
-            fully_known=True, is_equipment=True, ac=5, to_a=1,
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(inferior)
         )
-        after = replace(snap, inventory=[withdrawn], store=replace(snap.store, items=[superior]))
-        self.assertEqual(policy.choose_key(after), "\x1b")
-        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
 
     def test_does_not_withdraw_dominated_armour_when_pack_is_full(self):
         superior = store_item(
@@ -27607,7 +27606,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertIsNone(policy._home_dominated_disposal_key(snap))
         self.assertIsNone(policy._pending_disposal_item)
-        self.assertIsNone(policy._home_withdraw_inflight)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
 
     def test_sells_dominated_armour_at_armoury(self):
         inferior = item("a", 37, 1, known=True, is_equipment=True, ac=1)
@@ -28405,8 +28404,8 @@ class TownRecallReturnTest(unittest.TestCase):
             pol._morivant_full_identify.phase, "prepare-home"
         )
         home = replace(snap, store=StoreState(STORE_HOME, wares))
-        self.assertEqual(pol._shop(home), BUY_KEY + "a\r")
-        self.assertEqual(pol.last_reason, "home:batch-withdraw")
+        self.assertEqual(pol._shop(home), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-batch-withdraw")
 
     def test_carried_and_home_full_identify_items_share_trip_threshold(self):
         pol, snap = self._ready_town(
@@ -28470,7 +28469,7 @@ class TownRecallReturnTest(unittest.TestCase):
             home, inventory=filler[1:],
             store=StoreState(STORE_HOME, [*targets, deposited_ware]),
         )
-        self.assertEqual(pol._morivant_home_item_key(after_deposit), BUY_KEY + "a\r")
+        self.assertEqual(pol._morivant_home_item_key(after_deposit), LEAVE_STORE_KEY)
         self.assertEqual(
             expedition.temporary_deposits,
             [(pol._item_signature(deposited), 1)],
@@ -28481,7 +28480,7 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._home_pending_batch.clear()
         with patch.object(pol, "_find_home_deposit", return_value=None):
             self.assertEqual(
-                pol._morivant_home_item_key(after_deposit), BUY_KEY + "c\r"
+                pol._morivant_home_item_key(after_deposit), LEAVE_STORE_KEY
             )
         restored = replace(
             after_deposit, inventory=[*after_deposit.inventory, deposited]
@@ -30755,8 +30754,8 @@ class IdentifyStaffTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
 
-        self.assertEqual(pol._shop(snap), "ph\r")
-        self.assertEqual(pol.last_reason, "home:withdraw-identify-staff-reserve")
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-withdraw-identify-staff-reserve")
         self.assertFalse(pol._home_identify_staff_sale_pending)
 
     def test_ready_pack_withdraws_home_staff_for_sale(self):
@@ -30776,8 +30775,8 @@ class IdentifyStaffTest(unittest.TestCase):
         pol = HengbotPolicy()
         pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
 
-        self.assertEqual(pol._shop(snap), "ph\r")
-        self.assertEqual(pol.last_reason, "home:withdraw-surplus-identify-staff")
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-withdraw-surplus-identify-staff")
         self.assertTrue(pol._home_identify_staff_sale_pending)
         self.assertNotIn(STORE_MAGIC, pol._town_store_attempted)
 
@@ -30869,14 +30868,14 @@ class IdentifyStaffTest(unittest.TestCase):
             need_categories={STORE_HOME: ("identify-staff-withdrawal",)},
         )
 
-        self.assertEqual(pol._shop(snap), "ph\r")
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
         # A second snapshot can precede the inventory delta. It must leave Home,
         # not withdraw another staff from a different letter.
         self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
         self.assertEqual(
-            pol.last_reason, "home:leave-after-identify-staff-attempt"
+            pol.last_reason, "home:queue-withdraw-surplus-identify-staff"
         )
-        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(pol._town_errand_plan.index, 0)
         self.assertEqual(
             pol._next_required_store_type(replace(
                 snap, store=None, inventory=[self._staff(25), replace(self._staff(3), slot="t")]
@@ -31638,7 +31637,7 @@ class RemoveCurseTest(unittest.TestCase):
         with patch.object(
             policy, "_recall_departure_shortage", return_value=False
         ):
-            self.assertEqual(policy._shop(home), "pz\r")
+            self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
         self.assertTrue(policy._star_remove_curse_reserve_withdraw_pending)
 
         carried = item(
@@ -31995,8 +31994,8 @@ class HighValueBookSaleTest(unittest.TestCase):
         snapshot = self._town([], StoreState(STORE_HOME, [book]))
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._shop(snapshot), BUY_KEY + "c\r")
-        self.assertEqual(policy.last_reason, "home:withdraw-book-sale")
+        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-book-sale-withdraw")
 
     def test_leaves_home_with_withdrawn_book_instead_of_redepositing_it(self):
         book = item("b", TVAL_CHAOS_BOOK, 3, name="Chaos book 4")
@@ -33908,8 +33907,8 @@ class WeaponSaleTest(unittest.TestCase):
         )
         snap = self._town([], [self._ego()], store=home)
         key = pol._shop(snap)
-        self.assertEqual(pol.last_reason, "home:withdraw-inferior-weapon")
-        self.assertTrue(key.startswith("pz"))  # BUY_KEY p + letter z
+        self.assertEqual(pol.last_reason, "home:queue-inferior-weapon-withdraw")
+        self.assertEqual(key, LEAVE_STORE_KEY)
 
     def test_identified_mundane_spare_routes_and_sells(self):
         # Regression for the live miss: the character wielded an ego War Hammer but
@@ -35562,7 +35561,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         # bounded Home page owner alternately, without inventory/gold changes.
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
-        reasons = ("home:seek-processing-page", "home:processing-complete")
+        reasons = ("home:scan-catalog-page", "home:processing-complete")
         for step in range(TOWN_NO_PROGRESS_LIMIT * 2):
             pol.last_reason = reasons[step % len(reasons)]
             pol._observe(self._town_snap())
@@ -40531,9 +40530,9 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             self._town(store=StoreState(STORE_HOME, [mask]))
         )
 
-        self.assertEqual(key, "pb\r")
+        self.assertEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(
-            policy.last_reason, "home:withdraw-random-teleport-for-inscription"
+            policy.last_reason, "home:queue-random-teleport-for-inscription"
         )
 
     def test_repeated_home_suppression_actions_do_not_grow_catalog(self):
@@ -42780,7 +42779,8 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._home_candidate_waiting = True
         policy._home_pending_item = pending
         policy._home_pending_batch = [pending]
-        policy._home_withdraw_inflight = (pending, 0, 0)
+        pending_item = store_item("a", 23, 2, name="unknown sword")
+        policy._home_atomic_withdraw_pending = (pending, 0, pending_item, 1)
         policy._equipment_catalog.home_scan_complete = True
         policy._recall_departure_ready = lambda candidate: True
         policy._food_ready = lambda candidate: True
@@ -42803,7 +42803,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertFalse(policy._home_candidate_waiting)
         self.assertIsNone(policy._home_pending_item)
         self.assertEqual(policy._home_pending_batch, [])
-        self.assertIsNone(policy._home_withdraw_inflight)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
         self.assertTrue(policy._town_departure_ready(snapshot))
         self.assertNotIn(
             "home_candidate_waiting",
@@ -42817,11 +42817,12 @@ class TownErrandPlanTest(unittest.TestCase):
         policy = self._policy(needs)
         snapshot = self._snapshot()
         pending = ("unknown sword", 23, 2)
-        inflight = (pending, 0, 0)
+        pending_item = store_item("a", 23, 2, name="unknown sword")
+        inflight = (pending, 0, pending_item, 1)
         policy._home_candidate_waiting = True
         policy._home_pending_item = pending
         policy._home_pending_batch = [pending]
-        policy._home_withdraw_inflight = inflight
+        policy._home_atomic_withdraw_pending = inflight
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
         for _ in range(TOWN_STOP_PASS_LIMIT - 1):
@@ -42832,7 +42833,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertTrue(policy._home_candidate_waiting)
         self.assertEqual(policy._home_pending_item, pending)
         self.assertEqual(policy._home_pending_batch, [pending])
-        self.assertEqual(policy._home_withdraw_inflight, inflight)
+        self.assertEqual(policy._home_atomic_withdraw_pending, inflight)
 
     def test_next_town_visit_rebuilds_blocked_home_identification_batch(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
@@ -43056,7 +43057,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
         policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
         self.assertEqual(policy._shop(home), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         policy._equipment_catalog.observe_home_page(page, allow_wrap=True)
         processing_complete_key = policy._shop(home)
         self.assertTrue(processing_complete_key)
@@ -43695,6 +43696,117 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             *extra,
         ]
 
+    def _catalogued_withdrawal_policy(self, wares, *, page_size=12):
+        policy = HengbotPolicy()
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_catalog_page_size = page_size
+        policy._home_catalog = {
+            policy._item_signature(ware): ware for ware in wares
+        }
+        policy._shopping_approach_store_type = STORE_HOME
+        return policy
+
+    def _choose_atomic_withdrawal(self, policy, entrance):
+        with patch.object(
+            policy,
+            "_decide",
+            side_effect=lambda snapshot: policy._shopping_approach_key(
+                snapshot, snapshot.player.position, "shop:travel"
+            ),
+        ):
+            return policy.choose_key(entrance)
+
+    def test_live_92_item_calibration_restore_is_one_public_decision(self):
+        wares = [
+            store_item(
+                chr(ord("a") + (index % 12)),
+                TVAL_POTION,
+                100 + index,
+                name=f"home item {index}",
+            )
+            for index in range(91)
+        ]
+        target = store_item(
+            "h", TVAL_POTION, 999, name="catalogued restore target"
+        )
+        wares.append(target)
+        policy = self._catalogued_withdrawal_policy(wares)
+        signature = policy._item_signature(target)
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [signature]
+        pack = [
+            item(chr(ord("a") + index), TVAL_FOOD, index, name=f"pack {index}")
+            for index in range(12)
+        ]
+        entrance = replace(
+            self._entrance_snapshot(pack),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+
+        key = self._choose_atomic_withdrawal(policy, entrance)
+
+        self.assertEqual(key, "5" + (" " * 7) + "ph\x1b")
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, target.name)
+
+    def test_atomic_withdrawal_derives_first_later_and_last_page_letters(self):
+        wares = [
+            store_item(
+                chr(ord("a") + (index % 12)),
+                TVAL_POTION,
+                200 + index,
+                name=f"ware {index}",
+            )
+            for index in range(29)
+        ]
+        for absolute_index, expected in ((0, "5pa\x1b"), (12, "5 pa\x1b"), (28, "5  pe\x1b")):
+            policy = self._catalogued_withdrawal_policy(wares)
+            policy._home_pending_item = policy._item_signature(wares[absolute_index])
+            self.assertEqual(
+                self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
+                expected,
+            )
+
+    def test_atomic_withdrawal_quantity_omits_single_prompt_and_answers_stack(self):
+        single = store_item("a", TVAL_POTION, 301, count=1, name="single")
+        stack = store_item("b", TVAL_POTION, 302, count=7, name="stack")
+        single_policy = self._catalogued_withdrawal_policy([single, stack])
+        single_policy._home_pending_item = single_policy._item_signature(single)
+        self.assertEqual(
+            self._choose_atomic_withdrawal(single_policy, self._entrance_snapshot([])),
+            "5pa\x1b",
+        )
+        stack_policy = self._catalogued_withdrawal_policy([single, stack])
+        stack_policy._calibration_restore_signatures = [
+            stack_policy._item_signature(stack)
+        ]
+        self.assertEqual(
+            self._choose_atomic_withdrawal(stack_policy, self._entrance_snapshot([])),
+            "5pb7\r\x1b",
+        )
+
+    def test_failed_atomic_withdrawal_is_reported_and_never_reposted(self):
+        target = store_item("a", TVAL_POTION, 401, name="target")
+        policy = self._catalogued_withdrawal_policy([target])
+        signature = policy._item_signature(target)
+        policy._home_pending_item = signature
+        entrance = self._entrance_snapshot([])
+        self.assertEqual(self._choose_atomic_withdrawal(policy, entrance), "5pa\x1b")
+
+        outside = replace(entrance, turn=entrance.turn + 1)
+        policy._decide = Mock(return_value=WAIT_KEY)
+        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-failed")
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertNotIn("p", policy.choose_key(replace(outside, turn=outside.turn + 1)))
+
+    def test_removed_multi_decision_withdrawal_route_is_absent(self):
+        source = inspect.getsource(policy_module.HengbotPolicy)
+        self.assertNotIn("home:seek-processing-page", source)
+        self.assertNotIn("_home_withdraw_inflight", source)
+        self.assertNotIn("_home_withdraw_fail_streak", source)
+
     def test_real_capture_escape_then_posts_stay_deposit_exit_in_one_decision(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
@@ -44111,7 +44223,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 class HomePageAdvanceCurrencyTest(unittest.TestCase):
     """Regressions for the 2026-08-02 20:03 turn-2459752 page-advance race.
 
-    home:seek-processing-page posted SPACE inside the Home; two seconds later
+    home:scan-catalog-page posted SPACE inside the Home; two seconds later
     equipment-transaction:withdraw composed ``pJ\\r`` from a 52-item page-1
     observation that predated the unobserved advance, while the game showed the
     30-item page 2 whose letters stop at ``D``.  The withdraw never confirmed
@@ -44196,7 +44308,7 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(self._snapshot(self._page_one())), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
         self.assertTrue(policy._home_page_advance_pending)
 
         session, _ = self._withdraw_session()
@@ -44247,7 +44359,7 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
-        self.assertEqual(policy.last_reason, "home:seek-processing-page")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
 
         # Same identity without a message: possibly a stale echo — probe.
         self.assertEqual(
@@ -46326,7 +46438,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         self.assertIsNone(policy._character_calibration)
 
-    def test_restore_withdraws_deposits_back_and_terminates_when_missing(self):
+    def test_restore_withdraws_deposits_with_atomic_fresh_entry_contract(self):
         policy = self._scan_complete_policy()
         cure = item(
             "a", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
@@ -46339,28 +46451,24 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "d", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
             name="Cure Critical Wounds",
         )
-        in_home = self._snapshot(store=StoreState(STORE_HOME, [stored]))
+        policy._home_catalog = {signature: stored}
+        policy._home_catalog_page_size = 12
+        policy._shopping_approach_store_type = STORE_HOME
+        entrance = replace(
+            self._snapshot(store=None),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+        )
 
-        key = policy._calibration_restore_withdraw_key(in_home)
+        key = policy._atomic_home_withdraw_key(entrance, Position(10, 10))
 
-        self.assertEqual(key, policy_module.BUY_KEY + "d" + "5\r")
-        self.assertEqual(policy.last_reason, "calibration:restore-withdraw")
+        self.assertEqual(key, "5" + policy_module.BUY_KEY + "a" + "5\r\x1b")
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
         self.assertEqual(policy._calibration_restore_signatures, [])
-        self.assertIsNotNone(policy._home_withdraw_inflight)
-
-        # A deposit that never becomes visible terminates instead of looping:
-        # one full page cycle, then the queue clears and the ledger owns any
-        # replacement purchase.
-        empty_page = self._snapshot(store=StoreState(STORE_HOME, []))
-        policy._home_withdraw_inflight = None
-        policy._calibration_restore_signatures = [signature]
-        first = policy._calibration_restore_withdraw_key(empty_page)
-        self.assertEqual(first, " ")
-        self.assertEqual(policy.last_reason, "calibration:seek-restore-page")
-        second = policy._calibration_restore_withdraw_key(empty_page)
-        self.assertEqual(second, LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "calibration:restore-missing")
-        self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
 
     def test_departure_waits_for_the_phase_and_the_restore_queue(self):
         policy = self._scan_complete_policy()
