@@ -3,6 +3,7 @@ import inspect
 import json
 import textwrap
 import unittest
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18410,6 +18411,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:queue-treasure-detection-withdraw")
+        self.assertEqual(
+            policy._home_pending_quantity,
+            min(
+                policy._mining_detection_scroll_target(snap)
+                + DETECTION_SCROLL_BUFFER,
+                25,
+            ),
+        )
 
         with_scrolls = replace(
             snap,
@@ -18454,6 +18463,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:queue-treasure-detection-withdraw")
+        self.assertEqual(policy._home_pending_quantity, stored_count)
 
     def test_fundraising_withdraws_second_digger_from_home(self):
         held_digger = item("p", TVAL_DIGGING, 1, name="held shovel")
@@ -20147,8 +20157,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(pol._home_pending_item, pol._item_signature(candidate))
         self.assertNotIn(pol._item_signature(candidate), pol._deferred_home_items)
 
-    def test_queued_home_withdrawal_preempts_mining_supply_exit(self):
-        """A Q22 launcher request exits Home for its atomic fresh re-entry."""
+    def test_queued_home_withdrawal_finishes_scan_before_mining_exit(self):
+        """A Q22 launcher request completes its address observation first."""
         candidate = store_item(
             "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
             name="a Light Crossbow", is_equipment=True,
@@ -20170,8 +20180,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
 
-        self.assertEqual(pol.choose_key(snap), "\x1b")
-        self.assertEqual(pol.last_reason, "home:leave-for-atomic-withdraw")
+        self.assertEqual(pol.choose_key(snap), " ")
+        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
         self.assertEqual(pol._home_pending_item, signature)
         self.assertNotIn(signature, pol._deferred_home_items)
 
@@ -43697,14 +43707,49 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
     def _catalogued_withdrawal_policy(self, wares, *, page_size=12):
         policy = HengbotPolicy()
         policy._equipment_catalog.home_scan_complete = True
-        policy._home_catalog_page_size = page_size
         policy._home_address_pages = [
             tuple(wares[index:index + page_size])
             for index in range(0, len(wares), page_size)
         ]
         policy._home_address_scan_valid = True
+        policy._home_address_page_count = len(policy._home_address_pages)
+        policy._home_address_ordinals = list(
+            range(policy._home_address_page_count)
+        )
         policy._shopping_approach_store_type = STORE_HOME
         return policy
+
+    def _home_page_snapshot(self, inventory, wares, *, turn):
+        return replace(
+            self._snapshot(inventory, turn=turn),
+            store=StoreState(STORE_HOME, list(wares)),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+
+    def _observe_home_address_publicly(
+        self, policy, wares, *, inventory=(), page_size=12, turn=2247100
+    ):
+        """Build the address record only from real choose_key store decisions."""
+        pages = [
+            wares[index:index + page_size]
+            for index in range(0, len(wares), page_size)
+        ] or [[]]
+        keys = []
+        for offset, page in enumerate([*pages, pages[0]]):
+            snapshot = self._home_page_snapshot(
+                inventory, page, turn=turn + offset
+            )
+            if len(pages) == 1 and offset == 1:
+                snapshot = replace(
+                    snapshot,
+                    messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],),
+                )
+            keys.append(
+                policy.choose_key(snapshot)
+            )
+        self.assertTrue(policy._home_address_scan_valid)
+        self.assertEqual(policy._home_address_page_count, len(pages))
+        return keys
 
     def _choose_atomic_withdrawal(self, policy, entrance):
         with patch.object(
@@ -43748,6 +43793,269 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(key, "5" + (" " * 7) + "ph\x1b")
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, target.name)
+
+    def test_public_scan_binds_page_zero_after_rotated_prior_visit(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1100 + index,
+                name=f"home {index}",
+            )
+            for index in range(60)
+        ]
+        target = wares[3]
+        policy = HengbotPolicy()
+        policy._calibration_blocked_this_visit = True
+        policy._home_pending_item = policy._item_signature(target)
+        policy._shopping_approach_store_type = STORE_HOME
+        pack = self._real_pack()
+
+        # A mid-burst page-3 snapshot is not a fresh address source.
+        policy._home_atomic_withdraw_pending = (
+            policy._item_signature(wares[39]), 0, wares[39], 1
+        )
+        policy.choose_key(
+            self._home_page_snapshot(pack, wares[36:49], turn=2247000)
+        )
+        policy._home_atomic_withdraw_pending = None
+        policy._home_entry_operation_posted = False
+        policy.choose_key(self._entrance_snapshot(pack, turn=2247001))
+
+        scan_keys = self._observe_home_address_publicly(
+            policy, wares, inventory=pack, turn=2247010
+        )
+        self.assertEqual(scan_keys[-1], LEAVE_STORE_KEY)
+        policy._calibration_phase = None
+        policy._calibration_blocked_this_visit = True
+        policy._calibration_restore_signatures = [
+            policy._item_signature(target)
+        ]
+        policy._calibration_phase = "restore-supplies"
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(pack, turn=2247020),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        key = policy.choose_key(entrance)
+
+        self.assertEqual(
+            key, "5pd\x1b",
+            (policy.last_reason, policy._shopping_approach_store_type),
+        )
+        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, "home 3")
+
+    def test_public_interrupted_three_of_five_scan_is_not_valid(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1200 + index,
+                name=f"partial {index}",
+            )
+            for index in range(60)
+        ]
+        target = wares[55]
+        policy = HengbotPolicy()
+        policy._calibration_blocked_this_visit = True
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(target)
+        ]
+        policy._home_candidate_waiting = True
+        pack = self._real_pack()
+
+        keys = [
+            policy.choose_key(
+                self._home_page_snapshot(
+                    pack, wares[index:index + 12], turn=2247300 + index
+                )
+            )
+            for index in (0, 12, 24)
+        ]
+
+        self.assertEqual(keys, [" ", " ", " "])
+        self.assertFalse(policy._home_address_scan_valid)
+        self.assertIsNone(policy._home_address_page_count)
+
+    def test_public_composer_refuses_corrupt_out_of_range_ordinal(self):
+        wares = [
+            store_item(
+                chr(ord("a") + index % 12), TVAL_POTION, 1300 + index,
+                name=f"bounded {index}",
+            )
+            for index in range(24)
+        ]
+        target = wares[13]
+        policy = HengbotPolicy()
+        policy._calibration_blocked_this_visit = True
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(target)
+        ]
+        policy._home_candidate_waiting = True
+        pack = self._real_pack()
+        self._observe_home_address_publicly(
+            policy, wares, inventory=pack, turn=2247400
+        )
+
+        # Corrupt only the derived ordinal after a production-built scan.  A
+        # raw list index would silently wrap; the established fact must win.
+        policy._home_address_ordinals[1] = 2
+        policy._last_snapshot_was_store = False
+        entrance = replace(
+            self._entrance_snapshot(pack, turn=2247410),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        key = policy.choose_key(entrance)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-address-invalid"
+        )
+
+    def test_public_refusal_reasons_survive_choose_key(self):
+        target = store_item("a", TVAL_POTION, 1350, name="missing target")
+        pack = self._real_pack()
+
+        unobserved = HengbotPolicy()
+        unobserved._calibration_phase = "restore-supplies"
+        unobserved._calibration_restore_signatures = [
+            unobserved._item_signature(target)
+        ]
+        unobserved._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(pack, turn=2247450),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        self.assertEqual(unobserved.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(
+            unobserved.last_reason, "home:atomic-withdraw-needs-observation"
+        )
+
+        missing = HengbotPolicy()
+        missing._calibration_phase = "restore-supplies"
+        missing._calibration_restore_signatures = [
+            missing._item_signature(target)
+        ]
+        missing._home_candidate_waiting = True
+        other = store_item("a", TVAL_POTION, 1351, name="other")
+        self._observe_home_address_publicly(
+            missing, [other], inventory=pack, turn=2247460
+        )
+        missing._last_snapshot_was_store = False
+        self.assertEqual(missing.choose_key(entrance), LEAVE_STORE_KEY)
+        self.assertEqual(
+            missing.last_reason, "home:atomic-withdraw-target-unobserved"
+        )
+        self.assertNotIn(
+            missing._item_signature(target),
+            missing._calibration_restore_signatures,
+        )
+
+    def test_public_calibration_restore_converges_twelve_items(self):
+        base = [
+            store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
+            for index in range(80)
+        ]
+        targets = [
+            store_item(
+                "a", TVAL_POTION, 1500 + index, name=f"restore {index:02d}"
+            )
+            for index in range(12)
+        ]
+        stock = [*base[:7], *targets, *base[7:]]
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(target) for target in targets
+        ]
+        policy._home_candidate_waiting = True
+        inventory = self._real_pack()
+        target_signatures = {
+            policy._item_signature(target) for target in targets
+        }
+        inside = False
+        top = 0
+        entries = 0
+        withdrawals = 0
+        reasons = Counter()
+        withdrawal_decisions = []
+
+        def page_items():
+            page = stock[top:top + 12]
+            return [
+                replace(ware, letter=chr(ord("a") + index))
+                for index, ware in enumerate(page)
+            ]
+
+        for decision in range(300):
+            turn = 2247500 + decision
+            snapshot = (
+                self._home_page_snapshot(inventory, page_items(), turn=turn)
+                if inside
+                else replace(
+                    self._entrance_snapshot(inventory, turn=turn),
+                    equipment=[item("light", TVAL_LITE, 0, name="a light")],
+                )
+            )
+            key = policy.choose_key(snapshot)
+            reasons[policy.last_reason] += 1
+            if inside:
+                if key == " ":
+                    top += 12
+                    if top >= len(stock):
+                        top = 0
+                elif key == LEAVE_STORE_KEY:
+                    inside = False
+                    top = 0
+                else:
+                    self.fail((decision, "unexpected in-store key", key, policy.last_reason))
+            elif key == WAIT_KEY:
+                inside = True
+                top = 0
+                entries += 1
+            elif key.startswith(WAIT_KEY) and BUY_KEY in key:
+                prefix, take = key.split(BUY_KEY, 1)
+                page = len(prefix) - 1
+                letter = take[0]
+                index = page * 12 + ord(letter) - ord("a")
+                self.assertLess(index, len(stock))
+                withdrawn = stock.pop(index)
+                inventory.append(
+                    item(
+                        chr(ord("u") + withdrawals), withdrawn.tval,
+                        withdrawn.sval, name=withdrawn.name,
+                    )
+                )
+                withdrawals += 1
+                entries += 1
+                withdrawal_decisions.append(decision)
+                top = 0
+            elif key == LEAVE_STORE_KEY:
+                pass
+            else:
+                self.fail((
+                    decision, "unexpected outside key", key, policy.last_reason,
+                    reasons, policy._calibration_phase,
+                    len(policy._calibration_restore_signatures),
+                    policy._town_visit_ledger.blocked_stores,
+                ))
+            restored = {
+                policy._item_signature(carried)
+                for carried in inventory
+            } & target_signatures
+            if len(restored) == 12 and policy._home_atomic_withdraw_pending is None:
+                break
+
+        restored = {
+            policy._item_signature(carried) for carried in inventory
+        } & target_signatures
+        self.assertEqual(len(restored), 12)
+        self.assertEqual(withdrawals, 12)
+        self.assertLess(decision + 1, 300)
+        self.acceptance_restore_metrics = {
+            "decisions": decision + 1,
+            "reasons": reasons,
+            "entries": entries,
+            "withdrawal_decisions": withdrawal_decisions,
+        }
 
     def test_atomic_withdrawal_derives_first_later_and_last_page_letters(self):
         wares = [
@@ -43807,10 +44115,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(target)
         policy._invalidate_home_observation()
 
-        self.assertIsNone(
+        self.assertEqual(
             policy._atomic_home_withdraw_key(
                 self._entrance_snapshot([]), Position(45, 123)
-            )
+            ),
+            WAIT_KEY,
         )
         self.assertEqual(
             policy.last_reason, "home:atomic-withdraw-needs-observation"
@@ -46496,9 +46805,9 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "d", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
             name="Cure Critical Wounds",
         )
-        policy._home_catalog = {signature: stored}
-        policy._home_catalog_page_size = 12
         policy._home_address_pages = [(stored,)]
+        policy._home_address_ordinals = [0]
+        policy._home_address_page_count = 1
         policy._home_address_scan_valid = True
         policy._shopping_approach_store_type = STORE_HOME
         entrance = replace(
