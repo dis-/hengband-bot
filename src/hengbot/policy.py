@@ -10388,10 +10388,7 @@ class HengbotPolicy:
             and not item.is_light
             and not item.is_digging_tool
             and not good_weapon
-            and (
-                self._target_loadout_known()
-                or self._target_dependent_deposit_inflight(item)
-            )
+            and self._target_loadout_known()
         )
         protected_unknown_consumable = (
             self._deepest_level >= 20
@@ -10465,22 +10462,11 @@ class HengbotPolicy:
         if self._calibration_active():
             return False
         preparation = self._equipment_optimization_preparation
-        # No cached preparation means the optimizer has not reported a state
-        # yet.  Once it has reported, only a concrete best loadout is known.
         if preparation is None:
-            return True
+            return False
         result = getattr(preparation, "result", None)
         best = getattr(result, "best", None)
         return getattr(best, "loadout", None) is not None
-
-    def _target_dependent_deposit_inflight(self, item: InventoryItem) -> bool:
-        """Let an already-posted Home deposit reach its rejection guard."""
-        signature = self._last_sell_sig
-        return (
-            isinstance(signature, tuple)
-            and len(signature) > 1
-            and signature[1] == self._item_signature(item)
-        )
 
     def _idle_deposit_protected(self, item: InventoryItem) -> bool:
         # Keep only what the bot genuinely relies on; everything else that has gone

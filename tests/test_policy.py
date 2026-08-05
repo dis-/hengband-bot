@@ -374,6 +374,16 @@ def item(
     )
 
 
+def set_known_target(policy):
+    preparation = SimpleNamespace(
+        result=SimpleNamespace(
+            best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
+        )
+    )
+    policy._equipment_optimization_preparation = preparation
+    return preparation
+
+
 def seed_character_calibration(policy, snapshot):
     """Give the policy the P1 worn-independent constants for this snapshot.
 
@@ -18881,6 +18891,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             equipment=[self._lantern()],
         )
         pol = HengbotPolicy()
+        set_known_target(pol)
         pol._fundraising_mode = "mine"
 
         self.assertIsNotNone(pol._find_home_deposit(snap))
@@ -19812,6 +19823,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # sale, so it must become depositable again — otherwise a pack of refused
         # spares blocks town departure forever.
         pol = HengbotPolicy()
+        set_known_target(pol)
         ego = item(
             "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
             is_ego=True, known=True,
@@ -19959,6 +19971,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # Leftover spares stuck in the pack when the smith fills must become
         # depositable, or a pack of unsellable weapons stalls town departure.
         pol = HengbotPolicy()
+        set_known_target(pol)
         pol._store_sale_refused.add(STORE_WEAPON)
         ego = item(
             "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
@@ -20239,9 +20252,20 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
 
+        set_known_target(pol)
         pol.prime(snap)
+        preparation = set_known_target(pol)
 
-        self.assertEqual(pol.choose_key(snap), "\x1b")
+        def prepare(*_args, **_kwargs):
+            pol._equipment_optimization_preparation = preparation
+            return preparation
+
+        with patch.object(
+            pol, "_prepare_equipment_optimization", side_effect=prepare
+        ):
+            key = pol.choose_key(snap)
+
+        self.assertEqual(key, "\x1b")
         self.assertEqual(pol.last_reason, "home:leave-with-item")
 
     def test_prime_does_not_rebuild_known_equipment_as_a_trial_batch(self):
@@ -20728,6 +20752,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             town_flag=True,
         )
         policy = HengbotPolicy()
+        set_known_target(policy)
         policy._home_pending_item = policy._item_signature(target)
         policy._identification_candidate = policy._item_signature(target)
         policy._identification_need = "full"
@@ -33302,6 +33327,7 @@ class WeaponSaleTest(unittest.TestCase):
 
     def test_inferior_spare_not_deposited_when_high_grade(self):
         pol = HengbotPolicy()
+        set_known_target(pol)
         inf = self._inferior()
         self.assertIsNone(pol._find_home_deposit(self._town([inf], [self._ego()])))
         plain = item("main_hand", 23, 0, is_equipment=True, known=True, pseudo_feeling="good")
@@ -38185,6 +38211,7 @@ class JewelryKeepingTest(unittest.TestCase):
         spare = item("k", TVAL_AMULET, 4, known_flags=frozenset({86}), is_equipment=True)
         snap = self._home([spare], equipment=[worn])
         pol = HengbotPolicy()
+        set_known_target(pol)
         self.assertFalse(pol._is_wanted_jewelry(snap, spare))
         self.assertEqual(pol._find_home_deposit(snap), spare)
 
@@ -39546,6 +39573,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         bolts = item("b", TVAL_BOLT, 0, count=99, name="bolts")
         shots = item("s", TVAL_SHOT, 1, count=15, name="iron shots")
         policy = HengbotPolicy()
+        set_known_target(policy)
         snap = self._town(
             [crossbow, bolts, shots], equipment=[sling],
             store=StoreState(STORE_HOME, []),
@@ -39616,6 +39644,11 @@ class HomeFullLatchTest(unittest.TestCase):
     def test_full_home_latch_stops_deposits_without_sticky_block(self):
         gear = item("a", TVAL_RING, 0, is_equipment=True, known=True, name="ring")
         pol = HengbotPolicy()
+        pol._equipment_optimization_preparation = SimpleNamespace(
+            result=SimpleNamespace(
+                best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
+            )
+        )
         snap = self._town_snap([gear])
         self.assertIsNotNone(pol._find_home_deposit(snap))  # normally depositable
         pol._home_full = True
@@ -45907,6 +45940,55 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         self.assertEqual(key, "db\r")
         self.assertEqual(policy.last_reason, "shop:sell-town-surplus")
 
+    def test_posted_deposit_does_not_reopen_sale_after_target_becomes_unknown(self):
+        policy = HengbotPolicy()
+        ring = self._ring()
+        home = self._store_snapshot([ring], STORE_HOME)
+        policy.prime(home)
+        policy._equipment_optimization_preparation = self._preparation(known=True)
+        self.assertEqual(policy._home_deposit_key(home, ring), "db")
+
+        policy._equipment_optimization_preparation = self._preparation(known=False)
+        shop = replace(home, store=StoreState(STORE_MAGIC, []))
+        key = policy.choose_key(shop)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:leave")
+
+    def test_calibration_deposit_does_not_arm_unknown_target_sale(self):
+        policy = HengbotPolicy()
+        ring = self._ring()
+        home = self._store_snapshot([ring], STORE_HOME)
+        policy.prime(home)
+        policy._calibration_phase = "deposit"
+        self.assertIs(policy._find_home_deposit(home), ring)
+        self.assertEqual(policy._home_deposit_key(home, ring), "db")
+
+        policy._calibration_phase = None
+        policy._equipment_optimization_preparation = self._preparation(known=False)
+        shop = replace(home, store=StoreState(STORE_MAGIC, []))
+        key = policy.choose_key(shop)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:leave")
+
+    def test_deposit_rejection_guard_exits_without_surplus_carve_out(self):
+        policy = HengbotPolicy()
+        ring = self._ring()
+        home = self._store_snapshot([ring], STORE_HOME)
+        policy.prime(home)
+        policy._equipment_optimization_preparation = self._preparation(known=True)
+
+        keys = [
+            policy._home_deposit_key(home, ring)
+            for _ in range(STORE_STUCK_LIMIT + 1)
+        ]
+
+        self.assertEqual(keys[-1], LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:deposit-rejected")
+        self.assertIn(policy._item_signature(ring), policy._home_rejected_deposits)
+        self.assertFalse(hasattr(policy, "_target_dependent_deposit_inflight"))
+
     def test_unknown_target_does_not_block_book_or_low_level_consumable_sales(self):
         book_policy = HengbotPolicy()
         book = item(
@@ -45942,6 +46024,7 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         snapshot = self._store_snapshot([self._ring()], STORE_MAGIC)
         policy.prime(snapshot)
         states = (
+            None,
             SimpleNamespace(blockers=("calibration-required",), result=None),
             SimpleNamespace(blockers=(), result=SimpleNamespace(best=None)),
         )
@@ -45958,6 +46041,21 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         self.assertFalse(policy._target_loadout_known())
         self.assertFalse(policy._home_deposit_candidate(self._ring(), snapshot))
         self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
+
+    def test_exhausted_depth_fallback_none_fails_closed(self):
+        policy = HengbotPolicy()
+        snapshot = self._store_snapshot([self._ring()], STORE_MAGIC)
+        policy.prime(snapshot)
+        failed = self._preparation(known=False)
+        policy._equipment_optimization_preparation = failed
+        policy._equipment_optimization_depth = Mock(return_value=3)
+        policy._next_required_store_type = Mock(return_value=None)
+        policy._prepare_equipment_optimization = Mock(return_value=failed)
+
+        self.assertIsNone(policy._activate_loadout_depth_fallback(snapshot))
+        self.assertIsNone(policy._equipment_optimization_preparation)
+        self.assertFalse(policy._target_loadout_known())
+        self.assertFalse(policy._home_deposit_candidate(self._ring(), snapshot))
 
 
 if __name__ == "__main__":

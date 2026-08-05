@@ -198,6 +198,14 @@ class LookResponseTest(unittest.TestCase):
 
 
 class TownOrganizationTest(unittest.TestCase):
+    @staticmethod
+    def _known_target(policy):
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            result=SimpleNamespace(
+                best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
+            )
+        )
+
     def _town(self, inventory, store_type=None):
         position = Position(10, 10)
         return Snapshot(
@@ -245,6 +253,7 @@ class TownOrganizationTest(unittest.TestCase):
     def test_unsellable_surplus_is_deposited_at_home(self):
         spare = carried("a", name="spare sword", is_equipment=True)
         policy = HengbotPolicy()
+        self._known_target(policy)
         policy._unsellable_items.add(policy._item_signature(spare))
         snapshot = self._town([spare], STORE_HOME)
         self.assertIs(policy._find_home_deposit(snapshot), spare)
@@ -254,6 +263,7 @@ class TownOrganizationTest(unittest.TestCase):
     def test_fundraising_unsellable_surplus_routes_to_home_and_deposits(self):
         spare = carried("a", name="spare sword", is_equipment=True)
         policy = HengbotPolicy()
+        self._known_target(policy)
         policy._fundraising_mode = "mine"
         policy._unsellable_items.add(policy._item_signature(spare))
         town = self._town([spare])
