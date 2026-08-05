@@ -357,6 +357,30 @@ def equipment_identity(item: EquipmentItem) -> str:
     return _catalog_digest(_catalog_signature(item))
 
 
+def optimizer_item_projection(owned: OwnedEquipment) -> tuple:
+    """Stable item fields consumed by loadout search, evaluation, or planning.
+
+    The transport models also carry volatile UI state (pack letters, fuel-bearing
+    display names, fuel, timeouts, inscriptions, and bounty markers).  None of
+    that state changes an operational candidate's optimizer value, so it must
+    not invalidate a completed-search memo.
+    """
+    item = owned.item
+    return (
+        owned.id,
+        owned.origin,
+        owned.equipped_slot,
+        owned.random_teleport_suppressed,
+        _catalog_signature(item),
+        item.weight,
+        item.weapon_proficiency,
+        item.pseudo_feeling,
+        item.is_equipment,
+        item.ammo_tval,
+        operational_equipment_candidate(owned),
+    )
+
+
 class OwnedEquipmentCatalog:
     """Persistent carried gear plus a wrap-detected scan of every Home page."""
 

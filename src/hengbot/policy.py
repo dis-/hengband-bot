@@ -27,6 +27,7 @@ from hengbot.equipment_optimizer import (
     current_loadout,
     equipment_identity,
     operational_equipment_candidate,
+    optimizer_item_projection,
     random_teleport_is_suppressed,
     slot_for,
 )
@@ -83,6 +84,7 @@ from hengbot.warrior_optimization import (
     save_character_calibration,
     save_confirmed_loadout,
     warrior_optimizer_input_key,
+    warrior_optimizer_knowledge_key,
     weapon_expected_dps,
 )
 from hengbot.warrior_loadout_evaluator import (
@@ -2238,6 +2240,7 @@ class HengbotPolicy:
         self._confirmed_loadout_path: Path | None = None
         self._confirmed_loadout_loaded = False
         self._equipment_optimizer_input_key: str | None = None
+        self._equipment_optimizer_knowledge_key: str | None = None
         # Calibration phase state machine: None | "deposit" | "strip" |
         # "capture" | "restore-equip" | "restore-supplies".
         self._calibration_phase: str | None = None
@@ -8769,42 +8772,6 @@ class HengbotPolicy:
             if depth_override is not None
             else self._equipment_optimization_depth(snapshot)
         )
-        value_catalog_signature = tuple(
-            sorted(equipment_identity(item.item) for item in catalog)
-        )
-        equipped_value_signature = tuple(
-            sorted(
-                (
-                    item.equipped_slot or "",
-                    equipment_identity(item.item),
-                )
-                for item in catalog
-                if item.origin == "equipped"
-            )
-        )
-        signature = (
-            self._equipment_catalog.home_scan_complete,
-            optimization_depth,
-            value_catalog_signature,
-            equipped_value_signature,
-            snapshot.player.level,
-            snapshot.player.stat_cur,
-            snapshot.player.stat_use,
-            snapshot.player.ac,
-            snapshot.player.speed,
-            snapshot.player.melee_skill,
-            snapshot.player.saving_skill,
-            snapshot.player.two_weapon_skill,
-            snapshot.player.shield_skill,
-            snapshot.player.abilities,
-            has_destruction,
-            self._fundraising_mode,
-            required_launcher_ammo if required_launcher_available else None,
-            # P1: a re-calibration is a genuine input change even when level
-            # and stat_cur (already terms above) are unchanged.
-            calibration.observed_turn,
-        )
-
         # Keep pack weapons that the ordinary town policy has already classified
         # as sale loot out of the optimizer's Home staging deposits.  Otherwise
         # the optimizer stores them, Home processing immediately withdraws them
@@ -8855,17 +8822,43 @@ class HengbotPolicy:
             else item
             for item in catalog
         )
-        self._equipment_optimizer_input_key = warrior_optimizer_input_key(
-            snapshot,
-            search_catalog,
-            self._monrace_knowledge,
-            depth=optimization_depth,
-            home_scan_complete=self._equipment_catalog.home_scan_complete,
-            has_destruction=has_destruction,
-            preserve_pack_item_ids=preserve,
-            search_excluded_item_ids=search_excluded,
-            calibration=calibration,
+        player = snapshot.player
+        # Cheap, hash-free mirror of every per-state key input.  It makes cache
+        # reuse exact while leaving the immutable monster catalog out of the hot
+        # path; projected items intentionally omit volatile transport fields.
+        signature = (
+            tuple(sorted(optimizer_item_projection(item) for item in search_catalog)),
+            optimization_depth,
+            self._equipment_catalog.home_scan_complete,
+            has_destruction,
+            preserve,
+            search_excluded,
+            calibration,
+            player.race_id,
+            player.class_id,
+            player.personality_id,
+            player.level,
+            player.stat_cur,
+            player.speed,
+            player.melee_skill,
+            getattr(player, "shooting_skill", player.melee_skill),
+            player.saving_skill,
+            player.two_weapon_skill,
+            player.shield_skill,
+            player.max_hp,
+            player.max_mp,
         )
+        if (
+            signature == self._equipment_optimization_signature
+            and self._equipment_optimization_pack_items == len(snapshot.inventory)
+        ):
+            self._equipment_optimization_telemetry["result_source"] = (
+                "signature-cache-hit"
+            )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "current-inputs"
+            return self._equipment_optimization_preparation
         if (
             depth_override is None
             and self._equipment_optimization_timed_out_this_visit
@@ -8873,9 +8866,10 @@ class HengbotPolicy:
             and isinstance(cached_blockers, (tuple, list, set, frozenset))
             and "optimization-timeout" in cached_blockers
         ):
-            # Avoid repeating a bounded search during this visit. Departure is
-            # still closed unless this current key equals a genuinely completed
-            # search recorded on disk.
+            # The fast semantic signature changed, so the previous input key is
+            # not evidence about this state. Avoid repeating the bounded search
+            # but fail closed rather than re-publishing a stale key.
+            self._equipment_optimizer_input_key = None
             self._equipment_optimization_telemetry["result_source"] = (
                 "town-visit-timeout-return"
             )
@@ -8916,7 +8910,39 @@ class HengbotPolicy:
                     self._equipment_transaction_session_for_preparation(preparation)
                 )
             self._equipment_optimization_pack_items = len(snapshot.inventory)
+            if self._equipment_optimizer_knowledge_key is None:
+                self._equipment_optimizer_knowledge_key = (
+                    warrior_optimizer_knowledge_key(self._monrace_knowledge)
+                )
+            self._equipment_optimizer_input_key = warrior_optimizer_input_key(
+                snapshot,
+                search_catalog,
+                self._monrace_knowledge,
+                depth=optimization_depth,
+                home_scan_complete=self._equipment_catalog.home_scan_complete,
+                has_destruction=has_destruction,
+                preserve_pack_item_ids=preserve,
+                search_excluded_item_ids=search_excluded,
+                calibration=calibration,
+                knowledge_key=self._equipment_optimizer_knowledge_key,
+            )
             return self._equipment_optimization_preparation
+        if self._equipment_optimizer_knowledge_key is None:
+            self._equipment_optimizer_knowledge_key = warrior_optimizer_knowledge_key(
+                self._monrace_knowledge
+            )
+        self._equipment_optimizer_input_key = warrior_optimizer_input_key(
+            snapshot,
+            search_catalog,
+            self._monrace_knowledge,
+            depth=optimization_depth,
+            home_scan_complete=self._equipment_catalog.home_scan_complete,
+            has_destruction=has_destruction,
+            preserve_pack_item_ids=preserve,
+            search_excluded_item_ids=search_excluded,
+            calibration=calibration,
+            knowledge_key=self._equipment_optimizer_knowledge_key,
+        )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
         for owned in catalog:

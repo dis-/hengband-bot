@@ -1,5 +1,6 @@
 import unittest
 import json
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -1387,6 +1388,74 @@ class WarriorOptimizationTest(unittest.TestCase):
             key(snapshot=SimpleNamespace(player=player, inventory=(light.item,))),
         )
         self.assertTrue(all(candidate != baseline for candidate in variants))
+
+    def test_optimizer_input_key_ignores_transport_noise_and_catalog_order(self):
+        light = gear("light", "equipped", slot="light", tval=39)
+        light = replace(light, item=replace(light.item, fuel=5000))
+        weapon = gear("weapon", "pack")
+        player = SimpleNamespace(
+            race_id=1, class_id=PLAYER_CLASS_WARRIOR, personality_id=2,
+            stat_cur=(18, 10, 10, 18), level=10, shield_skill=0,
+            speed=110, saving_skill=30, melee_skill=60, shooting_skill=50,
+            two_weapon_skill=0, max_hp=100, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+
+        def key(items):
+            return warrior_optimizer_input_key(
+                snapshot, tuple(items), {}, depth=1, home_scan_complete=True,
+                has_destruction=False, preserve_pack_item_ids=frozenset(),
+                search_excluded_item_ids=frozenset(), calibration=None,
+            )
+
+        baseline = key((light, weapon))
+        noisy_light = replace(
+            light,
+            item=replace(
+                light.item, slot="z", name="Lantern (4999 turns of light)",
+                fuel=4999, timeout=7, inscription="keep", is_bounty=True,
+            ),
+        )
+        noisy_weapon = replace(
+            weapon,
+            item=replace(
+                weapon.item, slot="y", timeout=9, inscription="{keep}",
+                is_bounty=True,
+            ),
+        )
+
+        self.assertEqual(key((noisy_light, noisy_weapon)), baseline)
+        self.assertEqual(key((weapon, light)), baseline)
+
+    def test_optimizer_input_key_tracks_each_extended_item_semantic(self):
+        weapon = gear("weapon", "pack")
+        player = SimpleNamespace(
+            race_id=1, class_id=PLAYER_CLASS_WARRIOR, personality_id=2,
+            stat_cur=(18, 10, 10, 18), level=10, shield_skill=0,
+            speed=110, saving_skill=30, melee_skill=60, shooting_skill=50,
+            two_weapon_skill=0, max_hp=100, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+
+        def key(owned):
+            return warrior_optimizer_input_key(
+                snapshot, (owned,), {}, depth=1, home_scan_complete=True,
+                has_destruction=False, preserve_pack_item_ids=frozenset(),
+                search_excluded_item_ids=frozenset(), calibration=None,
+            )
+
+        baseline = key(weapon)
+        variants = (
+            replace(weapon, id="other"),
+            replace(weapon, origin="home"),
+            replace(weapon, equipped_slot="main_hand"),
+            replace(weapon, random_teleport_suppressed=True),
+            replace(weapon, item=replace(weapon.item, weight=31)),
+            replace(weapon, item=replace(weapon.item, weapon_proficiency=1)),
+            replace(weapon, item=replace(weapon.item, pseudo_feeling="average")),
+            replace(weapon, item=replace(weapon.item, is_equipment=False)),
+        )
+        self.assertTrue(all(key(candidate) != baseline for candidate in variants))
 
 
 if __name__ == "__main__":

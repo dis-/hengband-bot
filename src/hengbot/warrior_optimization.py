@@ -8,6 +8,7 @@ import hashlib
 import json
 from math import isfinite
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Mapping
 
 from hengbot.equipment_encounters import normal_encounters, representative_encounters
@@ -18,6 +19,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipment,
     current_loadout,
     equipment_identity,
+    optimizer_item_projection,
     optimize_loadout,
     required_abilities,
 )
@@ -249,7 +251,22 @@ def _canonical_optimizer_input(value):
         return [_canonical_optimizer_input(item) for item in value]
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
-    return repr(value)
+    if isinstance(value, SimpleNamespace):
+        return _canonical_optimizer_input(vars(value))
+    raise TypeError(f"unsupported optimizer input type: {type(value).__qualname__}")
+
+
+def warrior_optimizer_knowledge_key(
+    knowledge: Mapping[int, MonraceKnowledge],
+) -> str:
+    """Digest immutable monster knowledge once for reuse by per-state keys."""
+    encoded = json.dumps(
+        _canonical_optimizer_input(knowledge),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def warrior_optimizer_input_key(
@@ -263,13 +280,14 @@ def warrior_optimizer_input_key(
     preserve_pack_item_ids: frozenset[str],
     search_excluded_item_ids: frozenset[str],
     calibration: CharacterCalibration | None,
+    knowledge_key: str | None = None,
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
     inputs = {
-        "schema": 1,
-        "items": items,
-        "knowledge": knowledge,
+        "schema": 2,
+        "items": tuple(sorted(optimizer_item_projection(item) for item in items)),
+        "knowledge_key": knowledge_key or warrior_optimizer_knowledge_key(knowledge),
         "depth": depth,
         "home_scan_complete": home_scan_complete,
         "has_destruction": has_destruction,
