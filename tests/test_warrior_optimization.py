@@ -1180,6 +1180,7 @@ class WarriorOptimizationTest(unittest.TestCase):
             None, ("optimization-timeout",),
         )
         policy._prepare_equipment_optimization = lambda _snapshot: timed_out
+        policy._record_confirmed_loadout(snapshot)
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
         policy._equipment_transaction_session = SimpleNamespace(executable=True)
@@ -1189,7 +1190,59 @@ class WarriorOptimizationTest(unittest.TestCase):
         timed_out = WarriorOptimizationPreparation(
             current, None, None, ("optimization-timeout",),
         )
-        self.assertFalse(policy._equipment_departure_ready(snapshot))
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
+        stripped = SimpleNamespace(
+            player=snapshot.player, inventory=(), equipment=(),
+        )
+        self.assertFalse(policy._equipment_departure_ready(stripped))
+
+    def test_confirmed_loadout_survives_restart_and_is_character_bound(self):
+        light = gear("light", "equipped", slot="light", tval=39)
+        player_state = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR, race_id=1, personality_id=2,
+            stat_max=(18, 17, 16, 15, 14, 13),
+        )
+        snapshot = SimpleNamespace(
+            player=player_state, inventory=(), equipment=(light.item,), turn=500,
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "confirmed-loadout.json"
+            policy = HengbotPolicy()
+            policy._confirmed_loadout_path = path
+            policy._equipment_catalog.refresh_carried((), snapshot.equipment)
+            current = current_loadout(policy._equipment_catalog.items)
+            complete = WarriorOptimizationPreparation(
+                current, SimpleNamespace(best=SimpleNamespace(loadout=current)),
+                EquipmentTransactionPlan((), (), 0), (),
+            )
+            policy._prepare_equipment_optimization = lambda _snapshot: complete
+            self.assertTrue(policy._equipment_departure_ready(snapshot))
+            self.assertTrue(path.is_file())
+
+            timeout = WarriorOptimizationPreparation(
+                current, None, None, ("optimization-timeout",),
+            )
+            restarted = HengbotPolicy()
+            restarted._confirmed_loadout_path = path
+            restarted._prepare_equipment_optimization = lambda _snapshot: timeout
+            self.assertTrue(restarted._equipment_departure_ready(snapshot))
+
+            stripped = SimpleNamespace(
+                player=player_state, inventory=(), equipment=(), turn=501,
+            )
+            self.assertFalse(restarted._equipment_departure_ready(stripped))
+
+            other_character = SimpleNamespace(
+                player=SimpleNamespace(
+                    class_id=PLAYER_CLASS_WARRIOR, race_id=9, personality_id=2,
+                    stat_max=player_state.stat_max,
+                ),
+                inventory=(), equipment=(light.item,), turn=1,
+            )
+            fresh = HengbotPolicy()
+            fresh._confirmed_loadout_path = path
+            fresh._prepare_equipment_optimization = lambda _snapshot: timeout
+            self.assertFalse(fresh._equipment_departure_ready(other_character))
 
 
 if __name__ == "__main__":

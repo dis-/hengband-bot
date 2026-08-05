@@ -177,6 +177,65 @@ class CharacterCalibration:
         return None
 
 
+@dataclass(frozen=True)
+class ConfirmedLoadoutRecord:
+    """A live worn set recorded only after optimization genuinely completes."""
+
+    race_id: int
+    class_id: int
+    personality_id: int
+    stat_max: tuple[int, ...]
+    confirmed_turn: int
+    item_ids: frozenset[str]
+
+    def belongs_to(self, snapshot: Snapshot) -> bool:
+        player = snapshot.player
+        return (
+            getattr(player, "race_id", -1) == self.race_id
+            and getattr(player, "class_id", -1) == self.class_id
+            and getattr(player, "personality_id", -1) == self.personality_id
+            and tuple(getattr(player, "stat_max", ())) == self.stat_max
+            and getattr(snapshot, "turn", 0) >= self.confirmed_turn
+        )
+
+
+def confirmed_loadout_record(snapshot: Snapshot, item_ids: frozenset[str]) -> ConfirmedLoadoutRecord:
+    player = snapshot.player
+    return ConfirmedLoadoutRecord(
+        race_id=getattr(player, "race_id", -1),
+        class_id=getattr(player, "class_id", -1),
+        personality_id=getattr(player, "personality_id", -1),
+        stat_max=tuple(getattr(player, "stat_max", ())),
+        confirmed_turn=getattr(snapshot, "turn", 0),
+        item_ids=frozenset(item_ids),
+    )
+
+
+def save_confirmed_loadout(path: Path, record: ConfirmedLoadoutRecord) -> None:
+    data = asdict(record)
+    data["item_ids"] = sorted(record.item_ids)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        return
+
+
+def load_confirmed_loadout(path: Path) -> ConfirmedLoadoutRecord | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return ConfirmedLoadoutRecord(
+            race_id=int(data["race_id"]),
+            class_id=int(data["class_id"]),
+            personality_id=int(data["personality_id"]),
+            stat_max=tuple(int(value) for value in data["stat_max"]),
+            confirmed_turn=int(data["confirmed_turn"]),
+            item_ids=frozenset(str(value) for value in data["item_ids"]),
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def character_intrinsic_flags(characteristics) -> frozenset[int]:
     """Permanent TR flag ids from a NAKED `C` snapshot's characteristics.
 

@@ -1512,6 +1512,9 @@ def main(argv: list[str] | None = None) -> int:
         policy._character_calibration_path = args.decision_log.with_name(
             "character-calibration.json"
         )
+        policy._confirmed_loadout_path = args.decision_log.with_name(
+            "confirmed-loadout.json"
+        )
 
     if args.once:
         for line in _read_last_line(args.state_file):

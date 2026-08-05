@@ -22,6 +22,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_HAND,
     SLOT_SUB_RING,
     TR_TELEPORT,
+    Loadout,
     OwnedEquipmentCatalog,
     current_loadout,
     equipment_identity,
@@ -70,13 +71,17 @@ from hengbot.projection_path import projection_path
 from hengbot.warrior_optimization import (
     INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
     CharacterCalibration,
+    ConfirmedLoadoutRecord,
     WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
     calibrate_character_constants,
     character_intrinsic_flags,
+    confirmed_loadout_record,
     load_character_calibration,
+    load_confirmed_loadout,
     prepare_warrior_optimization,
     save_character_calibration,
+    save_confirmed_loadout,
     weapon_expected_dps,
 )
 from hengbot.warrior_loadout_evaluator import (
@@ -2228,6 +2233,9 @@ class HengbotPolicy:
         self._character_calibration: CharacterCalibration | None = None
         self._character_calibration_path: Path | None = None
         self._character_calibration_loaded = False
+        self._confirmed_loadout: ConfirmedLoadoutRecord | None = None
+        self._confirmed_loadout_path: Path | None = None
+        self._confirmed_loadout_loaded = False
         # Calibration phase state machine: None | "deposit" | "strip" |
         # "capture" | "restore-equip" | "restore-supplies".
         self._calibration_phase: str | None = None
@@ -7453,6 +7461,11 @@ class HengbotPolicy:
 
     def _quest_equipment_entry_allowed(self, snapshot: Snapshot) -> bool:
         """Apply only the equipment boundary to a fixed quest entered on foot."""
+        if (
+            self._morivant_full_identify is not None
+            and self._morivant_full_identify.temporary_deposits
+        ):
+            return False
         if self._equipment_departure_ready(snapshot):
             return True
         self._departure_block = self._departure_block_state(snapshot)
@@ -9791,7 +9804,7 @@ class HengbotPolicy:
         return True
 
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
-        """Derive departure safety from the currently worn, confirmed loadout."""
+        """Permit completion now or a recorded loadout with no visit-local work."""
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
         cacheable = snapshot is self._map_predicate_snapshot
@@ -9801,20 +9814,21 @@ class HengbotPolicy:
         ):
             return self._equipment_departure_cache_value
         preparation = self._prepare_equipment_optimization(snapshot)
-        premise = bool(
-            preparation is not None
-            and getattr(preparation, "result", None) is not None
-            and self._equipment_transaction_session is None
-            and self._current_worn_loadout_confirmed(snapshot, preparation)
-        )
-        ready = premise and bool(
+        complete_now = bool(
             preparation is not None
             and preparation.ready
             and preparation.transaction is not None
             and not preparation.transaction.actions
             and self._equipment_transaction_session is None
         )
-        if premise and preparation is not None:
+        if complete_now:
+            self._record_confirmed_loadout(snapshot)
+        premise = bool(
+            self._equipment_transaction_session is None
+            and self._current_worn_loadout_confirmed(snapshot, preparation)
+        )
+        ready = complete_now
+        if not ready and premise and preparation is not None:
             if (
                 preparation.blockers
                 and all(blocker.startswith("cursed-equipped:") for blocker in preparation.blockers)
@@ -9825,8 +9839,8 @@ class HengbotPolicy:
             ):
                 ready = True
             elif "optimization-timeout" in preparation.blockers:
-                # A timeout proves no new optimum, not that the last evaluated
-                # legal worn loadout became unsafe. Never execute a partial plan.
+                # Timeout work cannot advance this visit. Only a separately
+                # persisted confirmation of the live worn set opens this valve.
                 ready = True
             elif (
                 "pending-random-teleport-suppression" in preparation.blockers
@@ -9865,65 +9879,46 @@ class HengbotPolicy:
         return ready
 
     def _current_worn_loadout_confirmed(
-        self, snapshot: Snapshot, preparation: object
+        self, snapshot: Snapshot, preparation: object | None
     ) -> bool:
-        """Confirm the live worn set, never a preparation's cached ``current``.
-
-        A completed search confirms only its exact best loadout. A bounded or
-        incomplete search may have no best at all; in that case the weaker
-        escape-valve premise is safe only when no legal owned item can be worn
-        immediately into an empty slot. This is deliberately reconstructed
-        from the current snapshot and current owned catalog, so a stale timeout
-        preparation cannot bless a character that has since been stripped.
-        """
-        catalog = tuple(self._equipment_catalog.items)
+        """Match live snapshot equipment to the disk-backed confirmation."""
         live_catalog = OwnedEquipmentCatalog()
         live_catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
         current = current_loadout(live_catalog.items)
         result = getattr(preparation, "result", None)
         best = getattr(result, "best", None)
-        best_loadout = getattr(best, "loadout", None)
-        best_ids = getattr(best_loadout, "item_ids", None)
-        if best_ids is not None:
-            if current.item_ids == frozenset(best_ids):
-                return True
-            # A result that identifies a different target is confirmation only
-            # when the real planner also proves that target cannot advance this
-            # visit (the cursed/terminal-pack-space valves below).
-            transaction = getattr(preparation, "transaction", None)
-            blockers = tuple(getattr(preparation, "blockers", ()))
-            transaction_blocked = transaction is not None and bool(blockers) and all(
-                blocker.startswith("cursed-equipped:")
-                or blocker.startswith("pack-space-required:")
-                for blocker in blockers
-            )
-            if not transaction_blocked:
-                return False
+        if best is not None and not isinstance(getattr(best, "loadout", None), Loadout):
+            return False
+        record = self._validated_confirmed_loadout(snapshot)
+        return record is not None and current.item_ids == record.item_ids
 
-        occupied = {slot for slot, _item in current.slots}
-        for owned in catalog:
-            if (
-                getattr(owned, "origin", None) == "equipped"
-                or not getattr(owned, "exploration_legal", False)
-            ):
-                continue
-            item = getattr(owned, "item", None)
-            if item is None:
-                continue
-            fixed_slot = slot_for(item)
-            if fixed_slot is not None and fixed_slot not in occupied:
-                return False
-            if item.tval in {21, 22, 23} and (
-                SLOT_MAIN_HAND not in occupied or SLOT_SUB_HAND not in occupied
-            ):
-                return False
-            if item.tval == TVAL_SHIELD and SLOT_SUB_HAND not in occupied:
-                return False
-            if item.tval == TVAL_RING and (
-                SLOT_MAIN_RING not in occupied or SLOT_SUB_RING not in occupied
-            ):
-                return False
-        return bool(current.item_ids)
+    def _validated_confirmed_loadout(self, snapshot: Snapshot) -> ConfirmedLoadoutRecord | None:
+        if not self._confirmed_loadout_loaded and self._confirmed_loadout_path is not None:
+            self._confirmed_loadout = load_confirmed_loadout(self._confirmed_loadout_path)
+        self._confirmed_loadout_loaded = True
+        record = self._confirmed_loadout
+        if record is None or not record.belongs_to(snapshot):
+            self._confirmed_loadout = None
+            if record is not None and self._confirmed_loadout_path is not None:
+                try:
+                    self._confirmed_loadout_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            return None
+        return record
+
+    def _record_confirmed_loadout(self, snapshot: Snapshot) -> None:
+        live_catalog = OwnedEquipmentCatalog()
+        live_catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
+        item_ids = current_loadout(live_catalog.items).item_ids
+        existing = self._validated_confirmed_loadout(snapshot)
+        if existing is not None and existing.item_ids == item_ids:
+            return
+        record = confirmed_loadout_record(snapshot, item_ids)
+        self._confirmed_loadout = record
+        self._confirmed_loadout_loaded = True
+        if self._confirmed_loadout_path is not None:
+            save_confirmed_loadout(self._confirmed_loadout_path, record)
 
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
@@ -9938,6 +9933,12 @@ class HengbotPolicy:
         ):
             return "equipment-home-unavailable"
         if (
+            preparation is not None
+            and "optimization-timeout" in preparation.blockers
+            and not self._equipment_departure_ready(snapshot)
+        ):
+            return "equipment-optimization-timeout"
+        if (
             preparation is None
             or self._next_required_store_type(snapshot) is not None
         ):
@@ -9946,8 +9947,6 @@ class HengbotPolicy:
             return "equipment-no-valid-loadout"
         if "incomplete-equipment-catalog" in preparation.blockers:
             return "equipment-incomplete-catalog"
-        if "optimization-timeout" in preparation.blockers:
-            return "equipment-optimization-timeout"
         return None
 
     def _activate_loadout_depth_fallback(self, snapshot: Snapshot) -> int | None:

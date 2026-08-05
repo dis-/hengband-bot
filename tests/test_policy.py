@@ -404,6 +404,11 @@ def set_completed_equipment_optimization(policy):
     return prepare
 
 
+def seed_confirmed_loadout(policy, snapshot):
+    """Record the snapshot's live worn set as a prior genuine completion."""
+    policy._record_confirmed_loadout(snapshot)
+
+
 def seed_character_calibration(policy, snapshot):
     """Give the policy the P1 worn-independent constants for this snapshot.
 
@@ -7994,6 +7999,7 @@ class OverflowDisposalTest(unittest.TestCase):
             blockers=transaction.blockers, ready=False, transaction=transaction,
             result=SimpleNamespace(best=SimpleNamespace(loadout=target)),
         )
+        seed_confirmed_loadout(policy, snapshot)
 
         with patch.object(
             policy, "_prepare_equipment_optimization", return_value=preparation
@@ -8039,6 +8045,7 @@ class OverflowDisposalTest(unittest.TestCase):
 
     def test_unbuyable_identify_opens_confirmed_legal_escape_valve(self):
         policy, snapshot, preparation = self._incomplete_catalog_policy()
+        seed_confirmed_loadout(policy, snapshot)
         # Alchemist already tried and holds no *Identify*: the need cannot be
         # satisfied this visit, so the escape valve must open (depart, retry
         # later) instead of waiting in town until the loop guard stops the bot.
@@ -26314,6 +26321,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ready=False,
             transaction=None,
         )
+        seed_confirmed_loadout(policy, town)
 
         self.assertTrue(policy._equipment_departure_ready(town))
 
@@ -26357,6 +26365,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ready=False,
             transaction=None,
         )
+        seed_confirmed_loadout(policy, town)
 
         self.assertTrue(policy._equipment_departure_ready(town))
 
@@ -31687,6 +31696,7 @@ class RemoveCurseTest(unittest.TestCase):
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
+        seed_confirmed_loadout(policy, snapshot)
 
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
@@ -31717,6 +31727,7 @@ class RemoveCurseTest(unittest.TestCase):
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
+        seed_confirmed_loadout(policy, snapshot)
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
     def test_actionable_normal_scroll_keeps_departure_blocked(self):
@@ -40380,6 +40391,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             ("pending-random-teleport-suppression",),
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
+        seed_confirmed_loadout(policy, snapshot)
 
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
