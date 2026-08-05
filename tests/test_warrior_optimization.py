@@ -1179,8 +1179,14 @@ class WarriorOptimizationTest(unittest.TestCase):
             current, SimpleNamespace(best=SimpleNamespace(loadout=current)),
             None, ("optimization-timeout",),
         )
+        complete = WarriorOptimizationPreparation(
+            current, SimpleNamespace(best=SimpleNamespace(loadout=current)),
+            EquipmentTransactionPlan((), (), 0), (),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: complete
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
         policy._prepare_equipment_optimization = lambda _snapshot: timed_out
-        policy._record_confirmed_loadout(snapshot)
+        policy._equipment_optimization_timed_out_this_visit = True
         self.assertTrue(policy._equipment_departure_ready(snapshot))
 
         policy._equipment_transaction_session = SimpleNamespace(executable=True)
@@ -1190,7 +1196,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         timed_out = WarriorOptimizationPreparation(
             current, None, None, ("optimization-timeout",),
         )
-        self.assertTrue(policy._equipment_departure_ready(snapshot))
+        self.assertFalse(policy._equipment_departure_ready(snapshot))
         stripped = SimpleNamespace(
             player=snapshot.player, inventory=(), equipment=(),
         )
@@ -1220,12 +1226,32 @@ class WarriorOptimizationTest(unittest.TestCase):
             self.assertTrue(path.is_file())
 
             timeout = WarriorOptimizationPreparation(
-                current, None, None, ("optimization-timeout",),
+                current, SimpleNamespace(best=None), None,
+                ("optimization-timeout",),
             )
             restarted = HengbotPolicy()
             restarted._confirmed_loadout_path = path
             restarted._prepare_equipment_optimization = lambda _snapshot: timeout
+            restarted._equipment_optimization_timed_out_this_visit = True
             self.assertTrue(restarted._equipment_departure_ready(snapshot))
+
+            strengthened = SimpleNamespace(
+                player=SimpleNamespace(
+                    **{
+                        **vars(player_state),
+                        "stat_max": (19, *player_state.stat_max[1:]),
+                    }
+                ),
+                inventory=(), equipment=(light.item,), turn=501,
+            )
+            self.assertTrue(restarted._equipment_departure_ready(strengthened))
+
+            blade = gear("blade", "pack", tval=23).item
+            grown_catalog = SimpleNamespace(
+                player=player_state, inventory=(blade,),
+                equipment=(light.item,), turn=502,
+            )
+            self.assertFalse(restarted._equipment_departure_ready(grown_catalog))
 
             stripped = SimpleNamespace(
                 player=player_state, inventory=(), equipment=(), turn=501,
@@ -1243,6 +1269,19 @@ class WarriorOptimizationTest(unittest.TestCase):
             fresh._confirmed_loadout_path = path
             fresh._prepare_equipment_optimization = lambda _snapshot: timeout
             self.assertFalse(fresh._equipment_departure_ready(other_character))
+            self.assertTrue(path.is_file(), "an identity mismatch must not unlink")
+
+            restarted.invalidate_confirmed_loadout()
+            self.assertFalse(path.exists())
+            successor = HengbotPolicy()
+            successor._confirmed_loadout_path = path
+            successor._prepare_equipment_optimization = lambda _snapshot: timeout
+            successor._equipment_optimization_timed_out_this_visit = True
+            clone = SimpleNamespace(
+                player=player_state, inventory=(), equipment=(light.item,),
+                turn=5001,
+            )
+            self.assertFalse(successor._equipment_departure_ready(clone))
 
 
 if __name__ == "__main__":

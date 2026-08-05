@@ -96,7 +96,7 @@ from hengbot.model import (
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
-    Loadout, OwnedEquipment, TR_TELEPORT, current_loadout,
+    Loadout, OwnedEquipment, OwnedEquipmentCatalog, TR_TELEPORT, current_loadout,
 )
 from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
@@ -405,8 +405,17 @@ def set_completed_equipment_optimization(policy):
 
 
 def seed_confirmed_loadout(policy, snapshot):
-    """Record the snapshot's live worn set as a prior genuine completion."""
-    policy._record_confirmed_loadout(snapshot)
+    """Pass a zero-action completion through the production record gate."""
+    previous = policy._prepare_equipment_optimization
+    previous_catalog = policy._equipment_catalog
+    try:
+        policy._equipment_catalog = OwnedEquipmentCatalog()
+        set_completed_equipment_optimization(policy)
+        if not policy._equipment_departure_ready(snapshot):
+            raise AssertionError("fixture cannot complete its worn loadout")
+    finally:
+        policy._prepare_equipment_optimization = previous
+        policy._equipment_catalog = previous_catalog
 
 
 def seed_character_calibration(policy, snapshot):
@@ -26313,6 +26322,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ),
         )
         policy = HengbotPolicy()
+        policy._identification_need = "full"
         owned = SimpleNamespace(id="pack:ego:0", origin="pack")
         policy._equipment_catalog = SimpleNamespace(items=(owned,))
         policy._prepare_equipment_optimization = lambda snapshot: SimpleNamespace(
@@ -26328,6 +26338,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
     def test_unavailable_full_identify_keeps_equipped_candidate_blocking(self):
         town = self._ready_home_town(gold=6411)
         policy = HengbotPolicy()
+        policy._identification_need = "full"
         equipped = item(
             "neck", 40, 4, name="unknown amulet", known=False,
             pseudo_feeling="good", is_equipment=True,
@@ -26349,6 +26360,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
     def test_exhausted_identify_stock_allows_confirmed_deferred_candidate(self):
         town = self._ready_home_town(gold=6411)
         policy = HengbotPolicy()
+        policy._identification_need = "full"
         equipped = item(
             "neck", 40, 4, name="unknown amulet", known=False,
             pseudo_feeling="good", is_equipment=True,

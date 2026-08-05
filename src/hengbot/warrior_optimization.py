@@ -184,9 +184,9 @@ class ConfirmedLoadoutRecord:
     race_id: int
     class_id: int
     personality_id: int
-    stat_max: tuple[int, ...]
     confirmed_turn: int
     item_ids: frozenset[str]
+    catalog_item_ids: frozenset[str]
 
     def belongs_to(self, snapshot: Snapshot) -> bool:
         player = snapshot.player
@@ -194,26 +194,30 @@ class ConfirmedLoadoutRecord:
             getattr(player, "race_id", -1) == self.race_id
             and getattr(player, "class_id", -1) == self.class_id
             and getattr(player, "personality_id", -1) == self.personality_id
-            and tuple(getattr(player, "stat_max", ())) == self.stat_max
             and getattr(snapshot, "turn", 0) >= self.confirmed_turn
         )
 
 
-def confirmed_loadout_record(snapshot: Snapshot, item_ids: frozenset[str]) -> ConfirmedLoadoutRecord:
+def confirmed_loadout_record(
+    snapshot: Snapshot,
+    item_ids: frozenset[str],
+    catalog_item_ids: frozenset[str],
+) -> ConfirmedLoadoutRecord:
     player = snapshot.player
     return ConfirmedLoadoutRecord(
         race_id=getattr(player, "race_id", -1),
         class_id=getattr(player, "class_id", -1),
         personality_id=getattr(player, "personality_id", -1),
-        stat_max=tuple(getattr(player, "stat_max", ())),
         confirmed_turn=getattr(snapshot, "turn", 0),
         item_ids=frozenset(item_ids),
+        catalog_item_ids=frozenset(catalog_item_ids),
     )
 
 
 def save_confirmed_loadout(path: Path, record: ConfirmedLoadoutRecord) -> None:
     data = asdict(record)
     data["item_ids"] = sorted(record.item_ids)
+    data["catalog_item_ids"] = sorted(record.catalog_item_ids)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -224,13 +228,19 @@ def save_confirmed_loadout(path: Path, record: ConfirmedLoadoutRecord) -> None:
 def load_confirmed_loadout(path: Path) -> ConfirmedLoadoutRecord | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        item_ids = frozenset(str(value) for value in data["item_ids"])
+        catalog_item_ids = frozenset(
+            str(value) for value in data["catalog_item_ids"]
+        )
+        if not item_ids or not catalog_item_ids or not item_ids <= catalog_item_ids:
+            return None
         return ConfirmedLoadoutRecord(
             race_id=int(data["race_id"]),
             class_id=int(data["class_id"]),
             personality_id=int(data["personality_id"]),
-            stat_max=tuple(int(value) for value in data["stat_max"]),
             confirmed_turn=int(data["confirmed_turn"]),
-            item_ids=frozenset(str(value) for value in data["item_ids"]),
+            item_ids=item_ids,
+            catalog_item_ids=catalog_item_ids,
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None

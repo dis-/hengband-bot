@@ -9824,7 +9824,10 @@ class HengbotPolicy:
         if complete_now:
             self._record_confirmed_loadout(snapshot)
         premise = bool(
-            self._equipment_transaction_session is None
+            not complete_now
+            and self._equipment_transaction_session is None
+            and preparation is not None
+            and getattr(preparation, "result", None) is not None
             and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
         ready = complete_now
@@ -9838,9 +9841,13 @@ class HengbotPolicy:
                 )
             ):
                 ready = True
-            elif "optimization-timeout" in preparation.blockers:
-                # Timeout work cannot advance this visit. Only a separately
-                # persisted confirmation of the live worn set opens this valve.
+            elif (
+                "optimization-timeout" in preparation.blockers
+                and self._equipment_optimization_timed_out_this_visit
+            ):
+                # A real search timeout latches further optimization for this
+                # visit. Catalog equality separately proves nothing owned has
+                # changed since the recorded complete search.
                 ready = True
             elif (
                 "pending-random-teleport-suppression" in preparation.blockers
@@ -9855,10 +9862,7 @@ class HengbotPolicy:
                 ready = True
             elif (
                 "incomplete-equipment-catalog" in preparation.blockers
-                and (
-                    self._identification_need is None
-                    or self._identification_need_unsatisfiable(snapshot)
-                )
+                and self._identification_need_unsatisfiable(snapshot)
             ):
                 catalog = {owned.id: owned for owned in self._equipment_catalog.items}
                 incomplete = [
@@ -9890,7 +9894,13 @@ class HengbotPolicy:
         if best is not None and not isinstance(getattr(best, "loadout", None), Loadout):
             return False
         record = self._validated_confirmed_loadout(snapshot)
-        return record is not None and current.item_ids == record.item_ids
+        catalog_item_ids = frozenset(owned.id for owned in live_catalog.items)
+        return bool(
+            current.item_ids
+            and record is not None
+            and current.item_ids == record.item_ids
+            and catalog_item_ids == record.catalog_item_ids
+        )
 
     def _validated_confirmed_loadout(self, snapshot: Snapshot) -> ConfirmedLoadoutRecord | None:
         if not self._confirmed_loadout_loaded and self._confirmed_loadout_path is not None:
@@ -9899,22 +9909,34 @@ class HengbotPolicy:
         record = self._confirmed_loadout
         if record is None or not record.belongs_to(snapshot):
             self._confirmed_loadout = None
-            if record is not None and self._confirmed_loadout_path is not None:
-                try:
-                    self._confirmed_loadout_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
             return None
         return record
+
+    def invalidate_confirmed_loadout(self) -> None:
+        """Forget a record after the CLI has positively confirmed player death."""
+        self._confirmed_loadout = None
+        self._confirmed_loadout_loaded = True
+        if self._confirmed_loadout_path is not None:
+            try:
+                self._confirmed_loadout_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def _record_confirmed_loadout(self, snapshot: Snapshot) -> None:
         live_catalog = OwnedEquipmentCatalog()
         live_catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
         item_ids = current_loadout(live_catalog.items).item_ids
-        existing = self._validated_confirmed_loadout(snapshot)
-        if existing is not None and existing.item_ids == item_ids:
+        catalog_item_ids = frozenset(owned.id for owned in live_catalog.items)
+        if not item_ids:
             return
-        record = confirmed_loadout_record(snapshot, item_ids)
+        existing = self._validated_confirmed_loadout(snapshot)
+        if (
+            existing is not None
+            and existing.item_ids == item_ids
+            and existing.catalog_item_ids == catalog_item_ids
+        ):
+            return
+        record = confirmed_loadout_record(snapshot, item_ids, catalog_item_ids)
         self._confirmed_loadout = record
         self._confirmed_loadout_loaded = True
         if self._confirmed_loadout_path is not None:
@@ -9943,6 +9965,8 @@ class HengbotPolicy:
             or self._next_required_store_type(snapshot) is not None
         ):
             return None
+        if "calibration-required" in preparation.blockers:
+            return "equipment-calibration-required"
         if "no-valid-loadout" in preparation.blockers:
             return "equipment-no-valid-loadout"
         if "incomplete-equipment-catalog" in preparation.blockers:
