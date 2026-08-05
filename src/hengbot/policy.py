@@ -4307,7 +4307,14 @@ class HengbotPolicy:
             # owner may route us back into the breeder floor we just fled.
             and not self._breeder_walkout_active(snapshot)
             and (
-                not static_entrance_here
+                not (
+                    static_entrance_here
+                    or (
+                        snapshot.dungeon_level == 0
+                        and here is not None
+                        and here.has_entrance
+                    )
+                )
                 or self._dungeon_entry_allowed(
                     snapshot,
                     via_recall=False,
@@ -7410,11 +7417,17 @@ class HengbotPolicy:
         via_recall: bool,
         destination_depth: int,
     ) -> bool:
-        """Enforce recall stock when committing to enter a dungeon."""
+        """Enforce every invariant at the final town-to-dungeon boundary."""
         if (
             self._morivant_full_identify is not None
             and self._morivant_full_identify.temporary_deposits
         ):
+            return False
+        # Recall, direct entrance confirmation, and native entrance travel all
+        # share this boundary. Derive completion from the current snapshot on
+        # every decision because a restart loses process-local calibration state
+        # while the game's worn equipment remains stripped or short of target.
+        if snapshot.dungeon_level == 0 and not self._equipment_departure_ready(snapshot):
             return False
         mining_walk_in = (
             not via_recall
@@ -9769,122 +9782,10 @@ class HengbotPolicy:
             # exclusion here instead of retaining a permanently-false gate.
             self._abandon_blocked_equipment_transaction()
             preparation = self._prepare_equipment_optimization(snapshot)
-        if (
-            STORE_HOME in self._town_visit_ledger.blocked_stores
-            and not (
-                self._equipment_transaction_session is not None
-                and self._equipment_transaction_session.executable
-                and (
-                    self._equipment_transaction_session.required_context
-                    == "outside_home"
-                    or (
-                        self._equipment_transaction_session.pending_action
-                        is not None
-                        and self._equipment_transaction_session.pending_action.phase
-                        == PHASE_EQUIP
-                    )
-                )
-            )
-        ):
-            # T3 has proved that Home work cannot advance again this visit.
-            # Keep the current legal loadout and dive; a fresh town ledger will
-            # retry the optimizer's Home-dependent work on the next visit.  A
-            # live transaction in another store must retain ownership instead.
-            return True
-        if (
-            preparation is not None
-            and preparation.blockers
-            and all(
-                blocker.startswith("cursed-equipped:")
-                for blocker in preparation.blockers
-            )
-            and (
-                any(
-                    item.is_cursed and self._curse_unremovable(item)
-                    for item in snapshot.equipment
-                )
-                or not self._normal_remove_curse_actionable_this_visit(snapshot)
-            )
-        ):
-            # A confirmed heavy curse, or a curse with no normal remedy left
-            # this visit, can make the optimizer's preferred swap impossible.
-            # Keep the current legal loadout and dive instead of wandering town.
-            return True
-        if (
-            preparation is not None
-            and "optimization-timeout" in preparation.blockers
-            and self._equipment_transaction_session is None
-        ):
-            # A timeout says only that no *new* globally optimal loadout was
-            # proved.  The current loadout remains the last confirmed legal one,
-            # while the ordinary departure gate independently checks weapon,
-            # depth resistances, supplies, HP, and status.  Keep it unchanged
-            # instead of turning search cost into an endless town wander.  Never
-            # execute the optimizer's partial result.
-            return True
-        if (
-            preparation is not None
-            and "pending-random-teleport-suppression" in preparation.blockers
-            and self._equipment_transaction_session is None
-            and not self._random_teleport_suppression_actionable(
-                snapshot, preparation
-            )
-        ):
-            # Suppression prepares a preferred future loadout. If its selected
-            # item cannot be inscribed or withdrawn this visit, retain the
-            # current legal loadout and retry next visit instead of blocking
-            # departure forever. This blocker never owns a partial transaction.
-            return True
-        if (
-            preparation is not None
-            and preparation.blockers
-            and all(
-                blocker.startswith("pack-space-required:")
-                for blocker in preparation.blockers
-            )
-            and self._equipment_transaction_session is None
-            and self._town_pack_space_ready(snapshot)
-        ):
-            # Optimizer transactions need a temporary fifth slot, but failing to
-            # create it does not invalidate the currently equipped legal loadout.
-            # Once all safe disposal/store routes are exhausted, keep that loadout
-            # and depart with four free slots instead of wandering town forever.
-            return True
-        if (
-            preparation is not None
-            and "incomplete-equipment-catalog" in preparation.blockers
-            and preparation.result is not None
-            and self._equipment_transaction_session is None
-            and (
-                self._identification_need is None
-                # An unbuyable *Identify* (no source, Alchemist already tried, no
-                # Home withdrawal pending) leaves the need set forever. Without
-                # this, the escape valve never opens and the bot waits in town
-                # until the loop guard stops it. Depart with the current loadout
-                # and retry the identify next visit instead of deadlocking.
-                or self._identification_need_unsatisfiable(snapshot)
-            )
-        ):
-            catalog = {owned.id: owned for owned in self._equipment_catalog.items}
-            incomplete = [
-                catalog.get(item_id)
-                for item_id in preparation.result.incomplete_item_ids
-            ]
-            if incomplete and all(
-                owned is not None
-                and (
-                    owned.origin != "equipped"
-                    or self._item_signature(owned.item)
-                    in self._deferred_home_items
-                )
-                for owned in incomplete
-            ):
-                # A pack/Home candidate that needs *Identify*, or a worn candidate
-                # explicitly deferred after the Alchemist exhausted its reliable
-                # Identify stock, cannot be advanced this visit. Keep the current
-                # legal loadout and retry later. An actionable incomplete worn
-                # item remains a hard departure blocker.
-                return True
+        # Completion has one positive representation: preparation succeeded,
+        # produced a plan with no remaining actions, and no live transaction
+        # owns a change. No result, any blocker, pending actions, and an active
+        # session are all incomplete even when their town work is blocked.
         return bool(
             preparation is not None
             and preparation.ready
