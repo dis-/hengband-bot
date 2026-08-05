@@ -39643,9 +39643,18 @@ class HomeFullLatchTest(unittest.TestCase):
             store=StoreState(STORE_HOME, []),
         )
         pol = HengbotPolicy()
+        preparation = SimpleNamespace(
+            result=SimpleNamespace(
+                best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
+            )
+        )
+        pol._equipment_optimization_preparation = preparation
         pol._home_entry_operation_posted = True
 
-        keys = [pol._shop(snap) for _ in range(STORE_STUCK_LIMIT + 1)]
+        with patch.object(
+            pol, "_prepare_equipment_optimization", return_value=preparation
+        ):
+            keys = [pol._shop(snap) for _ in range(STORE_STUCK_LIMIT + 1)]
 
         self.assertEqual(keys[-1], LEAVE_STORE_KEY)
         self.assertEqual(pol.last_reason, "home:deposit-rejected")
@@ -45826,6 +45835,129 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             )
         )
         self.assertIsNone(policy._calibration_phase)
+
+
+class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
+    """Irreversible target-dependent surplus decisions require a real target."""
+
+    @staticmethod
+    def _preparation(*, known):
+        return SimpleNamespace(
+            blockers=() if known else ("no-valid-loadout",),
+            result=SimpleNamespace(
+                best=(
+                    SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
+                    if known
+                    else None
+                )
+            ),
+        )
+
+    @staticmethod
+    def _store_snapshot(inventory, store_type):
+        return Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=21922),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            turn=2459999,
+            floor_key=(0, 0, 0),
+            inventory=list(inventory),
+            equipment=[],
+            store=StoreState(store_type=store_type, items=[]),
+        )
+
+    @staticmethod
+    def _ring():
+        return item(
+            "b", TVAL_RING, 56,
+            name="Ring of Law (+5,+0) [+5] (+2)",
+            known=True, fully_known=True, is_equipment=True,
+            known_flags=frozenset({62}),
+        )
+
+    def test_incident_shape_no_valid_loadout_does_not_sell_expensive_ring(self):
+        policy = HengbotPolicy()
+        snapshot = self._store_snapshot([self._ring()], STORE_MAGIC)
+        policy.prime(snapshot)
+        policy._equipment_optimization_preparation = self._preparation(known=False)
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(
+            key, LEAVE_STORE_KEY,
+            "naked no-valid-loadout incident replay sold the 13,261-gold "
+            f"Ring of Law with {key!r}",
+        )
+        self.assertEqual(policy.last_reason, "shop:leave")
+
+    def test_known_target_still_sells_expensive_unwanted_ring(self):
+        policy = HengbotPolicy()
+        snapshot = self._store_snapshot([self._ring()], STORE_MAGIC)
+        policy.prime(snapshot)
+        preparation = self._preparation(known=True)
+        policy._equipment_optimization_preparation = preparation
+
+        def prepare(*_args, **_kwargs):
+            policy._equipment_optimization_preparation = preparation
+            return preparation
+
+        with patch.object(policy, "_prepare_equipment_optimization", side_effect=prepare):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "db\r")
+        self.assertEqual(policy.last_reason, "shop:sell-town-surplus")
+
+    def test_unknown_target_does_not_block_book_or_low_level_consumable_sales(self):
+        book_policy = HengbotPolicy()
+        book = item(
+            "c", TVAL_CHAOS_BOOK, 2, name="Chaos spellbook", known=True
+        )
+        book_snapshot = self._store_snapshot([book], STORE_MAGIC)
+        book_policy.prime(book_snapshot)
+        book_policy._equipment_optimization_preparation = self._preparation(known=False)
+        self.assertEqual(
+            book_policy.choose_key(book_snapshot),
+            "dc\r",
+        )
+        self.assertEqual(book_policy.last_reason, "shop:sell-high-value-book")
+
+        potion_policy = HengbotPolicy()
+        potion = item(
+            "d", TVAL_POTION, SV_POTION_SLEEP,
+            name="Potion of Sleep", known=True, aware=True,
+        )
+        potion_snapshot = self._store_snapshot([potion], STORE_ALCHEMIST)
+        potion_policy.prime(potion_snapshot)
+        potion_policy._equipment_optimization_preparation = self._preparation(known=False)
+        self.assertEqual(
+            potion_policy.choose_key(potion_snapshot),
+            "dd\r",
+        )
+        self.assertEqual(
+            potion_policy.last_reason, "shop:sell-low-value-consumable"
+        )
+
+    def test_calibration_states_and_missing_result_are_unknown_and_can_exit(self):
+        policy = HengbotPolicy()
+        snapshot = self._store_snapshot([self._ring()], STORE_MAGIC)
+        policy.prime(snapshot)
+        states = (
+            SimpleNamespace(blockers=("calibration-required",), result=None),
+            SimpleNamespace(blockers=(), result=SimpleNamespace(best=None)),
+        )
+        for preparation in states:
+            policy._equipment_optimization_preparation = preparation
+            self.assertFalse(policy._target_loadout_known())
+            self.assertFalse(
+                policy._home_deposit_candidate(self._ring(), snapshot)
+            )
+            self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
+
+        policy._equipment_optimization_preparation = self._preparation(known=True)
+        policy._calibration_phase = "capture"
+        self.assertFalse(policy._target_loadout_known())
+        self.assertFalse(policy._home_deposit_candidate(self._ring(), snapshot))
+        self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
 
 
 if __name__ == "__main__":

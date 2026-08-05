@@ -1,6 +1,7 @@
 import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from hengbot.baseitem_knowledge import item_base_cost, load_baseitem_costs
@@ -214,6 +215,13 @@ class TownOrganizationTest(unittest.TestCase):
     def test_sellable_surplus_sells_and_then_no_longer_blocks(self):
         spare = carried("a", name="spare sword", is_equipment=True)
         policy = HengbotPolicy()
+        preparation = SimpleNamespace(
+            result=SimpleNamespace(
+                best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
+            )
+        )
+        policy._equipment_optimization_preparation = preparation
+        policy._prepare_equipment_optimization = Mock(return_value=preparation)
         snapshot = self._town([spare], STORE_WEAPON)
         self.assertIs(policy._find_town_organization_surplus(snapshot), spare)
         self.assertEqual(policy._shop(snapshot), "da\r")
