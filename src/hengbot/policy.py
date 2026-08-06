@@ -2478,6 +2478,10 @@ class HengbotPolicy:
             and pending_store_transaction is not None
             and snapshot.store.store_type == pending_store_transaction[0]
             and self._decision_sequence > pending_store_transaction[1]
+            and not (
+                self._store_buy_inflight is not None
+                and self._store_buy_inflight[0] == snapshot.store.store_type
+            )
         ):
             # Any subsequent page from the same store is the observation the
             # transaction was waiting for.  The individual buy/sell/Home

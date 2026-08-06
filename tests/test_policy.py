@@ -5546,6 +5546,39 @@ class ShoppingTest(unittest.TestCase):
         pol.choose_key(incident_snapshot(7880))
         self.assertIsNone(pol._store_buy_inflight)
 
+    def test_purchase_wait_clears_on_carried_item_progress(self):
+        ware = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            price=2541, count=2, name="Star identify",
+        )
+        carried = item(
+            "b", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name="Star identify", count=1,
+        )
+        policy = HengbotPolicy()
+        buying = self._in_store([ware], gold=10421)
+
+        with patch.object(policy, "_decide", return_value="pm1\r\r"):
+            self.assertEqual(policy.choose_key(buying), "pm1\r\r")
+        policy.choose_key(replace(buying, inventory=[carried]))
+
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
+
+    def test_purchase_wait_clears_on_different_store_page(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        policy = HengbotPolicy()
+        buying = self._in_store([ware], gold=1000)
+
+        self.assertEqual(policy.choose_key(buying), "pb\r")
+        other_store = replace(
+            buying,
+            store=StoreState(store_type=STORE_MAGIC, items=[]),
+        )
+        policy.choose_key(other_store)
+
+        self.assertIsNone(policy._store_buy_inflight)
+
     def test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase(self):
         target = item(
             "a",
@@ -5649,6 +5682,53 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(surface.player.position, entrance)
         self.assertEqual(policy.choose_key(store), "\r")
         self.assertEqual(policy.last_reason, "shop:await-buy-confirmation")
+        self.assertIsNotNone(policy._store_buy_inflight)
+
+    def test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window(self):
+        target = item(
+            "a", 23, 1, name="ego sword", known=True, fully_known=False,
+            is_equipment=True, is_ego=True,
+        )
+        ware = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, price=2541, count=2
+        )
+        entrance = Position(37, 91)
+        foe_position = Position(36, 91)
+        grids = {
+            entrance: replace(
+                grid(entrance.y, entrance.x), store_number=STORE_ALCHEMIST
+            ),
+            foe_position: replace(
+                grid(foe_position.y, foe_position.x), has_monster=True
+            ),
+        }
+        store = Snapshot(
+            player(
+                entrance.y, entrance.x, gold=10421,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            grids,
+            [],
+            inventory=[target],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[ware]),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        surface = replace(
+            store,
+            store=None,
+            visible_monsters=[hostile(1, foe_position.y, foe_position.x)],
+        )
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+        policy._identification_need = "full"
+
+        keys = [
+            policy.choose_key(store if decision % 2 == 0 else surface)
+            for decision in range(40)
+        ]
+
+        self.assertEqual(keys.count("pm1\r\r"), 3)
         self.assertIsNotNone(policy._store_buy_inflight)
 
     def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
