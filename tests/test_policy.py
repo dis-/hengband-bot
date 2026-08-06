@@ -5581,8 +5581,11 @@ class ShoppingTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(store), "pm1\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-star-identify")
-        self.assertEqual(policy.choose_key(surface), WAIT_KEY)
-        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
+        self.assertEqual(policy.choose_key(surface), "7")
+        self.assertEqual(
+            policy.last_reason,
+            "town:entrance-step-off:shop:travel:await-entry",
+        )
         self.assertIsNotNone(policy._store_buy_inflight)
 
         self.assertEqual(policy.choose_key(store), "\r")
@@ -44167,9 +44170,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             self._entrance_snapshot(pack, turn=2247450),
             equipment=[item("light", TVAL_LITE, 0, name="a light")],
         )
-        self.assertEqual(unobserved.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(unobserved.choose_key(entrance), "4")
         self.assertEqual(
-            unobserved.last_reason, "home:atomic-withdraw-needs-observation"
+            unobserved.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-needs-observation",
         )
 
         missing = HengbotPolicy()
@@ -44215,6 +44219,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._item_signature(target) for target in targets
         }
         inside = False
+        on_entrance = True
         top = 0
         entries = 0
         withdrawals = 0
@@ -44235,6 +44240,17 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 if inside
                 else replace(
                     self._entrance_snapshot(inventory, turn=turn),
+                    player=(
+                        player(45, 123, class_id=PLAYER_CLASS_WARRIOR)
+                        if on_entrance
+                        else player(45, 122, class_id=PLAYER_CLASS_WARRIOR)
+                    ),
+                    grids={
+                        Position(45, 123): replace(
+                            grid(45, 123), store_number=STORE_HOME
+                        ),
+                        Position(45, 122): grid(45, 122),
+                    },
                     equipment=[item("light", TVAL_LITE, 0, name="a light")],
                 )
             )
@@ -44252,6 +44268,14 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     self.fail((decision, "unexpected in-store key", key, policy.last_reason))
             elif key == WAIT_KEY:
                 inside = True
+                on_entrance = True
+                top = 0
+                entries += 1
+            elif on_entrance and key == "4":
+                on_entrance = False
+            elif not on_entrance and key == "6":
+                inside = True
+                on_entrance = True
                 top = 0
                 entries += 1
             elif key.startswith(WAIT_KEY) and BUY_KEY in key:
@@ -44437,8 +44461,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         outside = replace(entrance, turn=entrance.turn + 1)
         policy._decide = Mock(return_value=WAIT_KEY)
-        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw-failed")
+        self.assertEqual(policy.choose_key(outside), "4")
+        self.assertEqual(
+            policy.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-failed",
+        )
         self.assertIsNone(policy._home_atomic_withdraw_pending)
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn("p", policy.choose_key(replace(outside, turn=outside.turn + 1)))
@@ -47721,6 +47748,89 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
         self.assertEqual(policy._town_blocked_reason, "no-safe-recall-destination")
+
+    def test_live_home_door_block_replay_never_posts_stay_publicly(self):
+        """Run the retained (45,123) blocked state beyond its 104-decision window."""
+        policy, snapshot = self._fixture()
+        entrance = replace(
+            snapshot.grids[snapshot.player.position], store_number=STORE_HOME
+        )
+        safe = grid(45, 122, lit=True, in_view=True)
+        snapshot = replace(
+            snapshot, grids={entrance.position: entrance, safe.position: safe}
+        )
+        policy._town_errand_plan = None
+        for store_type in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
+        ):
+            policy._town_visit_ledger.approach_fails[store_type] = (
+                policy_module.TOWN_STOP_PASS_LIMIT
+            )
+
+        reasons = Counter()
+        keys = []
+        for offset in range(105):
+            key = policy.choose_key(replace(snapshot, turn=snapshot.turn + offset))
+            keys.append(key)
+            reasons[policy.last_reason] += 1
+
+        self.assertNotIn(WAIT_KEY, keys)
+        self.assertFalse(any(key == LEAVE_STORE_KEY for key in keys))
+        self.assertEqual(set(keys[1:]), {"4"})
+        self.assertTrue(
+            any(reason.startswith("town:entrance-step-off:") for reason in reasons),
+            reasons,
+        )
+
+    def test_town_recall_wait_steps_off_building_entrance_publicly(self):
+        policy, snapshot = self._fixture()
+        current = replace(
+            snapshot.grids[snapshot.player.position], building_special=1
+        )
+        safe = grid(45, 122, lit=True, in_view=True)
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, recalling=True),
+            grids={current.position: current, safe.position: safe},
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(
+            policy.last_reason, "town:entrance-step-off:town:wait-recall"
+        )
+
+    def test_entrance_wait_never_uses_warning_hazard_or_unexplored_grid(self):
+        policy, snapshot = self._fixture()
+        origin = snapshot.player.position
+        entrance = replace(snapshot.grids[origin], store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot,
+            grids={entrance.position: entrance},
+        )
+        policy._town_errand_plan = None
+        for store_type in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
+        ):
+            policy._town_visit_ledger.approach_fails[store_type] = (
+                policy_module.TOWN_STOP_PASS_LIMIT
+            )
+
+        policy.choose_key(snapshot)  # complete the fixture's legitimate deposit work
+        warning = grid(45, 122, lit=True, in_view=True)
+        policy._warning_refused_cells.add(warning.position)
+        guarded = replace(
+            snapshot,
+            turn=snapshot.turn + 1,
+            grids={entrance.position: entrance, warning.position: warning},
+        )
+        key = policy.choose_key(guarded)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
 
 
 class UnknownTargetLoadoutSurplusTest(unittest.TestCase):

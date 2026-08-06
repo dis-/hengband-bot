@@ -2844,6 +2844,7 @@ class HengbotPolicy:
         key = self._break_livelock(snapshot, key)
         key = self._forbid_wait_under_fire(snapshot, key)
         key = self._bound_escape_wait(snapshot, key)
+        key = self._forbid_wait_on_town_entrance(snapshot, key)
         self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
@@ -2948,6 +2949,58 @@ class HengbotPolicy:
             len(self._remembered_known_t),
         )
         self._exploration_ledger.note_decision(latest_snapshot)
+        return key
+
+    def _forbid_wait_on_town_entrance(
+        self, snapshot: Snapshot, key: str
+    ) -> str:
+        """Step off a building door instead of posting Hengband's stay key.
+
+        In the original keyset ``5`` maps to the stay command.  Hengband runs
+        store/building entry effects even when that command keeps the player's
+        coordinates unchanged, so every otherwise legitimate WAIT must be
+        projected away from a town entrance at this final emission boundary.
+        Only a disclosed, plain, safe floor cell is eligible.  If the emitter
+        supplies no such exit, expose the CLI's named stop instead of guessing
+        through an unknown, warning-refused, hazardous, occupied, or special
+        grid.
+        """
+        if key != WAIT_KEY or snapshot.store is not None or not snapshot.in_town:
+            return key
+        if not hasattr(snapshot, "grid_at") or not hasattr(snapshot, "player"):
+            return key
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is None or not (
+            here.store_number >= 0 or here.building_special >= 0
+        ):
+            return key
+
+        origin = snapshot.player.position
+        candidates: list[Position] = []
+        for dy, dx in NEIGHBOR_OFFSETS:
+            candidate = Position(origin.y + dy, origin.x + dx)
+            grid = snapshot.grids.get(candidate)
+            if (
+                grid is None
+                or not grid.passable
+                or grid.has_monster
+                or grid.is_door
+                or grid.store_number >= 0
+                or grid.building_special >= 0
+                or candidate in self._warning_refused_cells
+                or candidate in self._engagement_owned_avoid_cells
+                or self._is_avoidable_hazard_grid(grid)
+                or self._on_town_border(snapshot, candidate)
+            ):
+                continue
+            candidates.append(candidate)
+        if not candidates:
+            self.last_reason = "livelock:exhausted"
+            return WAIT_KEY
+        step = min(candidates, key=lambda position: self._visit_counts[position])
+        prior_reason = self.last_reason
+        key = self._step_toward(snapshot, step)
+        self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
         return key
 
     def observe_character_snapshot(self, character) -> None:
