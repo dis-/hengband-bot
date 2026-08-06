@@ -1706,6 +1706,10 @@ class HengbotPolicy:
         self._town_fact_region: tuple[int, int, int, int, int, int, bool] | None = None
         self._town_store_positions: dict[int, set[Position]] = {}
         self._town_emitted_entrances: set[Position] = set()
+        # Shape metadata can flicker between interleaved surface snapshots.
+        # Retain disclosed entrance cells independently until the town visit
+        # actually ends, so that flicker cannot authorize a stay on a door.
+        self._town_visit_entrances: set[Position] = set()
         self._town_entrance_cache: frozenset[Position] | None = None
         self._town_fact_snapshot: Snapshot | None = None
         # Predicate results are valid only for one merged decision snapshot.
@@ -2392,6 +2396,9 @@ class HengbotPolicy:
         if snapshot is self._town_fact_snapshot:
             return
         self._town_fact_snapshot = snapshot
+        in_town = getattr(snapshot, "in_town", False)
+        if not in_town:
+            self._town_visit_entrances.clear()
         region = self._grid_region(snapshot)
         if self._town_fact_region != region:
             self._town_fact_region = region
@@ -2424,6 +2431,13 @@ class HengbotPolicy:
                 self._town_emitted_entrances.add(position)
             else:
                 self._town_emitted_entrances.discard(position)
+            if in_town and (
+                grid.store_number >= 0
+                or grid.building_special >= 0
+                or grid.has_quest_enter
+                or grid.has_quest_exit
+            ):
+                self._town_visit_entrances.add(position)
             changed = changed or was_entrance != is_entrance
         if changed:
             self._town_entrance_cache = None
@@ -2855,17 +2869,11 @@ class HengbotPolicy:
                 self._town_visit_ledger.pending_store_transaction is None
                 or self._town_visit_ledger.pending_store_transaction[0]
                 != self._store_buy_inflight[0]
-                or not (
-                    self.last_reason == "shop:approach"
-                    or self.last_reason.endswith(":await-entry")
-                )
             )
         ):
-            # Correlate rejection with the transaction ledger and the active
-            # store-approach owner, not the player's current cell.  An entrance
-            # step-off can legitimately move away while the paid command is
-            # still awaiting its confirming store generation; position-based
-            # invalidation repeats that purchase.
+            # The transaction ledger alone owns the correlation.  Neither a
+            # surface decision reason nor player position proves rejection;
+            # the store handler confirms or bounds the pending purchase.
             self._store_buy_inflight = None
         if (
             self._equipment_transaction_prepared_key is not None
@@ -2984,14 +2992,12 @@ class HengbotPolicy:
             or here.has_quest_enter
             or here.has_quest_exit
         )
-        # A transient emitter omission at the player's cell must not reopen the
-        # live Home-door hole.  Store positions are retained from prior
-        # disclosures for the current floor visit.
-        on_remembered_store = any(
-            snapshot.player.position in positions
-            for positions in self._town_store_positions.values()
+        # This visit-scoped memory is deliberately independent of the terrain
+        # region key, whose width/height/town-id inputs can transiently flicker.
+        on_remembered_entrance = (
+            snapshot.player.position in self._town_visit_entrances
         )
-        if not (on_disclosed_entrance or on_remembered_store):
+        if not (on_disclosed_entrance or on_remembered_entrance):
             return key
 
         origin = snapshot.player.position

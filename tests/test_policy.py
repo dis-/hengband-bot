@@ -5298,6 +5298,12 @@ class ShoppingTest(unittest.TestCase):
             turn=1,
             town_flag=True,
         )
+        # A separate ledger verdict rejects this attempted buy; the surface
+        # reason and player position are intentionally irrelevant.
+        pol._town_visit_ledger.pending_store_transaction = (
+            STORE_ALCHEMIST,
+            pol._decision_sequence,
+        )
         pol.choose_key(outside)
 
         self.assertIsNone(pol._store_buy_inflight)
@@ -5597,6 +5603,53 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(store), "\r")
         self.assertEqual(policy.last_reason, "shop:await-buy-confirmation")
         self.assertNotEqual(policy.choose_key(store), "pm1\r\r")
+
+    def test_alchemist_combat_flicker_does_not_repeat_unconfirmed_purchase(self):
+        target = item(
+            "a", 23, 1, name="ego sword", known=True, fully_known=False,
+            is_equipment=True, is_ego=True,
+        )
+        ware = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, price=2541, count=2
+        )
+        entrance = Position(37, 91)
+        foe_position = Position(36, 91)
+        grids = {
+            entrance: replace(
+                grid(entrance.y, entrance.x), store_number=STORE_ALCHEMIST
+            ),
+            foe_position: replace(
+                grid(foe_position.y, foe_position.x), has_monster=True
+            ),
+        }
+        store = Snapshot(
+            player(
+                entrance.y, entrance.x, gold=10421,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            grids,
+            [],
+            inventory=[target],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[ware]),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        surface = replace(
+            store,
+            store=None,
+            visible_monsters=[hostile(1, foe_position.y, foe_position.x)],
+        )
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+        policy._identification_need = "full"
+
+        self.assertEqual(policy.choose_key(store), "pm1\r\r")
+        self.assertEqual(policy.choose_key(surface), "8")
+        self.assertEqual(policy.last_reason, "melee")
+        self.assertEqual(surface.player.position, entrance)
+        self.assertEqual(policy.choose_key(store), "\r")
+        self.assertEqual(policy.last_reason, "shop:await-buy-confirmation")
+        self.assertIsNotNone(policy._store_buy_inflight)
 
     def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
         items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)]
@@ -47854,14 +47907,22 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             snapshot, grids={entrance.position: entrance, safe.position: safe}
         )
 
-        policy.last_reason = "livelock:exhausted"
-        self.assertEqual(
-            policy._forbid_wait_on_town_entrance(guarded, WAIT_KEY), WAIT_KEY
-        )
+        def terminal(_snapshot):
+            policy.last_reason = "livelock:exhausted"
+            return WAIT_KEY
+
+        with patch.object(policy, "_decide", side_effect=terminal):
+            self.assertEqual(policy.choose_key(guarded), WAIT_KEY)
         self.assertEqual(policy.last_reason, "livelock:exhausted")
 
-        policy.last_reason = "town:blocked:no-safe-recall-destination"
-        self.assertEqual(policy._forbid_wait_on_town_entrance(guarded, WAIT_KEY), "4")
+        def blocked(_snapshot):
+            policy.last_reason = "town:blocked:no-safe-recall-destination"
+            return WAIT_KEY
+
+        with patch.object(policy, "_decide", side_effect=blocked):
+            self.assertEqual(
+                policy.choose_key(replace(guarded, turn=guarded.turn + 1)), "4"
+            )
         self.assertEqual(
             policy.last_reason, "town:blocked:no-safe-recall-destination"
         )
@@ -47875,12 +47936,27 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         disclosed = replace(
             snapshot, grids={entrance.position: entrance, safe.position: safe}
         )
-        policy._emitted_t = {(origin.y, origin.x), (safe.position.y, safe.position.x)}
-        policy._begin_map_predicate_cache(disclosed)
-        omitted = replace(disclosed, grids={safe.position: safe})
-        policy.last_reason = "town:wait-recall"
+        def attack(_snapshot):
+            policy.last_reason = "melee"
+            return "8"
 
-        self.assertEqual(policy._forbid_wait_on_town_entrance(omitted, WAIT_KEY), "4")
+        with patch.object(policy, "_decide", side_effect=attack):
+            self.assertEqual(policy.choose_key(disclosed), "8")
+        omitted = replace(
+            disclosed,
+            turn=disclosed.turn + 1,
+            width=disclosed.width + 1,
+            height=disclosed.height + 1,
+            town_id=disclosed.town_id + 1,
+            grids={safe.position: safe},
+        )
+
+        def wait_recall(_snapshot):
+            policy.last_reason = "town:wait-recall"
+            return WAIT_KEY
+
+        with patch.object(policy, "_decide", side_effect=wait_recall):
+            self.assertEqual(policy.choose_key(omitted), "4")
         self.assertEqual(
             policy.last_reason, "town:entrance-step-off:town:wait-recall"
         )
@@ -47895,9 +47971,12 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             town_flag=False,
             grids={entrance.position: entrance, safe.position: safe},
         )
-        policy.last_reason = "wait"
+        def wait(_snapshot):
+            policy.last_reason = "wait"
+            return WAIT_KEY
 
-        self.assertEqual(policy._forbid_wait_on_town_entrance(outside, WAIT_KEY), "4")
+        with patch.object(policy, "_decide", side_effect=wait):
+            self.assertEqual(policy.choose_key(outside), "4")
         self.assertEqual(
             policy.last_reason, "town:entrance-step-off:wait"
         )
