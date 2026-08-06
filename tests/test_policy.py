@@ -47616,7 +47616,15 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
 
 class NoSafeRecallDestinationTest(unittest.TestCase):
-    def _fixture(self):
+    def _fixture(self, *, alchemist_visible=False):
+        current = grid(45, 123, lit=True, in_view=True)
+        grids = {current.position: current}
+        if alchemist_visible:
+            entrance = replace(
+                grid(45, 124, lit=True, in_view=True),
+                store_number=STORE_ALCHEMIST,
+            )
+            grids[entrance.position] = entrance
         snapshot = Snapshot(
             player(
                 45,
@@ -47626,7 +47634,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 class_id=PLAYER_CLASS_WARRIOR,
                 abilities={"resist_cold", "resist_neth", "resist_pois", "see_invisible"},
             ),
-            {Position(45, 123): grid(45, 123)},
+            grids,
             [],
             turn=2939887,
             floor_key=(0, 0, 0),
@@ -47638,7 +47646,28 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             recall_depth=30,
             angband_recall_unlocked=True,
             town_flag=True,
-            inventory=[],
+            inventory=[
+                item(
+                    "a", TVAL_SCROLL, SV_SCROLL_TELEPORT,
+                    count=45, known=True, fully_known=True,
+                ),
+                item(
+                    "b", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                    count=26, known=True, fully_known=True,
+                ),
+                item(
+                    "c", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                    count=3, charges=39, pval=39,
+                    known=True, fully_known=True,
+                ),
+            ],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_FEANOR,
+                    known=True, fully_known=True, is_equipment=True,
+                    known_flags=frozenset({122}),
+                ),
+            ],
         )
         policy = HengbotPolicy()
         policy._deepest_level = 31
@@ -47655,80 +47684,39 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy._last_in_town = True
         return policy, snapshot
 
-    def test_live_block_replay_continues_alchemist_plan_publicly(self):
+    def test_live_block_replay_yields_to_real_town_claim_publicly(self):
         policy, snapshot = self._fixture()
-        next_step = Position(45, 124)
-        with (
-            patch.object(policy, "_town_claims_active", return_value=True),
-            patch.object(
-                policy,
-                "_shopping_approach_step",
-                side_effect=[None, next_step],
-            ),
-            patch.object(
-                policy,
-                "_shopping_approach_key",
-                side_effect=lambda _snapshot, _step, reason: (
-                    setattr(policy, "last_reason", reason) or "6"
-                ),
-            ),
-            patch.object(policy, "_activate_safe_recall_fallback", return_value=None),
-        ):
-            key = policy.choose_key(snapshot)
+        key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, "6")
-        self.assertEqual(policy.last_reason, "town:no-safe-recall:shopping")
+        self.assertEqual(key, "8")
+        self.assertEqual(policy.last_reason, "probe")
         self.assertNotEqual(key, WAIT_KEY)
+        self.assertIsNone(policy._town_blocked_reason)
 
-    def test_sustained_public_drive_advances_plan_without_block_waits(self):
+    def test_live_block_replay_reaches_real_alchemist_step_publicly(self):
         policy, snapshot = self._fixture()
-        reasons = Counter()
-        approach_calls = 0
-        shopping_actions = 0
-
-        def claims(_snapshot):
-            return policy._town_errand_plan.index < len(policy._town_errand_plan.stops)
-
-        def approach(_snapshot):
-            nonlocal approach_calls
-            approach_calls += 1
-            return None if approach_calls % 2 else Position(45, 124)
-
-        def shop(_snapshot, _step, reason):
-            nonlocal shopping_actions
-            shopping_actions += 1
-            if shopping_actions in {100, 200, 300}:
-                policy._town_errand_plan.index += 1
-            policy.last_reason = reason
-            return "6"
-
-        with (
-            patch.object(policy, "_observe", return_value=None),
-            patch.object(policy, "_town_claims_active", side_effect=claims),
-            patch.object(policy, "_shopping_approach_step", side_effect=approach),
-            patch.object(policy, "_shopping_approach_key", side_effect=shop),
-            patch.object(policy, "_activate_safe_recall_fallback", return_value=None),
-        ):
-            for decision in range(300):
-                policy.choose_key(replace(snapshot, turn=snapshot.turn + decision))
-                reasons[policy.last_reason] += 1
-
-        self.assertEqual(
-            policy._town_errand_plan.index,
-            4,
-            f"reasons={reasons}",
+        first_key = policy.choose_key(snapshot)
+        _, routeable = self._fixture(alchemist_visible=True)
+        second_key = policy.choose_key(
+            replace(routeable, turn=snapshot.turn + 1)
         )
-        self.assertEqual(reasons, Counter({"town:no-safe-recall:shopping": 300}))
+
+        self.assertEqual((first_key, second_key), ("8", "6"))
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertIsNone(policy._town_blocked_reason)
 
     def test_no_town_work_latches_visible_terminal(self):
         policy, snapshot = self._fixture()
+        policy.choose_key(snapshot)
         policy._town_errand_plan = None
-        with (
-            patch.object(policy, "_town_claims_active", return_value=False),
-            patch.object(policy, "_shopping_approach_step", return_value=None),
-            patch.object(policy, "_activate_safe_recall_fallback", return_value=None),
+        for store_type in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
         ):
-            key = policy.choose_key(snapshot)
+            policy._town_visit_ledger.approach_fails[store_type] = (
+                policy_module.TOWN_STOP_PASS_LIMIT
+            )
+        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
 
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")

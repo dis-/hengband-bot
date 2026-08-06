@@ -18740,13 +18740,6 @@ class HengbotPolicy:
             if self._activate_safe_recall_fallback(snapshot) is not None:
                 self.last_reason = "town:unsafe-recall-fallback"
                 return WAIT_KEY
-            shopping_step = self._shopping_approach_step(snapshot)
-            if shopping_step is not None:
-                return self._shopping_approach_key(
-                    snapshot,
-                    shopping_step,
-                    "town:no-safe-recall:shopping",
-                )
             if self._town_claims_active(snapshot):
                 return None
             self._town_blocked_reason = "no-safe-recall-destination"
