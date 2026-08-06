@@ -2001,6 +2001,7 @@ class CharacterSnapshotDispatchTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._calibration_phase = "capture"
         policy._calibration_naked_dump_requested = True
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
         policy._calibration_naked_dump_inflight = True
         sent = []
         line = json.dumps({

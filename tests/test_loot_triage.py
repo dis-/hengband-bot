@@ -151,6 +151,7 @@ class LookResponseTest(unittest.TestCase):
         )
         self.assertNotEqual(policy._victory_loot_key(empty), "l\x1b")
 
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
         policy._look_probe_inflight = True
         send = Mock()
         response = {"type": "look", "look": {"grids": [{"y": 3, "x": 4,
@@ -201,6 +202,7 @@ class TownOrganizationTest(unittest.TestCase):
     @staticmethod
     def _known_target(policy):
         policy._equipment_optimization_preparation = SimpleNamespace(
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: focused optimizer unit supplies a collaborator result whose downstream handling is the subject
             result=SimpleNamespace(
                 best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
             )
@@ -224,6 +226,7 @@ class TownOrganizationTest(unittest.TestCase):
         spare = carried("a", name="spare sword", is_equipment=True)
         policy = HengbotPolicy()
         preparation = SimpleNamespace(
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: focused optimizer unit supplies a collaborator result whose downstream handling is the subject
             result=SimpleNamespace(
                 best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
             )

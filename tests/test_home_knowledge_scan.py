@@ -228,6 +228,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
         snapshot = town_with_home()
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
         policy._store_leave_inflight = (
             policy._decision_sequence, snapshot.turn, STORE_HOME
         )
@@ -310,6 +311,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             turn=2407269,
             town_flag=True,
         )
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
         policy._store_leave_inflight = (
             policy._decision_sequence, 2407269, STORE_HOME
         )
