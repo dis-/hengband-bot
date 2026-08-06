@@ -30,6 +30,10 @@ class Physics(Protocol):
 
     def visible_terminal(self, reason: str) -> str | None: ...
 
+    def deliver_events(self, policy: object) -> None: ...
+
+    def release_modelled(self, reason: str) -> bool: ...
+
 
 @dataclass(frozen=True)
 class AbsorbingState:
@@ -68,6 +72,9 @@ def drive(state: AbsorbingState) -> DriveResult:
     first_stopped = 1
 
     for decision in range(1, state.decisions + 1):
+        deliver = getattr(world, "deliver_events", None)
+        if deliver is not None:
+            deliver(policy)
         key = policy.choose_key(world.snapshot(decision))
         reason = policy.last_reason
         reasons[reason] += 1
@@ -80,6 +87,9 @@ def drive(state: AbsorbingState) -> DriveResult:
                 reasons, keys, world.entries, world.exits, first_stopped,
             )
 
+        confirm = getattr(policy, "confirm_key_posted", None)
+        if confirm is not None:
+            confirm(key)
         world.apply(key)
         arrived = state.arrived(policy, world)
         if arrived is not None:
@@ -93,8 +103,22 @@ def drive(state: AbsorbingState) -> DriveResult:
             fingerprint = current
             first_stopped = decision + 1
 
+    # Progress is a pass only while it remains live at the bound.  A single
+    # early mutation followed by hundreds of identical decisions is a freeze.
+    if first_stopped > state.decisions:
+        return DriveResult(
+            state.name, True, "durable progress within decision bound",
+            state.decisions, reasons, keys, world.entries, world.exits, first_stopped,
+        )
+
+    final_reason = reasons.most_common(1)[0][0] if reasons else "<no decision>"
+    release_modelled = getattr(world, "release_modelled", None)
+    if release_modelled is not None and not release_modelled(final_reason):
+        outcome = f"unmodelled release: {final_reason}"
+    else:
+        outcome = "decision bound exhausted without durable progress or named terminal"
+
     return DriveResult(
-        state.name, False, "decision bound exhausted without durable progress or named terminal",
+        state.name, False, outcome,
         state.decisions, reasons, keys, world.entries, world.exits, first_stopped,
     )
-

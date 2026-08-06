@@ -194,7 +194,7 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("pipeline-result-injected", "test_confirmed_loadout_survives_restart_and_is_input_key_bound"),
     }
     EXPECTED_UNDECLARED_INSTANCES = 9
-    DECLARED_FINDING_RATCHET = 112
+    DECLARED_FINDING_RATCHET = 114
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()

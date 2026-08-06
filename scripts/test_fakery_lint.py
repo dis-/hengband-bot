@@ -404,7 +404,9 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
 
 def scan_tests(tests: Path = TESTS) -> list[Finding]:
     findings = []
-    for path in sorted(tests.rglob("test*.py")):
+    # Harness/catalogue helpers can contain the drive and its manufactured
+    # state even when their filenames do not begin with ``test``.
+    for path in sorted(tests.rglob("*.py")):
         relative = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
         findings.extend(analyze_source(path.read_text(encoding="utf-8"), relative))
     return findings
