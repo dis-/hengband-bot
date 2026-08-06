@@ -1508,6 +1508,12 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
+    def test_level_29_stall_recovery_never_affirms_an_unknown_prompt(self):
+        safe_default_y_answers = {"\x1b", "n", "N"}
+        for nudge_streak in range(8):
+            key, _marker = _stall_recovery_key(nudge_streak, 29)
+            self.assertIn(key, safe_default_y_answers)
+
     def test_floor_transition_clears_arrival_prompt_exactly_on_change(self):
         town = (0, 0, 0)
         yeek_one = (2, 1, 0)
@@ -1655,23 +1661,21 @@ class StallRecoveryTest(unittest.TestCase):
             STORE_ITEM_PROMPT_DELAY_SECONDS,
         )
 
-    def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):
+    def test_never_guesses_the_level_ten_stat_prompt_after_escape_nudges(self):
         self.assertEqual(_stall_recovery_key(0, 9), ("\x1b", "<esc>"))
         self.assertEqual(_stall_recovery_key(1, 9), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(2, 9), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(3, 9), ("y", "<level-stat:y>"))
+        self.assertEqual(_stall_recovery_key(2, 9), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 9), ("\x1b", "<esc>"))
 
-    def test_keeps_retrying_the_stat_answers_if_a_key_was_lost(self):
-        # A single lost 'a' or 'y' must not strand the game on the stat screen:
-        # the recovery alternates the two answers until the terminal limit.
-        self.assertEqual(_stall_recovery_key(4, 9), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(5, 9), ("y", "<level-stat:y>"))
+    def test_keeps_recovery_nudges_prompt_safe_after_repeated_timeouts(self):
+        self.assertEqual(_stall_recovery_key(4, 9), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(5, 9), ("\x1b", "<esc>"))
 
-    def test_covers_a_two_level_jump_over_the_stat_threshold(self):
-        # One out-of-depth kill can jump 8→10; the last snapshot still says
-        # clvl 8, and the stat screen is up all the same.
-        self.assertEqual(_stall_recovery_key(2, 8), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(3, 18), ("y", "<level-stat:y>"))
+    def test_two_level_jump_does_not_authorize_blind_stat_answers(self):
+        # A stale clvl 8/18 snapshot is not evidence that the blocking prompt
+        # is the level-up stat screen; recovery remains prompt-safe.
+        self.assertEqual(_stall_recovery_key(2, 8), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 18), ("\x1b", "<esc>"))
 
     def test_does_not_send_stat_answers_at_other_levels(self):
         self.assertEqual(_stall_recovery_key(2, 7), ("\x1b", "<esc>"))

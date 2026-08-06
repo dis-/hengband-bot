@@ -1106,9 +1106,10 @@ TORCH_REFILL_FUEL = 500
 BUY_KEY = "p"
 # A one-count ware skips input_quantity, so only its confirmation Return follows.
 BUY_CONFIRM_SUFFIX = "\r"
-# A stacked ware's quantity prompt defaults to one. Enter the intended quantity,
-# submit it, then use exactly one Return for DEFAULT_Y confirmation.
-STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
+# A stacked ware first exposes two pending messages: the per-item price before
+# input_quantity and "Buying ..." before DEFAULT_Y. The quantity is followed by
+# one Return for each message/askfor boundary and one final confirmation.
+STACKED_BUY_CONFIRM_SUFFIX = "1\r\r\r"
 LEAVE_STORE_KEY = "\x1b"
 # *Identify* always opens screen_object(); equipment with many attributes can
 # add several ``-- more --`` pages before the final continue prompt.  Escape
@@ -16452,7 +16453,7 @@ class HengbotPolicy:
             if food_item is not None:
                 quantity = self._purchase_quantity(snapshot, food_item)
                 suffix = (
-                    f"{quantity}\r\r"
+                    f"{quantity}\r\r\r"
                     if food_item.count > 1
                     else BUY_CONFIRM_SUFFIX
                 )
@@ -17162,7 +17163,7 @@ class HengbotPolicy:
             # price/quantity.  Thus 'p' has a live selectable precondition; the
             # remaining Returns are prompt defaults and a final confirmation,
             # not an unchecked tail after a possibly unsupported command.
-            suffix = f"{quantity}\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
+            suffix = f"{quantity}\r\r\r" if item.count > 1 else BUY_CONFIRM_SUFFIX
             self._store_buy_inflight = (
                 store.store_type,
                 signature,

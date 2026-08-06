@@ -5313,7 +5313,7 @@ class ShoppingTest(unittest.TestCase):
         items = [store_item("c", TVAL_FLASK, SV_FLASK_OIL, price=3, count=42)]
         inv = [InventoryItem("e", "lantern", 1, TVAL_LITE, SV_LITE_LANTERN, True, True)]
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(self._in_store(items, inv=inv)), "pc5\r\r")
+        self.assertEqual(pol.choose_key(self._in_store(items, inv=inv)), "pc5\r\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-oil")
 
     def test_fundraising_buys_oil_before_leaving_general_store(self):
@@ -5337,7 +5337,7 @@ class ShoppingTest(unittest.TestCase):
             policy.choose_key(
                 self._in_store([oil], gold=1654, inv=inventory, eq=equipment)
             ),
-            "pf5\r\r",
+            "pf5\r\r\r",
         )
         self.assertEqual(policy.last_reason, "shop:buy-oil")
 
@@ -5380,7 +5380,7 @@ class ShoppingTest(unittest.TestCase):
                 self.assertEqual(policy._supply_ledger(snapshot, 1)["food"].required_departure, 15)
                 self.assertEqual(policy._supply_ledger(snapshot, 1)["oil"].count, 0)
                 self.assertEqual(policy._supply_ledger(snapshot, 1)["oil"].required_departure, 5)
-                self.assertEqual(policy.choose_key(snapshot), "po5\r\r")
+                self.assertEqual(policy.choose_key(snapshot), "po5\r\r\r")
                 self.assertEqual(policy.last_reason, "shop:buy-oil")
 
     def test_unaffordable_mana_food_falls_through_inside_magic_shop(self):
@@ -5425,7 +5425,7 @@ class ShoppingTest(unittest.TestCase):
         with_detection = replace(
             base, store=StoreState(STORE_MAGIC, [mana_food, detection]),
         )
-        self.assertEqual(policy.choose_key(with_detection), "pt2\r\r")
+        self.assertEqual(policy.choose_key(with_detection), "pt2\r\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
 
     def test_permanent_light_buys_neither_lantern_nor_oil(self):
@@ -5537,7 +5537,7 @@ class ShoppingTest(unittest.TestCase):
         pol._home_pending_item = pol._item_signature(target)
         pol._identification_need = "full"
 
-        self.assertEqual(pol.choose_key(incident_snapshot(10421)), "pm1\r\r")
+        self.assertEqual(pol.choose_key(incident_snapshot(10421)), "pm1\r\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-star-identify")
         self.assertEqual(pol.choose_key(incident_snapshot(10421)), "\r")
         self.assertEqual(pol.last_reason, "shop:await-buy-confirmation")
@@ -5545,6 +5545,33 @@ class ShoppingTest(unittest.TestCase):
 
         pol.choose_key(incident_snapshot(7880))
         self.assertIsNone(pol._store_buy_inflight)
+
+    def test_public_purchase_key_completes_stacked_and_preserves_single_ware(self):
+        target = item(
+            "a", 23, 1, name="ego sword", known=True, fully_known=False,
+            is_equipment=True, is_ego=True,
+        )
+        stacked = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            price=2541, count=2,
+        )
+        stacked_snapshot = Snapshot(
+            player(10, 10, gold=10421, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[target],
+            equipment=[],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[stacked]),
+        )
+        stacked_policy = HengbotPolicy()
+        stacked_policy._home_pending_item = stacked_policy._item_signature(target)
+        stacked_policy._identification_need = "full"
+
+        self.assertEqual(stacked_policy.choose_key(stacked_snapshot), "pm1\r\r\r")
+
+        single_policy = HengbotPolicy()
+        single = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120, count=1)
+        self.assertEqual(single_policy.choose_key(self._in_store([single], gold=1000)), "pb\r")
 
     def test_purchase_wait_clears_on_carried_item_progress(self):
         ware = store_item(
@@ -5618,7 +5645,7 @@ class ShoppingTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(target)
         policy._identification_need = "full"
 
-        self.assertEqual(policy.choose_key(store), "pm1\r\r")
+        self.assertEqual(policy.choose_key(store), "pm1\r\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-star-identify")
         self.assertEqual(policy.choose_key(surface), "7")
         self.assertEqual(
@@ -5635,7 +5662,7 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:approach")
         self.assertEqual(policy.choose_key(store), "\r")
         self.assertEqual(policy.last_reason, "shop:await-buy-confirmation")
-        self.assertNotEqual(policy.choose_key(store), "pm1\r\r")
+        self.assertNotEqual(policy.choose_key(store), "pm1\r\r\r")
 
     def test_alchemist_combat_flicker_does_not_repeat_unconfirmed_purchase(self):
         target = item(
@@ -5676,7 +5703,7 @@ class ShoppingTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(target)
         policy._identification_need = "full"
 
-        self.assertEqual(policy.choose_key(store), "pm1\r\r")
+        self.assertEqual(policy.choose_key(store), "pm1\r\r\r")
         self.assertEqual(policy.choose_key(surface), "8")
         self.assertEqual(policy.last_reason, "melee")
         self.assertEqual(surface.player.position, entrance)
@@ -5728,8 +5755,69 @@ class ShoppingTest(unittest.TestCase):
             for decision in range(40)
         ]
 
-        self.assertEqual(keys.count("pm1\r\r"), 3)
+        self.assertEqual(keys.count("pm1\r\r\r"), 3)
         self.assertIsNotNone(policy._store_buy_inflight)
+
+    def test_completed_stacked_buy_stops_three_page_retry_construction(self):
+        target = item(
+            "a", 23, 1, name="ego sword", known=True, fully_known=False,
+            is_equipment=True, is_ego=True,
+        )
+        ware = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            price=2541, count=2, name="Star identify",
+        )
+        foe_position = Position(9, 10)
+        base = Snapshot(
+            player(10, 10, gold=10421, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                foe_position: replace(grid(9, 10), has_monster=True),
+            },
+            [],
+            inventory=[target],
+            equipment=[],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[ware]),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        pages = [
+            base,
+            replace(
+                base,
+                store=None,
+                visible_monsters=[hostile(1, foe_position.y, foe_position.x)],
+            ),
+            replace(base, store=StoreState(store_type=STORE_MAGIC, items=[])),
+        ]
+        policy = HengbotPolicy()
+        policy._home_pending_item = policy._item_signature(target)
+        policy._identification_need = "full"
+        posts = 0
+        reasons = []
+
+        for decision in range(300):
+            key = policy.choose_key(
+                replace(pages[decision % len(pages)], turn=decision + 1)
+            )
+            reasons.append(policy.last_reason)
+            if key.startswith("pm"):
+                posts += 1
+            if key == "pm1\r\r\r":
+                purchased = item(
+                    "b", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+                    name="Star identify", count=1,
+                )
+                pages = [
+                    replace(
+                        page,
+                        player=replace(page.player, gold=7880),
+                        inventory=[target, purchased],
+                    )
+                    for page in pages
+                ]
+
+        self.assertEqual(posts, 1, Counter(reasons))
 
     def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
         items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)]
@@ -16704,7 +16792,7 @@ class TownRestockTest(unittest.TestCase):
         ]
         inv = [item("f", TVAL_FLASK, SV_FLASK_OIL, count=8, fuel=500)]  # oil stocked
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(self._in_general_store(wares, inv=inv)), "pb5\r\r")
+        self.assertEqual(pol.choose_key(self._in_general_store(wares, inv=inv)), "pb5\r\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-food")
 
     def test_mana_race_does_not_buy_rations_as_food(self):
@@ -19320,7 +19408,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(
             policy._shop(snap),
-            f"pt{DETECTION_SCROLL_BUFFER}\r\r",
+            f"pt{DETECTION_SCROLL_BUFFER}\r\r\r",
         )
         self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
 
@@ -19715,7 +19803,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._deepest_level = 1
 
-        self.assertEqual(policy.choose_key(snap), "pa3\r\r")
+        self.assertEqual(policy.choose_key(snap), "pa3\r\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-cure-critical")
 
     def test_does_not_descend_to_two_without_required_supplies(self):
@@ -19816,7 +19904,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
-        self.assertEqual(policy.choose_key(snap), "pa10\r\r")
+        self.assertEqual(policy.choose_key(snap), "pa10\r\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
 
     def test_procurement_requirements_show_only_current_shortages(self):
@@ -30863,7 +30951,7 @@ class IdentifyStaffTest(unittest.TestCase):
 
         key = pol.choose_key(snap)
 
-        self.assertEqual(key, "pz1\r\r")
+        self.assertEqual(key, "pz1\r\r\r")
         self.assertEqual(pol.last_reason, "shop:buy-food")
         self.assertEqual(
             pol._shop_selector_diagnostics,
@@ -37430,7 +37518,7 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
         self.assertEqual(policy._count_throwing_torches(snap), 4)
-        self.assertEqual(policy._shop(snap), "pf6\r\r")
+        self.assertEqual(policy._shop(snap), "pf6\r\r\r")
 
     def test_money_spent_without_torch_progress_leaves_within_bound(self):
         torch_ware = StoreItem("f", "torch", 99, TVAL_LITE, SV_LITE_TORCH, price=3)
@@ -37701,10 +37789,11 @@ class RangedAttackTest(unittest.TestCase):
 
         key = HengbotPolicy()._shop(snap)
 
-        # purchase-order.cpp consumes: item letter; quantity digits + Return;
+        # purchase-order.cpp consumes: item letter; the price-message -more-;
+        # quantity digits + Return; the Buying-message -more-; and the
         # DEFAULT_Y confirmation Return. Nothing remains for the store loop.
-        self.assertEqual(key, "pj96\r\r")
-        self.assertEqual(key[2:], "96\r\r")
+        self.assertEqual(key, "pj96\r\r\r")
+        self.assertEqual(key[2:], "96\r\r\r")
 
     def test_partial_low_gold_ammo_purchase_completes_without_looping(self):
         shots = StoreItem("d", "iron shot", 7, TVAL_SHOT, 1, price=10)
@@ -37719,7 +37808,7 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._find_weapon_sale = lambda snapshot: None
 
-        self.assertEqual(policy._shop(initial), "pd2\r\r")
+        self.assertEqual(policy._shop(initial), "pd2\r\r\r")
         partial = replace(
             initial,
             player=replace(initial.player, gold=0),

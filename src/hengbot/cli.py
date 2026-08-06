@@ -102,16 +102,6 @@ TERMINAL_NUDGE_LIMIT = 8
 DEATH_EXIT_KEYS = ("\x1b", "n", "\r")
 DEATH_EXIT_ROUNDS = 8
 
-# Every tenth level Hengband blocks outside the command loop and asks for a stat
-# (a-f), then confirmation; the screen ignores Escape and no JSON snapshot is
-# emitted while it is up. After two harmless Esc nudges, alternate the stat
-# choice (Strength, for the warrior bot) with a confirm — alternating retries
-# both keys, so a single lost keystroke cannot strand the game there. The gate
-# accepts levels ending in 8 or 9: one strong kill can jump two levels (8→10),
-# which still lands on the stat screen while our last snapshot said clvl 8.
-LEVEL_UP_STAT_CHOICE = "a"
-LEVEL_UP_RECOVERY_START = 2
-
 # Loop / stuck detection. If the character stays confined to a handful of tiles
 # on a single floor for this many consecutive decisions, it is looping — an
 # exploration oscillation the policy's own anti-stuck guards (visit penalty,
@@ -1216,14 +1206,9 @@ def _chest_movement_response_pending(
 
 
 def _stall_recovery_key(nudge_streak: int, last_player_level: int | None) -> tuple[str, str]:
-    if (
-        last_player_level is not None
-        and last_player_level % 10 in (8, 9)
-        and nudge_streak >= LEVEL_UP_RECOVERY_START
-    ):
-        if (nudge_streak - LEVEL_UP_RECOVERY_START) % 2 == 0:
-            return LEVEL_UP_STAT_CHOICE, f"<level-stat:{LEVEL_UP_STAT_CHOICE}>"
-        return "y", "<level-stat:y>"
+    # A timeout supplies no evidence about which blocking prompt is active.
+    # Escape rejects DEFAULT_Y and ordinary y/n confirmations alike; stale
+    # character-level data must never authorize a blind affirmative answer.
     return NUDGE_KEY, "<esc>"
 
 
