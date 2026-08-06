@@ -18572,16 +18572,6 @@ class HengbotPolicy:
             self.last_reason = "town:loadout-depth-fallback"
             return WAIT_KEY
 
-        if (
-            self._target_dungeon_id == DUNGEON_ANGBAND
-            and snapshot.angband_recall_unlocked
-            and not self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
-        ):
-            if self._activate_safe_recall_fallback(snapshot) is not None:
-                self.last_reason = "town:unsafe-recall-fallback"
-                return WAIT_KEY
-            self.last_reason = "town:blocked:no-safe-recall-destination"
-            return WAIT_KEY
         recall_dest, recall_dungeon_id = self._town_recall_destination(snapshot)
         # A completed scan with no pending Home or identification owner cannot
         # legitimately defer departure.  This also repairs old visit state
@@ -18736,6 +18726,31 @@ class HengbotPolicy:
                     return expedition
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
+        # Destination safety is a departure assertion, not an errand-router
+        # precondition.  Run it only after every town owner above has had the
+        # opportunity to act; otherwise an unsafe deep recall can starve a live
+        # supply plan before its next shop stop.  With no town claim left, make
+        # the genuine no-destination state a visible terminal instead of an
+        # unlatched WAIT that is reconsidered forever.
+        if (
+            self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+            and not self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+        ):
+            if self._activate_safe_recall_fallback(snapshot) is not None:
+                self.last_reason = "town:unsafe-recall-fallback"
+                return WAIT_KEY
+            shopping_step = self._shopping_approach_step(snapshot)
+            if shopping_step is not None:
+                return self._shopping_approach_key(
+                    snapshot,
+                    shopping_step,
+                    "town:no-safe-recall:shopping",
+                )
+            if self._town_claims_active(snapshot):
+                return None
+            self._town_blocked_reason = "no-safe-recall-destination"
+            return self._town_blocked_key(snapshot)
         return None
 
     def _departure_block_state(
