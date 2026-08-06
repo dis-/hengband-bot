@@ -32,7 +32,7 @@ class Physics(Protocol):
 
     def deliver_events(self, policy: object) -> None: ...
 
-    def release_modelled(self, reason: str) -> bool: ...
+    def unmodelled_release(self, reason: str) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -52,14 +52,15 @@ class DriveResult:
     keys: Counter[str]
     entries: int
     exits: int
-    first_stopped: int
+    progress_events: int
+    longest_stall: int
 
     def report(self) -> str:
         return (
             f"{self.state}: {'PASS' if self.passed else 'FAIL'}: {self.outcome}; "
             f"decisions={self.decisions}; reasons={dict(self.reasons)}; "
             f"keys={dict(self.keys)}; entries={self.entries}; exits={self.exits}; "
-            f"first_progress_stopped={self.first_stopped}"
+            f"progress_events={self.progress_events}; longest_stall={self.longest_stall}"
         )
 
 
@@ -68,7 +69,6 @@ def drive(state: AbsorbingState) -> DriveResult:
     reasons: Counter[str] = Counter()
     keys: Counter[str] = Counter()
     fingerprint = world.durable_fingerprint()
-    first_stopped = 1
     last_progress = 0
     progress_events = 0
     longest_stall = 0
@@ -86,7 +86,8 @@ def drive(state: AbsorbingState) -> DriveResult:
         if terminal is not None:
             return DriveResult(
                 state.name, True, f"visible terminal {terminal}", decision,
-                reasons, keys, world.entries, world.exits, first_stopped,
+                reasons, keys, world.entries, world.exits,
+                progress_events, longest_stall,
             )
 
         confirm = getattr(policy, "confirm_key_posted", None)
@@ -96,28 +97,31 @@ def drive(state: AbsorbingState) -> DriveResult:
         current = world.durable_fingerprint()
         if current != fingerprint:
             fingerprint = current
-            first_stopped = decision + 1
             progress_events += 1
             longest_stall = max(longest_stall, decision - last_progress - 1)
             last_progress = decision
 
     longest_stall = max(longest_stall, state.decisions - last_progress)
-    # Workflow progress may pass a bounded drive when it stays live throughout
-    # the drive. Repeated mutations and a bounded quiet window prevent a lone
-    # final-decision twitch from passing.
+    # Part 4 is parked. Principle: a cycling drive revisits an equivalent
+    # workflow state without making irreversible progress toward a terminal;
+    # progress needs a semantic well-founded measure, not merely changing
+    # fingerprints. This bounded mutation heuristic cannot detect arbitrary
+    # periods or slowly drifting cycles whose incidental fields stay unique.
     progress_stall_limit = max(3, state.decisions // 10)
     if progress_events >= 2 and longest_stall <= progress_stall_limit:
         return DriveResult(
             state.name, True, "durable progress within decision bound",
-            state.decisions, reasons, keys, world.entries, world.exits, first_stopped,
+            state.decisions, reasons, keys, world.entries, world.exits,
+            progress_events, longest_stall,
         )
 
-    if not world.release_modelled(final_reason):
+    if world.unmodelled_release(final_reason):
         outcome = f"unmodelled release: {final_reason}"
     else:
         outcome = "decision bound exhausted without durable progress or named terminal"
 
     return DriveResult(
         state.name, False, outcome,
-        state.decisions, reasons, keys, world.entries, world.exits, first_stopped,
+        state.decisions, reasons, keys, world.entries, world.exits,
+        progress_events, longest_stall,
     )

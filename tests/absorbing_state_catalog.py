@@ -8,7 +8,8 @@ emitted game turns per player turn; numeric rests advance ten times their
 requested player turns. ``C`` queues the emitter's character payload for the
 next decision. Recall/dungeon-entry macros change floor. Menu internals, combat
 damage, monsters, and the contents chosen by store restocking are not modelled.
-The indefinite ``R&`` rest macro is also an explicitly unmodelled release.
+The indefinite ``R&`` rest macro is an explicitly unmodelled release: this
+world has no recovery/status physics with which to decide when it completes.
 """
 
 from __future__ import annotations
@@ -19,14 +20,11 @@ import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import STORE_HOME, TVAL_POTION
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
-from hengbot.policy import CHARACTER_DUMP_MACRO
+from hengbot.policy import CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
-
-
-HOME_PAGE_SINGLE_PAGE_MESSAGES = ("これで全部です。", "Entire inventory is shown.")
 
 
 MOVES = {
@@ -35,9 +33,6 @@ MOVES = {
 }
 
 EMITTED_TURNS_PER_PLAYER_TURN = 10
-MODELLED_RELEASES = frozenset({"calibration:await-capture"})
-
-
 class TownWorld:
     def __init__(self, snapshot: Snapshot, *, entrance=STORE_HOME, stock=(),
                  page_size=12, swallow_space=False, version_reply=False,
@@ -173,8 +168,12 @@ class TownWorld:
             self.character_events_delivered += 1
         self.pending_events.clear()
 
-    def release_modelled(self, reason):
-        return reason in MODELLED_RELEASES
+    def unmodelled_release(self, reason):
+        # Evidence belongs to the world model, not to a reason allow-list. All
+        # ordinary waits, movement, menus, and numeric rests above have a
+        # modelled stimulus. R& is reachable from town:recover, but recovery
+        # physics is absent, so only that observed key/reason pair qualifies.
+        return self.last_key == "R&\r" and reason == "town:recover"
 
     def durable_fingerprint(self):
         # Position and turn are intentionally excluded: a two-cell shuffle and

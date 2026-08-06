@@ -1,4 +1,6 @@
 import unittest
+import unittest.mock
+from dataclasses import replace
 from types import SimpleNamespace
 
 from absorbing_state_catalog import SEEDED_STATES, TownWorld
@@ -31,9 +33,9 @@ class _StubWorld:
     entries = 0
     exits = 0
 
-    def __init__(self, *, progressing=False, modelled=True):
+    def __init__(self, *, progressing=False, unmodelled=False):
         self.progressing = progressing
-        self.modelled = modelled
+        self.unmodelled = unmodelled
         self.value = 0
 
     def snapshot(self, _decision):
@@ -52,8 +54,8 @@ class _StubWorld:
     def visible_terminal(self, _reason):
         return None
 
-    def release_modelled(self, _reason):
-        return self.modelled
+    def unmodelled_release(self, _reason):
+        return self.unmodelled
 
 
 class _FinalTwitchWorld(_StubWorld):
@@ -116,11 +118,38 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         state = AbsorbingState(
             "unmodelled", 2,
             lambda: (_ScriptedPolicy(reason="await:external"),
-                     _StubWorld(modelled=False)),
+                     _StubWorld(unmodelled=True)),
         )
         result = drive(state)
         self.assertFalse(result.passed)
         self.assertEqual(result.outcome, "unmodelled release: await:external")
+
+    def test_ordinary_freeze_is_not_labelled_unmodelled(self):
+        state = AbsorbingState(
+            "freeze", 2,
+            lambda: (_ScriptedPolicy(reason="explore"), _StubWorld()),
+        )
+        result = drive(state)
+        self.assertFalse(result.passed)
+        self.assertEqual(
+            result.outcome,
+            "decision bound exhausted without durable progress or named terminal",
+        )
+
+    def test_indefinite_recovery_rest_is_a_real_unmodelled_release(self):
+        _, template = SEEDED_STATES[0].build()
+        damaged = replace(
+            template.base,
+            player=replace(template.base.player, hp=template.base.player.max_hp - 1),
+        )
+        state = AbsorbingState(
+            "recover", 2,
+            lambda: (_ScriptedPolicy(key="R&\r", reason="town:recover"),
+                     TownWorld(damaged)),
+        )
+        result = drive(state)
+        self.assertFalse(result.passed)
+        self.assertEqual(result.outcome, "unmodelled release: town:recover")
 
     def test_failed_repeat_posts_do_not_score_as_progress(self):
         _, template = SEEDED_STATES[0].build()
@@ -152,5 +181,12 @@ class SeededAbsorbingStateTest(unittest.TestCase):
     def test_six_seeded_states_reach_progress_or_visible_terminal(self):
         self.assertNotIn("arrived", AbsorbingState.__dataclass_fields__)
         results = [drive(state) for state in SEEDED_STATES]
-        self.assertEqual(len(results), 6)
-        self.assertTrue(all("arrived at" not in result.outcome for result in results))
+        failures = [result.report() for result in results if not result.passed]
+        self.assertEqual(failures, [], "\n" + "\n".join(failures))
+
+    def test_seed_verdicts_depend_on_visible_bot_terminals(self):
+        with unittest.mock.patch.object(
+            TownWorld, "visible_terminal", return_value=None
+        ):
+            results = [drive(state) for state in SEEDED_STATES]
+        self.assertTrue(all(not result.passed for result in results))

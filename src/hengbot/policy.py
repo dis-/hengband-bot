@@ -4422,7 +4422,13 @@ class HengbotPolicy:
                 if fundraising is not None:
                     return fundraising
             recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
-            self._retry_after_store_restock(snapshot, recall_stores)
+            released_store = self._retry_after_store_restock(
+                snapshot, recall_stores
+            )
+            if released_store is not None:
+                return self._released_restock_store_key(
+                    snapshot, released_store
+                )
             self.last_reason = self._restock_wait_reason(snapshot)
             return RESTOCK_WAIT_MACRO
 
@@ -12947,6 +12953,20 @@ class HengbotPolicy:
         suffix = f":{missing}" if missing is not None else ""
         return f"town:wait-restock:{store_name}{suffix}"
 
+    def _released_restock_store_key(
+        self, snapshot: Snapshot, store_type: int
+    ) -> str:
+        """Route to a supplier made eligible by completed stock turnover."""
+        step = self._shopping_approach_step(snapshot)
+        if step is not None and self._shopping_approach_store_type == store_type:
+            self.last_reason = "shop:approach"
+            return self._shopping_approach_key(snapshot, step, "shop:travel")
+        # Recall stock still owns departure. If the released supplier cannot be
+        # routed, use the existing visible town terminal instead of descending
+        # or silently arming the same wait again.
+        self._town_blocked_reason = "restocked-recall-store-unreachable"
+        return self._town_blocked_key(snapshot)
+
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
         needs: list[TownNeed] = []
@@ -18721,9 +18741,13 @@ class HengbotPolicy:
             # Suppliers may both be latched after genuine stock failure;
             # wait for turnover instead of falling through to dungeon-style
             # town exploration while carrying an unreachable objective.
-            self._retry_after_store_restock(
+            released_store = self._retry_after_store_restock(
                 snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
             )
+            if released_store is not None:
+                return self._released_restock_store_key(
+                    snapshot, released_store
+                )
             self.last_reason = self._restock_wait_reason(snapshot)
             return RESTOCK_WAIT_MACRO
         if recall_dest is not None and departure_ok:

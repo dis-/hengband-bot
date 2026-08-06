@@ -21069,6 +21069,61 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
         self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
 
+    def test_expired_recall_restock_wait_routes_to_released_store_publicly(self):
+        temple = replace(grid(10, 11), store_number=STORE_TEMPLE)
+        snap = Snapshot(
+            player(
+                10, 10, gold=8000, class_id=PLAYER_CLASS_WARRIOR,
+                abilities=frozenset(
+                    {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
+                ),
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [], turn=100, inventory=self._strict_supplies(recall=0),
+            equipment=[self._lantern()], recall_dungeon_id=14, recall_depth=29,
+            entered_dungeon_ids=(1, 14),
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 31
+        policy._target_dungeon_id = 14
+        policy._char_dump_done_this_visit = True
+        policy._town_store_attempted.update(
+            {STORE_TEMPLE: 0, STORE_ALCHEMIST: 0}
+        )
+        policy._food_ready = lambda _snapshot: True
+        policy._light_ready = lambda _snapshot: True
+        policy._teleport_ready = lambda _snapshot: True
+        policy._cure_critical_ready = lambda _snapshot: True
+        policy._identify_staff_ready = lambda _snapshot: True
+        policy._combat_weapon_ready = lambda _snapshot: True
+        policy._equipment_departure_ready = lambda _snapshot: True
+        policy._find_home_deposit = lambda _snapshot: None
+
+        self.assertEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
+        expiry = replace(
+            snap, turn=policy._town_restock_wait_until,
+            grids={**snap.grids, temple.position: temple},
+        )
+        original_approach = policy._shopping_approach_step
+        approach_calls = 0
+
+        def approach_after_release(snapshot):
+            nonlocal approach_calls
+            approach_calls += 1
+            if approach_calls == 1:
+                return None
+            return original_approach(snapshot)
+
+        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: public restock-release routing is isolated from unrelated readiness collaborators
+        with patch.object(
+            policy, "_shopping_approach_step", side_effect=approach_after_release
+        ):
+            self.assertEqual(policy.choose_key(expiry), "6")
+        self.assertEqual(approach_calls, 2)
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertIsNone(policy._town_restock_wait_until)
+        self.assertNotIn(STORE_TEMPLE, policy._town_store_attempted)
+
     def test_departs_instead_of_waiting_when_teleport_is_unavailable(self):
         snap = Snapshot(
             player(10, 10, gold=8000, class_id=PLAYER_CLASS_WARRIOR),
