@@ -4427,7 +4427,7 @@ class HengbotPolicy:
             )
             if released_store is not None:
                 return self._released_restock_store_key(
-                    snapshot, released_store
+                    snapshot, recall_stores
                 )
             self.last_reason = self._restock_wait_reason(snapshot)
             return RESTOCK_WAIT_MACRO
@@ -12954,13 +12954,22 @@ class HengbotPolicy:
         return f"town:wait-restock:{store_name}{suffix}"
 
     def _released_restock_store_key(
-        self, snapshot: Snapshot, store_type: int
+        self, snapshot: Snapshot, store_types: tuple[int, ...]
     ) -> str:
         """Route to a supplier made eligible by completed stock turnover."""
         step = self._shopping_approach_step(snapshot)
-        if step is not None and self._shopping_approach_store_type == store_type:
+        if step is not None and self._shopping_approach_store_type in store_types:
             self.last_reason = "shop:approach"
             return self._shopping_approach_key(snapshot, step, "shop:travel")
+        # Another live errand can precede the released suppliers in the town
+        # plan.  A restock release says nothing about that errand's route, so
+        # check each released supplier itself before declaring all of them
+        # unreachable.
+        for store_type in self._order_town_stops(snapshot, list(store_types)):
+            step = self._shopping_approach_step(snapshot, store_type)
+            if step is not None:
+                self.last_reason = "shop:approach"
+                return self._shopping_approach_key(snapshot, step, "shop:travel")
         # Recall stock still owns departure. If the released supplier cannot be
         # routed, use the existing visible town terminal instead of descending
         # or silently arming the same wait again.
@@ -17223,7 +17232,9 @@ class HengbotPolicy:
         self.last_reason = "shop:leave"
         return LEAVE_STORE_KEY
 
-    def _shopping_approach_step(self, snapshot: Snapshot) -> Position | None:
+    def _shopping_approach_step(
+        self, snapshot: Snapshot, store_type: int | None = None
+    ) -> Position | None:
         self._shopping_approach_store_type = None
         self._shopping_approach_goal = None
         if not snapshot.in_town or (
@@ -17236,7 +17247,8 @@ class HengbotPolicy:
             # approach limit fired. This latch must not suppress the alternate
             # store (or the restock wait) selected on the following turn.
             self._shopping_stuck = False
-        store_type = self._next_required_store_type(snapshot)
+        if store_type is None:
+            store_type = self._next_required_store_type(snapshot)
         if store_type is None:
             self._shop_approach_stuck_count = 0
             return None
@@ -18746,7 +18758,7 @@ class HengbotPolicy:
             )
             if released_store is not None:
                 return self._released_restock_store_key(
-                    snapshot, released_store
+                    snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
                 )
             self.last_reason = self._restock_wait_reason(snapshot)
             return RESTOCK_WAIT_MACRO

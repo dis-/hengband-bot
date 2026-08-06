@@ -173,6 +173,8 @@ class TownWorld:
         # ordinary waits, movement, menus, and numeric rests above have a
         # modelled stimulus. R& is reachable from town:recover, but recovery
         # physics is absent, so only that observed key/reason pair qualifies.
+        # This deliberately classifies the final decision only: a frozen drive
+        # ending in one such pair can share this label, but remains a FAIL.
         return self.last_key == "R&\r" and reason == "town:recover"
 
     def durable_fingerprint(self):

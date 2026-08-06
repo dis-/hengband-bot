@@ -29,6 +29,20 @@ class _EveryThirdPurchasePolicy(_ScriptedPolicy):
         return "pa" if self.decisions % 3 == 0 else "5"
 
 
+class _FinalRecoveryPolicy(_ScriptedPolicy):
+    def __init__(self):
+        super().__init__()
+        self.decisions = 0
+
+    def choose_key(self, _snapshot):
+        self.decisions += 1
+        if self.decisions == 200:
+            self.last_reason = "town:recover"
+            return "R&\r"
+        self.last_reason = "wait"
+        return "5"
+
+
 class _StubWorld:
     entries = 0
     exits = 0
@@ -146,6 +160,16 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             "recover", 2,
             lambda: (_ScriptedPolicy(key="R&\r", reason="town:recover"),
                      TownWorld(damaged)),
+        )
+        result = drive(state)
+        self.assertFalse(result.passed)
+        self.assertEqual(result.outcome, "unmodelled release: town:recover")
+
+    def test_final_recovery_rest_label_is_fail_closed(self):
+        _, template = SEEDED_STATES[0].build()
+        state = AbsorbingState(
+            "final-recover", 200,
+            lambda: (_FinalRecoveryPolicy(), TownWorld(template.base)),
         )
         result = drive(state)
         self.assertFalse(result.passed)
