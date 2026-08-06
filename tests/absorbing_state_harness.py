@@ -40,7 +40,6 @@ class AbsorbingState:
     name: str
     decisions: int
     build: Callable[[], tuple[object, Physics]]
-    arrived: Callable[[object, Physics], str | None]
 
 
 @dataclass(frozen=True)
@@ -70,13 +69,16 @@ def drive(state: AbsorbingState) -> DriveResult:
     keys: Counter[str] = Counter()
     fingerprint = world.durable_fingerprint()
     first_stopped = 1
+    last_progress = 0
+    progress_events = 0
+    longest_stall = 0
+    final_reason = "<no decision>"
 
     for decision in range(1, state.decisions + 1):
-        deliver = getattr(world, "deliver_events", None)
-        if deliver is not None:
-            deliver(policy)
+        world.deliver_events(policy)
         key = policy.choose_key(world.snapshot(decision))
         reason = policy.last_reason
+        final_reason = reason
         reasons[reason] += 1
         keys[key] += 1
 
@@ -91,29 +93,26 @@ def drive(state: AbsorbingState) -> DriveResult:
         if confirm is not None:
             confirm(key)
         world.apply(key)
-        arrived = state.arrived(policy, world)
-        if arrived is not None:
-            return DriveResult(
-                state.name, True, f"arrived at {arrived}", decision,
-                reasons, keys, world.entries, world.exits, first_stopped,
-            )
-
         current = world.durable_fingerprint()
         if current != fingerprint:
             fingerprint = current
             first_stopped = decision + 1
+            progress_events += 1
+            longest_stall = max(longest_stall, decision - last_progress - 1)
+            last_progress = decision
 
-    # Progress is a pass only while it remains live at the bound.  A single
-    # early mutation followed by hundreds of identical decisions is a freeze.
-    if first_stopped > state.decisions:
+    longest_stall = max(longest_stall, state.decisions - last_progress)
+    # Workflow progress may pass a bounded drive when it stays live throughout
+    # the drive. Repeated mutations and a bounded quiet window prevent a lone
+    # final-decision twitch from passing.
+    progress_stall_limit = max(3, state.decisions // 10)
+    if progress_events >= 2 and longest_stall <= progress_stall_limit:
         return DriveResult(
             state.name, True, "durable progress within decision bound",
             state.decisions, reasons, keys, world.entries, world.exits, first_stopped,
         )
 
-    final_reason = reasons.most_common(1)[0][0] if reasons else "<no decision>"
-    release_modelled = getattr(world, "release_modelled", None)
-    if release_modelled is not None and not release_modelled(final_reason):
+    if not world.release_modelled(final_reason):
         outcome = f"unmodelled release: {final_reason}"
     else:
         outcome = "decision bound exhausted without durable progress or named terminal"

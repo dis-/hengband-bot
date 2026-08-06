@@ -3,10 +3,12 @@
 Modelled physics: numeric movement changes position; stepping onto, or WAITing
 on, a store/building entrance opens it; Escape leaves it; Home SPACE changes
 page (with an incident-selectable swallowed-redraw fault); ``p<letter>`` removes
-stock, debits gold, and adds the item to the pack.  Numeric rests advance their
-requested game turns, and ``C`` queues the emitter's character payload for the
+stock, debits gold, and adds the item to the pack. Energy actions advance ten
+emitted game turns per player turn; numeric rests advance ten times their
+requested player turns. ``C`` queues the emitter's character payload for the
 next decision. Recall/dungeon-entry macros change floor. Menu internals, combat
 damage, monsters, and the contents chosen by store restocking are not modelled.
+The indefinite ``R&`` rest macro is also an explicitly unmodelled release.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import STORE_HOME, TVAL_POTION
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import CHARACTER_DUMP_MACRO
+from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
@@ -31,14 +34,17 @@ MOVES = {
     "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
 }
 
+EMITTED_TURNS_PER_PLAYER_TURN = 10
+MODELLED_RELEASES = frozenset({"calibration:await-capture"})
+
 
 class TownWorld:
     def __init__(self, snapshot: Snapshot, *, entrance=STORE_HOME, stock=(),
                  page_size=12, swallow_space=False, version_reply=False,
-                 blocked_movement=False, purchases_succeed=True):
+                 passable_positions=None, purchases_succeed=True,
+                 single_page_message=HOME_PAGE_SINGLE_PAGE_MESSAGES[0]):
         self.base = snapshot
         self.position = snapshot.player.position
-        self.visited_positions = {self.position}
         disclosed = next(
             ((position, state.store_number) for position, state in snapshot.grids.items()
              if state.store_number >= 0),
@@ -53,8 +59,13 @@ class TownWorld:
         self.top = 0
         self.swallow_space = swallow_space
         self.version_reply = version_reply
-        self.blocked_movement = blocked_movement
+        self.passable_positions = passable_positions or {
+            Position(y, x)
+            for y in range(self.position.y - 20, self.position.y + 21)
+            for x in range(self.position.x - 20, self.position.x + 21)
+        }
         self.purchases_succeed = purchases_succeed
+        self.single_page_message = single_page_message
         self.entries = int(self.inside)
         self.exits = 0
         self.depth = snapshot.dungeon_level
@@ -73,7 +84,7 @@ class TownWorld:
         if self.version_reply and self.last_key == "V":
             messages = ("Hengband 3.0",)
         elif self.inside and self.last_key == " " and len(self.stock) <= self.page_size:
-            messages = (HOME_PAGE_SINGLE_PAGE_MESSAGES[0],)
+            messages = (self.single_page_message,)
         else:
             messages = ()
         return replace(
@@ -93,7 +104,7 @@ class TownWorld:
             self.pending_events.append({"mutations": [], "characteristics": []})
             return
         if key.startswith("R") and key.endswith("\r") and key[1:-1].isdigit():
-            self.turn += int(key[1:-1])
+            self.turn += EMITTED_TURNS_PER_PLAYER_TURN * int(key[1:-1])
             return
         if self.inside:
             if key == LEAVE_STORE_KEY:
@@ -129,29 +140,32 @@ class TownWorld:
         if key.startswith(WAIT_KEY) and "p" in key:
             self.entries += 1
             self.inside = True
+            self.turn += EMITTED_TURNS_PER_PLAYER_TURN
             self.apply(key[1:])
             return
-        if key == WAIT_KEY and self.position == self.entrance:
-            self.inside = True
-            self.entries += 1
-            self.top = 0
-            return
-        first = key[:1]
-        if first in MOVES:
-            if self.blocked_movement:
-                return
-            dy, dx = MOVES[first]
-            self.position = Position(self.position.y + dy, self.position.x + dx)
-            self.visited_positions.add(self.position)
+        if key == WAIT_KEY:
+            self.turn += EMITTED_TURNS_PER_PLAYER_TURN
             if self.position == self.entrance:
                 self.inside = True
                 self.entries += 1
                 self.top = 0
-            self.turn += 1
+            return
+        first = key[:1]
+        if first in MOVES:
+            dy, dx = MOVES[first]
+            destination = Position(self.position.y + dy, self.position.x + dx)
+            self.turn += EMITTED_TURNS_PER_PLAYER_TURN
+            if destination not in self.passable_positions:
+                return
+            self.position = destination
+            if self.position == self.entrance:
+                self.inside = True
+                self.entries += 1
+                self.top = 0
             return
         if key.startswith("rr") or key.startswith(">"):
             self.depth = max(1, self.depth + 1)
-            self.turn += 1
+            self.turn += EMITTED_TURNS_PER_PLAYER_TURN
 
     def deliver_events(self, policy):
         for character in self.pending_events:
@@ -160,46 +174,27 @@ class TownWorld:
         self.pending_events.clear()
 
     def release_modelled(self, reason):
-        if reason == "calibration:await-capture":
-            return True
-        if reason.startswith("town:wait-restock:"):
-            return True
-        # The catalogue's other waits release through snapshot fields modelled
-        # above (position/store/messages/inventory/floor), not side-channel events.
-        return not (reason.startswith("calibration:") and "await" in reason)
+        return reason in MODELLED_RELEASES
 
     def durable_fingerprint(self):
         # Position and turn are intentionally excluded: a two-cell shuffle and
         # mere passage of turns do not advance a town workflow.
         return (
             self.depth, self.gold,
-            # A real walk expands its footprint. A stationary wait or two-cell
-            # shuffle does not; positions enter only after a third distinct cell.
-            len(self.visited_positions) if len(self.visited_positions) >= 3 else 0,
             tuple(sorted((i.tval, i.sval, i.count, i.name) for i in self.inventory)),
             tuple(sorted((i.tval, i.sval, i.count, i.name) for i in self.stock)),
         )
 
     def visible_terminal(self, reason: str):
-        if self.character_events_delivered and reason != "calibration:await-capture":
-            return "character payload delivered"
         if reason == "livelock:exhausted":
             return reason
         if reason.startswith("town:blocked:"):
             self.blocked_streak += 1
-            if self.blocked_streak >= 30:
+            if self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
                 return "town:blocked:* fuse"
-        else:
+        elif reason != "shop:leave":
             self.blocked_streak = 0
         return None
-
-
-def _arrived_depth(_policy, world):
-    return "non-town floor" if world.depth > 0 else None
-
-
-def _arrived_outside(_policy, world):
-    return "fresh outside-Home restart" if world.exits else None
 
 
 def _departure_freeze():
@@ -271,24 +266,12 @@ def _home_entry_cycle():
     return policy, TownWorld(replace(snap, grids={entrance.position: entrance, safe.position: safe}))
 
 
-def _atomic_restore():
-    helper = fixture.HomeOneOperationPerEntryTest()
-    targets = [fixture.store_item("a", TVAL_POTION, 3000 + n, name=f"restore {n}") for n in range(12)]
-    filler = [fixture.store_item("a", TVAL_POTION, 3100 + n, name=f"home {n}") for n in range(20)]
-    stock = [*filler[:7], *targets, *filler[7:]]
-    policy = HengbotPolicy()
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(x) for x in targets]
-    policy._home_candidate_waiting = True
-    pack = helper._real_pack()
-    entrance = replace(helper._entrance_snapshot(pack, turn=3100000),
-                       equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")])
-    world = TownWorld(entrance, stock=stock, version_reply=True)
-    world.target_names = {x.name for x in targets}
-    return policy, world
-
-
 def _withdraw_refusal_cycle():
+    """Reproduce the version-probe freeze, not the 150-entry refusal cycle.
+
+    The measured refusal incident had valid incomplete 3-of-5 page provenance;
+    this seed reconstructs only the independently observed version-probe freeze.
+    """
     helper = fixture.HomeOneOperationPerEntryTest()
     missing = fixture.store_item("a", TVAL_POTION, 3990, name="missing restore")
     other = fixture.store_item("a", TVAL_POTION, 3991, name="other home item")
@@ -305,11 +288,6 @@ def _withdraw_refusal_cycle():
     entrance = replace(helper._entrance_snapshot(pack, turn=3050001),
                        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")])
     return policy, TownWorld(entrance, stock=[other])
-
-
-def _restored(_policy, world):
-    names = {x.name for x in world.inventory}
-    return "all twelve carried restores" if world.target_names <= names else None
 
 
 def _released_bound():
@@ -339,14 +317,14 @@ def _released_bound():
     policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_store_attempted[STORE_HOME] = 3200003
-    return policy, TownWorld(surface, blocked_movement=True)
+    return policy, TownWorld(surface, passable_positions={surface.player.position})
 
 
 SEEDED_STATES = (
-    AbsorbingState("home-blocked-departure", 200, _departure_freeze, _arrived_depth),
-    AbsorbingState("home-withdraw-enter-escape", 300, _withdraw_refusal_cycle, lambda _p, _w: None),
-    AbsorbingState("home-page-recurrence", 400, _page_recurrence, _arrived_outside),
-    AbsorbingState("home-page-zero-echo", 400, _page_zero_echo, _arrived_outside),
-    AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle, lambda _p, _w: None),
-    AbsorbingState("released-home-attempt-bound", 600, _released_bound, lambda _p, _w: None),
+    AbsorbingState("home-blocked-departure", 200, _departure_freeze),
+    AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
+    AbsorbingState("home-page-recurrence", 400, _page_recurrence),
+    AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
+    AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
+    AbsorbingState("released-home-attempt-bound", 600, _released_bound),
 )
