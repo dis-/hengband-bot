@@ -7,7 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from test_fakery_lint import analyze_source, scan_tests  # noqa: E402
+from test_fakery_lint import LIMITATIONS, analyze_source, scan_tests  # noqa: E402
 
 
 HISTORICAL_CASES = (
@@ -81,7 +81,7 @@ def test_wrapper():
 '''),
             ("wall split patch plus assignment", "collaborator-wall", '''
 def test_branch():
-    policy._d = fake
+    policy._d = Mock()
     with patch.object(policy, "_a"), patch.object(policy, "_b"), patch.object(policy, "_c"):
         helper_assert(policy.choose_key(snapshot))
 '''),
@@ -121,7 +121,7 @@ def test_wrapper():
     with patch(TARGET):
         helper_assert(policy.choose_key(snapshot))
 '''),
-            ("real count rewrite in assertEqual", "literal-success-predicate", '''
+            ("counted drive with aliased literal", "literal-success-predicate", '''
 def test_drive():
     expected = "pm1\\r\\r"
     keys = [policy.choose_key(snapshot) for _ in range(40)]
@@ -147,6 +147,22 @@ def test_branch():
                 self.assert_rule(rule, source)
                 print(f"{rewrite} | CAUGHT | {rule}")
 
+    def test_policy_subclass_path_override_is_caught(self):
+        self.assert_rule("public-path-replaced", '''
+class ScriptedPolicy(HengbotPolicy):
+    def _decide(self, snapshot):
+        return "6"
+''')
+
+    def test_assert_equal_scope_is_withdrawn_honestly(self):
+        findings = analyze_source('''
+def test_one_decision():
+    key = policy.choose_key(snapshot)
+    self.assertEqual(key, "pm1")
+''')
+        self.assertNotIn("literal-success-predicate", {finding.rule for finding in findings})
+        self.assertTrue(any("single-decision assertEqual/assertIn" in item for item in LIMITATIONS))
+
 
 class TestTreeFakeryLint(unittest.TestCase):
     EXPECTED_UNDECLARED = {
@@ -160,7 +176,7 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("pipeline-result-injected", "test_confirmed_loadout_survives_restart_and_is_input_key_bound"),
     }
     EXPECTED_UNDECLARED_INSTANCES = 9
-    DECLARED_FINDING_RATCHET = 111
+    DECLARED_FINDING_RATCHET = 112
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()

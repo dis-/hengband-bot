@@ -641,6 +641,7 @@ class NavigationInvariantTest(unittest.TestCase):
                 super().__init__()
                 self._reasons = iter(reasons)
 
+            # TEST_FAKERY_LINT_ALLOW: public-path-replaced: scripted navigation reasons intentionally exercise choose_key routing through a policy subclass
             def _decide(self, snapshot):
                 self.last_reason = next(self._reasons)
                 return "6" if snapshot.player.position.x == 10 else "4"

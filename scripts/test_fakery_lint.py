@@ -18,6 +18,23 @@ _ALLOW_RE = re.compile(
 )
 _PUBLIC_METHODS = frozenset({"choose_key", "_decide"})
 _PATH_METHODS = frozenset({"_decide", "_shop", "_observe"})
+LIMITATIONS = (
+    "literal-success-predicate covers literal keys used to judge counted drives "
+    "and direct comparisons of choose_key results; ordinary single-decision "
+    "assertEqual/assertIn checks are out of scope because they assert a wrapper "
+    "contract rather than manufacture repeated-drive success.",
+    "Public-drive detection is intraprocedural: a test that drives choose_key only "
+    "through a helper is not covered (16 such helpers, zero live replacement-plus-"
+    "helper-drive misses at the eb15523 census).",
+    "collaborator-wall does not classify 159 private-attribute assignments from "
+    "other call factories whose names do not identify them as callable fakes; no "
+    "live wall uses that spelling, while public-path-replaced covers path members "
+    "regardless of assigned value.",
+    "Known structural evasions remain: extracted or **kwargs best/loadout fabrication, "
+    "no-op replace keywords or named range bounds in frozen drives, and renamed "
+    "optimizer-completion helpers. These are one-edit, plausible next spellings; "
+    "their existing live-rule populations are 31, 14, and 3 respectively.",
+)
 
 
 @dataclass(frozen=True)
@@ -131,11 +148,7 @@ def _callable_assignments(function: ast.AST) -> list[tuple[int, str | None, str]
                     factory_calls.append(item)
                 else:
                     result.append(item)
-    # A lone Mock is often an asserted observer rather than a collaborator
-    # wall.  The tree's wall idiom uses three factory mocks alongside another
-    # replacement; four factory mocks are the equivalent all-Mock spelling.
-    if len(factory_calls) >= 3:
-        result.extend(factory_calls)
+    result.extend(factory_calls)
     return result
 
 
@@ -348,6 +361,23 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
                     if direct_long_drive or turn_only_replay:
                         add(call.lineno, "frozen-drive-state", f"{function.name} repeatedly drives choose_key without applying returned movement")
 
+    for class_node in [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]:
+        policy_subclass = any(
+            (_dotted_name(base) or "").split(".")[-1].endswith("Policy")
+            for base in class_node.bases
+        )
+        if not policy_subclass:
+            continue
+        for member in class_node.body:
+            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and member.name in _PATH_METHODS:
+                findings.append(Finding(
+                    path,
+                    member.lineno,
+                    "public-path-replaced",
+                    f"{class_node.name} subclasses a policy and overrides {member.name}",
+                    class_node.name,
+                ))
+
     # A declaration is valid only on the finding line or immediately above it,
     # and only for that one rule. It therefore cannot widen when a test changes.
     used_markers = set()
@@ -385,6 +415,8 @@ def main() -> int:
     findings = scan_tests(args.path) if args.path.is_dir() else analyze_source(args.path.read_text(encoding="utf-8"), args.path)
     for finding in findings:
         print(finding.render())
+    for limitation in LIMITATIONS:
+        print(f"test-fakery-lint limitation: {limitation}")
     undeclared = [finding for finding in findings if not finding.allowed_reason]
     declared = [finding for finding in findings if finding.allowed_reason]
     print(f"test-fakery-lint: {len(undeclared)} violation(s), {len(declared)} declared finding(s) in {len({f.test for f in declared})} test(s)")
