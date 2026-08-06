@@ -47565,6 +47565,84 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_restore_signatures = [("x", 75, 1)]
         self.assertFalse(policy._town_departure_ready(snapshot))
 
+    def test_live_restore_window_keeps_queue_after_confirming_home_pages(self):
+        """02:57:50-53 pin: Home was just observed, but its atomic-operation
+        pages could not yet establish a fresh address.  The T3 close must
+        reopen that reachable Home for the remaining restore, not destroy the
+        only owner of the queue.  This fixture is committed data shaped from
+        the retained snapshots; it never reads jsonlog at test time.
+        """
+        policy = self._scan_complete_policy()
+        snapshot = replace(
+            self._snapshot(
+                inventory=tuple(
+                    item(chr(ord("a") + index), TVAL_POTION, SV_POTION_CURE_CRITICAL)
+                    for index in range(11)
+                ),
+                equipment=(
+                    item(
+                        "light", TVAL_LITE, SV_LITE_FEANOR,
+                        known=True, fully_known=True, is_equipment=True,
+                    ),
+                ),
+            ),
+            player=replace(self._snapshot().player, position=Position(45, 123)),
+            turn=2940289,
+        )
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [("restore", 75, 1)]
+        policy._home_address_scan_valid = False
+        policy._last_snapshot_was_store = True
+        policy._last_snapshot_store_type = STORE_HOME
+        policy._town_was_in_town = True
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(len(snapshot.inventory), 11)
+        self.assertEqual(len(snapshot.equipment), 1)
+        self.assertEqual(policy._calibration_phase, "restore-supplies")
+        self.assertEqual(
+            policy._calibration_restore_signatures, [("restore", 75, 1)]
+        )
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertNotEqual(key, WAIT_KEY, "reachable Home retains a routing exit")
+
+    def test_calibration_telemetry_names_first_failed_entry_guard(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._calibration_blocked_this_visit = True
+        policy._calibration_restore_signatures = [("restore", 75, 1)]
+
+        state = policy.equipment_optimization_state(snapshot)
+
+        self.assertEqual(
+            state["calibration"],
+            {"phase": None, "entry_blocker": "visit-blocked"},
+        )
+        self.assertEqual(
+            state["equipment_transaction"],
+            {"phase": None, "entry_blocker": "no-session"},
+        )
+
+    def test_entry_telemetry_does_not_change_public_decision(self):
+        def fixture():
+            policy = self._scan_complete_policy()
+            snapshot = self._snapshot()
+            policy._calibration_blocked_this_visit = True
+            return policy, snapshot
+
+        control, snapshot = fixture()
+        observed, observed_snapshot = fixture()
+
+        control_key = control.choose_key(snapshot)
+        observed.calibration_entry_state(observed_snapshot)
+        observed.equipment_transaction_entry_state(observed_snapshot)
+        observed_key = observed.choose_key(observed_snapshot)
+
+        self.assertEqual(observed_key, control_key)
+        self.assertEqual(observed.last_reason, control.last_reason)
+
     def test_stalled_restore_equip_converges_to_capture_never_naked_depart(self):
         """Exhausting the restore budget while naked and calm must CONVERGE:
         capture the calibration (opening the calibration-required gate) and

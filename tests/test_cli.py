@@ -892,6 +892,29 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(record["read"], telemetry)
 
+    def test_decision_record_carries_calibration_entry_diagnostics(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(2940289, 45, 123)), {})
+        equipment = {
+            "blockers": ["calibration-required"],
+            "calibration": {
+                "phase": None,
+                "entry_blocker": "home-unavailable",
+            },
+            "equipment_transaction": {
+                "phase": None,
+                "entry_blocker": "no-session",
+            },
+        }
+
+        record = _decision_record(
+            snapshot,
+            "9",
+            "town:blocked:no-safe-recall-destination",
+            equipment_optimization=equipment,
+        )
+
+        self.assertEqual(record["equipment_optimization"], equipment)
+
     def test_records_policy_reason_and_observable_state(self):
         data = json.loads(_snap_line(123, 5, 7))
         data["floor"]["quest_id"] = 40

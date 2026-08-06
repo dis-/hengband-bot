@@ -2326,6 +2326,7 @@ class HengbotPolicy:
         # town snapshot at the same door tile. Retain one decision of store
         # context so a latched town stop closes that UI before it waits.
         self._last_snapshot_was_store = False
+        self._last_snapshot_store_type: int | None = None
         # Full-pack disposal verification: signatures of items the game would not
         # destroy (so we stop re-selecting them and forever looping), plus a watch
         # on the last attempt to detect that the pack did not change afterwards.
@@ -2962,6 +2963,9 @@ class HengbotPolicy:
         if self.last_reason != "rest":
             self._rest_count = 0
         self._last_snapshot_was_store = snapshot.store is not None
+        self._last_snapshot_store_type = (
+            snapshot.store.store_type if snapshot.store is not None else None
+        )
         self._exploration_ledger.marked_high = max(
             self._exploration_ledger.marked_high,
             len(self._remembered_known_t),
@@ -3155,6 +3159,9 @@ class HengbotPolicy:
         """
         snapshot = self._with_grid_memory(snapshot)
         self._last_snapshot_was_store = snapshot.store is not None
+        self._last_snapshot_store_type = (
+            snapshot.store.store_type if snapshot.store is not None else None
+        )
         self._observe(snapshot)
         self._build_grid_index(snapshot)
         self._exploration_ledger.marked_high = max(
@@ -8584,11 +8591,16 @@ class HengbotPolicy:
                         snapshot.store is not None
                         and snapshot.store.store_type == STORE_HOME
                     )
+                    or self._last_snapshot_store_type == STORE_HOME
                     or self._home_address_scan_valid
                 ):
                     # A current Home page is positive progress toward the
-                    # fresh address scan.  A visit-budget latch from an earlier
-                    # one-shot item must not discard the remaining restore.
+                    # fresh address scan.  The immediately following surface
+                    # snapshot is the confirmation edge for that same visit;
+                    # it is also positive reachability even when the one-shot
+                    # operation pages deliberately could not seed an address
+                    # scan.  A visit-budget latch from that earlier item must
+                    # not discard the remaining restore.
                     self._rearm_town_store_for_new_work(
                         STORE_HOME, release_visit_bound=True
                     )
@@ -8668,6 +8680,70 @@ class HengbotPolicy:
             self.last_reason = "calibration:await-capture"
             return WAIT_KEY
         return None
+
+    def calibration_entry_state(self, snapshot: Snapshot) -> dict[str, object]:
+        """Bounded diagnostics for calibration's first-refusal town gate."""
+        blocker = None
+        if not snapshot.in_town:
+            blocker = "not-in-town"
+        elif snapshot.store is not None:
+            blocker = "inside-store"
+        elif snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
+            blocker = "not-warrior"
+        elif self._calibration_phase is None:
+            checks = (
+                (self._calibration_blocked_this_visit, "visit-blocked"),
+                (bool(self._calibration_restore_signatures), "restore-queue-without-phase"),
+                (not self._equipment_catalog.home_scan_complete, "home-scan-incomplete"),
+                (
+                    self._validated_character_calibration(snapshot) is not None,
+                    "calibration-valid",
+                ),
+                (
+                    not self._calibration_preconditions_met(snapshot),
+                    "calibration-preconditions",
+                ),
+                (not self._home_available(snapshot), "home-unavailable"),
+                (
+                    self._equipment_transaction_session is not None,
+                    "equipment-transaction-active",
+                ),
+                (self._identification_need is not None, "identification-active"),
+                (self._home_pending_item is not None, "home-item-pending"),
+                (bool(self._home_pending_batch), "home-batch-pending"),
+                (
+                    self._home_atomic_withdraw_pending is not None,
+                    "home-withdraw-inflight",
+                ),
+            )
+            blocker = next((name for failed, name in checks if failed), None)
+        return {
+            "phase": self._calibration_phase,
+            "entry_blocker": blocker,
+        }
+
+    def equipment_transaction_entry_state(
+        self, snapshot: Snapshot
+    ) -> dict[str, object]:
+        """Bounded diagnostics for equipment transaction's town gate."""
+        session = self._equipment_transaction_session
+        blocker = None
+        if not snapshot.in_town:
+            blocker = "not-in-town"
+        elif snapshot.store is not None:
+            blocker = "inside-store"
+        elif session is None:
+            blocker = "no-session"
+        elif self._home_page_advance_pending and session.required_context == "home":
+            blocker = "home-page-advance-pending"
+        elif not session.executable:
+            blocker = "session-not-executable"
+        elif session.pending_action is not None:
+            blocker = "action-awaiting-confirmation"
+        return {
+            "phase": session.required_context if session is not None else None,
+            "entry_blocker": blocker,
+        }
 
     @staticmethod
     def _equipment_exclusion_telemetry(
@@ -9269,6 +9345,24 @@ class HengbotPolicy:
         )
         session = self._equipment_transaction_session
         state: dict[str, object] = {
+            "calibration": (
+                self.calibration_entry_state(snapshot)
+                if snapshot is not None
+                else {
+                    "phase": self._calibration_phase,
+                    "entry_blocker": None,
+                }
+            ),
+            "equipment_transaction": (
+                self.equipment_transaction_entry_state(snapshot)
+                if snapshot is not None
+                else {
+                    "phase": (
+                        session.required_context if session is not None else None
+                    ),
+                    "entry_blocker": None,
+                }
+            ),
             "home_scan_complete": self._equipment_catalog.home_scan_complete,
             "catalog_items": len(catalog),
             "incomplete_items": sum(
