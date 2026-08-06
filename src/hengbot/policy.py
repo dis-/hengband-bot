@@ -2853,13 +2853,19 @@ class HengbotPolicy:
             and self._store_buy_inflight is not None
             and (
                 self._town_visit_ledger.pending_store_transaction is None
-                or snapshot.grid_at(snapshot.player.position) is None
-                or snapshot.grid_at(snapshot.player.position).store_number
+                or self._town_visit_ledger.pending_store_transaction[0]
                 != self._store_buy_inflight[0]
+                or not (
+                    self.last_reason == "shop:approach"
+                    or self.last_reason.endswith(":await-entry")
+                )
             )
         ):
-            # The purchase never reached a confirming store generation.  Do not
-            # retain it for a later visit or record it as a completed purchase.
+            # Correlate rejection with the transaction ledger and the active
+            # store-approach owner, not the player's current cell.  An entrance
+            # step-off can legitimately move away while the paid command is
+            # still awaiting its confirming store generation; position-based
+            # invalidation repeats that purchase.
             self._store_buy_inflight = None
         if (
             self._equipment_transaction_prepared_key is not None
@@ -2965,14 +2971,27 @@ class HengbotPolicy:
         through an unknown, warning-refused, hazardous, occupied, or special
         grid.
         """
-        if key != WAIT_KEY or snapshot.store is not None or not snapshot.in_town:
+        if key != WAIT_KEY or snapshot.store is not None:
             return key
         if not hasattr(snapshot, "grid_at") or not hasattr(snapshot, "player"):
             return key
+        if self.last_reason in {"livelock:exhausted", "combat:fruitless"}:
+            return key
         here = snapshot.grid_at(snapshot.player.position)
-        if here is None or not (
-            here.store_number >= 0 or here.building_special >= 0
-        ):
+        on_disclosed_entrance = here is not None and (
+            here.store_number >= 0
+            or here.building_special >= 0
+            or here.has_quest_enter
+            or here.has_quest_exit
+        )
+        # A transient emitter omission at the player's cell must not reopen the
+        # live Home-door hole.  Store positions are retained from prior
+        # disclosures for the current floor visit.
+        on_remembered_store = any(
+            snapshot.player.position in positions
+            for positions in self._town_store_positions.values()
+        )
+        if not (on_disclosed_entrance or on_remembered_store):
             return key
 
         origin = snapshot.player.position
@@ -2985,8 +3004,11 @@ class HengbotPolicy:
                 or not grid.passable
                 or grid.has_monster
                 or grid.is_door
+                or grid.has_entrance
                 or grid.store_number >= 0
                 or grid.building_special >= 0
+                or grid.has_quest_enter
+                or grid.has_quest_exit
                 or candidate in self._warning_refused_cells
                 or candidate in self._engagement_owned_avoid_cells
                 or self._is_avoidable_hazard_grid(grid)
@@ -3000,7 +3022,8 @@ class HengbotPolicy:
         step = min(candidates, key=lambda position: self._visit_counts[position])
         prior_reason = self.last_reason
         key = self._step_toward(snapshot, step)
-        self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
+        if not (prior_reason or "").startswith("town:blocked:"):
+            self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
         return key
 
     def observe_character_snapshot(self, character) -> None:

@@ -5588,6 +5588,12 @@ class ShoppingTest(unittest.TestCase):
         )
         self.assertIsNotNone(policy._store_buy_inflight)
 
+        moved_surface = replace(
+            surface,
+            player=replace(surface.player, position=Position(36, 90)),
+        )
+        self.assertEqual(policy.choose_key(moved_surface), "3")
+        self.assertEqual(policy.last_reason, "shop:approach")
         self.assertEqual(policy.choose_key(store), "\r")
         self.assertEqual(policy.last_reason, "shop:await-buy-confirmation")
         self.assertNotEqual(policy.choose_key(store), "pm1\r\r")
@@ -47800,6 +47806,100 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(key, "4")
         self.assertEqual(
             policy.last_reason, "town:entrance-step-off:town:wait-recall"
+        )
+
+    def test_wait_steps_off_quest_entrances_and_never_steps_onto_one(self):
+        for quest_field in ("has_quest_enter", "has_quest_exit"):
+            with self.subTest(direction="off", quest_field=quest_field):
+                policy, snapshot = self._fixture()
+                origin = snapshot.player.position
+                current = replace(snapshot.grids[origin], **{quest_field: True})
+                safe = grid(45, 122, lit=True, in_view=True)
+                guarded = replace(
+                    snapshot,
+                    player=replace(snapshot.player, recalling=True),
+                    grids={current.position: current, safe.position: safe},
+                )
+
+                self.assertEqual(policy.choose_key(guarded), "4")
+                self.assertEqual(
+                    policy.last_reason,
+                    "town:entrance-step-off:town:wait-recall",
+                )
+
+            with self.subTest(direction="onto", quest_field=quest_field):
+                policy, snapshot = self._fixture()
+                origin = snapshot.player.position
+                current = replace(snapshot.grids[origin], building_special=1)
+                quest = replace(
+                    grid(45, 122, lit=True, in_view=True), **{quest_field: True}
+                )
+                guarded = replace(
+                    snapshot,
+                    player=replace(snapshot.player, recalling=True),
+                    grids={current.position: current, quest.position: quest},
+                )
+
+                self.assertEqual(policy.choose_key(guarded), WAIT_KEY)
+                self.assertEqual(policy.last_reason, "livelock:exhausted")
+
+    def test_entrance_guard_preserves_visible_terminal_and_blocked_fuse(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        policy, snapshot = self._fixture()
+        origin = snapshot.player.position
+        entrance = replace(snapshot.grids[origin], store_number=STORE_HOME)
+        safe = grid(45, 122, lit=True, in_view=True)
+        guarded = replace(
+            snapshot, grids={entrance.position: entrance, safe.position: safe}
+        )
+
+        policy.last_reason = "livelock:exhausted"
+        self.assertEqual(
+            policy._forbid_wait_on_town_entrance(guarded, WAIT_KEY), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
+
+        policy.last_reason = "town:blocked:no-safe-recall-destination"
+        self.assertEqual(policy._forbid_wait_on_town_entrance(guarded, WAIT_KEY), "4")
+        self.assertEqual(
+            policy.last_reason, "town:blocked:no-safe-recall-destination"
+        )
+        self.assertEqual(_advance_town_blocked_streak(7, policy.last_reason), 8)
+
+    def test_remembered_store_position_covers_missing_current_grid(self):
+        policy, snapshot = self._fixture()
+        origin = snapshot.player.position
+        entrance = replace(snapshot.grids[origin], store_number=STORE_HOME)
+        safe = grid(45, 122, lit=True, in_view=True)
+        disclosed = replace(
+            snapshot, grids={entrance.position: entrance, safe.position: safe}
+        )
+        policy._emitted_t = {(origin.y, origin.x), (safe.position.y, safe.position.x)}
+        policy._begin_map_predicate_cache(disclosed)
+        omitted = replace(disclosed, grids={safe.position: safe})
+        policy.last_reason = "town:wait-recall"
+
+        self.assertEqual(policy._forbid_wait_on_town_entrance(omitted, WAIT_KEY), "4")
+        self.assertEqual(
+            policy.last_reason, "town:entrance-step-off:town:wait-recall"
+        )
+
+    def test_non_town_building_wait_is_also_guarded(self):
+        policy, snapshot = self._fixture()
+        origin = snapshot.player.position
+        entrance = replace(snapshot.grids[origin], building_special=1)
+        safe = grid(45, 122, lit=True, in_view=True)
+        outside = replace(
+            snapshot,
+            town_flag=False,
+            grids={entrance.position: entrance, safe.position: safe},
+        )
+        policy.last_reason = "wait"
+
+        self.assertEqual(policy._forbid_wait_on_town_entrance(outside, WAIT_KEY), "4")
+        self.assertEqual(
+            policy.last_reason, "town:entrance-step-off:wait"
         )
 
     def test_entrance_wait_never_uses_warning_hazard_or_unexplored_grid(self):
