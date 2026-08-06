@@ -155,13 +155,31 @@ class ScriptedPolicy(HengbotPolicy):
 ''')
 
     def test_assert_equal_scope_is_withdrawn_honestly(self):
-        findings = analyze_source('''
+        single_findings = analyze_source('''
 def test_one_decision():
     key = policy.choose_key(snapshot)
     self.assertEqual(key, "pm1")
 ''')
-        self.assertNotIn("literal-success-predicate", {finding.rule for finding in findings})
-        self.assertTrue(any("single-decision assertEqual/assertIn" in item for item in LIMITATIONS))
+        repeated_findings = analyze_source('''
+def test_repeated_drive():
+    keys = [policy.choose_key(snapshot) for _ in range(LIVELOCK_LIMIT + 1)]
+    self.assertEqual(keys[-1], "8")
+''')
+        self.assertNotIn(
+            "literal-success-predicate", {finding.rule for finding in single_findings}
+        )
+        self.assertNotIn(
+            "literal-success-predicate", {finding.rule for finding in repeated_findings}
+        )
+        self.assertTrue(
+            any(
+                "assertEqual/assertIn against a literal are not inspected" in item
+                and "single-decision or repeated drives alike" in item
+                and "92 live assertion sites in 54 functions" in item
+                and "list/set-comprehension-built" in item
+                for item in LIMITATIONS
+            )
+        )
 
 
 class TestTreeFakeryLint(unittest.TestCase):

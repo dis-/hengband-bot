@@ -19,10 +19,12 @@ _ALLOW_RE = re.compile(
 _PUBLIC_METHODS = frozenset({"choose_key", "_decide"})
 _PATH_METHODS = frozenset({"_decide", "_shop", "_observe"})
 LIMITATIONS = (
-    "literal-success-predicate covers literal keys used to judge counted drives "
-    "and direct comparisons of choose_key results; ordinary single-decision "
-    "assertEqual/assertIn checks are out of scope because they assert a wrapper "
-    "contract rather than manufacture repeated-drive success.",
+    "literal-success-predicate covers .count(<literal>) on list/set-comprehension-"
+    "built choose_key collections and Compare nodes against names bound directly "
+    "from choose_key. assertEqual/assertIn against a literal are not inspected, "
+    "for single-decision or repeated drives alike (92 live assertion sites in 54 "
+    "functions). Generator-expression and append-built counted drives are also "
+    "outside this rule.",
     "Public-drive detection is intraprocedural: a test that drives choose_key only "
     "through a helper is not covered (16 such helpers, zero live replacement-plus-"
     "helper-drive misses at the eb15523 census).",
