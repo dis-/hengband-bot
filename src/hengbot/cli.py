@@ -102,6 +102,14 @@ TERMINAL_NUDGE_LIMIT = 8
 DEATH_EXIT_KEYS = ("\x1b", "n", "\r")
 DEATH_EXIT_ROUNDS = 8
 
+# Every tenth level Hengband blocks outside the command loop and asks for a stat
+# (a-f), then confirmation. The screen ignores Escape and emits no snapshot.
+# After two harmless Esc nudges, alternate Strength and confirmation only when
+# the last observed page was outside a store. A DEFAULT_Y purchase confirmation
+# is reachable only from a store page; a level-up prompt is not.
+LEVEL_UP_STAT_CHOICE = "a"
+LEVEL_UP_RECOVERY_START = 2
+
 # Loop / stuck detection. If the character stays confined to a handful of tiles
 # on a single floor for this many consecutive decisions, it is looping — an
 # exploration oscillation the policy's own anti-stuck guards (visit penalty,
@@ -1205,10 +1213,20 @@ def _chest_movement_response_pending(
     )
 
 
-def _stall_recovery_key(nudge_streak: int, last_player_level: int | None) -> tuple[str, str]:
-    # A timeout supplies no evidence about which blocking prompt is active.
-    # Escape rejects DEFAULT_Y and ordinary y/n confirmations alike; stale
-    # character-level data must never authorize a blind affirmative answer.
+def _stall_recovery_key(
+    nudge_streak: int,
+    last_player_level: int | None,
+    last_snapshot_in_store: bool,
+) -> tuple[str, str]:
+    if (
+        not last_snapshot_in_store
+        and last_player_level is not None
+        and last_player_level % 10 in (8, 9)
+        and nudge_streak >= LEVEL_UP_RECOVERY_START
+    ):
+        if (nudge_streak - LEVEL_UP_RECOVERY_START) % 2 == 0:
+            return LEVEL_UP_STAT_CHOICE, f"<level-stat:{LEVEL_UP_STAT_CHOICE}>"
+        return "y", "<level-stat:y>"
     return NUDGE_KEY, "<esc>"
 
 
@@ -2022,7 +2040,9 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 and now >= quiet_ok_until
             ):
                 recovery_key, recovery_marker = _stall_recovery_key(
-                    nudge_streak, last_player_level
+                    nudge_streak,
+                    last_player_level,
+                    snapshot is not None and snapshot.store is not None,
                 )
                 if _send_stall_recovery_nudge(
                     send, recovery_key, posted_decision_keys

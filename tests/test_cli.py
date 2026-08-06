@@ -1508,10 +1508,16 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
-    def test_level_29_stall_recovery_never_affirms_an_unknown_prompt(self):
+    def test_level_29_stall_recovery_escapes_stat_prompt_outside_store(self):
+        self.assertEqual(_stall_recovery_key(0, 29, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(1, 29, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(2, 29, False), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(3, 29, False), ("y", "<level-stat:y>"))
+
+    def test_level_29_store_stall_never_affirms_default_y(self):
         safe_default_y_answers = {"\x1b", "n", "N"}
         for nudge_streak in range(8):
-            key, _marker = _stall_recovery_key(nudge_streak, 29)
+            key, _marker = _stall_recovery_key(nudge_streak, 29, True)
             self.assertIn(key, safe_default_y_answers)
 
     def test_floor_transition_clears_arrival_prompt_exactly_on_change(self):
@@ -1661,26 +1667,26 @@ class StallRecoveryTest(unittest.TestCase):
             STORE_ITEM_PROMPT_DELAY_SECONDS,
         )
 
-    def test_never_guesses_the_level_ten_stat_prompt_after_escape_nudges(self):
-        self.assertEqual(_stall_recovery_key(0, 9), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(1, 9), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(2, 9), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(3, 9), ("\x1b", "<esc>"))
+    def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):
+        self.assertEqual(_stall_recovery_key(0, 9, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(1, 9, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(2, 9, False), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(3, 9, False), ("y", "<level-stat:y>"))
 
-    def test_keeps_recovery_nudges_prompt_safe_after_repeated_timeouts(self):
-        self.assertEqual(_stall_recovery_key(4, 9), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(5, 9), ("\x1b", "<esc>"))
+    def test_keeps_retrying_the_stat_answers_if_a_key_was_lost(self):
+        self.assertEqual(_stall_recovery_key(4, 9, False), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(5, 9, False), ("y", "<level-stat:y>"))
 
-    def test_two_level_jump_does_not_authorize_blind_stat_answers(self):
-        # A stale clvl 8/18 snapshot is not evidence that the blocking prompt
-        # is the level-up stat screen; recovery remains prompt-safe.
-        self.assertEqual(_stall_recovery_key(2, 8), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(3, 18), ("\x1b", "<esc>"))
+    def test_covers_a_two_level_jump_over_the_stat_threshold(self):
+        # One out-of-depth kill can jump 8→10; the last snapshot still says
+        # clvl 8, and the stat screen is up all the same.
+        self.assertEqual(_stall_recovery_key(2, 8, False), ("a", "<level-stat:a>"))
+        self.assertEqual(_stall_recovery_key(3, 18, False), ("y", "<level-stat:y>"))
 
     def test_does_not_send_stat_answers_at_other_levels(self):
-        self.assertEqual(_stall_recovery_key(2, 7), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(3, 10), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(2, None), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(2, 7, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 10, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(2, None, False), ("\x1b", "<esc>"))
 
 
 class StationaryReasonsTest(unittest.TestCase):
