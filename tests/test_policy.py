@@ -43954,6 +43954,60 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:restart-address-scan")
         self.assertEqual(policy._home_address_pages, [])
 
+    def test_live_delayed_probe_reply_does_not_discard_later_space(self):
+        """Replay the 08:52:59 store sequence from emitted records 631-635."""
+        letters = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        page_zero = [
+            store_item(letter, TVAL_POTION, 1400 + index,
+                       name="油つぼ" if index == 0 else f"live page zero {index}")
+            for index, letter in enumerate(letters)
+        ]
+        page_one = [
+            store_item(letter, TVAL_POTION, 1500 + index,
+                       name="クローク [1,+0]" if index == 0 else f"live page one {index}")
+            for index, letter in enumerate(letters[:40])
+        ]
+        target = page_one[-1]
+        policy = HengbotPolicy()
+        policy._calibration_blocked_this_visit = True
+        policy._home_pending_item = policy._item_signature(target)
+        pack = self._real_pack()
+
+        emitted = (
+            (page_zero, ()),
+            (page_zero, ("そのコマンドは店の中では使えません。",)),
+            (page_one, ()),
+            (page_one, ("変愚蛮怒 3.0.2Beta3",)),
+            (page_zero, ()),
+        )
+        keys = []
+        for offset, (page, messages) in enumerate(emitted):
+            snapshot = self._home_page_snapshot(
+                pack, page, turn=2939651 + offset
+            )
+            keys.append(policy.choose_key(replace(snapshot, messages=messages)))
+
+        self.assertEqual(keys, [" ", HOME_PAGE_PROBE_KEY, " ", HOME_PAGE_PROBE_KEY, LEAVE_STORE_KEY])
+        self.assertTrue(policy._home_address_scan_valid)
+        self.assertEqual(policy._home_address_page_count, 2)
+        self.assertEqual(policy._home_address_ordinals, [0, 1])
+        self.assertEqual(policy.last_reason, "home:leave-for-atomic-withdraw")
+
+        policy._calibration_blocked_this_visit = True
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(target)
+        ]
+        policy._home_candidate_waiting = True
+        policy._shopping_approach_store_type = STORE_HOME
+        entrance = replace(
+            self._entrance_snapshot([], turn=2939662),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        atomic_key = policy.choose_key(entrance)
+        self.assertEqual(atomic_key, "5 pN\x1b", policy.last_reason)
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+
     def test_public_page_zero_echo_leaves_to_restart_address_scan(self):
         wares = [
             store_item(

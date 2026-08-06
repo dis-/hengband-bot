@@ -2288,6 +2288,7 @@ class HengbotPolicy:
         # a main-loop town snapshot.  last_reason is therefore not a reliable
         # proof that the next Home snapshot is the result of our page advance.
         self._home_page_advance_pending = False
+        self._home_page_probe_from_identity: tuple | None = None
         self._home_page_advance_store_none_decisions = 0
         # Page identity the last Home SPACE was posted from.  While the advance
         # is pending, a Home snapshot showing this same identity may predate
@@ -2520,6 +2521,7 @@ class HengbotPolicy:
                 self._home_address_scan_valid = False
                 self._home_address_page_count = None
                 self._home_address_restart_required = False
+                self._home_page_probe_from_identity = None
             page_identity = tuple(
                 (item.name, item.tval, item.sval, item.count)
                 for item in snapshot.store.items
@@ -2572,7 +2574,18 @@ class HengbotPolicy:
                     )
                     for message in snapshot.messages
                 ):
-                    page_advance_confirmed = True
+                    # A probe posted while waiting on the preceding SPACE can
+                    # arrive after that SPACE changed the page and the chooser
+                    # posted the next SPACE.  Bind its reply to the page from
+                    # which it was requested; otherwise the delayed banner
+                    # falsely confirms the later advance and makes the
+                    # recorder discard a repeated stale page.
+                    if (
+                        self._home_page_probe_from_identity
+                        == self._home_page_advance_from_identity
+                    ):
+                        page_advance_confirmed = True
+                    self._home_page_probe_from_identity = None
                 if page_advance_confirmed:
                     self._home_page_advance_pending = False
                     self._home_page_advance_from_identity = None
@@ -16380,6 +16393,9 @@ class HengbotPolicy:
             # the reply — or the advance's own redraw — is at most one probe
             # round-trip away: no counter is needed.
             self.last_reason = "home:await-page-advance"
+            self._home_page_probe_from_identity = (
+                self._home_page_advance_from_identity
+            )
             return HOME_PAGE_PROBE_KEY
 
         suppress_random_teleport = self._town_random_teleport_suppression_key(
