@@ -901,7 +901,7 @@ class DecisionRecordTest(unittest.TestCase):
                 "entry_blocker": "home-unavailable",
             },
             "equipment_transaction": {
-                "phase": None,
+                "context": None,
                 "entry_blocker": "no-session",
             },
         }

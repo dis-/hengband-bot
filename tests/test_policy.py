@@ -47586,16 +47586,20 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                     ),
                 ),
             ),
-            player=replace(self._snapshot().player, position=Position(45, 123)),
             turn=2940289,
         )
         policy._calibration_phase = "restore-supplies"
         policy._calibration_restore_signatures = [("restore", 75, 1)]
         policy._home_address_scan_valid = False
-        policy._last_snapshot_was_store = True
-        policy._last_snapshot_store_type = STORE_HOME
+        policy._calibration_home_rearm_eligible = True
+        policy._calibration_home_rearm_queue = tuple(
+            policy._calibration_restore_signatures
+        )
         policy._town_was_in_town = True
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
 
         key = policy.choose_key(snapshot)
 
@@ -47605,8 +47609,33 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(
             policy._calibration_restore_signatures, [("restore", 75, 1)]
         )
+        self.assertIn(snapshot.player.position, snapshot.grids)
+        self.assertEqual(snapshot.grids[self.HOME].store_number, STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertFalse(policy._calibration_home_rearm_eligible)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+            policy_module.TOWN_STOP_PASS_LIMIT,
+        )
         self.assertNotEqual(key, WAIT_KEY, "reachable Home retains a routing exit")
+
+    def test_blocking_leave_cannot_manufacture_restore_rearm(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [("restore", 75, 1)]
+        policy._last_snapshot_was_store = True
+        policy._last_snapshot_store_type = STORE_HOME
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
+
+        policy._calibration_observe(snapshot)
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
     def test_calibration_telemetry_names_first_failed_entry_guard(self):
         policy = self._scan_complete_policy()
@@ -47622,7 +47651,26 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         self.assertEqual(
             state["equipment_transaction"],
-            {"phase": None, "entry_blocker": "no-session"},
+            {"context": None, "entry_blocker": "no-session"},
+        )
+
+    def test_live_phase_telemetry_names_blocked_home(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._calibration_phase = "deposit"
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+
+        state = policy.calibration_entry_state(snapshot)
+
+        self.assertEqual(
+            state, {"phase": "deposit", "entry_blocker": "home-visit-blocked"}
+        )
+
+        policy._town_visit_ledger.blocked_stores.discard(STORE_HOME)
+        healthy = policy.calibration_entry_state(snapshot)
+
+        self.assertEqual(
+            healthy, {"phase": "deposit", "entry_blocker": None}
         )
 
     def test_entry_telemetry_does_not_change_public_decision(self):

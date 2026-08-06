@@ -321,6 +321,45 @@ def _released_bound():
     return policy, TownWorld(surface, passable_positions={surface.player.position})
 
 
+def _calibration_rearm_cycle():
+    """A swallowed Home page cannot turn one fresh-entry proof into a loop."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    policy = HengbotPolicy()
+    pack = helper._real_pack()
+    entrance = helper._entrance_snapshot(pack, turn=3210000)
+    surface = replace(
+        entrance,
+        player=replace(entrance.player, position=Position(45, 122)),
+        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
+    )
+    stock = [
+        fixture.store_item(
+            chr(ord("a") + n % 12), TVAL_POTION, 4100 + n,
+            name=f"rearm catalogue {n}",
+        )
+        for n in range(60)
+    ]
+    target = stock[-1]
+    policy._calibration_phase = "restore-supplies"
+    policy._calibration_restore_signatures = [policy._item_signature(target)]
+    policy._home_candidate_waiting = True
+    policy._home_address_scan_valid = False
+    policy._calibration_home_rearm_eligible = True
+    policy._calibration_home_rearm_queue = tuple(
+        policy._calibration_restore_signatures
+    )
+    policy._last_snapshot_was_store = True
+    policy._last_snapshot_store_type = STORE_HOME
+    policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+    policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
+    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
+    policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
+    policy._town_store_attempted[STORE_HOME] = surface.turn - 1
+    return policy, TownWorld(
+        surface, stock=stock, swallow_space=True, version_reply=True
+    )
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -328,4 +367,5 @@ SEEDED_STATES = (
     AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
     AbsorbingState("released-home-attempt-bound", 600, _released_bound),
+    AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
 )
