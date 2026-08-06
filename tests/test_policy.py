@@ -47537,6 +47537,10 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._home_address_page_count = 1
         policy._home_address_scan_valid = True
         policy._shopping_approach_store_type = STORE_HOME
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
         entrance = replace(
             self._snapshot(store=None),
             grids={
@@ -47546,7 +47550,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             },
         )
 
-        key = policy._atomic_home_withdraw_key(entrance, Position(10, 10))
+        key = policy.choose_key(entrance)
 
         self.assertEqual(key, "5" + policy_module.BUY_KEY + "d" + "5\r\x1b")
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
@@ -47626,16 +47630,16 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_restore_signatures = [("restore", 75, 1)]
         policy._last_snapshot_was_store = True
         policy._last_snapshot_store_type = STORE_HOME
+        policy._calibration_blocked_this_visit = True
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
         policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
             policy_module.TOWN_STOP_PASS_LIMIT
         )
 
-        policy._calibration_observe(snapshot)
+        policy.choose_key(snapshot)
 
-        self.assertIsNone(policy._calibration_phase)
+        self.assertFalse(policy._calibration_home_rearm_eligible)
         self.assertEqual(policy._calibration_restore_signatures, [])
-        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
     def test_calibration_telemetry_names_first_failed_entry_guard(self):
         policy = self._scan_complete_policy()

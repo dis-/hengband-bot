@@ -2531,9 +2531,10 @@ class HengbotPolicy:
                 # A fresh page is positive reachability evidence independent
                 # of the later leave which may raise Home's T3 latch. Arm it
                 # only for a restore queue not previously seen at a fresh
-                # entry. Successful withdrawal strictly shrinks that queue;
-                # a leave cannot change it. Thus no-progress work can spend
-                # one proof, while later proofs require real queue progress.
+                # entry.  During restore-supplies the queue is monotonically
+                # non-increasing, so distinct queue signatures (and therefore
+                # releases) are bounded by its initial cardinality.  A leave
+                # cannot change the queue or manufacture another entry edge.
                 restore_queue = tuple(self._calibration_restore_signatures)
                 if (
                     self._calibration_phase == "restore-supplies"
@@ -8605,7 +8606,10 @@ class HengbotPolicy:
                 self._calibration_phase = None
                 self._calibration_home_rearm_eligible = False
             elif STORE_HOME in self._town_visit_ledger.blocked_stores:
-                if self._calibration_home_rearm_eligible:
+                if (
+                    self._calibration_home_rearm_eligible
+                    or self._home_address_scan_valid
+                ):
                     # The fresh-entry edge armed this before the blocking
                     # leave.  Consume it once; the raising leave itself cannot
                     # recreate it, and an unchanged restore queue prevents the

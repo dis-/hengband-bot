@@ -339,22 +339,24 @@ def _calibration_rearm_cycle():
         )
         for n in range(60)
     ]
+    home = replace(
+        helper._home_page_snapshot(pack, stock[:12], turn=3210000),
+        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
+    )
     target = stock[-1]
     policy._calibration_phase = "restore-supplies"
     policy._calibration_restore_signatures = [policy._item_signature(target)]
     policy._home_candidate_waiting = True
     policy._home_address_scan_valid = False
-    policy._calibration_home_rearm_eligible = True
-    policy._calibration_home_rearm_queue = tuple(
-        policy._calibration_restore_signatures
-    )
-    policy._last_snapshot_was_store = True
-    policy._last_snapshot_store_type = STORE_HOME
     policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
     policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_store_attempted[STORE_HOME] = surface.turn - 1
+    entry_world = TownWorld(
+        home, stock=stock, swallow_space=True, version_reply=True
+    )
+    entry_world.apply(policy.choose_key(entry_world.snapshot(0)))
     return policy, TownWorld(
         surface, stock=stock, swallow_space=True, version_reply=True
     )
