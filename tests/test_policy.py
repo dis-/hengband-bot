@@ -18777,6 +18777,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._last_snapshot_was_store = False
 
         outside = replace(snap, store=None)
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: failed digger-withdrawal suppression is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
         key = policy.choose_key(outside)
 
@@ -25469,6 +25470,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
         policy = HengbotPolicy()
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: unbound home-deposit ordering is isolated from the downstream sale decision
         policy._decide = Mock(return_value=SELL_KEY + gear.slot)
         self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
@@ -25501,6 +25503,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._equipment_catalog.observe_home_page([home_item])
         policy._equipment_catalog.observe_home_page([home_item])
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: repeated home-catalog observation is isolated from the downstream sale decision
         policy._decide = Mock(return_value=SELL_KEY + surplus.slot)
 
         self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
@@ -44763,6 +44766,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(self._choose_atomic_withdrawal(policy, entrance), "5pa\x1b")
 
         outside = replace(entrance, turn=entrance.turn + 1)
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: failed atomic-withdrawal reporting is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
         self.assertEqual(policy.choose_key(outside), "4")
         self.assertEqual(
@@ -44984,6 +44988,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         approach = self._entrance_snapshot(self._real_pack(target))
         home = self._snapshot(self._real_pack(target))
         self._post_atomic(policy, approach, target)
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: pending-home-operation routing is isolated from the downstream deposit decision
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         for _ in range(3):
@@ -45028,6 +45033,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=40, name="surplus arrows")
         home = self._snapshot(self._real_pack(target))
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: already-inside atomic routing is isolated from the downstream deposit decision
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         self.assertEqual(policy.choose_key(home), policy_module.LEAVE_STORE_KEY)
@@ -45039,6 +45045,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         approach = self._entrance_snapshot(self._real_pack(target))
         home = self._snapshot(self._real_pack(target))
         atomic = self._post_atomic(policy, approach, target)
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: real-pack side-effect guarding is isolated from the downstream deposit decision
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         keys = [atomic, *(policy.choose_key(home) for _ in range(4))]
@@ -45055,6 +45062,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         self.assertEqual(self._post_atomic(policy, entrance, target), "5df\x1b")
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: atomic-post observation ordering is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
         self.assertEqual(policy.choose_key(outside), WAIT_KEY)
         policy._decide.assert_called_once_with(outside)
@@ -45070,6 +45078,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self._post_atomic(policy, entrance, target)
         pending = policy._home_atomic_deposit_pending
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: unchanged-snapshot latch retention is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
         policy.choose_key(unchanged)
 
@@ -45100,6 +45109,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             entrance.turn,
             STORE_HOME,
         )
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: observed-home-leave latch release is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
         policy.choose_key(unchanged)
 
@@ -45185,6 +45195,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             operations.append(self._post_atomic(policy, approach, target))
             remaining = [item_ for item_ in remaining if item_.slot != target.slot]
             outside = self._snapshot(remaining, at_home=False, turn=approach.turn + 1)
+            # TEST_FAKERY_LINT_ALLOW: public-path-replaced: multi-deposit entry accounting is isolated from the downstream outside decision
             policy._decide = Mock(return_value=WAIT_KEY)
             policy.choose_key(outside)
 

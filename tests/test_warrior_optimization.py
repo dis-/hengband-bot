@@ -26,6 +26,9 @@ from hengbot.equipment_transaction_session import (
 from hengbot.model import (
     InventoryItem,
     PLAYER_CLASS_WARRIOR,
+    PlayerState,
+    Position,
+    Snapshot,
     STORE_ALCHEMIST,
     STORE_HOME,
     StoreItem,
@@ -865,6 +868,25 @@ class WarriorOptimizationTest(unittest.TestCase):
             policy.last_reason, "equipment-transaction:await-home-page"
         )
         self.assertTrue(policy._home_page_advance_pending)
+
+    def test_policy_bounds_home_page_wait_on_consecutive_town_snapshots(self):
+        policy = HengbotPolicy()
+        policy._home_page_advance_pending = True
+        snapshot = Snapshot(
+            player=PlayerState(
+                position=Position(1, 1), hp=100, max_hp=100, mp=0,
+                max_mp=0, level=1, class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            grids={},
+            visible_monsters=[],
+            town_flag=True,
+        )
+
+        policy.choose_key(snapshot)
+        self.assertTrue(policy._home_page_advance_pending)
+
+        policy.choose_key(snapshot)
+        self.assertFalse(policy._home_page_advance_pending)
 
     def test_policy_clears_home_page_wait_on_interleaved_alchemist_snapshot(self):
         policy = HengbotPolicy()

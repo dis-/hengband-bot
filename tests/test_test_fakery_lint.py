@@ -103,6 +103,50 @@ def test_renamed_invariant():
                 self.assert_rule(rule, source)
                 print(f"{rewrite} | CAUGHT | {rule}")
 
+    def test_repository_idiom_evasions_are_caught(self):
+        cases = (
+            ("Mock assignment", "public-path-replaced", '''
+def test_wrapper():
+    policy._decide = Mock(return_value="6ma")
+    helper_assert(policy.choose_key(snapshot))
+'''),
+            ("mock.patch.object", "public-path-replaced", '''
+def test_wrapper():
+    with mock.patch.object(policy, "_decide", return_value="6ma"):
+        helper_assert(policy.choose_key(snapshot))
+'''),
+            ("module constant patch target", "public-path-replaced", '''
+TARGET = "hengbot.policy.HengbotPolicy._decide"
+def test_wrapper():
+    with patch(TARGET):
+        helper_assert(policy.choose_key(snapshot))
+'''),
+            ("real count rewrite in assertEqual", "literal-success-predicate", '''
+def test_drive():
+    expected = "pm1\\r\\r"
+    keys = [policy.choose_key(snapshot) for _ in range(40)]
+    self.assertEqual(keys.count(expected), 3)
+'''),
+            ("renamed invariant", "invariant-input-overwritten", '''
+def test_partial_optimizer_permits_direct_entrance():
+    policy._fundraising_mode = None
+    self.assertTrue(policy._dungeon_entry_allowed(snapshot))
+'''),
+            ("Mock collaborator wall", "collaborator-wall", '''
+def test_branch():
+    policy._a = Mock()
+    policy._b = Mock()
+    policy._c = Mock()
+    policy._d = Mock()
+    helper_assert(policy.choose_key(snapshot))
+'''),
+        )
+        print("\nRepository-idiom evasion matrix:")
+        for rewrite, rule, source in cases:
+            with self.subTest(rewrite=rewrite):
+                self.assert_rule(rule, source)
+                print(f"{rewrite} | CAUGHT | {rule}")
+
 
 class TestTreeFakeryLint(unittest.TestCase):
     EXPECTED_UNDECLARED = {
@@ -115,12 +159,17 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("pipeline-result-injected", "test_timeout_keeps_confirmed_loadout_but_requires_its_premise"),
         ("pipeline-result-injected", "test_confirmed_loadout_survives_restart_and_is_input_key_bound"),
     }
-    DECLARED_FINDING_RATCHET = 97
+    EXPECTED_UNDECLARED_INSTANCES = 9
+    DECLARED_FINDING_RATCHET = 111
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()
         undeclared = {(f.rule, f.test) for f in findings if not f.allowed_reason}
         self.assertEqual(undeclared, self.EXPECTED_UNDECLARED)
+        self.assertEqual(
+            len([finding for finding in findings if not finding.allowed_reason]),
+            self.EXPECTED_UNDECLARED_INSTANCES,
+        )
 
     def test_inline_exception_count_is_ratcheted(self):
         findings = scan_tests()

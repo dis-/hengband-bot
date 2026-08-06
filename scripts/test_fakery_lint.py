@@ -49,18 +49,30 @@ def _receiver(node: ast.AST) -> str | None:
     return node.id if isinstance(node, ast.Name) else None
 
 
-def _replacement(call: ast.Call) -> tuple[str | None, str | None]:
+def _dotted_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        receiver = _dotted_name(node.value)
+        return f"{receiver}.{node.attr}" if receiver else node.attr
+    return None
+
+
+def _replacement(
+    call: ast.Call, constants: dict[str, str] | None = None
+) -> tuple[str | None, str | None]:
     """Return receiver/member for patch.object, patch('...'), and setattr."""
     if (
         isinstance(call.func, ast.Attribute)
         and call.func.attr == "object"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id == "patch"
+        and (_dotted_name(call.func.value) or "").split(".")[-1] == "patch"
         and len(call.args) >= 2
     ):
         return _receiver(call.args[0]), _string(call.args[1])
     if _call_name(call) == "patch" and call.args:
         target = _string(call.args[0])
+        if target is None and constants and isinstance(call.args[0], ast.Name):
+            target = constants.get(call.args[0].id)
         if target and "." in target:
             return target.rsplit(".", 2)[-2], target.rsplit(".", 1)[-1]
     if _call_name(call) == "setattr" and len(call.args) >= 2:
@@ -86,14 +98,61 @@ def _assignments(function: ast.AST) -> list[tuple[int, str | None, str]]:
     return result
 
 
-def _callable_assignments(function: ast.AST) -> list[tuple[int, str | None, str]]:
+def _private_attribute_assignments(function: ast.AST) -> list[tuple[int, str | None, str]]:
     result = []
     for node in ast.walk(function):
-        if not isinstance(node, ast.Assign) or not isinstance(node.value, (ast.Lambda, ast.Name, ast.Attribute)):
+        if not isinstance(node, ast.Assign):
             continue
         for target in node.targets:
-            if isinstance(target, ast.Attribute):
+            if isinstance(target, ast.Attribute) and target.attr.startswith("_"):
                 result.append((target.lineno, _receiver(target.value), target.attr))
+    return result
+
+
+def _callable_assignments(function: ast.AST) -> list[tuple[int, str | None, str]]:
+    """Assignments written in the repository's callable-fake idioms."""
+    result = []
+    factory_calls = []
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Assign):
+            continue
+        callable_value = isinstance(node.value, (ast.Lambda, ast.Name, ast.Attribute))
+        if isinstance(node.value, ast.Call):
+            factory = (_dotted_name(node.value.func) or "").split(".")[-1]
+            callable_value = factory in {"Mock", "MagicMock", "partial"} or any(
+                token in factory.lower() for token in ("fake", "mock")
+            )
+        if not callable_value:
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Attribute) and target.attr.startswith("_"):
+                item = (target.lineno, _receiver(target.value), target.attr)
+                if isinstance(node.value, ast.Call):
+                    factory_calls.append(item)
+                else:
+                    result.append(item)
+    # A lone Mock is often an asserted observer rather than a collaborator
+    # wall.  The tree's wall idiom uses three factory mocks alongside another
+    # replacement; four factory mocks are the equivalent all-Mock spelling.
+    if len(factory_calls) >= 3:
+        result.extend(factory_calls)
+    return result
+
+
+def _assigns_none(function: ast.AST, attribute: str) -> list[int]:
+    result = []
+    for node in ast.walk(function):
+        if (
+            not isinstance(node, ast.Assign)
+            or not isinstance(node.value, ast.Constant)
+            or node.value.value is not None
+        ):
+            continue
+        if any(
+            isinstance(target, ast.Attribute) and target.attr == attribute
+            for target in node.targets
+        ):
+            result.append(node.lineno)
     return result
 
 
@@ -150,22 +209,35 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
     lines = source.splitlines()
     markers = _markers(lines)
     findings: list[Finding] = []
+    module_constants = {
+        target.id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
 
     functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
     for function in functions:
         calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
         public_calls = [call for call in calls if _call_name(call) in _PUBLIC_METHODS]
         assignments = _assignments(function)
+        constants = dict(module_constants)
+        for node in ast.walk(function):
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                constants.update({target.id: node.value.value for target in node.targets if isinstance(target, ast.Name)})
         replacements = []
         for call in calls:
-            receiver, name = _replacement(call)
+            receiver, name = _replacement(call, constants)
             if name and name.startswith("_"):
                 replacements.append((call.lineno, receiver, name))
         # Direct method assignment matters for public-path tests (including the
         # historical 13-method wrapper), but ordinary private units commonly
         # construct state with similarly named attributes.
         if public_calls:
-            replacements.extend((line, receiver, name) for line, receiver, name in _callable_assignments(function) if name.startswith("_"))
+            replacements.extend(_private_attribute_assignments(function))
 
         def add(line: int, rule: str, message: str) -> None:
             findings.append(Finding(path, line, rule, message, function.name))
@@ -201,10 +273,9 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
                     if isinstance(target, ast.Attribute) and target.attr == "loadout":
                         add(target.lineno, "pipeline-result-injected", f"{function.name} hand-assigns a best/loadout pipeline result")
 
-        if "incomplete_optimizer_blocks" in function.name.lower():
-            for line, _receiver_name, name in assignments:
-                if name == "_fundraising_mode":
-                    add(line, "invariant-input-overwritten", f"{function.name} directly selects the mode in its invariant")
+        if any(_call_name(call) == "_dungeon_entry_allowed" for call in calls):
+            for line in _assigns_none(function, "_fundraising_mode"):
+                add(line, "invariant-input-overwritten", f"{function.name} clears the active mode before checking its entry invariant")
 
         aliases: dict[str, str] = {}
         for node in ast.walk(function):
@@ -213,18 +284,36 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
                     if isinstance(target, ast.Name):
                         aliases[target.id] = aliases.get(node.value.id, node.value.id)
         by_receiver: dict[str | None, set[str]] = {}
-        for _line, receiver_name, name in replacements:
+        collaborator_replacements = []
+        for call in calls:
+            receiver, name = _replacement(call, constants)
+            if name and name.startswith("_"):
+                collaborator_replacements.append((call.lineno, receiver, name))
+        if public_calls:
+            collaborator_replacements.extend(_callable_assignments(function))
+        for _line, receiver_name, name in collaborator_replacements:
             if name not in _PATH_METHODS:
                 receiver_name = aliases.get(receiver_name or "", receiver_name)
                 by_receiver.setdefault(receiver_name, set()).add(name)
         for receiver_name, names in by_receiver.items():
             if len(names) >= 4:
-                line = min(line for line, rec, name in replacements if aliases.get(rec or "", rec) == receiver_name and name in names)
+                member_lines = sorted(
+                    line for line, rec, name in collaborator_replacements
+                    if aliases.get(rec or "", rec) == receiver_name and name in names
+                )
+                declared_lines = [
+                    line for line in member_lines
+                    if any(
+                        markers.get(marker_line, (None,))[0] == "collaborator-wall"
+                        for marker_line in range(line, max(0, line - 6), -1)
+                    )
+                ]
+                line = declared_lines[0] if declared_lines else member_lines[0]
                 add(line, "collaborator-wall", f"{function.name} replaces {len(names)} collaborators of one object: " + ", ".join(sorted(names)))
 
         choose_collections = set()
         choose_results = set()
-        constants: dict[str, str] = {}
+        constants = dict(module_constants)
         for node in ast.walk(function):
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
                 constants.update({target.id: node.value.value for target in node.targets if isinstance(target, ast.Name)})
@@ -234,9 +323,13 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
                 if any(isinstance(child, ast.Call) and _call_name(child) == "choose_key" for child in ast.walk(node.value)):
                     choose_collections.update(target.id for target in node.targets if isinstance(target, ast.Name))
         for node in ast.walk(function):
-            if isinstance(node, ast.Call) and _call_name(node) == "count" and node.args and _string(node.args[0]) is not None:
+            if isinstance(node, ast.Call) and _call_name(node) == "count" and node.args:
                 if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id in choose_collections:
-                    add(node.lineno, "literal-success-predicate", f"{function.name} judges a public drive by a literal returned key")
+                    counted = _string(node.args[0])
+                    if counted is None and isinstance(node.args[0], ast.Name):
+                        counted = constants.get(node.args[0].id)
+                    if counted is not None:
+                        add(node.lineno, "literal-success-predicate", f"{function.name} judges a public drive by a literal returned key")
             if isinstance(node, ast.Compare):
                 parts = (node.left, *node.comparators)
                 names = {part.id for part in parts if isinstance(part, ast.Name)}

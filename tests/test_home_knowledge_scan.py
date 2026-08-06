@@ -236,6 +236,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         # Reconstruct the 15:46:42 ordering: the first outside decision still
         # belongs to the unconfirmed Home leave and must not select any ~ key.
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: leave-barrier wrapper handling is isolated from the downstream town decision
         policy._decide = Mock(return_value="6")
         store_leave_was_inflight = policy._store_leave_inflight is not None
         self.assertEqual(policy.choose_key(snapshot), "6")
@@ -316,6 +317,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             policy._decision_sequence, 2407269, STORE_HOME
         )
         policy._home_knowledge_scan_leave_turn = 2407269
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: interleaved-capture bookkeeping is isolated from the downstream town decision
         policy._decide = Mock(return_value="5")
 
         # Real 17:43:56-17:44:08 shape: a Home page was followed by a
@@ -331,6 +333,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
         snapshot = town_with_home()
         policy._home_knowledge_scan_leave_turn = snapshot.turn
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: scan-request retry accounting is isolated from the downstream town decision
         policy._decide = Mock(return_value="6")
 
         keys = [policy.choose_key(snapshot) for _ in range(4)]
