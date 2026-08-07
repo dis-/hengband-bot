@@ -584,6 +584,20 @@ def _approach_refused_optimizer_transaction():
     return policy, world
 
 
+def _frozen_approach_optimizer_transaction():
+    """A swallowed owned-route step must exhaust the existing Home ceiling."""
+    policy, world = _approach_refused_optimizer_transaction()
+
+    class FrozenApproachWorld(type(world)):
+        def apply(self, key):
+            if key and all(ch in "12346789" for ch in key):
+                return
+            super().apply(key)
+
+    world.__class__ = FrozenApproachWorld
+    return policy, world
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -614,5 +628,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "approach-refused-optimizer-transaction", 100,
         _approach_refused_optimizer_transaction,
+    ),
+    AbsorbingState(
+        "frozen-approach-optimizer-transaction", 200,
+        _frozen_approach_optimizer_transaction,
     ),
 )

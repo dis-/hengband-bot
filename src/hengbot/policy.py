@@ -9944,6 +9944,15 @@ class HengbotPolicy:
                 self._block_equipment_transaction("home-route-unavailable")
                 self.last_reason = "equipment-transaction:home-route-unavailable"
                 return WAIT_KEY
+            # Every issued approach is one attempt by this Home-owned work.
+            # Charge it to the existing 54-pass ceiling before preserving the
+            # route step. If movement never arrives, the 54th attempt blocks
+            # Home and abandons the transaction, so the next public decision
+            # reaches the named exhausted-route terminal. A normal arriving
+            # route uses only its finite movement steps and remains unblocked.
+            self._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
             self.last_reason = "equipment-transaction:approach-home"
             return self._shopping_approach_key(
                 snapshot, step, "equipment-transaction:travel-home"
@@ -17669,12 +17678,11 @@ class HengbotPolicy:
             )
             self._shop_approach_stuck_count = 0
             if equipment_work_at_home:
-                # Outstanding equipment work owns the Home route until its
-                # 54-entry ceiling is consumed. A detector may reset its own
-                # observation window, but it must neither mutate the route
-                # ledgers nor turn a known route step into "no route". A None
-                # returned above still distinctly means that map routing found
-                # no step at all.
+                # The equipment transaction charges every issued Home approach
+                # to its existing pass ceiling. The detector therefore keeps
+                # returning the known route step without maintaining a second
+                # route bound. A None above still distinctly means that map
+                # routing found no step at all.
                 return step
             self._shopping_stuck = True
             self._town_store_attempted[store_type] = snapshot.turn

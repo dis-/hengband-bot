@@ -3,6 +3,7 @@ import unittest.mock
 from dataclasses import replace
 from types import SimpleNamespace
 
+import absorbing_state_catalog as cat
 from absorbing_state_catalog import SEEDED_STATES, TownWorld
 from absorbing_state_harness import AbsorbingState, drive
 from hengbot.model import TVAL_POTION
@@ -86,9 +87,40 @@ class _FinalTwitchWorld(_StubWorld):
 
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
-        self.assertEqual(len(SEEDED_STATES), 13)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 13)
+        self.assertEqual(len(SEEDED_STATES), 14)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 14)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
+
+    def test_frozen_owned_home_approach_reaches_existing_ceiling_publicly(self):
+        """Review probe: 1248168 approached 200 times without accounting."""
+        policy, world = cat._approach_refused_optimizer_transaction()
+        base_apply = type(world).apply
+
+        def frozen_apply(self, key):
+            if key and all(ch in "12346789" for ch in key):
+                return                       # the approach never arrives
+            base_apply(self, key)
+
+        type(world).apply = frozen_apply
+        terminal_decision = None
+        for i in range(200):
+            world.apply(policy.choose_key(world.snapshot(i)))
+            if policy._town_blocked_reason is not None:
+                terminal_decision = i + 1
+                break
+
+        self.assertEqual(
+            policy._town_blocked_reason,
+            "equipment-work-home-route-exhausted",
+            "1248168 exhausted 200 decisions without a named terminal; historical "
+            "Counter({'equipment-transaction:approach-home': 200})",
+        )
+        self.assertIn(cat.STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[cat.STORE_HOME],
+            policy._town_store_visit_limit(cat.STORE_HOME),
+        )
+        self.assertLessEqual(terminal_decision, 200)
 
     def test_progress_limb_distinguishes_progress_from_freeze(self):
         def state(progressing):
