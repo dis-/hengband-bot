@@ -48288,6 +48288,28 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
         self.assertEqual(policy._town_blocked_reason, "no-safe-recall-destination")
 
+    def test_captured_calibration_deposit_survives_exhausted_claim_budget(self):
+        """Embed the onset checkpoint's decision-relevant town state."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot,
+            grids={**snapshot.grids, home.position: home},
+            inventory=[replace(snapshot.inventory[0], count=19), *snapshot.inventory[1:]],
+        )
+        policy._town_was_in_town = True
+        policy._calibration_phase = "deposit"
+        policy._town_visit_ledger.need_attempts["deposit"] = 3
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy._town_claim_categories, ["deposit"])
+
     def test_live_home_door_block_replay_never_posts_stay_publicly(self):
         """Run the retained (45,123) blocked state beyond its 104-decision window."""
         policy, snapshot = self._fixture()

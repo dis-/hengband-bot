@@ -113,6 +113,16 @@ class TownWorld:
                     if self.top >= len(self.stock):
                         self.top = 0
                 return
+            deposit = key.find("d")
+            if deposit >= 0 and deposit + 1 < len(key):
+                letter = key[deposit + 1]
+                index = ord(letter) - ord("a")
+                if 0 <= index < len(self.inventory):
+                    self.inventory.pop(index)
+                if key.endswith(LEAVE_STORE_KEY):
+                    self.inside = False
+                    self.exits += 1
+                return
             purchase = key.find("p")
             if purchase >= 0 and purchase + 1 < len(key):
                 page = key[:purchase].count(" ")
@@ -132,7 +142,7 @@ class TownWorld:
             return
         # A composed atomic visit starts with WAIT, performs its store command,
         # and may finish with Escape before another JSON snapshot exists.
-        if key.startswith(WAIT_KEY) and "p" in key:
+        if key.startswith(WAIT_KEY) and ("p" in key or "d" in key):
             self.entries += 1
             self.inside = True
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN
@@ -362,6 +372,40 @@ def _calibration_rearm_cycle():
     )
 
 
+def _calibration_deposit_claim_budget():
+    """Unsafe recall must not install its terminal over a live Home deposit."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, snap = helper._fixture()
+    home = replace(
+        fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+    )
+    snap = replace(
+        snap,
+        grids={**snap.grids, home.position: home},
+        inventory=[replace(snap.inventory[0], count=19), *snap.inventory[1:]],
+    )
+    policy._town_was_in_town = True
+    policy._calibration_phase = "deposit"
+    policy._town_visit_ledger.need_attempts["deposit"] = 3
+
+    class CalibrationDepositWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot)
+            self.initial_inventory_size = len(self.inventory)
+
+        def visible_terminal(self, reason):
+            if reason == "town:blocked:no-safe-recall-destination":
+                return None
+            if (
+                reason in {"town:blocked:repetition", "livelock:exhausted"}
+                and len(self.inventory) == self.initial_inventory_size
+            ):
+                return None
+            return super().visible_terminal(reason)
+
+    return policy, CalibrationDepositWorld(snap)
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -370,4 +414,7 @@ SEEDED_STATES = (
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
     AbsorbingState("released-home-attempt-bound", 600, _released_bound),
     AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
+    AbsorbingState(
+        "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget
+    ),
 )

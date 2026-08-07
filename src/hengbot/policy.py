@@ -13710,12 +13710,20 @@ class HengbotPolicy:
                 if not spec.produces(snapshot):
                     continue
                 store_type = spec.resolve_store_type(snapshot)
+                live_calibration_deposit = (
+                    spec.category == "deposit"
+                    and self._calibration_phase == "deposit"
+                    and self._find_home_deposit(snapshot) is not None
+                )
                 if (
                     store_type in self._town_visit_ledger.blocked_stores
                     or self._town_visit_ledger.approach_fails[store_type]
                     >= TOWN_STOP_PASS_LIMIT
-                    or self._town_visit_ledger.need_attempts.get(spec.category, 0)
-                    >= spec.budget
+                    or (
+                        self._town_visit_ledger.need_attempts.get(spec.category, 0)
+                        >= spec.budget
+                        and not live_calibration_deposit
+                    )
                 ):
                     continue
                 if not spec.departure_blocking:
