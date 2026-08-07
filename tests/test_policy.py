@@ -44860,10 +44860,15 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         ]
         reserve._home_pending_item = reserve._item_signature(staff)
         reserve._home_candidate_waiting = True
-        self.assertEqual(reserve.choose_key(entrance), "\r")
+        self.assertEqual(reserve.choose_key(entrance), WAIT_KEY)
         self.assertEqual(
             reserve.last_reason, "home:atomic-withdraw-needs-observation"
         )
+        self.assertIsNone(entrance.store)
+        self.assertEqual(
+            entrance.grid_at(entrance.player.position).store_number, STORE_HOME
+        )
+        self.assertNotEqual(reserve.choose_key(entrance), "\r")
 
         missing = HengbotPolicy()
         missing._calibration_phase = "restore-supplies"

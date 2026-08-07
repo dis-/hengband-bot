@@ -443,17 +443,7 @@ def _identify_staff_reserve_queue_cycle():
         blockers=("home-scan-incomplete",), result=None,
     )
     policy._home_address_scan_valid = False
-    class StoreNoOpEntryWorld(TownWorld):
-        def apply(self, key):
-            if key == "\r" and not self.inside and self.position == self.entrance:
-                self.last_key = key
-                self.inside = True
-                self.entries += 1
-                self.top = 0
-                return
-            super().apply(key)
-
-    return policy, StoreNoOpEntryWorld(
+    return policy, TownWorld(
         entrance, stock=[staff], single_page_message=HOME_PAGE_SINGLE_PAGE_MESSAGES[0]
     )
 
