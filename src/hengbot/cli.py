@@ -683,6 +683,11 @@ def _decision_record(
         "objective": _objective_for_reason(reason),
         "reason": reason,
         "key": key,
+        # Preserve the player-visible evidence associated with the exact board
+        # against which this key was chosen.  In particular, repeat counters in
+        # the message line let an incident review distinguish a newly rejected
+        # command from an older message carried by a later snapshot.
+        "messages": list(snapshot.messages),
         "floor": {
             "dungeon_id": snapshot.floor_key[0],
             "level": snapshot.floor_key[1],

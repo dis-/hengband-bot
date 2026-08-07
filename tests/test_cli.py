@@ -820,6 +820,25 @@ class NewestSnapshotTest(unittest.TestCase):
 
 
 class DecisionRecordTest(unittest.TestCase):
+    def test_records_snapshot_messages_with_repeat_counter(self):
+        snapshot = parse_snapshot(
+            {
+                "type": "player_turn",
+                "turn": 41,
+                "floor": {"dungeon_id": 0, "level": 0, "in_town": True},
+                "player": {"y": 5, "x": 7, "hp": 10, "max_hp": 10},
+                "messages": ["That command does not work in stores. <x8>"],
+            },
+            {},
+        )
+
+        record = _decision_record(snapshot, " ", "home-disposal:seek-page")
+
+        self.assertEqual(
+            record["messages"],
+            ["That command does not work in stores. <x8>"],
+        )
+
     def test_in_store_record_carries_shop_selector_evidence(self):
         data = json.loads(_snap_line(123, 5, 7))
         snapshot = parse_snapshot(data, {})

@@ -3096,6 +3096,16 @@ class HengbotPolicy:
             return key
         if self.last_reason in {"livelock:exhausted", "combat:fruitless"}:
             return key
+        if (
+            self.last_reason.endswith(":await-entry")
+            and not self._last_snapshot_was_store
+        ):
+            # This WAIT is the store-entry command itself.  Projecting it to a
+            # movement direction is unsafe across the player-turn/store
+            # transition: the direction can arrive after the store opens and
+            # fall through the store dispatcher's default branch.  Keep the
+            # command whose meaning at this entrance is precisely "enter".
+            return key
         identify_staff_withdrawal_queued = (
             self._home_pending_item is not None
             and self._home_pending_item[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY)
@@ -13269,7 +13279,15 @@ class HengbotPolicy:
                 )
             return needs
 
-        if self._home_disposal_pass:
+        if (
+            self._home_disposal_pass
+            and snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+        ):
+            # An opportunistic scan may share an already-owned Home visit, but
+            # it is not executable Home work and must never create a visit by
+            # itself.  With no surface need, the errand plan advances to real
+            # work/departure instead of entering, scanning, and leaving.
             add(STORE_HOME, "idle-consumable-scan", "home-first")
         if self._home_disposal_pending is not None:
             signature, decision = self._home_disposal_pending

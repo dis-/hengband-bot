@@ -19098,7 +19098,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         pol._home_disposal_pass = True
         pol._home_disposal_pending = (("missing", TVAL_FOOD, 1), "destroy")
 
-        self.assertEqual(pol._next_required_store_type(outside), STORE_HOME)
+        # An idle disposal scan no longer owns a Home approach; it remains
+        # available when executable Home work has already opened the store.
+        self.assertNotEqual(pol._next_required_store_type(outside), STORE_HOME)
         pol._shop(snap)
         pol._next_required_store_type(outside)
 
@@ -21852,7 +21854,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 entrance: replace(
                     grid(entrance.y, entrance.x), store_number=STORE_HOME
                 ),
-                Position(9, 11): grid(9, 11),
+                # Retained Home-cycle shape: the only eligible step-off is
+                # east, so the historical projection names the exact key '6'.
+                Position(10, 11): grid(10, 11),
             },
             [],
             floor_key=(0, 0, 0),
@@ -21871,8 +21875,40 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "shop:travel:await-entry")
 
+        # Public emission must preserve the entry command.  Replacing this WAIT
+        # with a direction lets that direction land in the store dispatcher.
+        policy = HengbotPolicy()
+        seed_character_calibration(policy, snap)
+        self.assertEqual(policy.choose_key(snap), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
+
         retry_step = policy._shopping_approach_step(snap)
-        self.assertEqual(retry_step, Position(9, 11))
+        self.assertEqual(retry_step, Position(10, 11))
+
+    def test_idle_disposal_pass_does_not_enter_home_for_no_operation(self):
+        entrance = Position(10, 11)
+        snap = Snapshot(
+            player(10, 10, gold=FUNDRAISING_START_GOLD, class_id=1),
+            {
+                Position(10, 10): grid(10, 10),
+                entrance: replace(grid(10, 11), store_number=STORE_HOME),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
+        )
+        policy = HengbotPolicy()
+        policy._home_disposal_pass = True
+
+        decisions = []
+        for _ in range(6):
+            key = policy.choose_key(snap)
+            decisions.append((key, policy.last_reason))
+
+        self.assertFalse(any(reason.startswith("shop:") for _, reason in decisions))
+        self.assertNotIn("6", [key for key, _ in decisions])
+        self.assertTrue(policy._home_disposal_pass)
 
     def test_store_exit_snapshot_still_steps_off_for_reentry(self):
         entrance = Position(10, 10)
@@ -43917,9 +43953,19 @@ class TownErrandPlanTest(unittest.TestCase):
         snapshot = self._snapshot()
         policy._home_disposal_pass = True
 
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_errand_plan.stops)
+        home = replace(snapshot, store=StoreState(STORE_HOME, []))
+        self.assertIn(
+            TownNeed(STORE_HOME, "idle-consumable-scan", "home-first"),
+            policy._enumerate_town_needs(home),
+        )
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("idle-consumable-scan",)},
+        )
         policy._report_town_stop_pass(
-            snapshot, STORE_HOME, goal_satisfied=True
+            home, STORE_HOME, goal_satisfied=True
         )
 
         self.assertEqual(policy._town_errand_plan.index, 0)

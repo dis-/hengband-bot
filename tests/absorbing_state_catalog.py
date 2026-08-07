@@ -224,6 +224,34 @@ def _departure_freeze():
     return policy, TownWorld(snap)
 
 
+def _invalid_command_noop_home_cycle():
+    """An observation-only disposal pass cannot own a Home entry."""
+    helper = fixture.TownErrandPlanTest()
+    surface = helper._snapshot(turn=2994536)
+    entrance = Position(10, 11)
+    surface = replace(
+        surface,
+        player=replace(surface.player, position=entrance, class_id=1),
+        floor_key=(0, 0, 0),
+        grids={
+            **surface.grids,
+            entrance: replace(
+                fixture.grid(entrance.y, entrance.x), store_number=STORE_HOME
+            ),
+        },
+        equipment=[
+            fixture.item(
+                "light", policy_module.TVAL_LITE,
+                policy_module.SV_LITE_TORCH, fuel=5000,
+            )
+        ],
+    )
+    policy = HengbotPolicy()
+    policy._home_disposal_pass = True
+
+    return policy, TownWorld(surface, passable_positions={entrance})
+
+
 def _version_discard(*, swallow=False):
     helper = fixture.HomeOneOperationPerEntryTest()
     stock = [fixture.store_item(chr(ord("a") + n % 12), TVAL_POTION, 2000 + n,
@@ -599,7 +627,7 @@ def _frozen_approach_optimizer_transaction():
 
 
 SEEDED_STATES = (
-    AbsorbingState("home-blocked-departure", 200, _departure_freeze),
+    AbsorbingState("home-blocked-departure", 300, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
     AbsorbingState("home-page-recurrence", 400, _page_recurrence),
     AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
@@ -632,5 +660,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "frozen-approach-optimizer-transaction", 200,
         _frozen_approach_optimizer_transaction,
+    ),
+    AbsorbingState(
+        "invalid-command-noop-home-cycle", 40,
+        _invalid_command_noop_home_cycle,
     ),
 )

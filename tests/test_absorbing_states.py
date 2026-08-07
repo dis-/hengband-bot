@@ -87,8 +87,8 @@ class _FinalTwitchWorld(_StubWorld):
 
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
-        self.assertEqual(len(SEEDED_STATES), 14)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 14)
+        self.assertEqual(len(SEEDED_STATES), 15)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 15)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
     def test_frozen_owned_home_approach_reaches_existing_ceiling_publicly(self):
