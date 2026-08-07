@@ -2189,6 +2189,7 @@ class HengbotPolicy:
         # devices in Home were never withdrawn or disposed of.
         self._home_identify_staff_sale_pending = False
         self._home_identify_staff_sold_this_magic_visit = False
+        self._home_withdrawal_queued = False
         self._home_digger_withdraw_pending = False
         self._home_candidate_waiting = True
         self._identification_need: str | None = None
@@ -11097,6 +11098,7 @@ class HengbotPolicy:
             self._calibration_restore_signatures.remove(signature)
         self._home_pending_quantity = None
         self._home_candidate_waiting = False
+        self._home_withdrawal_queued = False
         self._home_entry_operation_posted = True
         self._home_history_inflight = (
             "withdraw",
@@ -12461,6 +12463,15 @@ class HengbotPolicy:
             self._identification_candidate = None
             self.last_reason = "identify:full" if full else "identify:normal"
             return key
+        if self._home_withdrawal_queued:
+            # The in-store chooser has selected a Home identity, but the atomic
+            # composer has not withdrawn it yet.  Surface item processing runs
+            # before the Home approach owner, and an already-carried stack may
+            # have the same name/tval/sval signature as the stored stack.  Do
+            # not mistake that pre-existing stack for withdrawal success.  A
+            # posted atomic command clears this queued state before the newly
+            # observed inventory may be processed.
+            return None
         target = self._pending_inventory_item(snapshot)
         if target is None:
             # The Home command can be rejected (for example by a prompt timing
@@ -16853,14 +16864,20 @@ class HengbotPolicy:
                 return LEAVE_STORE_KEY
             if (
                 self._home_pending_item is not None
-                and self._pending_inventory_item(snapshot) is None
+                and (
+                    self._home_withdrawal_queued
+                    or self._pending_inventory_item(snapshot) is None
+                )
                 and not self._home_address_scan_valid
             ):
                 self.last_reason = "home:scan-catalog-page"
                 return " "
             if (
                 self._home_pending_item is not None
-                and self._pending_inventory_item(snapshot) is None
+                and (
+                    self._home_withdrawal_queued
+                    or self._pending_inventory_item(snapshot) is None
+                )
                 and self._home_address_scan_valid
             ):
                 self.last_reason = "home:leave-for-atomic-withdraw"
@@ -16914,6 +16931,7 @@ class HengbotPolicy:
                     reason = "home:withdraw-surplus-identify-staff"
                 signature = self._item_signature(candidate)
                 self._home_pending_item = signature
+                self._home_withdrawal_queued = True
                 self.last_reason = reason.replace("withdraw", "queue-withdraw")
                 return LEAVE_STORE_KEY
 

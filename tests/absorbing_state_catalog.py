@@ -198,6 +198,8 @@ class TownWorld:
         )
 
     def visible_terminal(self, reason: str):
+        if reason == "home:atomic-withdraw":
+            return "surplus staff composed withdrawal"
         if reason == "livelock:exhausted":
             return reason
         if reason.startswith("town:blocked:"):
@@ -411,7 +413,7 @@ def _calibration_deposit_claim_budget():
 
 
 def _identify_staff_reserve_queue_cycle():
-    """A queued reserve must enter Home to establish its atomic address."""
+    """A live surplus queue must survive the surface composer decision."""
     helper = fixture.HomeOneOperationPerEntryTest()
     policy = HengbotPolicy()
     pack = helper._real_pack()
@@ -423,13 +425,23 @@ def _identify_staff_reserve_queue_cycle():
         "a", policy_module.TVAL_STAFF, policy_module.SV_STAFF_IDENTIFY,
         name="Staff of Identify", charges=14,
     )
+    entrance = replace(
+        entrance,
+        inventory=[
+            *pack,
+            fixture.item(
+                "s", policy_module.TVAL_STAFF,
+                policy_module.SV_STAFF_IDENTIFY,
+                name="Staff of Identify", charges=25,
+            ),
+        ],
+        store=StoreState(STORE_HOME, [staff]),
+    )
     policy._deepest_level = policy_module.STAFF_IDENTIFY_MIN_DEPTH
     policy._shopping_approach_store_type = STORE_HOME
-    signature = policy._item_signature(staff)
-    policy._home_pending_item = signature
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [signature]
-    policy._home_candidate_waiting = True
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=("home-scan-incomplete",), result=None,
+    )
     policy._home_address_scan_valid = False
     class StoreNoOpEntryWorld(TownWorld):
         def apply(self, key):

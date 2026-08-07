@@ -31162,11 +31162,34 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
         pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
-        pol._home_pending_batch.append(pol._item_signature(stored))
+        pol._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None,
+        )
+        pol._shopping_approach_store_type = STORE_HOME
 
-        self.assertEqual(pol._shop(snap), " ")
+        self.assertEqual(pol.choose_key(snap), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:queue-withdraw-surplus-identify-staff"
+        )
+        signature = pol._item_signature(stored)
+        self.assertEqual(pol._home_pending_item, signature)
+
+        entrance = replace(
+            snap,
+            turn=snap.turn + 1,
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+            store=None,
+        )
+        pol.choose_key(entrance)
+        self.assertEqual(pol._home_pending_item, signature)
+
+        self.assertEqual(pol.choose_key(replace(snap, turn=snap.turn + 2)), " ")
         self.assertEqual(pol.last_reason, "home:scan-catalog-page")
-        self.assertEqual(pol._home_pending_batch, [pol._item_signature(stored)])
+        self.assertEqual(pol._home_pending_item, signature)
 
     def test_home_withdrawn_staff_is_sellable_below_normal_pack_cap(self):
         pol = HengbotPolicy()
@@ -31291,8 +31314,14 @@ class IdentifyStaffTest(unittest.TestCase):
         )
 
         self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
-        # A second snapshot can precede the inventory delta. It must leave Home,
-        # not withdraw another staff from a different letter.
+        # The carried reserve has the same item signature as the stored stack.
+        # Until the atomic composer posts the withdrawal, it is not evidence of
+        # an inventory delta and the address scan retains the Home stop.
+        self.assertEqual(pol._shop(snap), " ")
+        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
+        self.assertEqual(pol._town_errand_plan.index, 0)
+
+        pol._home_withdrawal_queued = False
         self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
         self.assertEqual(pol.last_reason, "home:leave-with-item")
         self.assertEqual(pol._town_errand_plan.index, 1)
