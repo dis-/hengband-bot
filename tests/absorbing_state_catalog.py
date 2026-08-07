@@ -325,6 +325,15 @@ def _failed_store_entry_same_turn():
                 return
             super().apply(key)
 
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if not self.inside and self.last_key == WAIT_KEY:
+                return replace(
+                    current,
+                    messages=("そこには行くことができません！",),
+                )
+            return current
+
     return policy, RefusedEntryWorld(surface)
 
 
@@ -754,6 +763,10 @@ SEEDED_STATES = (
     ),
     AbsorbingState(
         "doubled-store-entry-cycle", 10,
+        _doubled_store_entry_cycle,
+    ),
+    AbsorbingState(
+        "lagged-successful-store-entry", 10,
         _doubled_store_entry_cycle,
     ),
     AbsorbingState(

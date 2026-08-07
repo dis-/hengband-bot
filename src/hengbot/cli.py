@@ -1143,6 +1143,8 @@ def _send_new_decision_key(
         posted_line = snapshot_line
     if suppress:
         return False, posted_line
+    if not key:
+        return False, posted_line
     if key in posted_keys:
         return False, posted_line
     sent = send(key, in_store=in_store, decision=decision)

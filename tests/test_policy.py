@@ -45070,22 +45070,41 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(sent)
         policy.confirm_key_posted(first)
 
-        lagged = replace(entrance, turn=3041945)
+        lagged = replace(entrance, turn=3041945, messages=())
         second = policy.choose_key(lagged)
-        sent, _ = _send_new_decision_key(
+        sent, posted_line = _send_new_decision_key(
             send, "turn-3041945-store-null", second, posted_line, posted_keys,
             in_store=False,
         )
 
-        self.assertTrue(sent)
-        self.assertEqual(
-            posted, [WAIT_KEY, "4"],
-            "64d9644 posted doubled entry characters ['5', '5']",
-        )
-        self.assertNotEqual(posted[1], WAIT_KEY)
-        self.assertNotEqual(posted[1], " ")
+        self.assertFalse(sent)
+        self.assertEqual(posted, [WAIT_KEY])
         self.assertEqual(invalid, [])
-        self.assertEqual(policy.last_reason, "store:entry-failed-step-off")
+
+        refused_policy = HengbotPolicy()
+        refused_policy._calibration_phase = "restore-supplies"
+        refused_policy._calibration_restore_signatures = [
+            refused_policy._item_signature(target)
+        ]
+        refused_policy._home_candidate_waiting = True
+        refused = replace(
+            entrance,
+            turn=3467379,
+            messages=("そこには行くことができません！",),
+        )
+        refused_entry = refused_policy.choose_key(refused)
+        self.assertEqual(refused_entry, WAIT_KEY)
+        refused_policy.confirm_key_posted(refused_entry)
+        third = refused_policy.choose_key(refused)
+        sent, _ = _send_new_decision_key(
+            send, "turn-3467379-refused", third, posted_line, posted_keys,
+            in_store=False,
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(posted, [WAIT_KEY, "4"])
+        self.assertEqual(invalid, [])
+        self.assertEqual(refused_policy.last_reason, "store:entry-failed-step-off")
 
     def test_failed_store_entry_same_turn_reaches_sender_without_noop(self):
         """07:28:31 retained shape: WAIT failed on the Alchemist entrance."""

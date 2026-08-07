@@ -2577,15 +2577,23 @@ class HengbotPolicy:
         self._begin_map_predicate_cache(snapshot)
         posted_entry_owner = self._store_entry_posted_owner
         if posted_entry_owner is not None:
-            observed_failed_entry = snapshot.store is None
-            # Termination argument: every snapshot is either a store or no
-            # store.  Both discharge the outstanding entry before normal
-            # routing runs, so this state cannot retain ownership across a
-            # decision and emits no filler key.  In particular, store=None on
-            # the unchanged entrance is positive evidence that entry failed.
+            observed_failed_entry = snapshot.store is None and any(
+                "You cannot go there" in message
+                or "そこには行くことができません" in message
+                for message in snapshot.messages
+            )
+            # Failure requires positive message evidence; a lagged store=None
+            # is not evidence.  Termination is nevertheless total: both
+            # branches discharge the one-shot owner in this decision.  The
+            # refusal branch lets routing step off below; the in-flight branch
+            # returns an empty, unsent decision now and normal routing owns the
+            # next snapshot.  Neither branch retains a wait or emits a filler.
             self._store_entry_posted_owner = None
             if observed_failed_entry:
                 self._store_entry_failed_owner = posted_entry_owner
+            else:
+                self.last_reason = "store:entry-await-observation"
+                return ""
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction
         )
