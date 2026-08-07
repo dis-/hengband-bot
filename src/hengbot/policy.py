@@ -14102,6 +14102,19 @@ class HengbotPolicy:
             plan = self._build_town_errand_plan(snapshot, needs)
             self._town_errand_plan = plan
         elif plan.index >= len(plan.stops):
+            if (
+                self._equipment_work_home_route_available()
+                and self._home_owner_goal_pending(snapshot)
+                and not self._completed_home_can_rearm
+                and not any(need.category == "equipment-work" for need in needs)
+            ):
+                # A completed plan is only a route snapshot.  It must not strand
+                # a live owner merely because an earlier pass latched its store
+                # before the owner exposed the next unit of work.  Every owner
+                # represented by _outstanding_equipment_work shares the existing
+                # Home ceiling; while that bound is live, retain a Home route.
+                needs.append(TownNeed(STORE_HOME, "equipment-work", "home-first"))
+                needed_stores.add(STORE_HOME)
             # A completed plan is only a snapshot of the needs visible when it
             # was built. Completing an identification errand can expose the
             # ordinary supply shortages that it previously owned exclusively.
@@ -14120,7 +14133,10 @@ class HengbotPolicy:
                 self._town_visit_ledger.rearmed_categories
             ).difference(plan.rearmed_home_categories)
             fresh_home_work = (
-                self._completed_home_can_rearm
+                (
+                    self._completed_home_can_rearm
+                    or self._equipment_work_home_route_available()
+                )
                 and STORE_HOME in self._town_store_attempted
                 and bool(fresh_home_categories)
                 and not town_departure_ready()
