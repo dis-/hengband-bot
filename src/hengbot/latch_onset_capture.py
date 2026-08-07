@@ -192,8 +192,8 @@ def decision_record(
         "home_pending_item": jsonable(clone._home_pending_item),
         "recall_destination_candidates": _recall_candidates(clone, snapshot),
         # Pickle preserves Python container/key/dataclass types that a generic JSON
-        # projection loses. Together with each record's exact Snapshot pickle, the
-        # onset checkpoint can replay this and the following public choose_key calls.
+        # projection loses. Replay each decision from its own checkpoint; never chain
+        # decisions from an earlier record because the live loop mutates between them.
         "predecision_policy_checkpoint_pickle_b64": predecision,
         "snapshot_pickle_b64": base64.b64encode(pickle.dumps(snapshot, protocol=5)).decode("ascii"),
     }

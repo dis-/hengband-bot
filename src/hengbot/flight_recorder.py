@@ -110,6 +110,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_remembered_entrances",
     )
     required_names = (
+        "_town_blocked_reason",
         "_visit_counts",
         "_explore_goal_identity",
         "_explore_path",
@@ -152,6 +153,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
     # omitted from a hand-maintained diagnostic list.
     simple = {}
     for name, value in vars(policy).items():
+        if name.startswith("_latch_capture_"):
+            continue
         if (
             any(token in name for token in ("mode", "latch", "quest", "town", "fundrais", "return"))
             and (

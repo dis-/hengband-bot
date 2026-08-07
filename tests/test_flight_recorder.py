@@ -164,6 +164,37 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertIn("#", rendered)
         self.assertIn("E", rendered)
 
+    def test_policy_state_retains_town_blocked_latch_under_historical_name(self):
+        class PolicyWithTownBlockedProperty:
+            @property
+            def _town_blocked_reason(self):
+                return self._town_blocked_reason_value
+
+        policy = PolicyWithTownBlockedProperty()
+        policy.__dict__.update(vars(self.policy()))
+        policy._town_blocked_reason_value = "no-safe-recall-destination"
+
+        state = policy_state(policy, self.snapshot())
+
+        self.assertEqual(
+            state["state"]["_town_blocked_reason"],
+            "no-safe-recall-destination",
+        )
+
+    def test_policy_state_excludes_latch_capture_ring_and_stays_small(self):
+        policy = self.policy()
+        policy._latch_capture_previous = {
+            "predecision_policy_checkpoint_pickle_b64": "x" * 1_000_000,
+            "snapshot_pickle_b64": "y" * 500_000,
+        }
+        policy._latch_capture_assignment = {"caller_chain": ["z" * 10_000]}
+        policy._latch_capture_remaining = 2
+
+        encoded = json.dumps(policy_state(policy, self.snapshot()))
+
+        self.assertNotIn("_latch_capture_", encoded)
+        self.assertLess(len(encoded), 50_000)
+
     def test_budget_prunes_oldest_snapshot_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

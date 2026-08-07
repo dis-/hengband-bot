@@ -98,8 +98,12 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             (replay.choose_key(replay_installing_snapshot), replay.last_reason),
             (installing_key, installing_reason),
         )
+        following_record = records[2]
+        replay = restore_checkpoint(
+            type(policy), following_record["predecision_policy_checkpoint_pickle_b64"]
+        )
         replay_following_snapshot = pickle.loads(
-            base64.b64decode(records[2]["snapshot_pickle_b64"])
+            base64.b64decode(following_record["snapshot_pickle_b64"])
         )
         self.assertEqual(
             (replay.choose_key(replay_following_snapshot), replay.last_reason),
