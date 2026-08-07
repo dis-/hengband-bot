@@ -11097,7 +11097,10 @@ class HengbotPolicy:
             else 1
         )
         take_count = min(item.count, requested_quantity)
-        quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
+        # This key crosses the Home entrance before its operation.  The outside
+        # snapshot cannot prove that the operation will raise a quantity prompt,
+        # so no prompt response may be composed across that observation boundary.
+        quantity_suffix = ""
         key = (
             WAIT_KEY
             + (" " * page)
@@ -11222,7 +11225,9 @@ class HengbotPolicy:
                 return None
             if self._identification_flow_owns(current):
                 return None
-            quantity = f"{current.count}\r" if current.count > 1 else ""
+            # Atomic composition crosses an unobserved store-entry boundary.
+            # A quantity response is legal only after observing its prompt.
+            quantity = ""
             key = WAIT_KEY + SELL_KEY + current.slot + quantity + LEAVE_STORE_KEY
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
@@ -11312,6 +11317,10 @@ class HengbotPolicy:
             ),
         )
         self.last_reason = "home:atomic-deposit"
+        # Strip the optional quantity response produced for an already-observed
+        # Home.  Here the operation is composed against an outside snapshot, so
+        # the intervening prompt has not been observed and cannot be promised.
+        operation = operation[:2]
         return WAIT_KEY + operation + LEAVE_STORE_KEY
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:

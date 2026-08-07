@@ -59,6 +59,7 @@ from hengbot.cli import (
     _stall_recovery_key,
     _split_complete_lines,
     _transport_key,
+    _write_posted_character,
     _bot_play_macros_ready,
     _valid_bot_play_macro_pref,
 )
@@ -66,6 +67,28 @@ from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
+
+
+class PostedCharacterRecordTest(unittest.TestCase):
+    def test_records_each_posted_character_with_composed_key_and_decision_join(self):
+        decision = {
+            "sequence": 41,
+            "turn": 3024785,
+            "reason": "home:atomic-deposit",
+            "key": "5da8\r\x1b",
+        }
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "posted.jsonl"
+            for index, character in enumerate(decision["key"]):
+                _write_posted_character(
+                    path, character, decision["key"], index, decision
+                )
+            records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual([record["character"] for record in records], list(decision["key"]))
+        self.assertEqual([record["character_index"] for record in records], list(range(6)))
+        self.assertTrue(all(record["composed_key"] == decision["key"] for record in records))
+        self.assertTrue(all(record["decision"] == decision for record in records))
 
 
 class DecisionWatchdogTest(unittest.TestCase):

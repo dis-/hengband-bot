@@ -7,6 +7,7 @@ import os
 import sys
 import time
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -634,6 +635,32 @@ def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
     return key
 
 
+def _write_posted_character(
+    path: Path | None,
+    character: str,
+    composed_key: str,
+    character_index: int,
+    decision: dict | None,
+) -> None:
+    """Record one successfully posted WM_CHAR, including its decision join."""
+    if path is None:
+        return
+    with path.open("a", encoding="utf-8") as file:
+        json.dump(
+            {
+                "time": datetime.now().astimezone().isoformat(),
+                "character": character,
+                "character_repr": repr(character),
+                "composed_key": composed_key,
+                "character_index": character_index,
+                "decision": decision,
+            },
+            file,
+            ensure_ascii=False,
+        )
+        file.write("\n")
+
+
 def _decision_record(
     snapshot,
     key: str,
@@ -661,6 +688,7 @@ def _decision_record(
     choke_engagement: dict | None = None,
     town_teleport_refusal: dict | None = None,
     read: dict | None = None,
+    decision_sequence: int | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -679,6 +707,7 @@ def _decision_record(
     ]
     return {
         "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "decision_sequence": decision_sequence,
         "turn": snapshot.turn,
         "objective": _objective_for_reason(reason),
         "reason": reason,
@@ -1056,6 +1085,7 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
+                    getattr(policy, "_decision_sequence", None),
                 ),
                 file,
                 ensure_ascii=False,
@@ -1105,6 +1135,7 @@ def _send_new_decision_key(
     *,
     in_store: bool,
     suppress: bool = False,
+    decision: dict | None = None,
 ) -> tuple[bool, str]:
     """Post each policy key at most once for a byte-identical board."""
     if snapshot_line != posted_line:
@@ -1114,7 +1145,7 @@ def _send_new_decision_key(
         return False, posted_line
     if key in posted_keys:
         return False, posted_line
-    sent = send(key, in_store=in_store)
+    sent = send(key, in_store=in_store, decision=decision)
     if sent:
         posted_keys.add(key)
     return sent, posted_line
@@ -1393,7 +1424,15 @@ def main(argv: list[str] | None = None) -> int:
         args.state_file, monrace_path, args.window_pid
     )
 
-    def send(key: str, *, in_store: bool = False) -> bool:
+    posted_character_path = (
+        args.decision_log.with_name("bot-posted-characters.jsonl")
+        if args.decision_log is not None
+        else None
+    )
+
+    def send(
+        key: str, *, in_store: bool = False, decision: dict | None = None
+    ) -> bool:
         if not args.send_to_window:
             return True
         try:
@@ -1412,6 +1451,9 @@ def main(argv: list[str] | None = None) -> int:
                     contains=args.window_title_contains,
                     class_name=args.window_class,
                     process_id=args.window_pid,
+                )
+                _write_posted_character(
+                    posted_character_path, char, key, index, decision
                 )
                 delay, wait_category = (
                     _delay_spec_after_macro_key(
@@ -1539,7 +1581,16 @@ def main(argv: list[str] | None = None) -> int:
             key = policy.validate_read_key(snapshot, key)
             _write_decision(args.decision_log, snapshot, key, policy.last_reason, policy)
             print(key, flush=True)
-            if not send(key, in_store=snapshot.store is not None):
+            if not send(
+                key,
+                in_store=snapshot.store is not None,
+                decision={
+                    "sequence": policy._decision_sequence,
+                    "turn": snapshot.turn,
+                    "reason": policy.last_reason,
+                    "key": key,
+                },
+            ):
                 return 3
             policy.confirm_key_posted(key)
             return 0
@@ -1913,6 +1964,12 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                         posted_decision_keys,
                         in_store=snapshot.store is not None,
                         suppress=suppress_unconfirmed_store_leave,
+                        decision={
+                            "sequence": policy._decision_sequence,
+                            "turn": snapshot.turn,
+                            "reason": policy.last_reason,
+                            "key": key,
+                        },
                     )
                     if sent:
                         policy.confirm_key_posted(key)

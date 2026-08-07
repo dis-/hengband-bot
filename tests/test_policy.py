@@ -45212,8 +45212,31 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         ]
         self.assertEqual(
             self._choose_atomic_withdrawal(stack_policy, self._entrance_snapshot([])),
-            "5pb7\r\x1b",
+            "5pb\x1b",
         )
+
+    def test_public_home_composer_to_sender_posts_no_store_invalid_character(self):
+        from hengbot.cli import _send_new_decision_key
+
+        stack = store_item("b", TVAL_POTION, 302, count=7, name="stack")
+        policy = self._catalogued_withdrawal_policy([stack])
+        policy._calibration_restore_signatures = [policy._item_signature(stack)]
+        entrance = self._entrance_snapshot([])
+        key = self._choose_atomic_withdrawal(policy, entrance)
+        posted = []
+
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.extend(value) or True,
+            "live-home-entrance-shape",
+            key,
+            None,
+            set(),
+            in_store=False,
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(posted, list("5pb\x1b"))
+        self.assertFalse(set(posted[1:]) & set("123456789"))
 
     def test_duplicate_signature_slots_keep_their_displayed_addresses(self):
         first = store_item("a", TVAL_POTION, 350, count=99, name="duplicate")
@@ -45296,7 +45319,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
         key = self._post_atomic(policy, entrance, target)
 
-        self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(key, "5" + SELL_KEY + "f" + policy_module.LEAVE_STORE_KEY)
         self.assertEqual(key.count(SELL_KEY), 1)
         self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
 
@@ -45372,7 +45395,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         key = policy._shopping_approach_key(
             entrance, Position(45, 123), "equipment-transaction:travel-home"
         )
-        self.assertEqual(key, "5dn2\r\x1b")
+        self.assertEqual(key, "5dn\x1b")
         self.assertEqual(key.count(SELL_KEY), 1)
 
         inside = self._snapshot(self._real_pack(target), turn=entrance.turn + 1)
@@ -45436,7 +45459,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         entrance = self._entrance_snapshot(self._real_pack(target), turn=2323505)
         key = self._post_atomic(policy, entrance, target)
 
-        self.assertEqual(key, "5df40\r\x1b")
+        self.assertEqual(key, "5df\x1b")
         self.assertEqual(policy.last_reason, "home:atomic-deposit")
         self.assertNotEqual(policy._town_blocked_reason, "departure-unsatisfiable")
 
@@ -45513,7 +45536,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         self.assertEqual(single_key, "5df" + policy_module.LEAVE_STORE_KEY)
-        self.assertEqual(stack_key, "5dg7\r" + policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(stack_key, "5dg" + policy_module.LEAVE_STORE_KEY)
 
     def test_atomic_deposit_requires_player_on_home_entrance(self):
         policy = HengbotPolicy()
@@ -45552,7 +45575,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         keys = [atomic, *(policy.choose_key(home) for _ in range(4))]
 
         self.assertTrue(all("dd" not in key and "de" not in key for key in keys))
-        self.assertEqual(sum("df40\r" in key for key in keys), 1)
+        self.assertEqual(sum("df" in key for key in keys), 1)
 
     def test_atomic_post_is_followed_directly_by_outside_observation(self):
         policy = HengbotPolicy()
@@ -45704,7 +45727,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             operations,
-            ["5" + SELL_KEY + slot + "40\r" + policy_module.LEAVE_STORE_KEY for slot in "fgh"],
+            ["5" + SELL_KEY + slot + policy_module.LEAVE_STORE_KEY for slot in "fgh"],
         )
         self.assertEqual([item_.slot for item_ in remaining], ["d", "e"])
 
@@ -48093,7 +48116,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         key = policy.choose_key(entrance)
 
-        self.assertEqual(key, "5" + policy_module.BUY_KEY + "d" + "5\r\x1b")
+        self.assertEqual(key, "5" + policy_module.BUY_KEY + "d" + "\x1b")
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
         self.assertEqual(policy._calibration_restore_signatures, [])
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
