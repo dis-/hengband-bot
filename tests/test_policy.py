@@ -45090,7 +45090,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         refused = replace(
             entrance,
             turn=3467379,
-            messages=("そこには行くことができません！",),
+            messages=("The doors are locked.",),
         )
         refused_entry = refused_policy.choose_key(refused)
         self.assertEqual(refused_entry, WAIT_KEY)
@@ -45130,7 +45130,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(sent)
         policy.confirm_key_posted(first)
 
-        failed = replace(entrance, store=None, messages=("そこには行くことができません！",))
+        failed = replace(
+            entrance, store=None, messages=("The doors are locked.",)
+        )
         second = policy.choose_key(failed)
         sent, _ = _send_new_decision_key(
             lambda value, **_kwargs: posted.append(value) or True,
@@ -45148,6 +45150,56 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             0, posted[1:].count(" "),
             "07e8218 emitted twelve SPACE no-ops before loop detection",
         )
+
+    def test_lagged_successful_store_entry_posts_no_direction(self):
+        """A surface-shaped page may lag one snapshot after entry succeeds."""
+        target = store_item("a", TVAL_POTION, 1355, name="lagged target")
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(self._real_pack(), turn=3041933),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+            messages=(),
+        )
+        origin = entrance.player.position
+        northeast = Position(origin.y - 1, origin.x + 1)
+        entrance = replace(
+            entrance,
+            grids={
+                origin: entrance.grids[origin],
+                northeast: grid(northeast.y, northeast.x),
+            },
+        )
+        posted = []
+        posted_line = None
+        posted_keys = set()
+
+        first = policy.choose_key(entrance)
+        sent, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "turn-3041933-before-wait", first, posted_line, posted_keys,
+            in_store=False,
+        )
+        self.assertTrue(sent)
+        policy.confirm_key_posted(first)
+
+        lagged = replace(entrance, turn=3041933, store=None, messages=())
+        second = policy.choose_key(lagged)
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "turn-3041933-lagged-store-null", second, posted_line, posted_keys,
+            in_store=False,
+        )
+
+        self.assertEqual(
+            posted,
+            [WAIT_KEY],
+            "16047be posted '9' into the already-open Home",
+        )
+        self.assertFalse(sent)
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
 
     def test_posted_store_entry_may_reenter_after_observed_closed_away(self):
         target = store_item("a", TVAL_POTION, 1353, name="unobserved target")

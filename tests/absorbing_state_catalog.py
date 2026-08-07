@@ -299,6 +299,50 @@ def _doubled_store_entry_cycle():
     return policy, DelayedEntryWorld(surface)
 
 
+def _lagged_successful_store_entry():
+    """Expose a direction posted into a store whose first page is lagged."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    target = fixture.store_item("a", TVAL_POTION, 3001, name="lagged target")
+    policy = HengbotPolicy()
+    policy._calibration_phase = "restore-supplies"
+    policy._calibration_restore_signatures = [policy._item_signature(target)]
+    policy._home_candidate_waiting = True
+    surface = replace(
+        helper._entrance_snapshot(helper._real_pack(), turn=3041933),
+        equipment=[
+            fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")
+        ],
+        messages=(),
+    )
+
+    lag_store_page = [False]
+
+    class LaggedSuccessfulEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, stock=[target])
+            self.invalid_store_entries = 0
+            self.expected_terminal_reason = "home:scan-catalog-page"
+
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if lag_store_page[0]:
+                lag_store_page[0] = False
+                return replace(current, store=None, messages=())
+            return current
+
+        def apply(self, key):
+            was_inside = self.inside
+            if was_inside and key[:1] in MOVES:
+                self.invalid_store_entries += 1
+                self.last_key = key
+                return
+            super().apply(key)
+            if not was_inside and key == WAIT_KEY and self.inside:
+                lag_store_page[0] = True
+
+    return policy, LaggedSuccessfulEntryWorld(surface)
+
+
 def _failed_store_entry_same_turn():
     """A refused entrance WAIT must hand routing back without a filler key."""
     helper = fixture.HomeOneOperationPerEntryTest()
@@ -330,7 +374,7 @@ def _failed_store_entry_same_turn():
             if not self.inside and self.last_key == WAIT_KEY:
                 return replace(
                     current,
-                    messages=("そこには行くことができません！",),
+                    messages=("The doors are locked.",),
                 )
             return current
 
@@ -767,7 +811,7 @@ SEEDED_STATES = (
     ),
     AbsorbingState(
         "lagged-successful-store-entry", 10,
-        _doubled_store_entry_cycle,
+        _lagged_successful_store_entry,
     ),
     AbsorbingState(
         "failed-store-entry-same-turn", 10,

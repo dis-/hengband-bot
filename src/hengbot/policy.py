@@ -2578,8 +2578,8 @@ class HengbotPolicy:
         posted_entry_owner = self._store_entry_posted_owner
         if posted_entry_owner is not None:
             observed_failed_entry = snapshot.store is None and any(
-                "You cannot go there" in message
-                or "そこには行くことができません" in message
+                "The doors are locked." in message
+                or "ドアに鍵がかかっている" in message
                 for message in snapshot.messages
             )
             # Failure requires positive message evidence; a lagged store=None
