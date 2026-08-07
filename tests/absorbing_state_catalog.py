@@ -474,6 +474,9 @@ def _calibration_prerequisite_scan_bound():
         },
     )
     policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 2
+    policy._recent.extend([snap.player.position] * policy_module.STUCK_WINDOW)
+    policy._shop_approach_stuck_count = policy_module.SHOP_APPROACH_STUCK_LIMIT - 1
+    policy._shopping_approach_step(snap, STORE_HOME)
     policy._report_town_stop_pass(
         snap, STORE_HOME, goal_satisfied=False, operation_completed=False
     )
@@ -482,6 +485,7 @@ def _calibration_prerequisite_scan_bound():
             super().__init__(snapshot)
             self.started_blocked = (
                 STORE_HOME in policy._town_visit_ledger.blocked_stores
+                or STORE_HOME in policy._town_store_attempted
             )
 
         def visible_terminal(self, reason):

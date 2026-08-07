@@ -31146,6 +31146,28 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertTrue(pol._home_identify_staff_sale_pending)
         self.assertNotIn(STORE_MAGIC, pol._town_store_attempted)
 
+    def test_already_queued_home_staff_yields_entry_to_address_scan(self):
+        stored = store_item(
+            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=3,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[self._staff(25)],
+            store=StoreState(STORE_HOME, [stored]),
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+        pol._home_pending_batch.append(pol._item_signature(stored))
+
+        self.assertEqual(pol._shop(snap), " ")
+        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
+        self.assertEqual(pol._home_pending_batch, [pol._item_signature(stored)])
+
     def test_home_withdrawn_staff_is_sellable_below_normal_pack_cap(self):
         pol = HengbotPolicy()
         pol._home_identify_staff_sale_pending = True
@@ -31272,10 +31294,8 @@ class IdentifyStaffTest(unittest.TestCase):
         # A second snapshot can precede the inventory delta. It must leave Home,
         # not withdraw another staff from a different letter.
         self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(
-            pol.last_reason, "home:queue-withdraw-surplus-identify-staff"
-        )
-        self.assertEqual(pol._town_errand_plan.index, 0)
+        self.assertEqual(pol.last_reason, "home:leave-with-item")
+        self.assertEqual(pol._town_errand_plan.index, 1)
         self.assertEqual(
             pol._next_required_store_type(replace(
                 snap, store=None, inventory=[self._staff(25), replace(self._staff(3), slot="t")]
@@ -43394,6 +43414,49 @@ class TownErrandPlanTest(unittest.TestCase):
             CALIBRATION_HOME_VISIT_LIMIT,
         )
 
+    def test_turn_2956451_scan_pipeline_oscillation_preserves_home_claim(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot(turn=2956451, width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot,
+            grids={**snapshot.grids, home.position: home},
+            town_flag=True,
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None,
+        )
+        policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+    def test_home_oscillation_outside_pipeline_marks_store_attempted(self):
+        policy = self._policy(
+            [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
+        )
+        snapshot = self._snapshot(width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot,
+            grids={**snapshot.grids, home.position: home},
+            town_flag=True,
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("no-valid-loadout",), result=None,
+        )
+        policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+
+        self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], snapshot.turn)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 1)
+
     def test_blocked_home_releases_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
@@ -44941,6 +45004,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
             policy.choose_key(replace(surface, turn=2247800 + decision))
         policy._calibration_phase = "restore-supplies"
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None,
+        )
         policy._calibration_restore_signatures = [("restore", 1, 1)]
         policy._home_candidate_waiting = True
         policy._town_visit_ledger.approach_fails[STORE_HOME] = (
@@ -44973,7 +45039,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._town_visit_ledger.need_attempts["calibration-restore"],
             TOWN_STOP_PASS_LIMIT,
         )
-        self.assertEqual(reasons["shop:travel"] + reasons["shop:approach"], 0)
+        self.assertGreater(reasons["shop:travel"] + reasons["shop:approach"], 0)
 
     def test_atomic_withdrawal_derives_first_later_and_last_page_letters(self):
         wares = [

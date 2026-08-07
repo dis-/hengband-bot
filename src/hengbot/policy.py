@@ -8243,6 +8243,15 @@ class HengbotPolicy:
     def _calibration_active(self) -> bool:
         return self._calibration_phase is not None
 
+    def _calibration_pipeline_active(self) -> bool:
+        blockers = getattr(
+            self._equipment_optimization_preparation, "blockers", ()
+        )
+        return (
+            "calibration-required" in blockers
+            or "home-scan-incomplete" in blockers
+        )
+
     def _calibration_session_owned(self) -> bool:
         session = self._equipment_transaction_session
         return (
@@ -13727,10 +13736,9 @@ class HengbotPolicy:
                 if not spec.produces(snapshot):
                     continue
                 store_type = spec.resolve_store_type(snapshot)
-                live_calibration_deposit = (
-                    spec.category == "deposit"
-                    and self._calibration_phase == "deposit"
-                    and self._find_home_deposit(snapshot) is not None
+                live_calibration_pipeline_need = (
+                    store_type == STORE_HOME
+                    and self._calibration_pipeline_active()
                 )
                 if (
                     store_type in self._town_visit_ledger.blocked_stores
@@ -13739,7 +13747,7 @@ class HengbotPolicy:
                     or (
                         self._town_visit_ledger.need_attempts.get(spec.category, 0)
                         >= spec.budget
-                        and not live_calibration_deposit
+                        and not live_calibration_pipeline_need
                     )
                 ):
                     continue
@@ -14392,13 +14400,7 @@ class HengbotPolicy:
         completing the pipeline; other stores and later Home work retain the
         ordinary hard terminal.
         """
-        blockers = getattr(
-            self._equipment_optimization_preparation, "blockers", ()
-        )
-        if store_type == STORE_HOME and (
-            "calibration-required" in blockers
-            or "home-scan-incomplete" in blockers
-        ):
+        if store_type == STORE_HOME and self._calibration_pipeline_active():
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
@@ -16875,6 +16877,14 @@ class HengbotPolicy:
                 and item.sval == SV_STAFF_IDENTIFY
                 and item.charges > 0
             ]
+            queued_withdrawals = set(self._home_pending_batch)
+            queued_withdrawals.update(self._calibration_restore_signatures)
+            if self._home_pending_item is not None:
+                queued_withdrawals.add(self._home_pending_item)
+            stored_identify = [
+                item for item in stored_identify
+                if self._item_signature(item) not in queued_withdrawals
+            ]
             if (
                 stored_identify
                 and PACK_CAPACITY - len(snapshot.inventory)
@@ -17606,7 +17616,7 @@ class HengbotPolicy:
             self._shop_approach_stuck_count = 0
         if self._shop_approach_stuck_count >= SHOP_APPROACH_STUCK_LIMIT:
             calibration_home = (
-                store_type == STORE_HOME and self._calibration_phase is not None
+                store_type == STORE_HOME and self._calibration_pipeline_active()
             )
             # Calibration owns its Home retry bounds. Yield this step after
             # resetting the detector, but leave its live claim and ledgers intact.
