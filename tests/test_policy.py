@@ -43246,6 +43246,45 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._shopping_approach_step(self._snapshot(), STORE_HOME)
         self.assertIn(STORE_HOME, policy._town_store_attempted)
 
+    def test_calibration_home_oscillation_yields_to_fifty_four_entry_bound(self):
+        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot(width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot,
+            grids={
+                **snapshot.grids,
+                home.position: home,
+            },
+            town_flag=True,
+        )
+        policy._calibration_phase = "deposit"
+        policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        for entry in range(CALIBRATION_HOME_VISIT_LIMIT):
+            policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+            self.assertIsNone(
+                policy._shopping_approach_step(snapshot, STORE_HOME)
+            )
+            self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+            self.assertEqual(
+                policy._town_visit_ledger.approach_fails[STORE_HOME], 0
+            )
+            policy._report_town_stop_pass(
+                snapshot,
+                STORE_HOME,
+                goal_satisfied=False,
+                operation_completed=True,
+            )
+
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
+
     def test_blocked_home_releases_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
@@ -48351,6 +48390,35 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:approach")
         self.assertIsNone(policy._town_blocked_reason)
         self.assertEqual(policy._town_claim_categories, ["deposit"])
+
+    def test_installing_checkpoint_oscillation_preserves_calibration_claim(self):
+        """Turn 2942063: the oscillation branch must not install the latch."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 119, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot,
+            turn=2942063,
+            grids={**snapshot.grids, home.position: home},
+            inventory=[replace(snapshot.inventory[0], count=19), *snapshot.inventory[1:]],
+        )
+        policy._town_was_in_town = True
+        policy._floor_key = snapshot.floor_key
+        policy._calibration_phase = "deposit"
+        policy._town_visit_ledger.need_attempts["deposit"] = 8
+        policy._recent.extend(
+            [Position(45, 123), Position(45, 122)] * (STUCK_WINDOW // 2)
+        )
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+
+        key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy._town_claim_categories, ["deposit"])
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
     def test_live_home_door_block_replay_never_posts_stay_publicly(self):
         """Run the retained (45,123) blocked state beyond its 104-decision window."""

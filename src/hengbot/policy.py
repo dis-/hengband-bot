@@ -17578,9 +17578,15 @@ class HengbotPolicy:
         else:
             self._shop_approach_stuck_count = 0
         if self._shop_approach_stuck_count >= SHOP_APPROACH_STUCK_LIMIT:
-            self._shopping_stuck = True
-            self._town_store_attempted[store_type] = snapshot.turn
-            self._town_visit_ledger.approach_fails[store_type] += 1
+            calibration_home = (
+                store_type == STORE_HOME and self._calibration_phase is not None
+            )
+            # Calibration owns its Home retry bounds. Yield this step after
+            # resetting the detector, but leave its live claim and ledgers intact.
+            if not calibration_home:
+                self._shopping_stuck = True
+                self._town_store_attempted[store_type] = snapshot.turn
+                self._town_visit_ledger.approach_fails[store_type] += 1
             self._shop_approach_stuck_count = 0
             return None
         return step

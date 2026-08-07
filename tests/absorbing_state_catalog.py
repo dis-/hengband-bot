@@ -328,7 +328,10 @@ def _released_bound():
     policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_store_attempted[STORE_HOME] = 3200003
-    return policy, TownWorld(surface, passable_positions={surface.player.position})
+    return policy, TownWorld(
+        surface,
+        passable_positions={surface.player.position, entrance.player.position},
+    )
 
 
 def _calibration_rearm_cycle():
