@@ -9562,6 +9562,47 @@ class HengbotPolicy:
             "quarantine_burned_item_ids": sorted(
                 self._equipment_quarantine_burned_ids
             ),
+            # Keep every exhausted-plan Home re-arm input together so a retained
+            # decision identifies the false term without reconstructing private
+            # policy state.  None means the snapshot-dependent predicate was not
+            # evaluated because this caller requested cached state only.
+            "home_route_rearm": {
+                "completed_home_can_rearm": self._completed_home_can_rearm,
+                "home_owner_goal_pending": (
+                    self._home_owner_goal_pending(snapshot)
+                    if snapshot is not None else None
+                ),
+                "equipment_work_need_present": (
+                    any(
+                        need.category == "equipment-work"
+                        for need in self._enumerate_town_needs(snapshot)
+                    )
+                    if snapshot is not None else None
+                ),
+                "equipment_work_home_route_available": (
+                    self._equipment_work_home_route_available()
+                ),
+                "outstanding_equipment_work": self._outstanding_equipment_work(),
+                "town_plan_exhausted": (
+                    self._town_errand_plan is not None
+                    and self._town_errand_plan.index
+                    >= len(self._town_errand_plan.stops)
+                ),
+                "home_approach_fails": self._town_visit_ledger.approach_fails[
+                    STORE_HOME
+                ],
+                "home_visit_limit": self._town_store_visit_limit(STORE_HOME),
+                "home_unsatisfied_passes": (
+                    self._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+                ),
+                "home_blocked": (
+                    STORE_HOME in self._town_visit_ledger.blocked_stores
+                ),
+                "rearmed_home_categories": (
+                    list(self._town_errand_plan.rearmed_home_categories)
+                    if self._town_errand_plan is not None else []
+                ),
+            },
         }
         state.update(self._equipment_optimization_telemetry)
         if snapshot is not None and (
@@ -14105,14 +14146,13 @@ class HengbotPolicy:
             if (
                 self._equipment_work_home_route_available()
                 and self._home_owner_goal_pending(snapshot)
-                and not self._completed_home_can_rearm
                 and not any(need.category == "equipment-work" for need in needs)
             ):
-                # A completed plan is only a route snapshot.  It must not strand
-                # a live owner merely because an earlier pass latched its store
-                # before the owner exposed the next unit of work.  Every owner
-                # represented by _outstanding_equipment_work shares the existing
-                # Home ceiling; while that bound is live, retain a Home route.
+                # A completed plan is only a route snapshot.  While a live owner
+                # still has outstanding equipment work and its bounded Home
+                # route remains available, retain a Home stop for that owner.
+                # _completed_home_can_rearm describes ordinary completed Home
+                # errands; it is not evidence that this owner has finished.
                 needs.append(TownNeed(STORE_HOME, "equipment-work", "home-first"))
                 needed_stores.add(STORE_HOME)
             # A completed plan is only a snapshot of the needs visible when it
@@ -14498,9 +14538,27 @@ class HengbotPolicy:
         session = self._equipment_transaction_session
         if session is not None and session.executable and session.required_context is not None:
             return True
-        return any(
-            need.store_type == STORE_HOME
+        directly_owned = bool(
+            self._home_pending_item is not None
+            or self._home_pending_batch
+            or self._home_atomic_withdraw_pending is not None
+            or self._home_atomic_deposit_pending is not None
+            or self._calibration_restore_signatures
+        )
+        home_categories = {
+            need.category
             for need in self._enumerate_town_needs(snapshot)
+            if need.store_type == STORE_HOME
+        }
+        return (
+            directly_owned
+            or "equipment-catalog" in home_categories
+            or bool(
+                self._calibration_active()
+                and home_categories.intersection(
+                    {"calibration-restore", "deposit"}
+                )
+            )
         )
 
     def _remember_departure_price(

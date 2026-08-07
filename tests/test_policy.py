@@ -49108,7 +49108,6 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             snapshot,
             turn=3030113,
             grids={**snapshot.grids, home.position: home},
-            inventory=[replace(snapshot.inventory[0], count=19), *snapshot.inventory[1:]],
         )
         policy.choose_key(snapshot)
         policy._town_was_in_town = True
@@ -49132,10 +49131,35 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             index=4,
             rearmed_home_categories=["deposit"],
         )
-        policy._town_store_attempted[STORE_HOME] = snapshot.turn
-        policy._completed_home_can_rearm = False
+        # The failed live retry proved the earlier fixture's guessed False was
+        # wrong: the old guard did not fire.  Pin the measured outcome by using
+        # the latch value which blocks 9db0769, while the rule below relies only
+        # on the observable live owner and bounded route facts.
+        policy._completed_home_can_rearm = True
 
         self.assertEqual(len(policy._equipment_catalog.items), 52)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertEqual(policy._calibration_phase, "deposit")
+        self.assertIsNone(policy.calibration_entry_state(snapshot)["entry_blocker"])
+        self.assertEqual(policy._town_errand_plan.index, 4)
+        self.assertEqual(len(policy._town_errand_plan.stops), 4)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
+        cure_requirement = next(
+            requirement
+            for requirement in policy.procurement_requirements(snapshot)
+            if requirement["item"] == "Cure Critical Wounds potions"
+        )
+        self.assertEqual(
+            cure_requirement,
+            {
+                "item": "Cure Critical Wounds potions",
+                "current": 0,
+                "target": 10,
+                "missing": 10,
+            },
+        )
         key = policy.choose_key(snapshot)
 
         self.assertEqual(key, "4")
@@ -49146,6 +49170,42 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertIn(
             "equipment-work",
             policy._town_errand_plan.need_categories[STORE_HOME],
+        )
+
+    def test_home_route_rearm_telemetry_exposes_every_guard_input(self):
+        policy, snapshot = self._fixture()
+        policy._calibration_phase = "deposit"
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_TEMPLE, STORE_WEAPON, STORE_BLACK],
+            index=4,
+            rearmed_home_categories=["deposit"],
+        )
+        policy._completed_home_can_rearm = True
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",),
+            result=None,
+            encounters_total=0,
+            encounters_evaluated=0,
+            transaction=None,
+        )
+
+        state = policy.equipment_optimization_state(snapshot)
+
+        self.assertEqual(
+            state["home_route_rearm"],
+            {
+                "completed_home_can_rearm": True,
+                "home_owner_goal_pending": False,
+                "equipment_work_need_present": False,
+                "equipment_work_home_route_available": True,
+                "outstanding_equipment_work": True,
+                "town_plan_exhausted": True,
+                "home_approach_fails": 0,
+                "home_visit_limit": CALIBRATION_HOME_VISIT_LIMIT,
+                "home_unsatisfied_passes": 0,
+                "home_blocked": False,
+                "rearmed_home_categories": ["deposit"],
+            },
         )
 
     def test_live_calibration_exhausted_ceiling_installs_named_terminal(self):
