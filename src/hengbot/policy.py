@@ -1667,6 +1667,10 @@ class HengbotPolicy:
         # with the existing one-step pathfinder instead of retrying forever.
         self._shopping_approach_store_type: int | None = None
         self._shopping_approach_goal: Position | None = None
+        # Per-decision ownership for a WAIT whose meaning on the selected
+        # store's entrance is the entry command itself.  This is reset before
+        # every public decision and set only by the store-entry emitters.
+        self._store_entry_wait_owner: int | None = None
         # Shared progress tracker for every native-travel leg (stores, Home and
         # the dungeon entrance): the current goal, the best distance seen for
         # it, and how many issues brought no progress. See _town_travel_key.
@@ -2545,6 +2549,7 @@ class HengbotPolicy:
     def _choose_key(self, snapshot: Snapshot) -> str:
         self._read_binding = None
         self.read_telemetry = {}
+        self._store_entry_wait_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
@@ -3101,9 +3106,11 @@ class HengbotPolicy:
             return key
         if self.last_reason in {"livelock:exhausted", "combat:fruitless"}:
             return key
+        here = snapshot.grid_at(snapshot.player.position)
         if (
-            self.last_reason.endswith(":await-entry")
-            and not self._last_snapshot_was_store
+            self._store_entry_wait_owner is not None
+            and here is not None
+            and here.store_number == self._store_entry_wait_owner
         ):
             # This WAIT is the store-entry command itself.  Projecting it to a
             # movement direction is unsafe across the player-turn/store
@@ -3111,21 +3118,6 @@ class HengbotPolicy:
             # fall through the store dispatcher's default branch.  Keep the
             # command whose meaning at this entrance is precisely "enter".
             return key
-        identify_staff_withdrawal_queued = (
-            self._home_pending_item is not None
-            and self._home_pending_item[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY)
-        ) or any(
-            signature[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY)
-            for signature in self._calibration_restore_signatures
-        )
-        if (
-            self.last_reason == "home:atomic-withdraw-needs-observation"
-            and identify_staff_withdrawal_queued
-        ):
-            # This owner is already bound to a queued Home withdrawal.  Its
-            # WAIT is the deliberate next entry, not an unowned idle action.
-            return key
-        here = snapshot.grid_at(snapshot.player.position)
         on_disclosed_entrance = here is not None and (
             here.store_number >= 0
             or here.building_special >= 0
@@ -11061,6 +11053,7 @@ class HengbotPolicy:
             return None
         if not self._home_address_scan_valid:
             self.last_reason = "home:atomic-withdraw-needs-observation"
+            self._store_entry_wait_owner = STORE_HOME
             return WAIT_KEY
 
         signature: tuple[str, int, int] | None = None
@@ -17851,6 +17844,7 @@ class HengbotPolicy:
             and here.store_number == self._shopping_approach_store_type
         ):
             self.last_reason = f"{travel_reason}:await-entry"
+            self._store_entry_wait_owner = self._shopping_approach_store_type
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._step_toward(snapshot, step)

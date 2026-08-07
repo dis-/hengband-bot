@@ -329,7 +329,10 @@ def _withdraw_refusal_cycle():
     policy.choose_key(page)
     entrance = replace(helper._entrance_snapshot(pack, turn=3050001),
                        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")])
-    return policy, TownWorld(entrance, stock=[other])
+    # Once the entry-owned WAIT is delivered, model the real store's version
+    # response so this seed continues to test the bounded refusal cycle rather
+    # than freezing on an omitted protocol response.
+    return policy, TownWorld(entrance, stock=[other], version_reply=True)
 
 
 def _released_bound():

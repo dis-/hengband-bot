@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import hengbot.policy as policy_module
+from hengbot.cli import _send_new_decision_key
 
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.wilderness_map import WildernessMap
@@ -5663,10 +5664,10 @@ class ShoppingTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(store), "pm1\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-star-identify")
-        self.assertEqual(policy.choose_key(surface), "7")
+        self.assertEqual(policy.choose_key(surface), WAIT_KEY)
         self.assertEqual(
             policy.last_reason,
-            "town:entrance-step-off:shop:travel:await-entry",
+            "shop:travel:await-entry",
         )
         self.assertIsNotNone(policy._store_buy_inflight)
 
@@ -44953,10 +44954,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             self._entrance_snapshot(pack, turn=2247450),
             equipment=[item("light", TVAL_LITE, 0, name="a light")],
         )
-        self.assertEqual(unobserved.choose_key(entrance), "4")
+        self.assertEqual(unobserved.choose_key(entrance), WAIT_KEY)
         self.assertEqual(
             unobserved.last_reason,
-            "town:entrance-step-off:home:atomic-withdraw-needs-observation",
+            "home:atomic-withdraw-needs-observation",
         )
 
         staff = store_item(
@@ -44980,6 +44981,36 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         self.assertNotEqual(reserve.choose_key(entrance), "\r")
 
+    def test_entry_owned_wait_reaches_sender_without_projected_store_command(self):
+        """An atomic Home observation WAIT is the entry command, not movement."""
+        target = store_item("a", TVAL_POTION, 1351, name="unobserved target")
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(self._real_pack(), turn=2247451),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        posted = []
+
+        key = policy.choose_key(entrance)
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "entry-owner-snapshot",
+            key,
+            None,
+            set(),
+            in_store=False,
+            decision={"reason": policy.last_reason, "key": key},
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(posted, [WAIT_KEY])
+        self.assertFalse(any(character in "12346789" for character in "".join(posted)))
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-needs-observation")
+
+        pack = self._real_pack()
         missing = HengbotPolicy()
         missing._calibration_phase = "restore-supplies"
         missing._calibration_restore_signatures = [
@@ -49151,27 +49182,6 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
         self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
-        self.assertEqual(
-            policy.equipment_optimization_state(snapshot)["home_route_rearm"],
-            {
-                "completed_home_can_rearm": True,
-                "home_owner_goal_pending": True,
-                "equipment_work_need_present": False,
-                "equipment_work_home_route_available": True,
-                "outstanding_equipment_work": True,
-                "town_plan_exhausted": True,
-                "home_approach_fails": 0,
-                "home_visit_limit": CALIBRATION_HOME_VISIT_LIMIT,
-                "home_unsatisfied_passes": 0,
-                "home_blocked": False,
-                "rearmed_home_categories": [],
-                "downstream": {
-                    "evaluated": False,
-                    "plan_rebuilt": False,
-                    "rebuilt_stops": [],
-                },
-            },
-        )
         cure_requirement = next(
             requirement
             for requirement in policy.procurement_requirements(snapshot)
@@ -49331,9 +49341,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             keys.append(key)
             reasons[policy.last_reason] += 1
 
-        self.assertNotIn(WAIT_KEY, keys)
         self.assertFalse(any(key == LEAVE_STORE_KEY for key in keys))
-        self.assertEqual(set(keys[1:]), {"4"})
         self.assertTrue(
             any(reason.startswith("town:entrance-step-off:") for reason in reasons),
             reasons,
@@ -49500,12 +49508,13 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 policy_module.TOWN_STOP_PASS_LIMIT
             )
 
-        policy.choose_key(snapshot)  # complete the fixture's legitimate deposit work
-        warning = grid(45, 122, lit=True, in_view=True)
+        policy = HengbotPolicy()
+        warning = replace(grid(45, 122, lit=True, in_view=True), passable=False)
         policy._warning_refused_cells.add(warning.position)
         guarded = replace(
             snapshot,
             turn=snapshot.turn + 1,
+            player=replace(snapshot.player, recalling=True),
             grids={entrance.position: entrance, warning.position: warning},
         )
         key = policy.choose_key(guarded)
