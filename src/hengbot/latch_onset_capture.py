@@ -182,7 +182,8 @@ def decision_record(
         "town_store_attempted": jsonable(clone._town_store_attempted),
         "visit_ledger": {
             "blocked_stores": sorted(ledger.blocked_stores),
-            "approach_failures": jsonable(ledger.approach_fails),
+            "approach_fails": jsonable(ledger.approach_fails),
+            "unsatisfied_passes": jsonable(ledger.unsatisfied_passes),
         },
         "errand_current_stop": (
             None if plan is None or plan.index >= len(plan.stops) else plan.stops[plan.index]

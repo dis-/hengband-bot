@@ -41246,7 +41246,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(outside), "5")
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:home-unreachable"
+            policy.last_reason, "equipment-transaction:home-route-unavailable"
         )
 
         opened_shop = replace(
@@ -41257,7 +41257,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(opened_shop), "\x1b")
         self.assertEqual(
             policy.last_reason,
-            "town:blocked:equipment-transaction:home-unreachable",
+            "town:blocked:equipment-transaction:home-route-unavailable",
         )
         self.assertIsNone(policy._equipment_transaction_session)
 
@@ -43460,7 +43460,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
         for entry in range(CALIBRATION_HOME_VISIT_LIMIT):
             policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
-            self.assertIsNone(
+            self.assertIsNotNone(
                 policy._shopping_approach_step(snapshot, STORE_HOME)
             )
             self.assertNotIn(STORE_HOME, policy._town_store_attempted)
@@ -43497,7 +43497,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
         self.assertIsNone(policy._calibration_phase)
-        self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self.assertIsNotNone(policy._shopping_approach_step(snapshot, STORE_HOME))
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
@@ -43519,13 +43519,26 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
-        self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self.assertIsNotNone(policy._shopping_approach_step(snapshot, STORE_HOME))
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
     def test_home_oscillation_outside_pipeline_marks_store_attempted(self):
-        """Historical name retained for the rescoped oscillation contract."""
-        self.test_home_oscillation_with_optimizer_blocker_preserves_equipment_work()
+        policy = self._policy([])
+        snapshot = self._snapshot(width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot,
+            grids={**snapshot.grids, home.position: home},
+            town_flag=True,
+        )
+        policy._equipment_optimization_preparation = None
+        policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+
+        self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 1)
 
     def test_blocked_home_releases_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
@@ -45619,8 +45632,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             key = policy._equipment_transaction_town_key(snapshot)
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "equipment-transaction:home-unreachable")
-        block.assert_called_once_with("home-unreachable")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:home-route-unavailable"
+        )
+        block.assert_called_once_with("home-route-unavailable")
         approach_key.assert_not_called()
 
     def test_three_deposits_use_three_entries_and_finish(self):
@@ -48753,10 +48768,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
     def test_no_town_work_latches_visible_terminal(self):
         policy, snapshot = self._fixture()
-        # The default warrior regenerates a calibration-required optimizer
-        # blocker on the second choose_key call. Use a non-warrior so this test
-        # actually isolates the declared no-town-work terminal shape.
-        snapshot = replace(snapshot, player=replace(snapshot.player, class_id=1))
+        seed_character_calibration(policy, snapshot)
         policy.choose_key(snapshot)
         policy._town_errand_plan = None
         policy._equipment_optimization_preparation = SimpleNamespace(
@@ -48820,6 +48832,46 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertNotEqual(
             policy.last_reason, "equipment-transaction:abandon-blocked"
         )
+
+    def test_depth_30_transaction_detector_refusal_keeps_home_route_publicly(self):
+        """Turn-2975934 shape: detector refusal cannot destroy owned Home work."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot,
+            grids={**snapshot.grids, home.position: home},
+        )
+        target = snapshot.inventory[0]
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            f"pack:{identity}:0",
+            item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 30)
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=object(),
+        )
+        policy._set_equipment_transaction_session(session)
+        policy._town_was_in_town = True
+        policy._floor_key = snapshot.floor_key
+        policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+
+        key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "equipment-transaction:approach-home")
+        self.assertIs(policy._equipment_transaction_session, session)
+        self.assertTrue(session.executable)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
     def test_no_safe_recall_terminal_waits_for_outstanding_equipment_work(self):
         policy, snapshot = self._fixture()

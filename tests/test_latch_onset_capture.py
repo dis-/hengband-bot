@@ -42,9 +42,7 @@ class LatchOnsetCaptureTest(unittest.TestCase):
 
     def test_none_to_value_captures_bounded_replayable_four_decision_window(self):
         policy, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
-        # This capture exercises a genuine no-work terminal. Equipment blockers
-        # are now outstanding work and intentionally cannot install it.
-        snapshot = replace(snapshot, player=replace(snapshot.player, class_id=1))
+        test_policy.seed_character_calibration(policy, snapshot)
         with TemporaryDirectory() as directory:
             path = Path(directory) / "latch-onset.jsonl"
             policy._latch_capture_path = path
@@ -52,6 +50,7 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             before_reason = policy.last_reason
             policy._equipment_optimization_preparation = None
             self._exhaust_town_work(policy)
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 17
             installing_snapshot = replace(snapshot, turn=snapshot.turn + 1)
             installing_key = policy.choose_key(installing_snapshot)
             installing_reason = policy.last_reason
@@ -77,6 +76,14 @@ class LatchOnsetCaptureTest(unittest.TestCase):
         self.assertTrue(onset["assignment"]["assigning_file"].endswith("policy.py"))
         self.assertIsInstance(onset["assignment"]["assigning_line"], int)
         self.assertTrue(onset["assignment"]["caller_chain"])
+        self.assertIn(
+            {"key": STORE_HOME, "count": policy_module.TOWN_STOP_PASS_LIMIT},
+            onset["visit_ledger"]["approach_fails"],
+        )
+        self.assertEqual(
+            onset["visit_ledger"]["unsatisfied_passes"],
+            [{"key": STORE_HOME, "count": 17}],
+        )
         for record in records:
             self.assertEqual(
                 set(record),

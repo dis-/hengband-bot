@@ -9941,8 +9941,8 @@ class HengbotPolicy:
         if session.required_context == "home":
             step = self._shopping_approach_step(snapshot)
             if step is None or self._shopping_approach_store_type != STORE_HOME:
-                self._block_equipment_transaction("home-unreachable")
-                self.last_reason = "equipment-transaction:home-unreachable"
+                self._block_equipment_transaction("home-route-unavailable")
+                self.last_reason = "equipment-transaction:home-route-unavailable"
                 return WAIT_KEY
             self.last_reason = "equipment-transaction:approach-home"
             return self._shopping_approach_key(
@@ -17667,14 +17667,18 @@ class HengbotPolicy:
             equipment_work_at_home = (
                 store_type == STORE_HOME and self._outstanding_equipment_work()
             )
-            # Outstanding equipment work owns its Home retry bounds. Yield this
-            # step after resetting the detector, but leave its claim and ledgers
-            # intact.
-            if not equipment_work_at_home:
-                self._shopping_stuck = True
-                self._town_store_attempted[store_type] = snapshot.turn
-                self._town_visit_ledger.approach_fails[store_type] += 1
             self._shop_approach_stuck_count = 0
+            if equipment_work_at_home:
+                # Outstanding equipment work owns the Home route until its
+                # 54-entry ceiling is consumed. A detector may reset its own
+                # observation window, but it must neither mutate the route
+                # ledgers nor turn a known route step into "no route". A None
+                # returned above still distinctly means that map routing found
+                # no step at all.
+                return step
+            self._shopping_stuck = True
+            self._town_store_attempted[store_type] = snapshot.turn
+            self._town_visit_ledger.approach_fails[store_type] += 1
             return None
         return step
 

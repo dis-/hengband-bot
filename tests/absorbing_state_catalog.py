@@ -572,6 +572,18 @@ def _exhausted_equipment_home_route():
     return policy, TownWorld(snap)
 
 
+def _approach_refused_optimizer_transaction():
+    """A detector refusal must not consume an open transaction's Home route."""
+    policy, world = _successful_optimizer_transaction()
+    policy._town_was_in_town = True
+    policy._floor_key = world.base.floor_key
+    policy._recent.extend([world.base.player.position] * policy_module.STUCK_WINDOW)
+    policy._shop_approach_stuck_count = (
+        policy_module.SHOP_APPROACH_STUCK_LIMIT - 1
+    )
+    return policy, world
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -598,5 +610,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "exhausted-equipment-home-route", 40,
         _exhausted_equipment_home_route,
+    ),
+    AbsorbingState(
+        "approach-refused-optimizer-transaction", 100,
+        _approach_refused_optimizer_transaction,
     ),
 )
