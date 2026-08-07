@@ -1671,11 +1671,10 @@ class HengbotPolicy:
         # store's entrance is the entry command itself.  This is reset before
         # every public decision and set only by the store-entry emitters.
         self._store_entry_wait_owner: int | None = None
+        self._store_entry_failed_owner: int | None = None
         # A store-entry command becomes outstanding only after the CLI confirms
-        # that it was posted.  While the wire still shows the same closed
-        # entrance, that page may predate the command: do not post a second
-        # entry command until a snapshot shows either the owned store or a
-        # closed state away from that entrance.
+        # that it was posted.  The next snapshot observes its result;
+        # store=None is a failed entry, including at the unchanged entrance.
         self._store_entry_posted_owner: int | None = None
         # Shared progress tracker for every native-travel leg (stores, Home and
         # the dungeon entrance): the current goal, the best distance seen for
@@ -2556,6 +2555,7 @@ class HengbotPolicy:
         self._read_binding = None
         self.read_telemetry = {}
         self._store_entry_wait_owner = None
+        self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
@@ -2577,28 +2577,15 @@ class HengbotPolicy:
         self._begin_map_predicate_cache(snapshot)
         posted_entry_owner = self._store_entry_posted_owner
         if posted_entry_owner is not None:
-            here = snapshot.grid_at(snapshot.player.position)
-            observed_owned_store = (
-                snapshot.store is not None
-                and snapshot.store.store_type == posted_entry_owner
-            )
-            observed_closed_away = (
-                snapshot.store is None
-                and (here is None or here.store_number != posted_entry_owner)
-            )
-            observed_other_store = (
-                snapshot.store is not None
-                and snapshot.store.store_type != posted_entry_owner
-            )
-            if observed_owned_store or observed_closed_away or observed_other_store:
-                self._store_entry_posted_owner = None
-            else:
-                # SPACE is harmless at the unchanged town entrance and is a
-                # valid store-page command if this lagging decision arrives
-                # after entry.  It keeps this owner in charge without turning
-                # an internal None into unrelated town wandering.
-                self.last_reason = "store:entry-await-observation"
-                return " "
+            observed_failed_entry = snapshot.store is None
+            # Termination argument: every snapshot is either a store or no
+            # store.  Both discharge the outstanding entry before normal
+            # routing runs, so this state cannot retain ownership across a
+            # decision and emits no filler key.  In particular, store=None on
+            # the unchanged entrance is positive evidence that entry failed.
+            self._store_entry_posted_owner = None
+            if observed_failed_entry:
+                self._store_entry_failed_owner = posted_entry_owner
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction
         )
@@ -17864,12 +17851,20 @@ class HengbotPolicy:
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
-        atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
-        if atomic_withdrawal is not None:
-            return atomic_withdrawal
-        atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
-        if atomic_deposit is not None:
-            return atomic_deposit
+        entry_failed_here = (
+            self._store_entry_failed_owner == self._shopping_approach_store_type
+        )
+        if not entry_failed_here:
+            atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
+            if atomic_withdrawal is not None:
+                return atomic_withdrawal
+            atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
+            if atomic_deposit is not None:
+                return atomic_deposit
+        elif step == snapshot.player.position:
+            neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
+            self.last_reason = "store:entry-failed-step-off"
+            return self._step_toward(snapshot, neighbors[0]) if neighbors else ""
         here = snapshot.grid_at(snapshot.player.position)
         if (
             step == snapshot.player.position

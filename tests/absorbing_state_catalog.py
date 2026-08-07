@@ -299,6 +299,35 @@ def _doubled_store_entry_cycle():
     return policy, DelayedEntryWorld(surface)
 
 
+def _failed_store_entry_same_turn():
+    """A refused entrance WAIT must hand routing back without a filler key."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    target = fixture.store_item("a", TVAL_POTION, 3000, name="refused target")
+    policy = HengbotPolicy()
+    policy._calibration_phase = "restore-supplies"
+    policy._calibration_restore_signatures = [policy._item_signature(target)]
+    policy._home_candidate_waiting = True
+    surface = replace(
+        helper._entrance_snapshot(helper._real_pack(), turn=3467379),
+        equipment=[
+            fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")
+        ],
+    )
+
+    class RefusedEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, stock=[target])
+            self.expected_terminal_reason = "store:entry-failed-step-off"
+
+        def apply(self, key):
+            if not self.inside and key == WAIT_KEY:
+                self.last_key = key
+                return
+            super().apply(key)
+
+    return policy, RefusedEntryWorld(surface)
+
+
 def _version_discard(*, swallow=False):
     helper = fixture.HomeOneOperationPerEntryTest()
     stock = [fixture.store_item(chr(ord("a") + n % 12), TVAL_POTION, 2000 + n,
@@ -726,5 +755,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "doubled-store-entry-cycle", 10,
         _doubled_store_entry_cycle,
+    ),
+    AbsorbingState(
+        "failed-store-entry-same-turn", 10,
+        _failed_store_entry_same_turn,
     ),
 )

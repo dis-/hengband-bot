@@ -45053,6 +45053,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     state = "home"
                 elif state == "home" and character == " ":
                     pass
+                elif state == "home" and character in "12346789":
+                    state = "away"
                 else:
                     invalid.append((state, character))
                 posted.append(character)
@@ -45077,12 +45079,56 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertTrue(sent)
         self.assertEqual(
-            posted, [WAIT_KEY, " "],
+            posted, [WAIT_KEY, "4"],
             "64d9644 posted doubled entry characters ['5', '5']",
         )
         self.assertNotEqual(posted[1], WAIT_KEY)
+        self.assertNotEqual(posted[1], " ")
         self.assertEqual(invalid, [])
-        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertEqual(policy.last_reason, "store:entry-failed-step-off")
+
+    def test_failed_store_entry_same_turn_reaches_sender_without_noop(self):
+        """07:28:31 retained shape: WAIT failed on the Alchemist entrance."""
+        target = store_item("a", TVAL_POTION, 1354, name="unobserved target")
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(self._real_pack(), turn=3467379),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        posted = []
+        posted_line = None
+        posted_keys = set()
+
+        first = policy.choose_key(entrance)
+        sent, posted_line = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "turn-3467379-before-wait", first, posted_line, posted_keys,
+            in_store=False,
+        )
+        self.assertTrue(sent)
+        policy.confirm_key_posted(first)
+
+        failed = replace(entrance, store=None, messages=("そこには行くことができません！",))
+        second = policy.choose_key(failed)
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "turn-3467379-after-wait", second, posted_line, posted_keys,
+            in_store=False,
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(posted, [WAIT_KEY, "4"])
+        self.assertNotIn(" ", posted)
+        self.assertEqual(sum(key == WAIT_KEY for key in posted), 1)
+        self.assertIsNone(policy._store_entry_posted_owner)
+        self.assertEqual(policy.last_reason, "store:entry-failed-step-off")
+        self.assertEqual(
+            0, posted[1:].count(" "),
+            "07e8218 emitted twelve SPACE no-ops before loop detection",
+        )
 
     def test_posted_store_entry_may_reenter_after_observed_closed_away(self):
         target = store_item("a", TVAL_POTION, 1353, name="unobserved target")
