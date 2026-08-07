@@ -412,7 +412,7 @@ SEEDED_STATES = (
     AbsorbingState("home-page-recurrence", 400, _page_recurrence),
     AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
-    AbsorbingState("released-home-attempt-bound", 600, _released_bound),
+    AbsorbingState("released-home-attempt-bound", 800, _released_bound),
     AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
     AbsorbingState(
         "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget

@@ -394,6 +394,9 @@ class TownTravelProgress:
 
 
 TOWN_STOP_PASS_LIMIT = 3
+# それならば一旦多少の非効率は許容する。訪問回数の最大値を54回まで緩和することを許可するのでまずは処理を
+# 完遂させること。効率化はその後。
+CALIBRATION_HOME_VISIT_LIMIT = 54
 # Cash retained after buying every departure-blocking shortage on a cross-town
 # shopping expedition, covering the user-specified round trip.
 CROSS_TOWN_SHOPPING_RESERVE = 1000
@@ -13718,7 +13721,7 @@ class HengbotPolicy:
                 if (
                     store_type in self._town_visit_ledger.blocked_stores
                     or self._town_visit_ledger.approach_fails[store_type]
-                    >= TOWN_STOP_PASS_LIMIT
+                    >= self._town_store_visit_limit(store_type)
                     or (
                         self._town_visit_ledger.need_attempts.get(spec.category, 0)
                         >= spec.budget
@@ -13973,7 +13976,7 @@ class HengbotPolicy:
         ledger_blocked = self._town_visit_ledger.blocked_stores | {
             store
             for store, failures in self._town_visit_ledger.approach_fails.items()
-            if failures >= TOWN_STOP_PASS_LIMIT
+            if failures >= self._town_store_visit_limit(store)
         }
         live_needs = (
             self._departure_blocking_town_needs(snapshot)
@@ -14300,15 +14303,22 @@ class HengbotPolicy:
             plan.current_stop_passes = 0
             plan.index += 1
             return
-        if operation_completed:
+        limit = self._town_store_visit_limit(store_type)
+        if operation_completed and limit == TOWN_STOP_PASS_LIMIT:
             plan.current_stop_passes = 0
             return
+        # During calibration, one completed Home entry is the unit of work:
+        # an atomic deposit/withdrawal still consumes an entry when its owner
+        # remains live.  The same ledger counter therefore enforces the user's
+        # visit ceiling without weakening the existing blocked-store terminal.
         plan.current_stop_passes += 1
         self._town_visit_ledger.unsatisfied_passes[store_type] += 1
         if (
             self._town_visit_ledger.unsatisfied_passes[store_type]
-            < TOWN_STOP_PASS_LIMIT
+            < limit
         ):
+            if operation_completed:
+                plan.current_stop_passes = 0
             return
         plan.blocked_this_visit.append(store_type)
         self._town_visit_ledger.blocked_stores.add(store_type)
@@ -14358,6 +14368,12 @@ class HengbotPolicy:
             # The category-based Home latch belongs to the work that just
             # finished.  A sale withdrawal exposes a fresh Home scan phase.
             plan.rearmed_home_categories.clear()
+
+    def _town_store_visit_limit(self, store_type: int) -> int:
+        """Return the visit-local terminal ceiling for this store."""
+        if store_type == STORE_HOME and self._calibration_phase is not None:
+            return CALIBRATION_HOME_VISIT_LIMIT
+        return TOWN_STOP_PASS_LIMIT
 
     def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
         session = self._equipment_transaction_session
@@ -17456,7 +17472,7 @@ class HengbotPolicy:
             return None
         if (
             self._town_visit_ledger.approach_fails[store_type]
-            >= TOWN_STOP_PASS_LIMIT
+            >= self._town_store_visit_limit(store_type)
         ):
             self._town_store_attempted[store_type] = snapshot.turn
             self._shop_approach_stuck_count = 0

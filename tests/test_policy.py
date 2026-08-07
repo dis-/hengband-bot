@@ -199,6 +199,7 @@ from hengbot.policy import (
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     TOWN_TELEPORT_COST,
     TOWN_STOP_PASS_LIMIT,
+    CALIBRATION_HOME_VISIT_LIMIT,
     TownErrandPlan,
     TownTravelProgress,
     TownNeed,
@@ -43203,6 +43204,47 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
+
+    def test_calibration_home_completed_entries_block_at_fifty_four(self):
+        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        policy._calibration_phase = "deposit"
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        for entry in range(CALIBRATION_HOME_VISIT_LIMIT - 1):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False,
+                operation_completed=True,
+            )
+            self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+            self.assertEqual(
+                policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+                entry + 1,
+            )
+
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False,
+            operation_completed=True,
+        )
+
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
+
+    def test_calibration_home_approach_bound_is_fifty_four(self):
+        policy = HengbotPolicy()
+        policy._calibration_phase = "deposit"
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            CALIBRATION_HOME_VISIT_LIMIT - 1
+        )
+        policy._shopping_approach_step(self._snapshot(), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        policy._town_visit_ledger.approach_fails[STORE_HOME] += 1
+        policy._shopping_approach_step(self._snapshot(), STORE_HOME)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
 
     def test_blocked_home_releases_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
