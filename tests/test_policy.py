@@ -43190,7 +43190,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
     def test_unsatisfied_stop_blocks_after_three_completed_passes(self):
         needs = [
-            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(STORE_HOME, "safe-weapon", "home-first"),
             TownNeed(STORE_GENERAL, "food", "normal"),
         ]
         policy = self._policy(needs)
@@ -43204,6 +43204,55 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
+
+    def test_calibration_prerequisite_home_scan_uses_fifty_four_visit_bound(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertIsNone(policy._calibration_phase)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+        for entry in range(CALIBRATION_HOME_VISIT_LIMIT - 1):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False,
+                operation_completed=True,
+            )
+            self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+            self.assertEqual(
+                policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+                entry + 1,
+            )
+
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False,
+            operation_completed=False,
+        )
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
+
+    def test_prerequisite_scan_visits_continue_into_calibration_budget(self):
+        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        policy = self._policy(needs)
+        snapshot = self._snapshot()
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        for _ in range(3):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False,
+                operation_completed=True,
+            )
+
+        policy._calibration_phase = "deposit"
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False,
+            operation_completed=True,
+        )
+
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 4)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
     def test_calibration_home_completed_entries_block_at_fifty_four(self):
         needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
@@ -43350,7 +43399,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._home_atomic_withdraw_pending, inflight)
 
     def test_next_town_visit_rebuilds_blocked_home_identification_batch(self):
-        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        needs = [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
         policy = self._policy(needs)
         town = replace(self._snapshot(), town_flag=True)
         dungeon = replace(town, town_flag=False, floor_key=(1, 1, 0))
@@ -43377,7 +43426,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
     def test_unsatisfied_stop_blocks_across_plan_rebuild(self):
         needs = [
-            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(STORE_HOME, "safe-weapon", "home-first"),
             TownNeed(STORE_GENERAL, "food", "normal"),
         ]
         policy = self._policy(needs)
@@ -48384,6 +48433,47 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
         self.assertEqual(policy._town_blocked_reason, "no-safe-recall-destination")
+
+    def test_turn_2947508_scan_checkpoint_does_not_install_latch_under_ceiling(self):
+        """Embed the captured scan-incomplete state before its bad T3 latch."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot, turn=2947508,
+            grids={**snapshot.grids, home.position: home},
+        )
+        policy._equipment_catalog.home_scan_complete = False
+        policy._town_was_in_town = True
+        policy._enumerate_town_needs = lambda _snapshot: [
+            TownNeed(STORE_HOME, "equipment-catalog", "home-first")
+        ]
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("equipment-catalog",)},
+        )
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 2
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False,
+            operation_completed=True,
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(
+            policy.last_reason, "town:blocked:no-safe-recall-destination",
+            "turn-2947508 checkpoint must not install the latch while "
+            "scan-incomplete Home work remains under the ceiling",
+        )
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 3,
+            "the public decision must not consume the scan's third pass via "
+            "a block-and-rearm cycle",
+        )
 
     def test_captured_calibration_deposit_survives_exhausted_claim_budget(self):
         """Embed the onset checkpoint's decision-relevant town state."""

@@ -14385,7 +14385,18 @@ class HengbotPolicy:
 
     def _town_store_visit_limit(self, store_type: int) -> int:
         """Return the visit-local terminal ceiling for this store."""
-        if store_type == STORE_HOME and self._calibration_phase is not None:
+        plan = self._town_errand_plan
+        calibration_prerequisite_scan = (
+            self._calibration_phase is None
+            and not self._equipment_catalog.home_scan_complete
+            and plan is not None
+            and plan.need_categories.get(STORE_HOME, ())
+            == ("equipment-catalog",)
+        )
+        if store_type == STORE_HOME and (
+            self._calibration_phase is not None
+            or calibration_prerequisite_scan
+        ):
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 

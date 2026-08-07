@@ -445,6 +445,46 @@ def _identify_staff_reserve_queue_cycle():
     )
 
 
+def _calibration_prerequisite_scan_bound():
+    """The pre-phase Home scan must survive the legacy third-pass boundary."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, snap = helper._fixture()
+    home = replace(
+        fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+    )
+    snap = replace(snap, turn=2947508, grids={**snap.grids, home.position: home})
+    policy._equipment_catalog.home_scan_complete = False
+    policy._town_was_in_town = True
+    policy._enumerate_town_needs = lambda _snapshot: [
+        policy_module.TownNeed(STORE_HOME, "equipment-catalog", "home-first")
+    ]
+    policy._town_errand_plan = policy_module.TownErrandPlan(
+        [STORE_HOME],
+        need_categories={STORE_HOME: ("equipment-catalog",)},
+    )
+    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 2
+    policy._report_town_stop_pass(
+        snap, STORE_HOME, goal_satisfied=False, operation_completed=False
+    )
+    class PrerequisiteScanWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot)
+            self.started_blocked = (
+                STORE_HOME in policy._town_visit_ledger.blocked_stores
+            )
+
+        def visible_terminal(self, reason):
+            if self.started_blocked:
+                return None
+            if policy._equipment_catalog.home_scan_complete:
+                terminal = super().visible_terminal("livelock:exhausted")
+                if terminal is not None:
+                    return "calibration prerequisite Home scan complete"
+            return super().visible_terminal(reason)
+
+    return policy, PrerequisiteScanWorld(snap)
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -459,5 +499,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "identify-staff-reserve-queue-cycle", 40,
         _identify_staff_reserve_queue_cycle,
+    ),
+    AbsorbingState(
+        "calibration-prerequisite-scan-bound", 1000,
+        _calibration_prerequisite_scan_bound,
     ),
 )
