@@ -43209,6 +43209,9 @@ class TownErrandPlanTest(unittest.TestCase):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None,
+        )
         self.assertIsNone(policy._calibration_phase)
         self.assertFalse(policy._equipment_catalog.home_scan_complete)
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
@@ -43234,10 +43237,55 @@ class TownErrandPlanTest(unittest.TestCase):
             CALIBRATION_HOME_VISIT_LIMIT,
         )
 
+    def test_turn_2952001_mixed_home_work_uses_pipeline_ceiling(self):
+        """Embed the mixed Home owner from the third onset capture."""
+        needs = [
+            TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+            TownNeed(
+                STORE_HOME,
+                "identification-withdrawal",
+                "surplus-identify-staff",
+            ),
+        ]
+        policy = self._policy(needs)
+        snapshot = self._snapshot(turn=2952001)
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None,
+        )
+
+        for _ in range(TOWN_STOP_PASS_LIMIT):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False,
+                operation_completed=True,
+            )
+
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_store_visit_limit(STORE_HOME),
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
+
+    def test_home_outside_calibration_pipeline_keeps_three_visit_bound(self):
+        policy = self._policy(
+            [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
+        )
+        policy._equipment_catalog.home_scan_complete = True
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("no-valid-loadout",), result=None,
+        )
+
+        self.assertEqual(
+            policy._town_store_visit_limit(STORE_HOME),
+            TOWN_STOP_PASS_LIMIT,
+        )
+
     def test_prerequisite_scan_visits_continue_into_calibration_budget(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None,
+        )
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         for _ in range(3):
             policy._report_town_stop_pass(
@@ -43246,6 +43294,9 @@ class TownErrandPlanTest(unittest.TestCase):
             )
 
         policy._calibration_phase = "deposit"
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None,
+        )
         policy._report_town_stop_pass(
             snapshot, STORE_HOME, goal_satisfied=False,
             operation_completed=True,
@@ -43259,6 +43310,9 @@ class TownErrandPlanTest(unittest.TestCase):
         policy = self._policy(needs)
         snapshot = self._snapshot()
         policy._calibration_phase = "deposit"
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None,
+        )
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
         for entry in range(CALIBRATION_HOME_VISIT_LIMIT - 1):
@@ -43286,6 +43340,9 @@ class TownErrandPlanTest(unittest.TestCase):
     def test_calibration_home_approach_bound_is_fifty_four(self):
         policy = HengbotPolicy()
         policy._calibration_phase = "deposit"
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None,
+        )
         policy._town_visit_ledger.approach_fails[STORE_HOME] = (
             CALIBRATION_HOME_VISIT_LIMIT - 1
         )
@@ -43309,6 +43366,9 @@ class TownErrandPlanTest(unittest.TestCase):
             town_flag=True,
         )
         policy._calibration_phase = "deposit"
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None,
+        )
         policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
@@ -45375,7 +45435,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 )
 
         self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 3
         )
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(policy._town_errand_plan.index, 0)
@@ -45388,7 +45448,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             snapshot, STORE_HOME, goal_satisfied=False
         )
         self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 1
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 4
         )
 
     def test_transaction_home_route_rejects_non_home_approach_target(self):

@@ -14384,18 +14384,20 @@ class HengbotPolicy:
             plan.rearmed_home_categories.clear()
 
     def _town_store_visit_limit(self, store_type: int) -> int:
-        """Return the visit-local terminal ceiling for this store."""
-        plan = self._town_errand_plan
-        calibration_prerequisite_scan = (
-            self._calibration_phase is None
-            and not self._equipment_catalog.home_scan_complete
-            and plan is not None
-            and plan.need_categories.get(STORE_HOME, ())
-            == ("equipment-catalog",)
+        """Return the visit-local terminal ceiling for this store.
+
+        The authorised 54 Home visits complete the calibration pipeline, whose
+        authoritative extent is exactly the optimizer reporting calibration or
+        Home-scan blockers.  Mixed Home work within that interval is part of
+        completing the pipeline; other stores and later Home work retain the
+        ordinary hard terminal.
+        """
+        blockers = getattr(
+            self._equipment_optimization_preparation, "blockers", ()
         )
         if store_type == STORE_HOME and (
-            self._calibration_phase is not None
-            or calibration_prerequisite_scan
+            "calibration-required" in blockers
+            or "home-scan-incomplete" in blockers
         ):
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT

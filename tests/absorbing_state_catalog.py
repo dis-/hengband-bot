@@ -15,6 +15,7 @@ world has no recovery/status physics with which to decide when it completes.
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
@@ -446,7 +447,7 @@ def _identify_staff_reserve_queue_cycle():
 
 
 def _calibration_prerequisite_scan_bound():
-    """The pre-phase Home scan must survive the legacy third-pass boundary."""
+    """Mixed pre-phase Home work must survive the legacy third-pass boundary."""
     helper = fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     home = replace(
@@ -454,13 +455,23 @@ def _calibration_prerequisite_scan_bound():
     )
     snap = replace(snap, turn=2947508, grids={**snap.grids, home.position: home})
     policy._equipment_catalog.home_scan_complete = False
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=("home-scan-incomplete",), result=None,
+    )
     policy._town_was_in_town = True
     policy._enumerate_town_needs = lambda _snapshot: [
-        policy_module.TownNeed(STORE_HOME, "equipment-catalog", "home-first")
+        policy_module.TownNeed(STORE_HOME, "equipment-catalog", "home-first"),
+        policy_module.TownNeed(
+            STORE_HOME,
+            "identification-withdrawal",
+            "surplus-identify-staff",
+        ),
     ]
     policy._town_errand_plan = policy_module.TownErrandPlan(
         [STORE_HOME],
-        need_categories={STORE_HOME: ("equipment-catalog",)},
+        need_categories={
+            STORE_HOME: ("equipment-catalog", "identification-withdrawal")
+        },
     )
     policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 2
     policy._report_town_stop_pass(
