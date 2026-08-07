@@ -8258,13 +8258,25 @@ class HengbotPolicy:
     def _calibration_active(self) -> bool:
         return self._calibration_phase is not None
 
-    def _calibration_pipeline_active(self) -> bool:
+    def _outstanding_equipment_work(self) -> bool:
+        """Return whether equipment work still owns a route to Home.
+
+        This scope describes work that remains, not why optimization is stuck.
+        In particular, optimizer success can open the transaction that applies
+        its result; that success must not revoke the Home allowance the new
+        session needs to execute.
+        """
         blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
         )
-        return (
-            "calibration-required" in blockers
-            or "home-scan-incomplete" in blockers
+        return bool(
+            blockers
+            or self._equipment_transaction_session is not None
+            or self._home_pending_item is not None
+            or self._home_pending_batch
+            or self._home_atomic_withdraw_pending is not None
+            or self._home_atomic_deposit_pending is not None
+            or self._calibration_restore_signatures
         )
 
     def _calibration_session_owned(self) -> bool:
@@ -13753,9 +13765,9 @@ class HengbotPolicy:
                 if not spec.produces(snapshot):
                     continue
                 store_type = spec.resolve_store_type(snapshot)
-                live_calibration_pipeline_need = (
+                live_equipment_work = (
                     store_type == STORE_HOME
-                    and self._calibration_pipeline_active()
+                    and self._outstanding_equipment_work()
                 )
                 if (
                     store_type in self._town_visit_ledger.blocked_stores
@@ -13764,7 +13776,7 @@ class HengbotPolicy:
                     or (
                         self._town_visit_ledger.need_attempts.get(spec.category, 0)
                         >= spec.budget
-                        and not live_calibration_pipeline_need
+                        and not live_equipment_work
                     )
                 ):
                     continue
@@ -14411,13 +14423,12 @@ class HengbotPolicy:
     def _town_store_visit_limit(self, store_type: int) -> int:
         """Return the visit-local terminal ceiling for this store.
 
-        The authorised 54 Home visits complete the calibration pipeline, whose
-        authoritative extent is exactly the optimizer reporting calibration or
-        Home-scan blockers.  Mixed Home work within that interval is part of
-        completing the pipeline; other stores and later Home work retain the
-        ordinary hard terminal.
+        The authorised 54 Home visits cover outstanding equipment work,
+        including applying an optimizer result after the optimizer succeeds.
+        Mixed Home work within that interval is part of completing the work;
+        other stores and later Home work retain the ordinary hard terminal.
         """
-        if store_type == STORE_HOME and self._calibration_pipeline_active():
+        if store_type == STORE_HOME and self._outstanding_equipment_work():
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
@@ -17639,12 +17650,13 @@ class HengbotPolicy:
         else:
             self._shop_approach_stuck_count = 0
         if self._shop_approach_stuck_count >= SHOP_APPROACH_STUCK_LIMIT:
-            calibration_home = (
-                store_type == STORE_HOME and self._calibration_pipeline_active()
+            equipment_work_at_home = (
+                store_type == STORE_HOME and self._outstanding_equipment_work()
             )
-            # Calibration owns its Home retry bounds. Yield this step after
-            # resetting the detector, but leave its live claim and ledgers intact.
-            if not calibration_home:
+            # Outstanding equipment work owns its Home retry bounds. Yield this
+            # step after resetting the detector, but leave its claim and ledgers
+            # intact.
+            if not equipment_work_at_home:
                 self._shopping_stuck = True
                 self._town_store_attempted[store_type] = snapshot.turn
                 self._town_visit_ledger.approach_fails[store_type] += 1
@@ -19148,6 +19160,12 @@ class HengbotPolicy:
                 self.last_reason = "town:unsafe-recall-fallback"
                 return WAIT_KEY
             if self._town_claims_active(snapshot):
+                return None
+            # A terminal means there is no work left to do.  Outstanding
+            # equipment work still owns a bounded Home route even when the
+            # ordinary claim budgets are exhausted, so it cannot install this
+            # terminal.
+            if self._outstanding_equipment_work():
                 return None
             self._town_blocked_reason = "no-safe-recall-destination"
             return self._town_blocked_key(snapshot)

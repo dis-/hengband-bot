@@ -42,11 +42,15 @@ class LatchOnsetCaptureTest(unittest.TestCase):
 
     def test_none_to_value_captures_bounded_replayable_four_decision_window(self):
         policy, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
+        # This capture exercises a genuine no-work terminal. Equipment blockers
+        # are now outstanding work and intentionally cannot install it.
+        snapshot = replace(snapshot, player=replace(snapshot.player, class_id=1))
         with TemporaryDirectory() as directory:
             path = Path(directory) / "latch-onset.jsonl"
             policy._latch_capture_path = path
             before_key = policy.choose_key(snapshot)
             before_reason = policy.last_reason
+            policy._equipment_optimization_preparation = None
             self._exhaust_town_work(policy)
             installing_snapshot = replace(snapshot, turn=snapshot.turn + 1)
             installing_key = policy.choose_key(installing_snapshot)

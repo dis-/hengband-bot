@@ -43314,7 +43314,7 @@ class TownErrandPlanTest(unittest.TestCase):
             CALIBRATION_HOME_VISIT_LIMIT,
         )
 
-    def test_home_outside_calibration_pipeline_keeps_three_visit_bound(self):
+    def test_any_optimizer_blocker_is_outstanding_equipment_work(self):
         policy = self._policy(
             [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
         )
@@ -43325,7 +43325,44 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(
             policy._town_store_visit_limit(STORE_HOME),
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
+
+    def test_home_outside_calibration_pipeline_keeps_three_visit_bound(self):
+        """Historical name retained; equipment blockers now define the scope."""
+        self.test_any_optimizer_blocker_is_outstanding_equipment_work()
+
+    def test_successful_optimizer_session_keeps_home_allowance(self):
+        policy = self._policy(
+            [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=object(),
+        )
+        policy._equipment_transaction_session = SimpleNamespace(complete=False)
+
+        self.assertTrue(policy._outstanding_equipment_work())
+        self.assertEqual(
+            policy._town_store_visit_limit(STORE_HOME),
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
+        self.assertEqual(
+            policy._town_store_visit_limit(STORE_ALCHEMIST),
             TOWN_STOP_PASS_LIMIT,
+            "the 54-visit allowance remains Home-only",
+        )
+
+    def test_home_identity_queue_is_outstanding_equipment_work(self):
+        policy = self._policy([])
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=None,
+        )
+        policy._home_pending_batch = [("queued armour", 30, 1)]
+
+        self.assertTrue(policy._outstanding_equipment_work())
+        self.assertEqual(
+            policy._town_store_visit_limit(STORE_HOME),
+            CALIBRATION_HOME_VISIT_LIMIT,
         )
 
     def test_prerequisite_scan_visits_continue_into_calibration_budget(self):
@@ -43465,7 +43502,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
-    def test_home_oscillation_outside_pipeline_marks_store_attempted(self):
+    def test_home_oscillation_with_optimizer_blocker_preserves_equipment_work(self):
         policy = self._policy(
             [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
         )
@@ -43483,8 +43520,12 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
         self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
-        self.assertEqual(policy._town_store_attempted[STORE_HOME], snapshot.turn)
-        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 1)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
+
+    def test_home_oscillation_outside_pipeline_marks_store_attempted(self):
+        """Historical name retained for the rescoped oscillation contract."""
+        self.test_home_oscillation_with_optimizer_blocker_preserves_equipment_work()
 
     def test_blocked_home_releases_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
@@ -43510,7 +43551,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertFalse(policy._town_departure_ready(snapshot))
 
-        for _ in range(TOWN_STOP_PASS_LIMIT):
+        for _ in range(CALIBRATION_HOME_VISIT_LIMIT):
             policy._report_town_stop_pass(
                 snapshot, STORE_HOME, goal_satisfied=False
             )
@@ -43561,7 +43602,7 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._home_pending_batch = [policy._item_signature(pending)]
         self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
-        for _ in range(TOWN_STOP_PASS_LIMIT):
+        for _ in range(CALIBRATION_HOME_VISIT_LIMIT):
             policy._report_town_stop_pass(
                 town, STORE_HOME, goal_satisfied=False
             )
@@ -43814,7 +43855,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy.choose_key(confirmed)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
 
-    def test_transaction_home_override_is_blocked_by_same_three_pass_owner(self):
+    def test_transaction_home_override_uses_equipment_work_hard_ceiling(self):
         needs = [TownNeed(STORE_GENERAL, "food", "normal")]
         policy = self._policy(needs)
         snapshot = self._snapshot(turn=512170)
@@ -43826,7 +43867,7 @@ class TownErrandPlanTest(unittest.TestCase):
         )
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-        for _ in range(TOWN_STOP_PASS_LIMIT):
+        for _ in range(CALIBRATION_HOME_VISIT_LIMIT):
             policy._report_town_stop_pass(
                 snapshot, STORE_HOME, goal_satisfied=False
             )
@@ -43834,6 +43875,10 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertIn(STORE_HOME, policy._town_store_attempted)
+
+    def test_transaction_home_override_is_blocked_by_same_three_pass_owner(self):
+        """Historical name retained; the same owner now has the 54 hard ceiling."""
+        self.test_transaction_home_override_uses_equipment_work_hard_ceiling()
 
     def test_transaction_deposit_then_withdraw_keeps_home_owner_between_visits(self):
         policy = self._policy([])
@@ -48708,8 +48753,12 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
     def test_no_town_work_latches_visible_terminal(self):
         policy, snapshot = self._fixture()
+        snapshot = replace(snapshot, player=replace(snapshot.player, class_id=1))
         policy.choose_key(snapshot)
         policy._town_errand_plan = None
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=None,
+        )
         for store_type in (
             STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
             STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
@@ -48722,6 +48771,75 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
         self.assertEqual(policy._town_blocked_reason, "no-safe-recall-destination")
+
+    def test_successful_depth_30_transaction_keeps_home_reachable_publicly(self):
+        """Pin the live 21:50:07 success-revokes-allowance shape."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot,
+            grids={**snapshot.grids, home.position: home},
+        )
+        target = snapshot.inventory[0]
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            f"pack:{identity}:0",
+            item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 23)
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=object(),
+        )
+        policy._set_equipment_transaction_session(session)
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(
+            policy._town_visit_ledger.approach_fails[STORE_HOME], 3
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(policy._deepest_level, 31)
+        self.assertEqual(policy._town_store_visit_limit(STORE_HOME), 54)
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertIs(policy._equipment_transaction_session, session)
+        self.assertTrue(session.executable)
+        self.assertNotEqual(
+            policy.last_reason, "equipment-transaction:abandon-blocked"
+        )
+
+    def test_no_safe_recall_terminal_waits_for_outstanding_equipment_work(self):
+        policy, snapshot = self._fixture()
+        policy.choose_key(snapshot)
+        policy._town_errand_plan = None
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("optimization-timeout",), result=None,
+        )
+        for store_type in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
+        ):
+            policy._town_visit_ledger.approach_fails[store_type] = (
+                policy._town_store_visit_limit(store_type)
+            )
+
+        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+
+        self.assertNotEqual(
+            policy.last_reason, "town:blocked:no-safe-recall-destination"
+        )
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertNotEqual(key, WAIT_KEY)
 
     def test_turn_2947508_scan_checkpoint_does_not_install_latch_under_ceiling(self):
         """Embed the captured scan-incomplete state before its bad T3 latch."""

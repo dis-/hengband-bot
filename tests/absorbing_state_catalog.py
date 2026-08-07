@@ -502,6 +502,51 @@ def _calibration_prerequisite_scan_bound():
     return policy, PrerequisiteScanWorld(snap)
 
 
+def _successful_optimizer_transaction():
+    """Optimizer success must retain the Home route needed to apply its plan."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, snap = helper._fixture()
+    home = replace(
+        fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+    )
+    snap = replace(snap, grids={**snap.grids, home.position: home})
+    target = snap.inventory[0]
+    identity = policy_module.equipment_identity(target)
+    action = policy_module.EquipmentTransaction(
+        policy_module.PHASE_HOME_PREPARE,
+        "deposit",
+        f"pack:{identity}:0",
+        item_identity=identity,
+    )
+    session = policy_module.EquipmentTransactionSession(
+        policy_module.EquipmentTransactionPlan((action,), (), 23)
+    )
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=(), result=object(),
+    )
+    policy._set_equipment_transaction_session(session)
+    policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+        policy_module.TOWN_STOP_PASS_LIMIT
+    )
+
+    class SuccessfulTransactionWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot)
+            self.initial_inventory_size = len(self.inventory)
+
+        def visible_terminal(self, reason):
+            if len(self.inventory) < self.initial_inventory_size:
+                return TownWorld.visible_terminal(self, "home:atomic-withdraw")
+            return TownWorld.visible_terminal(self, reason)
+
+        def durable_fingerprint(self):
+            # The catalogue verdict is deliberately tied to the policy-visible
+            # completed operation, not merely to our simulated pack mutation.
+            return self.depth, self.gold, tuple(self.stock)
+
+    return policy, SuccessfulTransactionWorld(snap)
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -520,5 +565,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "calibration-prerequisite-scan-bound", 1000,
         _calibration_prerequisite_scan_bound,
+    ),
+    AbsorbingState(
+        "successful-optimizer-transaction", 100,
+        _successful_optimizer_transaction,
     ),
 )
