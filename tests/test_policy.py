@@ -44648,6 +44648,22 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "town:entrance-step-off:home:atomic-withdraw-needs-observation",
         )
 
+        staff = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=14,
+        )
+        reserve = HengbotPolicy()
+        reserve._calibration_phase = "restore-supplies"
+        reserve._calibration_restore_signatures = [
+            reserve._item_signature(staff)
+        ]
+        reserve._home_pending_item = reserve._item_signature(staff)
+        reserve._home_candidate_waiting = True
+        self.assertEqual(reserve.choose_key(entrance), "\r")
+        self.assertEqual(
+            reserve.last_reason, "home:atomic-withdraw-needs-observation"
+        )
+
         missing = HengbotPolicy()
         missing._calibration_phase = "restore-supplies"
         missing._calibration_restore_signatures = [

@@ -10946,9 +10946,23 @@ class HengbotPolicy:
             return None
         if not self._home_address_scan_valid:
             self.last_reason = "home:atomic-withdraw-needs-observation"
-            # At the Home entrance WAIT enters the store.  Preserve the named
-            # refusal while making the next state the in-store page scan that
-            # can satisfy it.
+            # The identify-reserve owner has already queued a concrete Home
+            # identity and left.  Re-enter with the store loop's explicit no-op,
+            # not the surface WAIT command that the final entrance invariant
+            # must project off the door.  Other withdrawal owners retain their
+            # established WAIT/step-off scan routing.
+            if (
+                (
+                    self._home_pending_item is not None
+                    and self._home_pending_item[1:]
+                    == (TVAL_STAFF, SV_STAFF_IDENTIFY)
+                )
+                or any(
+                    signature[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY)
+                    for signature in self._calibration_restore_signatures
+                )
+            ):
+                return "\r"
             return WAIT_KEY
 
         signature: tuple[str, int, int] | None = None

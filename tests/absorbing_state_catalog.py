@@ -409,6 +409,42 @@ def _calibration_deposit_claim_budget():
     return policy, CalibrationDepositWorld(snap)
 
 
+def _identify_staff_reserve_queue_cycle():
+    """A queued reserve must enter Home to establish its atomic address."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    policy = HengbotPolicy()
+    pack = helper._real_pack()
+    entrance = replace(
+        helper._entrance_snapshot(pack, turn=3220000),
+        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
+    )
+    staff = fixture.store_item(
+        "a", policy_module.TVAL_STAFF, policy_module.SV_STAFF_IDENTIFY,
+        name="Staff of Identify", charges=14,
+    )
+    policy._deepest_level = policy_module.STAFF_IDENTIFY_MIN_DEPTH
+    policy._shopping_approach_store_type = STORE_HOME
+    signature = policy._item_signature(staff)
+    policy._home_pending_item = signature
+    policy._calibration_phase = "restore-supplies"
+    policy._calibration_restore_signatures = [signature]
+    policy._home_candidate_waiting = True
+    policy._home_address_scan_valid = False
+    class StoreNoOpEntryWorld(TownWorld):
+        def apply(self, key):
+            if key == "\r" and not self.inside and self.position == self.entrance:
+                self.last_key = key
+                self.inside = True
+                self.entries += 1
+                self.top = 0
+                return
+            super().apply(key)
+
+    return policy, StoreNoOpEntryWorld(
+        entrance, stock=[staff], single_page_message=HOME_PAGE_SINGLE_PAGE_MESSAGES[0]
+    )
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -419,5 +455,9 @@ SEEDED_STATES = (
     AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
     AbsorbingState(
         "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget
+    ),
+    AbsorbingState(
+        "identify-staff-reserve-queue-cycle", 40,
+        _identify_staff_reserve_queue_cycle,
     ),
 )
