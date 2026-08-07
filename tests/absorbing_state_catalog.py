@@ -547,6 +547,31 @@ def _successful_optimizer_transaction():
     return policy, SuccessfulTransactionWorld(snap)
 
 
+def _exhausted_equipment_home_route():
+    """Outstanding work with no remaining Home route must stop visibly."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, snap = helper._fixture()
+    policy.choose_key(snap)
+    policy._town_errand_plan = None
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=("optimization-timeout",), result=None,
+    )
+    for store_type in (
+        policy_module.STORE_GENERAL,
+        policy_module.STORE_ARMOURY,
+        policy_module.STORE_WEAPON,
+        policy_module.STORE_TEMPLE,
+        policy_module.STORE_ALCHEMIST,
+        policy_module.STORE_MAGIC,
+        policy_module.STORE_BLACK,
+        STORE_HOME,
+    ):
+        policy._town_visit_ledger.approach_fails[store_type] = (
+            policy._town_store_visit_limit(store_type)
+        )
+    return policy, TownWorld(snap)
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 200, _departure_freeze),
     AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
@@ -569,5 +594,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "successful-optimizer-transaction", 100,
         _successful_optimizer_transaction,
+    ),
+    AbsorbingState(
+        "exhausted-equipment-home-route", 40,
+        _exhausted_equipment_home_route,
     ),
 )

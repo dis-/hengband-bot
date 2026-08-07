@@ -14432,6 +14432,20 @@ class HengbotPolicy:
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
+    def _equipment_work_home_route_available(self) -> bool:
+        """Return whether outstanding equipment work can still route to Home.
+
+        Work suppresses a departure terminal only while Home remains a live
+        route: an explicitly blocked Home or a consumed visit ceiling exhausts
+        that route, independently of the particular equipment blocker/reason.
+        """
+        return (
+            self._outstanding_equipment_work()
+            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+            and self._town_visit_ledger.approach_fails[STORE_HOME]
+            < self._town_store_visit_limit(STORE_HOME)
+        )
+
     def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
         session = self._equipment_transaction_session
         if session is not None and session.executable and session.required_context is not None:
@@ -19161,12 +19175,15 @@ class HengbotPolicy:
                 return WAIT_KEY
             if self._town_claims_active(snapshot):
                 return None
-            # A terminal means there is no work left to do.  Outstanding
-            # equipment work still owns a bounded Home route even when the
-            # ordinary claim budgets are exhausted, so it cannot install this
-            # terminal.
-            if self._outstanding_equipment_work():
+            # Outstanding equipment work suppresses this departure terminal
+            # only while its bounded Home route remains available. Once Home
+            # is blocked or its ceiling is consumed, expose the exhausted work
+            # as its own named terminal instead of falling through to a cycle.
+            if self._equipment_work_home_route_available():
                 return None
+            if self._outstanding_equipment_work():
+                self._town_blocked_reason = "equipment-work-home-route-exhausted"
+                return self._town_blocked_key(snapshot)
             self._town_blocked_reason = "no-safe-recall-destination"
             return self._town_blocked_key(snapshot)
         return None

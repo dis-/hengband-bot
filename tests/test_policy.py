@@ -48753,6 +48753,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
     def test_no_town_work_latches_visible_terminal(self):
         policy, snapshot = self._fixture()
+        # The default warrior regenerates a calibration-required optimizer
+        # blocker on the second choose_key call. Use a non-warrior so this test
+        # actually isolates the declared no-town-work terminal shape.
         snapshot = replace(snapshot, player=replace(snapshot.player, class_id=1))
         policy.choose_key(snapshot)
         policy._town_errand_plan = None
@@ -48827,11 +48830,14 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         )
         for store_type in (
             STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
-            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK,
         ):
             policy._town_visit_ledger.approach_fails[store_type] = (
                 policy._town_store_visit_limit(store_type)
             )
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            policy._town_store_visit_limit(STORE_HOME) - 1
+        )
 
         key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
 
@@ -48840,6 +48846,48 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         )
         self.assertIsNone(policy._town_blocked_reason)
         self.assertNotEqual(key, WAIT_KEY)
+
+    @staticmethod
+    def _record_exhausted_equipment_decision(policy, snap, reasons, i):
+        policy.choose_key(replace(snap, turn=snap.turn + 1 + i))
+        reasons[policy.last_reason] += 1
+
+    def _exhausted_equipment_home_route_probe(self):
+        """Run the reviewer's verbatim public 40-decision regression probe."""
+        policy, snap = self._fixture()
+        policy.choose_key(snap); policy._town_errand_plan = None
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("optimization-timeout",), result=None
+        )
+        for st in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
+        ):
+            policy._town_visit_ledger.approach_fails[st] = (
+                policy._town_store_visit_limit(st)
+            )
+        reasons = Counter()
+        for i in range(40):
+            self._record_exhausted_equipment_decision(policy, snap, reasons, i)
+            if policy._town_blocked_reason is not None:
+                break
+        return policy, reasons
+
+    def test_exhausted_equipment_home_route_emits_named_terminal_publicly(self):
+        """Reviewer probe: 9cf2eb5 waited/probed forever in this exact shape."""
+        policy, reasons = self._exhausted_equipment_home_route_probe()
+
+        self.assertEqual(
+            policy._town_blocked_reason,
+            "equipment-work-home-route-exhausted",
+            "9cf2eb5 exhausted 40 decisions without a named terminal: "
+            f"Counter({dict(reasons)}); historical Counter({{'wait': 25, 'probe': 15}})",
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "town:blocked:equipment-work-home-route-exhausted",
+        )
+        self.assertLessEqual(sum(reasons.values()), 40)
 
     def test_turn_2947508_scan_checkpoint_does_not_install_latch_under_ceiling(self):
         """Embed the captured scan-incomplete state before its bad T3 latch."""
