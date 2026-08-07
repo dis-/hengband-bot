@@ -10,6 +10,14 @@ from enum import Enum
 from typing import Callable, Iterable, Literal
 from pathlib import Path
 
+from hengbot.latch_onset_capture import (
+    CAPTURE_DECISIONS_AFTER_ONSET,
+    assignment_provenance,
+    checkpoint as latch_capture_checkpoint,
+    decision_record as latch_capture_decision_record,
+    write_window as write_latch_capture_window,
+)
+
 from hengbot.town_maps import TownMap
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.wilderness_map import WildernessMap
@@ -2138,6 +2146,10 @@ class HengbotPolicy:
         # Home to sell there — otherwise it churns futile trips to the full store.
         self._store_sale_refused: set[int] = set()
         self._town_blocked_reason: str | None = None
+        self._latch_capture_path: Path | None = None
+        self._latch_capture_previous: dict[str, object] | None = None
+        self._latch_capture_assignment: dict[str, object] | None = None
+        self._latch_capture_remaining = 0
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
         self._fundraising_mode: str | None = None
@@ -2451,7 +2463,77 @@ class HengbotPolicy:
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
+    @property
+    def _town_blocked_reason(self) -> str | None:
+        return getattr(self, "_town_blocked_reason_value", None)
+
+    @_town_blocked_reason.setter
+    def _town_blocked_reason(self, value: str | None) -> None:
+        previous = getattr(self, "_town_blocked_reason_value", None)
+        self._town_blocked_reason_value = value
+        if (
+            previous is None
+            and value is not None
+            and getattr(self, "_latch_capture_path", None) is not None
+        ):
+            try:
+                self._latch_capture_assignment = assignment_provenance()
+            except Exception:
+                # Diagnostics must never change a decision or prevent a latch.
+                self._latch_capture_assignment = {
+                    "assigning_file": None,
+                    "assigning_line": None,
+                    "caller_chain": [],
+                    "capture_error": "assignment-provenance-failed",
+                }
+
     def choose_key(self, snapshot: Snapshot) -> str:
+        capture_path = self._latch_capture_path
+        if capture_path is None:
+            return self._choose_key(snapshot)
+        before = self._town_blocked_reason
+        try:
+            predecision = latch_capture_checkpoint(self)
+        except Exception:
+            return self._choose_key(snapshot)
+        key = self._choose_key(snapshot)
+        try:
+            assignment = self._latch_capture_assignment
+            onset = (
+                before is None
+                and self._town_blocked_reason is not None
+                and assignment is not None
+            )
+            relative = 0 if onset else (
+                CAPTURE_DECISIONS_AFTER_ONSET - self._latch_capture_remaining + 1
+                if self._latch_capture_remaining > 0
+                else -1
+            )
+            current = latch_capture_decision_record(
+                self, snapshot, key, self.last_reason, before, predecision,
+                assignment if onset else None, relative,
+            )
+            if onset:
+                records = []
+                if self._latch_capture_previous is not None:
+                    previous = dict(self._latch_capture_previous)
+                    previous["relative_decision"] = -1
+                    records.append(previous)
+                records.append(current)
+                write_latch_capture_window(capture_path, records, replace=True)
+                self._latch_capture_remaining = CAPTURE_DECISIONS_AFTER_ONSET
+                self._latch_capture_assignment = None
+            elif self._latch_capture_remaining > 0:
+                write_latch_capture_window(capture_path, [current], replace=False)
+                self._latch_capture_remaining -= 1
+            self._latch_capture_previous = current
+        except Exception:
+            # Serialization and file-system failures are diagnostic failures;
+            # the already-selected gameplay decision remains authoritative.
+            pass
+        return key
+
+    def _choose_key(self, snapshot: Snapshot) -> str:
         self._read_binding = None
         self.read_telemetry = {}
         self._decision_sequence += 1
