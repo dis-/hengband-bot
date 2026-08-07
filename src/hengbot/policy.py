@@ -11097,10 +11097,10 @@ class HengbotPolicy:
             else 1
         )
         take_count = min(item.count, requested_quantity)
-        # This key crosses the Home entrance before its operation.  The outside
-        # snapshot cannot prove that the operation will raise a quantity prompt,
-        # so no prompt response may be composed across that observation boundary.
-        quantity_suffix = ""
+        # The completed address scan binds the shelf letter and stack count to
+        # this one-shot entry.  A multi-item stack therefore proves that the
+        # quantity prompt will consume this response before the leave key.
+        quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
         key = (
             WAIT_KEY
             + (" " * page)
@@ -11225,9 +11225,9 @@ class HengbotPolicy:
                 return None
             if self._identification_flow_owns(current):
                 return None
-            # Atomic composition crosses an unobserved store-entry boundary.
-            # A quantity response is legal only after observing its prompt.
-            quantity = ""
+            # The one-shot transaction observation binds both the pack letter
+            # and count used by the operation at this owned Home entry.
+            quantity = f"{current.count}\r" if current.count > 1 else ""
             key = WAIT_KEY + SELL_KEY + current.slot + quantity + LEAVE_STORE_KEY
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
@@ -11317,10 +11317,6 @@ class HengbotPolicy:
             ),
         )
         self.last_reason = "home:atomic-deposit"
-        # Strip the optional quantity response produced for an already-observed
-        # Home.  Here the operation is composed against an outside snapshot, so
-        # the intervening prompt has not been observed and cannot be promised.
-        operation = operation[:2]
         return WAIT_KEY + operation + LEAVE_STORE_KEY
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
