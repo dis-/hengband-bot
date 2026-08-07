@@ -2253,6 +2253,11 @@ class HengbotPolicy:
         ) = None
         self._equipment_optimization_timed_out_this_visit = False
         self._equipment_optimization_telemetry: dict[str, object] = {}
+        self._town_plan_rearm_telemetry: dict[str, object] = {
+            "evaluated": False,
+            "plan_rebuilt": False,
+            "rebuilt_stops": [],
+        }
         self._equipment_optimization_search_surviving_ids: frozenset[str] = (
             frozenset()
         )
@@ -9602,6 +9607,11 @@ class HengbotPolicy:
                     list(self._town_errand_plan.rearmed_home_categories)
                     if self._town_errand_plan is not None else []
                 ),
+                "downstream": dict(getattr(
+                    self,
+                    "_town_plan_rearm_telemetry",
+                    {"evaluated": False, "plan_rebuilt": False, "rebuilt_stops": []},
+                )),
             },
         }
         state.update(self._equipment_optimization_telemetry)
@@ -14047,6 +14057,11 @@ class HengbotPolicy:
         )
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
+        self._town_plan_rearm_telemetry = {
+            "evaluated": False,
+            "plan_rebuilt": False,
+            "rebuilt_stops": [],
+        }
         departure_ready: bool | None = None
 
         def town_departure_ready() -> bool:
@@ -14139,6 +14154,7 @@ class HengbotPolicy:
             needs.append(TownNeed(STORE_HOME, "equipment-transaction", "home-first"))
         needed_stores = {need.store_type for need in needs}
         plan = self._town_errand_plan
+        equipment_work_appended = False
         if plan is None:
             plan = self._build_town_errand_plan(snapshot, needs)
             self._town_errand_plan = plan
@@ -14155,6 +14171,7 @@ class HengbotPolicy:
                 # errands; it is not evidence that this owner has finished.
                 needs.append(TownNeed(STORE_HOME, "equipment-work", "home-first"))
                 needed_stores.add(STORE_HOME)
+                equipment_work_appended = True
             # A completed plan is only a snapshot of the needs visible when it
             # was built. Completing an identification errand can expose the
             # ordinary supply shortages that it previously owned exclusively.
@@ -14177,10 +14194,27 @@ class HengbotPolicy:
                     self._completed_home_can_rearm
                     or self._equipment_work_home_route_available()
                 )
-                and STORE_HOME in self._town_store_attempted
+                and (
+                    STORE_HOME in self._town_store_attempted
+                    or equipment_work_appended
+                )
                 and bool(fresh_home_categories)
                 and not town_departure_ready()
             )
+            self._town_plan_rearm_telemetry = {
+                "evaluated": True,
+                "home_attempted": STORE_HOME in self._town_store_attempted,
+                "home_attempted_entry": self._town_store_attempted.get(STORE_HOME),
+                "plan_completed_this_visit": list(plan.completed_this_visit),
+                "plan_blocked_this_visit": list(plan.blocked_this_visit),
+                "ledger_blocked": sorted(ledger_blocked),
+                "home_categories": sorted(home_categories),
+                "fresh_home_categories": sorted(fresh_home_categories),
+                "equipment_work_appended": equipment_work_appended,
+                "fresh_home_work": fresh_home_work,
+                "plan_rebuilt": False,
+                "rebuilt_stops": [],
+            }
             if fresh_home_work:
                 # A later shop can create a new Home obligation after Home was
                 # genuinely complete.  The live example was Black Market speed
@@ -14229,6 +14263,10 @@ class HengbotPolicy:
                     self._town_store_attempted.pop(STORE_HOME, None)
                 plan = self._build_town_errand_plan(snapshot, remaining_needs)
                 self._town_errand_plan = plan
+                self._town_plan_rearm_telemetry["plan_rebuilt"] = True
+                self._town_plan_rearm_telemetry["rebuilt_stops"] = (
+                    list(plan.stops) if plan is not None else []
+                )
         elif plan.index < len(plan.stops):
             pending = set(plan.stops[plan.index + 1 :])
             finished = (

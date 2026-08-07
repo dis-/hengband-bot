@@ -31365,7 +31365,13 @@ class IdentifyStaffTest(unittest.TestCase):
             pol._next_required_store_type(replace(
                 snap, store=None, inventory=[self._staff(25), replace(self._staff(3), slot="t")]
             )),
-            STORE_MAGIC,
+            STORE_HOME,
+        )
+        # Moving an item out of Home invalidates the equipment catalog.  Its
+        # live bounded owner is routed before the ordinary Magic-shop restock.
+        self.assertIn(
+            "equipment-work",
+            pol._town_errand_plan.need_categories[STORE_HOME],
         )
 
     def test_home_staff_sale_does_not_buy_back_mana_food_same_visit(self):
@@ -49129,12 +49135,11 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy._town_errand_plan = TownErrandPlan(
             [STORE_HOME, STORE_TEMPLE, STORE_WEAPON, STORE_BLACK],
             index=4,
-            rearmed_home_categories=["deposit"],
+            completed_this_visit=[STORE_HOME],
         )
-        # The failed live retry proved the earlier fixture's guessed False was
-        # wrong: the old guard did not fire.  Pin the measured outcome by using
-        # the latch value which blocks 9db0769, while the rule below relies only
-        # on the observable live owner and bounded route facts.
+        # Every value below is the retained 37e07f4 blocking decision's
+        # home_route_rearm block; the downstream checkpoint additionally shows
+        # Home completed this visit and absent from _town_store_attempted.
         policy._completed_home_can_rearm = True
 
         self.assertEqual(len(policy._equipment_catalog.items), 52)
@@ -49146,6 +49151,27 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
         self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
+        self.assertEqual(
+            policy.equipment_optimization_state(snapshot)["home_route_rearm"],
+            {
+                "completed_home_can_rearm": True,
+                "home_owner_goal_pending": True,
+                "equipment_work_need_present": False,
+                "equipment_work_home_route_available": True,
+                "outstanding_equipment_work": True,
+                "town_plan_exhausted": True,
+                "home_approach_fails": 0,
+                "home_visit_limit": CALIBRATION_HOME_VISIT_LIMIT,
+                "home_unsatisfied_passes": 0,
+                "home_blocked": False,
+                "rearmed_home_categories": [],
+                "downstream": {
+                    "evaluated": False,
+                    "plan_rebuilt": False,
+                    "rebuilt_stops": [],
+                },
+            },
+        )
         cure_requirement = next(
             requirement
             for requirement in policy.procurement_requirements(snapshot)
@@ -49170,6 +49196,25 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertIn(
             "equipment-work",
             policy._town_errand_plan.need_categories[STORE_HOME],
+        )
+        self.assertEqual(
+            policy.equipment_optimization_state(snapshot)["home_route_rearm"][
+                "downstream"
+            ],
+            {
+                "evaluated": True,
+                "home_attempted": False,
+                "home_attempted_entry": None,
+                "plan_completed_this_visit": [STORE_HOME],
+                "plan_blocked_this_visit": [],
+                "ledger_blocked": [],
+                "home_categories": ["deposit", "equipment-work"],
+                "fresh_home_categories": ["deposit", "equipment-work"],
+                "equipment_work_appended": True,
+                "fresh_home_work": True,
+                "plan_rebuilt": True,
+                "rebuilt_stops": [STORE_HOME],
+            },
         )
 
     def test_home_route_rearm_telemetry_exposes_every_guard_input(self):
@@ -49205,6 +49250,11 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 "home_unsatisfied_passes": 0,
                 "home_blocked": False,
                 "rearmed_home_categories": ["deposit"],
+                "downstream": {
+                    "evaluated": False,
+                    "plan_rebuilt": False,
+                    "rebuilt_stops": [],
+                },
             },
         )
 
