@@ -198,6 +198,10 @@ class TownWorld:
         )
 
     def visible_terminal(self, reason: str):
+        if getattr(self, "invalid_store_entries", 0):
+            return None
+        if reason == getattr(self, "expected_terminal_reason", None):
+            return f"expected {reason}"
         if reason == "home:atomic-withdraw":
             return "surplus staff composed withdrawal"
         if reason == "livelock:exhausted":
@@ -250,6 +254,49 @@ def _invalid_command_noop_home_cycle():
     policy._home_disposal_pass = True
 
     return policy, TownWorld(surface, passable_positions={entrance})
+
+
+def _doubled_store_entry_cycle():
+    """Delay the Home-open page once after accepting its entry command."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    target = fixture.store_item("a", TVAL_POTION, 2999, name="delayed target")
+    policy = HengbotPolicy()
+    policy._calibration_phase = "restore-supplies"
+    policy._calibration_restore_signatures = [policy._item_signature(target)]
+    policy._home_candidate_waiting = True
+    surface = replace(
+        helper._entrance_snapshot(helper._real_pack(), turn=3041933),
+        equipment=[
+            fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")
+        ],
+    )
+
+    delayed_page = [False]
+
+    class DelayedEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, stock=[target])
+            self.invalid_store_entries = 0
+            self.expected_terminal_reason = "home:scan-catalog-page"
+
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if delayed_page[0]:
+                delayed_page[0] = False
+                return replace(current, store=None)
+            return current
+
+        def apply(self, key):
+            was_inside = self.inside
+            if was_inside and key == WAIT_KEY:
+                self.invalid_store_entries += 1
+                self.last_key = key
+                return
+            super().apply(key)
+            if not was_inside and key == WAIT_KEY and self.inside:
+                delayed_page[0] = True
+
+    return policy, DelayedEntryWorld(surface)
 
 
 def _version_discard(*, swallow=False):
@@ -675,5 +722,9 @@ SEEDED_STATES = (
     AbsorbingState(
         "invalid-command-noop-home-cycle", 40,
         _invalid_command_noop_home_cycle,
+    ),
+    AbsorbingState(
+        "doubled-store-entry-cycle", 10,
+        _doubled_store_entry_cycle,
     ),
 )

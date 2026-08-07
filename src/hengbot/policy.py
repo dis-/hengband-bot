@@ -1671,6 +1671,12 @@ class HengbotPolicy:
         # store's entrance is the entry command itself.  This is reset before
         # every public decision and set only by the store-entry emitters.
         self._store_entry_wait_owner: int | None = None
+        # A store-entry command becomes outstanding only after the CLI confirms
+        # that it was posted.  While the wire still shows the same closed
+        # entrance, that page may predate the command: do not post a second
+        # entry command until a snapshot shows either the owned store or a
+        # closed state away from that entrance.
+        self._store_entry_posted_owner: int | None = None
         # Shared progress tracker for every native-travel leg (stores, Home and
         # the dungeon entrance): the current goal, the best distance seen for
         # it, and how many issues brought no progress. See _town_travel_key.
@@ -2569,6 +2575,30 @@ class HengbotPolicy:
         }
         snapshot = self._with_grid_memory(snapshot)
         self._begin_map_predicate_cache(snapshot)
+        posted_entry_owner = self._store_entry_posted_owner
+        if posted_entry_owner is not None:
+            here = snapshot.grid_at(snapshot.player.position)
+            observed_owned_store = (
+                snapshot.store is not None
+                and snapshot.store.store_type == posted_entry_owner
+            )
+            observed_closed_away = (
+                snapshot.store is None
+                and (here is None or here.store_number != posted_entry_owner)
+            )
+            observed_other_store = (
+                snapshot.store is not None
+                and snapshot.store.store_type != posted_entry_owner
+            )
+            if observed_owned_store or observed_closed_away or observed_other_store:
+                self._store_entry_posted_owner = None
+            else:
+                # SPACE is harmless at the unchanged town entrance and is a
+                # valid store-page command if this lagging decision arrives
+                # after entry.  It keeps this owner in charge without turning
+                # an internal None into unrelated town wandering.
+                self.last_reason = "store:entry-await-observation"
+                return " "
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction
         )
@@ -9753,6 +9783,9 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        if key == WAIT_KEY and self._store_entry_wait_owner is not None:
+            self._store_entry_posted_owner = self._store_entry_wait_owner
+            return True
         if key == "~9":
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True

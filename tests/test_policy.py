@@ -45031,6 +45031,90 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             missing._calibration_restore_signatures,
         )
 
+    def test_posted_home_entry_waits_for_observation_before_another_entry(self):
+        """06:40:10 retained cycle: macro -> entry -> lagged surface page."""
+        target = store_item("a", TVAL_POTION, 1352, name="unobserved target")
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(self._real_pack(), turn=3041933),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        posted = []
+        invalid = []
+        state = "outside"
+
+        def send(value, **_kwargs):
+            nonlocal state
+            for character in value:
+                if state == "outside" and character == WAIT_KEY:
+                    state = "home"
+                elif state == "home" and character == " ":
+                    pass
+                else:
+                    invalid.append((state, character))
+                posted.append(character)
+            return True
+
+        posted_line = None
+        posted_keys = set()
+        first = policy.choose_key(entrance)
+        sent, posted_line = _send_new_decision_key(
+            send, "turn-3041933-store-null", first, posted_line, posted_keys,
+            in_store=False,
+        )
+        self.assertTrue(sent)
+        policy.confirm_key_posted(first)
+
+        lagged = replace(entrance, turn=3041945)
+        second = policy.choose_key(lagged)
+        sent, _ = _send_new_decision_key(
+            send, "turn-3041945-store-null", second, posted_line, posted_keys,
+            in_store=False,
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(
+            posted, [WAIT_KEY, " "],
+            "64d9644 posted doubled entry characters ['5', '5']",
+        )
+        self.assertNotEqual(posted[1], WAIT_KEY)
+        self.assertEqual(invalid, [])
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+
+    def test_posted_store_entry_may_reenter_after_observed_closed_away(self):
+        target = store_item("a", TVAL_POTION, 1353, name="unobserved target")
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(self._real_pack(), turn=3042000),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        first = policy.choose_key(entrance)
+        self.assertEqual(first, WAIT_KEY)
+        policy.confirm_key_posted(first)
+
+        away_position = Position(45, 122)
+        away = replace(
+            entrance,
+            turn=3042001,
+            player=replace(entrance.player, position=away_position),
+            grids={
+                **entrance.grids,
+                away_position: grid(away_position.y, away_position.x),
+            },
+        )
+        policy.choose_key(away)
+        self.assertIsNone(policy._store_entry_posted_owner)
+
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = entrance.player.position
+        self.assertEqual(policy.choose_key(replace(entrance, turn=3042002)), WAIT_KEY)
+
     def test_public_calibration_restore_converges_twelve_items(self):
         base = [
             store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
