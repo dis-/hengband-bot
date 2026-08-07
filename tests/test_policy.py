@@ -46190,6 +46190,135 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             preparation.result.best.loadout.item_ids,
         )
 
+    def test_unsatisfiable_31f_live_shape_falls_back_and_ends_wearing(self):
+        """47 owned items, zero chaos sources: dress for the deepest feasible band."""
+        light = self._equipment()[-1]
+        elemental_mail = item(
+            "u", 37, 3, name="Elemental Mail", known=True,
+            fully_known=True, is_equipment=True, ac=12, to_a=8,
+            known_flags=frozenset({48, 49, 50, 51, 52}),
+        )
+        town_sword = item(
+            "main_hand", TVAL_SWORD, 4, name="Town Sword", known=True,
+            fully_known=True, is_equipment=True,
+            damage_dice_num=2, damage_dice_sides=5, to_h=5, to_d=5,
+        )
+        pack_gear = [
+            elemental_mail,
+            *[
+                item(
+                    chr(ord("w") + index), 45, index + 1,
+                    name=f"pack ring {index}", known=True,
+                    fully_known=True, is_equipment=True, is_cursed=True,
+                )
+                for index in range(5)
+            ],
+        ]
+        snapshot = replace(
+            self._town(
+                inventory=[
+                    item(
+                        "s", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                        name="Staff of Identify", known=True,
+                        fully_known=True, charges=20,
+                    ),
+                    *pack_gear,
+                ],
+                equipment=[town_sword, light],
+            ),
+            player=replace(self._town().player, level=29, gold=15000),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 30},
+        )
+        snapshot = replace(
+            snapshot,
+            inventory=[
+                replace(owned, count=20)
+                if owned.tval == TVAL_SCROLL
+                and owned.sval == SV_SCROLL_WORD_OF_RECALL
+                else owned
+                for owned in snapshot.inventory
+            ],
+        )
+        policy = self._policy(snapshot, None)
+        policy._deepest_level = 30
+        policy._target_dungeon_id = DUNGEON_ANGBAND
+        policy._town_was_in_town = True
+        policy._town_visit_ledger.approach_fails[STORE_BLACK] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
+        home_gear = [
+            store_item(
+                chr(ord("A") + (index % 26)), 45, index + 20,
+                name=f"home ring {index}", known=True,
+                fully_known=True, is_equipment=True, is_cursed=True,
+            )
+            for index in range(39)
+        ]
+        policy._equipment_catalog.home_scan_complete = False
+        policy._equipment_catalog.observe_home_page(home_gear)
+        policy._equipment_catalog.observe_home_page([])
+        policy._equipment_catalog.home_scan_complete = True
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        incident_preparation = policy._prepare_equipment_optimization(snapshot)
+        elemental_owned = next(
+            owned for owned in policy._equipment_catalog.items
+            if {48, 49, 50, 51, 52}.issubset(owned.flags)
+        )
+        self.assertTrue({48, 49, 50, 51, 52}.issubset(elemental_owned.flags))
+        with patch.object(
+            policy, "_next_required_store_type", return_value=STORE_TEMPLE
+        ):
+            self.assertEqual(
+                policy._activate_loadout_depth_fallback(snapshot),
+                DUNGEON_ANGBAND,
+                (policy._equipment_optimization_depth(snapshot),
+                 incident_preparation.blockers,
+                 getattr(incident_preparation.result, "best", None)),
+            )
+
+        first_key = None
+        decision = snapshot
+        with patch.object(policy, "_town_need_candidates", return_value=[]):
+            for _ in range(12):
+                key = policy.choose_key(decision)
+                if key.startswith(policy_module.WIELD_KEY):
+                    first_key = key
+                    break
+                decision = replace(decision, turn=decision.turn + 300)
+
+        self.assertEqual(len(policy._equipment_catalog.items), 47)
+        self.assertEqual(
+            policy._loadout_depth_fallback_depth, 30,
+            (first_key, policy.last_reason,
+             policy._equipment_optimization_depth(snapshot),
+             getattr(policy._equipment_optimization_preparation, "blockers", None),
+             policy._town_need_candidates(snapshot)),
+        )
+        preparation = policy._equipment_optimization_preparation
+        self.assertIsNotNone(preparation.result.best)
+        self.assertIsNotNone(first_key, policy.last_reason)
+        best = preparation.result.best.loadout
+        self.assertNotIn(62, best.flags)
+        self.assertTrue({48, 49, 50, 51, 52}.issubset(best.flags))
+
+        worn = [replace(owned.item, slot=slot) for slot, owned in best.slots]
+        dressed = replace(
+            snapshot,
+            turn=snapshot.turn + 1,
+            inventory=list(self._supplies()),
+            equipment=worn,
+        )
+        policy.choose_key(dressed)
+
+        worn_flags = set().union(
+            *(owned.known_flags for owned in dressed.equipment)
+        )
+        self.assertTrue({48, 49, 50, 51, 52}.issubset(worn_flags))
+        self.assertIn("Elemental Mail", {owned.name for owned in dressed.equipment})
+        self.assertGreater(len(dressed.equipment), 1, "fallback left the character naked")
+
     def test_write_oserror_allows_completion_but_not_fresh_process(self):
         snapshot = self._town()
         with TemporaryDirectory() as directory:

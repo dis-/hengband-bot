@@ -10310,9 +10310,18 @@ class HengbotPolicy:
                 "optimization-timeout",
             }.intersection(preparation.blockers)
             or optimization_depth <= 1
-            or self._next_required_store_type(snapshot) is not None
+            or (
+                "no-valid-loadout" not in preparation.blockers
+                and self._next_required_store_type(snapshot) is not None
+            )
         ):
             return None
+        # Town shopping owners run before the departure fallback, so a useful
+        # errand still gets its normal opportunity to act.  Once control reaches
+        # this exit, however, a standing/restocking errand must not suppress an
+        # owned-loadout depth search whose gate is proven unsatisfiable: such a
+        # queue can survive the whole visit and otherwise leave the character
+        # naked.  A timeout has not proved that premise and keeps the old order.
         selected_depth = None
         selected_preparation = None
         seen_requirements: set[frozenset[str]] = set()
