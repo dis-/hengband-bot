@@ -181,3 +181,35 @@ lint retained its green ratchet of 9 existing violations and 116 declared
 findings in 93 tests; the `test_policy.py` census is 1,913/1,914 with zero
 test-name losses. Full suite run 1 passed 2,512 tests in 213.067s with one
 opt-in skip; run 2 passed 2,512 tests in 211.010s with one opt-in skip.
+
+## 2026-08-08 Home entry sequence capture fix event
+
+This round changes no scan, entry, or routing behavior. While a Home approach
+or Home store session owns decisions, `jsonlog/home-entry-capture.jsonl` joins
+each public `choose_key` result to every character successfully posted for its
+decision and to the first subsequently read snapshot. That next-snapshot
+projection names type, turn, Home page metadata (`store_type`, `stock_num`,
+`page_top`, `page_size`, and item count), messages, and player position.
+
+Each record also carries its decision index and reason, the decision snapshot,
+and independent pickle checkpoints of the pre-decision policy and decision
+snapshot. Replay therefore restores every record separately and calls public
+`choose_key`; records are never chained. The explicitly named pre-decision
+state comprises the shopping approach, all four entry-observation owner terms
+and entry key, store-leave and last-store context, the Home operation and
+pending item/batch/atomic-operation terms, every `_home_address_*` term, every
+prepared/pending/count/wrapped/short/processing scan term, and the Home
+knowledge request/inflight/retry/leave/source/count terms.
+
+Hypothesis (not implemented): the live CLI may read an intervening snapshot or
+post a character sequence that the hand-authored fixtures omit, causing the
+entry owner or pending scan to flip on a different decision boundary. Only a
+real capture can distinguish that timing mismatch; this commit deliberately
+does not alter either state machine.
+
+Verification: the capture/replay test and CLI tests passed (119 tests); the
+mutation battery met 5/5 expectations with `repo_tree_untouched: true`;
+fakery lint remained at the base ratchet of 9 existing violations and 116
+declared findings in 93 tests; test-name census was 2,528 versus 2,527 at
+`b15c5b0`, with zero losses. Full suite run 1 passed 2,513 tests in 211.663s
+with one opt-in skip; run 2 passed 2,513 tests in 210.879s with one opt-in skip.

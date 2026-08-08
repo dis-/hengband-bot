@@ -24,6 +24,7 @@ from hengbot.quest_strategies import find_quest_strategies, load_quest_strategie
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.wait_telemetry import WaitTelemetry
+from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
@@ -1431,6 +1432,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.decision_log is not None
         else None
     )
+    home_entry_capture = (
+        HomeEntryCapture(args.decision_log.with_name("home-entry-capture.jsonl"))
+        if args.decision_log is not None
+        else None
+    )
 
     def send(
         key: str, *, in_store: bool = False, decision: dict | None = None
@@ -1457,6 +1463,13 @@ def main(argv: list[str] | None = None) -> int:
                 _write_posted_character(
                     posted_character_path, char, key, index, decision
                 )
+                if decision is not None and home_entry_capture is not None:
+                    try:
+                        home_entry_capture.record_posted_character(
+                            decision["sequence"], char
+                        )
+                    except (KeyError, TypeError):
+                        pass
                 delay, wait_category = (
                     _delay_spec_after_macro_key(
                         key,
@@ -1599,7 +1612,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        return _run_follow(args, policy, send, monrace_knowledge)
+        return _run_follow(
+            args, policy, send, monrace_knowledge, home_entry_capture
+        )
     except MissingMonraceKnowledgeError as exc:
         # The definitions file we loaded does not match the running game (e.g. a
         # different lib/ was resolved). Fail fast but CLEANLY — a raw traceback
@@ -1624,7 +1639,7 @@ def main(argv: list[str] | None = None) -> int:
         raise
 
 
-def _run_follow(args, policy, send, monrace_knowledge) -> int:
+def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) -> int:
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
     recorder_root = (
@@ -1715,6 +1730,23 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 complete_lines, pending = _split_complete_lines(pending + chunk)
                 recorder.record_snapshot_lines(complete_lines)
                 _dispatch_response_lines(complete_lines, policy, send)
+                needs_ordered_snapshots = (
+                    home_entry_capture is not None
+                    and home_entry_capture.pending is not None
+                ) or getattr(policy, "_home_scan_burst_pending", False)
+                ordered_snapshot_entries = (
+                    _snapshot_entries_in_order(complete_lines, monrace_knowledge)
+                    if needs_ordered_snapshots
+                    else []
+                )
+                if home_entry_capture is not None and ordered_snapshot_entries:
+                    try:
+                        home_entry_capture.observe_snapshot(
+                            ordered_snapshot_entries[0][0]
+                        )
+                    except Exception:
+                        # Capture must never alter command selection or delivery.
+                        pass
                 if getattr(policy, "_home_scan_burst_pending", False):
                     # This is the sole exception to newest-board collapsing:
                     # cmd-store.cpp emits one ordered store snapshot per key in
@@ -1722,9 +1754,7 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     # intermediate decisions, and resume only after Escape's
                     # first non-Home snapshot delimits the burst.
                     burst_open = policy.consume_home_scan_burst(
-                        _snapshot_entries_in_order(
-                            complete_lines, monrace_knowledge
-                        )
+                        ordered_snapshot_entries
                     )
                     if burst_open:
                         continue
@@ -1831,13 +1861,32 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                     store_leave_was_inflight = (
                         policy._store_leave_inflight is not None
                     )
-                    key = policy.choose_key(snapshot)
-                    key = policy.validate_read_key(snapshot, key)
+                    capture_boundary = None
+                    if home_entry_capture is not None:
+                        try:
+                            capture_boundary = home_entry_capture.before_decision(
+                                policy, snapshot
+                            )
+                        except Exception:
+                            pass
+                    chosen_key = policy.choose_key(snapshot)
+                    key = policy.validate_read_key(snapshot, chosen_key)
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
                     )
                     last_decision_reason = policy.last_reason
+                    if capture_boundary is not None:
+                        try:
+                            home_entry_capture.record_decision(
+                                policy,
+                                snapshot,
+                                chosen_key,
+                                policy.last_reason,
+                                *capture_boundary,
+                            )
+                        except Exception:
+                            pass
                     recent_reasons.append(policy.last_reason)
                     command_signature = _command_state_signature(
                         snapshot,
