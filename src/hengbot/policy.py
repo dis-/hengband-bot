@@ -2359,6 +2359,15 @@ class HengbotPolicy:
         terrain. Monster occupancy is different: it is authoritative only in the
         current snapshot and must never survive after its grid leaves view.
         """
+        # A store page without grids is not a terrain observation.  In
+        # particular, its metadata must not select/reset a terrain region: the
+        # store prompt has not moved the player or changed the surface map, and
+        # every store decision which needs an entrance/grid fact must see the
+        # retained last surface observation.  Map-bearing store pages from an
+        # older emitter continue through the ordinary merge below.
+        if snapshot.store is not None and not snapshot.grids:
+            return replace(snapshot, grids=dict(self._remembered_grids))
+
         # Every surface view uses floor_key=(0, 0, 0), including fixed towns,
         # local wilderness, and the differently-sized global map.  Terrain from
         # one of those coordinate spaces must never leak into another one.

@@ -5212,6 +5212,68 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(self._in_store(items)), "pb\r")
         self.assertEqual(pol.last_reason, "shop:buy-lantern")
 
+    def test_mapless_store_purchase_matches_map_bearing_store(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        bearing = self._in_store([ware])
+        mapless = replace(bearing, grids={})
+
+        bearing_policy = HengbotPolicy()
+        mapless_policy = HengbotPolicy()
+        self.assertEqual(
+            mapless_policy.choose_key(mapless),
+            bearing_policy.choose_key(bearing),
+        )
+        self.assertEqual(mapless_policy.last_reason, bearing_policy.last_reason)
+
+    def test_mapless_store_leave_matches_map_bearing_store(self):
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN,
+            fuel=5000, is_equipment=True,
+        )
+        bearing = self._in_store([], eq=[lantern])
+        mapless = replace(bearing, grids={})
+
+        bearing_policy = HengbotPolicy()
+        mapless_policy = HengbotPolicy()
+        self.assertEqual(
+            mapless_policy.choose_key(mapless),
+            bearing_policy.choose_key(bearing),
+        )
+        self.assertEqual(mapless_policy.last_reason, bearing_policy.last_reason)
+
+    def test_mapless_store_snapshot_cannot_reset_or_erode_surface_memory(self):
+        entrance = Position(10, 10)
+        neighbor = Position(10, 11)
+        surface = replace(
+            self._in_store([]),
+            store=None,
+            grids={
+                entrance: replace(grid(10, 10), store_number=STORE_GENERAL),
+                neighbor: grid(10, 11, terrain_id=7),
+            },
+            width=132,
+            height=44,
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._with_grid_memory(surface)
+        before = dict(policy._remembered_grids)
+        # Store UI metadata is deliberately unlike the surface metadata.  With
+        # no grids this is absence of observation, not a new terrain region.
+        mapless = replace(
+            surface,
+            store=StoreState(STORE_GENERAL, []),
+            grids={},
+            width=0,
+            height=0,
+        )
+
+        merged = policy._with_grid_memory(mapless)
+
+        self.assertEqual(policy._remembered_grids, before)
+        self.assertEqual(merged.grids, before)
+        self.assertEqual(merged.grid_at(entrance).store_number, STORE_GENERAL)
+
     def test_stale_store_snapshot_after_leave_cannot_emit_purchase(self):
         lantern = InventoryItem(
             "e", "lantern", 1, TVAL_LITE, SV_LITE_LANTERN, True, True
@@ -44631,6 +44693,43 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(policy._home_address_scan_valid)
         self.assertEqual(policy._home_address_page_count, 2)
 
+    def test_mapless_home_scan_burst_matches_map_bearing_pages(self):
+        wares = [
+            store_item("a", TVAL_POTION, 1660 + index, name=f"mapless {index}")
+            for index in range(24)
+        ]
+        pages = [wares[:12], wares[12:]]
+        bearing = [
+            self._home_page_snapshot([], pages[index % 2], turn=3100070 + index)
+            for index in range(1 + policy_module.HOME_SCAN_PAGE_FORWARDS)
+        ]
+        bearing.append(self._entrance_snapshot([], turn=3100090))
+        mapless = [
+            replace(snapshot, grids={}) if snapshot.store is not None else snapshot
+            for snapshot in bearing
+        ]
+        bearing_policy = HengbotPolicy()
+        mapless_policy = HengbotPolicy()
+        bearing_policy._home_scan_burst_pending = True
+        mapless_policy._home_scan_burst_pending = True
+
+        self.assertEqual(
+            mapless_policy.consume_home_scan_burst(mapless),
+            bearing_policy.consume_home_scan_burst(bearing),
+        )
+        self.assertEqual(
+            mapless_policy._home_address_pages,
+            bearing_policy._home_address_pages,
+        )
+        self.assertEqual(
+            mapless_policy._home_address_ordinals,
+            bearing_policy._home_address_ordinals,
+        )
+        self.assertEqual(
+            mapless_policy._home_address_scan_valid,
+            bearing_policy._home_address_scan_valid,
+        )
+
     def test_whole_home_scan_posts_exactly_one_store_legal_composed_key(self):
         """Pin one public sender call, independent of the scan implementation API."""
         wares = [
@@ -45796,6 +45895,35 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         inside = self._snapshot(self._real_pack(target), turn=entrance.turn + 1)
         self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
+
+    def test_mapless_atomic_deposit_completion_matches_map_bearing_page(self):
+        target = item("n", 23, 3, name="deposited spear", is_equipment=True)
+        bearing = self._snapshot(self._real_pack(target), turn=2247210)
+        mapless = replace(bearing, grids={})
+        outcomes = []
+        for snapshot in (bearing, mapless):
+            policy = HengbotPolicy()
+            policy._home_entry_operation_posted = True
+            outcomes.append((policy.choose_key(snapshot), policy.last_reason))
+
+        self.assertEqual(outcomes[1], outcomes[0])
+        self.assertEqual(outcomes[0], (LEAVE_STORE_KEY, "home:leave-after-one-operation"))
+
+    def test_mapless_atomic_withdrawal_completion_matches_map_bearing_page(self):
+        target = store_item("a", TVAL_POTION, 402, name="withdrawn target")
+        bearing = self._home_page_snapshot([], [target], turn=2247220)
+        mapless = replace(bearing, grids={})
+        outcomes = []
+        for snapshot in (bearing, mapless):
+            policy = HengbotPolicy()
+            policy._home_entry_operation_posted = True
+            policy._home_atomic_withdraw_pending = (
+                policy._item_signature(target), 0, target, 1
+            )
+            outcomes.append((policy.choose_key(snapshot), policy.last_reason))
+
+        self.assertEqual(outcomes[1], outcomes[0])
+        self.assertEqual(outcomes[0], (LEAVE_STORE_KEY, "home:leave-after-one-operation"))
 
     def test_replaced_transaction_atomic_key_discards_prepared_state(self):
         policy = HengbotPolicy()
