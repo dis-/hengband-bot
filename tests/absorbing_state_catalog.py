@@ -686,6 +686,26 @@ def _calibration_deposit_claim_budget():
     return policy, CalibrationDepositWorld(snap)
 
 
+def _plan_none_live_calibration_home_available():
+    """A live calibration owner with no plan must still reach bounded Home."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, snap = helper._fixture()
+    home = replace(
+        fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+    )
+    snap = replace(snap, grids={**snap.grids, home.position: home})
+    policy._town_was_in_town = True
+    policy._calibration_phase = "deposit"
+    policy._equipment_catalog.home_scan_complete = True
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=("calibration-required",), result=None,
+    )
+    policy._town_errand_plan = None
+    policy._town_blocked_reason = "repetition"
+    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 16
+    return policy, TownWorld(snap)
+
+
 def _identify_staff_reserve_queue_cycle():
     """A live surplus queue must survive the surface composer decision."""
     helper = fixture.HomeOneOperationPerEntryTest()
@@ -1003,6 +1023,10 @@ SEEDED_STATES = (
     AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
     AbsorbingState(
         "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget
+    ),
+    AbsorbingState(
+        "plan-none-live-calibration-home-available", 300,
+        _plan_none_live_calibration_home_available,
     ),
     AbsorbingState(
         "identify-staff-reserve-queue-cycle", 40,

@@ -49777,6 +49777,61 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             },
         )
 
+    def test_live_calibration_deposit_builds_home_plan_from_none_publicly(self):
+        """Pin the CL30 stop: a fresh plan retains live bounded Home work."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot,
+            turn=3032798,
+            player=replace(snapshot.player, level=30, gold=28651),
+            grids={**snapshot.grids, home.position: home},
+        )
+        policy.choose_key(snapshot)
+        policy._town_was_in_town = True
+        policy._calibration_phase = "deposit"
+        policy._equipment_catalog.home_scan_complete = True
+        policy._floor_key = snapshot.floor_key
+        catalog_item = OwnedEquipment(
+            "captured-item", snapshot.equipment[0], "home"
+        )
+        policy._equipment_catalog._home = {
+            f"captured-item-{index}": replace(
+                catalog_item, id=f"captured-item-{index}"
+            )
+            for index in range(55)
+        }
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None,
+        )
+        policy._town_errand_plan = None
+        policy._town_blocked_reason = "repetition"
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 16
+
+        self.assertEqual(len(policy._equipment_catalog.items), 56)
+        self.assertIsNone(policy.calibration_entry_state(snapshot)["entry_blocker"])
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 16
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(
+            key,
+            "4",
+            "afb1d3a repeats town until town:blocked:repetition because a "
+            "fresh plan omits Home",
+        )
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
+        self.assertIn(
+            "equipment-work",
+            policy._town_errand_plan.need_categories[STORE_HOME],
+        )
+
     def test_home_route_rearm_telemetry_exposes_every_guard_input(self):
         policy, snapshot = self._fixture()
         policy._calibration_phase = "deposit"

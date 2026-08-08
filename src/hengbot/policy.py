@@ -14279,6 +14279,37 @@ class HengbotPolicy:
             for need in live_needs
             if need.store_type not in ledger_blocked
         ]
+        plan = self._town_errand_plan
+        post_alchemist_home_needed = any(
+            need.ordering_class == "post-alchemist-home"
+            or need.category == "identification-source"
+            for need in needs
+        )
+        equipment_work_appended = False
+        if (
+            (plan is None or plan.index >= len(plan.stops))
+            and (
+                plan is not None
+                or not any(need.store_type == STORE_HOME for need in needs)
+            )
+            and self._equipment_work_home_route_available()
+            and self._home_owner_goal_pending(snapshot)
+            and not any(need.category == "equipment-work" for need in needs)
+        ):
+            # A plan is only a route snapshot.  While a live owner still has
+            # outstanding equipment work and its bounded Home route remains
+            # available, every plan assembled from these needs retains Home
+            # for that owner, including a plan created from None.
+            needs.append(TownNeed(
+                STORE_HOME,
+                "equipment-work",
+                (
+                    "post-alchemist-home"
+                    if post_alchemist_home_needed
+                    else "home-first"
+                ),
+            ))
+            equipment_work_appended = True
         warned = set(self._town_visit_ledger.drift_warnings)
         for need in needs:
             satisfied = (need.store_type, need.category)
@@ -14292,11 +14323,6 @@ class HengbotPolicy:
             ):
                 self._town_visit_ledger.drift_warnings.append(warning)
                 warned.add(warning)
-        post_alchemist_home_needed = any(
-            need.store_type == STORE_HOME
-            and need.ordering_class == "post-alchemist-home"
-            for need in needs
-        )
         if (
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.executable
@@ -14305,25 +14331,10 @@ class HengbotPolicy:
         ):
             needs.append(TownNeed(STORE_HOME, "equipment-transaction", "home-first"))
         needed_stores = {need.store_type for need in needs}
-        plan = self._town_errand_plan
-        equipment_work_appended = False
         if plan is None:
             plan = self._build_town_errand_plan(snapshot, needs)
             self._town_errand_plan = plan
         elif plan.index >= len(plan.stops):
-            if (
-                self._equipment_work_home_route_available()
-                and self._home_owner_goal_pending(snapshot)
-                and not any(need.category == "equipment-work" for need in needs)
-            ):
-                # A completed plan is only a route snapshot.  While a live owner
-                # still has outstanding equipment work and its bounded Home
-                # route remains available, retain a Home stop for that owner.
-                # _completed_home_can_rearm describes ordinary completed Home
-                # errands; it is not evidence that this owner has finished.
-                needs.append(TownNeed(STORE_HOME, "equipment-work", "home-first"))
-                needed_stores.add(STORE_HOME)
-                equipment_work_appended = True
             # A completed plan is only a snapshot of the needs visible when it
             # was built. Completing an identification errand can expose the
             # ordinary supply shortages that it previously owned exclusively.
