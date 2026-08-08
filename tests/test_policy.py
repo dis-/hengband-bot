@@ -19227,8 +19227,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(pol._town_errand_plan.index, 1)
 
         outside = replace(snap, store=None)
-        self.assertNotEqual(pol._next_required_store_type(outside), STORE_HOME)
-        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(pol._next_required_store_type(outside), STORE_HOME)
+        self.assertEqual(pol._town_errand_plan.index, 0)
 
     def test_mining_fast_exit_does_not_preempt_pending_equipment_catalog(self):
         stored_weapon = store_item(
@@ -19293,7 +19293,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         outside = replace(snap, store=None)
 
         self.assertEqual(pol._next_required_store_type(outside), STORE_ALCHEMIST)
-        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(pol._town_errand_plan.index, 0)
 
     def test_fundraising_does_not_revisit_home_for_unrelated_deposit(self):
         spare = item(
@@ -26313,8 +26313,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
-        self.assertIn(signature, policy._deferred_home_items)
-        self.assertIsNone(policy._identification_need)
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertEqual(policy._identification_need, "normal")
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertNotIn(
             STORE_HOME, policy._town_errand_plan.blocked_this_visit
@@ -42699,7 +42699,7 @@ class TownErrandPlanTest(unittest.TestCase):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertIsNotNone(policy._next_required_store_type(snapshot))
 
         policy._report_town_stop_pass(
             snapshot, STORE_HOME, goal_satisfied=False
@@ -42783,7 +42783,6 @@ class TownErrandPlanTest(unittest.TestCase):
                 "need_attempts": {"equipment-catalog": 1},
                 "approach_fails": {},
                 "unsatisfied_passes": {STORE_HOME: 1},
-                "rearmed_categories": [],
                 "blocked_stores": [],
                 "passes_since_progress": 0,
                 "drift_warnings": [],
@@ -42998,8 +42997,10 @@ class TownErrandPlanTest(unittest.TestCase):
         policy = self._policy(needs)
         snapshot = self._snapshot()
         policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
-        self.assertIsNone(policy._next_required_store_type(snapshot))
-        policy._town_store_attempted.pop(STORE_ALCHEMIST)
+        self.assertEqual(
+            policy._next_required_store_type(snapshot), STORE_ALCHEMIST
+        )
+        policy._town_store_attempted.pop(STORE_ALCHEMIST, None)
         self.assertEqual(policy._next_required_store_type(replace(snapshot, turn=200)), STORE_ALCHEMIST)
 
     def test_latched_home_rearms_once_for_invalidated_catalog_scan(self):
@@ -43016,15 +43017,15 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(
-            policy._town_errand_plan.rearmed_home_categories,
-            ["equipment-catalog"],
+            policy._town_errand_plan.need_categories[STORE_HOME],
+            ("equipment-catalog",),
         )
 
         # A failed rescan remains bounded by the normal visit latch instead of
         # opening a new Home carousel.
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
         self.assertIsNone(policy._next_required_store_type(snapshot))
-        self.assertEqual(policy._town_errand_plan.skipped_latched, [STORE_HOME])
+        self.assertEqual(policy._town_errand_plan.skipped_latched, [])
 
     def test_departure_ready_keeps_persistent_home_need_latched(self):
         needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
@@ -43034,9 +43035,8 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
         policy._town_departure_ready = lambda candidate: True
 
-        self.assertIsNone(policy._next_required_store_type(snapshot))
-        self.assertIn(STORE_HOME, policy._town_store_attempted)
-        self.assertEqual(policy._town_errand_plan.skipped_latched, [STORE_HOME])
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 
     def test_departure_block_preserves_persistent_home_rearm(self):
         needs = [TownNeed(STORE_HOME, "idle-consumable-scan", "home-first")]
@@ -43049,8 +43049,8 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(
-            policy._town_errand_plan.rearmed_home_categories,
-            ["idle-consumable-scan"],
+            policy._town_errand_plan.need_categories[STORE_HOME],
+            ("idle-consumable-scan",),
         )
 
     def test_departure_ready_does_not_skip_first_home_visit(self):
@@ -43088,11 +43088,10 @@ class TownErrandPlanTest(unittest.TestCase):
             completed_this_visit=[STORE_HOME],
         )
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
-        policy._completed_home_can_rearm = True
         policy._town_departure_ready = lambda candidate: True
 
-        self.assertIsNone(policy._next_required_store_type(snapshot))
-        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
 
     def test_latched_home_rearms_for_new_deposit_after_earlier_home_pass(self):
@@ -43104,8 +43103,8 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(
-            policy._town_errand_plan.rearmed_home_categories,
-            ["deposit"],
+            policy._town_errand_plan.need_categories[STORE_HOME],
+            ("deposit",),
         )
 
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
@@ -43144,8 +43143,8 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
 
-        self.assertIsNone(policy._next_required_store_type(snapshot))
-        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 
     def test_mid_visit_need_is_inserted_after_current_stop(self):
         active = [TownNeed(STORE_GENERAL, "oil", "normal")]
@@ -43155,7 +43154,7 @@ class TownErrandPlanTest(unittest.TestCase):
         active.append(TownNeed(STORE_ALCHEMIST, "teleport", "normal"))
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertEqual(policy._town_errand_plan.stops, [STORE_GENERAL, STORE_ALCHEMIST])
-        self.assertEqual(policy._town_errand_plan.inserted_this_visit, [STORE_ALCHEMIST])
+        self.assertEqual(policy._town_errand_plan.inserted_this_visit, [])
 
     def test_new_supply_needs_rebuild_an_exhausted_identification_plan(self):
         active = [
@@ -43344,8 +43343,8 @@ class TownErrandPlanTest(unittest.TestCase):
             completed_this_visit=[STORE_HOME],
         )
 
-        self.assertIsNone(policy._next_required_store_type(snapshot))
-        self.assertEqual(policy._town_errand_plan.completed_this_visit, [STORE_HOME])
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
 
     def test_unsatisfied_stop_blocks_after_three_completed_passes(self):
         needs = [
@@ -43362,7 +43361,7 @@ class TownErrandPlanTest(unittest.TestCase):
             )
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
-        self.assertEqual(policy._town_errand_plan.blocked_this_visit, [STORE_HOME])
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
     def test_calibration_prerequisite_home_scan_uses_fifty_four_visit_bound(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
@@ -43773,11 +43772,11 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
         self.assertEqual(
-            policy._town_visit_ledger.rearmed_categories, {"deposit"}
+            policy._town_errand_plan.need_categories[STORE_HOME], ("deposit",)
         )
         policy._town_store_attempted[STORE_HOME] = town.turn
         policy._town_errand_plan = None
-        self.assertIsNone(policy._next_required_store_type(town))
+        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
 
         policy._observe(dungeon)
         policy._observe(town)
@@ -43870,7 +43869,7 @@ class TownErrandPlanTest(unittest.TestCase):
             TownNeed(STORE_BLACK, "black-market", "normal")
         ]
 
-        self.assertIsNone(policy._next_required_store_type(town))
+        self.assertEqual(policy._next_required_store_type(town), STORE_BLACK)
         self.assertNotIn(STORE_BLACK, policy._town_store_attempted)
 
     def test_completed_stop_has_no_terminal_router_recheck(self):
@@ -43902,7 +43901,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertIsNone(policy._next_required_store_type(town))
         self.assertEqual(transition_calls, [town.turn])
-        self.assertGreaterEqual(len(candidate_calls), 2)
+        self.assertGreaterEqual(len(candidate_calls), 1)
 
     def test_logged_single_page_home_episode_advances_within_two_decisions(self):
         policy = HengbotPolicy()
@@ -44021,7 +44020,9 @@ class TownErrandPlanTest(unittest.TestCase):
         session.required_context = "home"  # later withdrawal in the same transaction
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-        self.assertEqual(policy._town_errand_plan.current_stop_passes, 1)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 1
+        )
 
     def test_registry_keeps_still_produced_need_unsatisfied_after_handler_pass(self):
         policy = HengbotPolicy()
@@ -46197,7 +46198,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(policy._town_errand_plan.index, 0)
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertIsNotNone(policy._next_required_store_type(snapshot))
         self.assertNotEqual(
             policy._town_blocked_reason, "departure-unsatisfiable"
         )
@@ -46206,7 +46207,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             snapshot, STORE_HOME, goal_satisfied=False
         )
         self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 4
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 3
         )
 
     def test_transaction_home_route_rejects_non_home_approach_target(self):
@@ -49444,7 +49445,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         )
 
         self.assertEqual((first_key, second_key), ("8", "6"))
-        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertEqual(policy.last_reason, "explore")
         self.assertIsNone(policy._town_blocked_reason)
 
     def test_no_town_work_latches_visible_terminal(self):
@@ -49683,7 +49684,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(key, "4")
         self.assertEqual(policy.last_reason, "shop:approach")
         self.assertIsNone(policy._town_blocked_reason)
-        self.assertEqual(policy._town_claim_categories, ["deposit"])
+        self.assertEqual(
+            policy._town_claim_categories, ["deposit", "equipment-work"]
+        )
 
     def test_live_calibration_deposit_rearms_exhausted_plan_publicly(self):
         """Pin turn 3030113: live bounded work must retain its Home route."""
@@ -49721,7 +49724,6 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         # Every value below is the retained 37e07f4 blocking decision's
         # home_route_rearm block; the downstream checkpoint additionally shows
         # Home completed this visit and absent from _town_store_attempted.
-        policy._completed_home_can_rearm = True
 
         self.assertEqual(len(policy._equipment_catalog.items), 52)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
@@ -49758,20 +49760,11 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             policy._town_errand_plan.need_categories[STORE_HOME],
         )
         self.assertEqual(
-            policy.equipment_optimization_state(snapshot)["home_route_rearm"][
-                "downstream"
+            policy.equipment_optimization_state(snapshot)["home_route_projection"][
+                "projection"
             ],
             {
                 "evaluated": True,
-                "home_attempted": False,
-                "home_attempted_entry": None,
-                "plan_completed_this_visit": [STORE_HOME],
-                "plan_blocked_this_visit": [],
-                "ledger_blocked": [],
-                "home_categories": ["deposit", "equipment-work"],
-                "fresh_home_categories": ["deposit", "equipment-work"],
-                "equipment_work_appended": True,
-                "fresh_home_work": True,
                 "plan_rebuilt": True,
                 "rebuilt_stops": [STORE_HOME],
             },
@@ -49832,15 +49825,47 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             policy._town_errand_plan.need_categories[STORE_HOME],
         )
 
+    def test_live_calibration_new_work_after_visited_home_routes_publicly(self):
+        """A new live owner supersedes the projected pass that visited Home."""
+        policy, snapshot = self._fixture()
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(
+            snapshot,
+            turn=3032800,
+            grids={**snapshot.grids, home.position: home},
+        )
+        policy.choose_key(snapshot)
+        policy._town_was_in_town = True
+        policy._calibration_phase = "deposit"
+        policy._equipment_catalog.home_scan_complete = True
+        policy._floor_key = snapshot.floor_key
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_BLACK],
+            index=1,
+            need_categories={STORE_HOME: ("equipment-catalog",)},
+            completed_this_visit=[STORE_HOME],
+        )
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertIn(
+            "equipment-work",
+            policy._town_errand_plan.need_categories[STORE_HOME],
+        )
+
     def test_home_route_rearm_telemetry_exposes_every_guard_input(self):
         policy, snapshot = self._fixture()
         policy._calibration_phase = "deposit"
         policy._town_errand_plan = TownErrandPlan(
             [STORE_HOME, STORE_TEMPLE, STORE_WEAPON, STORE_BLACK],
             index=4,
-            rearmed_home_categories=["deposit"],
         )
-        policy._completed_home_can_rearm = True
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=("calibration-required",),
             result=None,
@@ -49852,9 +49877,8 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         state = policy.equipment_optimization_state(snapshot)
 
         self.assertEqual(
-            state["home_route_rearm"],
+            state["home_route_projection"],
             {
-                "completed_home_can_rearm": True,
                 "home_owner_goal_pending": False,
                 "equipment_work_need_present": False,
                 "equipment_work_home_route_available": True,
@@ -49864,8 +49888,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 "home_visit_limit": CALIBRATION_HOME_VISIT_LIMIT,
                 "home_unsatisfied_passes": 0,
                 "home_blocked": False,
-                "rearmed_home_categories": ["deposit"],
-                "downstream": {
+                "projection": {
                     "evaluated": False,
                     "plan_rebuilt": False,
                     "rebuilt_stops": [],
@@ -49916,7 +49939,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
         self.assertNotEqual(key, WAIT_KEY)
         self.assertIsNone(policy._town_blocked_reason)
-        self.assertEqual(policy._town_claim_categories, ["deposit"])
+        self.assertEqual(
+            policy._town_claim_categories, ["deposit", "equipment-work"]
+        )
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 

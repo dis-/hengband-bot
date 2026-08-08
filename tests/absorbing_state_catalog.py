@@ -663,10 +663,8 @@ def _calibration_deposit_claim_budget():
         [STORE_HOME, policy_module.STORE_TEMPLE, policy_module.STORE_WEAPON,
          policy_module.STORE_BLACK],
         index=4,
-        rearmed_home_categories=["deposit"],
     )
     policy._town_store_attempted[STORE_HOME] = snap.turn
-    policy._completed_home_can_rearm = False
 
     class CalibrationDepositWorld(TownWorld):
         def __init__(self, snapshot):

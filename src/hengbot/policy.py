@@ -402,7 +402,6 @@ class TownVisitLedger:
     need_attempts: dict[str, int] = field(default_factory=dict)
     approach_fails: Counter[int] = field(default_factory=Counter)
     unsatisfied_passes: Counter[int] = field(default_factory=Counter)
-    rearmed_categories: set[str] = field(default_factory=set)
     blocked_stores: set[int] = field(default_factory=set)
     passes_since_progress: int = 0
     drift_warnings: list[str] = field(default_factory=list)
@@ -526,7 +525,6 @@ class TownErrandPlan:
     completed_this_visit: list[int] | None = None
     blocked_this_visit: list[int] | None = None
     current_stop_passes: int = 0
-    rearmed_home_categories: list[str] | None = None
 
     def __post_init__(self) -> None:
         if self.inserted_this_visit is None:
@@ -537,8 +535,6 @@ class TownErrandPlan:
             self.completed_this_visit = []
         if self.blocked_this_visit is None:
             self.blocked_this_visit = []
-        if self.rearmed_home_categories is None:
-            self.rearmed_home_categories = []
 STORE_RESTOCK_WAIT_TURNS = 1000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
@@ -2059,7 +2055,6 @@ class HengbotPolicy:
         self._town_travel_rumor_pending: int | None = None
         # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
         self._town_store_attempted: dict[int, int] = {}
-        self._completed_home_can_rearm = False
         self._town_restock_wait_until: int | None = None
         self._town_restock_waiting_for: tuple[int, ...] = ()
         self._town_restock_rechecked: set[int] = set()
@@ -2246,7 +2241,7 @@ class HengbotPolicy:
         ) = None
         self._equipment_optimization_timed_out_this_visit = False
         self._equipment_optimization_telemetry: dict[str, object] = {}
-        self._town_plan_rearm_telemetry: dict[str, object] = {
+        self._town_plan_projection_telemetry: dict[str, object] = {
             "evaluated": False,
             "plan_rebuilt": False,
             "rebuilt_stops": [],
@@ -9571,12 +9566,7 @@ class HengbotPolicy:
             "quarantine_burned_item_ids": sorted(
                 self._equipment_quarantine_burned_ids
             ),
-            # Keep every exhausted-plan Home re-arm input together so a retained
-            # decision identifies the false term without reconstructing private
-            # policy state.  None means the snapshot-dependent predicate was not
-            # evaluated because this caller requested cached state only.
-            "home_route_rearm": {
-                "completed_home_can_rearm": self._completed_home_can_rearm,
+            "home_route_projection": {
                 "home_owner_goal_pending": (
                     self._home_owner_goal_pending(snapshot)
                     if snapshot is not None else None
@@ -9584,7 +9574,7 @@ class HengbotPolicy:
                 "equipment_work_need_present": (
                     any(
                         need.category == "equipment-work"
-                        for need in self._enumerate_town_needs(snapshot)
+                        for need in self._enumerate_live_store_claims(snapshot)
                     )
                     if snapshot is not None else None
                 ),
@@ -9607,13 +9597,9 @@ class HengbotPolicy:
                 "home_blocked": (
                     STORE_HOME in self._town_visit_ledger.blocked_stores
                 ),
-                "rearmed_home_categories": (
-                    list(self._town_errand_plan.rearmed_home_categories)
-                    if self._town_errand_plan is not None else []
-                ),
-                "downstream": dict(getattr(
+                "projection": dict(getattr(
                     self,
-                    "_town_plan_rearm_telemetry",
+                    "_town_plan_projection_telemetry",
                     {"evaluated": False, "plan_rebuilt": False, "rebuilt_stops": []},
                 )),
             },
@@ -11474,7 +11460,7 @@ class HengbotPolicy:
             and STORE_HOME not in plan.blocked_this_visit
             and STORE_HOME not in self._town_visit_ledger.blocked_stores
             and any(
-                category not in {"deposit", "weight-overload"}
+                category not in {"deposit", "weight-overload", "equipment-work"}
                 and (STORE_HOME, category)
                 not in self._town_visit_ledger.satisfied_needs
                 for category in plan.need_categories.get(STORE_HOME, ())
@@ -13985,41 +13971,38 @@ class HengbotPolicy:
         return self._town_need_specs
 
     def _town_claims_active(self, snapshot: Snapshot) -> bool:
-        """Record and report registry needs with a live town-turn claim."""
+        """Record live route owners from the same registry used by projection."""
         claims: list[str] = []
         departure_ready: bool | None = None
-        self._town_need_evaluation_snapshot = snapshot
-        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
-        try:
-            for spec in self._town_need_registry():
-                if not spec.produces(snapshot):
-                    continue
-                store_type = spec.resolve_store_type(snapshot)
-                live_equipment_work = (
-                    store_type == STORE_HOME
-                    and self._outstanding_equipment_work()
-                )
-                if (
-                    store_type in self._town_visit_ledger.blocked_stores
-                    or self._town_visit_ledger.approach_fails[store_type]
-                    >= self._town_store_visit_limit(store_type)
-                    or (
-                        self._town_visit_ledger.need_attempts.get(spec.category, 0)
-                        >= spec.budget
-                        and not live_equipment_work
+        specs = {spec.category: spec for spec in self._town_need_registry()}
+        for need in self._enumerate_live_store_claims(snapshot):
+            spec = specs.get(need.category)
+            equipment_owner = need.category in {
+                "equipment-work", "equipment-transaction"
+            }
+            if (
+                need.store_type in self._town_visit_ledger.blocked_stores
+                or self._town_visit_ledger.approach_fails[need.store_type]
+                >= self._town_store_visit_limit(need.store_type)
+                or (
+                    spec is not None
+                    and self._town_visit_ledger.need_attempts.get(need.category, 0)
+                    >= spec.budget
+                    and not equipment_owner
+                    and not (
+                        need.store_type == STORE_HOME
+                        and self._outstanding_equipment_work()
                     )
-                ):
+                )
+            ):
+                continue
+            if spec is not None and not spec.departure_blocking:
+                if departure_ready is None:
+                    departure_ready = self._town_departure_ready(snapshot)
+                if departure_ready:
                     continue
-                if not spec.departure_blocking:
-                    if departure_ready is None:
-                        departure_ready = self._town_departure_ready(snapshot)
-                    if departure_ready:
-                        continue
-                if spec.category not in claims:
-                    claims.append(spec.category)
-        finally:
-            self._town_need_evaluation_snapshot = None
-            self._town_need_evaluation_candidates = None
+            if need.category not in claims:
+                claims.append(need.category)
         self._town_claim_categories = claims
         return bool(claims)
 
@@ -14042,6 +14025,47 @@ class HengbotPolicy:
             self._town_need_evaluation_snapshot = None
             self._town_need_evaluation_candidates = None
         return needs
+
+    def _enumerate_live_store_claims(self, snapshot: Snapshot) -> list[TownNeed]:
+        """Enumerate every live owner of a store route for this decision.
+
+        The generic need registry explicitly owns catalogue scans, queued Home
+        identities, identification errands, procurement shortages, disposal,
+        fundraising, curse service, sales, and optional shopping.  The two
+        state-machine owners below are not NeedSpec predicates: calibration /
+        optimizer work owns Home while its hard route bound remains, and an
+        executable equipment transaction owns the context it was bound to.
+        This is the sole input to the town-plan projection.
+        """
+        claims = list(self._enumerate_town_needs(snapshot))
+        post_alchemist_home = any(
+            claim.ordering_class == "post-alchemist-home"
+            or claim.category == "identification-source"
+            for claim in claims
+        )
+        if (
+            self._equipment_work_home_route_available()
+            and self._home_owner_goal_pending(snapshot)
+            and not any(claim.category == "equipment-work" for claim in claims)
+        ):
+            claims.append(TownNeed(
+                STORE_HOME,
+                "equipment-work",
+                "post-alchemist-home" if post_alchemist_home else "home-first",
+            ))
+        session = self._equipment_transaction_session
+        if (
+            session is not None
+            and session.executable
+            and session.required_context is not None
+            and not any(claim.category == "equipment-transaction" for claim in claims)
+        ):
+            claims.append(TownNeed(
+                STORE_HOME,
+                "equipment-transaction",
+                "home-first",
+            ))
+        return claims
 
     def _departure_blocking_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return live errands whose NeedSpec says they gate departure."""
@@ -14204,7 +14228,7 @@ class HengbotPolicy:
         )
 
     def _next_required_store_type(self, snapshot: Snapshot) -> int | None:
-        self._town_plan_rearm_telemetry = {
+        self._town_plan_projection_telemetry = {
             "evaluated": False,
             "plan_rebuilt": False,
             "rebuilt_stops": [],
@@ -14256,6 +14280,17 @@ class HengbotPolicy:
         if self._town_restock_suppressed:
             self._town_errand_plan = None
             return None
+        if opening_q34 and STORE_GENERAL in self._town_store_attempted:
+            self._town_restock_rechecked.discard(STORE_GENERAL)
+            return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
+        if (
+            snapshot.store is not None
+            and self._town_errand_plan is not None
+            and self._town_errand_plan.index < len(self._town_errand_plan.stops)
+            and self._town_errand_plan.stops[self._town_errand_plan.index]
+            == snapshot.store.store_type
+        ):
+            return snapshot.store.store_type
         if (
             snapshot.in_town
             and snapshot.player.class_id >= 0
@@ -14269,47 +14304,85 @@ class HengbotPolicy:
             for store, failures in self._town_visit_ledger.approach_fails.items()
             if failures >= self._town_store_visit_limit(store)
         }
-        live_needs = (
-            self._departure_blocking_town_needs(snapshot)
-            if self._town_blocked_reason == "repetition"
-            else self._enumerate_town_needs(snapshot)
-        )
+        live_needs = self._enumerate_live_store_claims(snapshot)
+        if self._town_blocked_reason == "repetition":
+            blocking = {
+                need.category
+                for need in self._departure_blocking_town_needs(snapshot)
+            }
+            # Equipment state machines are themselves departure owners and are
+            # deliberately not represented by the generic NeedSpec table.
+            blocking.update({"equipment-work", "equipment-transaction"})
+            live_needs = [
+                need for need in live_needs if need.category in blocking
+            ]
         needs = [
             need
             for need in live_needs
             if need.store_type not in ledger_blocked
         ]
+        warned = set(self._town_visit_ledger.drift_warnings)
+        live_pairs = {(need.store_type, need.category) for need in needs}
+        for store_type, category in live_pairs:
+            warning = (
+                f"drift:{STORE_RESTOCK_REASON_NAMES.get(store_type, store_type)}"
+                f":{category}"
+            )
+            if (
+                (store_type, category) in self._town_visit_ledger.satisfied_needs
+                and warning not in warned
+            ):
+                self._town_visit_ledger.drift_warnings.append(warning)
+                warned.add(warning)
+        self._town_visit_ledger.satisfied_needs.intersection_update(live_pairs)
+        previous_plan = self._town_errand_plan
+        # The plan is a disposable ordering view over this decision's claims.
+        # A live claim supersedes a completed/attempted route snapshot; only the
+        # ledger's unchanged hard bounds can suppress it.
+        plan = self._build_town_errand_plan(snapshot, needs)
+        self._town_errand_plan = plan
+        self._town_plan_projection_telemetry = {
+            "evaluated": True,
+            "plan_rebuilt": True,
+            "rebuilt_stops": list(plan.stops) if plan is not None else [],
+        }
+        if plan is not None:
+            previous_exhausted = (
+                previous_plan is None
+                or previous_plan.index >= len(previous_plan.stops)
+            )
+            for store_type in plan.stops:
+                prior_categories = (
+                    set(previous_plan.need_categories.get(store_type, ()))
+                    if previous_plan is not None else set()
+                )
+                live_categories = set(plan.need_categories.get(store_type, ()))
+                post_alchemist_home = (
+                    store_type == STORE_HOME
+                    and any(
+                        need.store_type == STORE_HOME
+                        and need.ordering_class == "post-alchemist-home"
+                        for need in needs
+                    )
+                    and STORE_ALCHEMIST in self._town_store_attempted
+                )
+                if (
+                    previous_exhausted
+                    or live_categories - prior_categories
+                    or post_alchemist_home
+                ):
+                    self._town_store_attempted.pop(store_type, None)
+                    if self._store_entry_failed_owner == store_type:
+                        self._store_entry_failed_owner = None
+                if store_type not in self._town_store_attempted:
+                    return store_type
+            return None
         plan = self._town_errand_plan
         post_alchemist_home_needed = any(
             need.ordering_class == "post-alchemist-home"
             or need.category == "identification-source"
             for need in needs
         )
-        equipment_work_appended = False
-        if (
-            (plan is None or plan.index >= len(plan.stops))
-            and (
-                plan is not None
-                or not any(need.store_type == STORE_HOME for need in needs)
-            )
-            and self._equipment_work_home_route_available()
-            and self._home_owner_goal_pending(snapshot)
-            and not any(need.category == "equipment-work" for need in needs)
-        ):
-            # A plan is only a route snapshot.  While a live owner still has
-            # outstanding equipment work and its bounded Home route remains
-            # available, every plan assembled from these needs retains Home
-            # for that owner, including a plan created from None.
-            needs.append(TownNeed(
-                STORE_HOME,
-                "equipment-work",
-                (
-                    "post-alchemist-home"
-                    if post_alchemist_home_needed
-                    else "home-first"
-                ),
-            ))
-            equipment_work_appended = True
         warned = set(self._town_visit_ledger.drift_warnings)
         for need in needs:
             satisfied = (need.store_type, need.category)
@@ -14346,54 +14419,16 @@ class HengbotPolicy:
                 | set(plan.blocked_this_visit)
                 | ledger_blocked
             )
-            home_categories = {
-                need.category for need in needs if need.store_type == STORE_HOME
-            }
-            fresh_home_categories = home_categories.difference(
-                self._town_visit_ledger.rearmed_categories
-            ).difference(plan.rearmed_home_categories)
-            fresh_home_work = (
-                (
-                    self._completed_home_can_rearm
-                    or self._equipment_work_home_route_available()
-                )
-                and (
-                    STORE_HOME in self._town_store_attempted
-                    or equipment_work_appended
-                )
-                and bool(fresh_home_categories)
-                and not town_departure_ready()
-            )
-            self._town_plan_rearm_telemetry = {
+            self._town_plan_projection_telemetry = {
                 "evaluated": True,
                 "home_attempted": STORE_HOME in self._town_store_attempted,
                 "home_attempted_entry": self._town_store_attempted.get(STORE_HOME),
                 "plan_completed_this_visit": list(plan.completed_this_visit),
                 "plan_blocked_this_visit": list(plan.blocked_this_visit),
                 "ledger_blocked": sorted(ledger_blocked),
-                "home_categories": sorted(home_categories),
-                "fresh_home_categories": sorted(fresh_home_categories),
-                "equipment_work_appended": equipment_work_appended,
-                "fresh_home_work": fresh_home_work,
                 "plan_rebuilt": False,
                 "rebuilt_stops": [],
             }
-            if fresh_home_work:
-                # A later shop can create a new Home obligation after Home was
-                # genuinely complete.  The live example was Black Market speed
-                # purchases creating a retention-surplus deposit: departure saw
-                # the deposit, but the exhausted plan continued to treat its old
-                # Home pass as satisfying it and fell through to town wandering.
-                # A blocked Home remains latched; only a successfully completed
-                # pass can be superseded by newly visible work.
-                self._rearm_town_store_for_new_work(STORE_HOME)
-                plan.rearmed_home_categories.extend(
-                    sorted(fresh_home_categories)
-                )
-                self._town_visit_ledger.rearmed_categories.update(
-                    fresh_home_categories
-                )
-                completed.discard(STORE_HOME)
             remaining_needs = [
                 need for need in needs
                 if need.store_type not in completed
@@ -14426,8 +14461,8 @@ class HengbotPolicy:
                     self._town_store_attempted.pop(STORE_HOME, None)
                 plan = self._build_town_errand_plan(snapshot, remaining_needs)
                 self._town_errand_plan = plan
-                self._town_plan_rearm_telemetry["plan_rebuilt"] = True
-                self._town_plan_rearm_telemetry["rebuilt_stops"] = (
+                self._town_plan_projection_telemetry["plan_rebuilt"] = True
+                self._town_plan_projection_telemetry["rebuilt_stops"] = (
                     list(plan.stops) if plan is not None else []
                 )
         elif plan.index < len(plan.stops):
@@ -14469,39 +14504,6 @@ class HengbotPolicy:
                 plan.index += 1
                 continue
             if store_type in self._town_store_attempted:
-                if store_type == STORE_HOME:
-                    home_categories = sorted(
-                        {
-                            need.category
-                            for need in needs
-                            if need.store_type == STORE_HOME
-                        }
-                    )
-                    newly_actionable = [
-                        category
-                        for category in home_categories
-                        if category
-                        not in self._town_visit_ledger.rearmed_categories
-                        and category not in plan.rearmed_home_categories
-                    ]
-                    if newly_actionable and not town_departure_ready():
-                        # Home work can emerge after an earlier Home pass: a
-                        # deposit invalidates the catalog, a later purchase
-                        # creates a new deposit, or identification exposes a
-                        # withdrawal. The shared latch must not discard that
-                        # newly actionable phase. Re-arm once per need category;
-                        # TOWN_STOP_PASS_LIMIT still bounds a stuck handler.
-                        plan.rearmed_home_categories.extend(newly_actionable)
-                        self._town_visit_ledger.rearmed_categories.update(
-                            newly_actionable
-                        )
-                        for category in newly_actionable:
-                            self._town_visit_ledger.need_attempts[category] = (
-                                self._town_visit_ledger.need_attempts.get(category, 0)
-                                + 1
-                            )
-                        self._town_store_attempted.pop(STORE_HOME, None)
-                        return STORE_HOME
                 if (
                     store_type == STORE_HOME
                     and post_alchemist_home_needed
@@ -14627,19 +14629,6 @@ class HengbotPolicy:
             return
         if goal_satisfied:
             plan.completed_this_visit.append(store_type)
-            if store_type == STORE_HOME:
-                self._completed_home_can_rearm = True
-                # Remember the Home owners satisfied by this pass.  An
-                # exhausted one-stop plan is rebuilt on the next surface
-                # snapshot; without this snapshot of the completed categories,
-                # the same still-visible owner is mistaken for newly created
-                # work and Home is entered and left forever.
-                for need in self._enumerate_town_needs(snapshot):
-                    if (
-                        need.store_type == STORE_HOME
-                        and need.category not in plan.rearmed_home_categories
-                    ):
-                        plan.rearmed_home_categories.append(need.category)
             plan.current_stop_passes = 0
             plan.index += 1
             return
@@ -14663,8 +14652,6 @@ class HengbotPolicy:
         plan.blocked_this_visit.append(store_type)
         self._town_visit_ledger.blocked_stores.add(store_type)
         self._release_blocked_store_latches(store_type)
-        if store_type == STORE_HOME:
-            self._completed_home_can_rearm = False
         plan.current_stop_passes = 0
         plan.index += 1
         self._town_store_attempted[store_type] = snapshot.turn
@@ -14703,11 +14690,6 @@ class HengbotPolicy:
         plan.skipped_latched[:] = [
             store for store in plan.skipped_latched if store != store_type
         ]
-        if store_type == STORE_HOME:
-            self._completed_home_can_rearm = False
-            # The category-based Home latch belongs to the work that just
-            # finished.  A sale withdrawal exposes a fresh Home scan phase.
-            plan.rearmed_home_categories.clear()
 
     def _town_store_visit_limit(self, store_type: int) -> int:
         """Return the visit-local terminal ceiling for this store.
@@ -19521,9 +19503,6 @@ class HengbotPolicy:
             "approach_fails": dict(self._town_visit_ledger.approach_fails),
             "unsatisfied_passes": dict(
                 self._town_visit_ledger.unsatisfied_passes
-            ),
-            "rearmed_categories": sorted(
-                self._town_visit_ledger.rearmed_categories
             ),
             "blocked_stores": sorted(self._town_visit_ledger.blocked_stores),
             "passes_since_progress": self._town_visit_ledger.passes_since_progress,
