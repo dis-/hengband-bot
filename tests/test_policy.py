@@ -44472,6 +44472,21 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
 class HomeOneOperationPerEntryTest(unittest.TestCase):
     """Regression for the 2026-08-02 10:03 Home chooser incident."""
 
+    def _advance_legacy_home_scan_world(
+        self, key, current, inventory, pages, page, turn
+    ):
+        """Apply one posted scan decision to the minimal store protocol world."""
+        if "\x1b" in key:
+            return current, page, True
+        if current.store is None:
+            return self._home_page_snapshot(inventory, pages[page], turn=turn), page, False
+        if key == " ":
+            page = 1 - page
+            return self._home_page_snapshot(inventory, pages[page], turn=turn), page, False
+        if key == "V":
+            return replace(current, messages=("Hengband 3.0",)), page, False
+        return current, page, False
+
     def _snapshot(self, inventory, *, at_home=True, turn=2247200):
         return Snapshot(
             player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
@@ -44611,6 +44626,51 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertNotIn("V", key)
         self.assertTrue(policy._home_address_scan_valid)
         self.assertEqual(policy._home_address_page_count, 2)
+
+    def test_whole_home_scan_posts_exactly_one_store_legal_composed_key(self):
+        """Pin one public sender call, independent of the scan implementation API."""
+        wares = [
+            store_item("a", TVAL_POTION, 1650 + index, name=f"pin {index}")
+            for index in range(24)
+        ]
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(wares[-1])]
+        policy._home_candidate_waiting = True
+        inventory = self._real_pack()
+        current = replace(
+            self._entrance_snapshot(inventory, turn=3100050),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        pages = [wares[:12], wares[12:]]
+        page = 0
+        posted = []
+
+        for decision in range(12):
+            key = policy.choose_key(current)
+            sent, _ = _send_new_decision_key(
+                lambda value, **_kwargs: posted.append(value) or True,
+                f"whole-home-scan-{decision}", key, None, set(),
+                in_store=current.store is not None,
+            )
+            if sent:
+                policy.confirm_key_posted(key)
+            else:
+                continue
+            current, page, complete = self._advance_legacy_home_scan_world(
+                key, current, inventory, pages, page, 3100051 + decision
+            )
+            if complete:
+                break
+
+        self.assertEqual(
+            len(posted), 1,
+            "4eabf2c posted the Home scan across multiple decisions: "
+            f"{posted!r}",
+        )
+        self.assertTrue(posted[0].startswith("5"))
+        self.assertTrue(posted[0].endswith("\x1b"))
+        self.assertEqual(set(posted[0]) - {"5", " ", "\x1b"}, set())
 
     def test_public_short_scan_burst_terminates_visibly_without_catalogue(self):
         wares = [store_item("a", TVAL_POTION, 1700, name="short")]

@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
-from hengbot.model import STORE_HOME, TVAL_POTION
+from hengbot.model import STORE_ALCHEMIST, STORE_HOME, TVAL_POTION
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import (
     CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
@@ -788,6 +788,124 @@ def _frozen_approach_optimizer_transaction():
     return policy, world
 
 
+def _ordinary_alchemist_entry_seed(*, turn, target_sval):
+    """Build an entrance-owned Alchemist trip without invoking Home scanning."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    target = fixture.store_item(
+        "a", TVAL_POTION, target_sval, name="ordinary-shop target"
+    )
+    policy = HengbotPolicy()
+    policy._next_required_store_type = lambda _snapshot: STORE_ALCHEMIST
+    surface = helper._entrance_snapshot(helper._real_pack(), turn=turn)
+    entrance = surface.player.position
+    surface = replace(
+        surface,
+        grids={
+            **surface.grids,
+            entrance: replace(
+                surface.grids[entrance], store_number=STORE_ALCHEMIST
+            ),
+        },
+        messages=(),
+    )
+    return policy, surface, target
+
+
+def _doubled_store_entry_cycle():
+    """Delay the Alchemist page once after accepting its bare entrance WAIT."""
+    policy, surface, target = _ordinary_alchemist_entry_seed(
+        turn=3041933, target_sval=2999
+    )
+    delayed_page = [False]
+
+    class DelayedEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
+            self.invalid_store_entries = 0
+            self.expected_terminal_reason = "shop:leave"
+
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if delayed_page[0]:
+                delayed_page[0] = False
+                return replace(current, store=None)
+            return current
+
+        def apply(self, key):
+            was_inside = self.inside
+            if was_inside and key == WAIT_KEY:
+                self.invalid_store_entries += 1
+                self.last_key = key
+                return
+            super().apply(key)
+            if not was_inside and key == WAIT_KEY and self.inside:
+                delayed_page[0] = True
+
+    return policy, DelayedEntryWorld(surface)
+
+
+def _lagged_successful_store_entry():
+    """Expose a direction posted into an Alchemist whose first page is lagged."""
+    policy, surface, target = _ordinary_alchemist_entry_seed(
+        turn=3041933, target_sval=3001
+    )
+    lag_store_page = [False]
+
+    class LaggedSuccessfulEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
+            self.invalid_store_entries = 0
+            self.expected_terminal_reason = "shop:leave"
+
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if lag_store_page[0]:
+                lag_store_page[0] = False
+                return replace(current, store=None, messages=())
+            return current
+
+        def apply(self, key):
+            was_inside = self.inside
+            if was_inside and key[:1] in MOVES:
+                self.invalid_store_entries += 1
+                self.last_key = key
+                return
+            super().apply(key)
+            if not was_inside and key == WAIT_KEY and self.inside:
+                lag_store_page[0] = True
+
+    return policy, LaggedSuccessfulEntryWorld(surface)
+
+
+def _failed_store_entry_same_turn():
+    """A refused Alchemist WAIT must step off without a same-turn filler."""
+    policy, surface, target = _ordinary_alchemist_entry_seed(
+        turn=3467379, target_sval=3000
+    )
+
+    class RefusedEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
+            # choose_key's outer shop router labels the returned step as
+            # shop:approach; reaching it still proves the refusal owner was
+            # consumed and routing stepped off in the same decision.
+            self.expected_terminal_reason = "shop:approach"
+
+        def apply(self, key):
+            if not self.inside and key == WAIT_KEY:
+                self.last_key = key
+                return
+            super().apply(key)
+
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if not self.inside and self.last_key == WAIT_KEY:
+                return replace(current, messages=("The doors are locked.",))
+            return current
+
+    return policy, RefusedEntryWorld(surface)
+
+
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 300, _departure_freeze),
     AbsorbingState("home-page-recurrence", 400, _page_recurrence),
@@ -826,4 +944,7 @@ SEEDED_STATES = (
         "invalid-command-noop-home-cycle", 40,
         _invalid_command_noop_home_cycle,
     ),
+    AbsorbingState("doubled-store-entry-cycle", 10, _doubled_store_entry_cycle),
+    AbsorbingState("lagged-successful-store-entry", 10, _lagged_successful_store_entry),
+    AbsorbingState("failed-store-entry-same-turn", 10, _failed_store_entry_same_turn),
 )
