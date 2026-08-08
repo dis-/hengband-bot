@@ -1649,6 +1649,7 @@ class HengbotPolicy:
         # that it was posted.  The next snapshot observes its result;
         # store=None is a failed entry, including at the unchanged entrance.
         self._store_entry_posted_owner: int | None = None
+        self._store_entry_wait_key: str | None = None
         # Shared progress tracker for every native-travel leg (stores, Home and
         # the dungeon entrance): the current goal, the best distance seen for
         # it, and how many issues brought no progress. See _town_travel_key.
@@ -2205,6 +2206,12 @@ class HengbotPolicy:
         self._home_scan_burst_snapshots = 0
         self._home_scan_burst_wrapped = False
         self._home_scan_burst_short = False
+        # Both Home readers share this ordered burst.  The address owner needs
+        # physical page ordinals; the processing owner needs only proof that
+        # every page was observed before its town stop is complete.
+        self._home_scan_processing = False
+        self._home_scan_processing_snapshot: Snapshot | None = None
+        self._home_scan_processing_pages: list[Snapshot] = []
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in a small
         # duplicate-preserving page scan alongside that catalog.
@@ -2532,6 +2539,7 @@ class HengbotPolicy:
         self._read_binding = None
         self.read_telemetry = {}
         self._store_entry_wait_owner = None
+        self._store_entry_wait_key = None
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
@@ -9750,7 +9758,10 @@ class HengbotPolicy:
             self._home_scan_prepared = False
             self._home_scan_burst_pending = True
             return True
-        if key == WAIT_KEY and self._store_entry_wait_owner is not None:
+        if (
+            self._store_entry_wait_owner is not None
+            and key == (self._store_entry_wait_key or WAIT_KEY)
+        ):
             self._store_entry_posted_owner = self._store_entry_wait_owner
             return True
         if key == "~9":
@@ -9796,6 +9807,31 @@ class HengbotPolicy:
                     self._home_address_scan_valid = False
                     self._home_address_page_count = None
                     self._home_scan_burst_short = True
+                elif self._home_scan_processing:
+                    observed = self._home_scan_processing_snapshot
+                    for page_snapshot in self._home_scan_processing_pages:
+                        candidate = self._find_home_candidate(page_snapshot)
+                        if candidate is None:
+                            continue
+                        signature = self._item_signature(candidate)
+                        if (
+                            PACK_CAPACITY - len(page_snapshot.inventory)
+                            > HOME_BATCH_RESERVED_SLOTS
+                        ):
+                            self._home_pending_batch.append(signature)
+                        else:
+                            self._deferred_home_items.add(signature)
+                    self._home_processing_seen_pages.clear()
+                    self._home_candidate_waiting = False
+                    if observed is not None:
+                        self._report_town_stop_pass(
+                            observed,
+                            STORE_HOME,
+                            goal_satisfied=self._equipment_catalog.home_scan_complete,
+                        )
+                self._home_scan_processing = False
+                self._home_scan_processing_snapshot = None
+                self._home_scan_processing_pages.clear()
                 return False
             self._home_scan_burst_snapshots += 1
             # The first snapshot follows WAIT and repeats the entry page.  The
@@ -9809,6 +9845,13 @@ class HengbotPolicy:
                 )
                 continue
             page = tuple(snapshot.store.items)
+            if self._home_scan_processing:
+                self._home_processing_seen_pages.add(tuple(
+                    (item.letter, item.name, item.tval, item.sval)
+                    for item in snapshot.store.items
+                ))
+                self._home_scan_processing_snapshot = snapshot
+                self._home_scan_processing_pages.append(snapshot)
             if page == self._home_address_pages[0]:
                 self._home_scan_burst_wrapped = True
                 self._equipment_catalog.observe_home_page(
@@ -11113,6 +11156,9 @@ class HengbotPolicy:
             self._home_scan_burst_snapshots = 0
             self._home_scan_burst_wrapped = False
             self._home_scan_burst_short = False
+            self._home_scan_processing = False
+            self._home_scan_processing_snapshot = None
+            self._home_scan_processing_pages.clear()
             self._home_scan_prepared = True
             self.last_reason = "home:scan-catalog-burst"
             return HOME_SCAN_KEY
@@ -11289,6 +11335,9 @@ class HengbotPolicy:
         self._home_scan_burst_pending = False
         self._home_scan_burst_snapshots = 0
         self._home_scan_burst_wrapped = False
+        self._home_scan_processing = False
+        self._home_scan_processing_snapshot = None
+        self._home_scan_processing_pages.clear()
         self._home_address_pages.clear()
         self._home_address_ordinals.clear()
         self._home_address_scan_valid = False
@@ -17464,11 +17513,34 @@ class HengbotPolicy:
                 (item.letter, item.name, item.tval, item.sval)
                 for item in store.items
             )
+            if (
+                self._home_address_scan_valid
+                and not self._equipment_catalog.home_scan_complete
+            ):
+                # Address wrap and catalog wrap are proved by the same ordered
+                # burst.  Accepting only one is an interrupted-scan state, not
+                # provenance for a withdrawal.
+                self._home_address_pages.clear()
+                self._home_address_ordinals.clear()
+                self._home_address_scan_valid = False
+                self._home_address_page_count = None
+                self.last_reason = "home:processing-address-incomplete"
+                return LEAVE_STORE_KEY
             if page not in self._home_processing_seen_pages:
-                self._home_processing_seen_pages.add(page)
                 self._home_candidate_waiting = True
-                self.last_reason = "home:scan-catalog-page"
-                return " "
+                self._home_address_pages.clear()
+                self._home_address_ordinals.clear()
+                self._home_address_page_count = None
+                self._home_address_scan_valid = False
+                self._home_scan_burst_snapshots = 0
+                self._home_scan_burst_wrapped = False
+                self._home_scan_burst_short = False
+                self._home_scan_processing = True
+                self._home_scan_processing_snapshot = snapshot
+                self._home_scan_processing_pages.clear()
+                self._home_scan_prepared = True
+                self.last_reason = "home:scan-processing-burst"
+                return HOME_SCAN_KEY
 
             self._home_processing_seen_pages.clear()
             self._home_candidate_waiting = False
@@ -17902,6 +17974,7 @@ class HengbotPolicy:
         ):
             self.last_reason = f"{travel_reason}:await-entry"
             self._store_entry_wait_owner = self._shopping_approach_store_type
+            self._store_entry_wait_key = WAIT_KEY
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._step_toward(snapshot, step)
@@ -30694,7 +30767,19 @@ class HengbotPolicy:
             step,
             False,
         )
-        return key + tail
+        command = key + tail
+        if (
+            snapshot.store is None
+            and grid is not None
+            and grid.store_number >= 0
+        ):
+            # A direction onto a disclosed shop entrance can open the store as
+            # its movement side effect.  Own the resulting observation just as
+            # a deliberate entrance WAIT does, so no surface decision can be
+            # posted into the newly-open store.
+            self._store_entry_wait_owner = grid.store_number
+            self._store_entry_wait_key = command
+        return command
 
 
 # Backwards-compatible alias for existing callers.

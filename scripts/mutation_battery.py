@@ -87,20 +87,19 @@ MUTATIONS = (
         "Accept an interrupted Home scan as soon as its third page is recorded.",
         (replacement(
             "policy.py",
-            """                            self._home_address_ordinals.append(
-                                self._home_address_ordinals[-1] + 1
-                            )
+            """            self._home_scan_burst_snapshots += 1
 """,
-            """                            self._home_address_ordinals.append(
-                                self._home_address_ordinals[-1] + 1
-                            )
-                            if len(self._home_address_pages) >= 3:
-                                self._home_address_scan_valid = True
-                                self._home_address_page_count = len(
-                                    self._home_address_pages
-                                )
+            """            self._home_scan_burst_snapshots += 1
+            if self._home_scan_burst_snapshots >= 3:
+                self._home_scan_burst_wrapped = True
+                self._home_address_scan_valid = True
+                self._home_address_page_count = len(self._home_address_pages)
 """,
-        ),),
+        ), replacement(
+            "policy.py",
+            "        expected = 1 + HOME_SCAN_PAGE_FORWARDS  # WAIT, then every SPACE.\n",
+            "        expected = 3  # mutant accepts an interrupted prefix\n",
+        )),
     ),
     Mutation(
         "drop-ordinal-guard",

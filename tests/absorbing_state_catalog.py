@@ -106,9 +106,10 @@ class TownWorld:
         if key.startswith("R") and key.endswith("\r") and key[1:-1].isdigit():
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN * int(key[1:-1])
             return
-        if not self.inside and key == HOME_SCAN_KEY:
-            self.inside = True
-            self.entries += 1
+        if key == HOME_SCAN_KEY:
+            if not self.inside:
+                self.inside = True
+                self.entries += 1
             self.top = 0
             self.pending_home_scan_snapshots.append(self.snapshot(0))
             for _ in range(HOME_SCAN_PAGE_FORWARDS):
@@ -401,6 +402,61 @@ def _failed_store_entry_same_turn():
             return current
 
     return policy, RefusedEntryWorld(surface)
+
+
+def _movement_opens_store_before_surface_observation():
+    """A disclosed movement destination opens a shop before its first page."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    origin = Position(45, 122)
+    entrance = Position(45, 123)
+    surface = helper._entrance_snapshot(helper._real_pack(), turn=3500000)
+    surface = replace(
+        surface,
+        player=replace(surface.player, position=origin),
+        grids={
+            origin: fixture.grid(origin.y, origin.x),
+            entrance: replace(
+                fixture.grid(entrance.y, entrance.x),
+                store_number=STORE_ALCHEMIST,
+            ),
+        },
+        store=None,
+    )
+    policy = HengbotPolicy()
+
+    def decide(snapshot):
+        if snapshot.store is not None:
+            policy.last_reason = "shop:leave"
+            return LEAVE_STORE_KEY
+        policy.last_reason = "town:kill-mob-approach"
+        target = entrance if snapshot.player.position == origin else origin
+        return policy._step_toward(snapshot, target)
+
+    policy._decide = decide
+    lag = [False]
+
+    class AccidentalEntryWorld(TownWorld):
+        def __init__(self, snapshot):
+            super().__init__(snapshot, entrance=STORE_ALCHEMIST)
+            self.invalid_store_entries = 0
+            self.expected_terminal_reason = "shop:leave"
+
+        def snapshot(self, decision):
+            current = super().snapshot(decision)
+            if lag[0]:
+                lag[0] = False
+                return replace(current, store=None, messages=())
+            return current
+
+        def apply(self, key):
+            was_inside = self.inside
+            super().apply(key)
+            if was_inside and key[:1] in MOVES:
+                self.invalid_store_entries += 1
+            if not was_inside and self.inside and key[:1] in MOVES:
+                lag[0] = True
+
+    return policy, AccidentalEntryWorld(surface)
 
 
 def _version_discard(*, swallow=False):
@@ -947,4 +1003,8 @@ SEEDED_STATES = (
     AbsorbingState("doubled-store-entry-cycle", 10, _doubled_store_entry_cycle),
     AbsorbingState("lagged-successful-store-entry", 10, _lagged_successful_store_entry),
     AbsorbingState("failed-store-entry-same-turn", 10, _failed_store_entry_same_turn),
+    AbsorbingState(
+        "movement-opens-store-before-surface-observation", 10,
+        _movement_opens_store_before_surface_observation,
+    ),
 )
