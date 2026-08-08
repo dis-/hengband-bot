@@ -251,8 +251,8 @@ def _departure_freeze():
     return policy, TownWorld(snap)
 
 
-def _catalogue_incomplete_knowledge_unreachable():
-    """An incomplete catalogue must release through ~9 before a Home visit."""
+def _catalogue_invalidated_with_equipment_work():
+    """A cleared catalogue must release through ~9 despite equipment work."""
     surface = fixture.TownErrandPlanTest()._snapshot(turn=3542954)
     entrance = Position(10, 11)
     surface = replace(
@@ -268,9 +268,15 @@ def _catalogue_incomplete_knowledge_unreachable():
         store=None,
     )
 
+    policy = HengbotPolicy()
+    policy._equipment_catalog.invalidate_home()
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=("home-scan-incomplete",), result=None,
+    )
+    policy._shopping_approach_store_type = STORE_HOME
     world = TownWorld(surface)
     world.expected_terminal_reason = "home:request-knowledge-scan"
-    return HengbotPolicy(), world
+    return policy, world
 
 
 def _invalid_command_noop_home_cycle():
@@ -986,8 +992,8 @@ def _failed_store_entry_same_turn():
 
 SEEDED_STATES = (
     AbsorbingState(
-        "catalogue-incomplete-knowledge-unreachable", 20,
-        _catalogue_incomplete_knowledge_unreachable,
+        "catalogue-invalidated-equipment-work-repetition", 20,
+        _catalogue_invalidated_with_equipment_work,
     ),
     AbsorbingState("home-blocked-departure", 300, _departure_freeze),
     AbsorbingState("home-page-recurrence", 400, _page_recurrence),

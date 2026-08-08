@@ -599,6 +599,13 @@ class OwnedEquipmentCatalog:
             self._home_occurrences.pop(signature, None)
 
     def invalidate_home(self) -> None:
+        """Discard Home contents when a mutation cannot be proved.
+
+        Page-relative addresses do not live in this catalogue and must be
+        invalidated by their owner.  Call this only when a content mutation
+        cannot be proved and therefore must be reacquired through ``~9``.
+        This is distinct from page-address invalidation after a bound command.
+        """
         self._home.clear()
         self._home_seen_pages.clear()
         self._home_scan_staging.clear()

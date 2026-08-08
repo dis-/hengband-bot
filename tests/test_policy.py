@@ -45649,7 +45649,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._town_visit_ledger.need_attempts["calibration-restore"],
             TOWN_STOP_PASS_LIMIT,
         )
-        self.assertGreater(reasons["shop:travel"] + reasons["shop:approach"], 0)
+        self.assertGreater(
+            reasons["home:request-knowledge-scan"],
+            0,
+            "incomplete Home knowledge must preempt exhausted approach routing",
+        )
 
     def test_atomic_withdrawal_derives_first_later_and_last_page_letters(self):
         wares = [

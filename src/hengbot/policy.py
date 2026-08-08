@@ -2812,7 +2812,12 @@ class HengbotPolicy:
         if (
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
-            and self._home_available(snapshot)
+            and (
+                "home-scan-incomplete" in getattr(
+                    self._equipment_optimization_preparation, "blockers", ()
+                )
+                or self._home_available(snapshot)
+            )
             and not snapshot.player.recalling
             and not any(
                 grid.store_number >= 0
@@ -2820,13 +2825,15 @@ class HengbotPolicy:
                 if grid is not None
             )
             and not self._equipment_catalog.home_scan_complete
+            # A Home observation permits ordinary first acquisition.  Once
+            # optimization names incomplete contents as its blocker, however,
+            # no Home existence, reachability, route, visit state, or other
+            # outstanding equipment work may veto ``~9``.
             and not self._home_knowledge_scan_requested
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
-            and not self._outstanding_equipment_work()
             and not self._home_scan_prepared
             and not self._home_scan_burst_pending
-            and self._shopping_approach_store_type is None
         ):
             self.last_reason = "home:request-knowledge-scan"
             return "~9"
@@ -3059,6 +3066,17 @@ class HengbotPolicy:
             and len(key) > 1
             and key[0] in {BUY_KEY, SELL_KEY}
         ):
+            bound_content_update = (
+                self._home_atomic_withdraw_pending is not None
+                or self._home_atomic_deposit_pending is not None
+                or self._equipment_transaction_prepared_catalog_update is not None
+                or (
+                    key.startswith(SELL_KEY)
+                    and any(item.slot == key[1] for item in snapshot.inventory)
+                )
+            )
+            if not bound_content_update:
+                self._equipment_catalog.invalidate_home()
             self._home_entry_operation_posted = True
             self._invalidate_home_observation()
         self._capture_home_history_intent(snapshot, key)
@@ -11346,7 +11364,15 @@ class HengbotPolicy:
         self._home_pending_quantity = None
 
     def _invalidate_home_observation(self) -> None:
-        """Discard every address fact after a command that may mutate Home."""
+        """Discard every page-relative address fact after a Home mutation.
+
+        The catalogue is separate content knowledge.  A commanded deposit is
+        added when posted and a withdrawal is removed when its inventory gain
+        is observed; neither operation makes all other Home contents unknown.
+        If a content change cannot be proved, its owner must explicitly call
+        ``invalidate_home`` so the next outside-town decision reacquires it
+        through ``~9``.  No address survives this method.
+        """
         self._home_scan_prepared = False
         self._home_scan_burst_pending = False
         self._home_scan_burst_snapshots = 0
@@ -11358,7 +11384,6 @@ class HengbotPolicy:
         self._home_address_ordinals.clear()
         self._home_address_scan_valid = False
         self._home_address_page_count = None
-        self._equipment_catalog.invalidate_home()
         self._home_processing_seen_pages.clear()
         self._home_star_remove_curse_count = None
         self._home_knowledge_scan_requested = False
