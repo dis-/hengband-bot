@@ -1715,6 +1715,19 @@ def _run_follow(args, policy, send, monrace_knowledge) -> int:
                 complete_lines, pending = _split_complete_lines(pending + chunk)
                 recorder.record_snapshot_lines(complete_lines)
                 _dispatch_response_lines(complete_lines, policy, send)
+                if getattr(policy, "_home_scan_burst_pending", False):
+                    # This is the sole exception to newest-board collapsing:
+                    # cmd-store.cpp emits one ordered store snapshot per key in
+                    # the atomic Home scan.  Observe all of them, make no
+                    # intermediate decisions, and resume only after Escape's
+                    # first non-Home snapshot delimits the burst.
+                    burst_open = policy.consume_home_scan_burst(
+                        _snapshot_entries_in_order(
+                            complete_lines, monrace_knowledge
+                        )
+                    )
+                    if burst_open:
+                        continue
                 # Act ONLY on the newest complete snapshot in this batch. The game
                 # emits a snapshot then blocks on request_command, so the file's
                 # newest line is ALWAYS the current board the game is waiting on;
@@ -2226,6 +2239,26 @@ def _newest_snapshot(
     """
     entry = _newest_snapshot_entry(complete_lines, monrace_knowledge)
     return entry[0] if entry is not None else None
+
+
+def _snapshot_entries_in_order(
+    complete_lines: list[str], monrace_knowledge=None
+) -> list:
+    """Parse ordinary board snapshots in file order without deciding on them."""
+    snapshots = []
+    for line in complete_lines:
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+            if data.get("type") in {"knowledge", "look", "character"}:
+                continue
+            snapshots.append(parse_snapshot(data, monrace_knowledge))
+        except MissingMonraceKnowledgeError:
+            raise
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(f"invalid snapshot: {exc}", file=sys.stderr)
+    return snapshots
 
 
 def _newest_snapshot_entry(

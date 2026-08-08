@@ -281,43 +281,16 @@ HOME_PAGE_SINGLE_PAGE_MESSAGES = (
     "これで全部です。",
     "Entire inventory is shown.",
 )
-# store-key-processor.cpp:237-239 'V' → do_cmd_version → msg_print of the
-# version banner (angband-version.cpp:30-38, always prefixed 変愚蛮怒/Hengband).
-# 'V' is store-legal, modal-free, changes no game state and consumes no game
-# turn.  Because keys are processed strictly in posting order, observing the
-# banner in a snapshot's message delta proves every key posted before the
-# probe — including the pending SPACE — has been processed, so a same-identity
-# page seen with the banner is the game's CURRENT page, not a stale echo.
-#
-# The probe cannot dead-end behind a `-more-` prompt.  msg_flush blocks only
-# from msg_print's two flush sites (display-messages.cpp:296, :313), and both
-# are unreachable for the banner:
-#  * every store command is acquired through
-#    InputKeyRequestor(player_ptr, true).request_command()
-#    (cmd-store.cpp:153), whose get_command() sets `msg_flag = false` before
-#    reading the key (input-key-requester.cpp:112) or first calls msg_erase()
-#    on the command-chaining path (input-key-requester.cpp:106);
-#  * the first msg_print of the command therefore starts from
-#    `msg_head_pos = 0` (display-messages.cpp:283-286), so the head-append
-#    flush condition `msg_head_pos > 0` (display-messages.cpp:296) is false —
-#    do_cmd_version prints exactly one message (cmd-dump.cpp:225);
-#  * the wrap flush (display-messages.cpp:310) needs the message to exceed
-#    `split_width = wid - 8` >= 72 on the 80-column minimum main window
-#    (gameterm.h:12-14, enforced in main-win.cpp:2170); the banner is
-#    ~27 bytes (~42 with cheat_turn).
-# The identical argument covers the single-page message above (24 bytes).
-# If a pre-existing multi-message command (a purchase) flushes mid-command
-# and its -more- consumes a posted probe as the flow key, the command then
-# completes, a fresh snapshot is emitted, and the gate re-posts the probe on
-# that new board — the reply is one further round-trip away.  The CLI's
-# pre-existing silence nudge (cli.py "blocked on a message/-more- prompt that
-# emits no snapshot" -> Escape, accepted at display-messages.cpp:189) remains
-# the system-level last resort for the whole -more- class.
-HOME_PAGE_PROBE_KEY = "V"
-HOME_PAGE_PROBE_MESSAGE_PREFIXES = (
-    "変愚蛮怒",
-    "Hengband",
-)
+STORE_INVEN_MAX = 24
+POWERUP_HOME_MULTIPLIER = 10
+MIN_STORE_PAGE_SIZE = 12
+# Derived from store.cpp/store.h and cmd-store.cpp, not a tuning cap: Home has
+# 24 slots, or 24 * 10 with powerup_home, and at least 12 displayed slots.
+# Twenty pages cover every reachable Home; one more SPACE guarantees a wrap.
+HOME_SCAN_PAGE_FORWARDS = (
+    STORE_INVEN_MAX * POWERUP_HOME_MULTIPLIER + MIN_STORE_PAGE_SIZE - 1
+) // MIN_STORE_PAGE_SIZE + 1
+HOME_SCAN_KEY = WAIT_KEY + (" " * HOME_SCAN_PAGE_FORWARDS) + "\x1b"
 # The exported message text carries at most two decorations, both fixed in
 # source: a save-persisted cheat_turn option prepends `T:<turn> - `
 # (display-messages.cpp:289-291, format "T:%d - %s"; registered at
@@ -2227,6 +2200,11 @@ class HengbotPolicy:
         self._home_address_ordinals: list[int] = []
         self._home_address_scan_valid = False
         self._home_address_page_count: int | None = None
+        self._home_scan_prepared = False
+        self._home_scan_burst_pending = False
+        self._home_scan_burst_snapshots = 0
+        self._home_scan_burst_wrapped = False
+        self._home_scan_burst_short = False
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in a small
         # duplicate-preserving page scan alongside that catalog.
@@ -2322,7 +2300,6 @@ class HengbotPolicy:
         # a main-loop town snapshot.  last_reason is therefore not a reliable
         # proof that the next Home snapshot is the result of our page advance.
         self._home_page_advance_pending = False
-        self._home_page_probe_from_identity: tuple | None = None
         self._home_page_advance_store_none_decisions = 0
         # Page identity the last Home SPACE was posted from.  While the advance
         # is pending, a Home snapshot showing this same identity may predate
@@ -2559,6 +2536,13 @@ class HengbotPolicy:
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
+        if self._home_scan_burst_pending:
+            self.last_reason = "home:scan-burst-await-delimiter"
+            return ""
+        if self._home_scan_burst_short:
+            self._home_scan_burst_short = False
+            self.last_reason = "home:scan-burst-short"
+            return LEAVE_STORE_KEY
         decision_floor = getattr(snapshot, "floor_key", None)
         if self._unviable_quest_floor != decision_floor:
             self._unviable_quest_floor = None
@@ -2678,7 +2662,6 @@ class HengbotPolicy:
                 self._home_address_scan_valid = False
                 self._home_address_page_count = None
                 self._home_address_restart_required = False
-                self._home_page_probe_from_identity = None
             page_identity = tuple(
                 (item.name, item.tval, item.sval, item.count)
                 for item in snapshot.store.items
@@ -2708,6 +2691,9 @@ class HengbotPolicy:
             page_advance_confirmed = not self._home_page_advance_pending
             page_advance_wrap = False
             if self._home_page_advance_pending:
+                # cmd-store.cpp emits this snapshot at the top of the next
+                # store-loop iteration, after the posted SPACE was processed.
+                page_advance_confirmed = True
                 # Message signals are matched on the normalized body: the
                 # cheat_turn `T:<turn> - ` prefix and the ` <xN>` repeat
                 # suffix (see home_page_message_body) are stripped first, so
@@ -2725,24 +2711,6 @@ class HengbotPolicy:
                 ):
                     page_advance_confirmed = True
                     page_advance_wrap = True
-                elif any(
-                    home_page_message_body(message).startswith(
-                        HOME_PAGE_PROBE_MESSAGE_PREFIXES
-                    )
-                    for message in snapshot.messages
-                ):
-                    # A probe posted while waiting on the preceding SPACE can
-                    # arrive after that SPACE changed the page and the chooser
-                    # posted the next SPACE.  Bind its reply to the page from
-                    # which it was requested; otherwise the delayed banner
-                    # falsely confirms the later advance and makes the
-                    # recorder discard a repeated stale page.
-                    if (
-                        self._home_page_probe_from_identity
-                        == self._home_page_advance_from_identity
-                    ):
-                        page_advance_confirmed = True
-                    self._home_page_probe_from_identity = None
                 if page_advance_confirmed:
                     self._home_page_advance_pending = False
                     self._home_page_advance_from_identity = None
@@ -9778,6 +9746,10 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        if key == HOME_SCAN_KEY and self._home_scan_prepared:
+            self._home_scan_prepared = False
+            self._home_scan_burst_pending = True
+            return True
         if key == WAIT_KEY and self._store_entry_wait_owner is not None:
             self._store_entry_posted_owner = self._store_entry_wait_owner
             return True
@@ -9801,6 +9773,59 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         return committed
+
+    def consume_home_scan_burst(self, snapshots: list[Snapshot]) -> bool:
+        """Consume ordered scan output; return whether the burst remains open.
+
+        cmd-store.cpp emits a Home snapshot before every store key read.  The
+        burst is therefore the ordered Home snapshots following HOME_SCAN_KEY,
+        delimited by the first non-Home snapshot after its final Escape.
+        """
+        if not self._home_scan_burst_pending:
+            return False
+        expected = 1 + HOME_SCAN_PAGE_FORWARDS  # WAIT, then every SPACE.
+        for snapshot in snapshots:
+            if snapshot.store is None or snapshot.store.store_type != STORE_HOME:
+                self._home_scan_burst_pending = False
+                if (
+                    self._home_scan_burst_snapshots < expected
+                    or not self._home_scan_burst_wrapped
+                ):
+                    self._home_address_pages.clear()
+                    self._home_address_ordinals.clear()
+                    self._home_address_scan_valid = False
+                    self._home_address_page_count = None
+                    self._home_scan_burst_short = True
+                return False
+            self._home_scan_burst_snapshots += 1
+            # The first snapshot follows WAIT and repeats the entry page.  The
+            # remaining snapshots correspond one-for-one with the SPACE keys.
+            if self._home_scan_burst_snapshots == 1:
+                page = tuple(snapshot.store.items)
+                self._home_address_pages.append(page)
+                self._home_address_ordinals.append(0)
+                self._equipment_catalog.observe_home_page(
+                    snapshot.store.items, allow_wrap=False
+                )
+                continue
+            page = tuple(snapshot.store.items)
+            if page == self._home_address_pages[0]:
+                self._home_scan_burst_wrapped = True
+                self._equipment_catalog.observe_home_page(
+                    snapshot.store.items, allow_wrap=True
+                )
+                self._home_address_scan_valid = True
+                self._home_address_page_count = len(self._home_address_pages)
+                self._home_address_ordinals = list(
+                    range(self._home_address_page_count)
+                )
+                continue
+            if not self._home_scan_burst_wrapped and page not in self._home_address_pages:
+                self._home_address_pages.append(page)
+                self._equipment_catalog.observe_home_page(
+                    snapshot.store.items, allow_wrap=False
+                )
+        return True
 
     def _discard_unposted_equipment_transaction_command(self) -> None:
         self._equipment_transaction_prepared_key = None
@@ -9988,8 +10013,9 @@ class HengbotPolicy:
                     return LEAVE_STORE_KEY
                 self.last_reason = "equipment-transaction:leave-for-atomic-withdraw"
                 return LEAVE_STORE_KEY
-            self.last_reason = "home:scan-catalog-page"
-            return " "
+            self._home_address_restart_required = True
+            self.last_reason = "home:restart-address-scan"
+            return LEAVE_STORE_KEY
 
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
         return LEAVE_STORE_KEY
@@ -11080,9 +11106,16 @@ class HengbotPolicy:
         if not withdrawal_requested:
             return None
         if not self._home_address_scan_valid:
-            self.last_reason = "home:atomic-withdraw-needs-observation"
-            self._store_entry_wait_owner = STORE_HOME
-            return WAIT_KEY
+            self._home_address_pages.clear()
+            self._home_address_ordinals.clear()
+            self._home_address_page_count = None
+            self._home_address_scan_valid = False
+            self._home_scan_burst_snapshots = 0
+            self._home_scan_burst_wrapped = False
+            self._home_scan_burst_short = False
+            self._home_scan_prepared = True
+            self.last_reason = "home:scan-catalog-burst"
+            return HOME_SCAN_KEY
 
         signature: tuple[str, int, int] | None = None
         quantity: int | None = None
@@ -11252,6 +11285,10 @@ class HengbotPolicy:
 
     def _invalidate_home_observation(self) -> None:
         """Discard every address fact after a command that may mutate Home."""
+        self._home_scan_prepared = False
+        self._home_scan_burst_pending = False
+        self._home_scan_burst_snapshots = 0
+        self._home_scan_burst_wrapped = False
         self._home_address_pages.clear()
         self._home_address_ordinals.clear()
         self._home_address_scan_valid = False
@@ -14109,6 +14146,11 @@ class HengbotPolicy:
                 >= TOWN_STOP_PASS_LIMIT
                 else food_store
             )
+        if (
+            self._home_address_restart_required
+            and self._home_pending_item is not None
+        ):
+            return STORE_HOME
         opening_q34 = self._opening_q34_torch_shortage(snapshot) > 0
         if opening_q34 and self._fundraising_mode in {
             "prepare", "mine", "scavenge"
@@ -16945,28 +16987,6 @@ class HengbotPolicy:
             self.last_reason = "survival:no-affordable-food"
             return LEAVE_STORE_KEY
 
-        if (
-            store.store_type == STORE_HOME
-            and self._home_page_advance_pending
-        ):
-            # A posted page advance has not been proven observed (choose_key
-            # prologue): this snapshot may show the page the SPACE was posted
-            # FROM while the game already displays another page, so any letter
-            # composed from it can address the wrong item (the 2026-08-02
-            # 20:03 pJ→stall→quarantine incident).  Suppress every Home
-            # decision — including the random-teleport suppression withdraw
-            # below — and post the state-free version probe; its banner in a
-            # later message delta proves currency even when the page identity
-            # never changes (single-page Home, re-entry, or identical
-            # neighbouring pages).  Keys are processed in posting order, so
-            # the reply — or the advance's own redraw — is at most one probe
-            # round-trip away: no counter is needed.
-            self.last_reason = "home:await-page-advance"
-            self._home_page_probe_from_identity = (
-                self._home_page_advance_from_identity
-            )
-            return HOME_PAGE_PROBE_KEY
-
         suppress_random_teleport = self._town_random_teleport_suppression_key(
             snapshot
         )
@@ -17066,8 +17086,9 @@ class HengbotPolicy:
                 )
                 and not self._home_address_scan_valid
             ):
-                self.last_reason = "home:scan-catalog-page"
-                return " "
+                self._home_address_restart_required = True
+                self.last_reason = "home:restart-address-scan"
+                return LEAVE_STORE_KEY
             if (
                 self._home_pending_item is not None
                 and (

@@ -21,7 +21,10 @@ import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import STORE_HOME, TVAL_POTION
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
-from hengbot.policy import CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES
+from hengbot.policy import (
+    CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
+    HOME_SCAN_KEY, HOME_SCAN_PAGE_FORWARDS,
+)
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
 
 from absorbing_state_harness import AbsorbingState
@@ -69,6 +72,7 @@ class TownWorld:
         self.last_key = ""
         self.turn = snapshot.turn
         self.pending_events = []
+        self.pending_home_scan_snapshots = []
         self.character_events_delivered = 0
 
     def snapshot(self, decision: int) -> Snapshot:
@@ -101,6 +105,21 @@ class TownWorld:
             return
         if key.startswith("R") and key.endswith("\r") and key[1:-1].isdigit():
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN * int(key[1:-1])
+            return
+        if not self.inside and key == HOME_SCAN_KEY:
+            self.inside = True
+            self.entries += 1
+            self.top = 0
+            self.pending_home_scan_snapshots.append(self.snapshot(0))
+            for _ in range(HOME_SCAN_PAGE_FORWARDS):
+                self.top += self.page_size
+                if self.top >= len(self.stock):
+                    self.top = 0
+                self.pending_home_scan_snapshots.append(self.snapshot(0))
+            self.inside = False
+            self.top = 0
+            self.exits += 1
+            self.pending_home_scan_snapshots.append(self.snapshot(0))
             return
         if self.inside:
             if key == LEAVE_STORE_KEY:
@@ -174,6 +193,9 @@ class TownWorld:
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN
 
     def deliver_events(self, policy):
+        if self.pending_home_scan_snapshots:
+            policy.consume_home_scan_burst(self.pending_home_scan_snapshots)
+            self.pending_home_scan_snapshots.clear()
         for character in self.pending_events:
             policy.observe_character_snapshot(character)
             self.character_events_delivered += 1
@@ -768,7 +790,6 @@ def _frozen_approach_optimizer_transaction():
 
 SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 300, _departure_freeze),
-    AbsorbingState("home-version-probe-freeze", 300, _withdraw_refusal_cycle),
     AbsorbingState("home-page-recurrence", 400, _page_recurrence),
     AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
@@ -804,17 +825,5 @@ SEEDED_STATES = (
     AbsorbingState(
         "invalid-command-noop-home-cycle", 40,
         _invalid_command_noop_home_cycle,
-    ),
-    AbsorbingState(
-        "doubled-store-entry-cycle", 10,
-        _doubled_store_entry_cycle,
-    ),
-    AbsorbingState(
-        "lagged-successful-store-entry", 10,
-        _lagged_successful_store_entry,
-    ),
-    AbsorbingState(
-        "failed-store-entry-same-turn", 10,
-        _failed_store_entry_same_turn,
     ),
 )

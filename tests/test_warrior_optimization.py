@@ -755,8 +755,10 @@ class WarriorOptimizationTest(unittest.TestCase):
             inventory=(), equipment=(),
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
-        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
+        self.assertEqual(
+            policy._equipment_transaction_home_key(snapshot), "\x1b"
+        )
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
         self.assertIsNone(policy._equipment_transaction_session.pending_action)
         self.assertTrue(policy._equipment_transaction_session.executable)
 
@@ -802,9 +804,11 @@ class WarriorOptimizationTest(unittest.TestCase):
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
 
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
         self.assertEqual(
-            policy.last_reason, "home:scan-catalog-page"
+            policy._equipment_transaction_home_key(snapshot), "\x1b"
+        )
+        self.assertEqual(
+            policy.last_reason, "home:restart-address-scan"
         )
         snapshot.store = SimpleNamespace(store_type=STORE_HOME, items=(
             StoreItem(
@@ -814,7 +818,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             ),
             target,
         ))
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
+        self.assertEqual(
+            policy._equipment_transaction_home_key(snapshot), "\x1b"
+        )
 
     def test_policy_waits_for_home_page_after_interleaved_town_snapshot(self):
         policy = HengbotPolicy()
@@ -1006,9 +1012,9 @@ class WarriorOptimizationTest(unittest.TestCase):
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
 
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), " ")
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
         self.assertIsNone(session.pending_action)
-        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
         self.assertIs(policy._equipment_transaction_session, session)
         self.assertNotIn("stored", policy._equipment_transaction_failed_items)
         self.assertIsNone(policy._town_blocked_reason)

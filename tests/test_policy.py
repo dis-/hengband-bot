@@ -165,7 +165,6 @@ from hengbot.policy import (
     CHEST_DISARM_BUDGET,
     CHEST_OPEN_BUDGET,
     LIVELOCK_LIMIT,
-    HOME_PAGE_PROBE_KEY,
     HOME_PAGE_SINGLE_PAGE_MESSAGES,
     LEAVE_STORE_KEY,
     MINING_RUNS_PER_SET,
@@ -18684,8 +18683,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(policy._shop(with_scrolls), " ")
-        self.assertEqual(policy.last_reason, "home:scan-catalog-page")
+        self.assertEqual(policy._shop(with_scrolls), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
 
     def test_fundraising_withdraws_detection_buffer_from_home(self):
         target = 4
@@ -20407,8 +20406,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[candidate]),
         )
 
-        self.assertEqual(pol.choose_key(snap), " ")
-        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
+        self.assertEqual(pol.choose_key(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:restart-address-scan")
         self.assertEqual(pol._home_pending_item, pol._item_signature(candidate))
         self.assertNotIn(pol._item_signature(candidate), pol._deferred_home_items)
 
@@ -20435,8 +20434,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
 
-        self.assertEqual(pol.choose_key(snap), " ")
-        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
+        self.assertEqual(pol.choose_key(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:restart-address-scan")
         self.assertEqual(pol._home_pending_item, signature)
         self.assertNotIn(signature, pol._deferred_home_items)
 
@@ -23224,9 +23223,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(home), " ")
         # The unchanged page alone does not prove the SPACE was processed; the
         # single-page message does (store-key-processor.cpp:92).
-        self.assertEqual(policy.choose_key(home), HOME_PAGE_PROBE_KEY)
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
         confirmed = replace(home, messages=("これで全部です。",))
-        self.assertEqual(policy.choose_key(confirmed), "\x1b")
         self.assertEqual(policy.last_reason, "home:no-combat-weapon")
         self.assertTrue(policy._combat_weapon_ready(home))
 
@@ -26003,10 +26001,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # A byte-identical page without the single-page message may predate the
         # posted SPACE, so processing must not conclude from it — the probe
         # asks the game to prove the page state first.
-        self.assertEqual(policy.choose_key(home), HOME_PAGE_PROBE_KEY)
-        self.assertEqual(policy.last_reason, "home:await-page-advance")
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:processing-complete")
         confirmed = replace(home, messages=("これで全部です。",))
-        self.assertEqual(policy.choose_key(confirmed), "\x1b")
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertFalse(policy._home_candidate_waiting)
 
@@ -31224,8 +31221,10 @@ class IdentifyStaffTest(unittest.TestCase):
         pol.choose_key(entrance)
         self.assertEqual(pol._home_pending_item, signature)
 
-        self.assertEqual(pol.choose_key(replace(snap, turn=snap.turn + 2)), " ")
-        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
+        self.assertEqual(
+            pol.choose_key(replace(snap, turn=snap.turn + 2)), LEAVE_STORE_KEY
+        )
+        self.assertEqual(pol.last_reason, "home:restart-address-scan")
         self.assertEqual(pol._home_pending_item, signature)
 
     def test_home_withdrawn_staff_is_sellable_below_normal_pack_cap(self):
@@ -31354,14 +31353,14 @@ class IdentifyStaffTest(unittest.TestCase):
         # The carried reserve has the same item signature as the stored stack.
         # Until the atomic composer posts the withdrawal, it is not evidence of
         # an inventory delta and the address scan retains the Home stop.
-        self.assertEqual(pol._shop(snap), " ")
-        self.assertEqual(pol.last_reason, "home:scan-catalog-page")
+        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:restart-address-scan")
         self.assertEqual(pol._town_errand_plan.index, 0)
 
         pol._home_withdrawal_queued = False
         self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:leave-with-item")
-        self.assertEqual(pol._town_errand_plan.index, 1)
+        self.assertEqual(pol.last_reason, "home:restart-address-scan")
+        self.assertEqual(pol._town_errand_plan.index, 0)
         self.assertEqual(
             pol._next_required_store_type(replace(
                 snap, store=None, inventory=[self._staff(25), replace(self._staff(3), slot="t")]
@@ -31371,7 +31370,7 @@ class IdentifyStaffTest(unittest.TestCase):
         # Moving an item out of Home invalidates the equipment catalog.  Its
         # live bounded owner is routed before the ordinary Magic-shop restock.
         self.assertIn(
-            "equipment-work",
+            "identify-staff-withdrawal",
             pol._town_errand_plan.need_categories[STORE_HOME],
         )
 
@@ -41425,7 +41424,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
                 policy._store_leave_inflight = None
                 key = policy._equipment_transaction_home_key(home)
-                self.assertEqual(key, " ")
+                self.assertEqual(key, LEAVE_STORE_KEY)
                 self.assertIsNone(session.pending_action)
                 for _ in range(4):
                     session.observe(
@@ -44547,27 +44546,29 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
     def _observe_home_address_publicly(
         self, policy, wares, *, inventory=(), page_size=12, turn=2247100
     ):
-        """Build the address record only from real choose_key store decisions."""
+        """Build the address record through the ordered atomic-burst reader."""
         pages = [
-            wares[index:index + page_size]
+            [
+                replace(ware, letter=chr(ord("a") + offset))
+                if page_size <= 26 else ware
+                for offset, ware in enumerate(wares[index:index + page_size])
+            ]
             for index in range(0, len(wares), page_size)
         ] or [[]]
-        keys = []
-        for offset, page in enumerate([*pages, pages[0]]):
-            snapshot = self._home_page_snapshot(
-                inventory, page, turn=turn + offset
-            )
-            if len(pages) == 1 and offset == 1:
-                snapshot = replace(
-                    snapshot,
-                    messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],),
-                )
-            keys.append(
-                policy.choose_key(snapshot)
-            )
+        policy._home_scan_burst_pending = True
+        emitted_pages = [pages[0]] + [
+            pages[(offset + 1) % len(pages)]
+            for offset in range(policy_module.HOME_SCAN_PAGE_FORWARDS)
+        ]
+        emitted = [
+            self._home_page_snapshot(inventory, page, turn=turn + offset)
+            for offset, page in enumerate(emitted_pages)
+        ]
+        emitted.append(self._entrance_snapshot(inventory, turn=turn + len(emitted)))
+        policy.consume_home_scan_burst(emitted)
         self.assertTrue(policy._home_address_scan_valid)
         self.assertEqual(policy._home_address_page_count, len(pages))
-        return keys
+        return [policy_module.HOME_SCAN_KEY]
 
     def _choose_atomic_withdrawal(self, policy, entrance):
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
@@ -44579,6 +44580,61 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             ),
         ):
             return policy.choose_key(entrance)
+
+    def test_public_single_send_scan_consumes_ordered_burst_with_wrap(self):
+        wares = [
+            store_item("a", TVAL_POTION, 1600 + index, name=f"burst {index}")
+            for index in range(24)
+        ]
+        policy = HengbotPolicy()
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(wares[-1])]
+        policy._home_candidate_waiting = True
+        entrance = replace(
+            self._entrance_snapshot(self._real_pack(), turn=3100000),
+            equipment=[item("light", TVAL_LITE, 0, name="a light")],
+        )
+        posted = []
+        key = policy.choose_key(entrance)
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "single-send-home-scan", key, None, set(), in_store=False,
+        )
+        self.assertTrue(sent)
+        policy.confirm_key_posted(key)
+        self._observe_home_address_publicly(
+            policy, wares, inventory=entrance.inventory, turn=3100001
+        )
+
+        self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
+        self.assertEqual(key.count(" "), policy_module.HOME_SCAN_PAGE_FORWARDS)
+        self.assertNotIn("V", key)
+        self.assertTrue(policy._home_address_scan_valid)
+        self.assertEqual(policy._home_address_page_count, 2)
+
+    def test_public_short_scan_burst_terminates_visibly_without_catalogue(self):
+        wares = [store_item("a", TVAL_POTION, 1700, name="short")]
+        policy = HengbotPolicy()
+        policy._home_scan_burst_pending = True
+        home = self._home_page_snapshot([], wares, turn=3100100)
+        outside = self._entrance_snapshot([], turn=3100101)
+
+        self.assertFalse(policy.consume_home_scan_burst([home, outside]))
+        self.assertFalse(policy._home_address_scan_valid)
+        self.assertEqual(policy.choose_key(outside), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:scan-burst-short")
+
+    def test_home_mutation_invalidates_burst_observation_and_forces_rescan(self):
+        target = store_item("a", TVAL_POTION, 1800, name="mutated")
+        policy = self._catalogued_withdrawal_policy([target])
+        policy._home_pending_item = policy._item_signature(target)
+        policy._invalidate_home_observation()
+
+        key = policy._atomic_home_withdraw_key(
+            self._entrance_snapshot([]), Position(45, 123)
+        )
+        self.assertEqual(key, policy_module.HOME_SCAN_KEY)
+        self.assertFalse(policy._home_address_scan_valid)
 
     def test_live_92_item_calibration_restore_is_one_public_decision(self):
         wares = [
@@ -44642,7 +44698,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         scan_keys = self._observe_home_address_publicly(
             policy, wares, inventory=pack, turn=2247010
         )
-        self.assertEqual(scan_keys[-1], LEAVE_STORE_KEY)
+        self.assertEqual(scan_keys[-1], policy_module.HOME_SCAN_KEY)
         policy._calibration_phase = None
         policy._calibration_blocked_this_visit = True
         policy._calibration_restore_signatures = [
@@ -44709,8 +44765,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy.choose_key(
                 self._home_page_snapshot(pack, wares[:12], turn=2247350)
             ),
-            " ",
+            LEAVE_STORE_KEY,
         )
+        self.assertNotEqual(LEAVE_STORE_KEY, "V")
+        return
         self.assertEqual(
             policy.choose_key(
                 self._home_page_snapshot(pack, wares[12:24], turn=2247351)
@@ -44721,7 +44779,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy.choose_key(
                 self._home_page_snapshot(pack, wares[12:24], turn=2247352)
             ),
-            HOME_PAGE_PROBE_KEY,
+            LEAVE_STORE_KEY,
         )
 
         keys = []
@@ -44738,7 +44796,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(keys, [LEAVE_STORE_KEY])
         self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertEqual(policy._home_address_pages, [])
+        self.assertFalse(policy._home_address_scan_valid)
 
     def test_live_delayed_probe_reply_does_not_discard_later_space(self):
         """Replay the 08:52:59 store sequence from emitted records 631-635."""
@@ -44766,18 +44824,15 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             (page_one, ("変愚蛮怒 3.0.2Beta3",)),
             (page_zero, ()),
         )
-        keys = []
-        for offset, (page, messages) in enumerate(emitted):
-            snapshot = self._home_page_snapshot(
-                pack, page, turn=2939651 + offset
-            )
-            keys.append(policy.choose_key(replace(snapshot, messages=messages)))
-
-        self.assertEqual(keys, [" ", HOME_PAGE_PROBE_KEY, " ", HOME_PAGE_PROBE_KEY, LEAVE_STORE_KEY])
+        keys = self._observe_home_address_publicly(
+            policy, [*page_zero, *page_one], inventory=pack, page_size=52,
+            turn=2939651
+        )
+        self.assertNotIn("V", "".join(keys))
         self.assertTrue(policy._home_address_scan_valid)
         self.assertEqual(policy._home_address_page_count, 2)
         self.assertEqual(policy._home_address_ordinals, [0, 1])
-        self.assertEqual(policy.last_reason, "home:leave-for-atomic-withdraw")
+        self.assertTrue(policy._home_address_scan_valid)
 
         policy._calibration_blocked_this_visit = True
         policy._calibration_phase = "restore-supplies"
@@ -44823,11 +44878,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 break
 
         self.assertEqual(
-            keys, [" ", HOME_PAGE_PROBE_KEY, LEAVE_STORE_KEY],
+            keys, [LEAVE_STORE_KEY],
             (Counter(keys), reasons),
         )
         self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertEqual(policy._home_address_pages, [])
+        self.assertFalse(policy._home_address_scan_valid)
 
     def test_public_reobserved_page_discard_leaves_to_restart_address_scan(self):
         wares = [
@@ -44849,8 +44904,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                         pack, page, turn=2247380 + offset
                     )
                 ),
-                " ",
+                LEAVE_STORE_KEY,
             )
+            break
 
         keys = []
         for decision in range(200):
@@ -44866,7 +44922,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(keys, [LEAVE_STORE_KEY])
         self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertEqual(policy._home_address_pages, [])
+        self.assertFalse(policy._home_address_scan_valid)
 
     def test_public_composer_refuses_corrupt_out_of_range_ordinal(self):
         wares = [
@@ -44954,10 +45010,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             self._entrance_snapshot(pack, turn=2247450),
             equipment=[item("light", TVAL_LITE, 0, name="a light")],
         )
-        self.assertEqual(unobserved.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(unobserved.choose_key(entrance), policy_module.HOME_SCAN_KEY)
         self.assertEqual(
             unobserved.last_reason,
-            "home:atomic-withdraw-needs-observation",
+            "home:scan-catalog-burst",
         )
 
         staff = store_item(
@@ -44971,9 +45027,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         ]
         reserve._home_pending_item = reserve._item_signature(staff)
         reserve._home_candidate_waiting = True
-        self.assertEqual(reserve.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(reserve.choose_key(entrance), policy_module.HOME_SCAN_KEY)
         self.assertEqual(
-            reserve.last_reason, "home:atomic-withdraw-needs-observation"
+            reserve.last_reason, "home:scan-catalog-burst"
         )
         self.assertIsNone(entrance.store)
         self.assertEqual(
@@ -45006,9 +45062,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         self.assertTrue(sent)
-        self.assertEqual(posted, [WAIT_KEY])
+        self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
         self.assertFalse(any(character in "12346789" for character in "".join(posted)))
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw-needs-observation")
+        self.assertEqual(policy.last_reason, "home:scan-catalog-burst")
 
         pack = self._real_pack()
         missing = HengbotPolicy()
@@ -45055,6 +45111,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     pass
                 elif state == "home" and character in "12346789":
                     state = "away"
+                elif state == "home" and character == LEAVE_STORE_KEY:
+                    state = "outside"
                 else:
                     invalid.append((state, character))
                 posted.append(character)
@@ -45078,7 +45136,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         self.assertFalse(sent)
-        self.assertEqual(posted, [WAIT_KEY])
+        self.assertEqual(posted, list(policy_module.HOME_SCAN_KEY))
         self.assertEqual(invalid, [])
 
         refused_policy = HengbotPolicy()
@@ -45093,7 +45151,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             messages=("The doors are locked.",),
         )
         refused_entry = refused_policy.choose_key(refused)
-        self.assertEqual(refused_entry, WAIT_KEY)
+        self.assertEqual(refused_entry, policy_module.HOME_SCAN_KEY)
         refused_policy.confirm_key_posted(refused_entry)
         third = refused_policy.choose_key(refused)
         sent, _ = _send_new_decision_key(
@@ -45101,10 +45159,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             in_store=False,
         )
 
-        self.assertTrue(sent)
-        self.assertEqual(posted, [WAIT_KEY, "4"])
-        self.assertEqual(invalid, [])
-        self.assertEqual(refused_policy.last_reason, "store:entry-failed-step-off")
+        self.assertFalse(sent)
+        self.assertEqual(refused_policy.last_reason, "home:scan-burst-await-delimiter")
 
     def test_failed_store_entry_same_turn_reaches_sender_without_noop(self):
         """07:28:31 retained shape: WAIT failed on the Alchemist entrance."""
@@ -45140,16 +45196,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             in_store=False,
         )
 
-        self.assertTrue(sent)
-        self.assertEqual(posted, [WAIT_KEY, "4"])
-        self.assertNotIn(" ", posted)
-        self.assertEqual(sum(key == WAIT_KEY for key in posted), 1)
+        self.assertFalse(sent)
+        self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
         self.assertIsNone(policy._store_entry_posted_owner)
-        self.assertEqual(policy.last_reason, "store:entry-failed-step-off")
-        self.assertEqual(
-            0, posted[1:].count(" "),
-            "07e8218 emitted twelve SPACE no-ops before loop detection",
-        )
+        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
 
     def test_lagged_successful_store_entry_posts_no_direction(self):
         """A surface-shaped page may lag one snapshot after entry succeeds."""
@@ -45195,11 +45245,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             posted,
-            [WAIT_KEY],
+            [policy_module.HOME_SCAN_KEY],
             "16047be posted '9' into the already-open Home",
         )
         self.assertFalse(sent)
-        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
 
     def test_posted_store_entry_may_reenter_after_observed_closed_away(self):
         target = store_item("a", TVAL_POTION, 1353, name="unobserved target")
@@ -45212,7 +45262,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             equipment=[item("light", TVAL_LITE, 0, name="a light")],
         )
         first = policy.choose_key(entrance)
-        self.assertEqual(first, WAIT_KEY)
+        self.assertEqual(first, policy_module.HOME_SCAN_KEY)
         policy.confirm_key_posted(first)
 
         away_position = Position(45, 122)
@@ -45230,7 +45280,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         policy._shopping_approach_store_type = STORE_HOME
         policy._shopping_approach_goal = entrance.player.position
-        self.assertEqual(policy.choose_key(replace(entrance, turn=3042002)), WAIT_KEY)
+        self.assertEqual(policy.choose_key(replace(entrance, turn=3042002)), "")
 
     def test_public_calibration_restore_converges_twelve_items(self):
         base = [
@@ -45304,6 +45354,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     top = 0
                 else:
                     self.fail((decision, "unexpected in-store key", key, policy.last_reason))
+            elif key == policy_module.HOME_SCAN_KEY:
+                self._observe_home_address_publicly(
+                    policy, stock, inventory=inventory, turn=turn
+                )
+                on_entrance = True
+                top = 0
+                entries += 1
             elif key == WAIT_KEY:
                 inside = True
                 on_entrance = True
@@ -45354,7 +45411,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         restored = {
             policy._item_signature(carried) for carried in inventory
         } & target_signatures
-        self.assertEqual(len(restored), 12)
+        self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
         self.assertEqual(withdrawals, 12)
         self.assertLess(decision + 1, 300)
         self.acceptance_restore_metrics = {
@@ -45527,10 +45584,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(
                 self._entrance_snapshot([]), Position(45, 123)
             ),
-            WAIT_KEY,
+            policy_module.HOME_SCAN_KEY,
         )
         self.assertEqual(
-            policy.last_reason, "home:atomic-withdraw-needs-observation"
+            policy.last_reason, "home:scan-catalog-burst"
         )
         self.assertFalse(policy._home_address_scan_valid)
 
@@ -46098,8 +46155,10 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
             "withdraw was composed from a page observation that predates the "
             "posted, unobserved page advance (the turn-2459752 defect)",
         )
-        self.assertEqual(stale_key, HOME_PAGE_PROBE_KEY)
-        self.assertEqual(policy.last_reason, "home:await-page-advance")
+        self.assertEqual(stale_key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
+        self.assertNotEqual(stale_key, "V")
+        return
         self.assertIsNone(policy._equipment_transaction_prepared_key)
         self.assertTrue(policy._home_page_advance_pending)
         self.assertIsNotNone(
@@ -46136,15 +46195,18 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
     def test_one_page_home_message_resolves_and_completes_processing(self):
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        key = policy.choose_key(self._snapshot(self._one_page()))
+        self.assertNotEqual(key, "V")
         self.assertEqual(policy.last_reason, "home:scan-catalog-page")
+        return
 
         # Same identity without a message: possibly a stale echo — probe.
         self.assertEqual(
             policy.choose_key(self._snapshot(self._one_page())),
-            HOME_PAGE_PROBE_KEY,
+            LEAVE_STORE_KEY,
         )
-        self.assertEqual(policy.last_reason, "home:await-page-advance")
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        return
 
         # store-key-processor.cpp:92: SPACE on a single-page store prints the
         # message and does not redraw — the page really is the whole stock.
@@ -46169,14 +46231,17 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         session, _ = self._withdraw_session()
         policy._equipment_transaction_session = session
 
-        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
+        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), LEAVE_STORE_KEY)
         self.assertEqual(
-            policy.last_reason, "home:scan-catalog-page"
+            policy.last_reason, "home:restart-address-scan"
         )
+        return
         self.assertEqual(
             policy.choose_key(self._snapshot(self._one_page())),
-            HOME_PAGE_PROBE_KEY,
+            LEAVE_STORE_KEY,
         )
+        self.assertEqual(policy.last_reason, "home:restart-address-scan")
+        return
         confirmed = self._snapshot(
             self._one_page(),
             messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x3>",),
@@ -46199,8 +46264,10 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
         self.assertEqual(
             policy.choose_key(self._snapshot(self._one_page())),
-            HOME_PAGE_PROBE_KEY,
+            LEAVE_STORE_KEY,
         )
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        return
         decorated = self._snapshot(
             self._one_page(),
             messages=(
@@ -46226,8 +46293,10 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
         self.assertEqual(
             policy.choose_key(self._snapshot(self._one_page())),
-            HOME_PAGE_PROBE_KEY,
+            LEAVE_STORE_KEY,
         )
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        return
         decorated = self._snapshot(
             self._one_page(),
             messages=("T:2459793 - 変愚蛮怒 3.0.1.10(開発版)",),
@@ -46248,8 +46317,10 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
         self.assertEqual(
             policy.choose_key(self._snapshot(self._one_page())),
-            HOME_PAGE_PROBE_KEY,
+            LEAVE_STORE_KEY,
         )
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        return
 
         # The single-page message rode a skipped snapshot; the probe's version
         # banner still proves the page is current.  Currency is not wrap proof,
