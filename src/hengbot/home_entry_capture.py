@@ -11,7 +11,7 @@ from typing import Any
 
 from hengbot.flight_recorder import jsonable
 from hengbot.latch_onset_capture import checkpoint
-from hengbot.model import STORE_HOME
+from hengbot.model import STORE_HOME, Snapshot
 
 
 STATE_FIELDS = (
@@ -52,7 +52,7 @@ STATE_FIELDS = (
 )
 
 
-def _store_projection(snapshot: Any) -> dict[str, Any] | None:
+def _store_projection(snapshot: Snapshot) -> dict[str, Any] | None:
     store = snapshot.store
     if store is None:
         return None
@@ -65,7 +65,7 @@ def _store_projection(snapshot: Any) -> dict[str, Any] | None:
     }
 
 
-def snapshot_projection(snapshot: Any) -> dict[str, Any]:
+def snapshot_projection(snapshot: Snapshot) -> dict[str, Any]:
     """Project the fields needed to identify the observed entry sequence."""
     return {
         "type": type(snapshot).__name__,
@@ -81,7 +81,7 @@ def state_projection(policy: Any) -> dict[str, Any]:
     return {name: jsonable(getattr(policy, name, None)) for name in STATE_FIELDS}
 
 
-def _home_owned(policy: Any, snapshot: Any) -> bool:
+def _home_owned(policy: Any, snapshot: Snapshot) -> bool:
     store = snapshot.store
     return bool(
         (store is not None and store.store_type == STORE_HOME)
@@ -134,7 +134,7 @@ class HomeEntryCapture:
                 file=sys.stderr,
             )
 
-    def choose_key(self, policy: Any, snapshot: Any) -> str:
+    def choose_key(self, policy: Any, snapshot: Snapshot) -> str:
         """Capture one call through the policy's public decision boundary."""
         boundary = None
         try:
@@ -151,7 +151,7 @@ class HomeEntryCapture:
                 self.report_failure("record_decision", exc, "decision record")
         return key
 
-    def observe_snapshot(self, snapshot: Any) -> None:
+    def observe_snapshot(self, snapshot: Snapshot) -> None:
         """Attach the first subsequently read snapshot to the pending decision."""
         if self.pending is None:
             return
@@ -165,7 +165,7 @@ class HomeEntryCapture:
     def record_decision(
         self,
         policy: Any,
-        snapshot: Any,
+        snapshot: Snapshot,
         key: str,
         reason: str,
         predecision_checkpoint: str,
@@ -203,7 +203,9 @@ class HomeEntryCapture:
         if self.pending["decision_index"] == decision_index:
             self.pending["posted_characters"].append(character)
 
-    def before_decision(self, policy: Any, snapshot: Any) -> tuple[str, dict[str, Any], bool]:
+    def before_decision(
+        self, policy: Any, snapshot: Snapshot
+    ) -> tuple[str, dict[str, Any], bool]:
         """Take an exact checkpoint before public choose_key mutates policy."""
         return checkpoint(policy), state_projection(policy), _home_owned(policy, snapshot)
 

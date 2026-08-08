@@ -213,3 +213,39 @@ fakery lint remained at the base ratchet of 9 existing violations and 116
 declared findings in 93 tests; test-name census was 2,528 versus 2,527 at
 `b15c5b0`, with zero losses. Full suite run 1 passed 2,513 tests in 211.663s
 with one opt-in skip; run 2 passed 2,513 tests in 210.879s with one opt-in skip.
+
+## 2026-08-09 Home entry capture Snapshot-type fix event
+
+This instrumentation-only fix changes no scan, entry, routing, optimizer, or
+other gameplay behavior. The CLI's ordered snapshot parser returns a
+`list[Snapshot]`; the capture handoff had incorrectly treated its first
+`Snapshot` as a `(Snapshot, line)` pair and subscripted it a second time. The
+handoff now passes that real `Snapshot` object directly, while retaining the
+existing once-per-distinct-failure marker unchanged.
+
+Field-read audit for `src/hengbot/home_entry_capture.py`:
+
+- Snapshot: `store`, `turn`, `messages`, and `player` are dataclass attributes;
+  all are read by attribute access and capture entry points now explicitly
+  accept `Snapshot`.
+- Store: `store_type` and `items` are `StoreState` attributes; `stock_num`,
+  `page_top`, and `page_size` are also attributes, with the existing `getattr`
+  compatibility reads retained for older object shapes. No store field is read
+  as a mapping key.
+- Player: `position` is a `PlayerState` attribute and is read by attribute
+  access before `jsonable` projects the `Position` value.
+- Messages: `Snapshot.messages` is a tuple of strings and is projected with
+  `list(snapshot.messages)`; no message collection or element is treated as a
+  mapping.
+
+The corrected end-to-end capture test now invokes the same CLI handoff helper
+with real `Snapshot` instances for both joined observations. On base `433515c`
+the equivalent production expression fails as observed live:
+`TypeError: 'Snapshot' object is not subscriptable` at `next snapshot`.
+
+Verification: the capture and CLI tests passed 120 tests; mutation battery met
+5/5 expectations with `repo_tree_untouched: true`; fakery lint retained its
+ratchet of 9 existing violations and 116 declared findings in 93 tests. The
+base and both final runs collected 2,514 tests, so there were zero test-name
+losses. Full suite run 1 passed 2,514 tests in 211.574s with one opt-in skip;
+run 2 passed 2,514 tests in 211.399s with one opt-in skip.

@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from hengbot.cli import _observe_home_entry_capture
 from hengbot.home_entry_capture import HomeEntryCapture, STATE_FIELDS
 from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import STORE_HOME, StoreState
@@ -72,11 +73,11 @@ class HomeEntryCaptureTest(unittest.TestCase):
                 capture.record_posted_character(
                     policy._decision_sequence, character
                 )
-            capture.observe_snapshot(next_snapshot)
+            _observe_home_entry_capture(capture, [next_snapshot])
             second_key = policy.choose_key(next_snapshot)
             second_reason = policy.last_reason
-            capture.observe_snapshot(
-                replace(next_snapshot, turn=next_snapshot.turn + 1)
+            _observe_home_entry_capture(
+                capture, [replace(next_snapshot, turn=next_snapshot.turn + 1)]
             )
             records = [
                 json.loads(line)

@@ -1743,16 +1743,9 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                     if needs_ordered_snapshots
                     else []
                 )
-                if home_entry_capture is not None and ordered_snapshot_entries:
-                    try:
-                        home_entry_capture.observe_snapshot(
-                            ordered_snapshot_entries[0][0]
-                        )
-                    except Exception as exc:
-                        # Capture must never alter command selection or delivery.
-                        home_entry_capture.report_failure(
-                            "observe_snapshot", exc, "next snapshot"
-                        )
+                _observe_home_entry_capture(
+                    home_entry_capture, ordered_snapshot_entries
+                )
                 if getattr(policy, "_home_scan_burst_pending", False):
                     # This is the sole exception to newest-board collapsing:
                     # cmd-store.cpp emits one ordered store snapshot per key in
@@ -2295,6 +2288,19 @@ def _snapshot_entries_in_order(
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"invalid snapshot: {exc}", file=sys.stderr)
     return snapshots
+
+
+def _observe_home_entry_capture(home_entry_capture, ordered_snapshots) -> None:
+    """Give the capture the first real Snapshot parsed in this CLI read."""
+    if home_entry_capture is None or not ordered_snapshots:
+        return
+    try:
+        home_entry_capture.observe_snapshot(ordered_snapshots[0])
+    except Exception as exc:
+        # Capture must never alter command selection or delivery.
+        home_entry_capture.report_failure(
+            "observe_snapshot", exc, "next snapshot"
+        )
 
 
 def _newest_snapshot_entry(
