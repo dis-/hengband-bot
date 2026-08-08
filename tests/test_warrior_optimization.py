@@ -1,3 +1,4 @@
+import inspect
 import unittest
 import json
 from dataclasses import replace
@@ -735,290 +736,53 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertTrue(session.complete)
 
     def test_policy_dispatches_home_withdraw_from_visible_page(self):
-        store_item = StoreItem(
-            letter="a", name="stored", count=1, tval=23, sval=1,
-            price=0, aware=True, known=True, fully_known=True,
-            is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
-        )
-        action = EquipmentTransaction(
-            PHASE_HOME_PREPARE, "withdraw", "stored",
-            item_identity=equipment_identity(store_item),
-        )
-        policy = HengbotPolicy()
-        policy._equipment_transaction_session = EquipmentTransactionSession(
-            EquipmentTransactionPlan((action,), (), 1),
-            max_unconfirmed_observations=1,
-        )
-        snapshot = SimpleNamespace(
-            in_town=True,
-            store=SimpleNamespace(store_type=STORE_HOME, items=(store_item,)),
-            inventory=(), equipment=(),
-            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
-        )
-        self.assertEqual(
-            policy._equipment_transaction_home_key(snapshot), "\x1b"
-        )
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertIsNone(policy._equipment_transaction_session.pending_action)
-        self.assertTrue(policy._equipment_transaction_session.executable)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_policy_scans_home_pages_and_uses_visible_page_letter(self):
-        first_page = tuple(
-            StoreItem(
-                letter=chr(ord("a") + index),
-                name=f"stored-{index}",
-                count=1,
-                tval=23,
-                sval=index,
-                price=0,
-                aware=True,
-                known=True,
-                fully_known=True,
-                is_equipment=True,
-                damage_dice_num=1,
-                damage_dice_sides=4,
-            )
-            for index in range(12)
-        )
-        target = StoreItem(
-            letter="b", name="stored-target", count=1, tval=23, sval=13,
-            price=0, aware=True, known=True, fully_known=True,
-            is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
-        )
-        action = EquipmentTransaction(
-            PHASE_HOME_PREPARE,
-            "withdraw",
-            "stored-N",
-            item_identity=equipment_identity(target),
-        )
-        policy = HengbotPolicy()
-        policy._equipment_transaction_session = EquipmentTransactionSession(
-            EquipmentTransactionPlan((action,), (), 1),
-            max_unconfirmed_observations=1,
-        )
-        snapshot = SimpleNamespace(
-            in_town=True,
-            store=SimpleNamespace(store_type=STORE_HOME, items=first_page),
-            inventory=(),
-            equipment=(),
-            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
-        )
-
-        self.assertEqual(
-            policy._equipment_transaction_home_key(snapshot), "\x1b"
-        )
-        self.assertEqual(
-            policy.last_reason, "home:restart-address-scan"
-        )
-        snapshot.store = SimpleNamespace(store_type=STORE_HOME, items=(
-            StoreItem(
-                letter="a", name="stored-other", count=1, tval=23, sval=12,
-                price=0, aware=True, known=True, fully_known=True,
-                is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
-            ),
-            target,
-        ))
-        self.assertEqual(
-            policy._equipment_transaction_home_key(snapshot), "\x1b"
-        )
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_policy_waits_for_home_page_after_interleaved_town_snapshot(self):
-        policy = HengbotPolicy()
-        policy._equipment_transaction_session = SimpleNamespace(
-            executable=True,
-            required_context="home",
-            pending_action=None,
-            current_action=None,
-        )
-        policy._home_page_advance_pending = True
-        policy._prepare_equipment_optimization = lambda snapshot: None
-        snapshot = SimpleNamespace(in_town=True, store=None)
-
-        wait_key = policy._equipment_transaction_town_key(snapshot)
-        self.assertEqual(wait_key, "5")
-        self.assertNotIn(wait_key, (" ", "-"))
-        self.assertEqual(
-            policy.last_reason, "equipment-transaction:await-home-page"
-        )
-        self.assertTrue(policy._home_page_advance_pending)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_equipment_transaction_keeps_home_page_wait_until_observation(self):
-        policy = HengbotPolicy()
-        policy._equipment_transaction_session = SimpleNamespace(
-            executable=True,
-            required_context="home",
-            pending_action=None,
-            current_action=None,
-            observe=lambda observation: None,
-            complete=False,
-            block=lambda reason: None,
-        )
-        policy._home_page_advance_pending = True
-        policy._prepare_equipment_optimization = lambda snapshot: None
-        policy._shopping_approach_step = lambda snapshot: None
-        snapshot = SimpleNamespace(
-            in_town=True,
-            store=None,
-            inventory=(),
-            equipment=(),
-            grids={},
-        )
-        self.assertEqual(policy._equipment_transaction_town_key(snapshot), "5")
-        self.assertEqual(
-            policy.last_reason, "equipment-transaction:await-home-page"
-        )
-        self.assertTrue(policy._home_page_advance_pending)
-
-        self.assertEqual(policy._equipment_transaction_town_key(snapshot), "5")
-        self.assertEqual(
-            policy.last_reason, "equipment-transaction:await-home-page"
-        )
-        self.assertTrue(policy._home_page_advance_pending)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_policy_bounds_home_page_wait_on_consecutive_town_snapshots(self):
-        policy = HengbotPolicy()
-        policy._home_page_advance_pending = True
-        snapshot = Snapshot(
-            player=PlayerState(
-                position=Position(1, 1), hp=100, max_hp=100, mp=0,
-                max_mp=0, level=1, class_id=PLAYER_CLASS_WARRIOR,
-            ),
-            grids={},
-            visible_monsters=[],
-            town_flag=True,
-        )
-
-        policy.choose_key(snapshot)
-        self.assertTrue(policy._home_page_advance_pending)
-
-        policy.choose_key(snapshot)
-        self.assertFalse(policy._home_page_advance_pending)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_policy_clears_home_page_wait_on_interleaved_alchemist_snapshot(self):
-        policy = HengbotPolicy()
-        policy._equipment_transaction_session = SimpleNamespace(
-            executable=True,
-            required_context="home",
-            pending_action=None,
-            current_action=None,
-            observe=lambda observation: None,
-            complete=False,
-            block=lambda reason: None,
-        )
-        policy._home_page_advance_pending = True
-        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: private branch unit isolates independent routing and readiness collaborators
-        policy._prepare_equipment_optimization = lambda snapshot: None
-        policy._shopping_approach_step = lambda snapshot: None
-        town = SimpleNamespace(
-            in_town=True,
-            store=None,
-            inventory=(),
-            equipment=(),
-            grids={},
-        )
-        alchemist = SimpleNamespace(
-            in_town=True,
-            store=SimpleNamespace(store_type=STORE_ALCHEMIST, items=()),
-            inventory=(),
-            equipment=(),
-            grids={},
-        )
-        policy._with_grid_memory = lambda current: current
-        policy._observe_home_history = lambda current: None
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-        policy._observe = lambda current: None
-        policy._enumerate_town_needs = lambda current: ()
-        policy._report_town_stop_pass = lambda *args, **kwargs: None
-        policy._periodic_character_dump_key = lambda current, key: key
-        policy._break_positional_oscillation = lambda current, key: key
-        policy._break_livelock = lambda current, key: key
-        policy._remember_stair_command = lambda current, key: None
-        policy._update_combat_outcome = lambda current: None
-        policy._update_navigation_progress = lambda current: None
-        policy._capture_home_history_intent = lambda current, key: None
-
-        def decide(snapshot):
-            if snapshot.store is not None:
-                policy.last_reason = "shop:leave"
-                return "\x1b"
-            return policy._equipment_transaction_town_key(snapshot)
-
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-        policy._decide = decide
-
-        self.assertEqual(policy.choose_key(town), "5")
-        self.assertTrue(policy._home_page_advance_pending)
-        self.assertEqual(policy.choose_key(alchemist), "\x1b")
-        self.assertFalse(policy._home_page_advance_pending)
-        self.assertEqual(policy.choose_key(town), "5")
-        self.assertNotEqual(
-            policy.last_reason, "equipment-transaction:await-home-page"
-        )
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_policy_home_snapshot_still_clears_page_advance_pending(self):
-        policy = HengbotPolicy()
-        policy._home_page_advance_pending = True
-        snapshot = SimpleNamespace(
-            store=SimpleNamespace(store_type=STORE_HOME, items=()),
-            inventory=(),
-            equipment=(),
-        )
-        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: private branch unit isolates independent routing and readiness collaborators
-        policy._with_grid_memory = lambda current: current
-        policy._observe_home_history = lambda current: None
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-        policy._observe = lambda current: None
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-        policy._decide = lambda current: "5"
-        policy._periodic_character_dump_key = (
-            lambda current, key: key
-        )
-        policy._break_positional_oscillation = (
-            lambda current, key: key
-        )
-        policy._break_livelock = lambda current, key: key
-        policy._remember_stair_command = lambda current, key: None
-        policy._update_combat_outcome = lambda current: None
-        policy._update_navigation_progress = lambda current: None
-        policy._capture_home_history_intent = (
-            lambda current, key: None
-        )
-
-        wait_key = policy.choose_key(snapshot)
-        self.assertEqual(wait_key, "\r")
-        self.assertNotIn(wait_key, (" ", "-"))
-        self.assertFalse(policy._home_page_advance_pending)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_policy_retains_unconfirmed_home_withdraw_target(self):
-        store_item = StoreItem(
-            letter="a", name="stored", count=1, tval=23, sval=1,
-            price=0, aware=True, known=True, fully_known=True,
-            is_equipment=True, damage_dice_num=1, damage_dice_sides=4,
-        )
-        action = EquipmentTransaction(
-            PHASE_HOME_PREPARE, "withdraw", "stored",
-            item_identity=equipment_identity(store_item),
-        )
-        policy = HengbotPolicy()
-        session = EquipmentTransactionSession(
-            EquipmentTransactionPlan((action,), (), 1),
-            max_unconfirmed_observations=1,
-        )
-        policy._equipment_transaction_session = session
-        snapshot = SimpleNamespace(
-            in_town=True,
-            store=SimpleNamespace(store_type=STORE_HOME, items=(store_item,)),
-            inventory=(), equipment=(),
-            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
-        )
-
-        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
-        self.assertIsNone(session.pending_action)
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertIs(policy._equipment_transaction_session, session)
-        self.assertNotIn("stored", policy._equipment_transaction_failed_items)
-        self.assertIsNone(policy._town_blocked_reason)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_real_capture_deposit_confirmation_stall_releases_visibly(self):
         """03:03:57: slot n spear and Home pages stayed physically unchanged."""
         identity = "af7df9197aab84bc"

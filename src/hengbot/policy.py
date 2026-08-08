@@ -262,15 +262,7 @@ TOWN_TRAVEL_MIN_DISTANCE = 3
 # to BFS walking (an unknown approach makes the game reject the route).
 TOWN_TRAVEL_STALL_LIMIT = 8
 TOWN_TRAVEL_TURN_STALL_LIMIT = 12
-HOME_PAGE_ADVANCE_REASONS = frozenset(
-    {
-        "home:seek-combat-weapon-page",
-        "home:seek-treasure-detection-page",
-        "home:seek-digging-tool-page",
-    }
-)
-HOME_PLAN_OWNED_PROCESSING_REASONS = HOME_PAGE_ADVANCE_REASONS | {
-    "home:scan-address-page",
+HOME_PLAN_OWNED_PROCESSING_REASONS = {
     "home:processing-complete",
 }
 # Positive page-state observations after a posted Home SPACE.
@@ -287,13 +279,9 @@ MIN_STORE_PAGE_SIZE = 12
 # Derived from store.cpp/store.h and cmd-store.cpp, not a tuning cap: Home has
 # 24 slots, or 24 * 10 with powerup_home, and at least 12 displayed slots.
 # Twenty pages cover every reachable Home; one more SPACE guarantees a wrap.
-HOME_SCAN_PAGE_FORWARDS = (
-    STORE_INVEN_MAX * POWERUP_HOME_MULTIPLIER + MIN_STORE_PAGE_SIZE - 1
-) // MIN_STORE_PAGE_SIZE + 1
 # Store entry calls disturb(), and the live flush_disturb option makes the
 # first store inkey() discard every character queued after the entry key.
 # Enter separately; subsequent decisions advance one observed page at a time.
-HOME_SCAN_KEY = WAIT_KEY
 # The exported message text carries at most two decorations, both fixed in
 # source: a save-persisted cheat_turn option prepends `T:<turn> - `
 # (display-messages.cpp:289-291, format "T:%d - %s"; registered at
@@ -302,8 +290,7 @@ HOME_SCAN_KEY = WAIT_KEY
 # and a repeated message appends ` <x<count>>` (display-messages.cpp:107-110).
 # Matching therefore happens on the NORMALIZED body — decorations stripped,
 # then an exact match for the single-page message and a prefix match for the
-# version banner — so no registered decoration can render a currency signal
-# unrecognizable and leave the await-page-advance state latched.
+# version banner.
 _HOME_PAGE_MESSAGE_DECORATION = re.compile(
     r"^(?:T:\d+ - )?(?P<body>.*?)(?: <x\d+>)?$",
     re.DOTALL,
@@ -2192,25 +2179,14 @@ class HengbotPolicy:
         self._processed_home_items: set[tuple[str, int, int]] = set()
         self._deferred_home_items: set[tuple[str, int, int]] = set()
         self._retried_home_identification_items: set[tuple[str, int, int]] = set()
-        # Authoritative withdrawal addresses from one completed Home scan.
-        # Each entry is a physical displayed slot; duplicate signatures remain
-        # distinct because page and the emitter-provided letter are retained.
-        self._home_address_pages: list[tuple[StoreItem, ...]] = []
-        self._home_address_restart_required = False
-        self._home_address_ordinals: list[int] = []
-        self._home_address_scan_valid = False
-        self._home_address_page_count: int | None = None
-        self._home_scan_prepared = False
-        self._home_scan_burst_pending = False
-        self._home_scan_burst_snapshots = 0
-        self._home_scan_burst_wrapped = False
-        self._home_scan_burst_short = False
-        # Both Home readers share this ordered burst.  The address owner needs
-        # physical page ordinals; the processing owner needs only proof that
-        # every page was observed before its town stop is complete.
-        self._home_scan_processing = False
-        self._home_scan_processing_snapshot: Snapshot | None = None
-        self._home_scan_processing_pages: list[Snapshot] = []
+        # knowledge-self.cpp:214 and bot-json-output.cpp:861 traverse the same
+        # Home stock array in the same order.  Addressing is derived from this
+        # exact ~9 order, never from an in-store item observation.
+        self._home_knowledge_items: tuple[InventoryItem, ...] = ()
+        self._home_knowledge_valid_before = 0
+        self._home_knowledge_current = False
+        self._home_knowledge_invalidated = False
+        self._home_page_size: int | None = None
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in the complete
         # duplicate-preserving knowledge catalogue.
@@ -2301,18 +2277,6 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_catalog_update: tuple[
             str, object, tuple[object, ...]
         ] | None = None
-        # A store-loop Home redraw may be separated from the Space decision by
-        # a main-loop town snapshot.  last_reason is therefore not a reliable
-        # proof that the next Home snapshot is the result of our page advance.
-        self._home_page_advance_pending = False
-        self._home_page_advance_store_none_decisions = 0
-        # Page identity the last Home SPACE was posted from.  While the advance
-        # is pending, a Home snapshot showing this same identity may predate
-        # the advance (the game already shows another page), so no key may be
-        # composed from it; the choose_key prologue resolves the ambiguity from
-        # positive observations only (identity change, single-page message, or
-        # the version-probe reply).
-        self._home_page_advance_from_identity: tuple | None = None
         # Item ids readmitted to the optimizer view because a quarantine held
         # every owned source of a mandatory depth gate (strictly diagnostic).
         self._equipment_quarantine_readmitted_ids: tuple[str, ...] = ()
@@ -2557,36 +2521,13 @@ class HengbotPolicy:
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
-        if self._home_scan_burst_pending:
-            if snapshot.store is None:
-                refused = any(
-                    "The doors are locked." in message
-                    or "繝峨い縺ｫ骰ｵ" in message
-                    for message in snapshot.messages
-                )
-                if refused:
-                    self._home_scan_burst_pending = False
-                    self._store_entry_posted_owner = None
-                    self.last_reason = "store:entry-refused"
-                    return ""
-                here = snapshot.grid_at(snapshot.player.position)
-                if (
-                    not self._home_address_pages
-                    and here is not None
-                    and here.store_number == STORE_HOME
-                ):
-                    self.last_reason = "store:entry-await-observation"
-                    return ""
-                if self._home_address_pages:
-                    return self._short_home_scan()
-                self._home_scan_burst_pending = False
-                self._store_entry_posted_owner = None
-            else:
-                return self._home_scan_step(snapshot)
-        if self._home_scan_burst_short:
-            self._home_scan_burst_short = False
-            self.last_reason = "home:address-burst-short"
-            return LEAVE_STORE_KEY
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and getattr(snapshot.store, "page_size", None) is not None
+            and snapshot.store.page_size > 0
+        ):
+            self._home_page_size = snapshot.store.page_size
         decision_floor = getattr(snapshot, "floor_key", None)
         if self._unviable_quest_floor != decision_floor:
             self._unviable_quest_floor = None
@@ -2696,129 +2637,6 @@ class HengbotPolicy:
                 self._home_knowledge_scan_inflight = False
                 self._home_knowledge_scan_retries_remaining = 1
                 self._home_knowledge_scan_leave_turn = None
-                # cmd-store.cpp:116 resets store_top to zero on every entry.
-                # Only an ordinary entry snapshot can therefore establish
-                # displayed page ordinal zero.  A snapshot emitted while an
-                # atomic operation is still being consumed is not an address
-                # observation and must not seed a rotated record.
-                self._home_address_pages.clear()
-                self._home_address_ordinals.clear()
-                self._home_address_scan_valid = False
-                self._home_address_page_count = None
-                self._home_address_restart_required = False
-            page_identity = tuple(
-                (item.name, item.tval, item.sval, item.count)
-                for item in snapshot.store.items
-            )
-            # Resolve a posted page advance from positive observations only.
-            # cmd-store.cpp:116 (entry shows page 1) and store-key-processor.cpp
-            # :90-106 (SPACE either advances-and-redraws or prints the
-            # single-page message) leave exactly three proofs that this
-            # snapshot reflects the posted SPACE:
-            #  * the identity changed — this page IS the advance result;
-            #  * the single-page message — SPACE did not redraw, the shown page
-            #    is the entire stock, so a recurrence is a legitimate wrap;
-            #  * the version-probe banner — every earlier key (including the
-            #    SPACE) has been processed, so the same-identity page is the
-            #    game's current page, though whether the SPACE wrapped onto an
-            #    identical page is unknown (currency yes, wrap proof no).
-            # Anything else may be a stale echo emitted before the game
-            # processed the SPACE (the 2026-08-02 20:03 pJ incident): keep the
-            # advance pending, feed nothing to the catalog, and let the Home
-            # decision gate answer with the probe instead of a composed key.
-            page_advance_confirmed = not self._home_page_advance_pending
-            page_advance_wrap = False
-            if self._home_page_advance_pending:
-                # cmd-store.cpp emits this snapshot at the top of the next
-                # store-loop iteration, after the posted SPACE was processed.
-                page_advance_confirmed = True
-                # Message signals are matched on the normalized body: the
-                # cheat_turn `T:<turn> - ` prefix and the ` <xN>` repeat
-                # suffix (see home_page_message_body) are stripped first, so
-                # neither registered decoration can hide a signal and latch
-                # this state.  Every arming site binds
-                # _home_page_advance_from_identity together with the flag, so
-                # an unbound identity never occurs and is not special-cased.
-                if page_identity != self._home_page_advance_from_identity:
-                    page_advance_confirmed = True
-                    page_advance_wrap = True
-                elif any(
-                    home_page_message_body(message)
-                    in HOME_PAGE_SINGLE_PAGE_MESSAGES
-                    for message in snapshot.messages
-                ):
-                    page_advance_confirmed = True
-                    page_advance_wrap = True
-                if page_advance_confirmed:
-                    self._home_page_advance_pending = False
-                    self._home_page_advance_from_identity = None
-                    self._home_page_advance_store_none_decisions = 0
-            if page_advance_confirmed:
-                # The complete catalogue comes only from ~9.  A displayed Home
-                # page establishes page-relative withdrawal provenance, never
-                # catalogue completeness.
-                observed_page = tuple(snapshot.store.items)
-                address_recordable = not (
-                    fresh_home_entry
-                    and (
-                        self._home_atomic_withdraw_pending is not None
-                        or self._home_entry_operation_posted
-                    )
-                )
-                if address_recordable and not self._home_address_scan_valid:
-                    if fresh_home_entry:
-                        self._home_address_pages.append(observed_page)
-                        self._home_address_ordinals.append(0)
-                    elif self._home_address_pages:
-                        if observed_page == self._home_address_pages[0]:
-                            if page_advance_wrap or not observed_page:
-                                self._home_address_scan_valid = True
-                                self._home_address_page_count = len(
-                                    self._home_address_pages
-                                )
-                            elif self._home_pending_item is not None:
-                                # A page-zero echo without wrap proof cannot
-                                # establish the address needed by a queued
-                                # withdrawal.  Discard the ambiguous record and
-                                # leave this visit, just as for a later-page
-                                # recurrence below.  An ordinary catalog scan
-                                # retains its established processing-complete
-                                # exit without claiming address validity.
-                                self._home_address_pages.clear()
-                                self._home_address_ordinals.clear()
-                                self._home_address_page_count = None
-                                self._home_address_restart_required = True
-                        elif observed_page not in self._home_address_pages:
-                            self._home_address_pages.append(observed_page)
-                            self._home_address_ordinals.append(
-                                self._home_address_ordinals[-1] + 1
-                            )
-                        else:
-                            # A non-consecutive recurrence cannot establish an
-                            # ordinal.  Discard it; the next fresh entry starts
-                            # a new page-zero scan with a bounded exit.
-                            self._home_address_pages.clear()
-                            self._home_address_ordinals.clear()
-                            self._home_address_page_count = None
-                            self._home_address_restart_required = True
-        elif (
-            snapshot.store is not None
-            and self._home_page_advance_pending
-        ):
-            # 2026-07-28 incident: an Alchemist snapshot alternating with the
-            # surface proves this is not the one-snapshot Home redraw bridge.
-            self._home_page_advance_pending = False
-            self._home_page_advance_from_identity = None
-            self._home_page_advance_store_none_decisions = 0
-        elif self._home_page_advance_pending:
-            self._home_page_advance_store_none_decisions += 1
-            if (
-                self._home_page_advance_store_none_decisions
-                >= TOWN_CYCLE_BREAK_LIMIT
-            ):
-                self._home_page_advance_pending = False
-                self._home_page_advance_from_identity = None
-                self._home_page_advance_store_none_decisions = 0
         if self._equipment_transaction_session is not None:
             self._equipment_transaction_session.observe(
                 observe_equipment_transactions(snapshot)
@@ -2852,7 +2670,10 @@ class HengbotPolicy:
                 for grid in (snapshot.grid_at(snapshot.player.position),)
                 if grid is not None
             )
-            and not self._equipment_catalog.home_scan_complete
+            and (
+                not self._equipment_catalog.home_scan_complete
+                or self._home_knowledge_invalidated
+            )
             # A Home observation permits ordinary first acquisition.  Once
             # optimization names incomplete contents as its blocker, however,
             # no Home existence, reachability, route, visit state, or other
@@ -2860,8 +2681,6 @@ class HengbotPolicy:
             and not self._home_knowledge_scan_requested
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
-            and not self._home_scan_prepared
-            and not self._home_scan_burst_pending
         ):
             self.last_reason = "home:request-knowledge-scan"
             return "~9"
@@ -2889,7 +2708,32 @@ class HengbotPolicy:
             if self._inventory_signature_count(snapshot, signature) < count_before:
                 self._home_entry_operation_posted = False
                 self._home_atomic_deposit_pending = None
-        if (
+        pending_home_transaction = (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and self._equipment_transaction_session is not None
+            and self._equipment_transaction_session.pending_action is not None
+            and not self._home_entry_operation_posted
+            and self._store_leave_inflight is None
+        )
+        if pending_home_transaction:
+            # Observation above already accounts for the posted action.  This
+            # narrow path may only confirm/expire it; it cannot select or post
+            # another Home item operation.
+            key = self._equipment_transaction_home_key(snapshot)
+        elif (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and self._equipment_transaction_session is not None
+            and not self._home_entry_operation_posted
+            and self._store_leave_inflight is None
+        ):
+            # Reaching Home without having composed the transaction outside is
+            # a failed dispatch, not permission to bind an item from the store
+            # page.  Abandon/quarantine the stale plan and recover by leaving.
+            self._block_equipment_transaction("uncomposed-home-entry")
+            key = self._equipment_transaction_home_key(snapshot)
+        elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and self._home_entry_operation_posted
@@ -2909,7 +2753,11 @@ class HengbotPolicy:
                 key = self._decide(snapshot)
             elif getattr(snapshot, "turn", 0) > leave_turn:
                 self._store_leave_inflight = None
-                key = self._decide(snapshot)
+                if snapshot.store.store_type == STORE_HOME:
+                    self.last_reason = "home:store-context-exit"
+                    key = LEAVE_STORE_KEY
+                else:
+                    key = self._decide(snapshot)
             elif (
                 self._decision_sequence <= leave_generation
                 or getattr(snapshot, "turn", 0) < leave_turn
@@ -2929,6 +2777,15 @@ class HengbotPolicy:
                     if snapshot.store.store_type == STORE_HOME
                     else LEAVE_STORE_KEY
                 )
+        elif (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+        ):
+            # Home item selection is never decided in the store loop.  Every
+            # authorized deposit/withdrawal is a complete outside-composed
+            # one-shot; an independently observed Home context is recovery-only.
+            self.last_reason = "home:store-context-exit"
+            key = LEAVE_STORE_KEY
         else:
             key = self._decide(snapshot)
         if (
@@ -2956,21 +2813,6 @@ class HengbotPolicy:
             # Hengband's store command loop rejects the normal rest command.
             # Carriage return is an explicit no-op in the store command loop.
             key = "\r"
-        if (
-            snapshot.store is not None
-            and snapshot.store.store_type == STORE_HOME
-            and key == " "
-            and self.last_reason in HOME_PAGE_ADVANCE_REASONS
-        ):
-            self._home_page_advance_pending = True
-            # Bind the advance to the page it was posted from: only a changed
-            # identity or a positive message proves the next Home snapshot
-            # reflects this SPACE (see the choose_key prologue).
-            self._home_page_advance_from_identity = tuple(
-                (item.name, item.tval, item.sval, item.count)
-                for item in snapshot.store.items
-            )
-            self._home_page_advance_store_none_decisions = 0
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -3235,6 +3077,10 @@ class HengbotPolicy:
 
     def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> None:
         """Consume the complete Home list returned by the emitter's ``~9``."""
+        self._home_knowledge_items = tuple(items)
+        self._home_knowledge_valid_before = len(items)
+        self._home_knowledge_current = True
+        self._home_knowledge_invalidated = False
         self._equipment_catalog.complete_home_scan(items)
         self._home_star_remove_curse_count = sum(
             item.count
@@ -8776,7 +8622,6 @@ class HengbotPolicy:
             elif STORE_HOME in self._town_visit_ledger.blocked_stores:
                 if (
                     self._calibration_home_rearm_eligible
-                    or self._home_address_scan_valid
                 ):
                     # The fresh-entry edge armed this before the blocking
                     # leave.  Consume it once; the raising leave itself cannot
@@ -8876,11 +8721,6 @@ class HengbotPolicy:
         elif self._calibration_phase is not None:
             if STORE_HOME in self._town_visit_ledger.blocked_stores:
                 blocker = "home-visit-blocked"
-            elif (
-                self._calibration_phase == "restore-supplies"
-                and not self._home_address_scan_valid
-            ):
-                blocker = "home-address-scan-incomplete"
         elif self._calibration_blocked_this_visit:
             blocker = "visit-blocked"
         elif self._calibration_restore_signatures:
@@ -8920,8 +8760,6 @@ class HengbotPolicy:
             blocker = "inside-store"
         elif session is None:
             blocker = "no-session"
-        elif self._home_page_advance_pending and session.required_context == "home":
-            blocker = "home-page-advance-pending"
         elif not session.executable:
             blocker = "session-not-executable"
         elif session.pending_action is not None:
@@ -9784,12 +9622,6 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
-        if key == HOME_SCAN_KEY and self._home_scan_prepared:
-            self._home_scan_prepared = False
-            self._home_scan_burst_pending = True
-            if self._store_entry_wait_owner == STORE_HOME:
-                self._store_entry_posted_owner = STORE_HOME
-            return True
         if (
             self._store_entry_wait_owner is not None
             and key == (self._store_entry_wait_key or WAIT_KEY)
@@ -9816,205 +9648,6 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         return committed
-
-    def _finish_home_scan_processing(self) -> None:
-        if not self._home_scan_processing:
-            return
-        observed = self._home_scan_processing_snapshot
-        for page_snapshot in self._home_scan_processing_pages:
-            candidate = self._find_home_candidate(page_snapshot)
-            if candidate is None:
-                continue
-            signature = self._item_signature(candidate)
-            if PACK_CAPACITY - len(page_snapshot.inventory) > HOME_BATCH_RESERVED_SLOTS:
-                self._home_pending_batch.append(signature)
-            else:
-                self._deferred_home_items.add(signature)
-        self._home_processing_seen_pages.clear()
-        self._home_candidate_waiting = False
-        if observed is not None:
-            self._report_town_stop_pass(
-                observed, STORE_HOME,
-                goal_satisfied=self._equipment_catalog.home_scan_complete,
-            )
-        self._home_scan_processing = False
-        self._home_scan_processing_snapshot = None
-        self._home_scan_processing_pages.clear()
-
-    def _short_home_scan(self) -> str:
-        self._home_scan_burst_pending = False
-        self._home_address_pages.clear()
-        self._home_address_ordinals.clear()
-        self._home_address_scan_valid = False
-        self._home_address_page_count = None
-        self._home_scan_burst_short = False
-        self._home_scan_processing = False
-        self._home_scan_processing_snapshot = None
-        self._home_scan_processing_pages.clear()
-        self.last_reason = "home:address-burst-short"
-        return LEAVE_STORE_KEY
-
-    def _home_scan_step(self, snapshot: Snapshot) -> str:
-        """Advance a Home address scan only after the previous page is observed."""
-        store = snapshot.store
-        if store is None or store.store_type != STORE_HOME:
-            return self._short_home_scan()
-        self._store_entry_posted_owner = None
-        self._last_snapshot_was_store = True
-        self._last_snapshot_store_type = STORE_HOME
-        stock_num, page_top, page_size = (
-            store.stock_num, store.page_top, store.page_size,
-        )
-        if (
-            stock_num is None or page_top is None or page_size is None
-            or stock_num < 0 or page_top < 0 or page_size <= 0
-            or page_top % page_size != 0
-            or len(store.items) > page_size
-            or page_top + len(store.items) > stock_num
-        ):
-            return self._short_home_scan()
-        page_count = max(1, (stock_num + page_size - 1) // page_size)
-        expected_top = len(self._home_address_pages) * page_size
-        page = tuple(store.items)
-        if not self._home_address_pages:
-            if page_top != 0:
-                return self._short_home_scan()
-        elif len(self._home_address_pages) == page_count:
-            if page_top != 0:
-                return self._short_home_scan()
-            self._home_scan_burst_snapshots = self._home_scan_burst_snapshots + 1
-            self._home_scan_burst_wrapped = True
-            self._home_scan_burst_pending = False
-            self._home_address_scan_valid = True
-            self._home_address_page_count = page_count
-            self._home_address_ordinals = list(range(page_count))
-            self._finish_home_scan_processing()
-            self.last_reason = "home:processing-complete"
-            self._store_leave_inflight = (
-                self._decision_sequence, getattr(snapshot, "turn", 0), STORE_HOME,
-            )
-            return LEAVE_STORE_KEY
-        elif page_top != expected_top:
-            return self._short_home_scan()
-        self._home_address_pages.append(page)
-        self._home_scan_burst_snapshots = self._home_scan_burst_snapshots + 1
-        if self._home_scan_processing:
-            self._home_processing_seen_pages.add(tuple(
-                (item.letter, item.name, item.tval, item.sval)
-                for item in store.items
-            ))
-            self._home_scan_processing_snapshot = snapshot
-            self._home_scan_processing_pages.append(snapshot)
-        self.last_reason = "home:scan-address-page"
-        return " "
-
-    def consume_home_scan_burst(self, snapshots: list[Snapshot]) -> bool:
-        """Consume ordered scan output; return whether the burst remains open.
-
-        cmd-store.cpp emits a Home snapshot before every store key read.  The
-        burst is therefore the ordered Home snapshots following HOME_SCAN_KEY,
-        delimited by the first non-Home snapshot after its final Escape.
-        """
-        if not self._home_scan_burst_pending:
-            return False
-        expected = 1 + HOME_SCAN_PAGE_FORWARDS  # WAIT, then every SPACE.
-        for snapshot in snapshots:
-            if snapshot.store is None or snapshot.store.store_type != STORE_HOME:
-                self._home_scan_burst_pending = False
-                if (
-                    self._home_scan_burst_snapshots < expected
-                    or not self._home_scan_burst_wrapped
-                ):
-                    self._home_address_pages.clear()
-                    self._home_address_ordinals.clear()
-                    self._home_address_scan_valid = False
-                    self._home_address_page_count = None
-                    self._home_scan_burst_short = True
-                elif self._home_scan_processing:
-                    observed = self._home_scan_processing_snapshot
-                    for page_snapshot in self._home_scan_processing_pages:
-                        candidate = self._find_home_candidate(page_snapshot)
-                        if candidate is None:
-                            continue
-                        signature = self._item_signature(candidate)
-                        if (
-                            PACK_CAPACITY - len(page_snapshot.inventory)
-                            > HOME_BATCH_RESERVED_SLOTS
-                        ):
-                            self._home_pending_batch.append(signature)
-                        else:
-                            self._deferred_home_items.add(signature)
-                    self._home_processing_seen_pages.clear()
-                    self._home_candidate_waiting = False
-                    if observed is not None:
-                        self._report_town_stop_pass(
-                            observed,
-                            STORE_HOME,
-                            goal_satisfied=self._equipment_catalog.home_scan_complete,
-                        )
-                self._home_scan_processing = False
-                self._home_scan_processing_snapshot = None
-                self._home_scan_processing_pages.clear()
-                return False
-            store = snapshot.store
-            metadata = (store.stock_num, store.page_top, store.page_size)
-            if any(value is not None for value in metadata):
-                stock_num, page_top, page_size = metadata
-                page = tuple(store.items)
-                expected_top = (
-                    0
-                    if not self._home_address_pages
-                    or page == self._home_address_pages[0]
-                    else len(self._home_address_pages) * page_size
-                    if page_size is not None
-                    else None
-                )
-                metadata_valid = (
-                    stock_num is not None
-                    and page_top is not None
-                    and page_size is not None
-                    and stock_num >= 0
-                    and page_top >= 0
-                    and page_size > 0
-                    and len(store.items) <= page_size
-                    and page_top + len(store.items) <= stock_num
-                    and page_top == expected_top
-                )
-                if not metadata_valid:
-                    self._home_scan_burst_pending = False
-                    self._home_address_pages.clear()
-                    self._home_address_ordinals.clear()
-                    self._home_address_scan_valid = False
-                    self._home_address_page_count = None
-                    self._home_scan_burst_short = True
-                    return False
-            self._home_scan_burst_snapshots += 1
-            # The first snapshot follows WAIT and repeats the entry page.  The
-            # remaining snapshots correspond one-for-one with the SPACE keys.
-            if self._home_scan_burst_snapshots == 1:
-                page = tuple(snapshot.store.items)
-                self._home_address_pages.append(page)
-                self._home_address_ordinals.append(0)
-                continue
-            page = tuple(snapshot.store.items)
-            if self._home_scan_processing:
-                self._home_processing_seen_pages.add(tuple(
-                    (item.letter, item.name, item.tval, item.sval)
-                    for item in snapshot.store.items
-                ))
-                self._home_scan_processing_snapshot = snapshot
-                self._home_scan_processing_pages.append(snapshot)
-            if page == self._home_address_pages[0]:
-                self._home_scan_burst_wrapped = True
-                self._home_address_scan_valid = True
-                self._home_address_page_count = len(self._home_address_pages)
-                self._home_address_ordinals = list(
-                    range(self._home_address_page_count)
-                )
-                continue
-            if not self._home_scan_burst_wrapped and page not in self._home_address_pages:
-                self._home_address_pages.append(page)
-        return True
 
     def _discard_unposted_equipment_transaction_command(self) -> None:
         self._equipment_transaction_prepared_key = None
@@ -10187,23 +9820,19 @@ class HengbotPolicy:
             return key
 
         if action.kind == "withdraw":
-            if self._home_address_scan_valid:
-                target_observed = any(
-                    item.is_equipment
-                    and equipment_identity(item) == action.item_identity
-                    for page in self._home_address_pages
-                    for item in page
+            target_observed = any(
+                item.is_equipment
+                and equipment_identity(item) == action.item_identity
+                for index, item in enumerate(self._home_knowledge_items)
+                if index < self._home_knowledge_valid_before
+            )
+            if not target_observed:
+                self._block_equipment_transaction(
+                    f"withdraw-item-missing:{action.item_id}"
                 )
-                if not target_observed:
-                    self._block_equipment_transaction(
-                        f"withdraw-item-missing:{action.item_id}"
-                    )
-                    self.last_reason = "equipment-transaction:withdraw-missing"
-                    return LEAVE_STORE_KEY
-                self.last_reason = "equipment-transaction:leave-for-atomic-withdraw"
+                self.last_reason = "equipment-transaction:withdraw-missing"
                 return LEAVE_STORE_KEY
-            self._home_address_restart_required = True
-            self.last_reason = "home:restart-address-scan"
+            self.last_reason = "equipment-transaction:leave-for-atomic-withdraw"
             return LEAVE_STORE_KEY
 
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
@@ -10218,15 +9847,6 @@ class HengbotPolicy:
         session = self._equipment_transaction_session
         if session is None:
             return None
-        if (
-            self._home_page_advance_pending
-            and session.required_context == "home"
-        ):
-            # The JSON stream can interleave a surface snapshot between the
-            # SPACE command and the resulting Home page snapshot.  Do not walk
-            # away from the entrance or reset the page search during that gap.
-            self.last_reason = "equipment-transaction:await-home-page"
-            return WAIT_KEY
         if not session.executable:
             self._abandon_blocked_equipment_transaction()
             self.last_reason = "equipment-transaction:abandon-blocked"
@@ -11294,41 +10914,20 @@ class HengbotPolicy:
         )
         if not withdrawal_requested:
             return None
-        if not self._home_address_scan_valid:
-            self._home_address_pages.clear()
-            self._home_address_ordinals.clear()
-            self._home_address_page_count = None
-            self._home_address_scan_valid = False
-            self._home_scan_burst_snapshots = 0
-            self._home_scan_burst_wrapped = False
-            self._home_scan_burst_short = False
-            self._home_scan_processing = False
-            self._home_scan_processing_snapshot = None
-            self._home_scan_processing_pages.clear()
-            self._home_scan_prepared = True
-            self._store_entry_wait_owner = STORE_HOME
-            self._store_entry_wait_key = HOME_SCAN_KEY
-            self.last_reason = "home:scan-address-burst"
-            return HOME_SCAN_KEY
+        if not self._home_knowledge_current:
+            self.last_reason = "home:await-fresh-knowledge"
+            return None
+        if not self._home_page_size:
+            self.last_reason = "home:await-page-size"
+            return None
 
         signature: tuple[str, int, int] | None = None
         quantity: int | None = None
         reason = "home:atomic-withdraw"
-        page_count = self._home_address_page_count
-        if (
-            page_count is None
-            or page_count != len(self._home_address_pages)
-            or self._home_address_ordinals != list(range(page_count))
-        ):
-            self.last_reason = "home:atomic-withdraw-address-invalid"
-            self._defer_unobserved_home_withdrawal()
-            return LEAVE_STORE_KEY
         address_slots = tuple(
-            (page, item)
-            for page, items in zip(
-                self._home_address_ordinals, self._home_address_pages
-            )
-            for item in items
+            (index, item)
+            for index, item in enumerate(self._home_knowledge_items)
+            if index < self._home_knowledge_valid_before
         )
         observed_signatures = {self._item_signature(item) for _, item in address_slots}
         for restore_signature in self._calibration_restore_signatures:
@@ -11345,8 +10944,8 @@ class HengbotPolicy:
         if signature is None and action is not None and action.kind == "withdraw":
             transaction_slot = next(
                 (
-                    (page, item)
-                    for page, item in address_slots
+                    (index, item)
+                    for index, item in address_slots
                     if item.is_equipment
                     and equipment_identity(item) == action.item_identity
                 ),
@@ -11361,8 +10960,8 @@ class HengbotPolicy:
             return LEAVE_STORE_KEY
         selected = next(
             (
-                (page, item)
-                for page, item in address_slots
+                (index, item)
+                for index, item in reversed(address_slots)
                 if self._item_signature(item) == signature
                 and (
                     action is None
@@ -11376,12 +10975,13 @@ class HengbotPolicy:
             self.last_reason = "home:atomic-withdraw-slot-unobserved"
             self._defer_unobserved_home_withdrawal(signature)
             return LEAVE_STORE_KEY
-        page, item = selected
-        if page < 0 or page >= page_count:
-            self.last_reason = "home:atomic-withdraw-address-invalid"
-            self._defer_unobserved_home_withdrawal(signature)
-            return LEAVE_STORE_KEY
-        letter = item.letter
+        index, item = selected
+        page, page_pos = divmod(index, self._home_page_size)
+        letter = (
+            chr(ord("a") + page_pos)
+            if page_pos < 26
+            else chr(ord("A") + page_pos - 26)
+        )
         if signature in self._calibration_restore_signatures:
             quantity = item.count
         if not letter or len(letter) != 1:
@@ -11445,7 +11045,9 @@ class HengbotPolicy:
             len(snapshot.inventory),
             self._inventory_signature_count(snapshot, signature),
         )
-        self._invalidate_home_observation()
+        # Removing index i shifts only later slots.  All earlier indices remain
+        # valid, permitting a whole strictly-descending batch from one ~9 read.
+        self._home_knowledge_valid_before = index
         self.last_reason = reason
         return key
 
@@ -11487,17 +11089,10 @@ class HengbotPolicy:
         ``invalidate_home`` so the next outside-town decision reacquires it
         through ``~9``.  No address survives this method.
         """
-        self._home_scan_prepared = False
-        self._home_scan_burst_pending = False
-        self._home_scan_burst_snapshots = 0
-        self._home_scan_burst_wrapped = False
-        self._home_scan_processing = False
-        self._home_scan_processing_snapshot = None
-        self._home_scan_processing_pages.clear()
-        self._home_address_pages.clear()
-        self._home_address_ordinals.clear()
-        self._home_address_scan_valid = False
-        self._home_address_page_count = None
+        self._home_knowledge_items = ()
+        self._home_knowledge_valid_before = 0
+        self._home_knowledge_current = False
+        self._home_knowledge_invalidated = True
         self._home_processing_seen_pages.clear()
         self._home_star_remove_curse_count = None
         self._home_knowledge_scan_requested = False
@@ -14387,11 +13982,6 @@ class HengbotPolicy:
                 >= TOWN_STOP_PASS_LIMIT
                 else food_store
             )
-        if (
-            self._home_address_restart_required
-            and self._home_pending_item is not None
-        ):
-            return STORE_HOME
         opening_q34 = self._opening_q34_torch_shortage(snapshot) > 0
         if opening_q34 and self._fundraising_mode in {
             "prepare", "mine", "scavenge"
@@ -17285,30 +16875,6 @@ class HengbotPolicy:
             if self._home_atomic_withdraw_pending is not None:
                 self.last_reason = "home:leave-after-one-operation"
                 return LEAVE_STORE_KEY
-            if self._home_address_restart_required:
-                self.last_reason = "home:restart-address-scan"
-                return LEAVE_STORE_KEY
-            if (
-                self._home_pending_item is not None
-                and (
-                    self._home_withdrawal_queued
-                    or self._pending_inventory_item(snapshot) is None
-                )
-                and not self._home_address_scan_valid
-            ):
-                self._home_address_restart_required = True
-                self.last_reason = "home:restart-address-scan"
-                return LEAVE_STORE_KEY
-            if (
-                self._home_pending_item is not None
-                and (
-                    self._home_withdrawal_queued
-                    or self._pending_inventory_item(snapshot) is None
-                )
-                and self._home_address_scan_valid
-            ):
-                self.last_reason = "home:leave-for-atomic-withdraw"
-                return LEAVE_STORE_KEY
 
             # Prefer owned Identify charges to buying another staff.  Once the
             # carried departure reserve is ready, drain legacy Home hoards one
@@ -17674,36 +17240,6 @@ class HengbotPolicy:
                 (item.letter, item.name, item.tval, item.sval)
                 for item in store.items
             )
-            if (
-                self._home_address_scan_valid
-                and not self._equipment_catalog.home_scan_complete
-            ):
-                # Address wrap and catalog wrap are proved by the same ordered
-                # burst.  Accepting only one is an interrupted-scan state, not
-                # provenance for a withdrawal.
-                self._home_address_pages.clear()
-                self._home_address_ordinals.clear()
-                self._home_address_scan_valid = False
-                self._home_address_page_count = None
-                self.last_reason = "home:processing-address-incomplete"
-                return LEAVE_STORE_KEY
-            if page not in self._home_processing_seen_pages:
-                self._home_candidate_waiting = True
-                self._home_address_pages.clear()
-                self._home_address_ordinals.clear()
-                self._home_address_page_count = None
-                self._home_address_scan_valid = False
-                self._home_scan_burst_snapshots = 0
-                self._home_scan_burst_wrapped = False
-                self._home_scan_burst_short = False
-                self._home_scan_processing = True
-                self._home_scan_processing_snapshot = snapshot
-                self._home_scan_processing_pages.clear()
-                self._home_scan_prepared = True
-                self.last_reason = "home:scan-processing-burst"
-                self._home_scan_prepared = False
-                self._home_scan_burst_pending = True
-                return self._home_scan_step(snapshot)
 
             self._home_processing_seen_pages.clear()
             self._home_candidate_waiting = False
@@ -18006,14 +17542,6 @@ class HengbotPolicy:
         )
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and here.store_number == store_type:
-            if store_type == STORE_HOME and self._home_page_advance_pending:
-                # Home page turns can emit an interleaved surface snapshot
-                # before the next store-page snapshot.  This is still the
-                # in-flight page advance, not a completed Home visit.  Waiting
-                # on the entrance lets the queued page turn (or direct re-entry
-                # on a one-page Home) finish without the periodic step-off /
-                # step-back movement around Home.
-                return snapshot.player.position
             pending_store_transaction = (
                 self._town_visit_ledger.pending_store_transaction
             )

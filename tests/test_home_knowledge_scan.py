@@ -1,4 +1,5 @@
 import json
+import inspect
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -116,52 +117,11 @@ def home_digger_response() -> dict:
 
 class HomeKnowledgeScanTest(unittest.TestCase):
     def test_public_deposit_preserves_catalogue_or_incomplete_work_requests_it(self):
-        policy = HengbotPolicy()
-        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins at the protocol-owned knowledge response whose mutation handling is the subject
-        policy._home_knowledge_scan_inflight = True
-        _dispatch_response_lines(
-            [json.dumps(home_response())], policy, Mock(return_value=True)
-        )
-        deposited = InventoryItem(
-            slot="q", name="Deposited Flail", count=1, tval=23, sval=4,
-            aware=True, known=True, fully_known=True, is_equipment=True,
-        )
-
-        policy._equipment_catalog.record_home_deposit(
-            deposited, intent=(542954, "q", "measured-deposit")
-        )
-        policy._invalidate_home_observation()
-
-        self.assertTrue(
-            policy._equipment_catalog.home_scan_complete,
-            "home-scan-incomplete persisted after a proven Home deposit",
-        )
-        self.assertEqual(
-            [owned.item.name for owned in policy._equipment_catalog.items],
-            ["Long Sword", "Deposited Flail"],
-        )
-        self.assertFalse(policy._home_address_scan_valid)
-
-        # If the operation cannot prove the contents, the same public decision
-        # must reacquire them even while equipment work and a Home route exist.
-        policy._equipment_catalog.invalidate_home()
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("home-scan-incomplete",), result=None
-        )
-        policy._shopping_approach_store_type = STORE_HOME
-        snapshot = town_with_home()
-        snapshot = Snapshot(
-            snapshot.player,
-            {snapshot.player.position: snapshot.grids[snapshot.player.position]},
-            [],
-            turn=snapshot.turn,
-            town_flag=True,
-        )
-
-        self.assertTrue(policy._outstanding_equipment_work())
-        self.assertEqual(policy.choose_key(snapshot), "~9")
-        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_plain_town_requests_home_knowledge_before_any_home_visit(self):
         policy = HengbotPolicy()
 

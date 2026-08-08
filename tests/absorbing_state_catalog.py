@@ -23,7 +23,6 @@ from hengbot.model import STORE_ALCHEMIST, STORE_HOME, TVAL_POTION
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import (
     CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
-    HOME_SCAN_KEY, HOME_SCAN_PAGE_FORWARDS,
 )
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
 
@@ -72,6 +71,7 @@ class TownWorld:
         self.last_key = ""
         self.turn = snapshot.turn
         self.pending_events = []
+        self.pending_home_knowledge = False
         self.pending_home_scan_snapshots = []
         self.character_events_delivered = 0
 
@@ -112,6 +112,9 @@ class TownWorld:
             return
         if key.startswith("R") and key.endswith("\r") and key[1:-1].isdigit():
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN * int(key[1:-1])
+            return
+        if key == "~9":
+            self.pending_home_knowledge = True
             return
         if self.inside:
             if key == LEAVE_STORE_KEY:
@@ -185,9 +188,9 @@ class TownWorld:
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN
 
     def deliver_events(self, policy):
-        if self.pending_home_scan_snapshots:
-            policy.consume_home_scan_burst(self.pending_home_scan_snapshots)
-            self.pending_home_scan_snapshots.clear()
+        if self.pending_home_knowledge:
+            policy.consume_home_knowledge(tuple(self.stock))
+            self.pending_home_knowledge = False
         for character in self.pending_events:
             policy.observe_character_snapshot(character)
             self.character_events_delivered += 1
@@ -319,7 +322,7 @@ def _doubled_store_entry_cycle():
         def __init__(self, snapshot):
             super().__init__(snapshot, stock=[target])
             self.invalid_store_entries = 0
-            self.expected_terminal_reason = "home:scan-catalog-page"
+            self.expected_terminal_reason = "home:request-knowledge-scan"
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -363,7 +366,7 @@ def _lagged_successful_store_entry():
         def __init__(self, snapshot):
             super().__init__(snapshot, stock=[target])
             self.invalid_store_entries = 0
-            self.expected_terminal_reason = "home:scan-catalog-page"
+            self.expected_terminal_reason = "home:request-knowledge-scan"
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -506,14 +509,6 @@ def _version_discard(*, swallow=False):
     return policy, world
 
 
-def _page_recurrence():
-    return _version_discard(swallow=False)
-
-
-def _page_zero_echo():
-    return _version_discard(swallow=True)
-
-
 def _home_entry_cycle():
     helper = fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
@@ -579,11 +574,8 @@ def _released_bound():
     policy._calibration_phase = "restore-supplies"
     policy._calibration_restore_signatures = [signature]
     policy._home_candidate_waiting = True
-    # TEST_FAKERY_LINT_ALLOW: private-state-injected: catalogue seed reconstructs the measured persisted address state, while drive outcomes remain public
-    policy._home_address_pages = [(target,)]
-    policy._home_address_ordinals = [0]
-    policy._home_address_page_count = 1
-    policy._home_address_scan_valid = True
+    policy.consume_home_knowledge((target,))
+    policy._home_page_size = 52
     policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
     policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
@@ -591,73 +583,6 @@ def _released_bound():
     return policy, TownWorld(
         surface,
         passable_positions={surface.player.position, entrance.player.position},
-    )
-
-
-def _verified_three_page_home_address_scan():
-    """The live 105-item Home must expose page three before withdrawal."""
-    helper = fixture.HomeOneOperationPerEntryTest()
-    policy = HengbotPolicy()
-    pack = helper._real_pack()
-    entrance = replace(
-        helper._entrance_snapshot(pack, turn=3205000),
-        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
-    )
-    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    stock = [
-        fixture.store_item(
-            letters[n % 52], TVAL_POTION, 3950 + n,
-            name=f"verified address {n}",
-        )
-        for n in range(105)
-    ]
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(stock[-1])]
-    policy._home_candidate_waiting = True
-    return policy, TownWorld(
-        entrance, stock=stock, page_size=52,
-        passable_positions={entrance.player.position},
-    )
-
-
-def _calibration_rearm_cycle():
-    """A swallowed Home page cannot turn one fresh-entry proof into a loop."""
-    helper = fixture.HomeOneOperationPerEntryTest()
-    policy = HengbotPolicy()
-    pack = helper._real_pack()
-    entrance = helper._entrance_snapshot(pack, turn=3210000)
-    surface = replace(
-        entrance,
-        player=replace(entrance.player, position=Position(45, 122)),
-        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
-    )
-    stock = [
-        fixture.store_item(
-            chr(ord("a") + n % 12), TVAL_POTION, 4100 + n,
-            name=f"rearm catalogue {n}",
-        )
-        for n in range(60)
-    ]
-    home = replace(
-        helper._home_page_snapshot(pack, stock[:12], turn=3210000),
-        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
-    )
-    target = stock[-1]
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(target)]
-    policy._home_candidate_waiting = True
-    policy._home_address_scan_valid = False
-    policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
-    policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
-    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
-    policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
-    policy._town_store_attempted[STORE_HOME] = surface.turn - 1
-    entry_world = TownWorld(
-        home, stock=stock, swallow_space=True, version_reply=True
-    )
-    entry_world.apply(policy.choose_key(entry_world.snapshot(0)))
-    return policy, TownWorld(
-        surface, stock=stock, swallow_space=True, version_reply=True
     )
 
 
@@ -719,42 +644,6 @@ def _plan_none_live_calibration_home_available():
     policy._town_blocked_reason = "repetition"
     policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 16
     return policy, TownWorld(snap)
-
-
-def _identify_staff_reserve_queue_cycle():
-    """A live surplus queue must survive the surface composer decision."""
-    helper = fixture.HomeOneOperationPerEntryTest()
-    policy = HengbotPolicy()
-    pack = helper._real_pack()
-    entrance = replace(
-        helper._entrance_snapshot(pack, turn=3220000),
-        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
-    )
-    staff = fixture.store_item(
-        "a", policy_module.TVAL_STAFF, policy_module.SV_STAFF_IDENTIFY,
-        name="Staff of Identify", charges=14,
-    )
-    entrance = replace(
-        entrance,
-        inventory=[
-            *pack,
-            fixture.item(
-                "s", policy_module.TVAL_STAFF,
-                policy_module.SV_STAFF_IDENTIFY,
-                name="Staff of Identify", charges=25,
-            ),
-        ],
-        store=StoreState(STORE_HOME, [staff]),
-    )
-    policy._deepest_level = policy_module.STAFF_IDENTIFY_MIN_DEPTH
-    policy._shopping_approach_store_type = STORE_HOME
-    policy._equipment_optimization_preparation = SimpleNamespace(
-        blockers=("home-scan-incomplete",), result=None,
-    )
-    policy._home_address_scan_valid = False
-    return policy, TownWorld(
-        entrance, stock=[staff], single_page_message=HOME_PAGE_SINGLE_PAGE_MESSAGES[0]
-    )
 
 
 def _calibration_prerequisite_scan_bound():
@@ -1031,25 +920,14 @@ SEEDED_STATES = (
         _catalogue_invalidated_with_equipment_work,
     ),
     AbsorbingState("home-blocked-departure", 300, _departure_freeze),
-    AbsorbingState("home-page-recurrence", 400, _page_recurrence),
-    AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
     AbsorbingState("released-home-attempt-bound", 800, _released_bound),
-    AbsorbingState(
-        "verified-three-page-home-address-scan", 100,
-        _verified_three_page_home_address_scan,
-    ),
-    AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
     AbsorbingState(
         "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget
     ),
     AbsorbingState(
         "plan-none-live-calibration-home-available", 300,
         _plan_none_live_calibration_home_available,
-    ),
-    AbsorbingState(
-        "identify-staff-reserve-queue-cycle", 40,
-        _identify_staff_reserve_queue_cycle,
     ),
     AbsorbingState(
         "calibration-prerequisite-scan-bound", 1000,

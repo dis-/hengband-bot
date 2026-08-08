@@ -1603,7 +1603,7 @@ class StallRecoveryTest(unittest.TestCase):
         )
         self.assertEqual(_command_response_grace("dj\r", "home:deposit"), 0.0)
         self.assertEqual(
-            _command_response_grace(" ", "home:scan-catalog-page"), 0.0
+            _command_response_grace("5  pc\x1b", "home:atomic-withdraw"), 0.0
         )
 
     def test_partial_snapshot_bytes_refresh_emitter_activity(self):

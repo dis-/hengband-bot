@@ -1737,7 +1737,7 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                 needs_ordered_snapshots = (
                     home_entry_capture is not None
                     and home_entry_capture.pending is not None
-                ) or getattr(policy, "_home_scan_burst_pending", False)
+                )
                 ordered_snapshot_entries = (
                     _snapshot_entries_in_order(complete_lines, monrace_knowledge)
                     if needs_ordered_snapshots
@@ -1746,17 +1746,6 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                 _observe_home_entry_capture(
                     home_entry_capture, ordered_snapshot_entries
                 )
-                if getattr(policy, "_home_scan_burst_pending", False):
-                    # This is the sole exception to newest-board collapsing:
-                    # cmd-store.cpp emits one ordered store snapshot per key in
-                    # the atomic Home scan.  Observe all of them, make no
-                    # intermediate decisions, and resume only after Escape's
-                    # first non-Home snapshot delimits the burst.
-                    burst_open = policy.consume_home_scan_burst(
-                        ordered_snapshot_entries
-                    )
-                    if burst_open:
-                        continue
                 # Act ONLY on the newest complete snapshot in this batch. The game
                 # emits a snapshot then blocks on request_command, so the file's
                 # newest line is ALWAYS the current board the game is waiting on;

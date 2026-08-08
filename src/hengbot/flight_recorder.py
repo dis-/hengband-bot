@@ -146,8 +146,9 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_equipment_quarantine_readmitted_ids",
         "_equipment_quarantine_second_chance_ids",
         "_equipment_quarantine_burned_ids",
-        "_home_page_advance_pending",
-        "_home_page_advance_from_identity",
+        "_home_knowledge_current",
+        "_home_knowledge_valid_before",
+        "_home_page_size",
     )
     # Include every simple mode/latch/counter as cheap insurance against a field
     # omitted from a hand-maintained diagnostic list.

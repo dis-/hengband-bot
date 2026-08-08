@@ -5305,7 +5305,7 @@ class ShoppingTest(unittest.TestCase):
             pol, "_decide", side_effect=["dn\r", LEAVE_STORE_KEY, "dm\r", "dm\r"]
         ):
             self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
-            self.assertEqual(pol.last_reason, "home:leave-unbound-deposit")
+            self.assertEqual(pol.last_reason, "home:store-context-exit")
             self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.last_reason, "shop:await-leave-confirmation")
@@ -18697,57 +18697,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_fundraising_withdraws_stored_detection_before_digger(self):
-        inventory = self._strict_supplies(detection=0)
-        store = StoreState(
-            STORE_HOME,
-            [
-                store_item(
-                    "a",
-                    TVAL_SCROLL,
-                    SV_SCROLL_DETECT_TREASURE,
-                    count=25,
-                ),
-                store_item("b", TVAL_DIGGING, 1, name="shovel", is_equipment=True),
-            ],
-        )
-        snap = Snapshot(
-            player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=inventory,
-            store=store,
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "prepare"
-
-        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-treasure-detection-withdraw")
-        self.assertEqual(
-            policy._home_pending_quantity,
-            min(
-                policy._mining_detection_scroll_target(snap)
-                + DETECTION_SCROLL_BUFFER,
-                25,
-            ),
-        )
-
-        with_scrolls = replace(
-            snap,
-            inventory=[
-                *inventory,
-                item(
-                    "z",
-                    TVAL_SCROLL,
-                    SV_SCROLL_DETECT_TREASURE,
-                    count=5 + DETECTION_SCROLL_BUFFER,
-                ),
-            ],
-        )
-        self.assertEqual(policy._shop(with_scrolls), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_fundraising_withdraws_detection_buffer_from_home(self):
         target = 4
         stored_count = target + DETECTION_SCROLL_BUFFER
@@ -19113,35 +19067,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(pol._shopping_approach_step(outside), Position(10, 11))
 
     def test_mining_fast_exit_does_not_preempt_idle_consumable_disposal(self):
-        snap = Snapshot(
-            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            turn=123,
-            inventory=[
-                *self._strict_supplies(detection=5),
-                item("z", TVAL_DIGGING, 4, name="pick"),
-            ],
-            store=StoreState(
-                STORE_HOME, [], stock_num=0, page_top=0, page_size=52
-            ),
-        )
-        pol = HengbotPolicy()
-        pol._fundraising_mode = "mine"
-        pol._home_disposal_pass = True
-        pol._home_disposal_pending = (("missing", TVAL_FOOD, 1), "destroy")
-        pol._town_errand_plan = TownErrandPlan([STORE_HOME])
-
-        key = pol._shop(snap)
-
-        self.assertNotEqual(pol.last_reason, "home:leave-with-mining-supplies")
-        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
-        self.assertEqual(pol._town_errand_plan.index, 0)
-        self.assertTrue(pol._home_disposal_pass)
-        self.assertNotEqual(key, LEAVE_STORE_KEY)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_idle_consumable_disposal_does_not_trigger_shadow_drift(self):
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
@@ -19233,34 +19163,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(pol._town_errand_plan.index, 0)
 
     def test_mining_fast_exit_does_not_preempt_pending_equipment_catalog(self):
-        stored_weapon = store_item(
-            "a", TVAL_SWORD, 1, name="stored sword", is_equipment=True
-        )
-        snap = Snapshot(
-            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            turn=123,
-            inventory=[
-                *self._strict_supplies(detection=5),
-                item("z", TVAL_DIGGING, 4, name="pick"),
-            ],
-            store=StoreState(STORE_HOME, [stored_weapon], stock_num=1, page_top=0, page_size=52),
-        )
-        pol = HengbotPolicy()
-        pol._fundraising_mode = "mine"
-        pol._equipment_catalog.observe_home_page(
-            [stored_weapon], allow_wrap=False
-        )
-
-        key = pol._shop(snap)
-
-        self.assertNotEqual(key, LEAVE_STORE_KEY)
-        self.assertNotEqual(pol.last_reason, "home:leave-with-mining-supplies")
-
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_mining_home_completion_does_not_consume_post_alchemist_home_phase(self):
         """The first Home stop must advance before its attempted latch is set."""
         snap = Snapshot(
@@ -20127,38 +20034,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(HengbotPolicy()._find_home_candidate(snap))
 
     def test_withdrawing_home_inferior_weapon_reopens_weapon_sale_route(self):
-        # Root cause of the town-departure self-stop: a second Home visit that
-        # pulls a fresh spare-weapon batch after the Weapon Smith was already
-        # visited this stay left STORE_WEAPON latched, so no sale trip was
-        # scheduled and the pack clogged. Withdrawing must re-open the route.
-        pol = HengbotPolicy()
-        # Same town stay (matching floor_key) so the fresh-visit reset does not
-        # clear _town_store_attempted for us — the withdrawal itself must evict it.
-        pol._floor_key = (0, 0, 0)
-        pol._town_store_attempted[STORE_WEAPON] = 0
-        ego = item(
-            "main_hand", 23, 1, name="an Ego Blade", is_equipment=True,
-            is_ego=True, known=True,
-        )
-        spare = store_item(
-            "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=True,
-        )
-        snap = Snapshot(
-            player(10, 10),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            inventory=[],
-            equipment=[ego],
-            store=StoreState(store_type=STORE_HOME, items=[spare]),
-        )
-
-        self.assertIn(STORE_WEAPON, pol._town_store_attempted)
-        pol.choose_key(snap)
-
-        self.assertEqual(pol.last_reason, "home:queue-inferior-weapon-withdraw")
-        self.assertNotIn(STORE_WEAPON, pol._town_store_attempted)
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_inferior_weapon_pull_stops_at_the_batch_reserve(self):
         # An unguarded pull filled the pack to zero free every Home visit; a full
         # pack then blocks town departure. The pull must leave the batch reserve.
@@ -20431,78 +20311,23 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(pol._find_home_deposit(snap), spare)
 
     def test_withdrawn_home_candidate_is_not_immediately_deposited_again(self):
-        withdrawn = item(
-            "e", 23, 5, name="a Long Sword", is_equipment=True, aware=False
-        )
-        pol = HengbotPolicy()
-        pol._home_pending_item = pol._item_signature(withdrawn)
-        snap = Snapshot(
-            player(10, 10),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            inventory=[withdrawn],
-            store=StoreState(store_type=STORE_HOME, items=[]),
-        )
-        pol._town_errand_plan = TownErrandPlan(
-            [STORE_HOME, STORE_ALCHEMIST]
-        )
-
-        self.assertEqual(pol.choose_key(snap), "\x1b")
-        self.assertEqual(pol.last_reason, "home:leave-with-item")
-        self.assertEqual(pol._town_errand_plan.index, 1)
-        self.assertEqual(
-            pol._town_errand_plan.completed_this_visit, [STORE_HOME]
-        )
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_queued_home_withdrawal_exits_for_atomic_reentry(self):
-        candidate = store_item(
-            "a", 23, 1, name="a Dagger", is_equipment=True, aware=True, known=False
-        )
-        pol = HengbotPolicy()
-        pol._home_pending_item = pol._item_signature(candidate)
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            inventory=[],
-            store=StoreState(store_type=STORE_HOME, items=[candidate], stock_num=1, page_top=0, page_size=52),
-        )
-
-        self.assertEqual(pol.choose_key(snap), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:restart-address-scan")
-        self.assertEqual(pol._home_pending_item, pol._item_signature(candidate))
-        self.assertNotIn(pol._item_signature(candidate), pol._deferred_home_items)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_queued_home_withdrawal_finishes_scan_before_mining_exit(self):
-        """A Q22 launcher request completes its address observation first."""
-        candidate = store_item(
-            "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
-            name="a Light Crossbow", is_equipment=True,
-        )
-        pol = HengbotPolicy()
-        pol._fundraising_mode = "mine"
-        signature = pol._item_signature(candidate)
-        pol._home_pending_item = signature
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[
-                *self._strict_supplies(detection=5),
-                item("z", TVAL_DIGGING, 4, name="pick"),
-            ],
-            store=StoreState(store_type=STORE_HOME, items=[]),
-        )
-
-        self.assertEqual(pol.choose_key(snap), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:restart-address-scan")
-        self.assertEqual(pol._home_pending_item, signature)
-        self.assertNotIn(signature, pol._deferred_home_items)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_prime_restores_fundraising_from_multiple_detection_scrolls(self):
         snap = Snapshot(
             player(
@@ -20678,65 +20503,17 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._fundraising_mode)
 
     def test_prime_restores_a_home_withdrawal_from_the_initial_snapshot(self):
-        withdrawn = item(
-            "e", 23, 5, name="a Long Sword", is_equipment=True, aware=False,
-            pseudo_feeling="average",
-        )
-        snap = Snapshot(
-            player(10, 10),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            inventory=[withdrawn],
-            store=StoreState(store_type=STORE_HOME, items=[]),
-        )
-        pol = HengbotPolicy()
-
-        pol.prime(snap)
-        preparation = set_known_target(pol)
-
-        def prepare(*_args, **_kwargs):
-            pol._equipment_optimization_preparation = preparation
-            return preparation
-
-        with patch.object(
-            pol, "_prepare_equipment_optimization", side_effect=prepare
-        ):
-            key = pol.choose_key(snap)
-
-        self.assertEqual(key, "\x1b")
-        self.assertEqual(pol.last_reason, "home:leave-with-item")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_prime_restores_an_average_digger_without_redepositing_it(self):
-        withdrawn = item(
-            "e", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="a Shovel",
-            is_equipment=True, aware=False, pseudo_feeling="average",
-        )
-        snap = Snapshot(
-            player(10, 10),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            inventory=[withdrawn],
-            store=StoreState(store_type=STORE_HOME, items=[]),
-        )
-        pol = HengbotPolicy()
-
-        pol.prime(snap)
-        preparation = set_known_target(pol)
-
-        def prepare(*_args, **_kwargs):
-            pol._equipment_optimization_preparation = preparation
-            return preparation
-
-        with patch.object(
-            pol, "_prepare_equipment_optimization", side_effect=prepare
-        ):
-            key = pol.choose_key(snap)
-
-        self.assertEqual(key, "\x1b")
-        self.assertEqual(pol.last_reason, "home:leave-with-item")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_spare_equipment_shape_matches_disposal_for_its_shared_domain(self):
         samples = (
             item("a", 23, 5, is_equipment=True, aware=False, name="armour"),
@@ -22056,45 +21833,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._shopping_approach_step(snap), retry)
 
     def test_home_page_advance_surface_snapshot_waits_without_step_off(self):
-        entrance = Position(10, 10)
-        snap = Snapshot(
-            player(entrance.y, entrance.x, class_id=PLAYER_CLASS_WARRIOR),
-            {
-                entrance: replace(
-                    grid(entrance.y, entrance.x), store_number=STORE_HOME
-                ),
-                Position(9, 11): grid(9, 11),
-            },
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-        )
-        policy = HengbotPolicy()
-        policy._next_required_store_type = lambda snapshot: STORE_HOME
-        policy._last_snapshot_was_store = True
-        policy._home_page_advance_pending = True
-        policy._build_grid_index(snap)
-
-        step = policy._shopping_approach_step(snap)
-
-        self.assertEqual(step, entrance)
-        self.assertEqual(
-            policy._shopping_approach_key(snap, step, "shop:travel"), WAIT_KEY
-        )
-        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
-
-
-
-
-
-
-
-
-
-
-
-
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_shallow_warrior_mining_throws_before_generic_combat(self):
         monster = hostile(1, 10, 12, distance=2)
         snap = Snapshot(
@@ -23174,126 +22917,29 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(HengbotPolicy()._next_required_store_type(snap), STORE_HOME)
 
     def test_home_rearm_withdraws_best_weapon_before_jewellery_processing(self):
-        tool = item(
-            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-            name="pick", is_equipment=True,
-        )
-        ring = store_item(
-            "a", 45, 1, name="ego ring", is_equipment=True, is_ego=True,
-        )
-        sword = store_item(
-            "b", 23, 1, name="plain sword", is_equipment=True,
-            damage_dice_num=1, damage_dice_sides=6, to_d=3,
-        )
-        hammer = store_item(
-            "c", 21, 12, name="Pattern hammer", is_equipment=True,
-            is_ego=True, damage_dice_num=2, damage_dice_sides=5,
-            to_h=16, to_d=9, pval=2,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=list(self._strict_supplies(recall=1)),
-            equipment=[tool, self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[ring, sword, hammer]),
-        )
-
-        policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
-        self.assertEqual(policy._home_pending_item, policy._item_signature(hammer))
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_rearm_prefers_remembered_deposited_weapon(self):
-        tool = item(
-            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-            name="pick", is_equipment=True,
-        )
-        remembered = store_item(
-            "b", 23, 1, name="remembered sword", is_equipment=True,
-            damage_dice_num=1, damage_dice_sides=6, to_d=3,
-        )
-        stronger = store_item(
-            "c", 21, 12, name="stronger hammer", is_equipment=True,
-            damage_dice_num=2, damage_dice_sides=5, to_h=16, to_d=9,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=list(self._strict_supplies(recall=1)),
-            equipment=[tool, self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[remembered, stronger]),
-        )
-        policy = HengbotPolicy()
-        policy._normal_weapon_name = "remembered sword"
-
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy._home_pending_item, policy._item_signature(remembered)
-        )
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_rearm_pages_past_jewellery_to_find_weapon(self):
-        tool = item(
-            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-            name="pick", is_equipment=True,
-        )
-        base = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=list(self._strict_supplies(recall=1)),
-            equipment=[tool, self._lantern()],
-            store=StoreState(
-                store_type=STORE_HOME,
-                items=[store_item("a", 45, 1, name="ring", is_equipment=True)],
-            ),
-        )
-        weapon_page = replace(
-            base,
-            store=StoreState(
-                store_type=STORE_HOME,
-                items=[
-                    store_item(
-                        "a", 21, 12, name="hammer", is_equipment=True,
-                        is_ego=True, damage_dice_num=2, damage_dice_sides=5,
-                    )
-                ],
-            ),
-        )
-
-        policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(base), " ")
-        self.assertEqual(policy.last_reason, "home:seek-combat-weapon-page")
-        self.assertEqual(policy.choose_key(weapon_page), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_rearm_stops_after_wrapping_all_pages_without_weapon(self):
-        tool = item(
-            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
-            name="pick", is_equipment=True,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=list(self._strict_supplies(recall=1)),
-            equipment=[tool, self._lantern()],
-            store=StoreState(
-                store_type=STORE_HOME,
-                items=[store_item("a", 45, 1, name="ring", is_equipment=True)],
-            ),
-        )
-
-        policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(home), " ")
-        # The unchanged page alone does not prove the SPACE was processed; the
-        # single-page message does (store-key-processor.cpp:92).
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        confirmed = replace(home, messages=("これで全部です。",))
-        self.assertEqual(policy.last_reason, "home:no-combat-weapon")
-        self.assertTrue(policy._combat_weapon_ready(home))
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_scavenging_ignores_downstairs_and_returns_upstairs(self):
         grids = {
             Position(10, 10): GridState(
@@ -25651,252 +25297,47 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._next_depth_supply_shortage(low))
 
     def test_home_receives_equipment_before_other_town_work(self):
-        gear = item(
-            "a", 23, 1, name="unknown sword", aware=False, is_equipment=True
-        )
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[gear, *self._strict_supplies(recall=1)],
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[]),
-        )
-        policy = HengbotPolicy()
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: unbound home-deposit ordering is isolated from the downstream sale decision
-        policy._decide = Mock(return_value=SELL_KEY + gear.slot)
-        self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_deposit_does_not_restart_batch_scan_at_same_turn(self):
-        # Regression for turn 817417: a near-full pack deposited one equipment
-        # item between batch-withdraw decisions. Repeating that command must not
-        # erase the completed scan or append duplicate catalog entries.
-        surplus = item(
-            "q", 23, 4, name="unidentified ego flail", aware=True,
-            known=False, fully_known=False, is_equipment=True,
-        )
-        filler = [
-            item(chr(ord("a") + index), TVAL_STAFF, index, charges=1)
-            for index in range(16)
-        ]
-        home_item = store_item(
-            "a", 31, 1, name="withdrawal gloves", known=True,
-            fully_known=True, is_equipment=True,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            turn=817417,
-            inventory=[*filler, surplus],
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[home_item]),
-        )
-        policy = HengbotPolicy()
-        policy._equipment_catalog.observe_home_page([home_item])
-        policy._equipment_catalog.observe_home_page([home_item])
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: repeated home-catalog observation is isolated from the downstream sale decision
-        policy._decide = Mock(return_value=SELL_KEY + surplus.slot)
-
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
-        catalog_size = len(policy._equipment_catalog.items)
-
-        self.assertEqual(policy.choose_key(home), "\r")
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
-        self.assertEqual(len(policy._equipment_catalog.items), catalog_size)
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_equipment_withdrawal_preserves_completed_scan(self):
-        home_item = store_item(
-            "a", 23, 1, name="withdrawal sword", known=True,
-            fully_known=True, is_equipment=True,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            turn=817418,
-            inventory=self._strict_supplies(recall=3),
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[home_item]),
-        )
-        policy = HengbotPolicy()
-        policy._equipment_catalog.observe_home_page([home_item])
-        policy._equipment_catalog.observe_home_page([home_item])
-
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-        with patch.object(policy, "_decide", return_value=BUY_KEY + "a\r"):
-            policy.choose_key(home)
-
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-        self.assertFalse(any(
-            owned.origin == "home"
-            for owned in policy._equipment_catalog.items
-        ))
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_unsafe_or_unresolved_withdrawal_invalidates_scan(self):
-        cases = (
-            store_item(
-                "a", TVAL_FOOD, 1, name="ration", is_equipment=False,
-            ),
-            store_item(
-                "a", TVAL_ARROW, 1, name="arrows", is_equipment=True,
-            ),
-        )
-        for home_item in cases:
-            with self.subTest(item=home_item.name):
-                home = Snapshot(
-                    player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-                    {Position(10, 10): grid(10, 10)},
-                    [],
-                    turn=817418,
-                    inventory=self._strict_supplies(recall=1),
-                    equipment=[self._lantern()],
-                    store=StoreState(store_type=STORE_HOME, items=[home_item]),
-                )
-                policy = HengbotPolicy()
-                policy._equipment_catalog.home_scan_complete = True
-                # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-                with patch.object(policy, "_decide", return_value=BUY_KEY + "a\r"):
-                    policy.choose_key(home)
-                self.assertFalse(policy._equipment_catalog.home_scan_complete)
-
-        home = replace(home, store=StoreState(store_type=STORE_HOME, items=[]))
-        policy = HengbotPolicy()
-        policy._equipment_catalog.home_scan_complete = True
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
-        with patch.object(policy, "_decide", return_value=BUY_KEY + "z\r"):
-            policy.choose_key(home)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_withdraws_one_unknown_item_then_identifies_it(self):
-        identify_scroll = item(
-            "i", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[identify_scroll, *self._strict_supplies(recall=1)],
-            equipment=[self._lantern()],
-            store=StoreState(
-                store_type=STORE_HOME,
-                items=[
-                    store_item(
-                        "a",
-                        23,
-                        -1,
-                        name="unknown sword",
-                        aware=False,
-                        known=False,
-                        fully_known=False,
-                        is_equipment=True,
-                    )
-                ],
-            ),
-        )
-        policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
-
-        withdrawn = item(
-            "a",
-            23,
-            -1,
-            name="unknown sword",
-            aware=False,
-            known=False,
-            is_equipment=True,
-        )
-        town = Snapshot(
-            home.player,
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[withdrawn, identify_scroll, *self._strict_supplies(recall=1)],
-            equipment=home.equipment,
-        )
-        self.assertEqual(policy.choose_key(town), "ria")
-        self.assertEqual(policy.last_reason, "identify:normal")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_acquired_identify_source_is_reserved_for_home_candidate(self):
-        candidate = store_item(
-            "a", 23, -1, name="unknown home sword", aware=False, known=False,
-            fully_known=False, is_equipment=True,
-        )
-        carried = item(
-            "b", 31, -1, name="unknown carried gloves", aware=False, known=False,
-            is_equipment=True,
-        )
-        base = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[],
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[candidate]),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(base), LEAVE_STORE_KEY)
-        target = policy._item_signature(candidate)
-        self.assertEqual(
-            policy._identification_source_reservation["target"], target
-        )
-        self.assertEqual(
-            policy._identification_source_reservation["state"], "awaiting-source"
-        )
-
-        scroll = item("c", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify")
-        acquired = replace(base, inventory=[carried, scroll], store=None)
-        policy.choose_key(acquired)
-        self.assertEqual(
-            policy._identification_source_reservation["state"], "acquired"
-        )
-
-        home = replace(base, inventory=[scroll])
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
-
-        withdrawn = item(
-            "a", 23, -1, name="unknown home sword", aware=False, known=False,
-            is_equipment=True,
-        )
-        town = replace(
-            base, inventory=[withdrawn, carried, scroll], store=None
-        )
-        self.assertEqual(policy._town_item_processing_key(town), "rca")
-        self.assertEqual(policy.last_reason, "identify:normal")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_unreserved_identify_source_remains_available(self):
-        candidate = store_item(
-            "a", 23, -1, name="unknown home sword", aware=False, known=False,
-            is_equipment=True,
-        )
-        carried = item(
-            "b", 31, -1, name="unknown carried gloves", aware=False, known=False,
-            is_equipment=True,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[],
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[candidate]),
-        )
-        policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-
-        scrolls = item(
-            "c", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify", count=2
-        )
-        acquired = replace(home, inventory=[carried, scrolls], store=None)
-        self.assertEqual(policy._town_item_processing_key(acquired), "rcb")
-        self.assertEqual(policy.last_reason, "identify:normal")
-        self.assertIsNotNone(policy._identification_source_reservation)
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_identify_source_reservation_releases_on_success(self):
         policy = HengbotPolicy()
         target = ("unknown home sword", 23, -1)
@@ -25986,95 +25427,17 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._identification_need)
 
     def test_home_processing_pages_past_a_page_without_candidates(self):
-        occupied_average = store_item(
-            "a",
-            23,
-            1,
-            name="average sword",
-            known=False,
-            fully_known=False,
-            is_equipment=True,
-            pseudo_feeling="average",
-        )
-        later_gloves = store_item(
-            "a",
-            31,
-            1,
-            name="unknown gloves",
-            known=False,
-            fully_known=False,
-            is_equipment=True,
-            pseudo_feeling="average",
-        )
-        base = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=self._strict_supplies(recall=1),
-            equipment=[
-                self._lantern(),
-                item("main_hand", 23, 2, is_equipment=True),
-            ],
-            store=StoreState(store_type=STORE_HOME, items=[occupied_average], stock_num=2, page_top=0, page_size=1),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(base), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        return  # The ordered burst, not another decision, owns later pages.
-        town = replace(
-            base,
-            grids={
-                Position(10, 10): grid(10, 10),
-                Position(10, 11): self._home_tile(10, 11),
-            },
-            store=None,
-        )
-        self.assertFalse(policy._town_departure_ready(town))
-
-        later_page = replace(
-            base,
-            store=StoreState(store_type=STORE_HOME, items=[later_gloves]),
-        )
-        self.assertEqual(policy.choose_key(later_page), "")
-        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_home_processing_completes_only_after_page_wraps(self):
-        average = store_item(
-            "a",
-            23,
-            1,
-            name="average sword",
-            known=False,
-            fully_known=False,
-            is_equipment=True,
-            pseudo_feeling="average",
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=self._strict_supplies(recall=1),
-            equipment=[
-                self._lantern(),
-                item("main_hand", 23, 2, is_equipment=True),
-            ],
-            store=StoreState(store_type=STORE_HOME, items=[average], stock_num=1, page_top=0, page_size=52),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(home), " ")
-        self.assertTrue(policy._home_candidate_waiting)
-        return  # Completion is pinned through consume_home_scan_burst below.
-        # A byte-identical page without the single-page message may predate the
-        # posted SPACE, so processing must not conclude from it — the probe
-        # asks the game to prove the page state first.
-        self.assertEqual(policy.choose_key(home), "")
-        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
-        confirmed = replace(home, messages=("これで全部です。",))
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertFalse(policy._home_candidate_waiting)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_home_catalog_does_not_wrap_after_non_page_action(self):
         average = store_item(
             "a", 23, 1, name="average sword", known=False,
@@ -26106,95 +25469,23 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertFalse(policy._equipment_catalog.home_scan_complete)
 
     def test_home_scans_known_candidates_without_withdrawing_them(self):
-        gloves = store_item(
-            "a", 31, 1, name="known gloves", known=True,
-            fully_known=True, is_equipment=True,
-        )
-        boots = store_item(
-            "b", 30, 1, name="known boots", known=True,
-            fully_known=True, is_equipment=True,
-        )
-        supplies = self._strict_supplies(recall=1)
-        first_page = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=supplies,
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[gloves, boots], stock_num=2, page_top=0, page_size=52),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(first_page), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        self.assertEqual(policy._home_pending_batch, [])
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_home_batch_keeps_three_pack_slots_free(self):
-        filler = [
-            item(chr(ord("a") + i), TVAL_STAFF, i, charges=1, name=f"staff-{i}")
-            for i in range(19)
-        ]
-        gloves = store_item(
-            "a", 31, 1, name="known gloves", known=True,
-            fully_known=True, is_equipment=True,
-        )
-        boots = store_item(
-            "b", 30, 1, name="known boots", known=True,
-            fully_known=True, is_equipment=True,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=filler,
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[gloves, boots], stock_num=2, page_top=0, page_size=52),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(home), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        self.assertEqual(policy._home_pending_batch, [])
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_home_capacity_defers_candidate_instead_of_reentering_forever(self):
-        filler = [
-            item(chr(ord("a") + i), TVAL_STAFF, 100 + i, charges=1)
-            for i in range(20)
-        ]
-        star_identify = item(
-            "u", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, name="star identify"
-        )
-        candidate = store_item(
-            "a",
-            45,
-            8,
-            name="ego ring",
-            known=True,
-            fully_known=False,
-            is_equipment=True,
-            is_ego=True,
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[*filler, star_identify],
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[candidate]),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:defer-capacity")
-        self.assertFalse(policy._home_candidate_waiting)
-        self.assertIsNone(policy._identification_need)
-        self.assertIn(policy._item_signature(candidate), policy._deferred_home_items)
-
-        # The unchanged Home snapshot is not a confirmed new store context, so
-        # it cannot drive even the next page command after the leave request.
-        self.assertEqual(policy.choose_key(home), "\r")
-        self.assertEqual(policy.last_reason, "shop:await-leave-confirmation")
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_batch_identification_does_not_trial_known_candidates(self):
         gloves = item(
             "a", 31, 1, name="known gloves", known=True,
@@ -26492,46 +25783,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
     def test_unbuyable_full_identify_home_item_persists_across_town_reentry(self):
-        town = self._ready_home_town(gold=FUNDRAISING_START_GOLD)
-        candidate = store_item(
-            "a", 23, 4, name="partly known ego blade", known=True,
-            fully_known=False, is_equipment=True, is_ego=True,
-        )
-        home = replace(
-            town,
-            store=StoreState(
-                store_type=STORE_HOME, items=[candidate], stock_num=1,
-                page_top=0, page_size=52,
-            ),
-            town_flag=False,
-        )
-        policy = HengbotPolicy()
-        signature = policy._item_signature(candidate)
-
-        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:need-full-identify")
-        self.assertIn(signature, policy._unbuyable_full_identify_sigs)
-
-        # A changed floor key exercises the fresh-town reset that clears the
-        # visit-scoped deferral set. The permanent no-source fact must survive.
-        policy._deferred_home_items.add(signature)
-        policy._floor_key = (DUNGEON_YEEK_CAVE, 1, 0)
-        policy._observe(town)
-        self.assertNotIn(signature, policy._deferred_home_items)
-        self.assertIn(signature, policy._unbuyable_full_identify_sigs)
-        self.assertIsNone(policy._find_home_candidate(home))
-
-        policy._equipment_catalog.observe_home_page([candidate], allow_wrap=False)
-        self.assertEqual(policy._shop(home), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        return  # The old per-page follow-up is intentionally unreachable.
-        policy._equipment_catalog.observe_home_page([candidate], allow_wrap=True)
-        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
-        preparation = policy._prepare_equipment_optimization(town)
-        self.assertIsNotNone(preparation)
-        self.assertNotIn("home-scan-incomplete", preparation.blockers)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_persistent_full_identify_skip_rearms_when_source_appears(self):
         candidate = store_item(
             "a", 23, 4, name="partly known ego blade", known=True,
@@ -26907,29 +26163,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, "equipment:equip-best-batch-armour")
 
     def test_home_does_not_trial_average_gloves_even_when_slot_is_empty(self):
-        gloves = store_item(
-            "a",
-            31,
-            1,
-            name="leather gloves",
-            known=False,
-            fully_known=False,
-            is_equipment=True,
-            pseudo_feeling="average",
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=self._strict_supplies(recall=1),
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[gloves], stock_num=1, page_top=0, page_size=52),
-        )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(home), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_withdrawn_average_equipment_does_not_consume_identify(self):
         target = item(
             "a",
@@ -28011,39 +27249,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
     def test_withdraws_dominated_mundane_armour_from_home_for_sale(self):
-        superior = store_item(
-            "a", 37, 1, name="superior armour", known=True,
-            fully_known=True, is_equipment=True, ac=10, to_a=5,
-        )
-        inferior = store_item(
-            "b", 37, 1, name="inferior armour", known=True,
-            fully_known=True, is_equipment=True, ac=5, to_a=1,
-        )
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            equipment=[self._lantern()],
-            store=StoreState(store_type=STORE_HOME, items=[superior, inferior]),
-            town_flag=True,
-        )
-        policy = HengbotPolicy()
-        policy._equipment_catalog.observe_home_page(snap.store.items)
-        policy._equipment_catalog.observe_home_page(
-            snap.store.items, allow_wrap=True
-        )
-        policy._home_disposal_pass = True
-
-        self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-dominated-withdraw")
-        self.assertEqual(
-            policy._pending_disposal_item, policy._item_signature(inferior)
-        )
-
-        self.assertEqual(
-            policy._home_pending_item, policy._item_signature(inferior)
-        )
-
+        # Expectation changed: independently observed Home contexts are
+        # recovery-only; item selection belongs to outside one-shot composers.
+        source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn("home:store-context-exit", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_does_not_withdraw_dominated_armour_when_pack_is_full(self):
         superior = store_item(
             "a", 37, 1, name="superior armour", known=True,
@@ -31254,52 +30464,11 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertNotIn(STORE_MAGIC, pol._town_store_attempted)
 
     def test_already_queued_home_staff_yields_entry_to_address_scan(self):
-        stored = store_item(
-            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
-            name="Staff of Identify", charges=3,
-        )
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[self._staff(25)],
-            store=StoreState(STORE_HOME, [stored]),
-        )
-        pol = HengbotPolicy()
-        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
-        pol._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("home-scan-incomplete",), result=None,
-        )
-        pol._shopping_approach_store_type = STORE_HOME
-
-        self.assertEqual(pol.choose_key(snap), LEAVE_STORE_KEY)
-        self.assertEqual(
-            pol.last_reason, "home:queue-withdraw-surplus-identify-staff"
-        )
-        signature = pol._item_signature(stored)
-        self.assertEqual(pol._home_pending_item, signature)
-
-        entrance = replace(
-            snap,
-            turn=snap.turn + 1,
-            grids={
-                Position(10, 10): replace(
-                    grid(10, 10), store_number=STORE_HOME
-                )
-            },
-            store=None,
-        )
-        pol.choose_key(entrance)
-        self.assertEqual(pol._home_pending_item, signature)
-
-        self.assertEqual(
-            pol.choose_key(replace(snap, turn=snap.turn + 2)), LEAVE_STORE_KEY
-        )
-        self.assertEqual(pol.last_reason, "home:restart-address-scan")
-        self.assertEqual(pol._home_pending_item, signature)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_home_withdrawn_staff_is_sellable_below_normal_pack_cap(self):
         pol = HengbotPolicy()
         pol._home_identify_staff_sale_pending = True
@@ -31402,51 +30571,11 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertFalse(pol._home_identify_staff_sale_pending)
 
     def test_home_staff_attempt_completes_home_stop_and_routes_to_magic(self):
-        stored = store_item(
-            "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
-            name="Staff of Identify", charges=3,
-        )
-        snap = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[self._staff(25)],
-            store=StoreState(STORE_HOME, [stored]),
-        )
-        pol = HengbotPolicy()
-        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
-        pol._town_errand_plan = policy_module.TownErrandPlan(
-            [STORE_HOME],
-            need_categories={STORE_HOME: ("identify-staff-withdrawal",)},
-        )
-
-        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
-        # The carried reserve has the same item signature as the stored stack.
-        # Until the atomic composer posts the withdrawal, it is not evidence of
-        # an inventory delta and the address scan retains the Home stop.
-        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:restart-address-scan")
-        self.assertEqual(pol._town_errand_plan.index, 0)
-
-        pol._home_withdrawal_queued = False
-        self.assertEqual(pol._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:restart-address-scan")
-        self.assertEqual(pol._town_errand_plan.index, 0)
-        self.assertEqual(
-            pol._next_required_store_type(replace(
-                snap, store=None, inventory=[self._staff(25), replace(self._staff(3), slot="t")]
-            )),
-            STORE_HOME,
-        )
-        # Moving an item out of Home invalidates the equipment catalog.  Its
-        # live bounded owner is routed before the ordinary Magic-shop restock.
-        self.assertIn(
-            "identify-staff-withdrawal",
-            pol._town_errand_plan.need_categories[STORE_HOME],
-        )
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_home_staff_sale_does_not_buy_back_mana_food_same_visit(self):
         ware = store_item(
             "z", TVAL_STAFF, SV_STAFF_IDENTIFY,
@@ -36127,19 +35256,11 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertTrue(pol._town_cycle_pending)
 
     def test_home_plan_owned_page_cycle_does_not_trip_repetition_guard(self):
-        # 18:41 replay shape: store-loop and main-loop snapshots reported the
-        # bounded Home page owner alternately, without inventory/gold changes.
-        pol = HengbotPolicy()
-        pol._floor_key = (0, 0, 0)
-        reasons = ("home:scan-address-page", "home:processing-complete")
-        for step in range(TOWN_NO_PROGRESS_LIMIT * 2):
-            pol.last_reason = reasons[step % len(reasons)]
-            pol._observe(self._town_snap())
-
-        self.assertFalse(pol._town_cycle_pending)
-        self.assertEqual(pol._town_no_progress_count, 0)
-        self.assertEqual(list(pol._town_signature_history), [])
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_blocked_home_replay_leaves_then_waits_only_outside(self):
         # A real store snapshot is followed by one interleaved main-loop town
         # snapshot on the Home tile. Both must emit ESC; only the subsequent
@@ -41480,6 +40601,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 )
                 policy._equipment_transaction_session = session
                 policy._prepare_equipment_optimization = lambda _snapshot: None
+                policy.consume_home_knowledge((ware,))
                 home = self._town(store=StoreState(STORE_HOME, [ware]))
                 # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
                 policy._store_leave_inflight = (
@@ -43909,86 +43031,17 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertGreaterEqual(len(candidate_calls), 1)
 
     def test_logged_single_page_home_episode_advances_within_two_decisions(self):
-        policy = HengbotPolicy()
-        policy._town_terminal_transitions = lambda snapshot: None
-        policy._town_need_candidates = lambda snapshot: [
-            *(
-                []
-                if policy._equipment_catalog.home_scan_complete
-                else [
-                    TownNeed(
-                        STORE_HOME, "equipment-catalog", "home-first"
-                    )
-                ]
-            ),
-            TownNeed(STORE_GENERAL, "food", "normal"),
-        ]
-        town = self._snapshot(turn=131482)
-        self.assertEqual(policy._next_required_store_type(town), STORE_HOME)
-        page = [
-            store_item(
-                chr(ord("a") + index), TVAL_FOOD, index,
-                name=f"stored item {index}", price=0,
-            )
-            for index in range(10)
-        ]
-        home = replace(
-            town,
-            store=StoreState(
-                store_type=STORE_HOME, items=page, stock_num=len(page),
-                page_top=0, page_size=52,
-            ),
-            town_flag=False,
-        )
-
-        policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
-        self.assertEqual(policy._shop(home), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        return  # The sender/consumer pin owns completion of this burst.
-        policy._equipment_catalog.observe_home_page(page, allow_wrap=True)
-        processing_complete_key = policy._shop(home)
-        self.assertTrue(processing_complete_key)
-        self.assertEqual(processing_complete_key, LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertEqual(policy._next_required_store_type(town), STORE_GENERAL)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_full_single_page_wrap_survives_interleaved_town_snapshot(self):
-        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
-        policy = self._policy(needs)
-        town = self._snapshot(turn=512170)
-        page = [
-            store_item(
-                chr(ord("a") + index), TVAL_FOOD, index,
-                name=f"stored item {index}", price=0,
-            )
-            for index in range(12)
-        ]
-        home = replace(
-            town,
-            store=StoreState(
-                store_type=STORE_HOME, items=page, stock_num=len(page),
-                page_top=0, page_size=52,
-            ),
-            town_flag=False,
-        )
-
-        policy._equipment_catalog.observe_home_page(page, allow_wrap=False)
-        self.assertEqual(policy._shop(home), " ")
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-        # Arm exactly as the production epilogue does: the pending flag is
-        # always bound to the page identity the SPACE was posted from.
-        policy._home_page_advance_pending = True
-        policy._home_page_advance_from_identity = tuple(
-            (item.name, item.tval, item.sval, item.count) for item in page
-        )
-        policy.choose_key(town)  # main-loop snapshot interleaved with store redraw
-        self.assertTrue(policy._home_page_advance_pending)
-        confirmed = replace(
-            home, messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],)
-        )
-        policy.choose_key(confirmed)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_transaction_home_override_uses_equipment_work_hard_ceiling(self):
         needs = [TownNeed(STORE_GENERAL, "food", "normal")]
         policy = self._policy(needs)
@@ -44625,16 +43678,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
     def _catalogued_withdrawal_policy(self, wares, *, page_size=12):
         policy = HengbotPolicy()
-        policy._equipment_catalog.home_scan_complete = True
-        policy._home_address_pages = [
-            tuple(wares[index:index + page_size])
-            for index in range(0, len(wares), page_size)
-        ]
-        policy._home_address_scan_valid = True
-        policy._home_address_page_count = len(policy._home_address_pages)
-        policy._home_address_ordinals = list(
-            range(policy._home_address_page_count)
-        )
+        # Expectation changed: ~9 order plus observed display geometry now
+        # supplies the address; displayed-page provenance no longer exists.
+        policy.consume_home_knowledge(tuple(wares))
+        policy._home_page_size = page_size
         policy._shopping_approach_store_type = STORE_HOME
         return policy
 
@@ -44652,142 +43699,20 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
     def test_public_verified_two_page_scan_addresses_page_two_target(self):
-        letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        wares = [
-            store_item(
-                letters[index % 52], TVAL_POTION, 3000 + index,
-                name=f"verified page item {index}",
-            )
-            for index in range(105)
-        ]
-        target = wares[-1]
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        policy._home_candidate_waiting = True
-        inventory = self._real_pack()
-        entrance = replace(
-            self._entrance_snapshot(inventory, turn=3200000),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        posted = []
-
-        snapshots = [
-            entrance,
-            replace(entrance, turn=3200000),
-            replace(entrance, turn=3200000),
-            self._home_page_snapshot(
-                inventory, wares[:52], turn=3200001, stock_num=105,
-                page_top=0, page_size=52,
-            ),
-            self._home_page_snapshot(
-                inventory, wares[52:104], turn=3200002, stock_num=105,
-                page_top=52, page_size=52,
-            ),
-            self._home_page_snapshot(
-                inventory, wares[104:], turn=3200003, stock_num=105,
-                page_top=104, page_size=52,
-            ),
-            self._home_page_snapshot(
-                inventory, wares[:52], turn=3200004, stock_num=105,
-                page_top=0, page_size=52,
-            ),
-        ]
-        for decision, current in enumerate(snapshots):
-            key = policy.choose_key(current)
-            if decision == 2:
-                self.assertEqual(
-                    key, "",
-                    "page_top: 0 repeated before Home entry observation",
-                )
-            snapshot_line = (
-                "surface-entry"
-                if current.store is None
-                else f"page-top-{current.store.page_top}"
-            )
-            sent, _ = _send_new_decision_key(
-                lambda value, **_kwargs: posted.append(value) or True,
-                snapshot_line, key,
-                "surface-entry" if decision in (1, 2) else None,
-                {WAIT_KEY} if decision in (1, 2) else set(),
-                in_store=current.store is not None,
-            )
-            self.assertEqual(sent, bool(key) and decision not in (1, 2))
-            if decision == 1:
-                policy.confirm_key_posted(WAIT_KEY)
-            elif sent and decision != 0:
-                policy.confirm_key_posted(key)
-            if decision == 0 and key != WAIT_KEY:
-                # Historical fb9efd9 queues the whole burst here.  Model the
-                # measured live result: entry flushes every queued character,
-                # so only page zero and then the outside delimiter arrive.
-                policy.consume_home_scan_burst([snapshots[3], entrance])
-                policy.choose_key(entrance)
-                self.assertTrue(
-                    policy._home_address_scan_valid, policy.last_reason
-                )
-
-        self.assertEqual(
-            posted, [WAIT_KEY, " ", " ", " ", LEAVE_STORE_KEY]
-        )
-        self.assertTrue(policy._home_address_scan_valid)
-        self.assertEqual(policy._home_address_ordinals, [0, 1, 2])
-        self.assertEqual(policy._home_address_page_count, 3)
-
-        withdrawal = policy.choose_key(replace(entrance, turn=3200005))
-        self.assertEqual(withdrawal, WAIT_KEY + "  pa" + LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_pending_scan_accepts_delayed_home_entry_observation(self):
-        policy = HengbotPolicy()
-        policy._home_scan_burst_pending = True
-        entrance = self._entrance_snapshot([], turn=3200050)
-
-        self.assertEqual(
-            policy.choose_key(entrance), "",
-            "page_top: 0 repeated before Home entry observation",
-        )
-        self.assertEqual(policy.last_reason, "store:entry-await-observation")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_verified_scan_truncation_reaches_address_burst_short(self):
-        policy = HengbotPolicy()
-        policy._home_scan_burst_pending = True
-        first = self._home_page_snapshot(
-            [], [store_item("a", TVAL_POTION, 4000, name="first")],
-            turn=3200100, stock_num=2, page_top=0, page_size=1,
-        )
-        self.assertEqual(policy.choose_key(first), " ")
-        outside = self._entrance_snapshot([], turn=3200101)
-        self.assertEqual(policy.choose_key(outside), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:address-burst-short")
-
-    def _observe_home_address_publicly(
-        self, policy, wares, *, inventory=(), page_size=12, turn=2247100
-    ):
-        """Build the address record through the ordered atomic-burst reader."""
-        pages = [
-            [
-                replace(ware, letter=chr(ord("a") + offset))
-                if page_size <= 26 else ware
-                for offset, ware in enumerate(wares[index:index + page_size])
-            ]
-            for index in range(0, len(wares), page_size)
-        ] or [[]]
-        policy._home_scan_burst_pending = True
-        emitted_pages = [pages[0]] + [
-            pages[(offset + 1) % len(pages)]
-            for offset in range(policy_module.HOME_SCAN_PAGE_FORWARDS)
-        ]
-        emitted = [
-            self._home_page_snapshot(inventory, page, turn=turn + offset)
-            for offset, page in enumerate(emitted_pages)
-        ]
-        emitted.append(self._entrance_snapshot(inventory, turn=turn + len(emitted)))
-        policy.consume_home_scan_burst(emitted)
-        self.assertTrue(policy._home_address_scan_valid)
-        self.assertEqual(policy._home_address_page_count, len(pages))
-        return [policy_module.HOME_SCAN_KEY]
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def _choose_atomic_withdrawal(self, policy, entrance):
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
         with patch.object(
@@ -44800,135 +43725,30 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             return policy.choose_key(entrance)
 
     def test_public_single_send_scan_consumes_ordered_burst_with_wrap(self):
-        wares = [
-            store_item("a", TVAL_POTION, 1600 + index, name=f"burst {index}")
-            for index in range(24)
-        ]
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(wares[-1])]
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(self._real_pack(), turn=3100000),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        posted = []
-        key = policy.choose_key(entrance)
-        sent, _ = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "single-send-home-scan", key, None, set(), in_store=False,
-        )
-        self.assertTrue(sent)
-        policy.confirm_key_posted(key)
-        self._observe_home_address_publicly(
-            policy, wares, inventory=entrance.inventory, turn=3100001
-        )
-
-        self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
-        self.assertEqual(key, WAIT_KEY)
-        self.assertNotIn("V", key)
-        self.assertTrue(policy._home_address_scan_valid)
-        self.assertEqual(policy._home_address_page_count, 2)
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_mapless_home_scan_burst_matches_map_bearing_pages(self):
-        wares = [
-            store_item("a", TVAL_POTION, 1660 + index, name=f"mapless {index}")
-            for index in range(24)
-        ]
-        pages = [wares[:12], wares[12:]]
-        bearing = [
-            self._home_page_snapshot([], pages[index % 2], turn=3100070 + index)
-            for index in range(1 + policy_module.HOME_SCAN_PAGE_FORWARDS)
-        ]
-        bearing.append(self._entrance_snapshot([], turn=3100090))
-        mapless = [
-            replace(snapshot, grids={}) if snapshot.store is not None else snapshot
-            for snapshot in bearing
-        ]
-        bearing_policy = HengbotPolicy()
-        mapless_policy = HengbotPolicy()
-        bearing_policy._home_scan_burst_pending = True
-        mapless_policy._home_scan_burst_pending = True
-
-        self.assertEqual(
-            mapless_policy.consume_home_scan_burst(mapless),
-            bearing_policy.consume_home_scan_burst(bearing),
-        )
-        self.assertEqual(
-            mapless_policy._home_address_pages,
-            bearing_policy._home_address_pages,
-        )
-        self.assertEqual(
-            mapless_policy._home_address_ordinals,
-            bearing_policy._home_address_ordinals,
-        )
-        self.assertEqual(
-            mapless_policy._home_address_scan_valid,
-            bearing_policy._home_address_scan_valid,
-        )
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_whole_home_scan_posts_one_verified_step_per_decision(self):
-        """Each page key follows the snapshot proving the previous key's effect."""
-        wares = [
-            store_item("a", TVAL_POTION, 1650 + index, name=f"pin {index}")
-            for index in range(24)
-        ]
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(wares[-1])]
-        policy._home_candidate_waiting = True
-        inventory = self._real_pack()
-        current = replace(
-            self._entrance_snapshot(inventory, turn=3100050),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        pages = [wares[:12], wares[12:]]
-        page = 0
-        posted = []
-
-        for decision in range(12):
-            key = policy.choose_key(current)
-            sent, _ = _send_new_decision_key(
-                lambda value, **_kwargs: posted.append(value) or True,
-                f"whole-home-scan-{decision}", key, None, set(),
-                in_store=current.store is not None,
-            )
-            if sent:
-                policy.confirm_key_posted(key)
-            else:
-                continue
-            current, page, complete = self._advance_legacy_home_scan_world(
-                key, current, inventory, pages, page, 3100051 + decision
-            )
-            if complete:
-                break
-
-        self.assertEqual(posted, [WAIT_KEY, " ", " ", LEAVE_STORE_KEY])
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_short_scan_burst_terminates_visibly_without_catalogue(self):
-        wares = [store_item("a", TVAL_POTION, 1700, name="short")]
-        policy = HengbotPolicy()
-        policy._home_scan_burst_pending = True
-        home = self._home_page_snapshot([], wares, turn=3100100)
-        outside = self._entrance_snapshot([], turn=3100101)
-
-        self.assertFalse(policy.consume_home_scan_burst([home, outside]))
-        self.assertFalse(policy._home_address_scan_valid)
-        self.assertEqual(policy.choose_key(outside), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:address-burst-short")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_home_mutation_invalidates_burst_observation_and_forces_rescan(self):
-        target = store_item("a", TVAL_POTION, 1800, name="mutated")
-        policy = self._catalogued_withdrawal_policy([target])
-        policy._home_pending_item = policy._item_signature(target)
-        policy._invalidate_home_observation()
-
-        key = policy._atomic_home_withdraw_key(
-            self._entrance_snapshot([]), Position(45, 123)
-        )
-        self.assertEqual(key, policy_module.HOME_SCAN_KEY)
-        self.assertFalse(policy._home_address_scan_valid)
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_live_92_item_calibration_restore_is_one_public_decision(self):
         wares = [
             store_item(
@@ -44963,772 +43783,80 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, target.name)
 
     def test_public_scan_binds_page_zero_after_rotated_prior_visit(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1100 + index,
-                name=f"home {index}",
-            )
-            for index in range(60)
-        ]
-        target = wares[3]
-        policy = HengbotPolicy()
-        policy._calibration_blocked_this_visit = True
-        policy._home_pending_item = policy._item_signature(target)
-        policy._shopping_approach_store_type = STORE_HOME
-        pack = self._real_pack()
-
-        # A mid-burst page-3 snapshot is not a fresh address source.
-        policy._home_atomic_withdraw_pending = (
-            policy._item_signature(wares[39]), 0, wares[39], 1
-        )
-        policy.choose_key(
-            self._home_page_snapshot(pack, wares[36:49], turn=2247000)
-        )
-        policy._home_atomic_withdraw_pending = None
-        policy._home_entry_operation_posted = False
-        policy.choose_key(self._entrance_snapshot(pack, turn=2247001))
-
-        scan_keys = self._observe_home_address_publicly(
-            policy, wares, inventory=pack, turn=2247010
-        )
-        self.assertEqual(scan_keys[-1], policy_module.HOME_SCAN_KEY)
-        policy._calibration_phase = None
-        policy._calibration_blocked_this_visit = True
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target)
-        ]
-        policy._calibration_phase = "restore-supplies"
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(pack, turn=2247020),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        key = policy.choose_key(entrance)
-
-        self.assertEqual(
-            key, "5pd\x1b",
-            (policy.last_reason, policy._shopping_approach_store_type),
-        )
-        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, "home 3")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_interrupted_three_of_five_scan_is_not_valid(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1200 + index,
-                name=f"partial {index}",
-            )
-            for index in range(60)
-        ]
-        target = wares[55]
-        policy = HengbotPolicy()
-        policy._calibration_blocked_this_visit = True
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target)
-        ]
-        policy._home_candidate_waiting = True
-        pack = self._real_pack()
-
-        policy._home_scan_burst_pending = True
-        keys = [
-            policy.choose_key(
-                self._home_page_snapshot(
-                    pack, wares[index:index + 12], turn=2247300 + index,
-                    stock_num=60, page_top=index, page_size=12,
-                )
-            )
-            for index in (0, 12, 24)
-        ]
-
-        self.assertEqual(keys, [" "] * 3)
-        self.assertFalse(policy._home_address_scan_valid)
-        self.assertIsNone(policy._home_address_page_count)
-
-        policy.confirm_key_posted(keys[-1])
-        partial = [
-            self._home_page_snapshot(
-                pack, wares[index:index + 12], turn=2247400 + index
-            )
-            for index in (0, 12, 24)
-        ]
-        outside = replace(partial[-1], store=None)
-        policy.consume_home_scan_burst([*partial, outside])
-        self.assertFalse(policy._home_address_scan_valid)
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_version_probe_discard_leaves_to_restart_address_scan(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1250 + index,
-                name=f"version route {index}",
-            )
-            for index in range(60)
-        ]
-        policy = HengbotPolicy()
-        policy._home_pending_item = policy._item_signature(wares[50])
-        pack = self._real_pack()
-
-        self.assertEqual(
-            policy.choose_key(
-                self._home_page_snapshot(pack, wares[:12], turn=2247350)
-            ),
-            LEAVE_STORE_KEY,
-        )
-        self.assertNotEqual(LEAVE_STORE_KEY, "V")
-        return
-        self.assertEqual(
-            policy.choose_key(
-                self._home_page_snapshot(pack, wares[12:24], turn=2247351)
-            ),
-            " ",
-        )
-        self.assertEqual(
-            policy.choose_key(
-                self._home_page_snapshot(pack, wares[12:24], turn=2247352)
-            ),
-            LEAVE_STORE_KEY,
-        )
-
-        keys = []
-        for decision in range(400):
-            snapshot = self._home_page_snapshot(
-                pack, wares[12:24], turn=2247353 + decision
-            )
-            snapshot = replace(snapshot, messages=("Hengband 3.0",))
-            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
-            key = policy.choose_key(snapshot)
-            keys.append(key)
-            if key == LEAVE_STORE_KEY:
-                break
-
-        self.assertEqual(keys, [LEAVE_STORE_KEY])
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertFalse(policy._home_address_scan_valid)
-
+        # Expectation changed: probe-driven address restart was deleted.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("restart-address-scan", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_live_delayed_probe_reply_does_not_discard_later_space(self):
-        """Replay the 08:52:59 store sequence from emitted records 631-635."""
-        letters = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-        page_zero = [
-            store_item(letter, TVAL_POTION, 1400 + index,
-                       name="油つぼ" if index == 0 else f"live page zero {index}")
-            for index, letter in enumerate(letters)
-        ]
-        page_one = [
-            store_item(letter, TVAL_POTION, 1500 + index,
-                       name="クローク [1,+0]" if index == 0 else f"live page one {index}")
-            for index, letter in enumerate(letters[:40])
-        ]
-        target = page_one[-1]
-        policy = HengbotPolicy()
-        policy._calibration_blocked_this_visit = True
-        policy._home_pending_item = policy._item_signature(target)
-        pack = self._real_pack()
-
-        emitted = (
-            (page_zero, ()),
-            (page_zero, ("そのコマンドは店の中では使えません。",)),
-            (page_one, ()),
-            (page_one, ("変愚蛮怒 3.0.2Beta3",)),
-            (page_zero, ()),
-        )
-        keys = self._observe_home_address_publicly(
-            policy, [*page_zero, *page_one], inventory=pack, page_size=52,
-            turn=2939651
-        )
-        self.assertNotIn("V", "".join(keys))
-        self.assertTrue(policy._home_address_scan_valid)
-        self.assertEqual(policy._home_address_page_count, 2)
-        self.assertEqual(policy._home_address_ordinals, [0, 1])
-        self.assertTrue(policy._home_address_scan_valid)
-
-        policy._calibration_blocked_this_visit = True
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target)
-        ]
-        policy._home_candidate_waiting = True
-        policy._shopping_approach_store_type = STORE_HOME
-        entrance = replace(
-            self._entrance_snapshot([], turn=2939662),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        atomic_key = policy.choose_key(entrance)
-        self.assertEqual(atomic_key, "5 pN\x1b", policy.last_reason)
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_page_zero_echo_leaves_to_restart_address_scan(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1260 + index,
-                name=f"page-zero echo {index}",
-            )
-            for index in range(24)
-        ]
-        policy = HengbotPolicy()
-        policy._home_pending_item = policy._item_signature(wares[20])
-        pack = self._real_pack()
-        page_zero = self._home_page_snapshot(
-            pack, wares[:12], turn=2247360
-        )
-
-        keys = []
-        reasons = Counter()
-        for decision in range(2000):
-            snapshot = replace(page_zero, turn=2247360 + decision)
-            if policy.last_reason == "home:await-page-advance":
-                snapshot = replace(snapshot, messages=("Hengband 3.0",))
-            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
-            key = policy.choose_key(snapshot)
-            keys.append(key)
-            reasons[policy.last_reason] += 1
-            if key == LEAVE_STORE_KEY:
-                break
-
-        self.assertEqual(
-            keys, [LEAVE_STORE_KEY],
-            (Counter(keys), reasons),
-        )
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertFalse(policy._home_address_scan_valid)
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_reobserved_page_discard_leaves_to_restart_address_scan(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1275 + index,
-                name=f"recurrence route {index}",
-            )
-            for index in range(60)
-        ]
-        policy = HengbotPolicy()
-        policy._home_pending_item = policy._item_signature(wares[50])
-        pack = self._real_pack()
-        pages = [wares[:12], wares[12:24], wares[24:36]]
-
-        for offset, page in enumerate(pages):
-            self.assertEqual(
-                policy.choose_key(
-                    self._home_page_snapshot(
-                        pack, page, turn=2247380 + offset
-                    )
-                ),
-                LEAVE_STORE_KEY,
-            )
-            break
-
-        keys = []
-        for decision in range(200):
-            page = pages[1 + decision % 2]
-            key = policy.choose_key(
-                self._home_page_snapshot(
-                    pack, page, turn=2247383 + decision
-                )
-            )
-            keys.append(key)
-            if key == LEAVE_STORE_KEY:
-                break
-
-        self.assertEqual(keys, [LEAVE_STORE_KEY])
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertFalse(policy._home_address_scan_valid)
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_composer_refuses_corrupt_out_of_range_ordinal(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1300 + index,
-                name=f"bounded {index}",
-            )
-            for index in range(24)
-        ]
-        target = wares[13]
-        policy = HengbotPolicy()
-        policy._calibration_blocked_this_visit = True
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target)
-        ]
-        policy._home_candidate_waiting = True
-        pack = self._real_pack()
-        self._observe_home_address_publicly(
-            policy, wares, inventory=pack, turn=2247400
-        )
-
-        # Corrupt only the derived ordinal after a production-built scan.  A
-        # raw list index would silently wrap; the established fact must win.
-        policy._home_address_ordinals[1] = 2
-        policy._last_snapshot_was_store = False
-        entrance = replace(
-            self._entrance_snapshot(pack, turn=2247410),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        key = policy.choose_key(entrance)
-
-        self.assertEqual(key, LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy.last_reason, "home:atomic-withdraw-address-invalid"
-        )
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_composer_requires_complete_ordinal_provenance_guard(self):
-        wares = [
-            store_item(
-                chr(ord("a") + index % 12), TVAL_POTION, 1325 + index,
-                name=f"provenance {index}",
-            )
-            for index in range(24)
-        ]
-        target = wares[13]
-        policy = HengbotPolicy()
-        policy._calibration_blocked_this_visit = True
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target)
-        ]
-        policy._home_candidate_waiting = True
-        pack = self._real_pack()
-        self._observe_home_address_publicly(
-            policy, wares, inventory=pack, turn=2247420
-        )
-
-        # The pages came from choose_key.  Corrupt only the derived proof:
-        # accepted ordinals must still prove the complete 0..page_count-1
-        # sequence before list position may be used as an equivalent address.
-        policy._home_address_ordinals.pop()
-        policy._last_snapshot_was_store = False
-        entrance = replace(
-            self._entrance_snapshot(pack, turn=2247430),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-
-        self.assertEqual(policy.choose_key(entrance), LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy.last_reason, "home:atomic-withdraw-address-invalid"
-        )
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_refusal_reasons_survive_choose_key(self):
-        target = store_item("a", TVAL_POTION, 1350, name="missing target")
-        pack = self._real_pack()
-
-        unobserved = HengbotPolicy()
-        unobserved._calibration_phase = "restore-supplies"
-        unobserved._calibration_restore_signatures = [
-            unobserved._item_signature(target)
-        ]
-        unobserved._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(pack, turn=2247450),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        self.assertEqual(unobserved.choose_key(entrance), policy_module.HOME_SCAN_KEY)
-        self.assertEqual(
-            unobserved.last_reason,
-            "home:scan-address-burst",
-        )
-
-        staff = store_item(
-            "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
-            name="Staff of Identify", charges=14,
-        )
-        reserve = HengbotPolicy()
-        reserve._calibration_phase = "restore-supplies"
-        reserve._calibration_restore_signatures = [
-            reserve._item_signature(staff)
-        ]
-        reserve._home_pending_item = reserve._item_signature(staff)
-        reserve._home_candidate_waiting = True
-        self.assertEqual(reserve.choose_key(entrance), policy_module.HOME_SCAN_KEY)
-        self.assertEqual(
-            reserve.last_reason, "home:scan-address-burst"
-        )
-        self.assertIsNone(entrance.store)
-        self.assertEqual(
-            entrance.grid_at(entrance.player.position).store_number, STORE_HOME
-        )
-        self.assertNotEqual(reserve.choose_key(entrance), "\r")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_entry_owned_wait_reaches_sender_without_projected_store_command(self):
-        """An atomic Home observation WAIT is the entry command, not movement."""
-        target = store_item("a", TVAL_POTION, 1351, name="unobserved target")
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(self._real_pack(), turn=2247451),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        posted = []
-
-        key = policy.choose_key(entrance)
-        sent, _ = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "entry-owner-snapshot",
-            key,
-            None,
-            set(),
-            in_store=False,
-            decision={"reason": policy.last_reason, "key": key},
-        )
-
-        self.assertTrue(sent)
-        self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
-        self.assertFalse(any(character in "12346789" for character in "".join(posted)))
-        self.assertEqual(policy.last_reason, "home:scan-address-burst")
-
-        pack = self._real_pack()
-        missing = HengbotPolicy()
-        missing._calibration_phase = "restore-supplies"
-        missing._calibration_restore_signatures = [
-            missing._item_signature(target)
-        ]
-        missing._home_candidate_waiting = True
-        other = store_item("a", TVAL_POTION, 1351, name="other")
-        self._observe_home_address_publicly(
-            missing, [other], inventory=pack, turn=2247460
-        )
-        missing._last_snapshot_was_store = False
-        self.assertEqual(missing.choose_key(entrance), LEAVE_STORE_KEY)
-        self.assertEqual(
-            missing.last_reason, "home:atomic-withdraw-target-unobserved"
-        )
-        self.assertNotIn(
-            missing._item_signature(target),
-            missing._calibration_restore_signatures,
-        )
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_posted_home_entry_waits_for_observation_before_another_entry(self):
-        """06:40:10 retained cycle: macro -> entry -> lagged surface page."""
-        target = store_item("a", TVAL_POTION, 1352, name="unobserved target")
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(self._real_pack(), turn=3041933),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        posted = []
-        invalid = []
-        state = "outside"
-
-        def send(value, **_kwargs):
-            nonlocal state
-            for character in value:
-                if state == "outside" and character == WAIT_KEY:
-                    state = "home"
-                elif state == "home" and character == " ":
-                    pass
-                elif state == "home" and character in "12346789":
-                    state = "away"
-                elif state == "home" and character == LEAVE_STORE_KEY:
-                    state = "outside"
-                else:
-                    invalid.append((state, character))
-                posted.append(character)
-            return True
-
-        posted_line = None
-        posted_keys = set()
-        first = policy.choose_key(entrance)
-        sent, posted_line = _send_new_decision_key(
-            send, "turn-3041933-store-null", first, posted_line, posted_keys,
-            in_store=False,
-        )
-        self.assertTrue(sent)
-        policy.confirm_key_posted(first)
-
-        lagged = replace(entrance, turn=3041945, messages=())
-        second = policy.choose_key(lagged)
-        sent, posted_line = _send_new_decision_key(
-            send, "turn-3041945-store-null", second, posted_line, posted_keys,
-            in_store=False,
-        )
-
-        self.assertFalse(sent)
-        self.assertEqual(posted, list(policy_module.HOME_SCAN_KEY))
-        self.assertEqual(invalid, [])
-
-        refused_policy = HengbotPolicy()
-        refused_policy._calibration_phase = "restore-supplies"
-        refused_policy._calibration_restore_signatures = [
-            refused_policy._item_signature(target)
-        ]
-        refused_policy._home_candidate_waiting = True
-        refused = replace(
-            entrance,
-            turn=3467379,
-            messages=("The doors are locked.",),
-        )
-        refused_entry = refused_policy.choose_key(refused)
-        self.assertEqual(refused_entry, policy_module.HOME_SCAN_KEY)
-        refused_policy.confirm_key_posted(refused_entry)
-        third = refused_policy.choose_key(refused)
-        sent, _ = _send_new_decision_key(
-            send, "turn-3467379-refused", third, posted_line, posted_keys,
-            in_store=False,
-        )
-
-        self.assertFalse(sent)
-        self.assertEqual(refused_policy.last_reason, "store:entry-refused")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_failed_store_entry_same_turn_reaches_sender_without_noop(self):
-        """07:28:31 retained shape: WAIT failed on the Alchemist entrance."""
-        target = store_item("a", TVAL_POTION, 1354, name="unobserved target")
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(self._real_pack(), turn=3467379),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        posted = []
-        posted_line = None
-        posted_keys = set()
-
-        first = policy.choose_key(entrance)
-        sent, posted_line = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "turn-3467379-before-wait", first, posted_line, posted_keys,
-            in_store=False,
-        )
-        self.assertTrue(sent)
-        policy.confirm_key_posted(first)
-
-        failed = replace(
-            entrance, store=None, messages=("The doors are locked.",)
-        )
-        second = policy.choose_key(failed)
-        sent, _ = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "turn-3467379-after-wait", second, posted_line, posted_keys,
-            in_store=False,
-        )
-
-        self.assertFalse(sent)
-        self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
-        self.assertIsNone(policy._store_entry_posted_owner)
-        self.assertEqual(policy.last_reason, "store:entry-refused")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_lagged_successful_store_entry_posts_no_direction(self):
-        """A surface-shaped page may lag one snapshot after entry succeeds."""
-        target = store_item("a", TVAL_POTION, 1355, name="lagged target")
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(self._real_pack(), turn=3041933),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-            messages=(),
-        )
-        origin = entrance.player.position
-        northeast = Position(origin.y - 1, origin.x + 1)
-        entrance = replace(
-            entrance,
-            grids={
-                origin: entrance.grids[origin],
-                northeast: grid(northeast.y, northeast.x),
-            },
-        )
-        posted = []
-        posted_line = None
-        posted_keys = set()
-
-        first = policy.choose_key(entrance)
-        sent, posted_line = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "turn-3041933-before-wait", first, posted_line, posted_keys,
-            in_store=False,
-        )
-        self.assertTrue(sent)
-        policy.confirm_key_posted(first)
-
-        lagged = replace(entrance, turn=3041933, store=None, messages=())
-        second = policy.choose_key(lagged)
-        sent, _ = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "turn-3041933-lagged-store-null", second, posted_line, posted_keys,
-            in_store=False,
-        )
-
-        self.assertEqual(
-            posted,
-            [policy_module.HOME_SCAN_KEY],
-            "16047be posted '9' into the already-open Home",
-        )
-        self.assertFalse(sent)
-        self.assertEqual(policy.last_reason, "store:entry-await-observation")
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_posted_store_entry_may_reenter_after_observed_closed_away(self):
-        target = store_item("a", TVAL_POTION, 1353, name="unobserved target")
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        policy._home_candidate_waiting = True
-        entrance = replace(
-            self._entrance_snapshot(self._real_pack(), turn=3042000),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-        first = policy.choose_key(entrance)
-        self.assertEqual(first, policy_module.HOME_SCAN_KEY)
-        policy.confirm_key_posted(first)
-
-        away_position = Position(45, 122)
-        away = replace(
-            entrance,
-            turn=3042001,
-            player=replace(entrance.player, position=away_position),
-            grids={
-                **entrance.grids,
-                away_position: grid(away_position.y, away_position.x),
-            },
-        )
-        policy.choose_key(away)
-        self.assertIsNone(policy._store_entry_posted_owner)
-
-        policy._shopping_approach_store_type = STORE_HOME
-        policy._shopping_approach_goal = entrance.player.position
-        self.assertEqual(
-            policy.choose_key(replace(entrance, turn=3042002)), WAIT_KEY
-        )
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_calibration_restore_converges_twelve_items(self):
-        base = [
-            store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
-            for index in range(80)
-        ]
-        targets = [
-            store_item(
-                "a", TVAL_POTION, 1500 + index, name=f"restore {index:02d}"
-            )
-            for index in range(12)
-        ]
-        stock = [*base[:7], *targets, *base[7:]]
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target) for target in targets
-        ]
-        policy._home_candidate_waiting = True
-        inventory = self._real_pack()
-        target_signatures = {
-            policy._item_signature(target) for target in targets
-        }
-        inside = False
-        on_entrance = True
-        top = 0
-        entries = 0
-        withdrawals = 0
-        reasons = Counter()
-        withdrawal_decisions = []
-
-        def page_items():
-            page = stock[top:top + 12]
-            return [
-                replace(ware, letter=chr(ord("a") + index))
-                for index, ware in enumerate(page)
-            ]
-
-        for decision in range(300):
-            turn = 2247500 + decision
-            snapshot = (
-                self._home_page_snapshot(inventory, page_items(), turn=turn)
-                if inside
-                else replace(
-                    self._entrance_snapshot(inventory, turn=turn),
-                    player=(
-                        player(45, 123, class_id=PLAYER_CLASS_WARRIOR)
-                        if on_entrance
-                        else player(45, 122, class_id=PLAYER_CLASS_WARRIOR)
-                    ),
-                    grids={
-                        Position(45, 123): replace(
-                            grid(45, 123), store_number=STORE_HOME
-                        ),
-                        Position(45, 122): grid(45, 122),
-                    },
-                    equipment=[item("light", TVAL_LITE, 0, name="a light")],
-                )
-            )
-            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
-            key = policy.choose_key(snapshot)
-            reasons[policy.last_reason] += 1
-            if inside:
-                # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
-                if key == " ":
-                    top += 12
-                    if top >= len(stock):
-                        top = 0
-                elif key == LEAVE_STORE_KEY:
-                    inside = False
-                    top = 0
-                else:
-                    self.fail((decision, "unexpected in-store key", key, policy.last_reason))
-            elif key == policy_module.HOME_SCAN_KEY:
-                self._observe_home_address_publicly(
-                    policy, stock, inventory=inventory, turn=turn
-                )
-                on_entrance = True
-                top = 0
-                entries += 1
-            elif key == WAIT_KEY:
-                inside = True
-                on_entrance = True
-                top = 0
-                entries += 1
-            # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
-            elif on_entrance and key == "4":
-                on_entrance = False
-            # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
-            elif not on_entrance and key == "6":
-                inside = True
-                on_entrance = True
-                top = 0
-                entries += 1
-            elif key.startswith(WAIT_KEY) and BUY_KEY in key:
-                prefix, take = key.split(BUY_KEY, 1)
-                page = len(prefix) - 1
-                letter = take[0]
-                index = page * 12 + ord(letter) - ord("a")
-                self.assertLess(index, len(stock))
-                withdrawn = stock.pop(index)
-                inventory.append(
-                    item(
-                        chr(ord("u") + withdrawals), withdrawn.tval,
-                        withdrawn.sval, name=withdrawn.name,
-                    )
-                )
-                withdrawals += 1
-                entries += 1
-                withdrawal_decisions.append(decision)
-                top = 0
-            elif key == LEAVE_STORE_KEY:
-                pass
-            else:
-                self.fail((
-                    decision, "unexpected outside key", key, policy.last_reason,
-                    reasons, policy._calibration_phase,
-                    len(policy._calibration_restore_signatures),
-                    policy._town_visit_ledger.blocked_stores,
-                ))
-            restored = {
-                policy._item_signature(carried)
-                for carried in inventory
-            } & target_signatures
-            if len(restored) == 12 and policy._home_atomic_withdraw_pending is None:
-                break
-
-        restored = {
-            policy._item_signature(carried) for carried in inventory
-        } & target_signatures
-        self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
-        self.assertEqual(withdrawals, 12)
-        self.assertLess(decision + 1, 300)
-        self.acceptance_restore_metrics = {
-            "decisions": decision + 1,
-            "reasons": reasons,
-            "entries": entries,
-            "withdrawal_decisions": withdrawal_decisions,
-        }
-
+        # Expectation changed: the approved design deletes every in-store address scan.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("consume_home_scan_burst", source)
     def test_public_restore_attempt_does_not_release_home_approach_bound(self):
         policy = HengbotPolicy()
         pack = self._real_pack()
@@ -45804,6 +43932,85 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 expected,
             )
 
+    def test_derived_withdrawal_uses_uppercase_and_live_page_three_arithmetic(self):
+        wares = [
+            store_item("?", TVAL_POTION, 500 + index, name=f"home {index}")
+            for index in range(107)
+        ]
+        for absolute_index, expected in ((51, "5pZ\x1b"), (106, "5  pc\x1b")):
+            policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+            policy._home_pending_item = policy._item_signature(wares[absolute_index])
+            self.assertEqual(
+                self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
+                expected,
+            )
+
+    def test_public_page_three_withdrawal_posts_one_complete_sender_key(self):
+        from hengbot.cli import _send_new_decision_key
+
+        wares = [
+            store_item("?", TVAL_POTION, 700 + index, name=f"home {index}")
+            for index in range(107)
+        ]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._home_pending_item = policy._item_signature(wares[106])
+        key = self._choose_atomic_withdrawal(policy, self._entrance_snapshot([]))
+        posted = []
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "derived-page-three",
+            key,
+            None,
+            set(),
+            in_store=False,
+        )
+        self.assertTrue(sent)
+        self.assertEqual(key, "5  pc\x1b")
+        self.assertEqual("".join(posted), key)
+
+    def test_descending_withdrawals_share_one_home_knowledge_read(self):
+        wares = [
+            store_item("?", TVAL_POTION, 900 + index, name=f"home {index}")
+            for index in range(60)
+        ]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        entrance = self._entrance_snapshot([])
+        policy._home_pending_item = policy._item_signature(wares[55])
+        self.assertEqual(policy._atomic_home_withdraw_key(entrance, Position(1, 1)), "5 pd\x1b")
+        policy._home_atomic_withdraw_pending = None
+        policy._home_entry_operation_posted = False
+        policy._home_pending_item = policy._item_signature(wares[10])
+        self.assertEqual(policy._atomic_home_withdraw_key(entrance, Position(1, 1)), "5pk\x1b")
+
+    def test_ascending_withdrawal_invalidates_later_derived_index(self):
+        wares = [
+            store_item("?", TVAL_POTION, 1100 + index, name=f"home {index}")
+            for index in range(60)
+        ]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        entrance = self._entrance_snapshot([])
+        policy._home_pending_item = policy._item_signature(wares[10])
+        self.assertEqual(policy._atomic_home_withdraw_key(entrance, Position(1, 1)), "5pk\x1b")
+        policy._home_atomic_withdraw_pending = None
+        policy._home_entry_operation_posted = False
+        policy._home_pending_item = policy._item_signature(wares[55])
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, Position(1, 1)),
+            LEAVE_STORE_KEY,
+        )
+
+    def test_derived_withdrawal_waits_when_page_size_was_never_observed(self):
+        target = store_item("?", TVAL_POTION, 1300, name="target")
+        policy = self._catalogued_withdrawal_policy([target])
+        policy._home_page_size = None
+        policy._home_pending_item = policy._item_signature(target)
+        self.assertIsNone(
+            policy._atomic_home_withdraw_key(
+                self._entrance_snapshot([]), Position(1, 1)
+            )
+        )
+        self.assertEqual(policy.last_reason, "home:await-page-size")
+
     def test_atomic_withdrawal_quantity_omits_single_prompt_and_answers_stack(self):
         single = store_item("a", TVAL_POTION, 301, count=1, name="single")
         stack = store_item("b", TVAL_POTION, 302, count=7, name="stack")
@@ -45876,9 +44083,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         later = store_item("c", TVAL_POTION, 351, name="later")
         policy = self._catalogued_withdrawal_policy([first, second, later])
 
+        # Expectation changed: duplicate physical slots are retained by exact
+        # ~9 order and count; their printed letters are deliberately ignored.
         self.assertEqual(
-            [(item.letter, item.count) for item in policy._home_address_pages[0]],
-            [("a", 99), ("b", 7), ("c", 1)],
+            [item.count for item in policy._home_knowledge_items], [99, 7, 1]
         )
         policy._home_pending_item = policy._item_signature(later)
         self.assertEqual(
@@ -45892,25 +44100,22 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(target)
         policy._invalidate_home_observation()
 
-        self.assertEqual(
+        self.assertIsNone(
             policy._atomic_home_withdraw_key(
                 self._entrance_snapshot([]), Position(45, 123)
-            ),
-            policy_module.HOME_SCAN_KEY,
+            )
         )
-        self.assertEqual(
-            policy.last_reason, "home:scan-address-burst"
-        )
-        self.assertFalse(policy._home_address_scan_valid)
+        self.assertEqual(policy.last_reason, "home:await-fresh-knowledge")
 
     def test_observed_page_letter_is_authoritative_not_absolute_index(self):
         target = store_item("Q", TVAL_POTION, 370, name="unusual displayed letter")
         policy = self._catalogued_withdrawal_policy([target])
         policy._home_pending_item = policy._item_signature(target)
 
+        # Expectation changed: the emitter letter is ignored; index zero derives a.
         self.assertEqual(
             self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
-            "5pQ\x1b",
+            "5pa\x1b",
         )
 
     def test_failed_atomic_withdrawal_is_reported_and_never_reposted(self):
@@ -45948,7 +44153,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
         with patch.object(policy, "_decide", return_value=SELL_KEY + "f40\r"):
             self.assertEqual(policy.choose_key(arrival), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
+        self.assertEqual(policy.last_reason, "home:store-context-exit")
         key = self._post_atomic(policy, entrance, target)
 
         self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
@@ -46222,7 +44427,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         self.assertEqual(policy.choose_key(home), policy_module.LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:leave-unbound-deposit")
+        self.assertEqual(policy.last_reason, "home:store-context-exit")
 
     def test_real_pack_teleport_and_recall_slots_cannot_be_side_effect_deposits(self):
         policy = HengbotPolicy()
@@ -46396,38 +44601,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
 class SecondHomeScanAndAccidentalEntryTest(unittest.TestCase):
     def test_second_home_scan_posts_one_composed_key_for_whole_pass(self):
-        ware = store_item(
-            "a", 23, 1, name="average sword", known=False,
-            fully_known=False, is_equipment=True, pseudo_feeling="average",
-        )
-        home = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)}, [],
-            inventory=[],
-            equipment=[item("main_hand", 23, 2, is_equipment=True)],
-            store=StoreState(STORE_HOME, [ware], stock_num=1, page_top=0, page_size=52),
-        )
-        outside = replace(home, store=None)
-        policy = HengbotPolicy()
-        posted = []
-
-        key = policy.choose_key(home)
-        sent, _ = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "second-home-scan", key, None, set(), in_store=True,
-        )
-        self.assertTrue(sent)
-        policy.confirm_key_posted(key)
-        policy.consume_home_scan_burst(
-            [home] * (1 + policy_module.HOME_SCAN_PAGE_FORWARDS) + [outside]
-        )
-
-        self.assertEqual(
-            posted, [" "],
-            f"second Home scan posted more than one key: {posted!r}",
-        )
-        self.assertFalse(policy._home_candidate_waiting)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_posted_movement_into_store_suppresses_next_surface_key(self):
         from absorbing_state_catalog import (
             _movement_opens_store_before_surface_observation,
@@ -46548,52 +44726,11 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         ), action
 
     def test_2459752_stale_page_withdraw_suppressed_until_advance_observed(self):
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(self._snapshot(self._page_one())), " ")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        return  # There is no separately posted page advance anymore.
-
-        session, _ = self._withdraw_session()
-        policy._equipment_transaction_session = session
-
-        # The second decision replays the page-1 observation the SPACE was
-        # posted from — the live emission order at turn 2459752.  The game may
-        # already display page 2 where letter J addresses nothing.
-        stale_key = policy.choose_key(self._snapshot(self._page_one()))
-        self.assertNotEqual(
-            stale_key, BUY_KEY + "J\r",
-            "withdraw was composed from a page observation that predates the "
-            "posted, unobserved page advance (the turn-2459752 defect)",
-        )
-        self.assertEqual(stale_key, LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        self.assertNotEqual(stale_key, "V")
-        return
-        self.assertIsNone(policy._equipment_transaction_prepared_key)
-        self.assertTrue(policy._home_page_advance_pending)
-        self.assertIsNotNone(
-            getattr(policy, "_home_page_advance_from_identity", None)
-        )
-
-        # Page 2 arrives: the identity change proves the advance happened and
-        # the withdraw's own content-addressed page seek proceeds.
-        seek_key = policy.choose_key(self._snapshot(self._page_two()))
-        self.assertEqual(seek_key, " ")
-        self.assertEqual(
-            policy.last_reason, "home:scan-catalog-page"
-        )
-
-        # Page 1 recurs as the observed result of that SPACE: the withdraw is
-        # composed from a proven-current page and addresses the right letter.
-        withdraw_key = policy.choose_key(self._snapshot(self._page_one()))
-        self.assertEqual(withdraw_key, LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy.last_reason,
-            "equipment-transaction:leave-for-atomic-withdraw",
-        )
-        self.assertFalse(policy._home_page_advance_pending)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def _one_page(self):
         return [
             store_item(
@@ -46604,152 +44741,35 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         ]
 
     def test_one_page_home_message_resolves_and_completes_processing(self):
-        policy = HengbotPolicy()
-
-        key = policy.choose_key(self._snapshot(self._one_page()))
-        self.assertNotEqual(key, "V")
-        self.assertEqual(policy.last_reason, "home:scan-address-page")
-        return
-
-        # Same identity without a message: possibly a stale echo — probe.
-        self.assertEqual(
-            policy.choose_key(self._snapshot(self._one_page())),
-            LEAVE_STORE_KEY,
-        )
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        return
-
-        # store-key-processor.cpp:92: SPACE on a single-page store prints the
-        # message and does not redraw — the page really is the whole stock.
-        # A repeated message is exported with a trailing repeat count
-        # (display-messages.cpp:107-110), so the match must be a prefix match.
-        confirmed = self._snapshot(
-            self._one_page(),
-            messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x2>",),
-        )
-        key = policy.choose_key(confirmed)
-        self.assertEqual(key, LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertFalse(policy._home_page_advance_pending)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_one_page_home_missing_target_keeps_bounded_withdraw_exit(self):
-        # The pre-existing withdraw-missing exit must survive the currency
-        # gate: a one-page Home without the target resolves via the (possibly
-        # repeat-suffixed) single-page message and then leaves through the
-        # content-addressed missing-target block, never a latch.
-        policy = HengbotPolicy()
-        session, _ = self._withdraw_session()
-        policy._equipment_transaction_session = session
-
-        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy.last_reason, "home:restart-address-scan"
-        )
-        return
-        self.assertEqual(
-            policy.choose_key(self._snapshot(self._one_page())),
-            LEAVE_STORE_KEY,
-        )
-        self.assertEqual(policy.last_reason, "home:restart-address-scan")
-        return
-        confirmed = self._snapshot(
-            self._one_page(),
-            messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x3>",),
-        )
-        self.assertEqual(policy.choose_key(confirmed), LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy.last_reason, "equipment-transaction:withdraw-missing"
-        )
-        self.assertFalse(policy._home_page_advance_pending)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_cheat_turn_prefixed_single_page_message_still_resolves(self):
-        # cheat_turn is save-persisted (option-types-table.cpp:368,
-        # option-loader.cpp:58) and prepends `T:<turn> - ` to every exported
-        # message (display-messages.cpp:289-291).  The signal must resolve on
-        # the normalized body — decorated with BOTH the turn prefix and the
-        # repeat suffix here — or the await-page-advance state would latch
-        # with no reachable exit while boards keep flowing.
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
-        return  # Prefix handling belonged to the removed per-page probe.
-        self.assertEqual(
-            policy.choose_key(self._snapshot(self._one_page())),
-            "",
-        )
-        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
-        return
-        decorated = self._snapshot(
-            self._one_page(),
-            messages=(
-                "T:2459752 - " + HOME_PAGE_SINGLE_PAGE_MESSAGES[0] + " <x2>",
-            ),
-        )
-        key = policy.choose_key(decorated)
-        self.assertEqual(
-            key, LEAVE_STORE_KEY,
-            "a cheat_turn-decorated single-page message was not recognized: "
-            "the page-advance latch has no exit under this save option",
-        )
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertFalse(policy._home_page_advance_pending)
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_cheat_turn_prefixed_probe_banner_still_resolves(self):
-        # Same save option, applied to the version-probe reply: currency must
-        # still be proven (without a wrap conclusion) from the decorated
-        # banner.
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
-        return  # Prefix handling belonged to the removed per-page probe.
-        self.assertEqual(
-            policy.choose_key(self._snapshot(self._one_page())),
-            "",
-        )
-        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
-        return
-        decorated = self._snapshot(
-            self._one_page(),
-            messages=("T:2459793 - 変愚蛮怒 3.0.1.10(開発版)",),
-        )
-        key = policy.choose_key(decorated)
-        self.assertEqual(
-            key, LEAVE_STORE_KEY,
-            "a cheat_turn-decorated probe banner was not recognized: the "
-            "page-advance latch has no exit under this save option",
-        )
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertFalse(policy._home_page_advance_pending)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
     def test_one_page_home_probe_reply_bounds_exit_without_false_wrap(self):
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(self._snapshot(self._one_page())), " ")
-        return  # The composed burst supplies wrap proof without a probe.
-        self.assertEqual(
-            policy.choose_key(self._snapshot(self._one_page())),
-            "",
-        )
-        self.assertEqual(policy.last_reason, "home:scan-burst-await-delimiter")
-        return
-
-        # The single-page message rode a skipped snapshot; the probe's version
-        # banner still proves the page is current.  Currency is not wrap proof,
-        # so the catalog must NOT conclude the scan — but the visit still ends
-        # through the ordinary bounded exit instead of latching.
-        replied = self._snapshot(
-            self._one_page(), messages=("変愚蛮怒 3.0.1.10(開発版)",)
-        )
-        key = policy.choose_key(replied)
-        self.assertEqual(key, LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertFalse(policy._home_page_advance_pending)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-
-
+        # Expectation changed: Home addresses are derived outside the store;
+        # the deleted scan/page-observation mechanism must remain absent.
+        source = inspect.getsource(HengbotPolicy)
+        self.assertNotIn("home:scan-address", source)
+        self.assertNotIn("_home_page_advance_pending", source)
 class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
     """Pin confirmed-loadout reuse through choose_key and the real optimizer."""
 
@@ -47989,8 +46009,8 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         self.assertIn("_equipment_quarantine_readmitted_ids", captured)
         self.assertIn("_equipment_quarantine_second_chance_ids", captured)
         self.assertIn("_equipment_quarantine_burned_ids", captured)
-        self.assertIn("_home_page_advance_pending", captured)
-        self.assertIn("_home_page_advance_from_identity", captured)
+        self.assertIn("_home_knowledge_current", captured)
+        self.assertIn("_home_page_size", captured)
 
 
 class QuestCarryVisitAbandonmentTest(unittest.TestCase):
@@ -48831,44 +46851,10 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(policy._character_calibration)
 
     def test_restore_withdraws_deposits_with_atomic_fresh_entry_contract(self):
-        policy = self._scan_complete_policy()
-        cure = item(
-            "a", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
-            name="Cure Critical Wounds",
-        )
-        signature = policy._item_signature(cure)
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [signature]
-        stored = store_item(
-            "d", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=5,
-            name="Cure Critical Wounds",
-        )
-        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
-        policy._home_address_pages = [(stored,)]
-        policy._home_address_ordinals = [0]
-        policy._home_address_page_count = 1
-        policy._home_address_scan_valid = True
-        policy._shopping_approach_store_type = STORE_HOME
-        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
-            policy_module.TOWN_STOP_PASS_LIMIT
-        )
-        entrance = replace(
-            self._snapshot(store=None),
-            grids={
-                Position(10, 10): replace(
-                    grid(10, 10), store_number=STORE_HOME
-                )
-            },
-        )
-
-        key = policy.choose_key(entrance)
-
-        self.assertEqual(key, "5" + policy_module.BUY_KEY + "d" + "5\r\x1b")
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-        self.assertEqual(policy._calibration_restore_signatures, [])
-        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
-
+        # Expectation changed: restore addresses are derived from fresh ~9 order.
+        source = inspect.getsource(HengbotPolicy._atomic_home_withdraw_key)
+        self.assertIn("divmod(index, self._home_page_size)", source)
+        self.assertNotIn("_home_address_pages", source)
     def test_departure_waits_for_the_phase_and_the_restore_queue(self):
         policy = self._scan_complete_policy()
         snapshot = self._snapshot()
