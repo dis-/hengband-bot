@@ -594,8 +594,8 @@ def _released_bound():
     )
 
 
-def _verified_two_page_home_address_scan():
-    """The live 101-item Home must expose page two before withdrawal."""
+def _verified_three_page_home_address_scan():
+    """The live 105-item Home must expose page three before withdrawal."""
     helper = fixture.HomeOneOperationPerEntryTest()
     policy = HengbotPolicy()
     pack = helper._real_pack()
@@ -609,7 +609,7 @@ def _verified_two_page_home_address_scan():
             letters[n % 52], TVAL_POTION, 3950 + n,
             name=f"verified address {n}",
         )
-        for n in range(101)
+        for n in range(105)
     ]
     policy._calibration_phase = "restore-supplies"
     policy._calibration_restore_signatures = [policy._item_signature(stock[-1])]
@@ -1036,8 +1036,8 @@ SEEDED_STATES = (
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
     AbsorbingState("released-home-attempt-bound", 800, _released_bound),
     AbsorbingState(
-        "verified-two-page-home-address-scan", 100,
-        _verified_two_page_home_address_scan,
+        "verified-three-page-home-address-scan", 100,
+        _verified_three_page_home_address_scan,
     ),
     AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
     AbsorbingState(

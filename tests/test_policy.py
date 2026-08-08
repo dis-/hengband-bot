@@ -44658,7 +44658,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 letters[index % 52], TVAL_POTION, 3000 + index,
                 name=f"verified page item {index}",
             )
-            for index in range(101)
+            for index in range(105)
         ]
         target = wares[-1]
         policy = HengbotPolicy()
@@ -44674,46 +44674,80 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         snapshots = [
             entrance,
+            replace(entrance, turn=3200000),
+            replace(entrance, turn=3200000),
             self._home_page_snapshot(
-                inventory, wares[:52], turn=3200001, stock_num=101,
+                inventory, wares[:52], turn=3200001, stock_num=105,
                 page_top=0, page_size=52,
             ),
             self._home_page_snapshot(
-                inventory, wares[52:], turn=3200002, stock_num=101,
+                inventory, wares[52:104], turn=3200002, stock_num=105,
                 page_top=52, page_size=52,
             ),
             self._home_page_snapshot(
-                inventory, wares[:52], turn=3200003, stock_num=101,
+                inventory, wares[104:], turn=3200003, stock_num=105,
+                page_top=104, page_size=52,
+            ),
+            self._home_page_snapshot(
+                inventory, wares[:52], turn=3200004, stock_num=105,
                 page_top=0, page_size=52,
             ),
         ]
         for decision, current in enumerate(snapshots):
             key = policy.choose_key(current)
+            if decision == 2:
+                self.assertEqual(
+                    key, "",
+                    "page_top: 0 repeated before Home entry observation",
+                )
+            snapshot_line = (
+                "surface-entry"
+                if current.store is None
+                else f"page-top-{current.store.page_top}"
+            )
             sent, _ = _send_new_decision_key(
                 lambda value, **_kwargs: posted.append(value) or True,
-                f"verified-two-page-{decision}", key, None, set(),
+                snapshot_line, key,
+                "surface-entry" if decision in (1, 2) else None,
+                {WAIT_KEY} if decision in (1, 2) else set(),
                 in_store=current.store is not None,
             )
-            self.assertTrue(sent)
-            policy.confirm_key_posted(key)
+            self.assertEqual(sent, bool(key) and decision not in (1, 2))
+            if decision == 1:
+                policy.confirm_key_posted(WAIT_KEY)
+            elif sent and decision != 0:
+                policy.confirm_key_posted(key)
             if decision == 0 and key != WAIT_KEY:
                 # Historical fb9efd9 queues the whole burst here.  Model the
                 # measured live result: entry flushes every queued character,
                 # so only page zero and then the outside delimiter arrive.
-                policy.consume_home_scan_burst([snapshots[1], entrance])
+                policy.consume_home_scan_burst([snapshots[3], entrance])
                 policy.choose_key(entrance)
                 self.assertTrue(
                     policy._home_address_scan_valid, policy.last_reason
                 )
 
-        self.assertEqual(posted, [WAIT_KEY, " ", " ", LEAVE_STORE_KEY])
+        self.assertEqual(
+            posted, [WAIT_KEY, " ", " ", " ", LEAVE_STORE_KEY]
+        )
         self.assertTrue(policy._home_address_scan_valid)
-        self.assertEqual(policy._home_address_ordinals, [0, 1])
-        self.assertEqual(policy._home_address_page_count, 2)
+        self.assertEqual(policy._home_address_ordinals, [0, 1, 2])
+        self.assertEqual(policy._home_address_page_count, 3)
 
-        withdrawal = policy.choose_key(replace(entrance, turn=3200004))
-        self.assertEqual(withdrawal, WAIT_KEY + " pW" + LEAVE_STORE_KEY)
+        withdrawal = policy.choose_key(replace(entrance, turn=3200005))
+        self.assertEqual(withdrawal, WAIT_KEY + "  pa" + LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+
+    def test_pending_scan_accepts_delayed_home_entry_observation(self):
+        policy = HengbotPolicy()
+        policy._home_scan_burst_pending = True
+        entrance = self._entrance_snapshot([], turn=3200050)
+
+        self.assertEqual(
+            policy.choose_key(entrance), "",
+            "page_top: 0 repeated before Home entry observation",
+        )
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
 
     def test_verified_scan_truncation_reaches_address_burst_short(self):
         policy = HengbotPolicy()

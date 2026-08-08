@@ -141,3 +141,43 @@ lint unchanged at 9 existing violations and 116 declared findings in 93 tests;
 2,511 tests at tip versus 2,509 at `fb9efd9`, zero test-name losses. Full suite
 run 1 passed 2,511 tests in 209.404s with one opt-in skip; run 2 passed 2,511
 tests in 210.488s with one opt-in skip.
+
+## 2026-08-08 delayed Home entry observation fix event
+
+MEASURED from the retained sender stream: `home:scan-address-burst` selected
+and posted `WAIT` (`5`). The immediately retained record was a `player_turn`
+surface snapshot at the same turn, with `store` absent (therefore no
+`page_top` or `stock_num`) and `messages: []`; the following open-Home record
+was store type 7 with `stock_num: 105`, `page_size: 52`, `page_top: 0`, and no
+messages. The pending scan required `_store_entry_posted_owner` before it would
+wait on that unchanged entrance snapshot. When sender/entry correlation was
+not yet visible, it instead called `_home_scan_step` on `store=None`, which
+classified the burst short and posted Escape. The later Home page then met the
+ordinary posted-entry guard, which consumed that proving snapshot with
+`store:entry-await-observation` and an empty key. Thus the 47 empty decisions
+did not consume scan pages: each followed a separate scan-short/exit/re-entry
+cycle. `page_top: 0` was never accepted as a complete three-page scan, and the
+SPACE branch was never reached.
+
+The scan entry boundary now treats the pending scan itself as authority to
+await an unchanged Home-entrance snapshot before any page has been observed.
+Positive refusal evidence still terminates entry; an outside snapshot after a
+page has been recorded still terminates at `home:address-burst-short`. Once
+Home is observed, the existing metadata step machine requires tops 0, 52, 104,
+then 0, posting exactly one SPACE after each non-wrapped page and Escape only
+after the verified wrap. Page-relative letters are recorded with ordinals
+0, 1, and 2 before the page-three target is composed.
+
+The public sender pin uses the live `stock_num: 105`, `page_size: 52` shape and
+posts exactly `5`, SPACE, SPACE, SPACE, Escape with each intervening top
+observed. The delayed-entry pin fails at `5d01b77` with
+`AssertionError: '\x1b' != '' : page_top: 0 repeated before Home entry
+observation`. The genuine truncation pin still reaches
+`home:address-burst-short`, and the unique absorbing seed is now
+`verified-three-page-home-address-scan`.
+
+Verification: mutation battery 5/5 with `repo_tree_untouched: true`; fakery
+lint retained its green ratchet of 9 existing violations and 116 declared
+findings in 93 tests; the `test_policy.py` census is 1,913/1,914 with zero
+test-name losses. Full suite run 1 passed 2,512 tests in 213.067s with one
+opt-in skip; run 2 passed 2,512 tests in 211.010s with one opt-in skip.

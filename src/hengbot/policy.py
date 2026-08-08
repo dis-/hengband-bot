@@ -2551,7 +2551,7 @@ class HengbotPolicy:
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if self._home_scan_burst_pending:
-            if snapshot.store is None and self._store_entry_posted_owner is not None:
+            if snapshot.store is None:
                 refused = any(
                     "The doors are locked." in message
                     or "繝峨い縺ｫ骰ｵ" in message
@@ -2563,9 +2563,15 @@ class HengbotPolicy:
                     self.last_reason = "store:entry-refused"
                     return ""
                 here = snapshot.grid_at(snapshot.player.position)
-                if here is not None and here.store_number == STORE_HOME:
+                if (
+                    not self._home_address_pages
+                    and here is not None
+                    and here.store_number == STORE_HOME
+                ):
                     self.last_reason = "store:entry-await-observation"
                     return ""
+                if self._home_address_pages:
+                    return self._short_home_scan()
                 self._home_scan_burst_pending = False
                 self._store_entry_posted_owner = None
             else:
