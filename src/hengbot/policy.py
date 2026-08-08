@@ -290,7 +290,10 @@ MIN_STORE_PAGE_SIZE = 12
 HOME_SCAN_PAGE_FORWARDS = (
     STORE_INVEN_MAX * POWERUP_HOME_MULTIPLIER + MIN_STORE_PAGE_SIZE - 1
 ) // MIN_STORE_PAGE_SIZE + 1
-HOME_SCAN_KEY = WAIT_KEY + (" " * HOME_SCAN_PAGE_FORWARDS) + "\x1b"
+# Store entry calls disturb(), and the live flush_disturb option makes the
+# first store inkey() discard every character queued after the entry key.
+# Enter separately; subsequent decisions advance one observed page at a time.
+HOME_SCAN_KEY = WAIT_KEY
 # The exported message text carries at most two decorations, both fixed in
 # source: a save-persisted cheat_turn option prepends `T:<turn> - `
 # (display-messages.cpp:289-291, format "T:%d - %s"; registered at
@@ -2548,8 +2551,25 @@ class HengbotPolicy:
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if self._home_scan_burst_pending:
-            self.last_reason = "home:scan-burst-await-delimiter"
-            return ""
+            if snapshot.store is None and self._store_entry_posted_owner is not None:
+                refused = any(
+                    "The doors are locked." in message
+                    or "繝峨い縺ｫ骰ｵ" in message
+                    for message in snapshot.messages
+                )
+                if refused:
+                    self._home_scan_burst_pending = False
+                    self._store_entry_posted_owner = None
+                    self.last_reason = "store:entry-refused"
+                    return ""
+                here = snapshot.grid_at(snapshot.player.position)
+                if here is not None and here.store_number == STORE_HOME:
+                    self.last_reason = "store:entry-await-observation"
+                    return ""
+                self._home_scan_burst_pending = False
+                self._store_entry_posted_owner = None
+            else:
+                return self._home_scan_step(snapshot)
         if self._home_scan_burst_short:
             self._home_scan_burst_short = False
             self.last_reason = "home:address-burst-short"
@@ -9754,6 +9774,8 @@ class HengbotPolicy:
         if key == HOME_SCAN_KEY and self._home_scan_prepared:
             self._home_scan_prepared = False
             self._home_scan_burst_pending = True
+            if self._store_entry_wait_owner == STORE_HOME:
+                self._store_entry_posted_owner = STORE_HOME
             return True
         if (
             self._store_entry_wait_owner is not None
@@ -9781,6 +9803,97 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         return committed
+
+    def _finish_home_scan_processing(self) -> None:
+        if not self._home_scan_processing:
+            return
+        observed = self._home_scan_processing_snapshot
+        for page_snapshot in self._home_scan_processing_pages:
+            candidate = self._find_home_candidate(page_snapshot)
+            if candidate is None:
+                continue
+            signature = self._item_signature(candidate)
+            if PACK_CAPACITY - len(page_snapshot.inventory) > HOME_BATCH_RESERVED_SLOTS:
+                self._home_pending_batch.append(signature)
+            else:
+                self._deferred_home_items.add(signature)
+        self._home_processing_seen_pages.clear()
+        self._home_candidate_waiting = False
+        if observed is not None:
+            self._report_town_stop_pass(
+                observed, STORE_HOME,
+                goal_satisfied=self._equipment_catalog.home_scan_complete,
+            )
+        self._home_scan_processing = False
+        self._home_scan_processing_snapshot = None
+        self._home_scan_processing_pages.clear()
+
+    def _short_home_scan(self) -> str:
+        self._home_scan_burst_pending = False
+        self._home_address_pages.clear()
+        self._home_address_ordinals.clear()
+        self._home_address_scan_valid = False
+        self._home_address_page_count = None
+        self._home_scan_burst_short = False
+        self._home_scan_processing = False
+        self._home_scan_processing_snapshot = None
+        self._home_scan_processing_pages.clear()
+        self.last_reason = "home:address-burst-short"
+        return LEAVE_STORE_KEY
+
+    def _home_scan_step(self, snapshot: Snapshot) -> str:
+        """Advance a Home address scan only after the previous page is observed."""
+        store = snapshot.store
+        if store is None or store.store_type != STORE_HOME:
+            return self._short_home_scan()
+        self._store_entry_posted_owner = None
+        self._last_snapshot_was_store = True
+        self._last_snapshot_store_type = STORE_HOME
+        stock_num, page_top, page_size = (
+            store.stock_num, store.page_top, store.page_size,
+        )
+        if (
+            stock_num is None or page_top is None or page_size is None
+            or stock_num < 0 or page_top < 0 or page_size <= 0
+            or page_top % page_size != 0
+            or len(store.items) > page_size
+            or page_top + len(store.items) > stock_num
+        ):
+            return self._short_home_scan()
+        page_count = max(1, (stock_num + page_size - 1) // page_size)
+        expected_top = len(self._home_address_pages) * page_size
+        page = tuple(store.items)
+        if not self._home_address_pages:
+            if page_top != 0:
+                return self._short_home_scan()
+        elif len(self._home_address_pages) == page_count:
+            if page_top != 0:
+                return self._short_home_scan()
+            self._home_scan_burst_snapshots = self._home_scan_burst_snapshots + 1
+            self._home_scan_burst_wrapped = True
+            self._home_scan_burst_pending = False
+            self._home_address_scan_valid = True
+            self._home_address_page_count = page_count
+            self._home_address_ordinals = list(range(page_count))
+            self._finish_home_scan_processing()
+            self.last_reason = "home:processing-complete"
+            self._store_leave_inflight = (
+                self._decision_sequence, getattr(snapshot, "turn", 0), STORE_HOME,
+            )
+            return LEAVE_STORE_KEY
+        elif page_top != expected_top:
+            return self._short_home_scan()
+        self._home_address_pages.append(page)
+        self._home_scan_burst_snapshots = self._home_scan_burst_snapshots + 1
+        if self._home_scan_processing:
+            self._home_processing_seen_pages.add(tuple(
+                (item.letter, item.name, item.tval, item.sval)
+                for item in store.items
+            ))
+            self._home_scan_processing_snapshot = snapshot
+            self._home_scan_processing_pages.append(snapshot)
+        self.last_reason = "home:scan-address-page"
+        return " "
 
     def consume_home_scan_burst(self, snapshots: list[Snapshot]) -> bool:
         """Consume ordered scan output; return whether the burst remains open.
@@ -11180,6 +11293,8 @@ class HengbotPolicy:
             self._home_scan_processing_snapshot = None
             self._home_scan_processing_pages.clear()
             self._home_scan_prepared = True
+            self._store_entry_wait_owner = STORE_HOME
+            self._store_entry_wait_key = HOME_SCAN_KEY
             self.last_reason = "home:scan-address-burst"
             return HOME_SCAN_KEY
 
@@ -17573,7 +17688,9 @@ class HengbotPolicy:
                 self._home_scan_processing_pages.clear()
                 self._home_scan_prepared = True
                 self.last_reason = "home:scan-processing-burst"
-                return HOME_SCAN_KEY
+                self._home_scan_prepared = False
+                self._home_scan_burst_pending = True
+                return self._home_scan_step(snapshot)
 
             self._home_processing_seen_pages.clear()
             self._home_candidate_waiting = False

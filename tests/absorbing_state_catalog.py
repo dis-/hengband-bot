@@ -80,7 +80,8 @@ class TownWorld:
         entrance_grid = grids.get(self.entrance, fixture.grid(self.entrance.y, self.entrance.x))
         grids[self.entrance] = replace(entrance_grid, store_number=self.entrance_type)
         visible = self.stock[self.top:self.top + self.page_size]
-        visible = [replace(ware, letter=chr(ord("a") + n)) for n, ware in enumerate(visible)]
+        store_letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        visible = [replace(ware, letter=store_letters[n]) for n, ware in enumerate(visible)]
         if self.version_reply and self.last_key == "V":
             messages = ("Hengband 3.0",)
         elif self.inside and self.last_key == " " and len(self.stock) <= self.page_size:
@@ -93,7 +94,13 @@ class TownWorld:
             player=replace(self.base.player, position=self.position, gold=self.gold),
             grids=grids,
             inventory=list(self.inventory),
-            store=StoreState(self.entrance_type, visible) if self.inside else None,
+            store=(
+                StoreState(
+                    self.entrance_type, visible, stock_num=len(self.stock),
+                    page_top=self.top, page_size=self.page_size,
+                )
+                if self.inside else None
+            ),
             messages=messages,
             floor_key=(self.base.floor_key[0], self.depth, self.base.floor_key[2]),
         )
@@ -105,22 +112,6 @@ class TownWorld:
             return
         if key.startswith("R") and key.endswith("\r") and key[1:-1].isdigit():
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN * int(key[1:-1])
-            return
-        if key == HOME_SCAN_KEY:
-            if not self.inside:
-                self.inside = True
-                self.entries += 1
-            self.top = 0
-            self.pending_home_scan_snapshots.append(self.snapshot(0))
-            for _ in range(HOME_SCAN_PAGE_FORWARDS):
-                self.top += self.page_size
-                if self.top >= len(self.stock):
-                    self.top = 0
-                self.pending_home_scan_snapshots.append(self.snapshot(0))
-            self.inside = False
-            self.top = 0
-            self.exits += 1
-            self.pending_home_scan_snapshots.append(self.snapshot(0))
             return
         if self.inside:
             if key == LEAVE_STORE_KEY:
@@ -603,6 +594,32 @@ def _released_bound():
     )
 
 
+def _verified_two_page_home_address_scan():
+    """The live 101-item Home must expose page two before withdrawal."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    policy = HengbotPolicy()
+    pack = helper._real_pack()
+    entrance = replace(
+        helper._entrance_snapshot(pack, turn=3205000),
+        equipment=[fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")],
+    )
+    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    stock = [
+        fixture.store_item(
+            letters[n % 52], TVAL_POTION, 3950 + n,
+            name=f"verified address {n}",
+        )
+        for n in range(101)
+    ]
+    policy._calibration_phase = "restore-supplies"
+    policy._calibration_restore_signatures = [policy._item_signature(stock[-1])]
+    policy._home_candidate_waiting = True
+    return policy, TownWorld(
+        entrance, stock=stock, page_size=52,
+        passable_positions={entrance.player.position},
+    )
+
+
 def _calibration_rearm_cycle():
     """A swallowed Home page cannot turn one fresh-entry proof into a loop."""
     helper = fixture.HomeOneOperationPerEntryTest()
@@ -1018,6 +1035,10 @@ SEEDED_STATES = (
     AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
     AbsorbingState("released-home-attempt-bound", 800, _released_bound),
+    AbsorbingState(
+        "verified-two-page-home-address-scan", 100,
+        _verified_two_page_home_address_scan,
+    ),
     AbsorbingState("calibration-home-rearm-cycle", 3000, _calibration_rearm_cycle),
     AbsorbingState(
         "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget

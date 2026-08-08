@@ -101,3 +101,43 @@ at its green ratchet of 9 existing violations and 116 declared findings in 93
 tests; 2,522 test definitions versus 2,521 at `3f335e3`, zero losses. Full suite
 run 1 passed 2,507 tests in 340.904s with one opt-in skip; run 2 passed 2,507
 tests in 338.756s with one opt-in skip.
+
+## 2026-08-08 verified Home paging fix event
+
+The queued address burst was lost at the store-entry boundary. Moving onto a
+store calls `disturb(player_ptr, false, true)` in
+`player/player-move.cpp:240-243`; `disturb()` calls `flush()` when the live
+`flush_disturb` option is enabled (`core/disturbance.cpp:44-55`); `flush()` sets
+`inkey_xtra` (`term/screen-processor.cpp:23-31`); and the next `inkey()` clears
+the terminal input queue with `term_flush()`
+(`io/input-key-acceptor.cpp:195-206`). The store emits its first snapshot and
+then requests that first key (`store/cmd-store.cpp:145-148`), so characters
+already queued behind entry are discarded. This matches the measured one-page
+result and explains why commands posted by a later decision, after Home is
+already open, work normally.
+
+The address scan now enters with `WAIT` alone. Each Home snapshot must carry
+valid `stock_num`, `page_top`, and `page_size`. The exact page count is
+`max(1, ceil(stock_num / page_size))`; page zero is required first; each single
+posted `SPACE` must be followed by the exact next `page_top`; and a final
+`SPACE` must produce `page_top == 0` before addresses become valid. No next key
+is posted without observing the previous key's effect. Missing metadata, a
+stale or skipped top, an outside snapshot after scanning began, or any other
+truncation terminates at `home:address-burst-short`. The existing complete
+ordinal and wrap provenance guard remains the withdrawal authority.
+
+`test_public_verified_two_page_scan_addresses_page_two_target` is the public
+`choose_key` through sender pin. With `stock_num=101`, `page_size=52`, it posts
+`WAIT`, `SPACE`, `SPACE`, `ESC`, observes tops 0, 52, 0, and then composes the
+page-two target as `5 pW ESC`. At `fb9efd9` the same pin fails exactly:
+`AssertionError: False is not true : home:address-burst-short`.
+`test_verified_scan_truncation_reaches_address_burst_short` pins the genuine
+truncation terminal. The unique `verified-two-page-home-address-scan` absorbing
+seed reaches a visible bounded terminal after observing both pages and making
+the page-two withdrawal.
+
+Verification: mutation battery 5/5 with `repo_tree_untouched: true`; fakery
+lint unchanged at 9 existing violations and 116 declared findings in 93 tests;
+2,511 tests at tip versus 2,509 at `fb9efd9`, zero test-name losses. Full suite
+run 1 passed 2,511 tests in 209.404s with one opt-in skip; run 2 passed 2,511
+tests in 210.488s with one opt-in skip.
