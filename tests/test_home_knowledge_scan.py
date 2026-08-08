@@ -9,7 +9,7 @@ from hengbot.cli import (
     _newest_snapshot,
 )
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog
-from hengbot.model import GridState, PlayerState, Position, Snapshot
+from hengbot.model import GridState, PlayerState, Position, Snapshot, parse_snapshot
 from hengbot.policy import CHARACTER_DUMP_MACRO, HengbotPolicy, STORE_HOME
 
 
@@ -112,6 +112,16 @@ def home_digger_response() -> dict:
 
 
 class HomeKnowledgeScanTest(unittest.TestCase):
+    def test_plain_town_requests_home_knowledge_before_any_home_visit(self):
+        policy = HengbotPolicy()
+
+        key = policy.choose_key(town_with_home())
+
+        self.assertEqual(key, "~9")
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertEqual(policy._home_processing_seen_pages, set())
+        self.assertIsNone(policy._home_knowledge_scan_leave_turn)
+
     def test_stalled_capture_requests_home_knowledge_and_completes(self):
         capture = (
             Path(__file__).parents[1]
@@ -338,8 +348,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         keys = [policy.choose_key(snapshot) for _ in range(4)]
 
-        self.assertEqual(keys, ["6"] * 4)
-        self.assertNotIn("~9", keys)
+        self.assertEqual(keys, ["~9"] * 4)
         self.assertNotIn("5", keys)
 
     def test_scan_source_and_count_are_recorded(self):
@@ -350,6 +359,39 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             home_scan={"source": "~9", "item_count": 2},
         )
         self.assertEqual(record["home_scan"], {"source": "~9", "item_count": 2})
+
+    def test_store_page_metadata_is_parsed_for_address_verification(self):
+        snapshot = parse_snapshot({
+            "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20},
+            "store": {
+                "store_type": STORE_HOME,
+                "items": [],
+                "stock_num": 101,
+                "page_top": 52,
+                "page_size": 52,
+            },
+        })
+
+        self.assertEqual(
+            (snapshot.store.stock_num, snapshot.store.page_top, snapshot.store.page_size),
+            (101, 52, 52),
+        )
+
+    def test_knowledge_response_records_all_101_items_and_source(self):
+        response = home_response()
+        template = response["knowledge"]["items"][0]
+        response["knowledge"]["items"] = [
+            {**template, "slot": slot, "name": f"Home equipment {slot}", "sval": slot}
+            for slot in range(101)
+        ]
+        policy = HengbotPolicy()
+        policy._home_knowledge_scan_inflight = True
+
+        _dispatch_response_lines([json.dumps(response)], policy, Mock(return_value=True))
+
+        self.assertEqual(policy._home_scan_source, "~9")
+        self.assertEqual(policy._home_scan_item_count, 101)
+        self.assertEqual(len(policy._equipment_catalog.items), 101)
 
     def test_complete_response_exposes_all_fourteen_home_diggers(self):
         policy = HengbotPolicy()

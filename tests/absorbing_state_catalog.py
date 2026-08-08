@@ -251,6 +251,28 @@ def _departure_freeze():
     return policy, TownWorld(snap)
 
 
+def _catalogue_incomplete_knowledge_unreachable():
+    """An incomplete catalogue must release through ~9 before a Home visit."""
+    surface = fixture.TownErrandPlanTest()._snapshot(turn=3542954)
+    entrance = Position(10, 11)
+    surface = replace(
+        surface,
+        player=replace(surface.player, position=Position(10, 10)),
+        grids={
+            **surface.grids,
+            entrance: replace(
+                fixture.grid(10, 11, lit=True, in_view=True),
+                store_number=STORE_HOME,
+            ),
+        },
+        store=None,
+    )
+
+    world = TownWorld(surface)
+    world.expected_terminal_reason = "home:request-knowledge-scan"
+    return HengbotPolicy(), world
+
+
 def _invalid_command_noop_home_cycle():
     """An observation-only disposal pass cannot own a Home entry."""
     helper = fixture.TownErrandPlanTest()
@@ -963,6 +985,10 @@ def _failed_store_entry_same_turn():
 
 
 SEEDED_STATES = (
+    AbsorbingState(
+        "catalogue-incomplete-knowledge-unreachable", 20,
+        _catalogue_incomplete_knowledge_unreachable,
+    ),
     AbsorbingState("home-blocked-departure", 300, _departure_freeze),
     AbsorbingState("home-page-recurrence", 400, _page_recurrence),
     AbsorbingState("home-page-zero-echo", 400, _page_zero_echo),

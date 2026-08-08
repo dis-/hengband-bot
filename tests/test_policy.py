@@ -21375,6 +21375,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy.prime(snap)
+        policy._home_knowledge_scan_requested = True
         policy._identification_candidate = policy._item_signature(target)
         policy._identification_need = "full"
         policy._home_candidate_waiting = True
@@ -21941,6 +21942,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # with a direction lets that direction land in the store dispatcher.
         policy = HengbotPolicy()
         seed_character_calibration(policy, snap)
+        policy._home_knowledge_scan_requested = True
         self.assertEqual(policy.choose_key(snap), WAIT_KEY)
         self.assertEqual(policy.last_reason, "shop:travel:await-entry")
 
@@ -28171,6 +28173,7 @@ class TownMapNightRoutingTest(unittest.TestCase):
         self.assertNotEqual(without.last_reason, "shop:approach")
         # With it, the bot uses the store landmark for native travel.
         with_map = HengbotPolicy(town_map=town_map)
+        with_map._home_knowledge_scan_requested = True
         self.assertEqual(with_map.choose_key(snap), "\x1b`n(.")
         self.assertEqual(with_map.last_reason, "shop:travel")
 
@@ -36123,7 +36126,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         # bounded Home page owner alternately, without inventory/gold changes.
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
-        reasons = ("home:scan-catalog-page", "home:processing-complete")
+        reasons = ("home:scan-address-page", "home:processing-complete")
         for step in range(TOWN_NO_PROGRESS_LIMIT * 2):
             pol.last_reason = reasons[step % len(reasons)]
             pol._observe(self._town_snap())
@@ -43974,7 +43977,7 @@ class TownErrandPlanTest(unittest.TestCase):
             home, messages=(HOME_PAGE_SINGLE_PAGE_MESSAGES[0],)
         )
         policy.choose_key(confirmed)
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
 
     def test_transaction_home_override_uses_equipment_work_hard_ceiling(self):
         needs = [TownNeed(STORE_GENERAL, "food", "normal")]
@@ -44785,7 +44788,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertFalse(policy.consume_home_scan_burst([home, outside]))
         self.assertFalse(policy._home_address_scan_valid)
         self.assertEqual(policy.choose_key(outside), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:scan-burst-short")
+        self.assertEqual(policy.last_reason, "home:address-burst-short")
 
     def test_home_mutation_invalidates_burst_observation_and_forces_rescan(self):
         target = store_item("a", TVAL_POTION, 1800, name="mutated")
@@ -45187,7 +45190,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(unobserved.choose_key(entrance), policy_module.HOME_SCAN_KEY)
         self.assertEqual(
             unobserved.last_reason,
-            "home:scan-catalog-burst",
+            "home:scan-address-burst",
         )
 
         staff = store_item(
@@ -45203,7 +45206,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         reserve._home_candidate_waiting = True
         self.assertEqual(reserve.choose_key(entrance), policy_module.HOME_SCAN_KEY)
         self.assertEqual(
-            reserve.last_reason, "home:scan-catalog-burst"
+            reserve.last_reason, "home:scan-address-burst"
         )
         self.assertIsNone(entrance.store)
         self.assertEqual(
@@ -45238,7 +45241,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(sent)
         self.assertEqual(posted, [policy_module.HOME_SCAN_KEY])
         self.assertFalse(any(character in "12346789" for character in "".join(posted)))
-        self.assertEqual(policy.last_reason, "home:scan-catalog-burst")
+        self.assertEqual(policy.last_reason, "home:scan-address-burst")
 
         pack = self._real_pack()
         missing = HengbotPolicy()
@@ -45761,7 +45764,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy_module.HOME_SCAN_KEY,
         )
         self.assertEqual(
-            policy.last_reason, "home:scan-catalog-burst"
+            policy.last_reason, "home:scan-address-burst"
         )
         self.assertFalse(policy._home_address_scan_valid)
 
@@ -46175,6 +46178,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         policy._equipment_transaction_session = None
+        policy._equipment_catalog.home_scan_complete = True
 
         policy._home_entry_operation_posted = True
         with patch.object(policy, "_home_owner_goal_pending", return_value=True):
@@ -46487,7 +46491,7 @@ class HomePageAdvanceCurrencyTest(unittest.TestCase):
         self.assertEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:processing-complete")
         self.assertFalse(policy._home_page_advance_pending)
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
 
     def test_one_page_home_missing_target_keeps_bounded_withdraw_exit(self):
         # The pre-existing withdraw-missing exit must survive the currency

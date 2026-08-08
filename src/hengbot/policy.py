@@ -267,10 +267,10 @@ HOME_PAGE_ADVANCE_REASONS = frozenset(
         "home:seek-combat-weapon-page",
         "home:seek-treasure-detection-page",
         "home:seek-digging-tool-page",
-        "home:scan-catalog-page",
     }
 )
 HOME_PLAN_OWNED_PROCESSING_REASONS = HOME_PAGE_ADVANCE_REASONS | {
+    "home:scan-address-page",
     "home:processing-complete",
 }
 # Positive page-state observations after a posted Home SPACE.
@@ -2213,10 +2213,9 @@ class HengbotPolicy:
         self._home_scan_processing_snapshot: Snapshot | None = None
         self._home_scan_processing_pages: list[Snapshot] = []
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
-        # the one Home consumable whose exact stock matters in a small
-        # duplicate-preserving page scan alongside that catalog.
+        # the one Home consumable whose exact stock matters in the complete
+        # duplicate-preserving knowledge catalogue.
         self._home_star_remove_curse_count: int | None = None
-        self._home_star_remove_curse_scan_pages: dict[tuple, int] = {}
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False
         self._home_knowledge_scan_retries_remaining = 1
@@ -2558,7 +2557,7 @@ class HengbotPolicy:
             return ""
         if self._home_scan_burst_short:
             self._home_scan_burst_short = False
-            self.last_reason = "home:scan-burst-short"
+            self.last_reason = "home:address-burst-short"
             return LEAVE_STORE_KEY
         decision_floor = getattr(snapshot, "floor_key", None)
         if self._unviable_quest_floor != decision_floor:
@@ -2683,12 +2682,6 @@ class HengbotPolicy:
                 (item.name, item.tval, item.sval, item.count)
                 for item in snapshot.store.items
             )
-            page_star_count = sum(
-                item.count
-                for item in snapshot.store.items
-                if item.tval == TVAL_SCROLL
-                and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
-            )
             # Resolve a posted page advance from positive observations only.
             # cmd-store.cpp:116 (entry shows page 1) and store-key-processor.cpp
             # :90-106 (SPACE either advances-and-redraws or prints the
@@ -2733,20 +2726,9 @@ class HengbotPolicy:
                     self._home_page_advance_from_identity = None
                     self._home_page_advance_store_none_decisions = 0
             if page_advance_confirmed:
-                # Catalog knowledge and withdrawal addresses are independent:
-                # ~9 may complete the former, but only this visit's displayed
-                # pages can establish the latter.
-                if not self._equipment_catalog.home_scan_complete:
-                    self._home_star_remove_curse_scan_pages[page_identity] = (
-                        page_star_count
-                    )
-                scan_completed = self._equipment_catalog.observe_home_page(
-                    snapshot.store.items,
-                    allow_wrap=(
-                        page_advance_wrap
-                        or self.last_reason in HOME_PAGE_ADVANCE_REASONS
-                    ),
-                )
+                # The complete catalogue comes only from ~9.  A displayed Home
+                # page establishes page-relative withdrawal provenance, never
+                # catalogue completeness.
                 observed_page = tuple(snapshot.store.items)
                 address_recordable = not (
                     fresh_home_entry
@@ -2791,10 +2773,6 @@ class HengbotPolicy:
                             self._home_address_ordinals.clear()
                             self._home_address_page_count = None
                             self._home_address_restart_required = True
-                if self._equipment_catalog.home_scan_complete:
-                    self._home_star_remove_curse_count = sum(
-                        self._home_star_remove_curse_scan_pages.values()
-                    )
         elif (
             snapshot.store is not None
             and self._home_page_advance_pending
@@ -2835,14 +2813,20 @@ class HengbotPolicy:
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
             and self._home_available(snapshot)
+            and not snapshot.player.recalling
+            and not any(
+                grid.store_number >= 0
+                for grid in (snapshot.grid_at(snapshot.player.position),)
+                if grid is not None
+            )
             and not self._equipment_catalog.home_scan_complete
             and not self._home_knowledge_scan_requested
             and self._store_leave_inflight is None
-            and self._home_knowledge_scan_leave_turn is not None
-            and snapshot.turn > self._home_knowledge_scan_leave_turn
-            and self._identification_need is None
-            and self._next_required_store_type(snapshot) == STORE_HOME
-            and bool(self._home_processing_seen_pages)
+            and self._store_entry_posted_owner is None
+            and not self._outstanding_equipment_work()
+            and not self._home_scan_prepared
+            and not self._home_scan_burst_pending
+            and self._shopping_approach_store_type is None
         ):
             self.last_reason = "home:request-knowledge-scan"
             return "~9"
@@ -9842,6 +9826,38 @@ class HengbotPolicy:
                 self._home_scan_processing_snapshot = None
                 self._home_scan_processing_pages.clear()
                 return False
+            store = snapshot.store
+            metadata = (store.stock_num, store.page_top, store.page_size)
+            if any(value is not None for value in metadata):
+                stock_num, page_top, page_size = metadata
+                page = tuple(store.items)
+                expected_top = (
+                    0
+                    if not self._home_address_pages
+                    or page == self._home_address_pages[0]
+                    else len(self._home_address_pages) * page_size
+                    if page_size is not None
+                    else None
+                )
+                metadata_valid = (
+                    stock_num is not None
+                    and page_top is not None
+                    and page_size is not None
+                    and stock_num >= 0
+                    and page_top >= 0
+                    and page_size > 0
+                    and len(store.items) <= page_size
+                    and page_top + len(store.items) <= stock_num
+                    and page_top == expected_top
+                )
+                if not metadata_valid:
+                    self._home_scan_burst_pending = False
+                    self._home_address_pages.clear()
+                    self._home_address_ordinals.clear()
+                    self._home_address_scan_valid = False
+                    self._home_address_page_count = None
+                    self._home_scan_burst_short = True
+                    return False
             self._home_scan_burst_snapshots += 1
             # The first snapshot follows WAIT and repeats the entry page.  The
             # remaining snapshots correspond one-for-one with the SPACE keys.
@@ -9849,9 +9865,6 @@ class HengbotPolicy:
                 page = tuple(snapshot.store.items)
                 self._home_address_pages.append(page)
                 self._home_address_ordinals.append(0)
-                self._equipment_catalog.observe_home_page(
-                    snapshot.store.items, allow_wrap=False
-                )
                 continue
             page = tuple(snapshot.store.items)
             if self._home_scan_processing:
@@ -9863,9 +9876,6 @@ class HengbotPolicy:
                 self._home_scan_processing_pages.append(snapshot)
             if page == self._home_address_pages[0]:
                 self._home_scan_burst_wrapped = True
-                self._equipment_catalog.observe_home_page(
-                    snapshot.store.items, allow_wrap=True
-                )
                 self._home_address_scan_valid = True
                 self._home_address_page_count = len(self._home_address_pages)
                 self._home_address_ordinals = list(
@@ -9874,9 +9884,6 @@ class HengbotPolicy:
                 continue
             if not self._home_scan_burst_wrapped and page not in self._home_address_pages:
                 self._home_address_pages.append(page)
-                self._equipment_catalog.observe_home_page(
-                    snapshot.store.items, allow_wrap=False
-                )
         return True
 
     def _discard_unposted_equipment_transaction_command(self) -> None:
@@ -11169,7 +11176,7 @@ class HengbotPolicy:
             self._home_scan_processing_snapshot = None
             self._home_scan_processing_pages.clear()
             self._home_scan_prepared = True
-            self.last_reason = "home:scan-catalog-burst"
+            self.last_reason = "home:scan-address-burst"
             return HOME_SCAN_KEY
 
         signature: tuple[str, int, int] | None = None
@@ -11353,7 +11360,6 @@ class HengbotPolicy:
         self._home_address_page_count = None
         self._equipment_catalog.invalidate_home()
         self._home_processing_seen_pages.clear()
-        self._home_star_remove_curse_scan_pages.clear()
         self._home_star_remove_curse_count = None
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False

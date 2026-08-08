@@ -504,6 +504,9 @@ def item_requires_full_identification(item: InventoryItem | StoreItem) -> bool:
 class StoreState:
     store_type: int
     items: list["StoreItem"] = field(default_factory=list)
+    stock_num: int | None = None
+    page_top: int | None = None
+    page_size: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1099,7 +1102,19 @@ def _parse_store(store_data: Any) -> "StoreState | None":
             weight=int(it.get("weight", 0)),
             weapon_proficiency=int(it.get("weapon_proficiency", 0)),
         ))
-    return StoreState(store_type=int(store_data.get("store_type", -1)), items=items)
+    return StoreState(
+        store_type=int(store_data.get("store_type", -1)),
+        items=items,
+        stock_num=(
+            int(store_data["stock_num"]) if "stock_num" in store_data else None
+        ),
+        page_top=(
+            int(store_data["page_top"]) if "page_top" in store_data else None
+        ),
+        page_size=(
+            int(store_data["page_size"]) if "page_size" in store_data else None
+        ),
+    )
 
 
 _STORE_CHARGES_RE = re.compile(r"[\(（]\s*(\d+)\s*(?:回分|charges?)\s*[\)）]", re.IGNORECASE)

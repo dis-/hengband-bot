@@ -382,7 +382,7 @@ def optimizer_item_projection(owned: OwnedEquipment) -> tuple:
 
 
 class OwnedEquipmentCatalog:
-    """Persistent carried gear plus a wrap-detected scan of every Home page."""
+    """Persistent carried gear plus the authoritative ``~9`` Home list."""
 
     def __init__(self) -> None:
         self._carried: dict[str, OwnedEquipment] = {}
