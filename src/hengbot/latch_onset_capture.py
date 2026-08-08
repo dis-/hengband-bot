@@ -24,6 +24,9 @@ _CAPTURE_STATE_NAMES = frozenset(
         # Derived registry contains local predicate lambdas. It is rebuilt on
         # first use from the authoritative policy state.
         "_town_need_specs",
+        # The Home capture is an observer, not restorable policy state.  It also
+        # contains the checkpoint currently being built.
+        "_home_entry_capture",
     }
 )
 
@@ -47,6 +50,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored._latch_capture_predecision = None
     restored._latch_capture_assignment = None
     restored._latch_capture_remaining = 0
+    restored._home_entry_capture = None
     return restored
 
 

@@ -2134,6 +2134,7 @@ class HengbotPolicy:
         self._latch_capture_previous: dict[str, object] | None = None
         self._latch_capture_assignment: dict[str, object] | None = None
         self._latch_capture_remaining = 0
+        self._home_entry_capture = None
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
         self._fundraising_mode: str | None = None
@@ -2496,6 +2497,12 @@ class HengbotPolicy:
                 }
 
     def choose_key(self, snapshot: Snapshot) -> str:
+        home_capture = self._home_entry_capture
+        if home_capture is not None:
+            return home_capture.choose_key(self, snapshot)
+        return self._choose_key_with_latch_capture(snapshot)
+
+    def _choose_key_with_latch_capture(self, snapshot: Snapshot) -> str:
         capture_path = self._latch_capture_path
         if capture_path is None:
             return self._choose_key(snapshot)

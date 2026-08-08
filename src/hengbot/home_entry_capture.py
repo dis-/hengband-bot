@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import pickle
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,54 @@ class HomeEntryCapture:
         self.path = path
         self.active = False
         self.pending: dict[str, Any] | None = None
+        self._reported_failures: set[tuple[str, str, str]] = set()
+
+    def report_failure(
+        self, operation: str, exc: Exception, field: str = "unknown"
+    ) -> None:
+        """Expose a diagnostic failure once without endangering gameplay."""
+        identity = (operation, type(exc).__name__, f"{field}:{exc}")
+        if identity in self._reported_failures:
+            return
+        self._reported_failures.add(identity)
+        marker = {
+            "format": 1,
+            "capture_error": True,
+            "operation": operation,
+            "exception_type": type(exc).__name__,
+            "exception_message": str(exc),
+            "field": field,
+        }
+        print(
+            "home-entry-capture "
+            f"{operation} failed at {field}: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        try:
+            self._write(marker)
+        except Exception as marker_exc:
+            print(
+                "home-entry-capture error-marker write failed at path: "
+                f"{type(marker_exc).__name__}: {marker_exc}",
+                file=sys.stderr,
+            )
+
+    def choose_key(self, policy: Any, snapshot: Any) -> str:
+        """Capture one call through the policy's public decision boundary."""
+        boundary = None
+        try:
+            boundary = self.before_decision(policy, snapshot)
+        except Exception as exc:
+            self.report_failure("before_decision", exc, "policy checkpoint/state")
+        key = policy._choose_key_with_latch_capture(snapshot)
+        if boundary is not None:
+            try:
+                self.record_decision(
+                    policy, snapshot, key, policy.last_reason, *boundary
+                )
+            except Exception as exc:
+                self.report_failure("record_decision", exc, "decision record")
+        return key
 
     def observe_snapshot(self, snapshot: Any) -> None:
         """Attach the first subsequently read snapshot to the pending decision."""

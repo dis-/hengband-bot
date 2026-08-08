@@ -1468,8 +1468,11 @@ def main(argv: list[str] | None = None) -> int:
                         home_entry_capture.record_posted_character(
                             decision["sequence"], char
                         )
-                    except (KeyError, TypeError):
-                        pass
+                    except (KeyError, TypeError) as exc:
+                        home_entry_capture.report_failure(
+                            "record_posted_character", exc,
+                            "decision.sequence/character",
+                        )
                 delay, wait_category = (
                     _delay_spec_after_macro_key(
                         key,
@@ -1573,6 +1576,7 @@ def main(argv: list[str] | None = None) -> int:
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
     if args.decision_log is not None:
+        policy._home_entry_capture = home_entry_capture
         policy._latch_capture_path = args.decision_log.with_name("latch-onset.jsonl")
         policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
         policy._character_calibration_path = args.decision_log.with_name(
@@ -1744,9 +1748,11 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                         home_entry_capture.observe_snapshot(
                             ordered_snapshot_entries[0][0]
                         )
-                    except Exception:
+                    except Exception as exc:
                         # Capture must never alter command selection or delivery.
-                        pass
+                        home_entry_capture.report_failure(
+                            "observe_snapshot", exc, "next snapshot"
+                        )
                 if getattr(policy, "_home_scan_burst_pending", False):
                     # This is the sole exception to newest-board collapsing:
                     # cmd-store.cpp emits one ordered store snapshot per key in
@@ -1861,14 +1867,6 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                     store_leave_was_inflight = (
                         policy._store_leave_inflight is not None
                     )
-                    capture_boundary = None
-                    if home_entry_capture is not None:
-                        try:
-                            capture_boundary = home_entry_capture.before_decision(
-                                policy, snapshot
-                            )
-                        except Exception:
-                            pass
                     chosen_key = policy.choose_key(snapshot)
                     key = policy.validate_read_key(snapshot, chosen_key)
                     suppress_unconfirmed_store_leave = (
@@ -1876,17 +1874,6 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                         and policy._store_leave_inflight is not None
                     )
                     last_decision_reason = policy.last_reason
-                    if capture_boundary is not None:
-                        try:
-                            home_entry_capture.record_decision(
-                                policy,
-                                snapshot,
-                                chosen_key,
-                                policy.last_reason,
-                                *capture_boundary,
-                            )
-                        except Exception:
-                            pass
                     recent_reasons.append(policy.last_reason)
                     command_signature = _command_state_signature(
                         snapshot,
