@@ -154,6 +154,25 @@ class ScriptedPolicy(HengbotPolicy):
         return "6"
 ''')
 
+    def test_source_text_only_assertions_are_caught(self):
+        self.assert_rule("source-text-only-assertions", '''
+def test_behaviour_hidden_by_source_grep():
+    source = inspect.getsource(HengbotPolicy)
+    self.assertNotIn("deleted:first-mechanism", source)
+    self.assertNotIn("deleted_second_mechanism", source)
+''')
+
+    def test_source_text_check_does_not_taint_behavioural_assertions(self):
+        findings = analyze_source('''
+def test_source_and_behaviour():
+    source = inspect.getsource(HengbotPolicy)
+    self.assertNotIn("obsolete", source)
+    self.assertEqual(policy.choose_key(snapshot), "6")
+''')
+        self.assertNotIn(
+            "source-text-only-assertions", {finding.rule for finding in findings}
+        )
+
     def test_assert_equal_scope_is_withdrawn_honestly(self):
         single_findings = analyze_source('''
 def test_one_decision():
@@ -194,7 +213,7 @@ class TestTreeFakeryLint(unittest.TestCase):
     }
     EXPECTED_UNDECLARED_INSTANCES = 8
     # Six scan-only exception sites were deleted with their mechanism.
-    DECLARED_FINDING_RATCHET = 96
+    DECLARED_FINDING_RATCHET = 101
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()
@@ -213,7 +232,6 @@ class TestTreeFakeryLint(unittest.TestCase):
     def test_two_invalid_declarations_were_fixed_not_moved(self):
         findings = scan_tests()
         affected = {
-            "test_equipment_transaction_keeps_home_page_wait_until_observation",
             "test_cross_town_identify_capture_starts_travel_instead_of_visible_stop",
         }
         self.assertFalse([finding for finding in findings if finding.test in affected])

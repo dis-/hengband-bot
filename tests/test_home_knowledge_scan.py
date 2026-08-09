@@ -116,12 +116,6 @@ def home_digger_response() -> dict:
 
 
 class HomeKnowledgeScanTest(unittest.TestCase):
-    def test_public_deposit_preserves_catalogue_or_incomplete_work_requests_it(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
     def test_plain_town_requests_home_knowledge_before_any_home_visit(self):
         policy = HengbotPolicy()
 

@@ -735,54 +735,6 @@ class WarriorOptimizationTest(unittest.TestCase):
         session.observe(observe_equipment_transactions(equipped))
         self.assertTrue(session.complete)
 
-    def test_policy_dispatches_home_withdraw_from_visible_page(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_policy_scans_home_pages_and_uses_visible_page_letter(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_policy_waits_for_home_page_after_interleaved_town_snapshot(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_equipment_transaction_keeps_home_page_wait_until_observation(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_policy_bounds_home_page_wait_on_consecutive_town_snapshots(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_policy_clears_home_page_wait_on_interleaved_alchemist_snapshot(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_policy_home_snapshot_still_clears_page_advance_pending(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
-    def test_policy_retains_unconfirmed_home_withdraw_target(self):
-        # Expectation changed: Home addresses are derived outside the store;
-        # the deleted scan/page-observation mechanism must remain absent.
-        source = inspect.getsource(HengbotPolicy)
-        self.assertNotIn("home:scan-address", source)
-        self.assertNotIn("_home_page_advance_pending", source)
     def test_real_capture_deposit_confirmation_stall_releases_visibly(self):
         """03:03:57: slot n spear and Home pages stayed physically unchanged."""
         identity = "af7df9197aab84bc"

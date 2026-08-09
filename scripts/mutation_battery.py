@@ -27,9 +27,10 @@ PACKAGE = ROOT / "src" / "hengbot"
 
 PUBLIC_TESTS = frozenset(
     {
-        "test_policy.HomeOneOperationPerEntryTest.test_public_scan_binds_page_zero_after_rotated_prior_visit",
-        "test_policy.HomeOneOperationPerEntryTest.test_public_interrupted_three_of_five_scan_is_not_valid",
-        "test_policy.HomeOneOperationPerEntryTest.test_public_composer_requires_complete_ordinal_provenance_guard",
+        "test_policy.HomeOneOperationPerEntryTest.test_public_page_three_withdrawal_posts_one_complete_sender_key",
+        "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_uses_uppercase_and_live_page_three_arithmetic",
+        "test_policy.HomeOneOperationPerEntryTest.test_descending_withdrawals_share_one_home_knowledge_read",
+        "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_waits_when_page_size_was_never_observed",
         "test_policy.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
         "test_policy.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
     }
@@ -82,46 +83,33 @@ MUTATIONS = (
         ),),
     ),
     Mutation(
-        "three-of-five-pages",
+        "guess-home-page-size",
         True,
-        "Accept an interrupted Home scan as soon as its third page is recorded.",
+        "Guess 52 columns when no Home page size was observed.",
         (replacement(
             "policy.py",
-            """            self._home_scan_burst_snapshots += 1
-""",
-            """            self._home_scan_burst_snapshots += 1
-            if self._home_scan_burst_snapshots >= 3:
-                self._home_scan_burst_wrapped = True
-                self._home_address_scan_valid = True
-                self._home_address_page_count = len(self._home_address_pages)
-""",
-        ), replacement(
-            "policy.py",
-            "        expected = 1 + HOME_SCAN_PAGE_FORWARDS  # WAIT, then every SPACE.\n",
-            "        expected = 3  # mutant accepts an interrupted prefix\n",
-        )),
-    ),
-    Mutation(
-        "drop-ordinal-guard",
-        True,
-        "Remove the complete ordinal provenance check from withdrawal composition.",
-        (replacement(
-            "policy.py",
-            "            or self._home_address_ordinals != list(range(page_count))\n",
-            "",
+            "        if not self._home_page_size:\n            self.last_reason = \"home:await-page-size\"\n            return None\n",
+            "        if not self._home_page_size:\n            self._home_page_size = 52  # mutant guesses geometry\n",
         ),),
     ),
     Mutation(
-        "raw-enumerate-ordinal",
-        False,
-        "Expected not to bite: the composer guard makes list position equivalent to the recorded ordinal in every accepted state.",
+        "lowercase-past-z",
+        True,
+        "Continue lowercase address arithmetic past z.",
         (replacement(
             "policy.py",
-            """            for page, items in zip(
-                self._home_address_ordinals, self._home_address_pages
-            )
-""",
-            "            for page, items in enumerate(self._home_address_pages)\n",
+            "            if page_pos < 26\n",
+            "            if page_pos < 52\n",
+        ),),
+    ),
+    Mutation(
+        "invalidate-descending-frontier",
+        True,
+        "Invalidate the whole knowledge read after the first withdrawal.",
+        (replacement(
+            "policy.py",
+            "        self._home_knowledge_valid_before = index\n",
+            "        self._home_knowledge_current = False  # mutant loses descending batch\n",
         ),),
     ),
 )

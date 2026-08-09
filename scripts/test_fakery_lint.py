@@ -77,6 +77,53 @@ def _dotted_name(node: ast.AST) -> str | None:
     return None
 
 
+def _source_text_names(function: ast.AST) -> set[str]:
+    """Names bound to Python source text by the idioms used in tests."""
+    result: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(function):
+            if not isinstance(node, ast.Assign):
+                continue
+            value = node.value
+            source_text = (
+                isinstance(value, ast.Call)
+                and _call_name(value) in {"getsource", "read_text", "read"}
+            ) or (isinstance(value, ast.Name) and value.id in result)
+            if not source_text:
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id not in result:
+                    result.add(target.id)
+                    changed = True
+    return result
+
+
+def _source_text_only_assertions(function: ast.AST) -> list[int]:
+    source_names = _source_text_names(function)
+    if not source_names:
+        return []
+    assertions = [
+        node for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and (_call_name(node) or "").startswith("assert")
+    ]
+    if not assertions:
+        return []
+    string_checks = {
+        "assertEqual", "assertNotEqual", "assertIn", "assertNotIn",
+        "assertRegex", "assertNotRegex", "assertStartsWith", "assertEndsWith",
+    }
+    if all(
+        _call_name(call) in string_checks
+        and any(isinstance(node, ast.Name) and node.id in source_names for node in ast.walk(call))
+        for call in assertions
+    ):
+        return [assertions[0].lineno]
+    return []
+
+
 def _replacement(
     call: ast.Call, constants: dict[str, str] | None = None
 ) -> tuple[str | None, str | None]:
@@ -256,6 +303,13 @@ def analyze_source(source: str, path: Path = Path("fixture.py")) -> list[Finding
 
         def add(line: int, rule: str, message: str) -> None:
             findings.append(Finding(path, line, rule, message, function.name))
+
+        for line in _source_text_only_assertions(function):
+            add(
+                line,
+                "source-text-only-assertions",
+                f"{function.name} asserts only against source text",
+            )
 
         for call in calls:
             name = _call_name(call) or ""

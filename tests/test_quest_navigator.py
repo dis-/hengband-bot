@@ -172,10 +172,6 @@ class QuestFloorNavigatorTest(unittest.TestCase):
             self.assertGreaterEqual(stand.distance_to(target), 2)
             self.assertTrue(navigator._static_path(entrance, {stand}))
 
-    def test_phase_bound_fallbacks_have_in_code_rationales(self):
-        source = Path("src/hengbot/quest_navigator.py").read_text(encoding="utf-8")
-        self.assertIn("Phase bound fallback", source)
-        self.assertIn("Phase bound prevents", source)
 
     def test_deep_water_is_walkable_only_during_explicit_q2_override(self):
         battlefield = QuestBattlefield(
