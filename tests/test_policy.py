@@ -26064,6 +26064,92 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertTrue(policy._equipment_departure_ready(town))
 
+    def test_home_star_identify_source_breaks_incomplete_catalog_deadlock(self):
+        """02:13 naked-strip shape reaches the stored source via choose_key."""
+        unknown = item(
+            "u", TVAL_SWORD, 1, name="unknown sword", known=False,
+            fully_known=False, pseudo_feeling="good", is_equipment=True,
+        )
+        staffs = [
+            item(
+                slot, TVAL_STAFF, SV_STAFF_IDENTIFY,
+                name="Staff of Identify", known=True, aware=True, charges=charges,
+            )
+            for slot, charges in (("s", 11), ("t", 8))
+        ]
+        ordinary = item(
+            "v", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="Scroll of Identify", known=True, aware=True,
+        )
+        stored_ego = store_item(
+            "a", TVAL_RING, 1, name="stored ego ring", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        stored_source = store_item(
+            "b", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name="Scroll of *Identify*", known=True, aware=True, count=3,
+        )
+        outside = replace(
+            self._ready_home_town(),
+            inventory=[*self._ready_home_town().inventory, unknown, *staffs, ordinary],
+            equipment=[],
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+        policy._floor_key = outside.floor_key
+        policy.consume_home_knowledge((stored_ego, stored_source))
+        policy._home_page_size = 12
+
+        first_key = policy.choose_key(outside)
+        self.assertEqual(first_key, "rvu")
+        self.assertEqual(policy.last_reason, "identify:normal")
+        self.assertEqual(policy._total_identify_staff_charges(outside), 19)
+        self.assertEqual(
+            next(
+                requirement for requirement in policy.procurement_requirements(outside)
+                if requirement["item"] == "Identify staff charges"
+            ),
+            {"item": "Identify staff charges", "current": 19, "target": 20, "missing": 1},
+        )
+
+        identified = replace(unknown, known=True, fully_known=True)
+        outside = replace(
+            outside,
+            inventory=[*self._ready_home_town().inventory, identified, *staffs, ordinary],
+            turn=outside.turn + 1,
+        )
+        signature = policy._item_signature(stored_ego)
+        policy._identification_need = "full"
+        policy._identification_candidate = signature
+        policy._home_candidate_waiting = True
+        policy._town_store_attempted[STORE_ALCHEMIST] = outside.turn
+        self.assertTrue(policy._identification_need_unsatisfiable(outside))
+        approach_key = policy.choose_key(outside)
+        self.assertTrue(approach_key)
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(stored_source))
+        entrance = replace(
+            outside,
+            player=replace(outside.player, position=Position(10, 11)),
+            turn=outside.turn + 1,
+        )
+        withdrawal_key = policy.choose_key(entrance)
+        self.assertIn(BUY_KEY + "b", withdrawal_key, policy.last_reason)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        carried_source = item(
+            "w", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name=stored_source.name, known=True, aware=True,
+        )
+        withdrawn = replace(
+            entrance,
+            inventory=[*entrance.inventory, carried_source],
+            turn=entrance.turn + 1,
+        )
+        policy.choose_key(withdrawn)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertIsNotNone(policy._find_identification_source(withdrawn, full=True))
+        self.assertTrue(policy._home_candidate_waiting)
+
     def test_unavailable_full_identify_keeps_equipped_candidate_blocking(self):
         town = self._ready_home_town(gold=6411)
         policy = HengbotPolicy()

@@ -2880,6 +2880,19 @@ class HengbotPolicy:
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
                 )
+                if (
+                    withdrawn.tval == TVAL_SCROLL
+                    and withdrawn.sval
+                    in {SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY}
+                    and self._home_pending_item == signature
+                    and self._identification_need is not None
+                ):
+                    # This was the source transaction, not the downstream gear
+                    # transaction. Release its address and re-arm the original
+                    # candidate now that the source is physically carried.
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_candidate_waiting = True
                 if self._calibration_restore_signatures:
                     # Each successful one-shot take is fresh progress and the
                     # remaining physical slots are a new Home operation, not a
@@ -4700,6 +4713,12 @@ class HengbotPolicy:
             device_processing = self._town_device_processing_key(snapshot)
             if device_processing is not None:
                 return device_processing
+
+            # A Home-held identification source is upstream of the equipment
+            # candidate that requested it. Bind that source from the completed
+            # Home address catalog before optimization gets another chance to
+            # reject the still-incomplete equipment catalog.
+            self._queue_home_identification_source(snapshot)
 
         restore_weapon = self._town_restore_weapon_key(snapshot)
         if restore_weapon is not None:
@@ -10571,9 +10590,11 @@ class HengbotPolicy:
 
         Mirrors the store-needs logic (which adds no store in exactly this case):
         no identify source is carried or buyable because the Alchemist was
-        already tried and holds none, and no Home withdrawal is pending. When an
-        item needs *Identify* the town cannot supply, the need would otherwise
-        stay set forever and keep the incomplete-catalog escape valve shut.
+        already tried and holds none. A pending withdrawal of the identification
+        target is not a source: until a usable source is carried, that withdrawal
+        cannot execute and must not keep the incomplete-catalog escape valve shut.
+        When an item needs *Identify* the town cannot supply, the need would
+        otherwise stay set forever and keep the escape valve shut.
         """
         if self._identification_need is None:
             return False
@@ -10584,13 +10605,9 @@ class HengbotPolicy:
         )
         if source is not None:
             return False
-        full = self._identification_need == "full"
-        if not full and STORE_ALCHEMIST not in self._town_store_attempted:
-            return False
         if (
-            not full
-            and self._home_candidate_waiting
-            and self._home_available(snapshot)
+            self._identification_need != "full"
+            and STORE_ALCHEMIST not in self._town_store_attempted
         ):
             return False
         return True
@@ -12268,6 +12285,42 @@ class HengbotPolicy:
         if scroll is not None:
             return READ_KEY, scroll
         return None
+
+    def _queue_home_identification_source(self, snapshot: Snapshot) -> bool:
+        """Bind a catalogued Home scroll that can satisfy the active ID need."""
+        if (
+            self._identification_need is None
+            or self._home_pending_item is not None
+            or self._find_identification_source(
+                snapshot,
+                full=self._identification_need == "full",
+                reliable_only=self._identification_requires_reliable_source(snapshot),
+            )
+            is not None
+            or not self._home_knowledge_current
+        ):
+            return False
+        wanted_sval = (
+            SV_SCROLL_STAR_IDENTIFY
+            if self._identification_need == "full"
+            else SV_SCROLL_IDENTIFY
+        )
+        source = next(
+            (
+                item
+                for item in self._home_knowledge_items[
+                    : self._home_knowledge_valid_before
+                ]
+                if item.tval == TVAL_SCROLL and item.sval == wanted_sval
+            ),
+            None,
+        )
+        if source is None:
+            return False
+        self._home_pending_item = self._item_signature(source)
+        self._home_pending_quantity = 1
+        self._home_candidate_waiting = True
+        return True
 
     @staticmethod
     def _identification_source_units(item: InventoryItem) -> int:
