@@ -33,6 +33,7 @@ from hengbot.equipment_optimizer import (
     Loadout,
     OwnedEquipmentCatalog,
     current_loadout,
+    divable_depth,
     equipment_identity,
     operational_equipment_candidate,
     optimizer_item_projection,
@@ -1574,11 +1575,6 @@ class HengbotPolicy:
         self._no_depth_progress_dives = 0
         self._last_overextended_depth = 0  # recall depth we could not loot at
         self._alternate_dungeon: int | None = None  # switched-to level-fit dungeon
-        # A depth fallback caused by an invalid deep loadout is released only
-        # after one expedition there.  Character level alone cannot repair the
-        # missing equipment and must not cancel this target while still in town.
-        self._loadout_depth_fallback_dungeon: int | None = None
-        self._loadout_depth_fallback_depth: int | None = None
         self._pending_recall_dungeon_id: int | None = None
         # destination, command turn, and pre-read stack count.  JSON snapshots
         # can redraw several times at the same game turn before ``recalling`` is
@@ -5234,17 +5230,6 @@ class HengbotPolicy:
                 # profitable dive clears the suspicion.
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
-        if (
-            snapshot.in_town
-            and prev_dungeon == self._loadout_depth_fallback_dungeon
-        ):
-            # The shallow expedition has completed.  Let the optimizer check
-            # the deep loadout once more now that new equipment may be present.
-            self._loadout_depth_fallback_dungeon = None
-            self._loadout_depth_fallback_depth = None
-            self._alternate_dungeon = None
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
         first_observation = previous_floor is None
         if first_observation:
@@ -7466,51 +7451,13 @@ class HengbotPolicy:
 
     # ------------------------------------------------------------------ shopping
     def _planned_depth(self) -> int:
-        return max(1, self._deepest_level + 1)
+        return self._equipment_optimization_last_depth or max(
+            1, self._deepest_level + 1
+        )
 
     def _equipment_optimization_depth(self, snapshot: Snapshot) -> int:
-        """Optimize for the selected dungeon; quest contracts are independent.
-
-        Approved fixed quests already define their own HP, damage, resistance,
-        and carry requirements.  Treating a quest's static level as a generic
-        dungeon depth mixed two separate objectives: an untaken Q31 injected
-        the 22F resistance band into a Yeek Cave guardian expedition, which in
-        turn manufactured a no-valid-loadout result and redirected the bot to
-        the Forest.  Only the actual dungeon objective may choose this depth.
-        """
-        if self._loadout_depth_fallback_depth is not None:
-            return self._loadout_depth_fallback_depth
-        if self._alternate_dungeon is not None:
-            dungeon = self._dungeon_knowledge.get(self._alternate_dungeon)
-            if dungeon is not None:
-                return max(
-                    1,
-                    snapshot.dungeon_recall_depths.get(
-                        self._alternate_dungeon, dungeon.min_depth
-                    ),
-                )
-        target = self._active_dungeon_target()
-        dungeon = self._dungeon_knowledge.get(target)
-        if dungeon is None:
-            return self._planned_depth()
-        if (
-            target == self._conquest_committed
-            and target not in snapshot.conquered_dungeon_ids
-            and dungeon.max_depth > 0
-        ):
-            return max(1, dungeon.max_depth)
-        landing_depth = snapshot.dungeon_recall_depths.get(target)
-        if (
-            snapshot.recall_dungeon_id == target
-            and snapshot.recall_depth > 0
-        ):
-            landing_depth = max(landing_depth or 0, snapshot.recall_depth)
-        if landing_depth is None:
-            landing_depth = dungeon.min_depth
-        next_depth = max(1, landing_depth + 1)
-        if dungeon.max_depth > 0:
-            next_depth = min(next_depth, dungeon.max_depth)
-        return next_depth
+        """Return the depth classified from the optimized owned loadout."""
+        return self._equipment_optimization_last_depth or 19
 
     @staticmethod
     def _recall_target(depth: int) -> int:
@@ -8917,12 +8864,7 @@ class HengbotPolicy:
             self._equipment_optimization_signature = None
             self._equipment_optimization_preparation = preparation
             return preparation
-        optimization_depth = (
-            depth_override
-            if depth_override is not None
-            else self._equipment_optimization_depth(snapshot)
-        )
-        self._equipment_optimization_last_depth = optimization_depth
+        optimization_depth = depth_override
         operational_catalog = tuple(
             item
             for item in self._equipment_catalog.items
@@ -8946,7 +8888,10 @@ class HengbotPolicy:
         # candidate set shrinks monotonically instead of cycling.
         required_flags = {
             RESIST_FLAG_BY_ABILITY[ability]
-            for ability in required_depth_gates(optimization_depth)
+            for ability in (
+                required_depth_gates(optimization_depth)
+                if optimization_depth is not None else ()
+            )
             if ability in RESIST_FLAG_BY_ABILITY
         }
         released_failed_ids: set[str] = set()
@@ -9013,6 +8958,11 @@ class HengbotPolicy:
             )
             self._equipment_quarantine_second_chance_ids.update(readmitted_ids)
         self._equipment_quarantine_readmitted_ids = tuple(sorted(readmitted_ids))
+        if optimization_depth is None:
+            # Quarantine and deferred-routing state govern whether a selected
+            # target can be applied; they must never choose a different target.
+            catalog = operational_catalog
+            self._equipment_quarantine_readmitted_ids = ()
         cached_blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
         )
@@ -9037,11 +8987,7 @@ class HengbotPolicy:
                 for item in catalog
             )
         )
-        optimization_depth = (
-            max(1, depth_override)
-            if depth_override is not None
-            else self._equipment_optimization_depth(snapshot)
-        )
+        optimization_depth = max(1, depth_override) if depth_override is not None else None
         # Keep pack weapons that the ordinary town policy has already classified
         # as sale loot out of the optimizer's Home staging deposits.  Otherwise
         # the optimizer stores them, Home processing immediately withdraws them
@@ -9082,6 +9028,11 @@ class HengbotPolicy:
                 and item.item.ammo_tval != required_launcher_ammo
             )
         )
+        if optimization_depth is None:
+            # Supply/quest reservations are expedition plans, not owned-loadout
+            # quality. They may preserve an item during planning but cannot
+            # remove it from target selection.
+            search_excluded = frozenset()
         search_catalog = tuple(
             replace(item, random_teleport_suppressed=True)
             if (
@@ -9092,39 +9043,43 @@ class HengbotPolicy:
             else item
             for item in catalog
         )
-        player = snapshot.player
-        # Cheap, hash-free mirror of every per-state key input.  It makes cache
-        # reuse exact while leaving the immutable monster catalog out of the hot
-        # path; projected items intentionally omit volatile transport fields.
+        # The selector memo is the owned equipment multiset plus knowledge
+        # completeness. Origin and worn slot are transport state, so strip them
+        # from the normal projection; gold, pack occupancy, recall progress and
+        # town intent never enter this key.
         signature = (
             tuple(sorted(
-                (optimizer_item_projection(item) for item in search_catalog),
+                (
+                    (projection[0], *projection[3:])
+                    for item in search_catalog
+                    for projection in (optimizer_item_projection(item),)
+                ),
                 key=lambda projection: projection[0],
             )),
-            optimization_depth,
             self._equipment_catalog.home_scan_complete,
-            has_destruction,
-            preserve,
-            search_excluded,
-            calibration,
-            player.race_id,
-            player.class_id,
-            player.personality_id,
-            player.level,
-            player.stat_cur,
-            player.speed,
-            player.melee_skill,
-            getattr(player, "shooting_skill", player.melee_skill),
-            player.saving_skill,
-            player.two_weapon_skill,
-            player.shield_skill,
-            player.max_hp,
-            player.max_mp,
         )
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
         ):
+            cached_best = getattr(
+                getattr(self._equipment_optimization_preparation, "result", None),
+                "best",
+                None,
+            )
+            if (
+                isinstance(getattr(cached_best, "loadout", None), Loadout)
+                and isinstance(
+                    getattr(getattr(cached_best, "metrics", None), "speed_bonus", None),
+                    int,
+                )
+            ):
+                self._equipment_optimization_last_depth = divable_depth(
+                    cached_best.loadout,
+                    intrinsic_abilities=calibration.intrinsic_abilities,
+                    has_destruction=has_destruction,
+                    speed_bonus=cached_best.metrics.speed_bonus,
+                )
             self._equipment_optimization_telemetry["result_source"] = (
                 "signature-cache-hit"
             )
@@ -9316,6 +9271,17 @@ class HengbotPolicy:
                 "current_loadout_empty": not search_seed_loadout.slots,
             })
         best = getattr(result, "best", None)
+        if (
+            best is not None
+            and isinstance(getattr(best, "loadout", None), Loadout)
+            and isinstance(getattr(getattr(best, "metrics", None), "speed_bonus", None), int)
+        ):
+            self._equipment_optimization_last_depth = divable_depth(
+                best.loadout,
+                intrinsic_abilities=calibration.intrinsic_abilities,
+                has_destruction=has_destruction,
+                speed_bonus=best.metrics.speed_bonus,
+            )
         loadout = getattr(best, "loadout", None)
         selected_ids = getattr(loadout, "item_ids", frozenset())
         if not isinstance(selected_ids, (set, frozenset)):
@@ -9332,6 +9298,12 @@ class HengbotPolicy:
                 preparation,
                 transaction=None,
                 blockers=("pending-random-teleport-suppression",),
+            )
+        elif selected_ids.intersection(self._equipment_transaction_failed_items):
+            preparation = replace(
+                preparation,
+                transaction=None,
+                blockers=("equipment-transaction-failed",),
             )
         self._equipment_optimization_signature = signature
         self._equipment_optimization_pack_items = len(snapshot.inventory)
@@ -10381,10 +10353,6 @@ class HengbotPolicy:
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
         preparation = self._prepare_equipment_optimization(snapshot)
-        # Keep this final guard self-contained: every caller must probe relaxed
-        # depth bands before it can expose a terminal no-loadout state.
-        if self._activate_loadout_depth_fallback(snapshot) is not None:
-            return None
         if (
             STORE_HOME in self._town_visit_ledger.blocked_stores
             and (preparation is None or preparation.result is None)
@@ -10408,113 +10376,6 @@ class HengbotPolicy:
         if "incomplete-equipment-catalog" in preparation.blockers:
             return "equipment-incomplete-catalog"
         return None
-
-    def _activate_loadout_depth_fallback(self, snapshot: Snapshot) -> int | None:
-        """Equip for the deepest depth supported by all owned equipment.
-
-        A failed next-depth search must not derive the fallback from the currently
-        worn flags.  Home may contain the exact resistance item that unlocks the
-        immediately shallower floor.  Probe each distinct lower requirement band,
-        retain the first valid owned-item loadout, and only change dungeons when
-        the selected target cannot be entered at that depth.
-        """
-        if (
-            self._loadout_depth_fallback_dungeon is not None
-            and self._loadout_depth_fallback_depth is not None
-        ):
-            self._target_dungeon_id = self._loadout_depth_fallback_dungeon
-            return None
-        preparation = self._prepare_equipment_optimization(snapshot)
-        optimization_depth = self._equipment_optimization_depth(snapshot)
-        if (
-            preparation is None
-            or not {
-                "no-valid-loadout",
-                "optimization-timeout",
-            }.intersection(preparation.blockers)
-            or optimization_depth <= 1
-            or (
-                "no-valid-loadout" not in preparation.blockers
-                and self._next_required_store_type(snapshot) is not None
-            )
-        ):
-            return None
-        # Town shopping owners run before the departure fallback, so a useful
-        # errand still gets its normal opportunity to act.  Once control reaches
-        # this exit, however, a standing/restocking errand must not suppress an
-        # owned-loadout depth search whose gate is proven unsatisfiable: such a
-        # queue can survive the whole visit and otherwise leave the character
-        # naked.  A timeout has not proved that premise and keeps the old order.
-        selected_depth = None
-        selected_preparation = None
-        seen_requirements: set[frozenset[str]] = set()
-        for depth in range(optimization_depth - 1, 0, -1):
-            requirements = required_depth_gates(depth)
-            if requirements in seen_requirements:
-                continue
-            seen_requirements.add(requirements)
-            candidate = self._prepare_equipment_optimization(
-                snapshot, depth_override=depth
-            )
-            result = getattr(candidate, "result", None)
-            if candidate is None or result is None or result.best is None:
-                continue
-            selected_depth = depth
-            selected_preparation = candidate
-            break
-        if selected_depth is None or selected_preparation is None:
-            self._loadout_depth_fallback_depth = None
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = None
-            return None
-
-        active_target = self._active_dungeon_target()
-        target_info = self._dungeon_knowledge.get(active_target)
-        target_landing = snapshot.dungeon_recall_depths.get(
-            active_target,
-            target_info.min_depth if target_info is not None else 1,
-        )
-        if (
-            snapshot.recall_dungeon_id == active_target
-            and snapshot.recall_depth > 0
-        ):
-            target_landing = max(target_landing, snapshot.recall_depth)
-
-        self._loadout_depth_fallback_depth = selected_depth
-        self._equipment_optimization_preparation = selected_preparation
-        self._equipment_optimization_timed_out_this_visit = False
-        if target_landing <= selected_depth:
-            # Keep Angband (or the current dungeon objective) and execute the
-            # selected shallower loadout instead of needlessly switching away.
-            self._loadout_depth_fallback_dungeon = active_target
-            self._target_dungeon_id = active_target
-            self._conquest_committed = None
-            return active_target
-
-        # The current destination itself is too deep. Preserve the old dungeon
-        # fallback as a last resort, but cap it by the owned-loadout depth rather
-        # than by the flags presently worn.
-        alternate = self._pick_alternate_dungeon(
-            snapshot,
-            max_entry_depth=selected_depth,
-            prefer_deepest=True,
-            allow_yeek_cave=True,
-        )
-        if alternate is None:
-            self._loadout_depth_fallback_depth = None
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = None
-            return None
-        self._alternate_dungeon = alternate
-        self._loadout_depth_fallback_dungeon = alternate
-        self._target_dungeon_id = alternate
-        self._conquest_committed = None
-        self._last_overextended_depth = max(
-            self._last_overextended_depth, optimization_depth
-        )
-        self._equipment_optimization_signature = None
-        self._equipment_optimization_preparation = None
-        return alternate
 
     def _activate_safe_recall_fallback(self, snapshot: Snapshot) -> int | None:
         """Select the shallowest entered dungeon when the current recall is unsafe."""
@@ -18092,7 +17953,6 @@ class HengbotPolicy:
     def _town_cancel_unsafe_recall_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or not snapshot.player.recalling:
             return None
-        self._activate_loadout_depth_fallback(snapshot)
         pending_destination = (
             self._pending_recall_dungeon_id
             if self._pending_recall_dungeon_id is not None
@@ -19177,10 +19037,6 @@ class HengbotPolicy:
         # back into a deep Yeek Cave run (recall lands at the deepest level, far
         # faster than re-walking from the entrance). Fundraising deliberately mines
         # level 1, so it keeps walking to the entrance instead.
-        if self._activate_loadout_depth_fallback(snapshot) is not None:
-            self.last_reason = "town:loadout-depth-fallback"
-            return WAIT_KEY
-
         recall_dest, recall_dungeon_id = self._town_recall_destination(snapshot)
         # A completed scan with no pending Home or identification owner cannot
         # legitimately defer departure.  This also repairs old visit state
@@ -19322,9 +19178,6 @@ class HengbotPolicy:
                     return self._read_key(snapshot, recall, selection)
 
         if recall_dest is not None and not departure_ok:
-            if self._activate_loadout_depth_fallback(snapshot) is not None:
-                self.last_reason = "town:loadout-depth-fallback"
-                return WAIT_KEY
             blocker = self._terminal_equipment_blocker(snapshot)
             if blocker is not None:
                 self._town_blocked_reason = blocker

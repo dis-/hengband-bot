@@ -271,7 +271,7 @@ def warrior_optimizer_input_key(
     items: tuple[OwnedEquipment, ...],
     knowledge: Mapping[int, MonraceKnowledge],
     *,
-    depth: int,
+    depth: int | None,
     home_scan_complete: bool,
     has_destruction: bool,
     preserve_pack_item_ids: frozenset[str],
@@ -569,7 +569,7 @@ def prepare_warrior_optimization(
     items: tuple[OwnedEquipment, ...],
     knowledge: Mapping[int, MonraceKnowledge],
     *,
-    depth: int,
+    depth: int | None,
     home_scan_complete: bool,
     has_destruction: bool = False,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
@@ -613,7 +613,12 @@ def prepare_warrior_optimization(
     if blockers:
         return WarriorOptimizationPreparation(current, None, None, tuple(blockers))
 
-    all_encounters = normal_encounters(knowledge, depth)
+    encounter_depth = (
+        depth
+        if depth is not None
+        else max((monster.level for monster in knowledge.values()), default=1)
+    )
+    all_encounters = normal_encounters(knowledge, encounter_depth)
     if not all_encounters:
         return WarriorOptimizationPreparation(
             current, None, None, ("empty-encounter-set",)
@@ -688,14 +693,18 @@ def prepare_warrior_optimization(
     }
     required_candidate_flags = {
         ABILITY_FLAG[ability]
-        for ability in required_abilities(depth)
+        for ability in (required_abilities(depth) if depth is not None else ())
         if ability not in intrinsic_abilities
     }
     # Once paralysis is a live dungeon risk, an optimizer transaction must not
     # discard free action that the current loadout already owns merely because
     # a mundane armor piece gains a few points of AC. Another slot may replace
     # the flag, but the resulting complete loadout must retain it.
-    if depth >= FREE_ACTION_PRESERVE_DEPTH and TR_FREE_ACT in current.flags:
+    if (
+        depth is not None
+        and depth >= FREE_ACTION_PRESERVE_DEPTH
+        and TR_FREE_ACT in current.flags
+    ):
         required_candidate_flags.add(TR_FREE_ACT)
     search_factory = (
         enumerate_single_slot_variants
@@ -721,7 +730,9 @@ def prepare_warrior_optimization(
         candidate_loadouts=candidate_loadouts,
     )
     if loadout_report_path is not None:
-        _append_loadout_report(loadout_report_path, depth, result, evaluator, defense)
+        _append_loadout_report(
+            loadout_report_path, encounter_depth, result, evaluator, defense
+        )
     if result.timed_out:
         return WarriorOptimizationPreparation(
             current,

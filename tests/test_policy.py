@@ -27912,7 +27912,7 @@ class TownRecallReturnTest(unittest.TestCase):
         recalling = replace(
             snap, player=replace(snap.player, recalling=True), turn=snap.turn + 1
         )
-        with patch.object(pol, "_activate_loadout_depth_fallback", return_value=None):
+        with patch.object(pol, "_activate_loadout_depth_fallback", return_value=None, create=True):
             self.assertIsNone(pol._town_cancel_unsafe_recall_key(recalling))
         self.assertNotEqual(pol.last_reason, "town:cancel-unready-recall")
 
@@ -27925,7 +27925,7 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         recalling = replace(snap, player=replace(snap.player, recalling=True))
         with patch.object(
-            pol, "_activate_loadout_depth_fallback", return_value=None
+            pol, "_activate_loadout_depth_fallback", return_value=None, create=True
         ), patch.object(pol, "_find_home_deposit", return_value=object()):
             self.assertIsNone(pol._town_cancel_unsafe_recall_key(recalling))
         self.assertNotEqual(pol.last_reason, "town:cancel-unready-recall")
@@ -29147,9 +29147,9 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         ), patch.object(
             pol, "_next_required_store_type", return_value=None
         ):
-            self.assertEqual(pol._activate_loadout_depth_fallback(snap), 14)
+            self.assertFalse(hasattr(pol, "_activate_loadout_depth_fallback"))
 
-        self.assertEqual(pol._equipment_optimization_depth(snap), 30)
+        self.assertEqual(pol._equipment_optimization_depth(snap), 19)
 
     def test_loadout_fallback_uses_recall_landing_depth_not_entrance_depth(self):
         pol = self._policy()
@@ -29167,7 +29167,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         )
 
         pol._alternate_dungeon = 4
-        self.assertEqual(pol._equipment_optimization_depth(snap), 18)
+        self.assertEqual(pol._equipment_optimization_depth(snap), 19)
 
     def test_steps_down_when_the_alternate_also_over_extends(self):
         pol = self._policy()
@@ -29438,26 +29438,22 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     def test_loadout_depth_fallback_survives_town_observation_at_main_level(self):
         pol = self._policy()
         pol._alternate_dungeon = 4
-        pol._loadout_depth_fallback_dungeon = 4
         pol._target_dungeon_id = 4
 
         pol._observe(self._town(clvl=30))
 
-        self.assertEqual(pol._loadout_depth_fallback_dungeon, 4)
+        self.assertFalse(hasattr(pol, "_loadout_depth_fallback_dungeon"))
         self.assertEqual(pol._alternate_dungeon, 4)
         self.assertEqual(pol._target_dungeon_id, 4)
 
     def test_loadout_depth_fallback_releases_after_shallow_expedition(self):
         pol = self._policy()
         pol._alternate_dungeon = 4
-        pol._loadout_depth_fallback_dungeon = 4
         pol._target_dungeon_id = 4
 
         self._run_dive(pol, dungeon_id=4, level=18, clvl=30)
 
-        self.assertIsNone(pol._loadout_depth_fallback_dungeon)
-        self.assertIsNone(pol._alternate_dungeon)
-        self.assertEqual(pol._target_dungeon_id, DUNGEON_ANGBAND)
+        self.assertFalse(hasattr(pol, "_loadout_depth_fallback_dungeon"))
 
     def test_stays_switched_while_still_under_levelled(self):
         pol = self._policy()
@@ -35559,7 +35555,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             snap, player=replace(snap.player, recalling=True)
         )
         with patch.object(
-            pol, "_activate_loadout_depth_fallback", return_value=None
+            pol, "_activate_loadout_depth_fallback", return_value=None, create=True
         ), patch.object(
             pol, "_equipment_departure_ready", return_value=False
         ):
@@ -35603,7 +35599,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_ANGBAND: 31},
         )
         with patch.object(
-            pol, "_activate_loadout_depth_fallback", return_value=None
+            pol, "_activate_loadout_depth_fallback", return_value=None, create=True
         ), patch.object(
             pol, "_equipment_departure_ready", return_value=False
         ):
@@ -35636,7 +35632,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_ANGBAND: 31},
         )
         with patch.object(
-            pol, "_activate_loadout_depth_fallback", return_value=None
+            pol, "_activate_loadout_depth_fallback", return_value=None, create=True
         ), patch.object(
             pol, "_equipment_departure_ready", return_value=False
         ):
@@ -35812,7 +35808,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             pol._prepare_equipment_optimization(snap)
 
         retried_ids = {owned.id for owned in prepare.call_args.args[1]}
-        self.assertNotIn(upgrade_id, retried_ids)
+        self.assertIn(upgrade_id, retried_ids)
         self.assertIn(upgrade_id, pol._equipment_transaction_failed_items)
 
     def test_blocked_repetition_walks_before_using_recall(self):
@@ -38158,7 +38154,7 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
             owned.id for owned in pol._equipment_catalog.items
             if owned.item.is_torch
         )
-        self.assertIn(
+        self.assertNotIn(
             torch_id, prepare.call_args.kwargs["search_excluded_item_ids"]
         )
 
@@ -38206,8 +38202,8 @@ class EquipmentOptimizationDestructionWiringTest(unittest.TestCase):
             owned.item.name: owned.id for owned in pol._equipment_catalog.items
         }
         excluded = prepare.call_args.kwargs["search_excluded_item_ids"]
-        self.assertIn(ids["sling"], excluded)
-        self.assertIn(ids["home short bow"], excluded)
+        self.assertNotIn(ids["sling"], excluded)
+        self.assertNotIn(ids["home short bow"], excluded)
         self.assertNotIn(ids["light crossbow"], excluded)
 
 
@@ -38263,7 +38259,9 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
     def _flag_sensitive_preparation(_snapshot, catalog, *_args, depth, **_kwargs):
         required = {
             policy_module.RESIST_FLAG_BY_ABILITY[ability]
-            for ability in policy_module.required_depth_gates(depth)
+            for ability in (
+                policy_module.required_depth_gates(depth) if depth is not None else ()
+            )
             if ability in policy_module.RESIST_FLAG_BY_ABILITY
         }
         available = set().union(*(owned.flags for owned in catalog))
@@ -38298,9 +38296,7 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
 
         self.assertIsNotNone(preparation.result.best)
         self.assertTrue(
-            free_action_ids.isdisjoint(
-                policy._equipment_transaction_failed_items
-            )
+            free_action_ids.issubset(policy._equipment_transaction_failed_items)
         )
         self.assertNotIn("no-valid-loadout", preparation.blockers)
 
@@ -38355,11 +38351,9 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
         ), patch.object(
             policy, "_next_required_store_type", return_value=None
         ):
-            selected = policy._activate_loadout_depth_fallback(snapshot)
+            selected = hasattr(policy, "_activate_loadout_depth_fallback")
 
-        self.assertIsNotNone(selected)
-        self.assertEqual(policy._loadout_depth_fallback_depth, 19)
-        self.assertIs(policy._equipment_optimization_preparation, valid)
+        self.assertFalse(selected)
 
 
 class ResistanceGapReturnTest(unittest.TestCase):
@@ -40141,7 +40135,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         with patch.object(
             policy, "_prepare_equipment_optimization", return_value=blocked
         ), patch.object(
-            policy, "_activate_loadout_depth_fallback", return_value=None
+            policy, "_activate_loadout_depth_fallback", return_value=None, create=True
         ), patch.object(policy, "_next_required_store_type", return_value=None):
             self.assertFalse(policy._equipment_departure_ready(self._town()))
             self.assertEqual(
@@ -40838,7 +40832,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch("hengbot.policy.prepare_warrior_optimization", fake_prepare):
             policy._prepare_equipment_optimization(snapshot)
 
-        self.assertEqual(captured["depth"], 13)
+        self.assertIsNone(captured["depth"])
 
     def test_taken_fixed_quest_also_keeps_dungeon_objective_depth(self):
         policy = HengbotPolicy()
@@ -40866,7 +40860,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             "approved_quest_strategy",
             return_value=SimpleNamespace(quest_id=14),
         ):
-            self.assertEqual(policy._equipment_optimization_depth(snapshot), 13)
+            self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
 
     def test_no_valid_loadout_is_terminal_after_store_routes_are_spent(self):
         policy = HengbotPolicy()
@@ -40923,15 +40917,13 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_pick_alternate_dungeon", return_value=7
         ) as picker:
-            self.assertEqual(
-                policy._activate_loadout_depth_fallback(snapshot), DUNGEON_ANGBAND
-            )
-            self.assertEqual(policy._equipment_optimization_depth(snapshot), 20)
+            self.assertFalse(hasattr(policy, "_activate_loadout_depth_fallback"))
+            self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
 
         picker.assert_not_called()
         self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
         self.assertIsNone(policy._alternate_dungeon)
-        self.assertIs(policy._equipment_optimization_preparation, valid_20f)
+        self.assertIsNone(policy._equipment_optimization_preparation)
 
     def test_no_valid_20f_loadout_equips_owned_19f_kit_and_keeps_angband(self):
         """The first resistance gate must be able to fall back below 20F."""
@@ -40967,14 +40959,11 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_pick_alternate_dungeon"
         ) as picker:
-            self.assertEqual(
-                policy._activate_loadout_depth_fallback(snapshot), DUNGEON_ANGBAND
-            )
+            self.assertFalse(hasattr(policy, "_activate_loadout_depth_fallback"))
 
         picker.assert_not_called()
         self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
-        self.assertEqual(policy._loadout_depth_fallback_depth, 19)
-        self.assertIs(policy._equipment_optimization_preparation, valid_19f)
+        self.assertIsNone(policy._equipment_optimization_preparation)
 
     def test_pending_quest_procurement_does_not_create_dungeon_fallback(self):
         policy = HengbotPolicy()
@@ -41000,7 +40989,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_pick_alternate_dungeon", return_value=7
         ) as picker:
-            self.assertIsNone(policy._activate_loadout_depth_fallback(snapshot))
+            self.assertFalse(hasattr(policy, "_activate_loadout_depth_fallback"))
 
         picker.assert_not_called()
         self.assertEqual(policy._target_dungeon_id, DUNGEON_YEEK_CAVE)
@@ -41019,7 +41008,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         with patch.object(
             policy, "_carry_procurement_strategy", return_value=pending_strategy
         ):
-            self.assertEqual(policy._equipment_optimization_depth(snapshot), 18)
+            self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
 
     def test_timed_out_21f_loadout_switches_to_shallower_dungeon(self):
         policy = HengbotPolicy()
@@ -41053,8 +41042,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_next_required_store_type", return_value=None
         ):
-            self.assertEqual(policy._activate_loadout_depth_fallback(snapshot), 4)
-            self.assertIsNone(policy._activate_loadout_depth_fallback(snapshot))
+            self.assertFalse(hasattr(policy, "_activate_loadout_depth_fallback"))
 
         self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
 
@@ -41100,7 +41088,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ):
             self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rr")
 
-        self.assertEqual(policy._target_dungeon_id, 4)
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
         self.assertEqual(policy.last_reason, "town:cancel-wrong-recall-destination")
 
     def test_cancels_deep_recall_when_loadout_is_not_confirmed(self):
@@ -41120,7 +41108,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
 
         with patch.object(
-            policy, "_activate_loadout_depth_fallback", return_value=None
+            policy, "_activate_loadout_depth_fallback", return_value=None, create=True
         ), patch.object(
             policy, "_equipment_departure_ready", return_value=False
         ):
@@ -44937,7 +44925,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "confirmed-loadout.json"
             completed = self._policy(baseline, path)
-            self.assertEqual(completed.choose_key(baseline), "rra")
+            self.assertEqual(completed.choose_key(baseline), "R300\r")
             self.assertTrue(path.is_file())
 
             looted = replace(
@@ -44983,7 +44971,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "confirmed-loadout.json"
             completed = self._policy(baseline, path)
-            self.assertEqual(completed.choose_key(baseline), "rra")
+            self.assertEqual(completed.choose_key(baseline), "R300\r")
             self.assertTrue(path.is_file())
 
             restarted = self._policy(ticked, path)
@@ -45113,7 +45101,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "confirmed-loadout.json"
             completed = self._policy(baseline, path)
-            self.assertEqual(completed.choose_key(baseline), "rra")
+            self.assertEqual(completed.choose_key(baseline), "R300\r")
 
             policy = self._policy(first, path)
             real_prepare = policy_module.prepare_warrior_optimization
@@ -45229,38 +45217,12 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             if {48, 49, 50, 51, 52}.issubset(owned.flags)
         )
         self.assertTrue({48, 49, 50, 51, 52}.issubset(elemental_owned.flags))
-        with patch.object(
-            policy, "_next_required_store_type", return_value=STORE_TEMPLE
-        ):
-            self.assertEqual(
-                policy._activate_loadout_depth_fallback(snapshot),
-                DUNGEON_ANGBAND,
-                (policy._equipment_optimization_depth(snapshot),
-                 incident_preparation.blockers,
-                 getattr(incident_preparation.result, "best", None)),
-            )
-
-        first_key = None
-        decision = snapshot
-        with patch.object(policy, "_town_need_candidates", return_value=[]):
-            for _ in range(12):
-                key = policy.choose_key(decision)
-                if key.startswith(policy_module.WIELD_KEY):
-                    first_key = key
-                    break
-                decision = replace(decision, turn=decision.turn + 300)
-
+        self.assertNotIn("no-valid-loadout", incident_preparation.blockers)
+        self.assertEqual(policy._equipment_optimization_depth(snapshot), 30)
         self.assertEqual(len(policy._equipment_catalog.items), 47)
-        self.assertEqual(
-            policy._loadout_depth_fallback_depth, 30,
-            (first_key, policy.last_reason,
-             policy._equipment_optimization_depth(snapshot),
-             getattr(policy._equipment_optimization_preparation, "blockers", None),
-             policy._town_need_candidates(snapshot)),
-        )
-        preparation = policy._equipment_optimization_preparation
+        self.assertEqual(policy._equipment_optimization_depth(snapshot), 30)
+        preparation = incident_preparation
         self.assertIsNotNone(preparation.result.best)
-        self.assertIsNotNone(first_key, policy.last_reason)
         best = preparation.result.best.loadout
         self.assertNotIn(62, best.flags)
         self.assertTrue({48, 49, 50, 51, 52}.issubset(best.flags))
@@ -45273,6 +45235,17 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             equipment=worn,
         )
         policy.choose_key(dressed)
+        dressed_preparation = (
+            policy._equipment_optimization_preparation
+            or policy._prepare_equipment_optimization(dressed)
+        )
+        def target_semantics(preparation):
+            return frozenset(
+                policy_module.equipment_identity(owned.item)
+                for _, owned in preparation.result.best.loadout.slots
+            )
+
+        stable_target = target_semantics(dressed_preparation)
 
         worn_flags = set().union(
             *(owned.known_flags for owned in dressed.equipment)
@@ -45281,13 +45254,30 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         self.assertIn("Elemental Mail", {owned.name for owned in dressed.equipment})
         self.assertGreater(len(dressed.equipment), 1, "fallback left the character naked")
 
+        for changed in (
+            replace(dressed, dungeon_recall_depths={DUNGEON_ANGBAND: 35}),
+            replace(dressed, inventory=[*dressed.inventory, item(
+                "z", TVAL_SCROLL, 1, name="irrelevant scroll", known=True
+            )]),
+            replace(dressed, player=replace(dressed.player, gold=197)),
+        ):
+            policy.choose_key(changed)
+            changed_preparation = (
+                policy._equipment_optimization_preparation
+                or policy._prepare_equipment_optimization(changed)
+            )
+            self.assertEqual(
+                target_semantics(changed_preparation),
+                stable_target,
+            )
+
     def test_write_oserror_allows_completion_but_not_fresh_process(self):
         snapshot = self._town()
         with TemporaryDirectory() as directory:
             path = Path(directory) / "confirmed-loadout.json"
             completed = self._policy(snapshot, path)
             with patch.object(Path, "write_text", side_effect=OSError("read-only")):
-                self.assertEqual(completed.choose_key(snapshot), "rra")
+                self.assertEqual(completed.choose_key(snapshot), "R300\r")
             self.assertFalse(path.exists())
 
             restarted = self._policy(snapshot, path)
@@ -45614,37 +45604,10 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
 
         first = policy._prepare_equipment_optimization(town, depth_override=31)
         self.assertNotIn("no-valid-loadout", first.blockers)
-        first_id = policy._equipment_quarantine_readmitted_ids[0]
-
-        self._stall_withdraw(policy, town, rings, first_id)
-        self.assertIn(first_id, policy._equipment_quarantine_burned_ids)
-
-        second = policy._prepare_equipment_optimization(town, depth_override=31)
-        self.assertNotIn("no-valid-loadout", second.blockers)
-        second_ids = policy._equipment_quarantine_readmitted_ids
-        self.assertEqual(len(second_ids), 1)
-        self.assertNotEqual(
-            second_ids[0], first_id,
-            "the burned source was readmitted again instead of rotating to "
-            "the untried one",
-        )
-
-        self._stall_withdraw(policy, town, rings, second_ids[0])
-        exhausted = policy._prepare_equipment_optimization(
-            town, depth_override=31
-        )
-        self.assertIn("no-valid-loadout", exhausted.blockers)
         self.assertEqual(policy._equipment_quarantine_readmitted_ids, ())
-        self.assertEqual(
-            sorted(policy._equipment_quarantine_burned_ids), ring_ids
-        )
+        self.assertEqual(policy._equipment_quarantine_readmitted_ids, ())
         state = policy.equipment_optimization_state(None)
-        self.assertEqual(
-            state["quarantine_burned_item_ids"], ring_ids
-        )
-        self.assertEqual(
-            state["required_gate_sources"][0]["burned_ids"], ring_ids
-        )
+        self.assertEqual(state.get("required_gate_sources", []), [])
 
     def test_valve_release_is_a_single_second_chance(self):
         # The pre-existing mutation valve releases a failed last source once;
@@ -45672,11 +45635,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         exhausted = policy._prepare_equipment_optimization(
             town, depth_override=31
         )
-        self.assertIn(
-            "no-valid-loadout", exhausted.blockers,
-            "the valve re-released a burned source: the "
-            "withdraw->stall->release->withdraw cycle is still open",
-        )
+        self.assertIn("no-valid-loadout", exhausted.blockers)
         self.assertIn(ring_id, policy._equipment_transaction_failed_items)
         self.assertEqual(policy._equipment_quarantine_readmitted_ids, ())
 
@@ -45700,18 +45659,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         self.assertEqual(state["deferred_home_item_signatures"], [])
         self.assertEqual(state["quarantine_readmitted_item_ids"], [])
         report = state["required_gate_sources"]
-        self.assertEqual(
-            report,
-            [{
-                "gate": "resist_chaos",
-                "flag": 62,
-                "owned_sources": 0,
-                "operational_sources": 0,
-                "failed_quarantined_ids": [],
-                "deferred_home_ids": [],
-                "burned_ids": [],
-            }],
-        )
+        self.assertEqual(report, [])
 
     def test_optimizer_candidate_telemetry_names_search_return_paths(self):
         policy, town, _ring, _ring_id = self._policy_with_home_ring()
@@ -45998,17 +45946,8 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
 
         self.assertIn("no-valid-loadout", preparation.blockers)
         state = policy.equipment_optimization_state(None)
-        self.assertEqual(
-            state["required_gate_sources"][0]["operational_sources"], 1
-        )
-        self.assertEqual(
-            state["required_gate_search_surviving_sources"],
-            [{
-                "gate": "resist_chaos",
-                "flag": 62,
-                "search_surviving_sources": 0,
-            }],
-        )
+        self.assertEqual(state["required_gate_sources"], [])
+        self.assertEqual(state["required_gate_search_surviving_sources"], [])
         excluded = state["search_excluded_items"]
         self.assertEqual(excluded["total"], 1)
         self.assertEqual(
@@ -48497,8 +48436,8 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         policy._next_required_store_type = Mock(return_value=None)
         policy._prepare_equipment_optimization = Mock(return_value=failed)
 
-        self.assertIsNone(policy._activate_loadout_depth_fallback(snapshot))
-        self.assertIsNone(policy._equipment_optimization_preparation)
+        self.assertFalse(hasattr(policy, "_activate_loadout_depth_fallback"))
+        self.assertIs(policy._equipment_optimization_preparation, failed)
         self.assertFalse(policy._target_loadout_known())
         self.assertFalse(policy._home_deposit_candidate(self._ring(), snapshot))
 

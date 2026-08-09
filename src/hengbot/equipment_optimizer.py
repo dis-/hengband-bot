@@ -170,6 +170,32 @@ def required_abilities(depth: int) -> frozenset[str]:
     return frozenset()
 
 
+def divable_depth(
+    loadout: "Loadout",
+    *,
+    intrinsic_abilities: frozenset[str] = frozenset(),
+    has_destruction: bool = False,
+    speed_bonus: int = 0,
+) -> int:
+    """Classify a selected loadout into its deepest authoritative depth band."""
+    abilities = set(intrinsic_abilities)
+    for name, flag in ABILITY_FLAG.items():
+        if flag in loadout.flags:
+            abilities.add(name)
+    deepest = 19
+    for depth in (20, 21, 26, 31, 40, 50, 81):
+        if not required_abilities(depth).issubset(abilities):
+            continue
+        if depth >= 50 and not has_destruction:
+            continue
+        if depth >= 81 and speed_bonus < 25:
+            continue
+        deepest = {21: 25, 26: 30, 31: 39, 40: 49, 50: 80}.get(
+            depth, depth
+        )
+    return deepest
+
+
 @dataclass(frozen=True)
 class OwnedEquipment:
     """One physical item in the owned-equipment catalog."""
@@ -774,7 +800,7 @@ def _meets_requirements(
     loadout: Loadout,
     metrics: LoadoutMetrics,
     *,
-    depth: int,
+    depth: int | None,
     intrinsic_abilities: frozenset[str],
     has_destruction: bool,
 ) -> bool:
@@ -787,7 +813,7 @@ def _meets_requirements(
         has_destruction=has_destruction,
     ):
         return False
-    if depth >= 81 and metrics.speed_bonus < 25:
+    if depth is not None and depth >= 81 and metrics.speed_bonus < 25:
         return False
     return True
 
@@ -795,7 +821,7 @@ def _meets_requirements(
 def _meets_static_requirements(
     loadout: Loadout,
     *,
-    depth: int,
+    depth: int | None,
     intrinsic_abilities: frozenset[str],
     has_destruction: bool,
 ) -> bool:
@@ -806,9 +832,9 @@ def _meets_static_requirements(
     for name, flag in ABILITY_FLAG.items():
         if flag in loadout.flags:
             abilities.add(name)
-    if not required_abilities(depth).issubset(abilities):
+    if depth is not None and not required_abilities(depth).issubset(abilities):
         return False
-    if depth >= 50 and not has_destruction:
+    if depth is not None and depth >= 50 and not has_destruction:
         return False
     return True
 
@@ -1097,7 +1123,7 @@ def optimize_loadout(
     items: Iterable[OwnedEquipment],
     evaluator: LoadoutEvaluator,
     *,
-    depth: int,
+    depth: int | None,
     intrinsic_abilities: frozenset[str] = frozenset(),
     has_destruction: bool = False,
     current_item_ids: frozenset[str] = frozenset(),
@@ -1174,6 +1200,26 @@ def optimize_loadout(
             evaluated_by_metrics[equivalence_key] = entry
 
     evaluated = list(evaluated_by_metrics.values())
+    if depth is None and evaluated:
+        deepest = max(
+            divable_depth(
+                entry.loadout,
+                intrinsic_abilities=intrinsic_abilities,
+                has_destruction=has_destruction,
+                speed_bonus=entry.metrics.speed_bonus,
+            )
+            for entry in evaluated
+        )
+        evaluated = [
+            entry
+            for entry in evaluated
+            if divable_depth(
+                entry.loadout,
+                intrinsic_abilities=intrinsic_abilities,
+                has_destruction=has_destruction,
+                speed_bonus=entry.metrics.speed_bonus,
+            ) == deepest
+        ]
     frontier: list[EvaluatedLoadout] = []
     if not timed_out:
         for entry in evaluated:
