@@ -48576,21 +48576,82 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertNotIn(item, policy._current_store_sale_candidates(shop))
         self.assertFalse(policy._entire_stack_is_surplus(snapshot, item))
 
+    def test_public_no_session_latched_restore_dresses_pack_again(self):
+        policy, snapshot, inventory = self._stripped_fixture()
+        inventory = [replace(item, is_equipment=True) for item in inventory]
+        snapshot = replace(snapshot, inventory=inventory)
+        policy._equipment_transaction_session = None
+        policy._equipment_transaction_restoring = True
+        policy._equipment_transaction_restore_terminal = (
+            "equipment-transaction:restore-blocked-terminal"
+        )
+
+        decisions = []
+        current = snapshot
+        for expected_identity, expected_slot in list(
+            policy._equipment_transaction_owned_items
+        ):
+            key = policy.choose_key(current)
+            decisions.append((key, policy.last_reason))
+            session = policy._equipment_transaction_session
+            self.assertIsNotNone(session)
+            action = session.prepared_action
+            self.assertIsNotNone(action)
+            self.assertEqual(action.item_identity, expected_identity)
+            self.assertEqual(action.target_slot, expected_slot)
+            self.assertTrue(policy.confirm_key_posted(key))
+            worn = next(
+                item for item in current.inventory
+                if policy_module.equipment_identity(item) == expected_identity
+            )
+            current = replace(
+                current,
+                turn=current.turn + 1,
+                inventory=[item for item in current.inventory if item is not worn],
+                equipment=[*current.equipment, replace(worn, slot=expected_slot)],
+            )
+
+        policy.choose_key(current)
+        self.assertEqual(len(current.equipment), 10)
+        self.assertEqual(policy._equipment_transaction_owned_items, [])
+        self.assertTrue(
+            all(
+                reason == "equipment-transaction:equip"
+                for _, reason in decisions
+            )
+        )
+
     def test_blocked_restore_reaches_visible_named_terminal(self):
-        policy, snapshot, _ = self._stripped_fixture()
-        policy.choose_key(snapshot)
-        policy._equipment_transaction_session.block("restore-item-missing")
+        """Only a genuinely missing remainder reaches the CLI-stop terminal."""
+        policy, snapshot, inventory = self._stripped_fixture()
+        wearable = replace(inventory[0], is_equipment=True)
+        missing_identity, missing_slot = policy._equipment_transaction_owned_items[1]
+        policy._equipment_transaction_owned_items = [
+            policy._equipment_transaction_owned_items[0],
+            (missing_identity, missing_slot),
+        ]
+        policy._equipment_transaction_session = None
+        policy._equipment_transaction_restoring = True
+        snapshot = replace(snapshot, inventory=[wearable])
 
-        first = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
-        second = policy.choose_key(replace(snapshot, turn=snapshot.turn + 2))
+        key = policy.choose_key(snapshot)
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+        self.assertTrue(policy.confirm_key_posted(key))
+        dressed = replace(wearable, slot=policy._equipment_transaction_owned_items[0][1])
+        after = replace(
+            snapshot, turn=snapshot.turn + 1, inventory=[], equipment=[dressed]
+        )
 
-        self.assertEqual((first, second), (WAIT_KEY, WAIT_KEY))
+        self.assertEqual(policy.choose_key(after), WAIT_KEY)
         self.assertEqual(
             policy.last_reason,
             "equipment-transaction:restore-blocked-terminal",
         )
-        self.assertIsNotNone(policy._equipment_transaction_session)
-        self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
+        self.assertEqual(
+            policy._equipment_transaction_restore_remainder,
+            (missing_identity,),
+        )
+        self.assertEqual(len(after.equipment), 1)
 
     def test_live_inside_home_with_ten_removed_items_preserves_transaction_progress(self):
         """The retained incident shape is a Home handoff, not failure evidence."""

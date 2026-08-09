@@ -334,6 +334,9 @@ TOWN_BLOCKED_STOP_LIMIT = 30
 # them forever. A continuous town residence this long is faulty regardless of
 # the recorded reasons (about 25+ minutes at normal decision cadence).
 TOWN_RESIDENCE_STOP_LIMIT = 1500
+POLICY_FINAL_STOP_REASONS = frozenset(
+    {"equipment-transaction:restore-blocked-terminal"}
+)
 # Relocated from the travel-guard block: assert against the real constant so
 # a retuned residence net cannot silently invert the guard ordering.
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
@@ -1899,6 +1902,14 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                         policy,
                         economy_ledger,
                     )
+                    if policy.last_reason in POLICY_FINAL_STOP_REASONS:
+                        print(
+                            "<equipment-transaction:restore-blocked-terminal> "
+                            "recoverable gear restored; missing owned items "
+                            "remain; stopping the bot for investigation",
+                            flush=True,
+                        )
+                        return incident_stop(policy.last_reason, snapshot)
                     recorder.after_decision(policy, snapshot)
                     starving_position_changed = (
                         starving_last_position is not None

@@ -30,6 +30,8 @@ class Physics(Protocol):
 
     def visible_terminal(self, reason: str) -> str | None: ...
 
+    def terminal_ends_drive(self, reason: str, key: str) -> bool: ...
+
     def deliver_events(self, policy: object) -> None: ...
 
     def unmodelled_release(self, reason: str) -> bool: ...
@@ -73,6 +75,7 @@ def drive(state: AbsorbingState) -> DriveResult:
     progress_events = 0
     longest_stall = 0
     final_reason = "<no decision>"
+    repeated_visible_terminal: tuple[str, int] | None = None
 
     for decision in range(1, state.decisions + 1):
         world.deliver_events(policy)
@@ -84,11 +87,28 @@ def drive(state: AbsorbingState) -> DriveResult:
 
         terminal = world.visible_terminal(reason)
         if terminal is not None:
-            return DriveResult(
-                state.name, True, f"visible terminal {terminal}", decision,
-                reasons, keys, world.entries, world.exits,
-                progress_events, longest_stall,
+            if world.terminal_ends_drive(reason, key):
+                return DriveResult(
+                    state.name, True, f"drive-ending terminal {terminal}", decision,
+                    reasons, keys, world.entries, world.exits,
+                    progress_events, longest_stall,
+                )
+            count = (
+                repeated_visible_terminal[1] + 1
+                if repeated_visible_terminal is not None
+                and repeated_visible_terminal[0] == reason
+                else 1
             )
+            repeated_visible_terminal = (reason, count)
+            if count > 3:
+                return DriveResult(
+                    state.name, False,
+                    f"visible terminal repeated without ending drive: {terminal}",
+                    decision, reasons, keys, world.entries, world.exits,
+                    progress_events, longest_stall,
+                )
+        else:
+            repeated_visible_terminal = None
 
         confirm = getattr(policy, "confirm_key_posted", None)
         if confirm is not None:

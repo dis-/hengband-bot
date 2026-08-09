@@ -229,7 +229,26 @@ class TownWorld:
                 return "town:blocked:* fuse"
         elif reason != "shop:leave":
             self.blocked_streak = 0
-        return None
+
+    def terminal_ends_drive(self, reason: str, key: str) -> bool:
+        """Model only terminals whose owner actually ends the CLI drive."""
+        if reason == "livelock:exhausted":
+            return True
+        if reason.startswith("town:blocked:"):
+            return self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT
+        if reason == "equipment-transaction:restore-blocked-terminal":
+            from hengbot import cli
+            return reason in getattr(cli, "POLICY_FINAL_STOP_REASONS", ())
+        if reason == getattr(self, "expected_terminal_reason", None):
+            return True
+        if reason == "home:atomic-withdraw":
+            return True
+        return self.visible_terminal(reason) in {
+            "calibration prerequisite Home scan complete",
+            "equipment transaction owns ten-item restoration",
+            "transaction preserved through Home withdrawal handoff",
+            "surplus staff composed withdrawal",
+        }
 
 
 def _departure_freeze():

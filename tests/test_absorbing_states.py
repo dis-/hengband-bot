@@ -69,6 +69,9 @@ class _StubWorld:
     def visible_terminal(self, _reason):
         return None
 
+    def terminal_ends_drive(self, _reason, _key):
+        return False
+
     def unmodelled_release(self, _reason):
         return self.unmodelled
 
@@ -132,6 +135,22 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             )
         self.assertTrue(drive(state(True)).passed)
         self.assertFalse(drive(state(False)).passed)
+
+    def test_named_infinite_wait_is_not_a_drive_ending_terminal(self):
+        class NamedWaitWorld(_StubWorld):
+            def visible_terminal(self, reason):
+                return reason if reason == "named-terminal" else None
+
+        state = AbsorbingState(
+            "named-wait", 10,
+            lambda: (
+                _ScriptedPolicy(reason="named-terminal"), NamedWaitWorld()
+            ),
+        )
+        result = drive(state)
+        self.assertFalse(result.passed)
+        self.assertIn("repeated without ending drive", result.outcome)
+        self.assertEqual(result.decisions, 4)
 
     def test_coordinate_drift_and_closed_patrol_are_not_progress(self):
         _, template = SEEDED_STATES[0].build()

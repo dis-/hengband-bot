@@ -78,3 +78,57 @@ the fix: `FFF`.  The observed values were reason
 and projection `outstanding=true`, `need=false`.  At the fixed tip, successful
 completion invokes abandonment/restoration zero times; restore remains only the
 last-resort safety path.
+
+## 2026-08-09 terminal and restore-rebuild fix event
+
+Terminal definition: a policy terminal ends the CLI drive after one logged,
+final decision.  A reason label does not make a repeated key terminal.  The CLI
+registers `equipment-transaction:restore-blocked-terminal` as a final stop and
+does not post its key.  The absorbing harness separately asks whether the
+modelled terminal ends the drive; a visible reason repeated more than three
+times without that fact is a failure.
+
+Terminal-site audit for every `self.last_reason = ...terminal...` assignment in
+`policy.py`:
+
+- `_equipment_transaction_town_owner_key`, pre-existing terminal branch: it is
+  reached only after snapshot reconciliation finds no recoverable action and a
+  genuinely missing owned remainder; the CLI logs that decision and stops
+  before posting `WAIT_KEY` (or the store leave key).
+- `_equipment_transaction_town_owner_key`, no-key sibling: it has the same
+  disposition.  It cannot be the no-session/pack-gear path because that path
+  now rebuilds the restore session before routing; if routing nevertheless has
+  no key, the registered CLI final stop owns the decision.
+
+Restore-rebuild rule: interruption and a no-session observation both discard
+only the failed attempt.  The policy reconciles the owned set against currently
+equipped slots, builds equip actions for pack identities, prepends Home
+withdrawals for Home-known identities, and repeats this reconstruction after a
+recoverable prefix completes.  Missing identities are reported in
+`transaction_restore_remainder`; recoverable gear is restored before that
+remainder can produce the final stop.
+
+Naked-with-gear invariant: when transaction-owned wearable gear is in the pack
+and no danger blocks town maintenance, the next public `choose_key` decisions
+are equip commands until that gear is worn.  A stale restore latch or missing
+session cannot hand control to ordinary town policy and cannot emit a terminal
+wait while such an equip action exists.
+
+Pins:
+
+- `test_public_no_session_latched_restore_dresses_pack_again` starts with ten
+  owned pack items, no session, the restore latch set, and the stale terminal
+  reason set; all ten public decisions equip the items and empty ownership.
+- `test_blocked_restore_reaches_visible_named_terminal` restores the reachable
+  prefix before exposing and reporting one genuinely missing identity.
+- `test_named_infinite_wait_is_not_a_drive_ending_terminal` fails a synthetic
+  named infinite wait on its fourth identical decision.
+
+Historical `158a35e` result for the public dress-again shape was
+`AssertionError: ([('5', 'equipment-transaction:restore-blocked-terminal')],
+0, None)`.  This is the same reason emitted by all 959 measured incident
+decisions.  The old harness classified a visible label immediately and could
+therefore pass such a named wait; under the strengthened rule the synthetic
+replay fails after four consecutive decisions.  All 18 unique seed factories
+are green at tip under the drive-ending rule; no tip seed succeeds merely by
+repeating a named wait.
