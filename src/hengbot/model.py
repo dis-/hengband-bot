@@ -24,6 +24,9 @@ class Position:
 class AbilitySources(Mapping[str, frozenset[str]]):
     """Canonical immutable mapping of ability names to their active sources."""
 
+    # Dataclass preserves these explicit dunders; removing them breaks mapping
+    # equality and the hashability required by frozen PlayerState values.
+
     entries: tuple[tuple[str, frozenset[str]], ...] = ()
 
     def __init__(self, values: Mapping[str, frozenset[str]] | None = None):

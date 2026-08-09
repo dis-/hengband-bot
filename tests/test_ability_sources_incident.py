@@ -1,6 +1,7 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from hengbot.equipment_optimizer import (
     EvaluatedLoadout,
@@ -109,33 +110,66 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
         self.assertEqual(actual, PERMANENT)
 
     def test_contaminated_depth_fallback_uses_permanent_sources(self):
+        policy, preparation = self._contaminated_optimization()
+
+        with patch("hengbot.policy.prepare_warrior_optimization", return_value=preparation):
+            policy._prepare_equipment_optimization(self.town)
+
+        self.assertEqual(policy._equipment_optimization_last_depth, 19)
+
+    def test_contaminated_depth_cache_fallback_uses_permanent_sources(self):
+        policy, preparation = self._contaminated_optimization()
+
+        with patch("hengbot.policy.prepare_warrior_optimization", return_value=preparation):
+            policy._prepare_equipment_optimization(self.town)
+            policy._equipment_optimization_last_depth = None
+            policy._prepare_equipment_optimization(self.town)
+
+        self.assertEqual(policy._equipment_optimization_last_depth, 19)
+
+    def _contaminated_optimization(self):
         catalog = OwnedEquipmentCatalog()
-        catalog.refresh_carried(self.landed.inventory, self.landed.equipment)
+        catalog.refresh_carried(self.town.inventory, self.town.equipment)
         loadout = current_loadout(catalog.items)
-        contaminated = frozenset(self.landed.player.ability_sources)
+        contaminated = frozenset(self.town.player.ability_sources)
         calibration = CharacterCalibration(
-            race_id=self.landed.player.race_id,
-            class_id=self.landed.player.class_id,
-            personality_id=self.landed.player.personality_id,
-            level=self.landed.player.level,
-            stat_cur=self.landed.player.stat_cur,
-            base_stats=self.landed.player.stat_use,
-            base_hp=self.landed.player.max_hp,
+            race_id=self.town.player.race_id,
+            class_id=self.town.player.class_id,
+            personality_id=self.town.player.personality_id,
+            level=self.town.player.level,
+            stat_cur=self.town.player.stat_cur,
+            base_stats=self.town.player.stat_use,
+            base_hp=self.town.player.max_hp,
             base_ac_bonus=0,
             intrinsic_abilities=contaminated,
         )
-
         self.assertEqual(divable_depth(loadout, intrinsic_abilities=contaminated), 49)
-        self.assertEqual(
-            HengbotPolicy._effective_divable_depth(
-                self.landed,
-                loadout,
-                calibration,
-                has_destruction=False,
-                speed_bonus=0,
-            ),
-            19,
+        evaluated = EvaluatedLoadout(loadout, LoadoutMetrics(0.0, 0.0, 0.0))
+        result = OptimizationResult(
+            best=evaluated,
+            alternatives=(),
+            pareto_frontier=(),
+            dominated_item_ids=frozenset(),
+            combinations_considered=1,
+            combinations_evaluated=1,
+            invalid_combinations=0,
+            elapsed_seconds=0.0,
+            timed_out=False,
+            incomplete_item_ids=frozenset(),
         )
+        preparation = WarriorOptimizationPreparation(
+            current=loadout,
+            result=result,
+            transaction=EquipmentTransactionPlan((), (), len(self.town.inventory)),
+            blockers=(),
+        )
+        policy = HengbotPolicy()
+        policy.prime(self.town)
+        policy._character_calibration = calibration
+        policy._equipment_catalog.refresh_carried(
+            self.town.inventory, self.town.equipment
+        )
+        return policy, preparation
 
     def test_player_state_is_hashable_and_sources_lookup_for_both_wire_formats(self):
         self.assertIsInstance(hash(self.landed.player), int)
