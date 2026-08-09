@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 from hengbot.monrace_knowledge import MonraceKnowledge
 
@@ -224,6 +224,10 @@ class PlayerState:
     sub_hand_to_d: int = 0
     drained_stats: tuple[str, ...] = ()  # ability names below their max (e.g. "str", "con")
     abilities: frozenset[str] = frozenset()  # resistances / telepathy / free_action the char HAS
+    # Present only for the per-source emitter format.  Keys with no active
+    # source are retained so an all-false map remains distinguishable from the
+    # legacy flat boolean format.
+    ability_sources: Mapping[str, frozenset[str]] = field(default_factory=dict)
     stat_cur: tuple[int, ...] = ()  # six natural values, before equipment pval
     stat_max: tuple[int, ...] = ()
     stat_use: tuple[int, ...] = ()  # six currently modified values
@@ -730,8 +734,22 @@ def parse_snapshot(
         for name in STAT_NAMES
         if isinstance(stats.get(name), dict) and _as_bool(stats[name].get("drained", False))
     )
+    ability_data = player_data.get("abilities", {})
+    ability_sources = {
+        key: frozenset(
+            source for source, granted in value.items() if _as_bool(granted)
+        )
+        for key, value in ability_data.items()
+        if isinstance(value, dict)
+    }
     abilities = frozenset(
-        key for key, value in player_data.get("abilities", {}).items() if _as_bool(value)
+        key
+        for key, value in ability_data.items()
+        if (
+            bool(ability_sources.get(key, ()))
+            if isinstance(value, dict)
+            else _as_bool(value)
+        )
     )
     stat_names = tuple(STAT_NAMES)
     stat_cur = tuple(int(stats.get(name, {}).get("cur", 0)) for name in stat_names)
@@ -772,6 +790,7 @@ def parse_snapshot(
         sub_hand_to_d=int(melee.get("sub_hand_to_d", 0)),
         drained_stats=drained_stats,
         abilities=abilities,
+        ability_sources=ability_sources,
         stat_cur=stat_cur,
         stat_max=stat_max,
         stat_use=stat_use,

@@ -399,7 +399,9 @@ def calibrate_character_constants(
         base_stats=base_stats,
         base_hp=base_hp,
         base_ac_bonus=base_ac_bonus,
-        intrinsic_abilities=frozenset(player.abilities),
+        intrinsic_abilities=_effective_intrinsic_abilities(
+            player, frozenset(player.abilities)
+        ),
         pinned_identities=pinned_identities,
         observed_turn=getattr(snapshot, "turn", 0),
         mutation_signature=mutation_signature,
@@ -564,6 +566,20 @@ def _equipment_speed(loadout: Loadout) -> int:
     )
 
 
+def _effective_intrinsic_abilities(
+    player: object, stored: frozenset[str]
+) -> frozenset[str]:
+    """Prefer permanent source flags; fall back only for flat snapshots."""
+    sources_by_ability = getattr(player, "ability_sources", {})
+    if sources_by_ability:
+        return frozenset(
+            ability
+            for ability, sources in sources_by_ability.items()
+            if "permanent" in sources
+        )
+    return stored
+
+
 def prepare_warrior_optimization(
     snapshot: Snapshot,
     items: tuple[OwnedEquipment, ...],
@@ -634,7 +650,13 @@ def prepare_warrior_optimization(
     # through ADJ_DEX_TO_AC steps (base_ac_bonus), the non-injective
     # modify_stat_value scale (base stats / base_hp), or ability shadowing
     # (intrinsic set).  There is no legacy derivation here by design.
-    intrinsic_abilities = calibration.intrinsic_abilities
+    # The live per-source format is more authoritative than a calibration
+    # written by the former dict-as-true parser.  Preserve the stored numeric,
+    # identity, and TR-flag constants, but never let its contaminated ability
+    # list reach selection after source detail is available.
+    intrinsic_abilities = _effective_intrinsic_abilities(
+        player, calibration.intrinsic_abilities
+    )
     base_str = calibration.base_stats[0]
     base_dex = calibration.base_stats[3]
     base_con = calibration.base_stats[4]

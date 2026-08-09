@@ -38,6 +38,7 @@ from hengbot.warrior_loadout_evaluator import constitution_hp_bonus
 from hengbot.warrior_optimization import (
     CharacterCalibration,
     WarriorEvaluatorCache,
+    _effective_intrinsic_abilities,
     calibrate_character_constants,
     load_character_calibration,
     prepare_warrior_optimization,
@@ -363,6 +364,39 @@ def _snapshot(player, equipment=()):
 
 
 class CharacterCalibrationTest(unittest.TestCase):
+    def test_permanent_sources_define_intrinsics_and_supersede_stored_list(self):
+        permanent = frozenset({
+            "resist_cold", "resist_fear", "resist_neth", "resist_pois",
+            "see_invisible",
+        })
+        sources = {
+            ability: frozenset({"permanent"}) for ability in permanent
+        }
+        sources.update({
+            "resist_fire": frozenset({"equipment"}),
+            "resist_sound": frozenset({"equipment"}),
+            "free_action": frozenset(),
+            "resist_conf": frozenset(),
+            "resist_acid": frozenset(),
+            "resist_chaos": frozenset(),
+        })
+        player = _player(
+            abilities=permanent | {"resist_fire", "resist_sound"},
+            ability_sources=sources,
+        )
+
+        calibration = calibrate_character_constants(_snapshot(player))
+
+        self.assertIsNotNone(calibration)
+        self.assertEqual(calibration.intrinsic_abilities, permanent)
+        contaminated = permanent | frozenset({
+            "free_action", "resist_acid", "resist_chaos", "resist_conf",
+            "resist_elec", "resist_fire", "resist_sound", "telepathy",
+        })
+        self.assertEqual(
+            _effective_intrinsic_abilities(player, contaminated), permanent
+        )
+
     def test_refuses_to_calibrate_while_a_removable_item_is_worn(self):
         snapshot = _snapshot(_player(), [_worn("body")])
         self.assertIsNone(calibrate_character_constants(snapshot))

@@ -74,6 +74,38 @@ from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
 
 
+class AbilitySourceParsingTest(unittest.TestCase):
+    def _player(self, abilities):
+        data = json.loads(_snap_line(100, 5, 5))
+        data["player"]["abilities"] = abilities
+        return parse_snapshot(data, {}).player
+
+    def test_per_source_all_false_is_not_granted(self):
+        player = self._player({"free_action": {
+            "equipment": False, "permanent": False, "temporary": False,
+        }})
+        self.assertNotIn("free_action", player.abilities)
+        self.assertEqual(player.ability_sources["free_action"], frozenset())
+
+    def test_each_true_source_grants_the_ability(self):
+        for source in ("equipment", "permanent", "temporary"):
+            with self.subTest(source=source):
+                player = self._player({"resist_fire": {
+                    "equipment": source == "equipment",
+                    "permanent": source == "permanent",
+                    "temporary": source == "temporary",
+                }})
+                self.assertEqual(player.abilities, frozenset({"resist_fire"}))
+                self.assertEqual(
+                    player.ability_sources["resist_fire"], frozenset({source})
+                )
+
+    def test_flat_booleans_keep_legacy_meaning_without_source_detail(self):
+        player = self._player({"resist_fire": True, "resist_chaos": False})
+        self.assertEqual(player.abilities, frozenset({"resist_fire"}))
+        self.assertEqual(player.ability_sources, {})
+
+
 class PostedCharacterRecordTest(unittest.TestCase):
     def test_records_each_posted_character_with_composed_key_and_decision_join(self):
         decision = {
