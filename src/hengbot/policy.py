@@ -2063,10 +2063,8 @@ class HengbotPolicy:
         # _last_sell_sig, this survives turn changes and store exit/re-entry so
         # an unanswered prompt cannot evade rejection by advancing the turn.
         self._store_sell_attempt: tuple[tuple[str, int, int], int, int] | None = None
-        # Tag-based batches are attempted at most once per store type during a
-        # town visit.  The pending record spans the inscription, sale, and
-        # single verification snapshots.
-        self._batch_sell_attempted: set[int] = set()
+        # Every store sale is a tag-bound transaction.  The pending record
+        # spans inscription observation, sale, and post-sale verification.
         self._batch_sell_pending: dict[str, object] | None = None
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
@@ -5369,7 +5367,6 @@ class HengbotPolicy:
                 self._unsellable_items.clear()
                 self._store_sale_refused.clear()
                 self._store_sell_attempt = None
-                self._batch_sell_attempted.clear()
                 self._batch_sell_pending = None
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
@@ -16516,6 +16513,12 @@ class HengbotPolicy:
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
+        if (
+            self._item_signature(item) in self._unsellable_items
+            or store.store_type in self._store_sale_refused
+        ):
+            self.last_reason = rejected_reason
+            return LEAVE_STORE_KEY
 
         item_signature = self._item_signature(item)
         attempts = 1
@@ -16575,12 +16578,13 @@ class HengbotPolicy:
             self._store_sell_attempt = None
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
-        self.last_reason = reason
-        if item.count == 1:
-            return SELL_KEY + item.slot + SELL_CONFIRM_SUFFIX
-        surplus = self._retention_surplus(snapshot, item)
-        quantity = min(item.count, surplus) if surplus > 0 else item.count
-        return SELL_KEY + item.slot + f"{quantity}\ry"
+        # Even specialized disposal paths use the same inscription-observed
+        # transaction; this helper never composes an item-letter sale key.
+        key = self._batch_sell_key(snapshot, [item])
+        if key is None:
+            self.last_reason = "shop:sale-requires-inscription-leave"
+            return LEAVE_STORE_KEY
+        return key
 
     def _current_store_sale_candidates(self, snapshot: Snapshot) -> list[InventoryItem]:
         """Enumerate sale finders in normal shop priority, without mutating policy."""
@@ -16612,10 +16616,24 @@ class HengbotPolicy:
                 break
             result.append(sale)
             remaining = [item for item in remaining if item.slot != sale.slot]
+        if not result:
+            organization = self._find_town_organization_surplus(snapshot)
+            if (
+                organization is not None
+                and self._next_purchase(snapshot) is None
+                and self._store_accepts_sale(store.store_type, organization)
+                and store.store_type
+                == self._town_organization_sale_store(snapshot, organization)
+            ):
+                result.append(organization)
         return result
 
-    def _batch_sell_key(self, snapshot: Snapshot) -> str | None:
-        """Advance a zero-delay inscription/sale batch, or decline batch mode."""
+    def _batch_sell_key(
+        self,
+        snapshot: Snapshot,
+        candidates: list[InventoryItem] | None = None,
+    ) -> str | None:
+        """Advance the mandatory inscription-bound sale transaction."""
         store = snapshot.store
         if store is None:
             return None
@@ -16623,14 +16641,30 @@ class HengbotPolicy:
         pending = self._batch_sell_pending
         if pending is not None and pending["store_type"] == store.store_type:
             entries = pending["entries"]
-            if pending["phase"] == "inscribe":
-                pending["phase"] = "sell"
+            if pending["phase"] == "await-inscription":
+                inventory = {
+                    self._item_signature(item): item for item in snapshot.inventory
+                }
+                observed = all(
+                    (item := inventory.get(entry["signature"])) is not None
+                    and re.search(rf"@{entry['tag']}(?!\d)", item.inscription)
+                    is not None
+                    for entry in entries
+                )
+                if not observed:
+                    for entry in entries:
+                        self._unsellable_items.add(entry["signature"])
+                    self._store_sale_refused.add(store.store_type)
+                    self._batch_sell_pending = None
+                    self.last_reason = "shop:sale-inscription-unobserved-leave"
+                    return LEAVE_STORE_KEY
+                pending["phase"] = "await-sale"
                 self.last_reason = "shop:batch-sell"
                 return "".join(entry["sell"] for entry in entries)
 
             # Exactly one post-sale snapshot verifies every tagged item.  Any
             # survivor advances the ordinary attempt record and is then handled
-            # by the existing per-item path; this store visit never re-batches.
+            # by a fresh inscription-bound transaction if policy still wants it.
             inventory = {self._item_signature(item): item for item in snapshot.inventory}
             for entry in entries:
                 survivor = inventory.get(entry["signature"])
@@ -16642,20 +16676,21 @@ class HengbotPolicy:
                         if sig == entry["signature"] and survivor.count >= previous_count:
                             attempts = previous_attempts + 1
                     self._store_sell_attempt = (entry["signature"], survivor.count, attempts)
-            self._batch_sell_attempted.add(store.store_type)
             self._batch_sell_pending = None
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             # A completed batch can compact every following inventory slot.
-            # Leave before issuing any letter-based individual sale from a
-            # snapshot that may still reflect the pre-batch slot layout.
+            # Leave before starting another transaction from a snapshot that
+            # may still reflect the pre-sale inventory layout.
             self.last_reason = "shop:batch-verify-leave"
             return LEAVE_STORE_KEY
 
-        if store.store_type in self._batch_sell_attempted:
-            return None
-        candidates = self._current_store_sale_candidates(snapshot)
-        if len(candidates) <= 1:
+        candidates = (
+            self._current_store_sale_candidates(snapshot)
+            if candidates is None
+            else candidates
+        )
+        if not candidates:
             return None
 
         entries: list[dict[str, object]] = []
@@ -16676,13 +16711,15 @@ class HengbotPolicy:
             sell = SELL_KEY + digit + ("\r" if item.count == 1 else amount + "\ry")
             entries.append({
                 "signature": self._item_signature(item),
+                "tag": digit,
                 "count": item.count,
                 "quantity": quantity,
                 "sell": sell,
             })
-        if len(entries) <= 1:
-            return None
-        phase = "inscribe" if inscribe_parts else "sell"
+        if not entries:
+            self.last_reason = "shop:sale-inscription-unavailable-leave"
+            return LEAVE_STORE_KEY
+        phase = "await-inscription" if inscribe_parts else "await-sale"
         self._batch_sell_pending = {
             "store_type": store.store_type,
             "phase": phase,

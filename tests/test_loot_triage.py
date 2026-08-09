@@ -235,8 +235,8 @@ class TownOrganizationTest(unittest.TestCase):
         policy._prepare_equipment_optimization = Mock(return_value=preparation)
         snapshot = self._town([spare], STORE_WEAPON)
         self.assertIs(policy._find_town_organization_surplus(snapshot), spare)
-        self.assertEqual(policy._shop(snapshot), "da\r")
-        self.assertEqual(policy.last_reason, "shop:sell-town-surplus")
+        self.assertEqual(policy._shop(snapshot), "{a@0\r")
+        self.assertEqual(policy.last_reason, "shop:batch-inscribe")
         self.assertIsNone(policy._find_town_organization_surplus(self._town([])))
 
     def test_surplus_blocks_departure_until_removed(self):
