@@ -43,3 +43,25 @@ Pins include unique absorbing factories for all four historical shapes:
 last retains the live 531-occurrence `shop:approach` -> `entry-await` ->
 `store-context-exit` incident shape and proves the equipment/Home owner remains
 attached.  The catalogue test drives all four through public `choose_key`.
+
+## 2026-08-09 evidence-binding fix event
+
+The four visit seeds no longer alias older hand-built worlds. Their compact
+frames are copied from the preserved decision stream: archived decisions
+4050-4052 for `home:scan-address-burst`, decisions 40-42 for
+`equipment-transaction:abandon-blocked-home`, the 2026-08-07 02:57:15
+entrance-step-off onset, and decisions 26-28 of the 4,390-decision run for the
+live approach/entry/Home-exit cycle. Each is driven through public
+`choose_key`; replaying the archived burst without irreversible game progress
+must end at `livelock:exhausted`.
+
+The same seeds at parent `286ac7e` failed historically as follows:
+
+- `visit-scan-address-burst`: `decision bound exhausted`; 20 decisions,
+  10 scan bursts and 10 Home exits.
+- `visit-abandon-blocked-home`: `decision bound exhausted`; 20 decisions,
+  7 approaches, 7 entry waits, and 6 blocked Home exits.
+- `visit-approach-entrance-stepoff`: `decision bound exhausted`; 20 decisions,
+  7 approaches, 7 entrance step-offs, and 6 Home scan pages.
+- `visit-live-shop-entry-exit-531`: `decision bound exhausted`; 100 decisions,
+  34 approaches, 33 entry waits, and 33 Home context exits.

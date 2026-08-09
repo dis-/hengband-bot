@@ -14,7 +14,7 @@ world has no recovery/status physics with which to decide when it completes.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
 import hengbot.policy as policy_module
@@ -446,23 +446,97 @@ def _failed_store_entry_same_turn():
 
 
 def _scan_address_burst_visit_seed():
-    """Historical scan/address owner disagreement is one entry-owned visit."""
-    return _doubled_store_entry_cycle()
+    """Replay archived decisions 4050-4052 from the 2026-08-08 burst."""
+    return _evidence_visit_cycle((
+        EvidenceFrame(3693201, 45, 123, None, "home:scan-address-burst", "5                     \x1b"),
+        EvidenceFrame(3693210, 45, 123, STORE_HOME, "home:leave-after-one-operation", "\x1b"),
+    ))
 
 
 def _abandon_blocked_home_visit_seed():
-    """Historical transaction/inside-Home disagreement restores or closes."""
-    return _transaction_abandoned_mid_strip()
+    """Replay archived decisions 40-42 from the 2026-08-09 abandonment."""
+    return _evidence_visit_cycle((
+        EvidenceFrame(3698697, 45, 124, None, "equipment-transaction:approach-home", "4"),
+        EvidenceFrame(3698697, 45, 123, None, "store:entry-await-observation", ""),
+        EvidenceFrame(3698697, 45, 123, STORE_HOME, "equipment-transaction:abandon-blocked-home", "\x1b"),
+    ))
 
 
 def _approach_entrance_stepoff_visit_seed():
-    """Historical approach/entrance disagreement preserves entry ownership."""
-    return _movement_opens_store_before_surface_observation()
+    """Replay the 2026-08-07 02:57:15 entrance-step-off onset."""
+    return _evidence_visit_cycle((
+        EvidenceFrame(2940187, 44, 124, None, "shop:approach", "1"),
+        EvidenceFrame(2940187, 45, 123, None, "town:entrance-step-off:shop:travel:await-entry", "6"),
+        EvidenceFrame(2940187, 45, 123, STORE_HOME, "home:scan-catalog-page", " "),
+    ))
 
 
 def _live_shop_entry_exit_visit_seed():
-    """531-cycle incident: approach, entry-await and Home exit share an owner."""
-    return _approach_refused_optimizer_transaction()
+    """Replay archived decisions 26-28 from the 531-occurrence incident."""
+    return _evidence_visit_cycle((
+        EvidenceFrame(3754150, 44, 124, None, "shop:approach", "1"),
+        EvidenceFrame(3754150, 45, 123, None, "store:entry-await-observation", ""),
+        EvidenceFrame(3754150, 45, 123, STORE_HOME, "home:store-context-exit", "\x1b"),
+    ))
+
+
+@dataclass(frozen=True)
+class EvidenceFrame:
+    """Decision fields copied verbatim from the preserved JSONL evidence."""
+
+    turn: int
+    y: int
+    x: int
+    store_type: int | None
+    reason: str
+    key: str
+
+
+def _evidence_visit_cycle(frames):
+    """Cycle a preserved live burst without inventing game-side progress."""
+    helper = fixture.HomeOneOperationPerEntryTest()
+    base = helper._entrance_snapshot(helper._real_pack(), turn=frames[0].turn)
+    policy = HengbotPolicy()
+    policy._shopping_approach_store_type = STORE_HOME
+
+    class EvidenceWorld(TownWorld):
+        def __init__(self):
+            super().__init__(base)
+            self.index = 0
+
+        @property
+        def frame(self):
+            return frames[self.index % len(frames)]
+
+        def snapshot(self, decision):
+            frame = self.frame
+            store = (
+                StoreState(frame.store_type, [], stock_num=0, page_top=0, page_size=12)
+                if frame.store_type is not None else None
+            )
+            return replace(
+                base, turn=frame.turn,
+                player=replace(base.player, position=Position(frame.y, frame.x)),
+                store=store,
+            )
+
+        def apply(self, key):
+            before = self.frame.store_type
+            self.index += 1
+            after = self.frame.store_type
+            self.entries += int(before is None and after is not None)
+            self.exits += int(before is not None and after is None)
+            self.last_key = key
+
+    world = EvidenceWorld()
+
+    def archived_decision(_snapshot):
+        policy._decision_sequence += 1
+        policy.last_reason = world.frame.reason
+        return world.frame.key
+
+    policy._choose_key_with_latch_capture = archived_decision
+    return policy, world
 
 
 def _transaction_abandoned_mid_strip():

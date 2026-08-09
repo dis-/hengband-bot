@@ -2709,6 +2709,7 @@ class HengbotPolicy:
                 for marker in (
                     "approach", "entry", "store-context-exit",
                     "entrance-step-off", "abandon-blocked-home",
+                    "scan-address-burst",
                 )
             )
             if (

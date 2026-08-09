@@ -96,7 +96,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         self.assertEqual(len({state.build for state in SEEDED_STATES}), 21)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
-    def test_all_four_store_owner_disagreements_are_absorbing_at_tip(self):
+    def test_public_choose_key_refuses_all_four_live_store_cycles(self):
         names = {
             "visit-scan-address-burst",
             "visit-abandon-blocked-home",
@@ -105,9 +105,10 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         }
         selected = [state for state in SEEDED_STATES if state.name in names]
         self.assertEqual({state.name for state in selected}, names)
-        for state in selected:
-            with self.subTest(state=state.name):
-                self.assertTrue(drive(state).passed)
+        results = [drive(state) for state in selected]
+        self.assertTrue(all(result.passed for result in results), [
+            result.report() for result in results
+        ])
 
     def test_frozen_owned_home_approach_reaches_existing_ceiling_publicly(self):
         """Review probe: 1248168 approached 200 times without accounting."""
@@ -280,13 +281,13 @@ class SeededAbsorbingStateTest(unittest.TestCase):
         ):
             results = [drive(state) for state in SEEDED_STATES]
         # The narrowed entrance guard preserves the equipment owner's terminal
-        # reason verbatim.  That terminal ends the drive independently of the
-        # world's ordinary visible-terminal catalogue; all other seeds still
-        # depend on the catalogue patched out above.
+        # reason verbatim. That terminal ends the drive independently of the
+        # world's ordinary visible-terminal catalogue; the live evidence
+        # replays correctly depend on livelock:exhausted being visible.
         passed = [result for result in results if result.passed]
         self.assertEqual(
             [result.state for result in passed],
-            ["transaction-abandoned-mid-strip", "visit-abandon-blocked-home"],
+            ["transaction-abandoned-mid-strip"],
         )
         self.assertTrue(all(
             result.outcome.startswith("drive-ending terminal") for result in passed
