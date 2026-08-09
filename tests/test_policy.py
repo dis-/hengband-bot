@@ -48668,6 +48668,85 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertFalse(policy._equipment_transaction_restoring)
         self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
 
+    def test_two_home_withdrawals_do_not_reenter_between_one_shots(self):
+        """Two queued takes need only operation, confirmation, operation."""
+        first = item(
+            "a", TVAL_RING, 201, name="First queued ring", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        second = item(
+            "b", TVAL_RING, 202, name="Second queued ring", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        actions = tuple(
+            policy_module.EquipmentTransaction(
+                policy_module.PHASE_HOME_PREPARE,
+                "withdraw",
+                f"home:{index}",
+                item_identity=policy_module.equipment_identity(target),
+            )
+            for index, target in enumerate((second, first))
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((first, second))
+        policy._home_page_size = 12
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan(actions, (), 0)
+            )
+        )
+        policy._prepare_equipment_optimization = Mock()
+        entrance = Snapshot(
+            player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(45, 123): replace(
+                    grid(45, 123), store_number=STORE_HOME
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+            [],
+            turn=2247900,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[],
+            store=None,
+        )
+
+        decisions = []
+        first_key = policy.choose_key(entrance)
+        decisions.append((first_key, policy.last_reason))
+        self.assertTrue(policy.confirm_key_posted(first_key))
+
+        # The first outside page can precede the inventory mutation.  Holding
+        # with Escape keeps the player on Home instead of spending an approach
+        # that enters the store and then has to be undone.
+        hold_key = policy.choose_key(replace(entrance, turn=entrance.turn + 1))
+        decisions.append((hold_key, policy.last_reason))
+
+        carrying_second = replace(
+            entrance,
+            turn=entrance.turn + 2,
+            inventory=[replace(second, slot="a")],
+        )
+        second_key = policy.choose_key(carrying_second)
+        decisions.append((second_key, policy.last_reason))
+
+        self.assertEqual(
+            decisions,
+            [
+                ("5pb\x1b", "equipment-transaction:atomic-withdraw"),
+                (
+                    LEAVE_STORE_KEY,
+                    "equipment-transaction:await-confirmation-on-home",
+                ),
+                ("5pa\x1b", "equipment-transaction:atomic-withdraw"),
+            ],
+        )
+        self.assertEqual(len(decisions), 3)
+        self.assertNotIn(
+            "equipment-transaction:approach-home", dict(decisions).values()
+        )
+
     def test_abandonment_does_not_consume_home_completion_pass(self):
         policy, outside, _ = self._stripped_fixture()
         inside = replace(

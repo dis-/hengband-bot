@@ -2883,6 +2883,32 @@ class HengbotPolicy:
         key = self._break_livelock(snapshot, key)
         key = self._forbid_wait_under_fire(snapshot, key)
         key = self._bound_escape_wait(snapshot, key)
+        if (
+            key == WAIT_KEY
+            and snapshot.store is None
+            and self._equipment_transaction_session is not None
+            and self._equipment_transaction_session.pending_action is not None
+            and self._equipment_transaction_session.pending_action.kind == "withdraw"
+            and self._equipment_transaction_session.index + 1
+            < len(self._equipment_transaction_session.plan.actions)
+            and self._equipment_transaction_session.plan.actions[
+                self._equipment_transaction_session.index + 1
+            ].phase
+            != PHASE_EQUIP
+        ):
+            # The outside half of an atomic Home withdrawal is still owned by
+            # the posted one-shot until inventory confirms it.  On the Home
+            # entrance, ordinary WAIT would either re-enter the store or be
+            # projected by the entrance invariant into a step away.  Escape is
+            # a command-loop no-op: it preserves the entrance position so the
+            # next queued Home operation can post directly from the same
+            # derived catalogue address, without weakening the invariant for
+            # any other caller.  A final withdrawal gets the ordinary bounded
+            # confirmation behavior.
+            here = snapshot.grid_at(snapshot.player.position)
+            if here is not None and here.store_number == STORE_HOME:
+                self.last_reason = "equipment-transaction:await-confirmation-on-home"
+                key = LEAVE_STORE_KEY
         key = self._forbid_wait_on_town_entrance(snapshot, key)
         self._remember_stair_command(snapshot, key)
         self._update_combat_outcome(snapshot)
