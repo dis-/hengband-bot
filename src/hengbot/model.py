@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 from hengbot.monrace_knowledge import MonraceKnowledge
 
@@ -18,6 +18,40 @@ class Position:
 
     def distance_to(self, other: "Position") -> int:
         return max(abs(self.y - other.y), abs(self.x - other.x))
+
+
+@dataclass(frozen=True)
+class AbilitySources(Mapping[str, frozenset[str]]):
+    """Canonical immutable mapping of ability names to their active sources."""
+
+    entries: tuple[tuple[str, frozenset[str]], ...] = ()
+
+    def __init__(self, values: Mapping[str, frozenset[str]] | None = None):
+        object.__setattr__(
+            self,
+            "entries",
+            tuple(sorted((name, frozenset(sources)) for name, sources in (values or {}).items())),
+        )
+
+    def __getitem__(self, key: str) -> frozenset[str]:
+        for name, sources in self.entries:
+            if name == key:
+                return sources
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return (name for name, _sources in self.entries)
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Mapping):
+            return NotImplemented
+        return dict(self.items()) == dict(other.items())
+
+    def __hash__(self) -> int:
+        return hash(self.entries)
 
 
 # Item categories (tval), from src/object/tval-types.h.
@@ -227,7 +261,7 @@ class PlayerState:
     # Present only for the per-source emitter format.  Keys with no active
     # source are retained so an all-false map remains distinguishable from the
     # legacy flat boolean format.
-    ability_sources: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    ability_sources: Mapping[str, frozenset[str]] = field(default_factory=AbilitySources)
     stat_cur: tuple[int, ...] = ()  # six natural values, before equipment pval
     stat_max: tuple[int, ...] = ()
     stat_use: tuple[int, ...] = ()  # six currently modified values
@@ -790,7 +824,7 @@ def parse_snapshot(
         sub_hand_to_d=int(melee.get("sub_hand_to_d", 0)),
         drained_stats=drained_stats,
         abilities=abilities,
-        ability_sources=ability_sources,
+        ability_sources=AbilitySources(ability_sources),
         stat_cur=stat_cur,
         stat_max=stat_max,
         stat_use=stat_use,

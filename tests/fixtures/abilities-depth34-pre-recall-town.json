@@ -1,0 +1,1300 @@
+{
+  "type": "player_turn",
+  "turn": 4022018,
+  "player": {
+    "abilities": {
+      "free_action": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_acid": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_blind": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_chaos": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_cold": {
+        "equipment": false,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_conf": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_dark": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_disen": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_elec": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_fear": {
+        "equipment": false,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_fire": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_lite": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_neth": {
+        "equipment": false,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_nexus": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_pois": {
+        "equipment": false,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_shard": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_sound": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "see_invisible": {
+        "equipment": true,
+        "permanent": true,
+        "temporary": false
+      },
+      "telepathy": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      }
+    },
+    "ac": 101,
+    "class_id": 0,
+    "exp": 125567,
+    "food_state": "normal",
+    "food_type": 4,
+    "gold": 8374,
+    "hp": 668,
+    "immunities": {
+      "acid": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "cold": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "dark": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "elec": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "fire": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "lite": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "nether": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      }
+    },
+    "level": 30,
+    "max_hp": 668,
+    "max_mp": 0,
+    "melee": {
+      "main_hand_blows": 5,
+      "main_hand_to_d": 8,
+      "main_hand_to_h": 23,
+      "sub_hand_blows": 1,
+      "sub_hand_to_d": 8,
+      "sub_hand_to_h": 15
+    },
+    "mp": 0,
+    "personality_id": 1,
+    "race_id": 25,
+    "recalling": false,
+    "skills": {
+      "device": 42,
+      "melee": 191,
+      "saving": 63,
+      "shield": 4000,
+      "shooting": 145,
+      "stealth": 8,
+      "two_weapon": 4000
+    },
+    "speed": 110,
+    "stats": {
+      "chr": {
+        "cur": 13,
+        "drained": false,
+        "index": 10,
+        "max": 13,
+        "use": 13
+      },
+      "con": {
+        "cur": 90,
+        "drained": false,
+        "index": 30,
+        "max": 90,
+        "use": 170
+      },
+      "dex": {
+        "cur": 35,
+        "drained": false,
+        "index": 27,
+        "max": 35,
+        "use": 145
+      },
+      "int": {
+        "cur": 14,
+        "drained": false,
+        "index": 1,
+        "max": 14,
+        "use": 4
+      },
+      "str": {
+        "cur": 61,
+        "drained": false,
+        "index": 27,
+        "max": 61,
+        "use": 141
+      },
+      "wis": {
+        "cur": 18,
+        "drained": false,
+        "index": 6,
+        "max": 18,
+        "use": 9
+      }
+    },
+    "status": {
+      "afraid": false,
+      "blind": false,
+      "confused": false,
+      "cut": false,
+      "hallucinated": false,
+      "paralyzed": false,
+      "poisoned": false,
+      "stunned": false
+    },
+    "vulnerabilities": {
+      "acid": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "cold": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "curse": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "elec": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "fire": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "lite": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      }
+    },
+    "x": 77,
+    "y": 31
+  },
+  "floor": {
+    "dungeon_id": 0,
+    "height": 66,
+    "in_town": true,
+    "inside_arena": false,
+    "level": 0,
+    "quest_id": 0,
+    "town_id": 0,
+    "town_index": 1,
+    "width": 198
+  },
+  "progress": {
+    "angband_recall_unlocked": true,
+    "conquered_dungeon_ids": [
+      2,
+      4
+    ],
+    "dungeon_recall_depths": {
+      "1": 34,
+      "12": 20,
+      "14": 30,
+      "18": 30,
+      "2": 13,
+      "3": 21,
+      "4": 18,
+      "7": 20,
+      "8": 50
+    },
+    "entered_dungeon_ids": [
+      1,
+      2,
+      3,
+      4,
+      7,
+      8,
+      12,
+      14,
+      18
+    ],
+    "quests": [
+      {
+        "fixed": true,
+        "id": 8,
+        "level": 99,
+        "name": "オベロン",
+        "r_idx": 860,
+        "status": 1,
+        "type": 1
+      },
+      {
+        "fixed": true,
+        "id": 9,
+        "level": 100,
+        "name": "混沌のサーペント",
+        "r_idx": 862,
+        "status": 1,
+        "type": 1
+      },
+      {
+        "complev": 7,
+        "comptime": 59,
+        "fixed": true,
+        "id": 34,
+        "level": 5,
+        "name": "もの言えぬ証人",
+        "status": 4,
+        "type": 6
+      },
+      {
+        "complev": 11,
+        "comptime": 14097,
+        "fixed": true,
+        "id": 1,
+        "level": 5,
+        "name": "盗賊の隠れ家",
+        "status": 4,
+        "type": 6
+      },
+      {
+        "complev": 15,
+        "comptime": 42399,
+        "fixed": true,
+        "id": 14,
+        "level": 5,
+        "name": "ワーグを殱滅せよ",
+        "status": 4,
+        "type": 1
+      },
+      {
+        "complev": 19,
+        "comptime": 119744,
+        "fixed": false,
+        "id": 49,
+        "level": 6,
+        "name": "チーターマン『ヘラクレス』",
+        "r_idx": 1167,
+        "status": 4,
+        "type": 7
+      },
+      {
+        "complev": 21,
+        "comptime": 129339,
+        "fixed": false,
+        "id": 43,
+        "level": 12,
+        "name": "ソードマスター『ヤマト』",
+        "r_idx": 1240,
+        "status": 4,
+        "type": 7
+      },
+      {
+        "complev": 26,
+        "comptime": 216233,
+        "fixed": true,
+        "id": 2,
+        "level": 15,
+        "name": "下水道",
+        "status": 4,
+        "type": 6
+      },
+      {
+        "complev": 26,
+        "comptime": 220998,
+        "fixed": true,
+        "id": 22,
+        "level": 15,
+        "name": "オークのキャンプ",
+        "status": 4,
+        "type": 6
+      },
+      {
+        "complev": 26,
+        "comptime": 222719,
+        "fixed": true,
+        "id": 31,
+        "level": 22,
+        "name": "柳じじい",
+        "status": 4,
+        "type": 6
+      },
+      {
+        "complev": 27,
+        "comptime": 225057,
+        "fixed": false,
+        "id": 41,
+        "level": 24,
+        "name": "『究極ダンジョン=クリーナー』",
+        "r_idx": 451,
+        "status": 4,
+        "type": 7
+      }
+    ],
+    "recall_depth": 34,
+    "recall_dungeon_id": 1,
+    "visited_town_ids": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "yeek_cave_conquered": true
+  },
+  "inventory": [
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 2,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "スピードの薬",
+      "pval": 0,
+      "slot": "a",
+      "sval": 29,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 75,
+      "weight": 4
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 2,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "@0",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "耐火の薬 {@0}",
+      "pval": 0,
+      "slot": "b",
+      "sval": 30,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 75,
+      "weight": 4
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 3,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "ヒーローの薬",
+      "pval": 0,
+      "slot": "c",
+      "sval": 32,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 75,
+      "weight": 4
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 100,
+      "count": 10,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "致命傷の治癒の薬",
+      "pval": 100,
+      "slot": "d",
+      "sval": 36,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 75,
+      "weight": 4
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 200,
+      "count": 2,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "体力回復の薬",
+      "pval": 200,
+      "slot": "e",
+      "sval": 37,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 75,
+      "weight": 4
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 1,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "ショート・テレポートの巻物",
+      "pval": 0,
+      "slot": "f",
+      "sval": 8,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 70,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 15,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "テレポートの巻物",
+      "pval": 0,
+      "slot": "g",
+      "sval": 9,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 70,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 10,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "帰還の詔の巻物",
+      "pval": 0,
+      "slot": "h",
+      "sval": 11,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 70,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 2,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "鑑定の巻物",
+      "pval": 0,
+      "slot": "i",
+      "sval": 12,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 70,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 11,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "財宝感知の巻物",
+      "pval": 0,
+      "slot": "j",
+      "sval": 26,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 70,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 11,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 2
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "鑑定の杖 (11回分) {25%引き}",
+      "pval": 11,
+      "slot": "k",
+      "sval": 5,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 55,
+      "weight": 50
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 8,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 2
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "鑑定の杖 (8回分) {25%引き}",
+      "pval": 8,
+      "slot": "l",
+      "sval": 5,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 55,
+      "weight": 50
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 11,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 2
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "@0",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": false,
+      "known": true,
+      "known_flags": [],
+      "name": "光の杖 (11回分) {@0}",
+      "pval": 11,
+      "slot": "m",
+      "sval": 8,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 55,
+      "weight": 50
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 42,
+      "damage_dice": {
+        "num": 1,
+        "sides": 3
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        74
+      ],
+      "name": "鉄弾 (1d3) (+0,+0) (37/shot 74/turn)",
+      "pval": 0,
+      "slot": "n",
+      "sval": 1,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 16,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 27,
+      "damage_dice": {
+        "num": 1,
+        "sides": 3
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        74
+      ],
+      "name": "鉄弾 (1d3) (+3,+4) (46/shot 92/turn)",
+      "pval": 0,
+      "slot": "o",
+      "sval": 1,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 4,
+      "to_h": 3,
+      "tval": 16,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 21,
+      "damage_dice": {
+        "num": 1,
+        "sides": 3
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": true,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        31,
+        74,
+        87
+      ],
+      "name": "冷気の鉄弾 (1d3) (+7,+4) (46/shot 92/turn) {|凍}",
+      "pval": 0,
+      "slot": "p",
+      "sval": 1,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 4,
+      "to_h": 7,
+      "tval": 16,
+      "weight": 5
+    }
+  ],
+  "equipment": [
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 4,
+      "count": 1,
+      "damage_dice": {
+        "num": 2,
+        "sides": 9
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": true,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        3,
+        8,
+        9,
+        27,
+        50,
+        72,
+        74,
+        78,
+        84,
+        85,
+        86,
+        87,
+        88
+      ],
+      "name": "★抜け忍カムイの忍者刀 (2d9) (+15,+2) (+4隠密) {+器隠探r火;視警|毒}",
+      "pval": 4,
+      "slot": "main_hand",
+      "sval": 19,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 2,
+      "to_h": 15,
+      "tval": 23,
+      "weapon_proficiency": 6092,
+      "weight": 100
+    },
+    {
+      "ac": 3,
+      "aware": true,
+      "charges": 0,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [],
+      "name": "革製スモール・シールド [3,+6]",
+      "pval": 0,
+      "slot": "sub_hand",
+      "sval": 2,
+      "timeout": 0,
+      "to_a": 6,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 34,
+      "weight": 50
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 1,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "@0",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": true,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        74
+      ],
+      "name": "高速度のスリング (x2) (0.50turn) (+2,+15) {@0}",
+      "pval": 0,
+      "slot": "bow",
+      "sval": 2,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 15,
+      "to_h": 2,
+      "tval": 19,
+      "weapon_proficiency": 6760,
+      "weight": 5
+    },
+    {
+      "ac": 0,
+      "aware": true,
+      "charges": 0,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        86,
+        122
+      ],
+      "name": "フェアノールのランプ",
+      "pval": 0,
+      "slot": "light",
+      "sval": 2,
+      "timeout": 0,
+      "to_a": 0,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 39,
+      "weight": 60
+    },
+    {
+      "ac": 24,
+      "aware": true,
+      "charges": 1,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 4
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": ".",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": true,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        4,
+        49,
+        84,
+        85,
+        86,
+        87
+      ],
+      "name": "ドワーフのスプリント・メイル (-2) [24,+24] (+1) {+耐r電, .}",
+      "pval": 1,
+      "slot": "body",
+      "sval": 10,
+      "timeout": 0,
+      "to_a": 24,
+      "to_d": 0,
+      "to_h": -2,
+      "tval": 37,
+      "weight": 166
+    },
+    {
+      "ac": 4,
+      "aware": true,
+      "charges": 4,
+      "count": 1,
+      "damage_dice": {
+        "num": 0,
+        "sides": 0
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        8,
+        9,
+        84,
+        85,
+        86,
+        87
+      ],
+      "name": "エルフのクローク [4,+7] (+4隠密)",
+      "pval": 4,
+      "slot": "outer",
+      "sval": 2,
+      "timeout": 0,
+      "to_a": 7,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 35,
+      "weight": 5
+    },
+    {
+      "ac": 4,
+      "aware": true,
+      "charges": 4,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 2
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": ".",
+      "is_artifact": true,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        3,
+        5,
+        35,
+        58,
+        84,
+        85,
+        86,
+        87,
+        143
+      ],
+      "name": "☆陣笠『濤嵐』 [4,+6] (+4) {+器魅r轟時(器, .}",
+      "pval": 4,
+      "slot": "head",
+      "sval": 4,
+      "timeout": 0,
+      "to_a": 6,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 32,
+      "weight": 30
+    },
+    {
+      "ac": 2,
+      "aware": true,
+      "charges": 2,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": true,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": true,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [
+        6,
+        73
+      ],
+      "name": "魔力支配のガントレット [2,+3] (+2) {+道}",
+      "pval": 2,
+      "slot": "arms",
+      "sval": 2,
+      "timeout": 0,
+      "to_a": 3,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 31,
+      "weight": 25
+    },
+    {
+      "ac": 2,
+      "aware": true,
+      "charges": 0,
+      "count": 1,
+      "damage_dice": {
+        "num": 1,
+        "sides": 1
+      },
+      "fuel": 0,
+      "fully_known": false,
+      "inscription": "",
+      "is_artifact": false,
+      "is_bounty": false,
+      "is_broken": false,
+      "is_cursed": false,
+      "is_ego": false,
+      "is_equipment": true,
+      "known": true,
+      "known_flags": [],
+      "name": "軟革ブーツ [2,+4]",
+      "pval": 0,
+      "slot": "feet",
+      "sval": 2,
+      "timeout": 0,
+      "to_a": 4,
+      "to_d": 0,
+      "to_h": 0,
+      "tval": 30,
+      "weight": 20
+    }
+  ],
+  "messages": [],
+  "visible_monsters": [],
+  "detected_monsters": [],
+  "nearby_grids": [
+    {
+      "flags": {
+        "cave_known": true,
+        "lite": true,
+        "mark": true,
+        "room": false,
+        "unsafe": false,
+        "view": true
+      },
+      "known": true,
+      "monster_index": 0,
+      "object_count": 0,
+      "object_tvals": [],
+      "store_number": 3,
+      "terrain": {
+        "building": false,
+        "can_dig": false,
+        "door": true,
+        "down_stairs": false,
+        "entrance": false,
+        "floor": false,
+        "has_gold": false,
+        "los": true,
+        "move": true,
+        "permanent": true,
+        "quest_enter": false,
+        "quest_exit": false,
+        "stairs": false,
+        "store": true,
+        "trap": false,
+        "tunnel": false,
+        "up_stairs": false,
+        "wall": false
+      },
+      "terrain_id": 77,
+      "x": 77,
+      "y": 31
+    }
+  ]
+}

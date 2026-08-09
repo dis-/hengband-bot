@@ -95,6 +95,7 @@ from hengbot.warrior_optimization import (
     warrior_optimizer_input_key,
     warrior_optimizer_knowledge_key,
     weapon_expected_dps,
+    _effective_intrinsic_abilities,
 )
 from hengbot.warrior_loadout_evaluator import (
     LAUNCHER_PROPERTIES,
@@ -7834,6 +7835,24 @@ class HengbotPolicy:
             1, self._deepest_level + 1
         )
 
+    @staticmethod
+    def _effective_divable_depth(
+        snapshot: Snapshot,
+        loadout: Loadout,
+        calibration: CharacterCalibration,
+        *,
+        has_destruction: bool,
+        speed_bonus: int,
+    ) -> int:
+        return divable_depth(
+            loadout,
+            intrinsic_abilities=_effective_intrinsic_abilities(
+                snapshot.player, calibration.intrinsic_abilities
+            ),
+            has_destruction=has_destruction,
+            speed_bonus=speed_bonus,
+        )
+
     def _equipment_optimization_depth(self, snapshot: Snapshot) -> int:
         """Return the depth classified from the optimized owned loadout."""
         return self._equipment_optimization_last_depth or 19
@@ -9466,9 +9485,10 @@ class HengbotPolicy:
                 self._equipment_optimization_last_depth = (
                     getattr(cached_result, "chosen_depth", None)
                     if getattr(cached_result, "chosen_depth", None) is not None
-                    else divable_depth(
+                    else self._effective_divable_depth(
+                        snapshot,
                         cached_best.loadout,
-                        intrinsic_abilities=calibration.intrinsic_abilities,
+                        calibration,
                         has_destruction=has_destruction,
                         speed_bonus=cached_best.metrics.speed_bonus,
                     )
@@ -9695,9 +9715,10 @@ class HengbotPolicy:
             self._equipment_optimization_last_depth = (
                 chosen_depth
                 if chosen_depth is not None
-                else divable_depth(
+                else self._effective_divable_depth(
+                    snapshot,
                     best.loadout,
-                    intrinsic_abilities=calibration.intrinsic_abilities,
+                    calibration,
                     has_destruction=has_destruction,
                     speed_bonus=best.metrics.speed_bonus,
                 )
