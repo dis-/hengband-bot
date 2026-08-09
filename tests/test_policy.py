@@ -45140,6 +45140,82 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             preparation.result.best.loadout.item_ids,
         )
 
+    def test_public_naked_snapshot_replaces_stale_worn_catalog_and_dresses(self):
+        """23:35:55 regression: one record cannot claim nine worn items and EQUIP 0."""
+        packed = [
+            replace(self._equipment()[0], slot="u"),
+            replace(self._equipment()[3], slot="v"),
+        ]
+        naked = self._town(inventory=packed, equipment=[])
+        stale_equipment = [
+            *self._equipment(),
+            item(
+                "main_ring", TVAL_RING, 1, name="stale ring one",
+                known=True, fully_known=True, is_equipment=True,
+            ),
+            item(
+                "sub_ring", TVAL_RING, 2, name="stale ring two",
+                known=True, fully_known=True, is_equipment=True,
+            ),
+            item(
+                "amulet", TVAL_AMULET, 1, name="stale amulet",
+                known=True, fully_known=True, is_equipment=True,
+            ),
+            item(
+                "cloak", 35, 1, name="stale cloak",
+                known=True, fully_known=True, is_equipment=True,
+            ),
+            item(
+                "head", 32, 1, name="stale helm",
+                known=True, fully_known=True, is_equipment=True,
+            ),
+        ]
+
+        class BoundaryCapture:
+            def __init__(self):
+                self.origins = None
+
+            def choose_key(capture, policy, snapshot):
+                capture.origins = Counter(
+                    owned.origin for owned in policy._equipment_catalog.items
+                )
+                return policy._choose_key_with_latch_capture(snapshot)
+
+        with TemporaryDirectory() as directory:
+            policy = self._policy(
+                naked, Path(directory) / "confirmed-loadout.json"
+            )
+            policy._equipment_catalog.refresh_carried([], stale_equipment)
+            capture = BoundaryCapture()
+            policy._home_entry_capture = capture
+
+            key = policy.choose_key(naked)
+
+        self.assertEqual(
+            capture.origins,
+            Counter({"pack": 2}),
+            "contradiction: snapshot EQUIP 0 but the decision boundary still "
+            "reports the stale nine-slot equipped catalogue",
+        )
+        state = policy.equipment_optimization_state(None)
+        self.assertEqual(
+            state["search_catalog_origins"],
+            {"equipped": 0, "pack": 2, "home": 0},
+        )
+        self.assertEqual(state["current_loadout_slots"], 0)
+        self.assertTrue(state["current_loadout_empty"])
+        preparation = policy._equipment_optimization_preparation
+        self.assertIsNotNone(preparation)
+        self.assertIsNotNone(preparation.transaction, preparation)
+        self.assertTrue(preparation.transaction.actions)
+        self.assertTrue(any(
+            action.kind in {"equip", "reposition"}
+            for action in preparation.transaction.actions
+        ))
+        self.assertNotEqual(state["result_source"], "signature-cache-hit")
+        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+
     def test_selected_loadout_derives_the_deepest_satisfied_band(self):
         def equipment_with_flags(flags):
             return [

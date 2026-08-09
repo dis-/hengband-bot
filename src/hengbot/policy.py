@@ -2650,6 +2650,14 @@ class HengbotPolicy:
         self._store_visit = None
 
     def choose_key(self, snapshot: Snapshot) -> str:
+        # The public boundary is also the diagnostic boundary: capture hooks
+        # checkpoint policy state before delegating to ``_choose_key``.  Keep
+        # the carried catalogue authoritative here so a freshly observed
+        # strip cannot be recorded (or reasoned about) beside the preceding
+        # decision's worn set.
+        self._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
         home_capture = self._home_entry_capture
         if home_capture is not None:
             key = home_capture.choose_key(self, snapshot)
@@ -9408,6 +9416,15 @@ class HengbotPolicy:
                 key=lambda projection: projection[0],
             )),
             self._equipment_catalog.home_scan_complete,
+            # Worn state is an optimizer input even though moving an item
+            # between equipment and pack does not change the owned multiset.
+            # Keep it explicit instead of depending on origin-bearing catalogue
+            # ids as an accidental cache invalidator.
+            tuple(sorted(
+                (item.slot, equipment_identity(item))
+                for item in snapshot.equipment
+                if item.is_equipment and item.tval not in AMMUNITION_TVALS
+            )),
         )
         if (
             signature == self._equipment_optimization_signature
