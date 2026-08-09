@@ -104,6 +104,15 @@ Types:
    - REPLAY BEFORE RESUME: when logged snapshots of the incident exist,
      replay them through the fixed policy and state the observed decision
      change in the fix event.
+   - CLAIMS MUST BE REPRODUCIBLE: every statement in a fix event is checked by
+     a reviewer who reruns it. A claim that does not reproduce is treated as a
+     DEFECT, not a wording slip. Two shapes that have shipped and been caught:
+     (a) a drive or histogram produced with collaborators mocked, or replayed
+     against a FROZEN snapshot so posted movement is never applied — apply
+     physics or do not cite the numbers; (b) "reason X never appeared, so the
+     defect is gone" when the fixture cannot produce reason X at all. If an
+     experiment did not produce the outcome you expected, SAY SO — reporting
+     the non-reproduction is the correct answer and has been accepted before.
    - FIX-LOOP CIRCUIT BREAKER: if this is the THIRD fix touching the same
      function/subsystem in one session, STOP patching — append a "question"
      event proposing a structural rework instead (the R1 navigation redesign

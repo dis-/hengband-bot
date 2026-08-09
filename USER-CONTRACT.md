@@ -18,6 +18,29 @@ without a fresh user decision is a spec violation regardless of its tests.
 | 10 | 診断は成果物を引用（コード読解は「起こり得る」までしか証明しない） | reviewer process (memory: diagnosis-must-cite-artifacts) |
 | 11 | 割り当て済み作業の途中で確認を求めない。承認の門は新規・未依頼の範囲のみ | reviewer process (memory: dont-ask-mid-task) |
 | 12 | 安全管理として、最悪の場合は元の装備に戻す。ただし復元は最後の手段であり、最適化は完走が本義 | restore-on-abandon + `test_completing_optimization_performs_zero_restores` |
+| 13 | 最適化は深度優先の帯降下（案2, 2026-08-10承認）:「打撃性能が極端に下がる場合は一つ帯を下げて試行」— 帯集合の打撃スコアが無制約最良の 1/2 を割ったら一帯降りる。r=1/2 はユーザの数。≤19帯は要求ゼロで必ず成立（裸への回帰経路なし）。能力の証拠は known_flags＋内在のみ | SOL-TASK-depth-first-optimization.md → band-descent pins (queued) |
+
+Scenario transfer (depth-first remediation, 2026-08-10): constrained
+`depth_override=31` optimizer results now publish the authoritative classified
+band ceiling `chosen_depth=39`, rather than echoing the requested floor.  No
+`src/` caller supplies `depth_override`; the transferred unit scenario is
+`EquipmentOptimizerTest.test_constrained_depth_reports_classified_band_ceiling`.
+The existing bounded 51-item search scenario now gives its lantern positive
+fuel so it continues to model a usable mandatory light under the restored gate.
+
+Scenario transfer (ability-source remediation, 2026-08-10): the former
+`test_depth34_recall_is_refused_for_the_four_missing_gates` used the post-landing
+`abilities-depth34-town.json` and is replaced by two truthful public-decision
+scenarios. `test_depth34_pre_recall_town_snapshot_refuses_public_departure` uses
+`abilities-depth34-pre-recall-town.json` to cover the Angband departure refusal;
+`test_depth34_landed_snapshot_starts_public_resist_gap_recovery` uses the renamed
+`abilities-depth34-landed-dungeon.json` to cover the 34F recovery recall. The
+permanent-source scenario keeps its coverage under the existing test name. The
+former danger-membership scenario is renamed
+`test_real_status_and_resistance_consumers_see_parsed_abilities` and now invokes
+the production melee-status consumer while retaining the resistance-profile
+assertions. New unique scenarios cover contaminated fallback depth and hashable
+per-source/flat `PlayerState` inputs; no test scenario is deleted.
 
 Gaps (directives without an automated gate yet): #2 lacks a stability pin over pack-count/gold variation
 (recall-depth variation is pinned); a consolidated `tests/test_user_contract.py` that names each entry is
