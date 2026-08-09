@@ -9681,8 +9681,9 @@ class HengbotPolicy:
                 ],
                 "chosen_band": chosen_depth,
                 "chosen_ratio": (
-                    band_decisions[-1].ratio
-                    if band_decisions else None
+                    result.chosen_decision.ratio
+                    if getattr(result, "chosen_decision", None) is not None
+                    else None
                 ),
             })
         best = getattr(result, "best", None)

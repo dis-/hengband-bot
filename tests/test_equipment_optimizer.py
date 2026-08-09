@@ -13,6 +13,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_HAND,
     TR_NO_TELE,
     TR_TELEPORT,
+    divable_depth,
     enumerate_loadouts,
     optimize_loadout,
     operational_equipment_candidate,
@@ -142,20 +143,44 @@ class EquipmentOptimizerTest(unittest.TestCase):
     def test_live_catalogue_derives_25_and_retains_fire_katana(self):
         """Live 2026-08-10 shape; dee4194 classified this catalogue at 19."""
         katana = gear("live-katana-rFire", 23, flags=(50,))
-        fa_conf_ring = gear("live-home-ring-fa-rConf", 45, flags=(46, 57))
+        fa_boots = gear("live-home-boots-fa", 30, flags=(46,))
+        fa_acid_ring = gear("live-home-ring-fa-rAcid", 45, flags=(46, 48))
+        conf_ring = gear("live-home-ring-rConf", 45, flags=(57,))
         cloak = gear("live-home-cloak", 35)
         result = optimize_loadout(
-            (self.light, katana, fa_conf_ring, cloak),
+            (
+                self.light, katana, fa_boots, fa_acid_ring, conf_ring, cloak,
+            ),
             lambda loadout: metrics(
                 100 if "live-katana-rFire" in loadout.item_ids else 0,
                 dps=100 if "live-katana-rFire" in loadout.item_ids else 0,
             ),
-            depth=None,
+            depth=None, intrinsic_abilities=frozenset(),
         )
 
         self.assertEqual(result.chosen_depth, 25)
         self.assertIn("live-katana-rFire", result.best.loadout.item_ids)
-        self.assertGreaterEqual(result.band_decisions[-1].ratio, 1.0)
+        self.assertEqual(
+            divable_depth(result.best.loadout, intrinsic_abilities=frozenset()),
+            25,
+        )
+        self.assertGreaterEqual(result.chosen_decision.ratio, 1.0)
+
+    def test_usable_light_in_pool_rejects_stronger_lightless_loadout(self):
+        lighted = Loadout((("light", self.light),), "empty")
+        lightless = Loadout((), "empty")
+        result = optimize_loadout(
+            (self.light,),
+            lambda loadout: metrics(1 if loadout is lighted else 100),
+            depth=None,
+            candidate_loadouts=(lightless, lighted),
+        )
+
+        self.assertIs(result.best.loadout, lighted)
+        self.assertTrue(all(
+            decision.band != 19 or decision.satisfying_set_existed
+            for decision in result.band_decisions
+        ))
 
     def test_depth_descent_retries_the_immediately_shallower_band(self):
         deep = gear("weak-speed-gate", 32, flags=(62, 60, 79))
@@ -189,7 +214,34 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertEqual(result.chosen_depth, 19)
         self.assertIs(result.best.loadout, naked)
         self.assertEqual(result.band_decisions[-1].band, 19)
+        self.assertTrue(result.band_decisions[-1].satisfying_set_existed)
         self.assertIsNone(result.band_decisions[-1].refusal_reason)
+
+    def test_constrained_depth_reports_classified_band_ceiling(self):
+        chaos = gear("chaos", 45, flags=(62,))
+        result = optimize_loadout(
+            (self.light, chaos), lambda _loadout: metrics(1), depth=31,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertEqual(result.chosen_depth, 39)
+
+    def test_excluded_worn_light_is_not_stripped_by_transaction_plan(self):
+        worn_light = gear("worn-light", 39, equipped_slot="light")
+        sword = gear("replacement-sword", 23)
+        current = Loadout((("light", worn_light),), "empty")
+        target = Loadout(((SLOT_MAIN_HAND, sword),), "one_handed")
+
+        plan = plan_equipment_transactions(
+            (worn_light, sword), current, target,
+            current_pack_items=1, home_scan_complete=True,
+            preserve_worn_light=True,
+        )
+
+        self.assertFalse(any(
+            action.kind == "takeoff" and action.item_id == "worn-light"
+            for action in plan.actions
+        ))
 
     def test_zero_melee_classifies_on_abilities_alone(self):
         ring = gear("ability-only", 45, flags=(46, 50, 57))

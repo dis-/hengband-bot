@@ -16,11 +16,14 @@ from hengbot.equipment_optimizer import (
     Loadout,
     OptimizationResult,
     OwnedEquipment,
+    SLOT_LIGHT,
     current_loadout,
     equipment_identity,
     optimizer_item_projection,
     optimize_loadout,
+    operational_equipment_candidate,
     required_abilities,
+    slot_for,
 )
 from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
@@ -738,7 +741,12 @@ def prepare_warrior_optimization(
         current_item_ids=current.item_ids,
         pinned=pinned,
         excluded_item_ids=search_excluded_item_ids,
-        require_light=depth is not None,
+        require_light=any(
+            item.id not in search_excluded_item_ids
+            and slot_for(item.item) == SLOT_LIGHT
+            and operational_equipment_candidate(item)
+            for item in items
+        ),
         required_flags=frozenset(required_candidate_flags),
     )
     result = optimize_loadout(
@@ -750,6 +758,12 @@ def prepare_warrior_optimization(
         current_item_ids=current.item_ids,
         timeout_seconds=timeout_seconds,
         candidate_loadouts=candidate_loadouts,
+        require_light=any(
+            item.id not in search_excluded_item_ids
+            and slot_for(item.item) == SLOT_LIGHT
+            and operational_equipment_candidate(item)
+            for item in items
+        ),
     )
     if loadout_report_path is not None:
         _append_loadout_report(
@@ -789,6 +803,11 @@ def prepare_warrior_optimization(
         current_pack_items=len(snapshot.inventory),
         home_scan_complete=home_scan_complete,
         preserve_pack_item_ids=preserve_pack_item_ids,
+        preserve_worn_light=any(
+            item.id in search_excluded_item_ids
+            and item.equipped_slot == SLOT_LIGHT
+            for item in items
+        ),
     )
     return WarriorOptimizationPreparation(
         current, result, transaction,
@@ -850,7 +869,7 @@ def _append_loadout_report(
         "band_descent": [asdict(decision) for decision in result.band_decisions],
         "chosen_band": result.chosen_depth,
         "chosen_ratio": (
-            result.band_decisions[-1].ratio if result.band_decisions else None
+            result.chosen_decision.ratio if result.chosen_decision else None
         ),
         "candidates": candidates,
     }

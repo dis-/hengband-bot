@@ -313,6 +313,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         # loadout considers equals the single-slot count, which this catalog
         # makes differ from the full-search count.
         light = gear("light", "equipped", slot="light", tval=39)
+        light = replace(light, item=replace(light.item, fuel=1000))
         weapon = gear("weapon", "equipped", slot="main_hand", to_d=8)
         extras = tuple(
             gear(f"{tval}-{k}", "home", tval=tval, flags=(48 + k,))

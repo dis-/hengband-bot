@@ -349,6 +349,7 @@ class OptimizationResult:
     top_candidates: tuple[EvaluatedLoadout, ...] = ()
     chosen_depth: int | None = None
     band_decisions: tuple[BandDecision, ...] = ()
+    chosen_decision: BandDecision | None = None
 
 
 LoadoutEvaluator = Callable[[Loadout], LoadoutMetrics]
@@ -817,6 +818,7 @@ def _meets_requirements(
     depth: int | None,
     intrinsic_abilities: frozenset[str],
     has_destruction: bool,
+    require_light: bool = True,
 ) -> bool:
     if not metrics.evaluation_complete:
         return False
@@ -825,6 +827,7 @@ def _meets_requirements(
         depth=depth,
         intrinsic_abilities=intrinsic_abilities,
         has_destruction=has_destruction,
+        require_light=require_light,
     ):
         return False
     if depth is not None and depth >= 81 and metrics.speed_bonus < 25:
@@ -838,9 +841,10 @@ def _meets_static_requirements(
     depth: int | None,
     intrinsic_abilities: frozenset[str],
     has_destruction: bool,
+    require_light: bool = True,
 ) -> bool:
     """Reject loadouts whose failure does not depend on combat evaluation."""
-    if depth is not None and loadout.item_at(SLOT_LIGHT) is None:
+    if require_light and loadout.item_at(SLOT_LIGHT) is None:
         return False
     abilities = set(intrinsic_abilities)
     for name, flag in ABILITY_FLAG.items():
@@ -1144,9 +1148,16 @@ def optimize_loadout(
     current_item_ids: frozenset[str] = frozenset(),
     timeout_seconds: float = 5.0,
     candidate_loadouts: Iterable[Loadout] | None = None,
+    require_light: bool | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
+    if require_light is None:
+        require_light = any(
+            slot_for(item.item) == SLOT_LIGHT
+            and operational_equipment_candidate(item)
+            for item in catalog
+        )
     incomplete = frozenset(
         item.id
         for item in catalog
@@ -1194,6 +1205,7 @@ def optimize_loadout(
             depth=depth,
             intrinsic_abilities=intrinsic_abilities,
             has_destruction=has_destruction,
+            require_light=require_light,
         ):
             invalid += 1
             continue
@@ -1204,6 +1216,7 @@ def optimize_loadout(
             depth=depth,
             intrinsic_abilities=intrinsic_abilities,
             has_destruction=has_destruction,
+            require_light=require_light,
         ):
             invalid += 1
             continue
@@ -1215,22 +1228,25 @@ def optimize_loadout(
             evaluated_by_metrics[equivalence_key] = entry
 
     evaluated = list(evaluated_by_metrics.values())
-    chosen_depth = depth
+    chosen_depth = None
     band_decisions: list[BandDecision] = []
+    chosen_decision = None
     if depth is None and evaluated and not timed_out:
         free_best = _stable_operational_best(evaluated, current_item_ids)
-        assert free_best is not None
+        if free_best is None:
+            raise RuntimeError("evaluated loadouts have no operational best")
         melee_free = free_best.metrics.expected_dps
         for band in (81, 80, 49, 39, 30, 25, 20, 19):
             satisfying = [
                 entry
                 for entry in evaluated
-                if band == 19 or _meets_requirements(
+                if _meets_requirements(
                     entry.loadout,
                     entry.metrics,
                     depth=band,
                     intrinsic_abilities=intrinsic_abilities,
                     has_destruction=has_destruction,
+                    require_light=require_light,
                 )
             ]
             band_best = _stable_operational_best(satisfying, current_item_ids)
@@ -1246,9 +1262,10 @@ def optimize_loadout(
                     band, True, melee, melee_free, "melee-ratio", ratio,
                 ))
                 continue
-            band_decisions.append(BandDecision(
+            chosen_decision = BandDecision(
                 band, True, melee, melee_free, None, ratio,
-            ))
+            )
+            band_decisions.append(chosen_decision)
             evaluated = satisfying
             chosen_depth = band
             break
@@ -1274,6 +1291,13 @@ def optimize_loadout(
         # storage/disposal; using it here would discard the current loadout for a
         # mathematically positive but operationally insignificant 0.5% gain.
         best = _stable_operational_best(evaluated, current_item_ids)
+        if depth is not None and best is not None:
+            chosen_depth = divable_depth(
+                best.loadout,
+                intrinsic_abilities=intrinsic_abilities,
+                has_destruction=has_destruction,
+                speed_bonus=best.metrics.speed_bonus,
+            )
 
     alternatives = tuple(
         sorted(
@@ -1316,4 +1340,5 @@ def optimize_loadout(
         top_candidates=ranked,
         chosen_depth=chosen_depth,
         band_decisions=tuple(band_decisions),
+        chosen_decision=chosen_decision,
     )

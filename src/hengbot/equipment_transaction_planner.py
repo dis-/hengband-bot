@@ -10,6 +10,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipment,
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
+    SLOT_LIGHT,
     SLOT_SUB_HAND,
     SLOT_SUB_RING,
     equipment_identity,
@@ -73,13 +74,22 @@ def plan_equipment_transactions(
     home_scan_complete: bool,
     pack_capacity: int = 23,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
+    preserve_worn_light: bool = False,
 ) -> EquipmentTransactionPlan:
     """Build a batched, fail-closed Home/equipment transaction plan."""
     catalog = {item.id: item for item in items}
     current_slots = _slots(current)
     target_slots = _slots(target)
+    # An excluded refuel candidate is absent from the optimizer pool, but that
+    # must never turn the worn source into an implicit takeoff transaction.
+    if (
+        preserve_worn_light
+        and SLOT_LIGHT not in target_slots
+        and SLOT_LIGHT in current_slots
+    ):
+        target_slots[SLOT_LIGHT] = current_slots[SLOT_LIGHT]
     current_ids = current.item_ids
-    target_ids = target.item_ids
+    target_ids = frozenset(item.id for item in target_slots.values())
     blockers: list[str] = []
 
     missing = sorted(target_ids.difference(catalog))
