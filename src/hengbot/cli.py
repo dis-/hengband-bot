@@ -1130,6 +1130,126 @@ def _duplicate_snapshot_ready(
     return True
 
 
+def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
+    """Project the observable effect relevant to one posted operation.
+
+    In general an effect is observed when a later snapshot changes the turn,
+    floor/position, store context, messages, pack, equipment, gold, or recall
+    state.  Recall reads are deliberately stricter: only a changed
+    ``player.recalling`` value acknowledges that operation, because unrelated
+    turn advance must not authorize a second read that cancels the first.
+    """
+    player = snapshot.player
+    recalling = getattr(player, "recalling", None)
+    if "recall" in owner and key.startswith("r"):
+        return (recalling,)
+
+    def item_state(item):
+        return tuple(
+            getattr(item, field, None)
+            for field in (
+                "slot", "tval", "sval", "name", "count", "charges",
+                "inscription", "known", "fully_known", "is_equipment",
+            )
+        )
+
+    store = snapshot.store
+    store_state = None if store is None else (
+        getattr(store, "store_type", None),
+        getattr(store, "stock_num", None),
+        getattr(store, "page_top", None),
+        tuple(item_state(item) for item in getattr(store, "items", ())),
+    )
+    position = player.position
+    return (
+        getattr(snapshot, "turn", None),
+        getattr(snapshot, "floor_key", None),
+        (position.y, position.x),
+        store_state,
+        tuple(getattr(snapshot, "messages", ())),
+        tuple(item_state(item) for item in snapshot.inventory),
+        tuple(item_state(item) for item in snapshot.equipment),
+        getattr(player, "gold", None),
+        recalling,
+    )
+
+
+def _open_game_prompt(messages) -> str | None:
+    """Return the newest serialized interactive prompt, if any."""
+    markers = ("[Y/n]", "[y/n]", "[Y/N]", "Quantity", "quantity", "個")
+    for message in reversed(tuple(messages)):
+        if any(marker in message for marker in markers):
+            return message
+    return None
+
+
+class PostingContract:
+    """Universal sender-side observation and prompt-ownership contract."""
+
+    def __init__(self) -> None:
+        self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
+        self._last_posted_owner: str | None = None
+        self.last_incident: dict[str, object] | None = None
+
+    def allow(self, snapshot, key: str, owner: str) -> bool:
+        self.last_incident = None
+        prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
+        if (
+            prompt is not None
+            and self._last_posted_owner is not None
+            and owner != self._last_posted_owner
+        ):
+            self.last_incident = {
+                "marker": "posting-contract:prompt-owner-mismatch",
+                "prompt_owner": self._last_posted_owner,
+                "answer_owner": owner,
+                "key": key,
+                "prompt": prompt,
+            }
+            return False
+        previous = self._posted_by_owner.get(owner)
+        effect = _posting_effect_signature(snapshot, owner, key)
+        if previous is not None and previous == (key, effect):
+            self.last_incident = {
+                "marker": "posting-contract:identical-repost-unobserved",
+                "owner": owner,
+                "key": key,
+            }
+            return False
+        return True
+
+    def posted(self, snapshot, key: str, owner: str) -> None:
+        self._posted_by_owner[owner] = (
+            key, _posting_effect_signature(snapshot, owner, key)
+        )
+        self._last_posted_owner = owner
+
+
+def _write_posting_contract_incident(
+    path: Path | None, snapshot, incident: dict[str, object]
+) -> None:
+    marker = str(incident["marker"])
+    print(f"<{marker}> {incident}", file=sys.stderr, flush=True)
+    if path is None:
+        return
+    try:
+        with path.open("a", encoding="utf-8") as file:
+            json.dump(
+                {
+                    "time": datetime.now().astimezone().isoformat(),
+                    "turn": getattr(snapshot, "turn", None),
+                    "reason": marker,
+                    "key": "",
+                    "contract_incident": incident,
+                },
+                file,
+                ensure_ascii=False,
+            )
+            file.write("\n")
+    except OSError as exc:
+        print(f"failed to write decision log: {exc}", file=sys.stderr)
+
+
 def _send_new_decision_key(
     send,
     snapshot_line: str,
@@ -1140,6 +1260,8 @@ def _send_new_decision_key(
     in_store: bool,
     suppress: bool = False,
     decision: dict | None = None,
+    snapshot=None,
+    posting_contract: PostingContract | None = None,
 ) -> tuple[bool, str]:
     """Post each policy key at most once for a byte-identical board."""
     if snapshot_line != posted_line:
@@ -1149,11 +1271,20 @@ def _send_new_decision_key(
         return False, posted_line
     if not key:
         return False, posted_line
+    owner = str((decision or {}).get("reason", "unknown"))
+    if (
+        posting_contract is not None
+        and snapshot is not None
+        and not posting_contract.allow(snapshot, key, owner)
+    ):
+        return False, posted_line
     if key in posted_keys:
         return False, posted_line
     sent = send(key, in_store=in_store, decision=decision)
     if sent:
         posted_keys.add(key)
+        if posting_contract is not None and snapshot is not None:
+            posting_contract.posted(snapshot, key, owner)
     return sent, posted_line
 
 
@@ -1578,6 +1709,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
+    posting_contract = PostingContract()
     if args.decision_log is not None:
         policy._home_entry_capture = home_entry_capture
         policy._latch_capture_path = args.decision_log.with_name("latch-onset.jsonl")
@@ -1603,24 +1735,30 @@ def main(argv: list[str] | None = None) -> int:
             key = policy.validate_read_key(snapshot, key)
             _write_decision(args.decision_log, snapshot, key, policy.last_reason, policy)
             print(key, flush=True)
+            decision = {
+                "sequence": policy._decision_sequence,
+                "turn": snapshot.turn,
+                "reason": policy.last_reason,
+                "key": key,
+            }
+            if not posting_contract.allow(snapshot, key, policy.last_reason):
+                _write_posting_contract_incident(
+                    args.decision_log, snapshot, posting_contract.last_incident
+                )
+                return 3
             if not send(
-                key,
-                in_store=snapshot.store is not None,
-                decision={
-                    "sequence": policy._decision_sequence,
-                    "turn": snapshot.turn,
-                    "reason": policy.last_reason,
-                    "key": key,
-                },
+                key, in_store=snapshot.store is not None, decision=decision
             ):
                 return 3
+            posting_contract.posted(snapshot, key, policy.last_reason)
             policy.confirm_key_posted(key)
             return 0
         return 1
 
     try:
         return _run_follow(
-            args, policy, send, monrace_knowledge, home_entry_capture
+            args, policy, send, monrace_knowledge, home_entry_capture,
+            posting_contract,
         )
     except MissingMonraceKnowledgeError as exc:
         # The definitions file we loaded does not match the running game (e.g. a
@@ -1646,7 +1784,10 @@ def main(argv: list[str] | None = None) -> int:
         raise
 
 
-def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) -> int:
+def _run_follow(
+    args, policy, send, monrace_knowledge, home_entry_capture=None,
+    posting_contract: PostingContract | None = None,
+) -> int:
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
     recorder_root = (
@@ -1660,6 +1801,8 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
     )
     args.flight_recorder = recorder
     recent_reasons: deque[str] = deque(maxlen=20)
+    if posting_contract is None:
+        posting_contract = PostingContract()
 
     def incident_stop(kind: str, snapshot) -> int:
         recorder.freeze(
@@ -2014,7 +2157,18 @@ def _run_follow(args, policy, send, monrace_knowledge, home_entry_capture=None) 
                             "reason": policy.last_reason,
                             "key": key,
                         },
+                        snapshot=snapshot,
+                        posting_contract=posting_contract,
                     )
+                    if posting_contract.last_incident is not None:
+                        _write_posting_contract_incident(
+                            args.decision_log,
+                            snapshot,
+                            posting_contract.last_incident,
+                        )
+                        return incident_stop(
+                            str(posting_contract.last_incident["marker"]), snapshot
+                        )
                     if sent:
                         policy.confirm_key_posted(key)
                     last_activity = time.monotonic()

@@ -18,6 +18,7 @@ from hengbot.cli import (
     STATIONARY_EXEMPT_REASONS,
     MULTI_KEY_DELAY_SECONDS,
     MULTIPLIER_COMBAT_LOOP_WINDOW,
+    PostingContract,
     REST_STALL_GRACE,
     STORE_ITEM_PROMPT_DELAY_SECONDS,
     STORE_QUANTITY_DIGIT_DELAY_SECONDS,
@@ -45,6 +46,8 @@ from hengbot.cli import (
     _look_barrier_timed_release,
     _chest_movement_response_pending,
     _movement_command_needs_ack,
+    _open_game_prompt,
+    _posting_effect_signature,
     _fundraising_state,
     _floor_transition_needs_prompt_clear,
     _deduplicate_consecutive,
@@ -60,6 +63,7 @@ from hengbot.cli import (
     _split_complete_lines,
     _transport_key,
     _write_posted_character,
+    _write_posting_contract_incident,
     _bot_play_macros_ready,
     _valid_bot_play_macro_pref,
 )
@@ -89,6 +93,109 @@ class PostedCharacterRecordTest(unittest.TestCase):
         self.assertEqual([record["character_index"] for record in records], list(range(6)))
         self.assertTrue(all(record["composed_key"] == decision["key"] for record in records))
         self.assertTrue(all(record["decision"] == decision for record in records))
+
+
+class UniversalPostingContractTest(unittest.TestCase):
+    """Pins the sender contract extracted from the two 2026-08-10 incidents."""
+
+    @staticmethod
+    def snapshot(*, turn=4020825, recalling=False, messages=(), count=1):
+        carried = SimpleNamespace(
+            slot="b", tval=75, sval=6, name="Potion of Resist Heat",
+            count=count, charges=0, inscription="@0", known=True,
+            fully_known=True, is_equipment=False,
+        )
+        return SimpleNamespace(
+            turn=turn,
+            floor_key=(0, 0, 0),
+            messages=messages,
+            inventory=[carried],
+            equipment=[],
+            store=None,
+            player=SimpleNamespace(
+                position=SimpleNamespace(y=38, x=106), gold=1113,
+                recalling=recalling,
+            ),
+        )
+
+    def test_preserved_double_recall_shape_refuses_until_recalling_changes(self):
+        contract = PostingContract()
+        first = self.snapshot(turn=4020825, recalling=False)
+        posted = []
+        decision = {"reason": "town:repetition-depart:recall"}
+        sent, posted_line = _send_new_decision_key(
+            lambda key, **_kwargs: posted.append(key) or True,
+            "recall-first", "rha", None, set(), in_store=False,
+            decision=decision, snapshot=first, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+
+        sent, _ = _send_new_decision_key(
+            lambda key, **_kwargs: posted.append(key) or True,
+            "recall-second", "rha", posted_line, set(), in_store=False,
+            decision=decision,
+            snapshot=self.snapshot(turn=4020833, recalling=False),
+            posting_contract=contract,
+        )
+        self.assertFalse(sent)
+        self.assertEqual(posted, ["rha"])
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:identical-repost-unobserved",
+        )
+        self.assertTrue(contract.allow(
+            self.snapshot(turn=4020833, recalling=True),
+            "rha", "town:repetition-depart:recall",
+        ))
+
+    def test_turn_advance_acknowledges_wait_and_mining_repetition(self):
+        for owner, key in (("wait", "."), ("fundraise:dig-to-treasure", "T6")):
+            with self.subTest(owner=owner):
+                contract = PostingContract()
+                contract.posted(self.snapshot(turn=10), key, owner)
+                self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
+
+    def test_preserved_sale_prompt_rejects_foreign_escape_owner(self):
+        contract = PostingContract()
+        sale = self.snapshot(turn=4020002)
+        contract.posted(sale, "d0y", "shop:batch-sell")
+        prompt = self.snapshot(
+            turn=4020002,
+            messages=(
+                "Sell Potion of Resist Heat (b).",
+                "Sell for $17? [Y/n]",
+            ),
+        )
+
+        sent, _ = _send_new_decision_key(
+            lambda _key, **_kwargs: True,
+            "sale-prompt", "\x1b", None, set(), in_store=True,
+            decision={"reason": "shop:batch-verify-leave"},
+            snapshot=prompt, posting_contract=contract,
+        )
+        self.assertFalse(sent)
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:prompt-owner-mismatch",
+        )
+
+    def test_both_watchdog_incidents_write_visible_marker_records(self):
+        incidents = (
+            {"marker": "posting-contract:identical-repost-unobserved"},
+            {"marker": "posting-contract:prompt-owner-mismatch"},
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            for incident in incidents:
+                _write_posting_contract_incident(path, self.snapshot(), incident)
+            records = [json.loads(line) for line in path.read_text(
+                encoding="utf-8"
+            ).splitlines()]
+
+        self.assertEqual(
+            [record["reason"] for record in records],
+            [incident["marker"] for incident in incidents],
+        )
 
 
 class DecisionWatchdogTest(unittest.TestCase):

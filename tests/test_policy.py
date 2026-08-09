@@ -26474,7 +26474,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(HengbotPolicy().choose_key(snap), "{j@0\r")
 
-    def test_single_device_sale_has_no_trailing_yes(self):
+    def test_single_device_sale_answers_price_confirmation_without_quantity(self):
         device = item("j", TVAL_WAND, 1, charges=3, name="wand")
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -26492,7 +26492,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         observed = replace(
             snap, inventory=[replace(device, inscription="@0")], turn=snap.turn + 1
         )
-        self.assertEqual(policy.choose_key(observed), "d0\r")
+        self.assertEqual(policy.choose_key(observed), "d0y")
 
     def test_pile_sale_quantity_is_capped_by_retention_surplus(self):
         pile = item("j", TVAL_FOOD, FOOD_MIN_SVAL, count=3, name="rations")
@@ -26535,7 +26535,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                     for index, candidate in enumerate(candidates)
                 ],
             )
-            self.assertEqual(policy._batch_sell_key(observed), "d0\rd199\ryd299\ry")
+            self.assertEqual(policy._batch_sell_key(observed), "d0yd199\ryd299\ry")
 
     def test_batch_sale_reuses_an_existing_exact_tag(self):
         candidates = [
@@ -26575,7 +26575,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                     replace(candidates[1], inscription="@1"),
                 ],
             )
-            self.assertEqual(policy._batch_sell_key(observed), "d0\rd1\r")
+            self.assertEqual(policy._batch_sell_key(observed), "d0yd1y")
             remaining = replace(snap, inventory=[candidates[1]])
             self.assertEqual(policy._batch_sell_key(remaining), LEAVE_STORE_KEY)
             self.assertEqual(policy.last_reason, "shop:batch-verify-leave")

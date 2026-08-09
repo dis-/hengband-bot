@@ -17233,7 +17233,12 @@ class HengbotPolicy:
             if not has_exact_tag:
                 inscribe_parts.append("{" + item.slot + exact_tag + "\r")
             amount = "99" if quantity == item.count else str(quantity)
-            sell = SELL_KEY + digit + ("\r" if item.count == 1 else amount + "\ry")
+            # The store always asks for the offered-price confirmation.  A
+            # stack first asks for a quantity; a singleton does not.  Keep the
+            # two prompt sequences explicit so Return can never be mistaken
+            # for the confirmation (the live fire-resistance-potion incident).
+            quantity_answer = "" if item.count == 1 else amount + "\r"
+            sell = SELL_KEY + digit + quantity_answer + "y"
             entries.append({
                 "signature": self._item_signature(item),
                 "tag": digit,
