@@ -64,6 +64,7 @@ from hengbot.cli import (
     _transport_key,
     _write_posted_character,
     _write_posting_contract_incident,
+    _freeze_incident_safely,
     _bot_play_macros_ready,
     _valid_bot_play_macro_pref,
 )
@@ -196,6 +197,31 @@ class UniversalPostingContractTest(unittest.TestCase):
             [record["reason"] for record in records],
             [incident["marker"] for incident in incidents],
         )
+
+    def test_freeze_oserror_is_nonfatal_and_choose_key_remains_operational(self):
+        policy = SimpleNamespace(
+            last_reason="shop:travel",
+            choose_key=unittest.mock.Mock(return_value="6"),
+        )
+        recorder = unittest.mock.Mock()
+        recorder.freeze.side_effect = OSError(267, "invalid directory")
+        snapshot = self.snapshot()
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            with patch("sys.stderr"):
+                self.assertIsNone(_freeze_incident_safely(
+                    recorder,
+                    "posting-contract:identical-repost-unobserved",
+                    policy,
+                    snapshot,
+                    path,
+                    ["shop:travel"],
+                ))
+            self.assertEqual(policy.choose_key(snapshot), "6")
+            records = [json.loads(line) for line in path.read_text(
+                encoding="utf-8"
+            ).splitlines()]
+        self.assertEqual(records[-1]["reason"], "instrument:incident-freeze-failed")
 
 
 class DecisionWatchdogTest(unittest.TestCase):

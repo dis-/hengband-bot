@@ -1226,10 +1226,11 @@ class PostingContract:
 
 
 def _write_posting_contract_incident(
-    path: Path | None, snapshot, incident: dict[str, object]
+    path: Path | None, snapshot, incident: dict[str, object], *, visible: bool = True
 ) -> None:
     marker = str(incident["marker"])
-    print(f"<{marker}> {incident}", file=sys.stderr, flush=True)
+    if visible:
+        print(f"<{marker}> {incident}", file=sys.stderr, flush=True)
     if path is None:
         return
     try:
@@ -1248,6 +1249,29 @@ def _write_posting_contract_incident(
             file.write("\n")
     except OSError as exc:
         print(f"failed to write decision log: {exc}", file=sys.stderr)
+
+
+def _freeze_incident_safely(
+    recorder, kind: str, policy, snapshot, decision_log: Path | None,
+    reasons: list[str],
+) -> Path | None:
+    """Freeze diagnostics without ever changing gameplay control flow."""
+    try:
+        capture = recorder.freeze(kind, policy, snapshot, decision_log, reasons)
+    except Exception as exc:
+        print(f"flight recorder failed to freeze incident: {exc}", file=sys.stderr)
+        capture = None
+    if capture is None:
+        _write_posting_contract_incident(
+            decision_log,
+            snapshot,
+            {
+                "marker": "instrument:incident-freeze-failed",
+                "incident_kind": kind,
+            },
+            visible=False,
+        )
+    return capture
 
 
 def _send_new_decision_key(
@@ -1774,12 +1798,9 @@ def main(argv: list[str] | None = None) -> int:
         recorder = getattr(args, "flight_recorder", None)
         snapshot = getattr(args, "last_snapshot", None)
         if recorder is not None and snapshot is not None:
-            recorder.freeze(
-                "unhandled-exception",
-                policy,
-                snapshot,
-                args.decision_log,
-                [getattr(policy, "last_reason", "unknown")],
+            _freeze_incident_safely(
+                recorder, "unhandled-exception", policy, snapshot,
+                args.decision_log, [getattr(policy, "last_reason", "unknown")],
             )
         raise
 
@@ -1805,7 +1826,8 @@ def _run_follow(
         posting_contract = PostingContract()
 
     def incident_stop(kind: str, snapshot) -> int:
-        recorder.freeze(
+        _freeze_incident_safely(
+            recorder,
             kind, policy, snapshot, args.decision_log, list(recent_reasons)
         )
         return 0
@@ -2161,13 +2183,38 @@ def _run_follow(
                         posting_contract=posting_contract,
                     )
                     if posting_contract.last_incident is not None:
+                        incident = posting_contract.last_incident
                         _write_posting_contract_incident(
                             args.decision_log,
                             snapshot,
-                            posting_contract.last_incident,
+                            incident,
                         )
-                        return incident_stop(
-                            str(posting_contract.last_incident["marker"]), snapshot
+                        _freeze_incident_safely(
+                            recorder, str(incident["marker"]), policy, snapshot,
+                            args.decision_log, list(recent_reasons),
+                        )
+                        policy.refuse_key_posting(
+                            str(incident.get("owner", policy.last_reason)),
+                            str(incident.get("key", key)),
+                        )
+                        key = policy.choose_key(snapshot)
+                        key = policy.validate_read_key(snapshot, key)
+                        _write_decision(
+                            args.decision_log, snapshot, key, policy.last_reason,
+                            policy, economy_ledger,
+                        )
+                        sent, posted_decision_line = _send_new_decision_key(
+                            send, snapshot_line, key, posted_decision_line,
+                            posted_decision_keys,
+                            in_store=snapshot.store is not None,
+                            decision={
+                                "sequence": policy._decision_sequence,
+                                "turn": snapshot.turn,
+                                "reason": policy.last_reason,
+                                "key": key,
+                            },
+                            snapshot=snapshot,
+                            posting_contract=posting_contract,
                         )
                     if sent:
                         policy.confirm_key_posted(key)

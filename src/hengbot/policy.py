@@ -10067,6 +10067,15 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_catalog_update = None
         return committed
 
+    def refuse_key_posting(self, owner: str, key: str) -> None:
+        """Make a sender-side refusal actionable on the next policy decision."""
+        if owner in {"shop:travel", "town:travel-entrance"}:
+            state = self._town_travel_state
+            if state is not None:
+                self._town_travel_fallback = state.goal
+                self._town_travel_state = None
+        self._discard_unposted_equipment_transaction_command()
+
     def _discard_unposted_equipment_transaction_command(self) -> None:
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None

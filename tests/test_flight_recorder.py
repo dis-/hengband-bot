@@ -15,11 +15,20 @@ from hengbot.flight_recorder import (
     append_session_marker,
     policy_state,
     render_remembered_map,
+    safe_filename_component,
 )
 from hengbot.model import Position
 
 
 class FlightRecorderTest(unittest.TestCase):
+    def test_diagnostic_filename_components_are_windows_safe(self):
+        component = safe_filename_component(
+            'posting-contract:bad<name>"/\\|?*\x00. '
+        )
+        self.assertTrue(component.startswith("posting-contract-bad-name"))
+        self.assertFalse(any(char in '<>:"/\\|?*' for char in component))
+        self.assertFalse(component.endswith((".", " ")))
+
     def policy(self):
         return SimpleNamespace(
             _remembered_known_t={(1, 1), (1, 2), (2, 2), (3, 3)},
@@ -135,6 +144,19 @@ class FlightRecorderTest(unittest.TestCase):
                 "README.md",
             ):
                 self.assertTrue((capture / relative).exists(), relative)
+
+    def test_marker_kind_is_sanitized_without_losing_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            kind = "posting-contract:identical-repost-unobserved"
+            capture = recorder.freeze(
+                kind, self.policy(), self.snapshot(), None, ["shop:travel"]
+            )
+            self.assertIsNotNone(capture)
+            self.assertNotIn(":", capture.name)
+            meta = json.loads((capture / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["kind"], kind)
 
     def test_policy_state_retains_commitment_and_downstairs_and_map_renders(self):
         state = json.loads(json.dumps(policy_state(self.policy(), self.snapshot())))

@@ -22,6 +22,17 @@ DEFAULT_LOG_GENERATIONS = 8
 DEFAULT_SNAPSHOT_GENERATION_BYTES = 64 * 1024**2
 INCIDENT_DECISION_TAIL_BYTES = 16 * 1024**2
 INCIDENT_SNAPSHOT_BYTES = 256 * 1024**2
+WINDOWS_ILLEGAL_COMPONENT_CHARS = '<>:"/\\|?*'
+
+
+def safe_filename_component(value: object, *, fallback: str = "unknown") -> str:
+    """Return one portable filename component for diagnostic-derived text."""
+    translated = "".join(
+        "-" if character in WINDOWS_ILLEGAL_COMPONENT_CHARS or ord(character) < 32
+        else character
+        for character in str(value)
+    ).strip().rstrip(". ")
+    return translated or fallback
 
 
 def _warn(operation: str, exc: OSError) -> None:
@@ -334,7 +345,7 @@ class FlightRecorder:
     def _write_map(self, policy, floor) -> None:
         try:
             self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            name = "-".join(str(part) for part in floor)
+            name = "-".join(safe_filename_component(part) for part in floor)
             (self.checkpoint_dir / f"map-left-{name}.txt").write_text(
                 render_remembered_map(policy), encoding="utf-8"
             )
@@ -343,7 +354,8 @@ class FlightRecorder:
 
     def freeze(self, kind: str, policy, snapshot, decision_log: Path | None, reasons: list[str]) -> Path | None:
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        final = self.incident_root / f"{stamp}-{kind}"
+        safe_kind = safe_filename_component(kind, fallback="incident")
+        final = self.incident_root / f"{stamp}-{safe_kind}"
         temporary = self.incident_root / f".{final.name}-{uuid.uuid4().hex}.tmp"
         try:
             temporary.mkdir(parents=True)

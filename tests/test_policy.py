@@ -5974,6 +5974,14 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(snap), "\x1b`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
 
+        # Live 2026-08-10 shape: the unchanged board made the policy select the
+        # identical native-travel macro, which the sender correctly refused.
+        pol.refuse_key_posting("shop:travel", "\x1b`n!.")
+        replacement = pol.choose_key(snap)
+        self.assertEqual(replacement, "6")
+        self.assertEqual(pol.last_reason, "shop:approach")
+        self.assertNotEqual(replacement, "\x1b`n!.")
+
     def test_distant_store_without_any_light_walks(self):
         walkable = frozenset(Position(10, x) for x in range(1, 16))
         goal = Position(10, 15)
