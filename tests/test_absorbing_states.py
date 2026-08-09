@@ -91,9 +91,9 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 18)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 18)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 18)
+        self.assertEqual(len(SEEDED_STATES), 17)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 17)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 17)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
     def test_frozen_owned_home_approach_reaches_existing_ceiling_publicly(self):
@@ -266,4 +266,13 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             TownWorld, "visible_terminal", return_value=None
         ):
             results = [drive(state) for state in SEEDED_STATES]
-        self.assertTrue(all(not result.passed for result in results))
+        # The narrowed entrance guard preserves the equipment owner's terminal
+        # reason verbatim.  That terminal ends the drive independently of the
+        # world's ordinary visible-terminal catalogue; all other seeds still
+        # depend on the catalogue patched out above.
+        passed = [result for result in results if result.passed]
+        self.assertEqual(
+            [result.state for result in passed],
+            ["transaction-abandoned-mid-strip"],
+        )
+        self.assertTrue(passed[0].outcome.startswith("drive-ending terminal"))

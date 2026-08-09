@@ -3033,18 +3033,39 @@ class HengbotPolicy:
     def _forbid_wait_on_town_entrance(
         self, snapshot: Snapshot, key: str
     ) -> str:
-        """Step off a building door instead of posting Hengband's stay key.
+        """Step an idle owner off a building door before posting the stay key.
 
         In the original keyset ``5`` maps to the stay command.  Hengband runs
         store/building entry effects even when that command keeps the player's
-        coordinates unchanged, so every otherwise legitimate WAIT must be
-        projected away from a town entrance at this final emission boundary.
+        coordinates unchanged.  Only owners whose purpose is to pass time are
+        projected away from an entrance; a WAIT owned by a transaction or any
+        other active operation must retain its position and ownership.
         Only a disclosed, plain, safe floor cell is eligible.  If the emitter
         supplies no such exit, expose the CLI's named stop instead of guessing
         through an unknown, warning-refused, hazardous, occupied, or special
         grid.
         """
-        if key != WAIT_KEY or snapshot.store is not None:
+        reason = self.last_reason or ""
+        idle_wait_owner = (
+            reason == "rest"
+            or reason == "town:recover"
+            or reason == "calibration:await-capture"
+            or reason.startswith("town:wait-restock:")
+            or reason in {
+                "town:wait-recall",
+                "town:await-recall-confirmation",
+                "fundraise:wait-recall",
+                "return:wait-recall",
+                "return:await-recall-confirmation",
+                "breeder-breakthrough:wait-recall",
+            }
+            or reason.startswith("town:blocked:")
+        )
+        if (
+            key != WAIT_KEY
+            or snapshot.store is not None
+            or not idle_wait_owner
+        ):
             return key
         if not hasattr(snapshot, "grid_at") or not hasattr(snapshot, "player"):
             return key

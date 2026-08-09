@@ -44224,10 +44224,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         outside = replace(entrance, turn=entrance.turn + 1)
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: failed atomic-withdrawal reporting is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
-        self.assertEqual(policy.choose_key(outside), "4")
+        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
         self.assertEqual(
             policy.last_reason,
-            "town:entrance-step-off:home:atomic-withdraw-failed",
+            "home:atomic-withdraw-failed",
         )
         self.assertIsNone(policy._home_atomic_withdraw_pending)
         self.assertIn(signature, policy._deferred_home_items)
@@ -48081,7 +48081,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
     def test_live_home_door_block_replay_never_posts_stay_publicly(self):
-        """Run the retained (45,123) blocked state beyond its 104-decision window."""
+        """Run the retained (45,123) state beyond its 104-decision window."""
         policy, snapshot = self._fixture()
         entrance = replace(
             snapshot.grids[snapshot.player.position], store_number=STORE_HOME
@@ -48099,17 +48099,17 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 policy_module.TOWN_STOP_PASS_LIMIT
             )
 
-        reasons = Counter()
-        keys = []
+        decisions = []
         for offset in range(105):
             key = policy.choose_key(replace(snapshot, turn=snapshot.turn + offset))
-            keys.append(key)
-            reasons[policy.last_reason] += 1
+            decisions.append((key, policy.last_reason))
 
-        self.assertFalse(any(key == LEAVE_STORE_KEY for key in keys))
-        self.assertTrue(
-            any(reason.startswith("town:entrance-step-off:") for reason in reasons),
-            reasons,
+        self.assertFalse(any(key == LEAVE_STORE_KEY for key, _ in decisions))
+        self.assertIn(
+            (WAIT_KEY, "equipment-transaction:abandon-blocked"), decisions
+        )
+        self.assertIn(
+            ("4", "town:blocked:repetition"), decisions
         )
 
     def test_town_recall_wait_steps_off_building_entrance_publicly(self):
@@ -48251,10 +48251,8 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
         with patch.object(policy, "_decide", side_effect=wait):
-            self.assertEqual(policy.choose_key(outside), "4")
-        self.assertEqual(
-            policy.last_reason, "town:entrance-step-off:wait"
-        )
+            self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "wait")
 
     def test_entrance_wait_never_uses_warning_hazard_or_unexplored_grid(self):
         policy, snapshot = self._fixture()

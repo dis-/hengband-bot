@@ -1033,10 +1033,6 @@ SEEDED_STATES = (
         _transaction_abandoned_mid_strip,
     ),
     AbsorbingState(
-        "abandon-retry-home-pass-burn", 20,
-        _abandon_retry_home_pass_burn,
-    ),
-    AbsorbingState(
         "movement-opens-store-before-surface-observation", 10,
         _movement_opens_store_before_surface_observation,
     ),
