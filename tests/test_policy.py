@@ -44092,6 +44092,69 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(deposited, 7)
         self.assertEqual(state, "outside")
 
+    def test_public_deposit_preserves_catalogue_or_incomplete_work_requests_it(self):
+        deposited = item(
+            "n", TVAL_SWORD, 3, name="proven deposited sword",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        entrance = self._entrance_snapshot([deposited], turn=2247460)
+
+        preserved = HengbotPolicy()
+        preserved._equipment_catalog.complete_home_scan(())
+        preserved._calibration_phase = "deposit"
+        preserved._shopping_approach_store_type = STORE_HOME
+        self.assertEqual(preserved.choose_key(entrance), "5dn\x1b")
+        self.assertEqual(preserved.last_reason, "home:atomic-deposit")
+        self.assertTrue(preserved._equipment_catalog.home_scan_complete)
+        self.assertIn(
+            deposited.name,
+            [owned.item.name for owned in preserved._equipment_catalog.items],
+        )
+
+        incomplete = HengbotPolicy()
+        incomplete._calibration_phase = "deposit"
+        incomplete._shopping_approach_store_type = STORE_HOME
+        self.assertEqual(incomplete.choose_key(entrance), "5dn\x1b")
+        incomplete._calibration_phase = None
+        incomplete._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",), result=None,
+        )
+        after = replace(
+            self._entrance_snapshot([], turn=2247461),
+            player=player(45, 122, class_id=PLAYER_CLASS_WARRIOR),
+        )
+        self.assertEqual(incomplete.choose_key(after), "~9")
+        self.assertEqual(incomplete.last_reason, "home:request-knowledge-scan")
+
+    def test_restore_withdraws_deposits_with_atomic_fresh_entry_contract(self):
+        wares = [
+            store_item("?", TVAL_POTION, 1600 + index, name=f"home {index}")
+            for index in range(60)
+        ]
+        target = wares[55]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        key = policy.choose_key(self._entrance_snapshot(self._real_pack()))
+        posted = []
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.append(value) or True,
+            "calibration-restore-fresh-entry",
+            key,
+            None,
+            set(),
+            in_store=False,
+            decision={"reason": policy.last_reason, "key": key},
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+        self.assertEqual(key, "5 pd\x1b")
+        self.assertEqual(posted, [key])
+        self.assertEqual(key.count(WAIT_KEY), 1)
+        self.assertEqual(key.count(BUY_KEY), 1)
+        self.assertTrue(key.endswith(LEAVE_STORE_KEY))
+
     def test_duplicate_signature_slots_keep_their_displayed_addresses(self):
         first = store_item("a", TVAL_POTION, 350, count=99, name="duplicate")
         second = store_item("b", TVAL_POTION, 350, count=7, name="duplicate")
