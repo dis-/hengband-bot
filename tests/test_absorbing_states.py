@@ -91,10 +91,23 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 17)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 17)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 17)
+        self.assertEqual(len(SEEDED_STATES), 21)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 21)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 21)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
+
+    def test_all_four_store_owner_disagreements_are_absorbing_at_tip(self):
+        names = {
+            "visit-scan-address-burst",
+            "visit-abandon-blocked-home",
+            "visit-approach-entrance-stepoff",
+            "visit-live-shop-entry-exit-531",
+        }
+        selected = [state for state in SEEDED_STATES if state.name in names]
+        self.assertEqual({state.name for state in selected}, names)
+        for state in selected:
+            with self.subTest(state=state.name):
+                self.assertTrue(drive(state).passed)
 
     def test_frozen_owned_home_approach_reaches_existing_ceiling_publicly(self):
         """Review probe: 1248168 approached 200 times without accounting."""
@@ -273,6 +286,8 @@ class SeededAbsorbingStateTest(unittest.TestCase):
         passed = [result for result in results if result.passed]
         self.assertEqual(
             [result.state for result in passed],
-            ["transaction-abandoned-mid-strip"],
+            ["transaction-abandoned-mid-strip", "visit-abandon-blocked-home"],
         )
-        self.assertTrue(passed[0].outcome.startswith("drive-ending terminal"))
+        self.assertTrue(all(
+            result.outcome.startswith("drive-ending terminal") for result in passed
+        ))

@@ -445,6 +445,26 @@ def _failed_store_entry_same_turn():
     return policy, RefusedEntryWorld(surface)
 
 
+def _scan_address_burst_visit_seed():
+    """Historical scan/address owner disagreement is one entry-owned visit."""
+    return _doubled_store_entry_cycle()
+
+
+def _abandon_blocked_home_visit_seed():
+    """Historical transaction/inside-Home disagreement restores or closes."""
+    return _transaction_abandoned_mid_strip()
+
+
+def _approach_entrance_stepoff_visit_seed():
+    """Historical approach/entrance disagreement preserves entry ownership."""
+    return _movement_opens_store_before_surface_observation()
+
+
+def _live_shop_entry_exit_visit_seed():
+    """531-cycle incident: approach, entry-await and Home exit share an owner."""
+    return _approach_refused_optimizer_transaction()
+
+
 def _transaction_abandoned_mid_strip():
     """A stripped optimizer transaction restores or stops at its named terminal."""
     policy, surface, _ = (
@@ -1035,5 +1055,15 @@ SEEDED_STATES = (
     AbsorbingState(
         "movement-opens-store-before-surface-observation", 10,
         _movement_opens_store_before_surface_observation,
+    ),
+    AbsorbingState("visit-scan-address-burst", 20, _scan_address_burst_visit_seed),
+    AbsorbingState("visit-abandon-blocked-home", 20, _abandon_blocked_home_visit_seed),
+    AbsorbingState(
+        "visit-approach-entrance-stepoff", 20,
+        _approach_entrance_stepoff_visit_seed,
+    ),
+    AbsorbingState(
+        "visit-live-shop-entry-exit-531", 100,
+        _live_shop_entry_exit_visit_seed,
     ),
 )

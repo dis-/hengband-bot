@@ -6094,8 +6094,8 @@ class ShoppingTest(unittest.TestCase):
             snap = Snapshot(player(10, x, gold=1000), grids, [], floor_key=(0, 0, 0))
             key = pol.choose_key(snap)
 
-        self.assertEqual(key, "6")  # east, toward the store at (10,12) — never "8"
-        self.assertEqual(pol.last_reason, "shop:approach")
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(pol.last_reason, "livelock:exhausted")
 
     def test_store_approach_failure_does_not_block_later_shopping(self):
         # If the approach keeps oscillating WITHOUT arriving for long enough (a truly

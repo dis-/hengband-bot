@@ -357,6 +357,53 @@ class TownTravelProgress:
         return "reissue"
 
 
+class StoreVisitPhase(str, Enum):
+    APPROACHING = "approaching"
+    ENTERING = "entering"
+    OPERATING = "operating"
+    LEAVING = "leaving"
+    CLOSED = "closed"
+
+
+@dataclass
+class StoreVisit:
+    """The sole authority for one deliberate trip to one store."""
+
+    owner: str
+    purpose: str
+    store_type: int
+    phase: StoreVisitPhase = StoreVisitPhase.APPROACHING
+    composed_key: str | None = None
+    goal: Position | None = None
+    opened_sequence: int = 0
+    posted_sequence: int | None = None
+    posted_turn: int | None = None
+    operation_posted: bool = False
+    outcome: str | None = None
+
+    def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
+        if self.phase == StoreVisitPhase.CLOSED:
+            raise RuntimeError("closed store visit cannot transition")
+        self.phase = phase
+        if key is not None:
+            self.composed_key = key
+
+    def close(self, outcome: str) -> None:
+        self.phase = StoreVisitPhase.CLOSED
+        self.outcome = outcome
+
+
+@dataclass(frozen=True)
+class EmissionState:
+    """Observable state whose recurrence proves an emitted cycle made no progress."""
+
+    floor: tuple[int, int, int] | None
+    position: Position
+    store_type: int | None
+    inventory: tuple[tuple[object, ...], ...]
+    equipment: tuple[tuple[object, ...], ...]
+
+
 TOWN_STOP_PASS_LIMIT = 3
 # それならば一旦多少の非効率は許容する。訪問回数の最大値を54回まで緩和することを許可するのでまずは処理を
 # 完遂させること。効率化はその後。
@@ -1620,18 +1667,16 @@ class HengbotPolicy:
         # Town stores are fixed landmarks.  Try Hengband's native travel command
         # once per approach; if it stops short, retain that goal here and finish
         # with the existing one-step pathfinder instead of retrying forever.
-        self._shopping_approach_store_type: int | None = None
-        self._shopping_approach_goal: Position | None = None
-        # Per-decision ownership for a WAIT whose meaning on the selected
-        # store's entrance is the entry command itself.  This is reset before
-        # every public decision and set only by the store-entry emitters.
-        self._store_entry_wait_owner: int | None = None
+        # One deliberate store trip has one owner and lifecycle.  Compatibility
+        # accessors below expose the old diagnostic names without retaining
+        # independent ownership facts.
+        self._store_visit: StoreVisit | None = None
+        self._store_visit_last_closed: StoreVisit | None = None
+        self._store_visit_pending_goal: Position | None = None
         self._store_entry_failed_owner: int | None = None
         # A store-entry command becomes outstanding only after the CLI confirms
         # that it was posted.  The next snapshot observes its result;
         # store=None is a failed entry, including at the unchanged entrance.
-        self._store_entry_posted_owner: int | None = None
-        self._store_entry_wait_key: str | None = None
         # Shared progress tracker for every native-travel leg (stores, Home and
         # the dungeon entrance): the current goal, the best distance seen for
         # it, and how many issues brought no progress. See _town_travel_key.
@@ -1893,13 +1938,15 @@ class HengbotPolicy:
         # Store actions share the decision sequence as a monotonic correctness
         # generation.  A leave owns older store snapshots until the feed shows
         # either the surface or a non-older in-store action generation.
-        self._store_leave_inflight: tuple[int, int, int] | None = None
         # A Home entry may dispatch exactly one deposit or withdrawal.  Keep
         # this latched across interleaved surface records until an Escape-owned
         # outside snapshot proves that the visit ended; otherwise a redraw
         # while an item chooser is open can turn a repeated command letter into
         # an unintended pack selection.
-        self._home_entry_operation_posted = False
+        self._emission_occurrences: dict[
+            EmissionState, tuple[int, int, str]
+        ] = {}
+        self._emission_previous_state: EmissionState | None = None
         # Ordinary Home deposits are posted while standing on the entrance tile
         # as one stay/deposit/exit string.  This identifies that special visit
         # until the next outside observation; withdrawals and transaction
@@ -2462,11 +2509,228 @@ class HengbotPolicy:
                     "capture_error": "assignment-provenance-failed",
                 }
 
+    @property
+    def _shopping_approach_store_type(self) -> int | None:
+        visit = self._store_visit
+        return visit.store_type if visit is not None else None
+
+    @_shopping_approach_store_type.setter
+    def _shopping_approach_store_type(self, value: int | None) -> None:
+        if value is None:
+            return
+        if self._store_visit is None:
+            self._store_visit = StoreVisit(
+                owner="store-router", purpose="town-need", store_type=value,
+                goal=self._store_visit_pending_goal,
+                opened_sequence=self._decision_sequence,
+            )
+            self._store_visit_pending_goal = None
+
+    @property
+    def _shopping_approach_goal(self) -> Position | None:
+        visit = self._store_visit
+        return visit.goal if visit is not None else None
+
+    @_shopping_approach_goal.setter
+    def _shopping_approach_goal(self, value: Position | None) -> None:
+        if self._store_visit is not None:
+            self._store_visit.goal = value
+        else:
+            self._store_visit_pending_goal = value
+
+    @property
+    def _store_entry_wait_owner(self) -> int | None:
+        visit = self._store_visit
+        if visit is None or visit.phase != StoreVisitPhase.ENTERING:
+            return None
+        return visit.store_type
+
+    @_store_entry_wait_owner.setter
+    def _store_entry_wait_owner(self, value: int | None) -> None:
+        if value is None:
+            return
+        visit = self._store_visit
+        if visit is None:
+            self._store_visit = StoreVisit(
+                owner="store-router", purpose="store-entry", store_type=value,
+                opened_sequence=self._decision_sequence,
+            )
+            visit = self._store_visit
+        if visit.store_type == value:
+            visit.transition(StoreVisitPhase.ENTERING)
+
+    @property
+    def _store_entry_wait_key(self) -> str | None:
+        visit = self._store_visit
+        return visit.composed_key if visit is not None else None
+
+    @_store_entry_wait_key.setter
+    def _store_entry_wait_key(self, value: str | None) -> None:
+        if self._store_visit is not None and value is not None:
+            self._store_visit.composed_key = value
+
+    @property
+    def _store_entry_posted_owner(self) -> int | None:
+        visit = self._store_visit
+        if visit is None or visit.phase != StoreVisitPhase.ENTERING:
+            return None
+        return visit.store_type if visit.posted_sequence is not None else None
+
+    @_store_entry_posted_owner.setter
+    def _store_entry_posted_owner(self, value: int | None) -> None:
+        visit = self._store_visit
+        if value is None:
+            if visit is not None:
+                visit.posted_sequence = None
+            return
+        self._store_entry_wait_owner = value
+        assert self._store_visit is not None
+        self._store_visit.posted_sequence = self._decision_sequence
+
+    @property
+    def _home_entry_operation_posted(self) -> bool:
+        visit = self._store_visit
+        return bool(
+            visit is not None
+            and visit.store_type == STORE_HOME
+            and visit.operation_posted
+        )
+
+    @_home_entry_operation_posted.setter
+    def _home_entry_operation_posted(self, value: bool) -> None:
+        visit = self._store_visit
+        if value and visit is None:
+            visit = StoreVisit(
+                owner="home-one-shot", purpose="bound-operation",
+                store_type=STORE_HOME, phase=StoreVisitPhase.OPERATING,
+                opened_sequence=self._decision_sequence,
+            )
+            self._store_visit = visit
+        if visit is not None and visit.store_type == STORE_HOME:
+            visit.operation_posted = value
+
+    @property
+    def _store_leave_inflight(self) -> tuple[int, int, int] | None:
+        visit = self._store_visit
+        if (
+            visit is None
+            or visit.phase != StoreVisitPhase.LEAVING
+            or visit.posted_sequence is None
+            or visit.posted_turn is None
+        ):
+            return None
+        return visit.posted_sequence, visit.posted_turn, visit.store_type
+
+    @_store_leave_inflight.setter
+    def _store_leave_inflight(self, value: tuple[int, int, int] | None) -> None:
+        visit = self._store_visit
+        if value is None:
+            if visit is not None and visit.phase == StoreVisitPhase.LEAVING:
+                visit.close(visit.outcome or "completed")
+                self._store_visit_last_closed = visit
+                self._store_visit = None
+            return
+        sequence, turn, store_type = value
+        if visit is None:
+            visit = StoreVisit(
+                owner="recovered-store-context", purpose="leave",
+                store_type=store_type, opened_sequence=sequence,
+            )
+            self._store_visit = visit
+        visit.transition(StoreVisitPhase.LEAVING, LEAVE_STORE_KEY)
+        visit.posted_sequence = sequence
+        visit.posted_turn = turn
+
+    def _close_store_visit(self, outcome: str) -> None:
+        visit = self._store_visit
+        if visit is None:
+            return
+        visit.close(outcome)
+        self._store_visit_last_closed = visit
+        self._store_visit = None
+
     def choose_key(self, snapshot: Snapshot) -> str:
         home_capture = self._home_entry_capture
         if home_capture is not None:
-            return home_capture.choose_key(self, snapshot)
-        return self._choose_key_with_latch_capture(snapshot)
+            key = home_capture.choose_key(self, snapshot)
+        else:
+            key = self._choose_key_with_latch_capture(snapshot)
+        return self._refuse_no_progress_cycle(snapshot, key)
+
+    @staticmethod
+    def _emission_item_state(item: object) -> tuple[object, ...]:
+        return tuple(
+            getattr(item, name, None)
+            for name in (
+                "slot", "tval", "sval", "name", "count", "charges",
+                "inscription", "known", "fully_known", "is_equipment",
+            )
+        )
+
+    def _emission_state(self, snapshot: Snapshot) -> EmissionState:
+        return EmissionState(
+            floor=getattr(snapshot, "floor_key", None),
+            position=snapshot.player.position,
+            store_type=(
+                snapshot.store.store_type if snapshot.store is not None else None
+            ),
+            inventory=tuple(sorted(
+                (self._emission_item_state(item) for item in snapshot.inventory),
+                key=repr,
+            )),
+            equipment=tuple(sorted(
+                (self._emission_item_state(item) for item in snapshot.equipment),
+                key=repr,
+            )),
+        )
+
+    def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
+        """Refuse a repeated transition after an equivalent-state cycle.
+
+        Equivalence deliberately includes floor and position (physical place),
+        store type (command-language context), and the complete ordered-neutral
+        pack/equipment projections (the resources and worn state store work can
+        change).  Gold, HP, messages and policy-owner latches are excluded: they
+        neither make a store transition effective nor permit owners to define
+        different versions of progress.  A recurrence is ineffective when game
+        turns advanced less than policy decisions across its own decision span.
+        """
+        state = self._emission_state(snapshot)
+        previous = self._emission_occurrences.get(state)
+        sequence = self._decision_sequence
+        turn = getattr(snapshot, "turn", 0)
+        if previous is not None:
+            previous_sequence, previous_turn, previous_key = previous
+            decision_span = sequence - previous_sequence
+            turn_span = max(0, turn - previous_turn)
+            returned_through_other_state = self._emission_previous_state != state
+            owner_boundary_decision = any(
+                marker in (self.last_reason or "")
+                for marker in (
+                    "approach", "entry", "store-context-exit",
+                    "entrance-step-off", "abandon-blocked-home",
+                )
+            )
+            if (
+                key
+                and key == previous_key
+                and decision_span > 1
+                and returned_through_other_state
+                and turn_span < decision_span
+                and (self._store_visit is not None or state.store_type is not None)
+                and owner_boundary_decision
+            ):
+                visit = self._store_visit
+                if visit is not None:
+                    visit.close("refused-with-evidence")
+                    self._store_visit_last_closed = visit
+                    self._store_visit = None
+                self.last_reason = "livelock:exhausted"
+                self._emission_previous_state = state
+                return WAIT_KEY
+        self._emission_occurrences[state] = (sequence, turn, key)
+        self._emission_previous_state = state
+        return key
 
     def _choose_key_with_latch_capture(self, snapshot: Snapshot) -> str:
         capture_path = self._latch_capture_path
@@ -2547,6 +2811,15 @@ class HengbotPolicy:
         snapshot = self._with_grid_memory(snapshot)
         self._begin_map_predicate_cache(snapshot)
         posted_entry_owner = self._store_entry_posted_owner
+        if posted_entry_owner is not None:
+            if (
+                snapshot.store is not None
+                and snapshot.store.store_type == posted_entry_owner
+                and self._store_visit is not None
+            ):
+                self._store_visit.transition(StoreVisitPhase.OPERATING)
+                self._store_visit.posted_sequence = None
+                posted_entry_owner = None
         if posted_entry_owner is not None:
             observed_failed_entry = snapshot.store is None and any(
                 "The doors are locked." in message
@@ -2744,7 +3017,37 @@ class HengbotPolicy:
             and not self._home_entry_operation_posted
             and self._store_leave_inflight is None
         )
-        if pending_home_transaction:
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and self._store_visit is None
+            and self._equipment_transaction_session is not None
+        ):
+            # Reconnect/import boundary: turn the already-existing operation
+            # owner into a visit once, before any in-store decision is routed.
+            self._store_visit = StoreVisit(
+                owner="equipment-transaction", purpose="equipment-work",
+                store_type=STORE_HOME, phase=StoreVisitPhase.OPERATING,
+                opened_sequence=self._decision_sequence,
+            )
+        elif snapshot.store is not None and self._store_visit is None:
+            self._store_visit = StoreVisit(
+                owner="shop-handler", purpose="recovered-shopping",
+                store_type=snapshot.store.store_type,
+                phase=StoreVisitPhase.OPERATING,
+                opened_sequence=self._decision_sequence,
+            )
+        unintended_store_context = (
+            snapshot.store is not None and self._store_visit is None
+        )
+        if unintended_store_context:
+            self.last_reason = (
+                "home:store-context-exit"
+                if snapshot.store.store_type == STORE_HOME
+                else "shop:store-context-exit"
+            )
+            key = LEAVE_STORE_KEY
+        elif pending_home_transaction:
             # Observation above already accounts for the posted action.  This
             # narrow path may only confirm/expire it; it cannot select or post
             # another Home item operation.
@@ -9751,6 +10054,8 @@ class HengbotPolicy:
     def _abandon_blocked_equipment_transaction(
         self, snapshot: Snapshot | None = None
     ) -> None:
+        if self._store_visit is not None:
+            self._store_visit.outcome = "abandoned-with-restore"
         session = self._equipment_transaction_session
         action = (
             None
@@ -17622,8 +17927,6 @@ class HengbotPolicy:
     def _shopping_approach_step(
         self, snapshot: Snapshot, store_type: int | None = None
     ) -> Position | None:
-        self._shopping_approach_store_type = None
-        self._shopping_approach_goal = None
         if not snapshot.in_town or (
             self._town_blocked_reason is not None
             and self._town_blocked_reason != "repetition"
@@ -17639,6 +17942,22 @@ class HengbotPolicy:
         if store_type is None:
             self._shop_approach_stuck_count = 0
             return None
+        visit = self._store_visit
+        if visit is not None and visit.store_type != store_type:
+            # The visit that opened first is authoritative.  A newly-derived
+            # need cannot steal the approach or an open command context.
+            return None
+        if visit is None:
+            equipment_owner = (
+                store_type == STORE_HOME
+                and self._equipment_transaction_session is not None
+            )
+            self._store_visit = StoreVisit(
+                owner=("equipment-transaction" if equipment_owner else "town-errand"),
+                purpose=("equipment-work" if equipment_owner else "shopping"),
+                store_type=store_type,
+                opened_sequence=self._decision_sequence,
+            )
         if (
             self._town_visit_ledger.approach_fails[store_type]
             >= self._town_store_visit_limit(store_type)
@@ -18698,8 +19017,7 @@ class HengbotPolicy:
                 self._town_store_attempted.setdefault(store_type, snapshot.turn)
         self._abandon_blocked_equipment_transaction(snapshot)
         self._clear_pending_disposal()
-        self._shopping_approach_goal = None
-        self._shopping_approach_store_type = None
+        self._close_store_visit("abandoned-with-restore")
         self._shopping_stuck = True
         self._town_travel_state = None
         self._town_travel_fallback = None
@@ -25357,8 +25675,7 @@ class HengbotPolicy:
             return key
 
         self._loot_target = None
-        self._shopping_approach_goal = None
-        self._shopping_approach_store_type = None
+        self._close_store_visit("refused-with-evidence")
         self._descent_target_goal = None
         self._nav_ledger.clear_descent_route()
         self._clear_explore_path(ExplorationPathOutcome.ABANDON)
