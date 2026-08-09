@@ -426,6 +426,28 @@ def _failed_store_entry_same_turn():
     return policy, RefusedEntryWorld(surface)
 
 
+def _transaction_abandoned_mid_strip():
+    """A stripped optimizer transaction restores or stops at its named terminal."""
+    policy, surface, _ = (
+        fixture.EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
+    )
+
+    class MidStripWorld(TownWorld):
+        def visible_terminal(self, reason):
+            if (
+                policy._equipment_transaction_restoring
+                and reason == "equipment-transaction:abandon-blocked"
+            ):
+                # The durable restore plan itself is progress out of the
+                # historical abandoned/ordinary-town absorbing state.
+                return "equipment transaction owns ten-item restoration"
+            if reason == "equipment-transaction:restore-blocked-terminal":
+                return reason
+            return super().visible_terminal(reason)
+
+    return policy, MidStripWorld(surface)
+
+
 def _movement_opens_store_before_surface_observation():
     """A disclosed movement destination opens a shop before its first page."""
     helper = fixture.HomeOneOperationPerEntryTest()
@@ -956,6 +978,10 @@ SEEDED_STATES = (
     AbsorbingState("doubled-store-entry-cycle", 10, _doubled_store_entry_cycle),
     AbsorbingState("lagged-successful-store-entry", 10, _lagged_successful_store_entry),
     AbsorbingState("failed-store-entry-same-turn", 10, _failed_store_entry_same_turn),
+    AbsorbingState(
+        "transaction-abandoned-mid-strip", 20,
+        _transaction_abandoned_mid_strip,
+    ),
     AbsorbingState(
         "movement-opens-store-before-surface-observation", 10,
         _movement_opens_store_before_surface_observation,

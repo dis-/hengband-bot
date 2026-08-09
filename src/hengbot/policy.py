@@ -2269,6 +2269,13 @@ class HengbotPolicy:
         self._calibration_naked_dump_inflight = False
         self._calibration_naked_flags: frozenset[int] | None = None
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
+        # Physical equipment removed by the live optimizer transaction remains
+        # owned by that transaction until it is observed worn again.  This is
+        # deliberately independent of the town-owner gate: classifiers must
+        # still refuse these pack items if routing ever bypasses that gate.
+        self._equipment_transaction_owned_items: list[tuple[str, str]] = []
+        self._equipment_transaction_restoring = False
+        self._equipment_transaction_restore_terminal: str | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_prepared_key: str | None = None
@@ -2636,9 +2643,22 @@ class HengbotPolicy:
                 self._home_knowledge_scan_retries_remaining = 1
                 self._home_knowledge_scan_leave_turn = None
         if self._equipment_transaction_session is not None:
-            self._equipment_transaction_session.observe(
-                observe_equipment_transactions(snapshot)
-            )
+            session = self._equipment_transaction_session
+            pending = session.pending_action
+            advanced = session.observe(observe_equipment_transactions(snapshot))
+            if advanced and pending is not None:
+                if pending.kind == "takeoff" and pending.target_slot is not None:
+                    self._equipment_transaction_owned_items.append(
+                        (pending.item_identity, pending.target_slot)
+                    )
+                elif pending.kind in {"equip", "reposition"}:
+                    self._release_equipment_transaction_owned_item(
+                        pending.item_identity
+                    )
+                elif pending.kind == "deposit":
+                    self._release_equipment_transaction_owned_item(
+                        pending.item_identity
+                    )
             if self._equipment_transaction_session.complete:
                 if not self._calibration_session_owned():
                     # An optimizer-owned equipment transaction ran to
@@ -2646,6 +2666,8 @@ class HengbotPolicy:
                     # plan, releasing the calibration stripped guard.
                     self._calibration_stripped_unrestored = False
                 self._equipment_transaction_session = None
+                self._equipment_transaction_restoring = False
+                self._equipment_transaction_restore_terminal = None
                 self._equipment_optimization_signature = None
         self._calibration_observe(snapshot)
         self._observe(snapshot)
@@ -3545,6 +3567,12 @@ class HengbotPolicy:
         warning_response = self._warning_prompt_response_key(snapshot)
         if warning_response is not None:
             return warning_response
+
+        # Once a transaction has physically stripped anything, restoration or
+        # completion owns every town decision.  No shopping, sale, disposal,
+        # fundraising, or errand classifier is reachable until ownership ends.
+        if snapshot.in_town and self._equipment_transaction_owned_items:
+            return self._equipment_transaction_town_owner_key(snapshot) or WAIT_KEY
 
         # A town-block latch owns the store exit before ordinary Home/shop page
         # processing. WAIT_KEY is not a valid store command.
@@ -9650,7 +9678,7 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         session = self._equipment_transaction_session
-        if session is not None:
+        if session is not None and hasattr(session, "discard_prepared"):
             session.discard_prepared()
 
     def _prepare_equipment_transaction_command(
@@ -9685,10 +9713,80 @@ class HengbotPolicy:
                 # shrinks the remaining candidate set (monotonic exit).
                 self._equipment_quarantine_burned_ids.add(action.item_id)
             self._equipment_transaction_failed_items.add(action.item_id)
-        self._equipment_transaction_session = None
+        self._discard_unposted_equipment_transaction_command()
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
         self._town_blocked_reason = None
+        if self._equipment_transaction_owned_items:
+            if self._equipment_transaction_restoring:
+                # Restoration has no safe fallback.  Keep both provenance and
+                # ownership forever and expose a stable named terminal instead
+                # of releasing ordinary town behaviour over a stripped player.
+                self._equipment_transaction_restore_terminal = (
+                    "equipment-transaction:restore-blocked-terminal"
+                )
+                return
+            restore_actions = tuple(
+                EquipmentTransaction(
+                    PHASE_EQUIP,
+                    "equip",
+                    f"restore:{identity}",
+                    slot,
+                    identity,
+                )
+                for identity, slot in self._equipment_transaction_owned_items
+            )
+            self._equipment_transaction_session = EquipmentTransactionSession(
+                EquipmentTransactionPlan(restore_actions, (), 0),
+                max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+            )
+            self._equipment_transaction_restoring = True
+            return
+        self._equipment_transaction_session = None
+
+    def _equipment_transaction_owns_item(
+        self, item: InventoryItem | StoreItem
+    ) -> bool:
+        """Return whether live transaction provenance protects this item."""
+        identity = equipment_identity(item)
+        return any(
+            owned_identity == identity
+            for owned_identity, _ in self._equipment_transaction_owned_items
+        )
+
+    def _release_equipment_transaction_owned_item(self, identity: str) -> None:
+        """Release one physical member of a duplicate-preserving owned set."""
+        for index, (owned_identity, _) in enumerate(
+            self._equipment_transaction_owned_items
+        ):
+            if owned_identity == identity:
+                del self._equipment_transaction_owned_items[index]
+                return
+
+    def _equipment_transaction_town_owner_key(
+        self, snapshot: Snapshot
+    ) -> str | None:
+        """Give a stripped transaction exclusive ownership of town decisions."""
+        if not self._equipment_transaction_owned_items:
+            return None
+        if self._equipment_transaction_restore_terminal is not None:
+            self.last_reason = self._equipment_transaction_restore_terminal
+            return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+        if snapshot.store is not None:
+            if snapshot.store.store_type == STORE_HOME:
+                key = self._equipment_transaction_home_key(snapshot)
+                if key is not None:
+                    return key
+            self.last_reason = "equipment-transaction:owns-town-leave-store"
+            return LEAVE_STORE_KEY
+        key = self._equipment_transaction_town_key(snapshot)
+        if key is not None:
+            return key
+        self._equipment_transaction_restore_terminal = (
+            "equipment-transaction:restore-blocked-terminal"
+        )
+        self.last_reason = self._equipment_transaction_restore_terminal
+        return WAIT_KEY
 
     def _release_stalled_equipment_transaction(self) -> bool:
         """Release a posted action after the reviewed store observation budget."""
@@ -10576,6 +10674,8 @@ class HengbotPolicy:
         return min(item.count, max(0, target - before))
 
     def _retention_surplus(self, snapshot: Snapshot, item: InventoryItem) -> int:
+        if self._equipment_transaction_owns_item(item):
+            return 0
         return max(0, item.count - self._retention_reservation(snapshot, item))
 
     @staticmethod
@@ -12862,6 +12962,8 @@ class HengbotPolicy:
         self, snapshot: Snapshot, item: InventoryItem | StoreItem
     ) -> bool:
         """Apply retention ownership without pretending Home wares are pack items."""
+        if self._equipment_transaction_owns_item(item):
+            return True
         if any(item is carried for carried in (*snapshot.inventory, *snapshot.equipment)):
             return self._retention_reservation(snapshot, item) > 0
         if self._item_signature(item) in self._town_visit_purchases:
@@ -16614,7 +16716,8 @@ class HengbotPolicy:
                     sale = self._find_light_sale(view)
             if sale is None:
                 break
-            result.append(sale)
+            if not self._equipment_transaction_owns_item(sale):
+                result.append(sale)
             remaining = [item for item in remaining if item.slot != sale.slot]
         if not result:
             organization = self._find_town_organization_surplus(snapshot)
@@ -16625,7 +16728,8 @@ class HengbotPolicy:
                 and store.store_type
                 == self._town_organization_sale_store(snapshot, organization)
             ):
-                result.append(organization)
+                if not self._equipment_transaction_owns_item(organization):
+                    result.append(organization)
         return result
 
     def _batch_sell_key(

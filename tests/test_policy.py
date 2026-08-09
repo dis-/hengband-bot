@@ -48503,5 +48503,95 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         self.assertFalse(policy._home_deposit_candidate(self._ring(), snapshot))
 
 
+class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
+    """Pins for the stripped-loadout ring-sale incident."""
+
+    def _stripped_fixture(self):
+        policy, snapshot = NoSafeRecallDestinationTest()._fixture()
+        source = snapshot.inventory[0]
+        slots = tuple(policy_module.EQUIPMENT_SLOT_KEY)[:10]
+        owned = []
+        inventory = []
+        for index, target_slot in enumerate(slots):
+            item = replace(
+                source,
+                slot=chr(ord("a") + index),
+                name=f"Transaction-owned ring {index}",
+                sval=source.sval + index,
+            )
+            inventory.append(item)
+            owned.append((policy_module.equipment_identity(item), target_slot))
+        snapshot = replace(snapshot, inventory=inventory, equipment=[])
+        blocked = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            "blocked-second-half",
+            item_identity="missing-home-item",
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan(
+                    (blocked,), ("home-route-unavailable",), len(inventory)
+                )
+            )
+        )
+        policy._equipment_transaction_owned_items = owned
+        return policy, snapshot, inventory
+
+    def test_public_blocked_mid_strip_owns_town_and_installs_full_restore(self):
+        policy, snapshot, inventory = self._stripped_fixture()
+        policy._shopping_approach_step = Mock(
+            side_effect=AssertionError("unrelated shopping became reachable")
+        )
+        policy._current_store_sale_candidates = Mock(
+            side_effect=AssertionError("sale classifier became reachable")
+        )
+        policy._town_destroy_key = Mock(
+            side_effect=AssertionError("destruction became reachable")
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertTrue(policy._equipment_transaction_restoring)
+        restore = policy._equipment_transaction_session
+        self.assertIsNotNone(restore)
+        self.assertEqual(len(restore.plan.actions), 10)
+        self.assertEqual(
+            {action.item_identity for action in restore.plan.actions},
+            {policy_module.equipment_identity(item) for item in inventory},
+        )
+        self.assertTrue(all(action.kind == "equip" for action in restore.plan.actions))
+
+    def test_transaction_owned_item_refused_by_classifier_guards(self):
+        policy, snapshot, inventory = self._stripped_fixture()
+        item = inventory[0]
+        shop = replace(
+            snapshot,
+            store=StoreState(store_type=STORE_WEAPON, items=[]),
+        )
+
+        self.assertEqual(policy._retention_surplus(snapshot, item), 0)
+        self.assertTrue(policy._equipment_disposal_reserved(snapshot, item))
+        self.assertNotIn(item, policy._current_store_sale_candidates(shop))
+        self.assertFalse(policy._entire_stack_is_surplus(snapshot, item))
+
+    def test_blocked_restore_reaches_visible_named_terminal(self):
+        policy, snapshot, _ = self._stripped_fixture()
+        policy.choose_key(snapshot)
+        policy._equipment_transaction_session.block("restore-item-missing")
+
+        first = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        second = policy.choose_key(replace(snapshot, turn=snapshot.turn + 2))
+
+        self.assertEqual((first, second), (WAIT_KEY, WAIT_KEY))
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:restore-blocked-terminal",
+        )
+        self.assertIsNotNone(policy._equipment_transaction_session)
+        self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
+
+
 if __name__ == "__main__":
     unittest.main()
