@@ -2748,10 +2748,11 @@ class HengbotPolicy:
             and not self._home_entry_operation_posted
             and self._store_leave_inflight is None
         ):
-            # Reaching Home without having composed the transaction outside is
-            # a failed dispatch, not permission to bind an item from the store
-            # page.  Abandon/quarantine the stale plan and recover by leaving.
-            self._block_equipment_transaction("uncomposed-home-entry")
+            # An independently observed Home page is not transaction failure:
+            # Home is the required context for deposits and the handoff back to
+            # the entrance-bound atomic withdrawal.  The Home handler may only
+            # advance that existing plan or leave; it still cannot bind a new
+            # item command from the store page.
             key = self._equipment_transaction_home_key(snapshot)
         elif (
             snapshot.store is not None
@@ -2838,6 +2839,13 @@ class HengbotPolicy:
             and snapshot.store.store_type == STORE_HOME
             and key == LEAVE_STORE_KEY
             and self.last_reason != "home:processing-complete"
+            # Abandonment is not a completed Home pass.  In particular, the
+            # last-resort restore installed for already removed gear must not
+            # spend the visit allowance that belongs to useful Home work.
+            and not (
+                self._equipment_transaction_restoring
+                and not self._home_entry_operation_posted
+            )
         ):
             self._report_town_stop_pass(
                 snapshot,
@@ -8781,7 +8789,14 @@ class HengbotPolicy:
         blocker = None
         if not snapshot.in_town:
             blocker = "not-in-town"
-        elif snapshot.store is not None:
+        elif (
+            snapshot.store is not None
+            and not (
+                session is not None
+                and session.required_context == "home"
+                and snapshot.store.store_type == STORE_HOME
+            )
+        ):
             blocker = "inside-store"
         elif session is None:
             blocker = "no-session"
@@ -9469,7 +9484,9 @@ class HengbotPolicy:
                 ),
                 "equipment_work_need_present": (
                     any(
-                        need.category == "equipment-work"
+                        need.category in {
+                            "equipment-work", "equipment-transaction"
+                        }
                         for need in self._enumerate_live_store_claims(snapshot)
                     )
                     if snapshot is not None else None

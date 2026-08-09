@@ -48592,6 +48592,127 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertIsNotNone(policy._equipment_transaction_session)
         self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
 
+    def test_live_inside_home_with_ten_removed_items_preserves_transaction_progress(self):
+        """The retained incident shape is a Home handoff, not failure evidence."""
+        policy, outside, inventory = self._stripped_fixture()
+        target = item(
+            "z", TVAL_RING, 99, name="Home target", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        home_target = store_item(
+            "a", TVAL_RING, 99, name="Home target", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home-target",
+            item_identity=policy_module.equipment_identity(target),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), len(inventory))
+            )
+        )
+        policy._equipment_transaction_restoring = False
+        policy._home_knowledge_items = (target,)
+        policy._home_knowledge_valid_before = 1
+        policy._home_knowledge_current = True
+        policy._home_page_size = 12
+        inside = replace(
+            outside,
+            store=StoreState(store_type=STORE_HOME, items=[home_target]),
+        )
+
+        key = policy.choose_key(inside)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:leave-for-atomic-withdraw"
+        )
+        self.assertIs(policy._equipment_transaction_session.current_action, action)
+        self.assertFalse(policy._equipment_transaction_restoring)
+        self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
+
+    def test_abandonment_does_not_consume_home_completion_pass(self):
+        policy, outside, _ = self._stripped_fixture()
+        inside = replace(
+            outside,
+            store=StoreState(store_type=STORE_HOME, items=[]),
+        )
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME], need_categories={STORE_HOME: ("equipment-transaction",)}
+        )
+        before = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+
+        policy.choose_key(inside)
+
+        self.assertEqual(policy.last_reason, "equipment-transaction:abandon-blocked-home")
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], before
+        )
+
+    def test_outstanding_equipment_work_always_projects_a_home_need(self):
+        policy, snapshot, _ = self._stripped_fixture()
+        action = policy._equipment_transaction_session.current_action
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 10)
+            )
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=None, encounters_total=0,
+            encounters_evaluated=0, transaction=None,
+        )
+
+        projection = policy.equipment_optimization_state(snapshot)[
+            "home_route_projection"
+        ]
+
+        self.assertTrue(projection["outstanding_equipment_work"])
+        self.assertTrue(projection["equipment_work_need_present"])
+
+    def test_completing_optimization_performs_zero_restores(self):
+        policy, snapshot, _ = self._stripped_fixture()
+        ring = item(
+            "a", TVAL_RING, 101, name="Selected ring", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(ring)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP,
+            "equip",
+            "selected-ring",
+            "main_ring",
+            identity,
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._equipment_transaction_owned_items = [(identity, "main_ring")]
+        carrying = replace(snapshot, inventory=[ring], equipment=[])
+
+        with patch.object(
+            policy,
+            "_abandon_blocked_equipment_transaction",
+            wraps=policy._abandon_blocked_equipment_transaction,
+        ) as restore_trigger:
+            key = policy.choose_key(carrying)
+            self.assertTrue(policy.confirm_key_posted(key))
+            dressed = replace(
+                carrying,
+                turn=carrying.turn + 1,
+                inventory=[],
+                equipment=[replace(ring, slot="main_ring")],
+            )
+            policy.choose_key(dressed)
+
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertEqual(policy._equipment_transaction_owned_items, [])
+        self.assertEqual(restore_trigger.call_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

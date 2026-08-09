@@ -448,6 +448,37 @@ def _transaction_abandoned_mid_strip():
     return policy, MidStripWorld(surface)
 
 
+def _abandon_retry_home_pass_burn():
+    """Inside Home must release the historical abandon/retry/pass-burn cycle."""
+    policy, surface, _ = (
+        fixture.EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
+    )
+    target = fixture.store_item(
+        "a", fixture.TVAL_RING, 99, name="Home target", known=True,
+        fully_known=True, is_equipment=True,
+    )
+    identity = policy_module.equipment_identity(target)
+    action = policy_module.EquipmentTransaction(
+        policy_module.PHASE_HOME_PREPARE,
+        "withdraw",
+        "home-target",
+        item_identity=identity,
+    )
+    policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+        policy_module.EquipmentTransactionPlan((action,), (), len(surface.inventory))
+    )
+    policy._equipment_transaction_restoring = False
+    surface = replace(surface, store=StoreState(STORE_HOME, [target]))
+
+    class AbandonRetryWorld(TownWorld):
+        def visible_terminal(self, reason):
+            if reason == "equipment-transaction:leave-for-atomic-withdraw":
+                return "transaction preserved through Home withdrawal handoff"
+            return super().visible_terminal(reason)
+
+    return policy, AbandonRetryWorld(surface, stock=[target])
+
+
 def _movement_opens_store_before_surface_observation():
     """A disclosed movement destination opens a shop before its first page."""
     helper = fixture.HomeOneOperationPerEntryTest()
@@ -981,6 +1012,10 @@ SEEDED_STATES = (
     AbsorbingState(
         "transaction-abandoned-mid-strip", 20,
         _transaction_abandoned_mid_strip,
+    ),
+    AbsorbingState(
+        "abandon-retry-home-pass-burn", 20,
+        _abandon_retry_home_pass_burn,
     ),
     AbsorbingState(
         "movement-opens-store-before-surface-observation", 10,
