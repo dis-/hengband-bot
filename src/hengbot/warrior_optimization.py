@@ -716,7 +716,7 @@ def prepare_warrior_optimization(
         current_item_ids=current.item_ids,
         pinned=pinned,
         excluded_item_ids=search_excluded_item_ids,
-        require_light=True,
+        require_light=depth is not None,
         required_flags=frozenset(required_candidate_flags),
     )
     result = optimize_loadout(
@@ -825,6 +825,11 @@ def _append_loadout_report(
         "search_truncated": result.search_truncated,
         "considered": result.combinations_considered,
         "evaluated": result.combinations_evaluated,
+        "band_descent": [asdict(decision) for decision in result.band_decisions],
+        "chosen_band": result.chosen_depth,
+        "chosen_ratio": (
+            result.band_decisions[-1].ratio if result.band_decisions else None
+        ),
         "candidates": candidates,
     }
     try:

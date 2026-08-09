@@ -322,6 +322,18 @@ class EvaluatedLoadout:
 
 
 @dataclass(frozen=True)
+class BandDecision:
+    """One inspectable step in an unconstrained depth-band descent."""
+
+    band: int
+    satisfying_set_existed: bool
+    melee: float | None
+    melee_free: float
+    refusal_reason: str | None
+    ratio: float | None
+
+
+@dataclass(frozen=True)
 class OptimizationResult:
     best: EvaluatedLoadout | None
     alternatives: tuple[EvaluatedLoadout, ...]
@@ -335,6 +347,8 @@ class OptimizationResult:
     incomplete_item_ids: frozenset[str]
     search_truncated: bool = False
     top_candidates: tuple[EvaluatedLoadout, ...] = ()
+    chosen_depth: int | None = None
+    band_decisions: tuple[BandDecision, ...] = ()
 
 
 LoadoutEvaluator = Callable[[Loadout], LoadoutMetrics]
@@ -826,7 +840,7 @@ def _meets_static_requirements(
     has_destruction: bool,
 ) -> bool:
     """Reject loadouts whose failure does not depend on combat evaluation."""
-    if loadout.item_at(SLOT_LIGHT) is None:
+    if depth is not None and loadout.item_at(SLOT_LIGHT) is None:
         return False
     abilities = set(intrinsic_abilities)
     for name, flag in ABILITY_FLAG.items():
@@ -1003,6 +1017,7 @@ def _selection_equivalence_key(
         )
     return (
         entry.metrics,
+        entry.loadout.flags.intersection(ABILITY_FLAG.values()),
         bow_policy,
         light_source_quality(entry.loadout),
         entry.loadout.item_ids == current_item_ids,
@@ -1200,26 +1215,43 @@ def optimize_loadout(
             evaluated_by_metrics[equivalence_key] = entry
 
     evaluated = list(evaluated_by_metrics.values())
-    if depth is None and evaluated:
-        deepest = max(
-            divable_depth(
-                entry.loadout,
-                intrinsic_abilities=intrinsic_abilities,
-                has_destruction=has_destruction,
-                speed_bonus=entry.metrics.speed_bonus,
-            )
-            for entry in evaluated
-        )
-        evaluated = [
-            entry
-            for entry in evaluated
-            if divable_depth(
-                entry.loadout,
-                intrinsic_abilities=intrinsic_abilities,
-                has_destruction=has_destruction,
-                speed_bonus=entry.metrics.speed_bonus,
-            ) == deepest
-        ]
+    chosen_depth = depth
+    band_decisions: list[BandDecision] = []
+    if depth is None and evaluated and not timed_out:
+        free_best = _stable_operational_best(evaluated, current_item_ids)
+        assert free_best is not None
+        melee_free = free_best.metrics.expected_dps
+        for band in (81, 80, 49, 39, 30, 25, 20, 19):
+            satisfying = [
+                entry
+                for entry in evaluated
+                if band == 19 or _meets_requirements(
+                    entry.loadout,
+                    entry.metrics,
+                    depth=band,
+                    intrinsic_abilities=intrinsic_abilities,
+                    has_destruction=has_destruction,
+                )
+            ]
+            band_best = _stable_operational_best(satisfying, current_item_ids)
+            if band_best is None:
+                band_decisions.append(BandDecision(
+                    band, False, None, melee_free, "no-set", None,
+                ))
+                continue
+            melee = band_best.metrics.expected_dps
+            ratio = None if melee_free == 0 else melee / melee_free
+            if melee_free != 0 and melee * 2 < melee_free:
+                band_decisions.append(BandDecision(
+                    band, True, melee, melee_free, "melee-ratio", ratio,
+                ))
+                continue
+            band_decisions.append(BandDecision(
+                band, True, melee, melee_free, None, ratio,
+            ))
+            evaluated = satisfying
+            chosen_depth = band
+            break
     frontier: list[EvaluatedLoadout] = []
     if not timed_out:
         for entry in evaluated:
@@ -1282,4 +1314,6 @@ def optimize_loadout(
         incomplete_item_ids=incomplete,
         search_truncated=bool(getattr(candidate_loadouts, "truncated", False)),
         top_candidates=ranked,
+        chosen_depth=chosen_depth,
+        band_decisions=tuple(band_decisions),
     )

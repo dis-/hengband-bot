@@ -9462,11 +9462,16 @@ class HengbotPolicy:
                     int,
                 )
             ):
-                self._equipment_optimization_last_depth = divable_depth(
-                    cached_best.loadout,
-                    intrinsic_abilities=calibration.intrinsic_abilities,
-                    has_destruction=has_destruction,
-                    speed_bonus=cached_best.metrics.speed_bonus,
+                cached_result = self._equipment_optimization_preparation.result
+                self._equipment_optimization_last_depth = (
+                    getattr(cached_result, "chosen_depth", None)
+                    if getattr(cached_result, "chosen_depth", None) is not None
+                    else divable_depth(
+                        cached_best.loadout,
+                        intrinsic_abilities=calibration.intrinsic_abilities,
+                        has_destruction=has_destruction,
+                        speed_bonus=cached_best.metrics.speed_bonus,
+                    )
                 )
             self._equipment_optimization_telemetry["result_source"] = (
                 "signature-cache-hit"
@@ -9646,6 +9651,12 @@ class HengbotPolicy:
                 len(search_catalog) >= INCREMENTAL_SEARCH_CATALOG_THRESHOLD
             )
             search_seed_loadout = current_loadout(search_catalog)
+            band_decisions = getattr(result, "band_decisions", ())
+            if not isinstance(band_decisions, (tuple, list)):
+                band_decisions = ()
+            chosen_depth = getattr(result, "chosen_depth", None)
+            if not isinstance(chosen_depth, int):
+                chosen_depth = None
             self._equipment_optimization_telemetry.update({
                 "search_strategy": (
                     "enumerate_single_slot_variants"
@@ -9657,6 +9668,22 @@ class HengbotPolicy:
                 "search_seed": "current-loadout" if incremental_search else "catalog",
                 "current_loadout_slots": len(search_seed_loadout.slots),
                 "current_loadout_empty": not search_seed_loadout.slots,
+                "band_descent": [
+                    {
+                        "band": decision.band,
+                        "satisfying_set_existed": decision.satisfying_set_existed,
+                        "melee": decision.melee,
+                        "melee_free": decision.melee_free,
+                        "refusal_reason": decision.refusal_reason,
+                        "ratio": decision.ratio,
+                    }
+                    for decision in band_decisions
+                ],
+                "chosen_band": chosen_depth,
+                "chosen_ratio": (
+                    band_decisions[-1].ratio
+                    if band_decisions else None
+                ),
             })
         best = getattr(result, "best", None)
         if (
@@ -9664,11 +9691,15 @@ class HengbotPolicy:
             and isinstance(getattr(best, "loadout", None), Loadout)
             and isinstance(getattr(getattr(best, "metrics", None), "speed_bonus", None), int)
         ):
-            self._equipment_optimization_last_depth = divable_depth(
-                best.loadout,
-                intrinsic_abilities=calibration.intrinsic_abilities,
-                has_destruction=has_destruction,
-                speed_bonus=best.metrics.speed_bonus,
+            self._equipment_optimization_last_depth = (
+                chosen_depth
+                if chosen_depth is not None
+                else divable_depth(
+                    best.loadout,
+                    intrinsic_abilities=calibration.intrinsic_abilities,
+                    has_destruction=has_destruction,
+                    speed_bonus=best.metrics.speed_bonus,
+                )
             )
         loadout = getattr(best, "loadout", None)
         selected_ids = getattr(loadout, "item_ids", frozenset())

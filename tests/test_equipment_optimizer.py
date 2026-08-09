@@ -139,6 +139,85 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertNotIn("shovel", result.best.loadout.item_ids)
         self.assertIn("sword", result.best.loadout.item_ids)
 
+    def test_live_catalogue_derives_25_and_retains_fire_katana(self):
+        """Live 2026-08-10 shape; dee4194 classified this catalogue at 19."""
+        katana = gear("live-katana-rFire", 23, flags=(50,))
+        fa_conf_ring = gear("live-home-ring-fa-rConf", 45, flags=(46, 57))
+        cloak = gear("live-home-cloak", 35)
+        result = optimize_loadout(
+            (self.light, katana, fa_conf_ring, cloak),
+            lambda loadout: metrics(
+                100 if "live-katana-rFire" in loadout.item_ids else 0,
+                dps=100 if "live-katana-rFire" in loadout.item_ids else 0,
+            ),
+            depth=None,
+        )
+
+        self.assertEqual(result.chosen_depth, 25)
+        self.assertIn("live-katana-rFire", result.best.loadout.item_ids)
+        self.assertGreaterEqual(result.band_decisions[-1].ratio, 1.0)
+
+    def test_depth_descent_retries_the_immediately_shallower_band(self):
+        deep = gear("weak-speed-gate", 32, flags=(62, 60, 79))
+        strong = gear("strong-50-band", 23, flags=(62, 60, 79))
+        candidates = (
+            Loadout((("light", self.light), (SLOT_HEAD, deep)), "empty"),
+            Loadout((("light", self.light), (SLOT_MAIN_HAND, strong)), "one_handed"),
+        )
+
+        def evaluate(loadout):
+            if "weak-speed-gate" in loadout.item_ids:
+                return metrics(10, dps=10, speed=25)
+            return metrics(100, dps=100)
+
+        result = optimize_loadout(
+            (self.light, deep, strong), evaluate, depth=None, has_destruction=True,
+            candidate_loadouts=candidates,
+        )
+
+        self.assertEqual(result.chosen_depth, 80)
+        self.assertEqual(result.band_decisions[0].refusal_reason, "melee-ratio")
+        self.assertIsNone(result.band_decisions[1].refusal_reason)
+
+    def test_requirement_free_band_terminates_for_empty_catalogue(self):
+        naked = Loadout((), "empty")
+        result = optimize_loadout(
+            (), lambda _loadout: metrics(0, dps=0), depth=None,
+            candidate_loadouts=(naked,),
+        )
+
+        self.assertEqual(result.chosen_depth, 19)
+        self.assertIs(result.best.loadout, naked)
+        self.assertEqual(result.band_decisions[-1].band, 19)
+        self.assertIsNone(result.band_decisions[-1].refusal_reason)
+
+    def test_zero_melee_classifies_on_abilities_alone(self):
+        ring = gear("ability-only", 45, flags=(46, 50, 57))
+        result = optimize_loadout(
+            (self.light, ring), lambda _loadout: metrics(1, dps=0), depth=None,
+        )
+
+        self.assertEqual(result.chosen_depth, 25)
+        self.assertIsNone(result.band_decisions[-1].ratio)
+
+    def test_band_telemetry_records_every_considered_band(self):
+        result = optimize_loadout(
+            (self.light,), lambda _loadout: metrics(7, dps=7), depth=None,
+            candidate_loadouts=(Loadout((("light", self.light),), "empty"),),
+        )
+
+        self.assertEqual(
+            [decision.band for decision in result.band_decisions],
+            [81, 80, 49, 39, 30, 25, 20, 19],
+        )
+        self.assertTrue(all(
+            decision.melee_free == 7 for decision in result.band_decisions
+        ))
+        self.assertTrue(all(
+            decision.refusal_reason == "no-set"
+            for decision in result.band_decisions[:-1]
+        ))
+
     def test_ranged_dps_breaks_otherwise_equal_launcher_tie(self):
         short = gear("short", 19, sval=12, equipped_slot="bow")
         xbow = gear("xbow", 19, sval=23)
