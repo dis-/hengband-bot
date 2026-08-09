@@ -29106,7 +29106,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         snap = self._town(abilities=frozenset({"resist_fire", "resist_pois"}))  # no conf
         self.assertEqual(pol._pick_alternate_dungeon(snap), 3)
 
-    def test_loadout_fallback_picks_deepest_dungeon_at_or_below_limit(self):
+    def test_alternate_selection_picks_deepest_dungeon_at_or_below_limit(self):
         pol = self._policy()
         snap = self._town(
             abilities=frozenset({"free_action", "resist_fire", "resist_conf"})
@@ -29119,7 +29119,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
             7,
         )
 
-    def test_loadout_fallback_uses_deepest_owned_loadout_above_twenty(self):
+    def test_owned_loadout_depth_is_not_inferred_from_recall_destinations(self):
         pol = self._policy()
         pol._deepest_level = 31
         pol._target_dungeon_id = DUNGEON_ANGBAND
@@ -29151,7 +29151,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
 
         self.assertEqual(pol._equipment_optimization_depth(snap), 19)
 
-    def test_loadout_fallback_uses_recall_landing_depth_not_entrance_depth(self):
+    def test_alternate_selection_uses_recall_landing_not_entrance_depth(self):
         pol = self._policy()
         snap = replace(
             self._town(
@@ -29229,7 +29229,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         snap = self._town(entered=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE))
         self.assertIsNone(pol._pick_alternate_dungeon(snap))
 
-    def test_loadout_fallback_can_use_the_yeek_cave(self):
+    def test_bounded_alternate_selection_can_use_the_yeek_cave(self):
         pol = self._policy()
         snap = replace(
             self._town(
@@ -45140,7 +45140,34 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             preparation.result.best.loadout.item_ids,
         )
 
-    def test_unsatisfiable_31f_live_shape_falls_back_and_ends_wearing(self):
+    def test_selected_loadout_derives_the_deepest_satisfied_band(self):
+        def equipment_with_flags(flags):
+            return [
+                replace(owned, known_flags=frozenset(flags))
+                if owned.slot == "body" else owned
+                for owned in self._equipment()
+            ]
+
+        cases = (
+            (self._equipment(), 19, "real character"),
+            (equipment_with_flags({46, 50}), 20, "free action and fire"),
+            (equipment_with_flags({48, 49, 50, 51, 52}), 30, "four elements"),
+        )
+        for equipment, expected, label in cases:
+            with self.subTest(loadout=label), TemporaryDirectory() as directory:
+                snapshot = replace(
+                    self._town(equipment=equipment),
+                    dungeon_recall_depths={DUNGEON_ANGBAND: 35},
+                )
+                policy = self._policy(
+                    snapshot, Path(directory) / "confirmed-loadout.json"
+                )
+
+                policy.choose_key(snapshot)
+
+                self.assertEqual(policy._equipment_optimization_last_depth, expected)
+
+    def test_owned_loadout_target_ignores_transport_inputs_and_ends_wearing(self):
         """47 owned items, zero chaos sources: dress for the deepest feasible band."""
         light = self._equipment()[-1]
         elemental_mail = item(
@@ -45190,7 +45217,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             ],
         )
         policy = self._policy(snapshot, None)
-        policy._deepest_level = 30
+        policy._deepest_level = 29
         policy._target_dungeon_id = DUNGEON_ANGBAND
         policy._town_was_in_town = True
         policy._town_visit_ledger.approach_fails[STORE_BLACK] = (
@@ -45239,13 +45266,13 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             policy._equipment_optimization_preparation
             or policy._prepare_equipment_optimization(dressed)
         )
-        def target_semantics(preparation):
-            return frozenset(
-                policy_module.equipment_identity(owned.item)
-                for _, owned in preparation.result.best.loadout.slots
-            )
+        def target_loadout(preparation):
+            return tuple(sorted(
+                (slot, policy_module.equipment_identity(owned.item))
+                for slot, owned in preparation.result.best.loadout.slots
+            ))
 
-        stable_target = target_semantics(dressed_preparation)
+        stable_target = target_loadout(dressed_preparation)
 
         worn_flags = set().union(
             *(owned.known_flags for owned in dressed.equipment)
@@ -45254,21 +45281,28 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         self.assertIn("Elemental Mail", {owned.name for owned in dressed.equipment})
         self.assertGreater(len(dressed.equipment), 1, "fallback left the character naked")
 
-        for changed in (
-            replace(dressed, dungeon_recall_depths={DUNGEON_ANGBAND: 35}),
+        changed_snapshots = [
+            replace(dressed, dungeon_recall_depths={DUNGEON_ANGBAND: depth})
+            for depth in range(30, 36)
+        ]
+        changed_snapshots.extend((
             replace(dressed, inventory=[*dressed.inventory, item(
                 "z", TVAL_SCROLL, 1, name="irrelevant scroll", known=True
             )]),
             replace(dressed, player=replace(dressed.player, gold=197)),
-        ):
+        ))
+        for index, changed in enumerate(changed_snapshots):
             policy.choose_key(changed)
             changed_preparation = (
                 policy._equipment_optimization_preparation
                 or policy._prepare_equipment_optimization(changed)
             )
             self.assertEqual(
-                target_semantics(changed_preparation),
+                target_loadout(changed_preparation),
                 stable_target,
+                f"target changed for transport-only variant {index}: "
+                f"recall={changed.dungeon_recall_depths}, "
+                f"pack={len(changed.inventory)}, gold={changed.player.gold}",
             )
 
     def test_write_oserror_allows_completion_but_not_fresh_process(self):

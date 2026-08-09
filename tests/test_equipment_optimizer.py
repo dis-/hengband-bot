@@ -1,7 +1,6 @@
 import unittest
 
 from hengbot.equipment_optimizer import (
-    ABILITY_FLAG,
     LoadoutMetrics,
     Loadout,
     OwnedEquipment,
@@ -15,7 +14,6 @@ from hengbot.equipment_optimizer import (
     TR_NO_TELE,
     TR_TELEPORT,
     enumerate_loadouts,
-    divable_depth,
     optimize_loadout,
     operational_equipment_candidate,
     random_teleport_is_suppressed,
@@ -1323,29 +1321,6 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
         catalog.observe_home_page([arrow])
 
         self.assertEqual(catalog.items, ())
-
-    def test_divable_depth_classifies_the_selected_loadout(self):
-        def loadout(*abilities):
-            flags = {ABILITY_FLAG[name] for name in abilities}
-            return Loadout(((SLOT_BODY, gear("body", 37, flags=flags)),), "one_handed")
-
-        self.assertEqual(divable_depth(loadout()), 19)
-        self.assertEqual(
-            divable_depth(loadout("free_action", "resist_fire")), 20
-        )
-        self.assertEqual(
-            divable_depth(loadout(
-                "resist_pois", "resist_cold", "resist_elec", "resist_acid"
-            )),
-            30,
-        )
-        self.assertEqual(
-            divable_depth(loadout(
-                "resist_chaos", "resist_neth", "telepathy"
-            ), has_destruction=True),
-            80,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

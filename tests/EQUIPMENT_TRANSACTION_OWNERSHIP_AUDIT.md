@@ -132,3 +132,27 @@ therefore pass such a named wait; under the strengthened rule the synthetic
 replay fails after four consecutive decisions.  All 18 unique seed factories
 are green at tip under the drive-ending rule; no tip seed succeeds merely by
 repeating a named wait.
+
+## 2026-08-09 owned-loadout derivation review fix event
+
+The public `choose_key` incident pin now holds the 47-item owned equipment
+catalog fixed and compares the complete selected slot-to-item loadout while
+recall depth varies independently through 30F, 31F, 32F, 33F, 34F, and 35F,
+then pack item count changes, then gold changes.  Every decision selects the
+identical loadout.  The independent public classifier pin covers the real
+character loadout plus 20F and 30F synthetic loadouts; against `4664f6c` it
+fails by observed values (`2 != 19`, `2 != 20`, and `2 != 30`), not import
+failure.
+
+The four surviving fallback-era test names were rewritten as:
+
+- `test_alternate_selection_picks_deepest_dungeon_at_or_below_limit`
+- `test_owned_loadout_depth_is_not_inferred_from_recall_destinations`
+- `test_alternate_selection_uses_recall_landing_not_entrance_depth`
+- `test_bounded_alternate_selection_can_use_the_yeek_cave`
+
+Verification used the codex primary runtime with `PYTHONPATH=src`.  Test-fakery
+lint retained its ratchet of 8 undeclared and 101 declared findings; sale lint
+reported zero findings; mutation battery met 5/5 expectations with
+`repo_tree_untouched: true`.  Two consecutive full-suite runs each passed 2465
+tests with one skip (208.126s and 208.980s).
