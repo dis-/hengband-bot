@@ -91,9 +91,9 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 21)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 21)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 21)
+        self.assertEqual(len(SEEDED_STATES), 22)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 22)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 22)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
     def test_public_choose_key_refuses_all_four_live_store_cycles(self):

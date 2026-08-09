@@ -156,3 +156,26 @@ lint retained its ratchet of 8 undeclared and 101 declared findings; sale lint
 reported zero findings; mutation battery met 5/5 expectations with
 `repo_tree_untouched: true`.  Two consecutive full-suite runs each passed 2465
 tests with one skip (208.126s and 208.980s).
+
+## 2026-08-10 Home block-authority fix event
+
+MEASURED from the preserved identify-staff incident: the common `choose_key`
+post-processing path reports each Home leave through `_report_town_stop_pass`.
+The third pre-equipment leave raised Home from two to three unsatisfied passes
+under the ordinary limit 3 and installed the block. Equipment work arose later:
+the projection became outstanding with limit 54 and passes 3 while Home stayed
+blocked, producing repeated `equipment-transaction:home-route-unavailable` and
+`equipment-transaction:abandon-blocked`. `identify_staff_ready` alone was false
+at 19 carried charges against target 20. These values and ordering are MEASURED.
+
+A ledger block on Home now denies only work whose applicable bound is the bound
+that installed it. `blocked_store_limits` records that authority. Consumed
+passes remain cumulative, so the new owner starts at three of 54. A block
+installed at 54, or 54 cumulative passes, still preserves the named
+`equipment-work-home-route-exhausted` terminal.
+
+Pins cover the public three-pass/54-pass transition, genuine exhaustion, the
+`identify_staff_ready` failed leaf, and the unique
+`block-authority-mismatch-home-route` absorbing seed. Against `6615318`, the
+public transition retains the captured `home-route-unavailable` then
+`abandon-blocked` failure shape and cannot execute the Home operation.

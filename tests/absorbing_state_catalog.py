@@ -936,6 +936,17 @@ def _exhausted_equipment_home_route():
     return policy, TownWorld(snap)
 
 
+def _block_authority_mismatch_home_route():
+    """An ordinary Home block cannot absorb later equipment-owned work."""
+    policy, world = _successful_optimizer_transaction()
+    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 3
+    policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+    policy._town_visit_ledger.blocked_store_limits[STORE_HOME] = (
+        policy_module.TOWN_STOP_PASS_LIMIT
+    )
+    return policy, world
+
+
 def _approach_refused_optimizer_transaction():
     """A detector refusal must not consume an open transaction's Home route."""
     policy, world = _successful_optimizer_transaction()
@@ -1102,6 +1113,10 @@ SEEDED_STATES = (
     AbsorbingState(
         "successful-optimizer-transaction", 100,
         _successful_optimizer_transaction,
+    ),
+    AbsorbingState(
+        "block-authority-mismatch-home-route", 100,
+        _block_authority_mismatch_home_route,
     ),
     AbsorbingState(
         "exhausted-equipment-home-route", 40,

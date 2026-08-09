@@ -28102,6 +28102,17 @@ class TownRecallReturnTest(unittest.TestCase):
             block["values"]["free_pack_slots"], PACK_CAPACITY - len(snap.inventory)
         )
 
+    def test_departure_block_telemetry_names_identify_staff_leaf(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pol._town_departure_ready = lambda _snapshot: False
+        pol._identify_staff_ready = lambda _snapshot: False
+
+        pol._departure_block = pol._departure_block_state(snap)
+
+        self.assertIn("identify_staff_ready", pol.departure_block_state()["failed"])
+
     def test_cross_town_identify_capture_starts_travel_instead_of_visible_stop(self):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
@@ -47877,6 +47888,71 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         )
         self.assertIsNone(policy._town_blocked_reason)
         self.assertNotEqual(key, WAIT_KEY)
+
+    def test_live_identify_staff_block_uses_equipment_work_authority(self):
+        """Replay the measured 3-pass block/54-pass owner through choose_key."""
+        policy, snapshot = self._fixture()
+        policy.choose_key(snapshot)
+        policy._town_errand_plan = None
+        policy._town_blocked_reason = None
+        policy._town_store_attempted.clear()
+        policy._store_visit = None
+        home = replace(
+            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
+        )
+        snapshot = replace(snapshot, grids={**snapshot.grids, home.position: home})
+        target = snapshot.inventory[0]
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            f"pack:{identity}:0",
+            item_identity=identity,
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 49)
+        )
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 3
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._town_visit_ledger.blocked_store_limits[STORE_HOME] = (
+            TOWN_STOP_PASS_LIMIT
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=object(),
+        )
+        policy._set_equipment_transaction_session(session)
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:approach-home",
+            (policy._town_errand_plan, policy._town_store_attempted,
+             policy._town_blocked_reason, policy._town_claim_categories),
+        )
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertTrue(session.executable)
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 4)
+        self.assertNotIn(
+            policy.last_reason,
+            {"equipment-transaction:home-route-unavailable",
+             "equipment-transaction:abandon-blocked"},
+        )
+
+    def test_fifty_four_authority_block_still_denies_equipment_route(self):
+        policy, _snapshot = self._fixture()
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("optimization-timeout",), result=None,
+        )
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
+            CALIBRATION_HOME_VISIT_LIMIT
+        )
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._town_visit_ledger.blocked_store_limits[STORE_HOME] = (
+            CALIBRATION_HOME_VISIT_LIMIT
+        )
+
+        self.assertFalse(policy._equipment_work_home_route_available())
 
     @staticmethod
     def _record_exhausted_equipment_decision(policy, snap, reasons, i):

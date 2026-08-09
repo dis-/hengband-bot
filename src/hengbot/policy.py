@@ -441,6 +441,7 @@ class TownVisitLedger:
     approach_fails: Counter[int] = field(default_factory=Counter)
     unsatisfied_passes: Counter[int] = field(default_factory=Counter)
     blocked_stores: set[int] = field(default_factory=set)
+    blocked_store_limits: dict[int, int] = field(default_factory=dict)
     passes_since_progress: int = 0
     drift_warnings: list[str] = field(default_factory=list)
     satisfied_needs: set[tuple[int, str]] = field(default_factory=set)
@@ -14164,7 +14165,7 @@ class HengbotPolicy:
                 "equipment-work", "equipment-transaction"
             }
             if (
-                need.store_type in self._town_visit_ledger.blocked_stores
+                self._town_store_blocked_under_applicable_bound(need.store_type)
                 or self._town_visit_ledger.approach_fails[need.store_type]
                 >= self._town_store_visit_limit(need.store_type)
                 or (
@@ -14477,7 +14478,11 @@ class HengbotPolicy:
             and not opening_q34
         ):
             self._start_fundraising(snapshot)
-        ledger_blocked = self._town_visit_ledger.blocked_stores | {
+        ledger_blocked = {
+            store
+            for store in self._town_visit_ledger.blocked_stores
+            if self._town_store_blocked_under_applicable_bound(store)
+        } | {
             store
             for store, failures in self._town_visit_ledger.approach_fails.items()
             if failures >= self._town_store_visit_limit(store)
@@ -14829,6 +14834,10 @@ class HengbotPolicy:
             return
         plan.blocked_this_visit.append(store_type)
         self._town_visit_ledger.blocked_stores.add(store_type)
+        # A ledger block's authority is the bound that installed it.  Passes
+        # remain cumulative, but a later owner with a different applicable
+        # bound is denied only when its own bound is exhausted.
+        self._town_visit_ledger.blocked_store_limits[store_type] = limit
         self._release_blocked_store_latches(store_type)
         plan.current_stop_passes = 0
         plan.index += 1
@@ -14847,6 +14856,7 @@ class HengbotPolicy:
         self._town_store_attempted.pop(store_type, None)
         if release_visit_bound:
             self._town_visit_ledger.blocked_stores.discard(store_type)
+            self._town_visit_ledger.blocked_store_limits.pop(store_type, None)
             self._town_visit_ledger.approach_fails.pop(store_type, None)
         if (
             release_visit_bound
@@ -14881,18 +14891,28 @@ class HengbotPolicy:
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
+    def _town_store_blocked_under_applicable_bound(self, store_type: int) -> bool:
+        """Return whether the recorded block has authority over current work."""
+        if store_type not in self._town_visit_ledger.blocked_stores:
+            return False
+        authority = self._town_visit_ledger.blocked_store_limits.get(store_type)
+        return authority is None or authority == self._town_store_visit_limit(store_type)
+
     def _equipment_work_home_route_available(self) -> bool:
         """Return whether outstanding equipment work can still route to Home.
 
         Work suppresses a departure terminal only while Home remains a live
-        route: an explicitly blocked Home or a consumed visit ceiling exhausts
-        that route, independently of the particular equipment blocker/reason.
+        route under the equipment-work bound.  A block installed by another
+        bound has no authority over this work; already consumed passes still
+        count, and exhaustion at this bound remains terminal.
         """
+        limit = self._town_store_visit_limit(STORE_HOME)
         return (
             self._outstanding_equipment_work()
-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] < limit
             and self._town_visit_ledger.approach_fails[STORE_HOME]
-            < self._town_store_visit_limit(STORE_HOME)
+            < limit
         )
 
     def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
@@ -17998,9 +18018,17 @@ class HengbotPolicy:
     def _shopping_approach_step(
         self, snapshot: Snapshot, store_type: int | None = None
     ) -> Position | None:
+        equipment_home_route = (
+            self._equipment_transaction_session is not None
+            and self._equipment_transaction_session.required_context == "home"
+            and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            and self._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+            < self._town_store_visit_limit(STORE_HOME)
+        )
         if not snapshot.in_town or (
             self._town_blocked_reason is not None
             and self._town_blocked_reason != "repetition"
+            and not equipment_home_route
         ):
             return None
         if self._shopping_stuck:
@@ -19719,6 +19747,14 @@ class HengbotPolicy:
                 ("home_candidate_waiting", home_available and values["home_candidate_waiting"]),
                 ("home_scan_complete", home_available and not values["home_scan_complete"]),
                 ("equipment_departure_ready", not values["equipment_departure_ready"]),
+                ("food_ready", not values["food_ready"]),
+                ("light_ready", not values["light_ready"]),
+                ("teleport_ready", not values["teleport_ready"]),
+                ("cure_critical_ready", not values["cure_critical_ready"]),
+                ("identify_staff_ready", not values["identify_staff_ready"]),
+                ("hp_full", not values["hp_full"]),
+                ("mp_full", not values["mp_full"]),
+                ("temporary_status_clear", not values["temporary_status_clear"]),
                 (selected_gate, not values[selected_gate]),
             )
             if failed
