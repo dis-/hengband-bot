@@ -835,6 +835,15 @@ def _meets_requirements(
     return True
 
 
+def usable_light_candidate(owned: OwnedEquipment) -> bool:
+    """Return whether a light can participate in an exploration loadout."""
+    return (
+        slot_for(owned.item) == SLOT_LIGHT
+        and owned.exploration_legal
+        and operational_equipment_candidate(owned)
+    )
+
+
 def _meets_static_requirements(
     loadout: Loadout,
     *,
@@ -1153,11 +1162,7 @@ def optimize_loadout(
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
     if require_light is None:
-        require_light = any(
-            slot_for(item.item) == SLOT_LIGHT
-            and operational_equipment_candidate(item)
-            for item in catalog
-        )
+        require_light = any(usable_light_candidate(item) for item in catalog)
     incomplete = frozenset(
         item.id
         for item in catalog

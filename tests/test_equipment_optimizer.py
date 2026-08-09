@@ -158,12 +158,12 @@ class EquipmentOptimizerTest(unittest.TestCase):
             depth=None, intrinsic_abilities=frozenset(),
         )
 
-        self.assertEqual(result.chosen_depth, 25)
-        self.assertIn("live-katana-rFire", result.best.loadout.item_ids)
         self.assertEqual(
             divable_depth(result.best.loadout, intrinsic_abilities=frozenset()),
             25,
         )
+        self.assertEqual(result.chosen_depth, 25)
+        self.assertIn("live-katana-rFire", result.best.loadout.item_ids)
         self.assertGreaterEqual(result.chosen_decision.ratio, 1.0)
 
     def test_usable_light_in_pool_rejects_stronger_lightless_loadout(self):
@@ -217,6 +217,39 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertTrue(result.band_decisions[-1].satisfying_set_existed)
         self.assertIsNone(result.band_decisions[-1].refusal_reason)
 
+    def test_requirement_free_band_keeps_nonempty_lightless_loadout(self):
+        katana = gear("lightless-katana", 23)
+        result = optimize_loadout(
+            (katana,), lambda loadout: metrics(len(loadout.item_ids)), depth=None,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertEqual(result.best.loadout.item_ids, frozenset({"lightless-katana"}))
+        self.assertEqual(result.chosen_depth, 19)
+        band_19 = next(
+            decision for decision in result.band_decisions if decision.band == 19
+        )
+        self.assertTrue(band_19.satisfying_set_existed)
+
+    def test_cursed_only_light_allows_best_lightless_loadout(self):
+        cursed_light = gear("cursed-light", 39, cursed=True)
+        katana = gear("cursed-light-katana", 23)
+        result = optimize_loadout(
+            (cursed_light, katana),
+            lambda loadout: metrics(len(loadout.item_ids)),
+            depth=None,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertEqual(
+            result.best.loadout.item_ids, frozenset({"cursed-light-katana"})
+        )
+        self.assertEqual(result.chosen_depth, 19)
+        band_19 = next(
+            decision for decision in result.band_decisions if decision.band == 19
+        )
+        self.assertTrue(band_19.satisfying_set_existed)
+
     def test_constrained_depth_reports_classified_band_ceiling(self):
         chaos = gear("chaos", 45, flags=(62,))
         result = optimize_loadout(
@@ -225,23 +258,6 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
         self.assertIsNotNone(result.best)
         self.assertEqual(result.chosen_depth, 39)
-
-    def test_excluded_worn_light_is_not_stripped_by_transaction_plan(self):
-        worn_light = gear("worn-light", 39, equipped_slot="light")
-        sword = gear("replacement-sword", 23)
-        current = Loadout((("light", worn_light),), "empty")
-        target = Loadout(((SLOT_MAIN_HAND, sword),), "one_handed")
-
-        plan = plan_equipment_transactions(
-            (worn_light, sword), current, target,
-            current_pack_items=1, home_scan_complete=True,
-            preserve_worn_light=True,
-        )
-
-        self.assertFalse(any(
-            action.kind == "takeoff" and action.item_id == "worn-light"
-            for action in plan.actions
-        ))
 
     def test_zero_melee_classifies_on_abilities_alone(self):
         ring = gear("ability-only", 45, flags=(46, 50, 57))

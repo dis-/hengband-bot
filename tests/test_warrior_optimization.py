@@ -303,6 +303,46 @@ class WarriorOptimizationTest(unittest.TestCase):
             )
         )
 
+    def test_excluded_worn_light_is_not_stripped_by_transaction_plan(self):
+        worn_light = gear("worn-light", "equipped", slot="light", tval=39)
+        old = gear("old-sword", "equipped", slot="main_hand")
+        better = gear("replacement-sword", "home", to_d=20)
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR,
+            stat_cur=(18, 10, 10, 18),
+            level=10,
+            shield_skill=0,
+            speed=110,
+            saving_skill=30,
+            abilities=frozenset(),
+            ac=0,
+            melee_skill=60,
+            two_weapon_skill=0,
+            max_hp=100,
+            max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )
+        items = (worn_light, old, better)
+
+        prepared = prepare_warrior_optimization(
+            snapshot, items, {1: monster}, depth=None,
+            home_scan_complete=True,
+            search_excluded_item_ids=frozenset({"worn-light"}),
+            calibration=seed_calibration(snapshot, items),
+        )
+
+        self.assertTrue(prepared.ready, prepared.blockers)
+        self.assertNotIn("worn-light", prepared.result.best.loadout.item_ids)
+        self.assertFalse(any(
+            action.kind == "takeoff" and action.item_id == "worn-light"
+            for action in prepared.transaction.actions
+        ))
+
     def test_large_catalog_uses_bounded_incremental_search(self):
         # Live 2026-07-24: a 51-item catalog at a shallow depth produced ~51,000
         # candidates that timed out the 25s search and tripped the bot's 90s

@@ -21,9 +21,9 @@ from hengbot.equipment_optimizer import (
     equipment_identity,
     optimizer_item_projection,
     optimize_loadout,
-    operational_equipment_candidate,
     required_abilities,
     slot_for,
+    usable_light_candidate,
 )
 from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
@@ -736,17 +736,17 @@ def prepare_warrior_optimization(
         if len(items) >= INCREMENTAL_SEARCH_CATALOG_THRESHOLD
         else enumerate_warrior_loadouts
     )
+    require_light = any(
+        item.id not in search_excluded_item_ids
+        and usable_light_candidate(item)
+        for item in items
+    )
     candidate_loadouts = search_factory(
         items,
         current_item_ids=current.item_ids,
         pinned=pinned,
         excluded_item_ids=search_excluded_item_ids,
-        require_light=any(
-            item.id not in search_excluded_item_ids
-            and slot_for(item.item) == SLOT_LIGHT
-            and operational_equipment_candidate(item)
-            for item in items
-        ),
+        require_light=require_light,
         required_flags=frozenset(required_candidate_flags),
     )
     result = optimize_loadout(
@@ -758,12 +758,7 @@ def prepare_warrior_optimization(
         current_item_ids=current.item_ids,
         timeout_seconds=timeout_seconds,
         candidate_loadouts=candidate_loadouts,
-        require_light=any(
-            item.id not in search_excluded_item_ids
-            and slot_for(item.item) == SLOT_LIGHT
-            and operational_equipment_candidate(item)
-            for item in items
-        ),
+        require_light=require_light,
     )
     if loadout_report_path is not None:
         _append_loadout_report(
