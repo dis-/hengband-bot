@@ -27989,7 +27989,8 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._town_store_attempted[STORE_HOME] = snap.turn
         self.assertIs(pol._find_home_deposit(snap), shovel)
         with patch.object(
-            pol, "_town_departure_ready", return_value=True
+            pol, "_recall_town_departure_conjuncts",
+            return_value={"test_ready": True},
         ), patch.object(pol, "_dungeon_entry_allowed", return_value=True):
             self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
@@ -28027,7 +28028,8 @@ class TownRecallReturnTest(unittest.TestCase):
             snap, dungeon_recall_depths={DUNGEON_ANGBAND: 31}
         )
         with patch.object(
-            pol, "_town_departure_ready", return_value=True
+            pol, "_recall_town_departure_conjuncts",
+            return_value={"test_ready": True},
         ), patch.object(
             pol, "_dungeon_entry_allowed", return_value=True
         ), patch.object(
@@ -28088,7 +28090,9 @@ class TownRecallReturnTest(unittest.TestCase):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
         )
-        pol._town_departure_ready = lambda _snapshot: False
+        conjuncts = pol._recall_town_departure_conjuncts(snap)
+        conjuncts["light_ready"] = False
+        pol._recall_town_departure_conjuncts = lambda _snapshot: dict(conjuncts)
 
         with patch.object(pol, "_town_claims_active", return_value=False):
             self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
@@ -28096,22 +28100,62 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_wander_streak, 0)
         block = pol.departure_block_state()
         self.assertEqual(block["gate"], "town_departure_ready")
-        self.assertIn("town_departure_ready", block["failed"])
-        self.assertFalse(block["values"]["town_departure_ready"])
+        self.assertEqual(block["failed"], ["light_ready"])
+        self.assertFalse(block["values"]["light_ready"])
         self.assertEqual(
-            block["values"]["free_pack_slots"], PACK_CAPACITY - len(snap.inventory)
+            block["diagnostics"]["free_pack_slots"], PACK_CAPACITY - len(snap.inventory)
         )
 
     def test_departure_block_telemetry_names_identify_staff_leaf(self):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
         )
-        pol._town_departure_ready = lambda _snapshot: False
         pol._identify_staff_ready = lambda _snapshot: False
 
         pol._departure_block = pol._departure_block_state(snap)
 
         self.assertIn("identify_staff_ready", pol.departure_block_state()["failed"])
+
+    def test_each_departure_conjunct_is_the_exact_failed_telemetry_leaf(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        baseline = pol._recall_town_departure_conjuncts(snap)
+        self.assertTrue(all(baseline.values()), baseline)
+        for failed_leaf in baseline:
+            with self.subTest(failed_leaf=failed_leaf):
+                candidate = dict(baseline)
+                candidate[failed_leaf] = False
+                current, current_snap = self._ready_town(
+                    8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+                )
+                current._recall_town_departure_conjuncts = (
+                    lambda _snapshot, values=candidate: dict(values)
+                )
+                with patch.object(current, "_town_claims_active", return_value=False):
+                    self.assertEqual(current.choose_key(current_snap), WAIT_KEY)
+                self.assertEqual(current.last_reason, "town:blocked:departure-unsatisfiable")
+                block = current.departure_block_state()
+                self.assertEqual(block["values"], candidate)
+                self.assertEqual(block["failed"], [failed_leaf])
+
+    def test_surplus_device_has_the_departure_blocking_organization_owner(self):
+        pol, snap = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        snap = replace(
+            snap,
+            inventory=[*snap.inventory, item("m", TVAL_STAFF, 8, count=2, charges=11)],
+        )
+        pol._town_need_supplier_reachable = lambda _snapshot, _need: True
+
+        surplus = pol._find_town_organization_surplus(snap)
+        self.assertIsNotNone(surplus)
+        self.assertEqual(surplus.slot, "m")
+        needs = pol._enumerate_town_needs(snap)
+        self.assertIn("organization-sale", [need.category for need in needs])
+        specs = {spec.category: spec for spec in pol._town_need_registry()}
+        self.assertTrue(specs["organization-sale"].departure_blocking)
 
     def test_cross_town_identify_capture_starts_travel_instead_of_visible_stop(self):
         pol, snap = self._ready_town(
@@ -47045,7 +47089,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
     def test_departure_waits_for_the_phase_and_the_restore_queue(self):
         policy = self._scan_complete_policy()
         snapshot = self._snapshot()
-        gate = policy_module.HengbotPolicy._town_departure_ready
+        gate = policy_module.HengbotPolicy._town_departure_conjuncts
         source = inspect.getsource(gate)
         self.assertIn("self._calibration_phase is None", source)
         self.assertIn("not self._calibration_restore_signatures", source)

@@ -10495,64 +10495,84 @@ class HengbotPolicy:
     ) -> bool:
         if snapshot.player.class_id < 0:
             return True
+        return all(
+            self._town_departure_conjuncts(
+                snapshot, ignore_free_slots=ignore_free_slots
+            ).values()
+        )
+
+    def _town_departure_conjuncts(
+        self, snapshot: Snapshot, *, ignore_free_slots: bool = False
+    ) -> dict[str, bool]:
+        """Evaluate and name every leaf of the ordinary town departure gate."""
         player = snapshot.player
         free_slots_ok = (
             ignore_free_slots
             or self._town_pack_space_ready(snapshot)
         )
 
-        return (
-            self._recall_departure_ready(snapshot)
+        home_required = self._home_available(snapshot)
+        return {
+            "recall_departure_ready": self._recall_departure_ready(snapshot),
             # A calibration-stripped character must be re-dressed (by the
             # restore session or a completed optimizer transaction) before ANY
             # departure path — including every pre-existing escape valve
             # deeper in this conjunction — can open.
-            and not self._calibration_stripped_unrestored
-            and (
+            "calibration_loadout_restored": not self._calibration_stripped_unrestored,
+            "food_ready": (
                 self._fundraising_food_ready(snapshot)
                 if self._fundraising_mode in {"prepare", "mine", "scavenge"}
                 else self._food_ready(snapshot)
-            )
-            and self._light_ready(snapshot)
-            and self._teleport_ready(snapshot)
-            and self._cure_critical_ready(snapshot)
-            and self._identify_staff_ready(snapshot)
-            and not any(
+            ),
+            "light_ready": self._light_ready(snapshot),
+            "teleport_ready": self._teleport_ready(snapshot),
+            "cure_critical_ready": self._cure_critical_ready(snapshot),
+            "identify_staff_ready": self._identify_staff_ready(snapshot),
+            "teleport_items_safe": not any(
                 self._blocks_teleport(item)
                 for item in (*snapshot.inventory, *snapshot.equipment)
-            )
-            and free_slots_ok
-            and not self._inventory_overweight(snapshot)
-            and player.hp >= player.max_hp
-            and player.mp >= player.max_mp
-            and self._temporary_status_clear(snapshot)
-            and self._find_town_organization_surplus(snapshot) is None
-            and self._equipment_departure_ready(snapshot)
-            and (
-                not self._home_available(snapshot)
-                or (
-                    not self._home_candidate_waiting
-                    # A bounded Home pass can end with the page catalog still
-                    # incomplete (for example, partly-known items remain on
-                    # pages that never became processable).  Once T3 marks Home
-                    # blocked for this visit, defer that catalog work and keep
-                    # the currently legal loadout; a fresh visit will rescan it.
-                    and (
-                        self._equipment_catalog.home_scan_complete
-                        or not self._home_catalog_routable(snapshot)
-                    )
-                    and self._home_pending_item is None
-                    and not self._home_pending_batch
-                    and not self._home_batch_review_items
-                    and self._home_atomic_withdraw_pending is None
-                    and self._identification_need is None
-                    # P1 calibration: never depart mid-phase or with the
-                    # calibration-deposited pack contents still at Home.
-                    and self._calibration_phase is None
-                    and not self._calibration_restore_signatures
-                )
-            )
-        )
+            ),
+            "free_pack_slots_ready": free_slots_ok,
+            "inventory_weight_ready": not self._inventory_overweight(snapshot),
+            "hp_full": player.hp >= player.max_hp,
+            "mp_full": player.mp >= player.max_mp,
+            "temporary_status_clear": self._temporary_status_clear(snapshot),
+            "organization_complete": (
+                self._find_town_organization_surplus(snapshot) is None
+            ),
+            "equipment_departure_ready": self._equipment_departure_ready(snapshot),
+            "home_candidate_resolved": (
+                not home_required or not self._home_candidate_waiting
+            ),
+            # A bounded Home pass can end with the page catalog still
+            # incomplete. Once Home is blocked, defer unroutable catalog work.
+            "home_catalog_ready": not home_required or (
+                self._equipment_catalog.home_scan_complete
+                or not self._home_catalog_routable(snapshot)
+            ),
+            "home_pending_item_clear": (
+                not home_required or self._home_pending_item is None
+            ),
+            "home_pending_batch_clear": (
+                not home_required or not self._home_pending_batch
+            ),
+            "home_batch_review_clear": (
+                not home_required or not self._home_batch_review_items
+            ),
+            "home_atomic_withdraw_clear": (
+                not home_required or self._home_atomic_withdraw_pending is None
+            ),
+            "identification_need_clear": (
+                not home_required or self._identification_need is None
+            ),
+            # Never depart mid-calibration or with its supplies still at Home.
+            "calibration_phase_complete": (
+                not home_required or self._calibration_phase is None
+            ),
+            "calibration_restore_complete": (
+                not home_required or not self._calibration_restore_signatures
+            ),
+        }
 
     def _town_pack_space_ready(self, snapshot: Snapshot) -> bool:
         """Accept four slots only after the town pipeline exhausted this pack."""
@@ -10564,6 +10584,25 @@ class HengbotPolicy:
         return self._terminal_pack_space_signature == self._town_pack_space_signature(
             snapshot
         )
+
+    def _recall_town_departure_conjuncts(self, snapshot: Snapshot) -> dict[str, bool]:
+        """Return the complete leaf set consumed by a town recall decision."""
+        values = self._town_departure_conjuncts(snapshot)
+        values.update(
+            {
+                "combat_weapon_ready": self._combat_weapon_ready(snapshot),
+                "departure_home_pending_item_clear": self._home_pending_item is None,
+                "departure_home_pending_batch_clear": not self._home_pending_batch,
+                "departure_home_batch_review_clear": not self._home_batch_review_items,
+                "departure_home_atomic_withdraw_clear": (
+                    self._home_atomic_withdraw_pending is None
+                ),
+                "departure_identification_need_clear": (
+                    self._identification_need is None
+                ),
+            }
+        )
+        return values
 
     @staticmethod
     def _town_pack_space_signature(
@@ -10626,7 +10665,7 @@ class HengbotPolicy:
         preparation = self._prepare_equipment_optimization(snapshot)
         complete_now = bool(
             preparation is not None
-            and preparation.ready
+            and getattr(preparation, "ready", False)
             and preparation.transaction is not None
             and not preparation.transaction.actions
             and self._equipment_transaction_session is None
@@ -14082,6 +14121,7 @@ class HengbotPolicy:
             ("safe-weapon", "home-first", 1, True),  # A teleport-safe weapon is a departure safety gate.
             ("combat-weapon", "home-first", 1, True),  # Combat weapon readiness gates departure.
             ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
+            ("organization-sale", "normal", 1, True),  # Recognized surplus gates departure.
             ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
             ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
             ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
@@ -19532,26 +19572,11 @@ class HengbotPolicy:
         # Free pack space is a hard departure requirement. A full Home or an
         # unreachable shop must not become permission to Recall over-packed.
         # Combat readiness remains an independent hard gate as well.
-        departure_ok = (
-            self._town_departure_ready(snapshot)
-        ) and self._combat_weapon_ready(snapshot)
-        departure_ok = (
-            departure_ok
-            and self._home_pending_item is None
-            and not self._home_pending_batch
-            and not self._home_batch_review_items
-            and self._home_atomic_withdraw_pending is None
-            # Deep fundraising already requires every full-identification
-            # candidate to be secured outside the pack/equipment and rejects a
-            # pending Home deposit in _fundraising_departure_ready.  Once that
-            # handoff is complete, the remembered identification need describes
-            # work safely waiting at Home; treating it as a second departure
-            # gate strands the miner outside the dungeon entrance forever.
-            and self._identification_need is None
-        )
+        departure_conjuncts = self._recall_town_departure_conjuncts(snapshot)
+        departure_ok = all(departure_conjuncts.values())
         if recall_dest is not None and not departure_ok:
             self._departure_block = self._departure_block_state(
-                snapshot
+                snapshot, departure_conjuncts
             )
         else:
             self._departure_block = {}
@@ -19686,10 +19711,9 @@ class HengbotPolicy:
         return None
 
     def _departure_block_state(
-        self, snapshot: Snapshot
+        self, snapshot: Snapshot, conjuncts: dict[str, bool] | None = None
     ) -> dict[str, object]:
-        """Expose every recall AND-gate value instead of an opaque false."""
-        home_available = self._home_available(snapshot)
+        """Expose the exact enumeration consumed by the departure decision."""
         town_ledger = {
             "store_visits": dict(self._town_visit_ledger.store_visits),
             "need_attempts": dict(self._town_visit_ledger.need_attempts),
@@ -19702,67 +19726,18 @@ class HengbotPolicy:
             "drift_warnings": list(self._town_visit_ledger.drift_warnings),
         }
         town_claims = list(getattr(self, "_town_claim_categories", ()))
-        values: dict[str, object] = {
-            "home_pending_item": self._home_pending_item,
-            "home_pending_batch": list(self._home_pending_batch),
-            "home_batch_review_items": list(self._home_batch_review_items),
-            "home_atomic_withdraw_pending": self._home_atomic_withdraw_pending,
-            "identification_need": self._identification_need,
-            "identification_source_reservation": (
-                self._identification_source_reservation
-            ),
-            "combat_weapon_ready": self._combat_weapon_ready(snapshot),
-            "free_pack_slots": PACK_CAPACITY - len(snapshot.inventory),
-            "minimum_free_pack_slots": MIN_FREE_PACK_SLOTS,
-            "home_available": home_available,
-            "home_candidate_waiting": self._home_candidate_waiting,
-            "home_scan_complete": self._equipment_catalog.home_scan_complete,
-            "equipment_departure_ready": self._equipment_departure_ready(snapshot),
-            "fundraising_departure_ready": self._fundraising_departure_ready(snapshot),
-            "town_departure_ready": self._town_departure_ready(snapshot),
-            "recall_departure_ready": self._recall_departure_ready(snapshot),
-            "food_ready": self._food_ready(snapshot),
-            "light_ready": self._light_ready(snapshot),
-            "teleport_ready": self._teleport_ready(snapshot),
-            "cure_critical_ready": self._cure_critical_ready(snapshot),
-            "identify_staff_ready": self._identify_staff_ready(snapshot),
-            "hp_full": snapshot.player.hp >= snapshot.player.max_hp,
-            "mp_full": snapshot.player.mp >= snapshot.player.max_mp,
-            "temporary_status_clear": self._temporary_status_clear(snapshot),
-        }
+        values = dict(conjuncts or self._recall_town_departure_conjuncts(snapshot))
         selected_gate = "town_departure_ready"
-        failures = [
-            name
-            for name, failed in (
-                ("combat_weapon_ready", not values["combat_weapon_ready"]),
-                ("free_pack_slots", values["free_pack_slots"] < MIN_FREE_PACK_SLOTS),
-                ("home_pending_item", values["home_pending_item"] is not None),
-                ("home_pending_batch", bool(values["home_pending_batch"])),
-                ("home_batch_review_items", bool(values["home_batch_review_items"])),
-                (
-                    "home_atomic_withdraw_pending",
-                    values["home_atomic_withdraw_pending"] is not None,
-                ),
-                ("identification_need", values["identification_need"] is not None),
-                ("home_candidate_waiting", home_available and values["home_candidate_waiting"]),
-                ("home_scan_complete", home_available and not values["home_scan_complete"]),
-                ("equipment_departure_ready", not values["equipment_departure_ready"]),
-                ("food_ready", not values["food_ready"]),
-                ("light_ready", not values["light_ready"]),
-                ("teleport_ready", not values["teleport_ready"]),
-                ("cure_critical_ready", not values["cure_critical_ready"]),
-                ("identify_staff_ready", not values["identify_staff_ready"]),
-                ("hp_full", not values["hp_full"]),
-                ("mp_full", not values["mp_full"]),
-                ("temporary_status_clear", not values["temporary_status_clear"]),
-                (selected_gate, not values[selected_gate]),
-            )
-            if failed
-        ]
+        failures = [name for name, value in values.items() if not value]
         return {
             "failed": failures,
             "values": values,
             "gate": selected_gate,
+            "ready": not failures,
+            "diagnostics": {
+                "free_pack_slots": PACK_CAPACITY - len(snapshot.inventory),
+                "minimum_free_pack_slots": MIN_FREE_PACK_SLOTS,
+            },
             "town_claims": town_claims,
             "town_ledger": town_ledger,
         }
