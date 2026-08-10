@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import hengbot.policy as policy_module
-from hengbot.cli import _send_new_decision_key
+from hengbot.cli import _send_new_decision_key, _send_stall_recovery_nudge
 
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.wilderness_map import WildernessMap
@@ -26503,7 +26503,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(observed), "d0y")
 
-    def test_preinscribed_stack_plan_build_uses_current_snapshot_count(self):
+    def test_preinscribed_stack_plan_build_re_resolves_current_snapshot_item(self):
         evidence = json.loads(
             Path("tests/fixtures/batch_sell_stack_quantity_20260810.json")
             .read_text(encoding="utf-8")
@@ -26524,6 +26524,106 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertEqual(key, "d099\ry")
         self.assertNotEqual(key, evidence["attempts"][0]["key"])
+
+    def test_batch_sale_entry_re_resolves_item_at_composition_boundary(self):
+        stale = replace(
+            item("j", TVAL_WAND, 1, count=2, name="wand"), inscription="@0"
+        )
+        current = replace(stale, count=1)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[current],
+            store=StoreState(store_type=STORE_MAGIC, items=[]),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        entry = policy._batch_sale_entry(snap, stale, "0")
+
+        self.assertEqual(entry["count"], 1)
+        self.assertEqual(entry["sell"], "d0y")
+
+    def test_live_shaped_sale_reaches_price_confirm_and_gold_delta(self):
+        sale = replace(
+            item("j", TVAL_WAND, 1, count=1, name="wand"), inscription="@0"
+        )
+        snap = Snapshot(
+            player(10, 10, gold=7589, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[sale],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        key = policy.choose_key(snap)
+        posted = []
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.extend(value) or True,
+            "observed-magic-store", key, None, set(), in_store=True,
+            decision={"reason": policy.last_reason, "key": key},
+        )
+        self.assertTrue(sent)
+        self.assertEqual(key, "d0y")
+        state = "store"
+        for character in posted:
+            if state == "store" and character == "d":
+                state = "sell-selection"
+            elif state == "sell-selection" and character == "0":
+                state = "price-confirm"
+            elif state == "price-confirm" and character == "y":
+                state = "store"
+            else:
+                self.fail((state, character))
+        gold_after = snap.player.gold + 125
+        self.assertEqual(state, "store")
+        self.assertGreater(gold_after, snap.player.gold)
+        self.assertFalse(_send_stall_recovery_nudge(
+            lambda value: posted.extend(value) or True, "\x1b", {key},
+            in_store=True,
+        ))
+        self.assertEqual("".join(posted), "d0y")
+
+    def test_live_shaped_recall_purchase_completes_with_gold_and_pack_delta(self):
+        snap = Snapshot(
+            player(10, 10, gold=7589, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            inventory=self._strict_supplies(recall=0),
+            equipment=[self._lantern()],
+            store=StoreState(store_type=STORE_TEMPLE, items=[
+                store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+            ]),
+        )
+        policy = HengbotPolicy()
+        key = policy.choose_key(snap)
+        posted = []
+        sent, _ = _send_new_decision_key(
+            lambda value, **_kwargs: posted.extend(value) or True,
+            "observed-temple-store", key, None, set(), in_store=True,
+            decision={"reason": policy.last_reason, "key": key},
+        )
+        self.assertTrue(sent)
+        self.assertEqual(key, "pa\r")
+        self.assertFalse(_send_stall_recovery_nudge(
+            lambda value: posted.extend(value) or True, "\x1b", {key},
+            in_store=True,
+        ))
+        self.assertEqual("".join(posted), "pa\r")
+        state = "store"
+        for character in posted:
+            if state == "store" and character == "p":
+                state = "buy-selection"
+            elif state == "buy-selection" and character == "a":
+                state = "quantity"
+            elif state == "quantity" and character == "\r":
+                state = "store"
+            else:
+                self.fail((state, character))
+        self.assertEqual(state, "store")
+        self.assertEqual(snap.player.gold - 20, 7569)
+        self.assertEqual(
+            sum(i.count for i in snap.inventory if i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_WORD_OF_RECALL) + 1,
+            1,
+        )
 
     def test_pile_sale_quantity_is_capped_by_retention_surplus(self):
         pile = item("j", TVAL_FOOD, FOOD_MIN_SVAL, count=3, name="rations")

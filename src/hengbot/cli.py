@@ -1427,8 +1427,12 @@ def _stall_recovery_key(
     return NUDGE_KEY, "<esc>"
 
 
-def _send_stall_recovery_nudge(send, key: str, posted_keys: set[str]) -> bool:
-    """Send a recovery nudge and release same-board key suppression."""
+def _send_stall_recovery_nudge(
+    send, key: str, posted_keys: set[str], *, in_store: bool = False,
+) -> bool:
+    """Send a command-loop recovery nudge, never into a store transaction."""
+    if in_store:
+        return False
     sent = send(key)
     if sent:
         posted_keys.clear()
@@ -2352,12 +2356,17 @@ def _run_follow(
                     last_player_level,
                     snapshot is not None and snapshot.store is not None,
                 )
-                if _send_stall_recovery_nudge(
-                    send, recovery_key, posted_decision_keys
-                ):
+                recovery_sent = _send_stall_recovery_nudge(
+                    send,
+                    recovery_key,
+                    posted_decision_keys,
+                    in_store=snapshot is not None and snapshot.store is not None,
+                )
+                if recovery_sent:
                     print(recovery_marker, flush=True)
                 last_activity = now
-                nudge_streak += 1
+                if recovery_sent:
+                    nudge_streak += 1
                 # Nudges that never bring back a snapshot mean a screen outside
                 # the command loop. That is DEATH only if the game process is
                 # actually winding down — a store/sale prompt chain that ate the
@@ -2366,7 +2375,11 @@ def _run_follow(
                 # blast the exit keys, then look at the PROCESS. Gone -> death,
                 # exit. Still alive -> the blast doubled as prompt clearing;
                 # resync and keep playing.
-                if nudge_streak >= TERMINAL_NUDGE_LIMIT and args.send_to_window:
+                if (
+                    recovery_sent
+                    and nudge_streak >= TERMINAL_NUDGE_LIMIT
+                    and args.send_to_window
+                ):
                     for _ in range(DEATH_EXIT_ROUNDS):
                         for exit_key in DEATH_EXIT_KEYS:
                             send(exit_key)

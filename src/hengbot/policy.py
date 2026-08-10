@@ -17349,6 +17349,12 @@ class HengbotPolicy:
         self, snapshot: Snapshot, item: InventoryItem, tag: str
     ) -> dict[str, object]:
         """Classify one tagged sale from the snapshot being composed."""
+        signature = self._item_signature(item)
+        item = next(
+            current
+            for current in snapshot.inventory
+            if self._item_signature(current) == signature
+        )
         surplus = self._retention_surplus(snapshot, item)
         quantity = item.count if surplus <= 0 else min(item.count, surplus)
         amount = "99" if quantity == item.count else str(quantity)

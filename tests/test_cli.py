@@ -1273,6 +1273,38 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
 
         self.assertEqual(posted, ["\x1b"])
 
+    def test_live_store_transaction_refuses_unowned_stall_escape(self):
+        """11:55: d0y was followed by an unowned Escape after 1.5 seconds."""
+        posted = []
+        posted_keys = {"d0y"}
+
+        sent = _send_stall_recovery_nudge(
+            lambda value: posted.append(value) or True,
+            "\x1b",
+            posted_keys,
+            in_store=True,
+        )
+
+        self.assertFalse(sent)
+        self.assertEqual(posted, [])
+        self.assertEqual(posted_keys, {"d0y"})
+
+    def test_repeated_store_refusals_cannot_arm_terminal_recovery(self):
+        posted = []
+        nudge_streak = 0
+        for _ in range(20):
+            sent = _send_stall_recovery_nudge(
+                lambda value: posted.append(value) or True,
+                "\x1b",
+                {"d0y"},
+                in_store=True,
+            )
+            if sent:
+                nudge_streak += 1
+
+        self.assertEqual(nudge_streak, 0)
+        self.assertEqual(posted, [])
+
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's
         # Enter must not reach the command loop. After confirmation, the
