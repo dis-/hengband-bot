@@ -398,6 +398,30 @@ def _advance_town_blocked_streak(
     return streak
 
 
+def _advance_town_blocked_iteration(
+    policy,
+    snapshot,
+    streak: int,
+    previous_durable_state,
+    *,
+    floor_changed: bool = False,
+):
+    """Apply the production town-fuse projection and authoritative gate."""
+    current_durable_state = policy._town_workflow_progress_state(snapshot)
+    durable_progress = (
+        previous_durable_state is not None
+        and current_durable_state != previous_durable_state
+    )
+    streak = _advance_town_blocked_streak(
+        streak,
+        policy.last_reason,
+        in_town=snapshot.in_town,
+        floor_changed=floor_changed,
+        durable_progress=durable_progress,
+    )
+    return streak, current_durable_state
+
+
 def _advance_town_residence_streak(
     streak: int, previous_floor_key: tuple | None, floor_key: tuple
 ) -> int:
@@ -2289,26 +2313,14 @@ def _run_follow(
                     # not break the streak).  Filler actions such as restock
                     # waits and wandering do not erase blocked evidence either:
                     # only observed town-workflow progress resets the fuse.
-                    current_town_blocked_durable_state = (
-                        policy._town_workflow_progress_state(snapshot)
-                    )
-                    durable_town_progress = (
-                        town_blocked_durable_state is not None
-                        and current_town_blocked_durable_state
-                        != town_blocked_durable_state
-                    )
-                    town_blocked_durable_state = (
-                        current_town_blocked_durable_state
-                    )
-                    blocked_streak = _advance_town_blocked_streak(
-                        blocked_streak,
-                        policy.last_reason,
-                        in_town=(
-                            snapshot.floor_key[0] == 0
-                            and snapshot.floor_key[1] == 0
-                        ),
-                        floor_changed=floor_changed,
-                        durable_progress=durable_town_progress,
+                    blocked_streak, town_blocked_durable_state = (
+                        _advance_town_blocked_iteration(
+                            policy,
+                            snapshot,
+                            blocked_streak,
+                            town_blocked_durable_state,
+                            floor_changed=floor_changed,
+                        )
                     )
                     if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
                         print(

@@ -2,6 +2,7 @@ import json
 import os
 import argparse
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -30,6 +31,7 @@ from hengbot.cli import (
     TRAVEL_MACRO_TRIGGERS,
     TRAVEL_PROMPT_DELAY_SECONDS,
     _add_input_delay_arguments,
+    _advance_town_blocked_iteration,
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
@@ -2297,6 +2299,67 @@ class TownBlockedStreakTest(unittest.TestCase):
             0,
         )
 
+    def test_live_wiring_uses_authoritative_town_flag(self):
+        from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
+        from hengbot.model import PlayerState, Snapshot
+        from hengbot.policy import HengbotPolicy
+
+        policy = HengbotPolicy()
+        policy.last_reason = "town:blocked:repetition"
+        wilderness = Snapshot(
+            player=PlayerState(
+                position=Position(10, 10), hp=10, max_hp=10,
+                mp=0, max_mp=0, level=1,
+            ),
+            grids={},
+            visible_monsters=[],
+            floor_key=(0, 0, 0),
+            town_flag=False,
+        )
+        town = replace(wilderness, town_flag=True)
+
+        streak = TOWN_BLOCKED_STOP_LIMIT - 1
+        state = None
+        for _ in range(2):
+            streak, state = _advance_town_blocked_iteration(
+                policy, wilderness, streak, state
+            )
+        self.assertEqual(streak, 0)
+
+        for _ in range(TOWN_BLOCKED_STOP_LIMIT):
+            streak, state = _advance_town_blocked_iteration(
+                policy, town, streak, state
+            )
+        self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
+
+    def test_live_wiring_real_gold_progress_never_fuses(self):
+        from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
+        from hengbot.model import PlayerState, Snapshot
+        from hengbot.policy import HengbotPolicy
+
+        policy = HengbotPolicy()
+        policy.last_reason = "town:blocked:repetition"
+        snapshot = Snapshot(
+            player=PlayerState(
+                position=Position(10, 10), hp=10, max_hp=10,
+                mp=0, max_mp=0, level=1, gold=100,
+            ),
+            grids={},
+            visible_monsters=[],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        streak = 0
+        state = None
+        for decision in range(TOWN_BLOCKED_STOP_LIMIT + 5):
+            current = replace(
+                snapshot, player=replace(snapshot.player, gold=100 + decision)
+            )
+            streak, state = _advance_town_blocked_iteration(
+                policy, current, streak, state
+            )
+        self.assertEqual(streak, 1)
+
     def test_real_wander_capture_fuses_when_messages_are_not_progress(self):
         from hengbot.cli import (
             TOWN_BLOCKED_STOP_LIMIT,
@@ -2333,21 +2396,31 @@ class TownBlockedStreakTest(unittest.TestCase):
             row for row in rows if row.get("decision_sequence") is not None
         ]
 
-        def captured_progress(row, *, messages):
+        def captured_snapshot(row):
             player = row.get("player") or {}
-            inventory = row.get("inventory")
-            return (
-                row.get("store_type"),
-                tuple(row.get("messages") or ()) if messages else (),
-                None if inventory is None else tuple(sorted(inventory.items())),
-                player.get("gold"),
+            inventory = tuple(
+                SimpleNamespace(name=name, count=value)
+                for name, value in sorted((row.get("inventory") or {}).items())
+            )
+            store_type = row.get("store_type")
+            store = None if store_type is None else SimpleNamespace(
+                store_type=store_type, stock_num=None, page_top=None, items=()
+            )
+            return SimpleNamespace(
+                store=store,
+                messages=tuple(row.get("messages") or ()),
+                inventory=inventory,
+                equipment=(),
+                player=SimpleNamespace(gold=player.get("gold")),
             )
 
         legacy_streak = legacy_max = 0
         legacy_previous = None
         legacy_fuse = None
         for index, row in enumerate(decisions):
-            current = captured_progress(row, messages=True)
+            current = HengbotPolicy._town_observable_effect_state(
+                captured_snapshot(row)
+            )
             changed = legacy_previous is not None and current != legacy_previous
             legacy_previous = current
             legacy_streak = _advance_town_blocked_streak(
@@ -2366,7 +2439,9 @@ class TownBlockedStreakTest(unittest.TestCase):
         previous = None
         fused_at = None
         for index, row in enumerate(decisions):
-            current = captured_progress(row, messages=False)
+            current = HengbotPolicy._town_workflow_progress_state(
+                captured_snapshot(row)
+            )
             changed = previous is not None and current != previous
             previous = current
             streak = _advance_town_blocked_streak(
