@@ -10152,6 +10152,20 @@ class HengbotPolicy:
             if state is not None:
                 self._town_travel_fallback = state.goal
                 self._town_travel_state = None
+        if (
+            owner in {"shop:leave", "shop:await-leave-confirmation"}
+            and self._store_buy_inflight is not None
+        ):
+            # A buy prompt is still owned by the purchase that raised it.  If
+            # a leave flow raced that prompt, restore the purchase observation
+            # window so the fallback decision is the prompt owner's bounded
+            # await, never another foreign Escape.
+            store, signature, count, gold, _waits, _generation = (
+                self._store_buy_inflight
+            )
+            self._store_buy_inflight = (
+                store, signature, count, gold, 0, self._decision_sequence
+            )
         self._discard_unposted_equipment_transaction_command()
 
     def _discard_unposted_equipment_transaction_command(self) -> None:
@@ -17257,13 +17271,14 @@ class HengbotPolicy:
         if pending is not None and pending["store_type"] == store.store_type:
             entries = pending["entries"]
             if pending["phase"] == "await-inscription":
-                inventory = {
-                    self._item_signature(item): item for item in snapshot.inventory
-                }
+                def observed_tagged(entry):
+                    return next((
+                        current for current in snapshot.inventory
+                        if self._item_signature(current) == entry["signature"]
+                        and re.search(rf"@{entry['tag']}(?!\d)", current.inscription)
+                    ), None)
                 observed = all(
-                    (item := inventory.get(entry["signature"])) is not None
-                    and re.search(rf"@{entry['tag']}(?!\d)", item.inscription)
-                    is not None
+                    observed_tagged(entry) is not None
                     for entry in entries
                 )
                 if not observed:
@@ -17277,8 +17292,13 @@ class HengbotPolicy:
                 # prompt chain from the item in this observed snapshot, not
                 # from the pre-inscription candidate cached in the plan.
                 for entry in entries:
-                    item = inventory[entry["signature"]]
-                    entry.update(self._batch_sale_entry(snapshot, item, entry["tag"]))
+                    item = observed_tagged(entry)
+                    assert item is not None
+                    sale = self._batch_sale_entry(snapshot, item, entry["tag"])
+                    if sale is None:
+                        self._batch_sell_pending = None
+                        return ""
+                    entry.update(sale)
                 pending["phase"] = "await-sale"
                 self.last_reason = "shop:batch-sell"
                 return "".join(entry["sell"] for entry in entries)
@@ -17286,9 +17306,14 @@ class HengbotPolicy:
             # Exactly one post-sale snapshot verifies every tagged item.  Any
             # survivor advances the ordinary attempt record and is then handled
             # by a fresh inscription-bound transaction if policy still wants it.
-            inventory = {self._item_signature(item): item for item in snapshot.inventory}
             for entry in entries:
-                survivor = inventory.get(entry["signature"])
+                survivor = next((
+                    current for current in snapshot.inventory
+                    if self._item_signature(current) == entry["signature"]
+                    and re.search(
+                        rf"@{entry['tag']}(?!\d)", current.inscription
+                    )
+                ), None)
                 expected = entry["count"] - entry["quantity"]
                 if survivor is not None and survivor.count > expected:
                     attempts = 1
@@ -17326,10 +17351,14 @@ class HengbotPolicy:
                 continue
             if not has_exact_tag:
                 inscribe_parts.append("{" + item.slot + exact_tag + "\r")
+            sale = self._batch_sale_entry(snapshot, item, digit)
+            if sale is None:
+                self._batch_sell_pending = None
+                return ""
             entries.append({
                 "signature": self._item_signature(item),
                 "tag": digit,
-                **self._batch_sale_entry(snapshot, item, digit),
+                **sale,
             })
         if not entries:
             self.last_reason = "shop:sale-inscription-unavailable-leave"
@@ -17347,14 +17376,17 @@ class HengbotPolicy:
 
     def _batch_sale_entry(
         self, snapshot: Snapshot, item: InventoryItem, tag: str
-    ) -> dict[str, object]:
+    ) -> dict[str, object] | None:
         """Classify one tagged sale from the snapshot being composed."""
         signature = self._item_signature(item)
-        item = next(
-            current
-            for current in snapshot.inventory
+        item = next((
+            current for current in snapshot.inventory
             if self._item_signature(current) == signature
-        )
+            and current.inscription == item.inscription
+        ), None)
+        if item is None:
+            self.last_reason = "shop:batch-sale-signature-unobserved"
+            return None
         surplus = self._retention_surplus(snapshot, item)
         quantity = item.count if surplus <= 0 else min(item.count, surplus)
         amount = "99" if quantity == item.count else str(quantity)
@@ -18383,6 +18415,14 @@ class HengbotPolicy:
             travel_reason,
         )
         if travel is not None:
+            # Native travel runs to completion without an intermediate bot
+            # snapshot and may therefore perform the final movement onto the
+            # shop tile itself.  Own that possible entry exactly like the
+            # disclosed one-step entrance path below: the next surface page is
+            # the documented lagged observation, not permission to compose a
+            # store command across the entry flush.
+            self._store_entry_wait_owner = store_type
+            self._store_entry_wait_key = travel
             return travel
         return self._step_toward(snapshot, step)
 

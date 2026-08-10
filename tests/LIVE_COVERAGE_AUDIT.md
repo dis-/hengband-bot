@@ -197,3 +197,84 @@ Scenario transfer:
   withdrawal-plus-inscription happy path; it does not pin the deferred guard.
 - `home-random-teleport-suppression-refusal` owns the `400be44` historical
   failure and pins release from the guard-reverted absorbing shape.
+
+## 2026-08-10 store-input-ownership fix event
+
+time: `2026-08-10T12:46:37.0193204+09:00`
+
+The killer-1 gate hole was measured in the policy state machine: only an
+explicit entrance WAIT and `_step_toward`'s disclosed one-tile destination
+armed `_store_entry_posted_owner`. Native `shop:approach` travel can run all
+the way onto the store tile without another bot snapshot, but its composed
+travel key was never registered as a possible entry. The ledger's `9` took
+that uncovered path. Native store travel now owns the same lagged observation
+barrier before any store operation can compose.
+
+| Killer-1 replay | aadc336 | fixed |
+| --- | --- | --- |
+| approach post | ``\x1b`n%.`` (the captured landmark is `9`) | same |
+| post confirmed as possible entry | `False` | `True` |
+| lagged surface decision | key `8`, reason `probe` | key empty, reason `store:entry-await-observation` |
+| next store operation | could race entry flush | composes only from the observed store page |
+
+Historical aadc336 failure: `AssertionError: d raced entry flush: no
+store:entry-await-observation` (observed output: `confirm False`, `lagged '8'
+probe`).
+
+| Killer-2 replay | adb6d53 | aadc336 | fixed |
+| --- | --- | --- | --- |
+| fresh authoritative store page | ownerless ESC posted | ESC refused | `wait` |
+| genuine stall past configured 1.5s bound | ownerless ESC posted | still refused forever | `incident_stop('store-input-ownership-stall')` |
+| vanished out-of-store window | send failure did not arm terminal recovery | same | failed attempts count toward `TERMINAL_NUDGE_LIMIT` |
+
+Historical adb6d53 failure: `AssertionError: ownerless ESC posted into open
+store prompt` with `sent True posted ['\x1b']`. Historical aadc336 failure:
+`AssertionError: unbounded absorbing refusal: no bounded leave or
+incident_stop` with `sent 0 posted []` after twenty attempts.
+
+| Killer-3 buy-confirm replay | adb6d53 | fixed |
+| --- | --- | --- |
+| open prompt owner | `shop:await-buy-confirmation` | same |
+| foreign answer | `shop:leave` / Escape | sender refuses and retains marker |
+| fallback state | unchanged exhausted buy window | wait count reset to 0 and generation rebound to the purchase owner |
+| completion | confirm could not complete through the foreign-owner fallback | observed pack +1 and gold -20 clear `_store_buy_inflight` |
+
+Historical adb6d53 failure: `AssertionError: foreign shop:leave refusal has no
+purchase-owned fallback; confirm cannot complete`; the inflight tuple was
+unchanged before and after refusal.
+
+Batch-sale composition now resolves `(name, tval, sval)` together with the
+sale inscription. A missing or colliding foreign inscription returns no sale
+key and records `shop:batch-sale-signature-unobserved` instead of leaking
+`StopIteration`. Post-sale survivor verification also uses its exact sale tag.
+
+Scenario transfer:
+
+- `test_repeated_store_refusals_cannot_arm_terminal_recovery`, which asserted
+  the absorbing state, is replaced by
+  `test_store_recovery_waits_fresh_then_ends_drive_at_stall_bound`; the former
+  dead-window half transfers to
+  `test_failed_window_send_still_reaches_terminal_attempt_bound`.
+- The unchanged ownerless-ESC scenario remains in
+  `test_live_store_transaction_refuses_unowned_stall_escape`.
+- Native entry-flush ordering lives in
+  `test_native_store_travel_owns_lagged_entry_observation`.
+- Foreign buy-confirm ownership and completion live in
+  `test_preserved_sale_prompt_rejects_foreign_escape_owner`,
+  `test_live_shaped_recall_purchase_completes_with_gold_and_pack_delta`.
+- Sale completion and inscription collision live in
+  `test_live_shaped_sale_reaches_price_confirm_and_gold_delta` and
+  `test_batch_sale_missing_or_foreign_inscription_is_visible_refusal`.
+- `test_batch_straggler_advances_attempt_and_does_not_rebatch` keeps its name;
+  its survivor now truthfully retains the `@1` inscription of the refused
+  sale. No scenario or test name was otherwise lost.
+
+The evidence ledger live-coverage audit reports seven existing orphans: key
+shapes ``\x1b`n'.``, `Cf\ry\x1b\x1b`, ``\x1b`n$.``, ``\x1b`n&.``, `pj2\r\r`, and
+`rhe`; and reason
+`town:entrance-step-off:town:await-recall-confirmation`. The default mutation
+battery passed 5/5 with `repo_tree_untouched: true`; sale-key lint reported
+zero violations; changed-file fakery lint introduced zero new violations. The
+real-repository full suite passed twice with `PYTHONPATH=src` and the mandated
+runtime: 2,518 tests in 221.200s and 2,518 tests in 215.354s, both `OK
+(skipped=1)`.

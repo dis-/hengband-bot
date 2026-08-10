@@ -26545,6 +26545,23 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(entry["count"], 1)
         self.assertEqual(entry["sell"], "d0y")
 
+    def test_batch_sale_missing_or_foreign_inscription_is_visible_refusal(self):
+        stale = replace(
+            item("j", TVAL_WAND, 1, name="wand"), inscription="@0"
+        )
+        collision = replace(stale, slot="k", inscription="@1")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[collision],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertIsNone(policy._batch_sale_entry(snap, stale, "0"))
+        self.assertEqual(
+            policy.last_reason, "shop:batch-sale-signature-unobserved"
+        )
+
     def test_live_shaped_sale_reaches_price_confirm_and_gold_delta(self):
         sale = replace(
             item("j", TVAL_WAND, 1, count=1, name="wand"), inscription="@0"
@@ -26574,9 +26591,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 state = "store"
             else:
                 self.fail((state, character))
-        gold_after = snap.player.gold + 125
+        applied = replace(
+            snap,
+            player=replace(snap.player, gold=7714),
+            inventory=[],
+            turn=snap.turn + 1,
+        )
+        policy.choose_key(applied)
         self.assertEqual(state, "store")
-        self.assertGreater(gold_after, snap.player.gold)
+        self.assertEqual(applied.player.gold - snap.player.gold, 125)
+        self.assertEqual(len(snap.inventory) - len(applied.inventory), 1)
         self.assertFalse(_send_stall_recovery_nudge(
             lambda value: posted.extend(value) or True, "\x1b", {key},
             in_store=True,
@@ -26608,6 +26632,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             in_store=True,
         ))
         self.assertEqual("".join(posted), "pa\r")
+        policy.refuse_key_posting("shop:leave", LEAVE_STORE_KEY)
+        self.assertEqual(policy._store_buy_inflight[4], 0)
+        self.assertEqual(
+            policy._store_buy_inflight[5], policy._decision_sequence
+        )
         state = "store"
         for character in posted:
             if state == "store" and character == "p":
@@ -26618,12 +26647,21 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 state = "store"
             else:
                 self.fail((state, character))
-        self.assertEqual(state, "store")
-        self.assertEqual(snap.player.gold - 20, 7569)
-        self.assertEqual(
-            sum(i.count for i in snap.inventory if i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_WORD_OF_RECALL) + 1,
-            1,
+        purchased = item(
+            "z", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+            name="Scroll of Word of Recall",
         )
+        applied = replace(
+            snap,
+            player=replace(snap.player, gold=7569),
+            inventory=[*snap.inventory, purchased],
+            turn=snap.turn + 1,
+        )
+        policy.choose_key(applied)
+        self.assertEqual(state, "store")
+        self.assertEqual(snap.player.gold - applied.player.gold, 20)
+        self.assertEqual(len(applied.inventory) - len(snap.inventory), 1)
+        self.assertIsNone(policy._store_buy_inflight)
 
     def test_pile_sale_quantity_is_capped_by_retention_surplus(self):
         pile = item("j", TVAL_FOOD, FOOD_MIN_SVAL, count=3, name="rations")
@@ -26707,7 +26745,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 ],
             )
             self.assertEqual(policy._batch_sell_key(observed), "d0yd1y")
-            remaining = replace(snap, inventory=[candidates[1]])
+            remaining = replace(
+                snap, inventory=[replace(candidates[1], inscription="@1")]
+            )
             self.assertEqual(policy._batch_sell_key(remaining), LEAVE_STORE_KEY)
             self.assertEqual(policy.last_reason, "shop:batch-verify-leave")
             self.assertEqual(policy._store_sell_attempt[0], policy._item_signature(candidates[1]))
@@ -36719,6 +36759,16 @@ class StoreTravelRetryTest(unittest.TestCase):
         self.assertEqual(self._approach(pol, self._snap(94)), "\x1b`n%.")
         # Interrupted mid-route but closer than before: travel again.
         self.assertEqual(self._approach(pol, self._snap(110)), "\x1b`n%.")
+
+    def test_native_store_travel_owns_lagged_entry_observation(self):
+        pol = HengbotPolicy()
+        approach = self._approach(pol, self._snap(94))
+        self.assertEqual(approach, "\x1b`n%.")
+        self.assertTrue(pol.confirm_key_posted(approach))
+
+        lagged_surface = self._snap(130, turn=1)
+        self.assertEqual(pol.choose_key(lagged_surface), "")
+        self.assertEqual(pol.last_reason, "store:entry-await-observation")
 
     def test_unremembered_static_store_goal_walks_without_recording_issue(self):
         pol = HengbotPolicy()

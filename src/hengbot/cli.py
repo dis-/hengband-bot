@@ -1439,6 +1439,17 @@ def _send_stall_recovery_nudge(
     return sent
 
 
+def _stall_recovery_action(
+    quiet_seconds: float, stall_timeout: float, *, in_store: bool
+) -> str:
+    """Choose the transport recovery without bypassing store ownership."""
+    if quiet_seconds <= stall_timeout:
+        return "wait"
+    if in_store:
+        return "incident-stop"
+    return "nudge"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
@@ -2198,7 +2209,10 @@ def _run_follow(
                             args.decision_log, list(recent_reasons),
                         )
                         policy.refuse_key_posting(
-                            str(incident.get("owner", policy.last_reason)),
+                            str(incident.get(
+                                "owner",
+                                incident.get("answer_owner", policy.last_reason),
+                            )),
                             str(incident.get("key", key)),
                         )
                         key = policy.choose_key(snapshot)
@@ -2345,12 +2359,26 @@ def _run_follow(
             # probably blocked on a message/"-more-" prompt that emits no
             # snapshot; nudge it with Escape to get back to the command loop.
             now = time.monotonic()
+            recovery_action = _stall_recovery_action(
+                now - last_activity,
+                args.stall_timeout,
+                in_store=snapshot is not None and snapshot.store is not None,
+            )
             if (
                 args.send_to_window
                 and args.stall_timeout > 0
-                and now - last_activity > args.stall_timeout
                 and now >= quiet_ok_until
+                and recovery_action != "wait"
             ):
+                if recovery_action == "incident-stop":
+                    print(
+                        "<store-input-ownership-stall> authoritative store "
+                        "snapshot exceeded the configured stall bound; "
+                        "stopping bot (game left running)",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    return incident_stop("store-input-ownership-stall", snapshot)
                 recovery_key, recovery_marker = _stall_recovery_key(
                     nudge_streak,
                     last_player_level,
@@ -2365,8 +2393,11 @@ def _run_follow(
                 if recovery_sent:
                     print(recovery_marker, flush=True)
                 last_activity = now
-                if recovery_sent:
-                    nudge_streak += 1
+                # A refused store recovery never reaches this branch.  Outside
+                # a store, both a successful post and a vanished-window send
+                # failure are bounded recovery attempts; the latter must still
+                # arm terminal dead-window detection.
+                nudge_streak += 1
                 # Nudges that never bring back a snapshot mean a screen outside
                 # the command loop. That is DEATH only if the game process is
                 # actually winding down — a store/sale prompt chain that ate the
@@ -2376,8 +2407,7 @@ def _run_follow(
                 # exit. Still alive -> the blast doubled as prompt clearing;
                 # resync and keep playing.
                 if (
-                    recovery_sent
-                    and nudge_streak >= TERMINAL_NUDGE_LIMIT
+                    nudge_streak >= TERMINAL_NUDGE_LIMIT
                     and args.send_to_window
                 ):
                     for _ in range(DEATH_EXIT_ROUNDS):

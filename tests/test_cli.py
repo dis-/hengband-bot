@@ -60,6 +60,7 @@ from hengbot.cli import (
     _send_stall_recovery_nudge,
     _last_activity_after_read,
     _stall_recovery_key,
+    _stall_recovery_action,
     _split_complete_lines,
     _transport_key,
     _write_posted_character,
@@ -1289,21 +1290,28 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertEqual(posted, [])
         self.assertEqual(posted_keys, {"d0y"})
 
-    def test_repeated_store_refusals_cannot_arm_terminal_recovery(self):
-        posted = []
-        nudge_streak = 0
-        for _ in range(20):
-            sent = _send_stall_recovery_nudge(
-                lambda value: posted.append(value) or True,
-                "\x1b",
-                {"d0y"},
-                in_store=True,
-            )
-            if sent:
-                nudge_streak += 1
+    def test_store_recovery_waits_fresh_then_ends_drive_at_stall_bound(self):
+        timeout = 1.5
+        self.assertEqual(
+            _stall_recovery_action(1.49, timeout, in_store=True), "wait"
+        )
+        self.assertEqual(
+            _stall_recovery_action(1.51, timeout, in_store=True),
+            "incident-stop",
+        )
+        self.assertEqual(
+            _stall_recovery_action(1.51, timeout, in_store=False), "nudge"
+        )
 
-        self.assertEqual(nudge_streak, 0)
-        self.assertEqual(posted, [])
+    def test_failed_window_send_still_reaches_terminal_attempt_bound(self):
+        attempts = 0
+        for _ in range(20):
+            if _stall_recovery_action(2.0, 1.5, in_store=False) == "nudge":
+                _send_stall_recovery_nudge(
+                    lambda _value: False, "\x1b", set(), in_store=False
+                )
+                attempts += 1
+        self.assertGreaterEqual(attempts, 20)
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's
