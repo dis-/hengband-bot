@@ -24,6 +24,7 @@ from hengbot.cli import (
     STORE_QUANTITY_DIGIT_DELAY_SECONDS,
     STATIONARY_REASONS,
     STALLED_COMMAND_STATE_LIMIT,
+    TERMINAL_NUDGE_LIMIT,
     TUNNEL_PROMPT_DELAY_SECONDS,
     TUNNEL_MACRO_TRIGGERS,
     TRAVEL_MACRO_TRIGGERS,
@@ -1323,7 +1324,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         """9f05878 froze at recovery_attempts=1: every later action was wait."""
         attempts = 0
         send_failed = False
-        while attempts < 8:
+        while attempts < TERMINAL_NUDGE_LIMIT:
             action = _stall_recovery_action(
                 2.0, 1.5, in_store=True, recovery_attempts=attempts,
                 send_failed=send_failed,
@@ -1334,7 +1335,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
             )
             send_failed = not sent
             attempts += 1
-        self.assertEqual(attempts, 8)
+        self.assertEqual(attempts, TERMINAL_NUDGE_LIMIT)
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's

@@ -2653,7 +2653,6 @@ class HengbotPolicy:
         visit = self._store_visit
         if visit is None:
             return
-        visit.operation_posted = False
         visit.close(outcome)
         self._store_visit_last_closed = visit
         self._store_visit = None
@@ -2944,29 +2943,37 @@ class HengbotPolicy:
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
-        if (
-            snapshot.store is None
-            and self._store_visit is not None
-            and self._store_visit.store_type != STORE_HOME
-            and self._store_visit.operation_posted
-        ):
-            self._store_visit.operation_posted = False
         if snapshot.store is None and self._store_buy_inflight is not None:
             (
                 watched_store,
                 watched_signature,
                 before_count,
                 before_gold,
-                _wait_count,
-                _action_generation,
+                wait_count,
+                action_generation,
             ) = self._store_buy_inflight
-            if (
+            confirmed = (
                 self._inventory_signature_count(snapshot, watched_signature)
                 > before_count
                 or snapshot.player.gold < before_gold
-            ):
+            )
+            if confirmed:
                 self._town_visit_purchases.add(watched_signature)
-            self._store_buy_inflight = None
+                if self._store_visit is not None:
+                    self._store_visit.operation_posted = False
+                self._store_buy_inflight = None
+            elif wait_count + 1 >= STORE_STUCK_LIMIT:
+                self._store_buy_inflight = None
+                self._close_store_visit("one-shot-buy-unconfirmed")
+            else:
+                self._store_buy_inflight = (
+                    watched_store,
+                    watched_signature,
+                    before_count,
+                    before_gold,
+                    wait_count + 1,
+                    action_generation,
+                )
         if (
             snapshot.store is None
             and self._batch_sell_pending is not None
@@ -4051,6 +4058,19 @@ class HengbotPolicy:
         # fundraising, or errand classifier is reachable until ownership ends.
         if snapshot.in_town and self._equipment_transaction_owned_items:
             return self._equipment_transaction_town_owner_key(snapshot) or WAIT_KEY
+
+        if (
+            snapshot.store is None
+            and self._store_visit is not None
+            and self._store_visit.store_type != STORE_HOME
+            and self._store_visit.operation_posted
+        ):
+            # A player-turn at the entrance can be emitted after the leading
+            # stay key but before the queued store UI consumes the transaction.
+            # The posted macro owns that page just as it owns an intermediate
+            # store page; only observed completion or visit closure releases it.
+            self.last_reason = "shop:one-shot-in-flight"
+            return ""
 
         # A town-block latch owns the store exit before ordinary Home/shop page
         # processing. WAIT_KEY is not a valid store command.
@@ -17371,7 +17391,8 @@ class HengbotPolicy:
                 # from the pre-inscription candidate cached in the plan.
                 for entry in entries:
                     item = observed_tagged(entry)
-                    assert item is not None
+                    if item is None:
+                        continue
                     sale = self._batch_sale_entry(snapshot, item, entry["tag"])
                     if sale is None:
                         self._batch_sell_pending = None
@@ -17384,6 +17405,7 @@ class HengbotPolicy:
             # Exactly one post-sale snapshot verifies every tagged item.  Any
             # survivor advances the ordinary attempt record and is then handled
             # by a fresh inscription-bound transaction if policy still wants it.
+            confirmed = snapshot.player.gold > pending["before_gold"]
             for entry in entries:
                 survivor = next((
                     current for current in snapshot.inventory
@@ -17393,6 +17415,8 @@ class HengbotPolicy:
                     )
                 ), None)
                 expected = entry["count"] - entry["quantity"]
+                if survivor is None or survivor.count <= expected:
+                    confirmed = True
                 if survivor is not None and survivor.count > expected:
                     attempts = 1
                     if self._store_sell_attempt is not None:
@@ -17403,6 +17427,10 @@ class HengbotPolicy:
             self._batch_sell_pending = None
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
+            if confirmed and self._store_visit is not None:
+                self._store_visit.operation_posted = False
+            elif not confirmed:
+                self._close_store_visit("one-shot-sale-unconfirmed")
             # A completed batch can compact every following inventory slot.
             # Leave before starting another transaction from a snapshot that
             # may still reflect the pre-sale inventory layout.
@@ -17446,6 +17474,7 @@ class HengbotPolicy:
             "store_type": store.store_type,
             "phase": phase,
             "entries": entries,
+            "before_gold": snapshot.player.gold,
         }
         self.last_reason = (
             "shop:batch-inscribe"

@@ -56,6 +56,37 @@ class ShopOneShotTest(unittest.TestCase):
             turn=outside.turn + 1,
         )
 
+    def _consume_buy_with_lagged_surface(self, policy, outside, key, inside, ware):
+        """Consume a macro while exposing the entrance and store snapshots."""
+        state, gold, inventory = "surface", outside.player.gold, list(outside.inventory)
+        policy_keys = []
+        for pressed in key:
+            if state == "surface" and pressed == "5":
+                state = "store"
+                lagged = replace(outside, turn=outside.turn + 1)
+                policy_keys.append(policy.choose_key(lagged))
+                intermediate = replace(inside, turn=outside.turn + 2)
+                policy_keys.append(policy.choose_key(intermediate))
+            elif state == "store" and pressed == "p": state = "item"
+            elif state == "item" and pressed == ware.letter: state = "confirm"
+            elif state == "confirm" and pressed == "\r":
+                gold -= ware.price
+                inventory.append(item(
+                    "z", ware.tval, ware.sval, name=ware.name, count=1
+                ))
+                state = "store"
+            elif state == "store" and pressed == "\x1b": state = "surface"
+            else: self.fail((state, pressed))
+        self.assertEqual(state, "surface")
+        completed = replace(
+            outside,
+            player=replace(outside.player, gold=gold),
+            inventory=inventory,
+            turn=outside.turn + 3,
+        )
+        policy_keys.append(policy.choose_key(completed))
+        return completed, policy_keys
+
     def _compose(self, policy, inside):
         """Drive the public observation boundary and return its one-shot."""
         self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
@@ -147,6 +178,28 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(intermediate), "")
         self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
 
+    def test_lagged_surface_inside_live_macro_confirms_exactly_one_buy(self):
+        """ecf55de produced ['', '\\x1b', '5pa\\r\\x1b'] and paid twice."""
+        ware = store_item(
+            "a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20
+        )
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+
+        completed, policy_keys = self._consume_buy_with_lagged_surface(
+            policy, outside, key, inside, ware
+        )
+
+        self.assertEqual(key, "5pa\r\x1b")
+        self.assertEqual(policy_keys[:2], ["", ""])
+        self.assertNotIn("pa", policy_keys[-1])
+        self.assertEqual(completed.player.gold, outside.player.gold - 20)
+        self.assertIn(
+            policy._item_signature(ware), policy._town_visit_purchases
+        )
+        self.assertFalse(policy._store_visit.operation_posted)
+
     def test_completed_one_shot_new_store_page_is_not_permanent_silence(self):
         """9f05878 returned ten empty shop:one-shot-in-flight decisions."""
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
@@ -175,8 +228,40 @@ class ShopOneShotTest(unittest.TestCase):
 
         signature = policy._item_signature(ware)
         self.assertIn(signature, policy._town_visit_purchases)
-        repeat_page = replace(inside, inventory=completed.inventory, turn=completed.turn + 1)
-        self.assertNotIn("pa", policy.choose_key(repeat_page))
+
+    def test_confirmed_sale_clears_posted_operation_latch(self):
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        self.assertEqual(key, "5d0y\x1b")
+        self.assertTrue(policy._store_visit.operation_posted)
+
+        confirmed = replace(
+            outside,
+            inventory=[],
+            player=replace(outside.player, gold=outside.player.gold + 125),
+            turn=outside.turn + 1,
+        )
+        policy.choose_key(confirmed)
+
+        self.assertFalse(policy._store_visit.operation_posted)
+        self.assertIsNone(policy._batch_sell_pending)
+
+    def test_unconfirmed_sale_releases_only_through_visit_closure(self):
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        visit = policy._store_visit
+        self.assertEqual(key, "5d0y\x1b")
+
+        policy.choose_key(replace(outside, turn=outside.turn + 1))
+
+        self.assertIs(policy._store_visit_last_closed, visit)
+        self.assertEqual(visit.outcome, "one-shot-sale-unconfirmed")
+        self.assertFalse(visit.operation_posted)
+        self.assertIsNotNone(policy._store_sell_attempt)
 
     def test_unaccepted_purchase_is_not_recorded_as_completed(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)

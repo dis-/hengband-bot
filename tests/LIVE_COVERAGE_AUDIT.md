@@ -373,3 +373,30 @@ findings, with no new changed-test finding. The live-coverage auditor now
 tolerates the BOM in `evidence-home-entry-capture-head.jsonl`; its run proceeds
 to a separate malformed JSON record at line 6 (`Expecting ',' delimiter`),
 which is evidence corruption rather than the former BOM crash.
+
+## Confirmation-gated one-shot clear fix event
+
+time: `2026-08-10T16:09:21.5535843+09:00`
+
+The one-shot visit latch now survives the documented lagged entrance
+player-turn and the intermediate store page. The closed-loop consumer injects
+both snapshots while consuming `5pa\r\x1b`; policy emits no foreign key, the
+macro debits gold exactly once, and the true outside pack/gold observation
+records the purchase and clears the latch. At `ecf55de` the same pin produces
+`['', '\x1b', '5pa\r\x1b']`: Escape enters the live macro and the buy is
+composed again.
+
+Buy release is evidence-gated on carried-count growth or a gold decrease. A
+negative observation retains the watch and posted-operation latch until the
+existing `STORE_STUCK_LIMIT` watch count closes the visit as
+`one-shot-buy-unconfirmed`. Sale release is evidence-gated on gold growth or
+the tagged stack reaching its expected post-sale count. A negative sale
+observation first advances `_store_sell_attempt`, then closes the visit as
+`one-shot-sale-unconfirmed`; `StoreVisit.close()` clears the latch, and the
+existing sale attempt/straggler bounds own any later retry. Thus neither kind
+uses an arbitrary outside page as completion evidence.
+
+The former FIX-2 in-store `assertNotIn("pa", ...)` claim was removed: an
+in-store page cannot compose the door-prefixed purchase at either historical
+revision. The lagged closed-loop pin now supplies the real no-recomposition
+and one-debit bound.
