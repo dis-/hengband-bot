@@ -3244,6 +3244,7 @@ class HengbotPolicy:
                     )
                     key = self._atomic_shop_transaction_key(snapshot)
                     if key is None:
+                        self._close_store_visit("one-shot-no-operation")
                         key = self._decide(snapshot)
                 else:
                     key = self._decide(snapshot)

@@ -503,6 +503,23 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertNotIn("pa", policy.choose_key(outside))
         self.assertIsNone(policy._shop_observation)
 
+    def test_empty_one_shot_releases_visit_before_approaching_other_store(self):
+        inside = self._inside(STORE_MAGIC, [], [])
+        temple_entrance = replace(grid(10, 14), store_number=STORE_TEMPLE)
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        outside = replace(
+            self._outside(policy, inside),
+            grids={**inside.grids, temple_entrance.position: temple_entrance},
+        )
+        step = policy.choose_key(outside)
+
+        self.assertEqual(step, "6")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_TEMPLE)
+        self.assertEqual(
+            policy._store_visit_last_closed.outcome, "one-shot-no-operation"
+        )
+
     def test_entry_flush_ledger_requires_two_stage_release(self):
         """70dcabc failure: one store iteration followed ``5d0y ESC``;
         only ``5`` entered the command loop, the entry flush lost its tail,
