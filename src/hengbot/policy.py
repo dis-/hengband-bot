@@ -2894,20 +2894,17 @@ class HengbotPolicy:
                     self._home_pending_item = None
                     self._home_pending_slot = None
                     self._home_random_teleport_withdrawal = None
-                # An atomic visit has no intervening store snapshot on which
-                # the ordinary leave handler can close the plan stop.  The
-                # observed pack delta is the operation's authoritative effect,
-                # so account for that completed Home pass here.
-                self._report_town_stop_pass(
-                    snapshot,
-                    STORE_HOME,
-                    goal_satisfied=(
-                        suppression_withdrawal
-                        or not self._home_owner_goal_pending(snapshot)
-                    ),
-                    operation_completed=True,
-                    observed_effect_completes_stop=suppression_withdrawal,
-                )
+                if suppression_withdrawal:
+                    # This atomic visit has no intervening store snapshot on
+                    # which the ordinary leave handler can close the owning
+                    # stop.  Report only this suppression withdrawal; other
+                    # atomic Home operations retain their existing owners.
+                    self._report_town_stop_pass(
+                        snapshot,
+                        STORE_HOME,
+                        goal_satisfied=not self._home_owner_goal_pending(snapshot),
+                        operation_completed=True,
+                    )
                 if (
                     withdrawn.tval == TVAL_SCROLL
                     and withdrawn.sval
@@ -14893,7 +14890,6 @@ class HengbotPolicy:
         *,
         goal_satisfied: bool,
         operation_completed: bool = False,
-        observed_effect_completes_stop: bool = False,
     ) -> None:
         """Report one handler pass to the plan that owns this town objective."""
         self._town_visit_ledger.store_visits[store_type] += 1
@@ -14911,7 +14907,7 @@ class HengbotPolicy:
         if not owned_categories:
             owned_categories = tuple(need.category for need in store_needs)
         registry_satisfied = True
-        if owned_categories and not observed_effect_completes_stop:
+        if owned_categories:
             self._town_need_evaluation_snapshot = snapshot
             self._town_need_evaluation_candidates = self._town_need_candidates(
                 snapshot
@@ -19123,6 +19119,8 @@ class HengbotPolicy:
                 owned.origin == "home"
                 and self._home_available(snapshot)
                 and STORE_HOME not in self._town_store_attempted
+                and self._item_signature(owned.item)
+                not in self._deferred_home_items
             )
             for owned in self._selected_random_teleport_suppressions(preparation)
         )
@@ -19170,13 +19168,16 @@ class HengbotPolicy:
         )
         if (
             home_owned is not None
+            and snapshot.store is None
             and self._home_pending_item is None
-            and len(snapshot.inventory) < PACK_CAPACITY
+            and self._item_signature(home_owned.item)
+            not in self._deferred_home_items
+            and self._town_pack_space_ready(snapshot)
         ):
-            # Arm the ordinary derived-address withdrawal while still outside.
-            # The completed ~9 catalogue owns the identity and shelf ordinal;
-            # the entrance composer below owns pack-space, visit bounds,
-            # posting, page arithmetic, the take command, and the exit.
+            # The completed ~9 catalogue owns the identity and shelf ordinal.
+            # Arm the ordinary derived-address withdrawal only outside; its
+            # entrance path owns visit bounds, posting, page arithmetic, the
+            # take command, and the exit.
             self._home_pending_item = self._item_signature(home_owned.item)
             self._home_random_teleport_withdrawal = self._home_pending_item
         return None

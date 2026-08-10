@@ -117,3 +117,75 @@ orphans: key shapes `5pY\x1b`, `Cf\ry\x1b\x1b`, `wn`, and `wnd`; reasons
 `home:atomic-withdraw-target-unobserved`.  The deleted
 `home:queue-random-teleport-for-inscription` reason is absent from the orphan
 list.
+
+## 2026-08-10 retroactive `400be44` home-suppression-one-shot fix event
+
+time: `2026-08-10T10:07:05.9377068+09:00`
+
+The measured `~9` catalogue contained 117 Home items and selected the incomplete
+Home sword `home:b57f63b4c7ce1c07:0`. The incident repeatedly approached and
+left Home with `town_plan.index=0`. `400be44` replaced the obsolete in-store
+selection with an outside-armed, catalogue-addressed one-shot: item index 12 at
+observed page size 12 composes `5 pa\x1b`, observes the pack delta, then follows
+through with the outside `{q.\r` inscription. Its pins cover derived page
+arithmetic, one complete sender key, outside arming, pack inscription, zero-pack
+disposal, bounded catalogue size, and the registered absorbing seed. The
+historical `81f86dc` seed fails across 20 decisions with zero progress and nine
+Home entries/exits; the `400be44` route reaches the withdrawal.
+
+Scenario transfer: the in-store selection scenario remained under
+`test_withdraws_home_random_teleport_item_before_inscribing`; store addressing
+and follow-through moved to
+`test_home_random_teleport_uses_derived_page_address_then_pack_inscription`;
+pack-origin inscription remained in
+`test_inscribes_pack_random_teleport_item_in_town`; zero-space handling moved to
+`test_zero_pack_space_defers_home_suppression_to_existing_disposal`; and the
+approach/exit liveness scenario moved to absorbing seed
+`home-random-teleport-suppression-one-shot`.
+
+## 2026-08-10 deferred Home-suppression remediation fix event
+
+time: `2026-08-10T10:07:05.9377068+09:00`
+
+A refused suppression take now records its signature in
+`_deferred_home_items`, cannot re-arm the outside withdrawal, and is no longer
+actionable to equipment departure readiness. The public refusal world runs
+eight decisions, posts `5 pa\x1b` exactly once, retains the deferred signature,
+and would expose the guard-reverted absorbing shape
+`{('home:atomic-withdraw-target-unobserved', '\x1b'): 30}`. Deferred suppression
+therefore follows the existing departure rule: deferred means not actionable,
+so a confirmed loadout may proceed instead of requiring another Home take.
+
+Observed suppression completion now passes through the `NeedSpec` registry;
+the temporary bypass flag was deleted. Atomic-withdraw pass reporting is
+limited to the suppression owner, so a twelve-item calibration restore retains
+its one catalogue Home pass and adds no restore-withdraw visits, need attempts,
+or unsatisfied passes. Arming is outside-only and uses
+`_town_pack_space_ready` with `MIN_FREE_PACK_SLOTS`. The evidence fixture's
+sequence-29 row is emitter-shaped verbatim, with `incomplete_items` and
+`incomplete_item_details` nested under `equipment_optimization`.
+
+The deepened registered seed now enters and exits Home once, observes the
+withdrawal, and posts the outside inscription on decision 2. At `81f86dc` it
+fails after 20 decisions with no durable progress; at the fixed tip it passes.
+The default five-mutation battery passed 5/5 with
+`repo_tree_untouched: true`, sale-key lint reported zero violations, and the
+fixture-only live coverage audit reported this one existing orphan:
+`key-shape 'Cf\ry\x1b\x1b'`.
+
+Scenario transfer:
+
+- No test was deleted or renamed, and zero test names were lost.
+- The existing one-shot public scenario remains in
+  `test_home_random_teleport_uses_derived_page_address_then_pack_inscription`,
+  now also pinning registry evaluation and the nested verbatim fixture shape.
+- Its outside-only and pack-capacity premises are additionally pinned by
+  `test_home_suppression_arming_is_outside_and_uses_town_pack_predicate`.
+- Deferred departure actionability lives in
+  `test_deferred_home_suppression_is_not_actionable_for_departure`.
+- Refused-take liveness lives in
+  `test_refused_home_suppression_take_defers_once_and_does_not_rearm`.
+- Calibration pass ownership remains in
+  `test_public_calibration_restore_converges_twelve_items`.
+- The unchanged seed name `home-random-teleport-suppression-one-shot` now owns
+  the deeper withdrawal-plus-inscription drive.

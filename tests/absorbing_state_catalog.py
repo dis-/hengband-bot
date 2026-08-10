@@ -264,7 +264,7 @@ def _departure_freeze():
     return policy, TownWorld(snap)
 
 
-def _home_suppression_one_shot():
+def _home_suppression_one_shot(*, purchases_succeed=True):
     """Selected Home gear must withdraw before recovery exits can repeat."""
     fillers = [
         fixture.store_item("a", TVAL_POTION, index, name=f"filler-{index}")
@@ -277,25 +277,31 @@ def _home_suppression_one_shot():
     policy = HengbotPolicy()
     policy.consume_home_knowledge(tuple([*fillers, sword]))
     policy._home_page_size = 12
-    owned = next(
-        owned for owned in policy._equipment_catalog.items
-        if policy_module.equipment_identity(owned.item)
-        == policy_module.equipment_identity(sword)
-    )
-    loadout = fixture.Loadout((("main_hand", owned),), "one_handed")
-    evaluated = fixture.EvaluatedLoadout(
-        loadout, fixture.LoadoutMetrics(0.0, 0.0, 0.0)
-    )
-    result = fixture.OptimizationResult(
-        evaluated, (), (), frozenset(), 1, 1, 0, 0.0, False, frozenset()
-    )
-    preparation = policy_module.WarriorOptimizationPreparation(
-        loadout,
-        result,
-        None,
-        ("pending-random-teleport-suppression",),
-    )
-    policy._prepare_equipment_optimization = lambda _snapshot: preparation
+    def preparation(_snapshot):
+        matching = [
+            candidate for candidate in policy._equipment_catalog.items
+            if policy_module.equipment_identity(candidate.item)
+            == policy_module.equipment_identity(sword)
+        ]
+        loadout = fixture.Loadout(
+            (("main_hand", matching[0]),) if matching else (),
+            "one_handed" if matching else "empty",
+        )
+        evaluated = fixture.EvaluatedLoadout(
+            loadout, fixture.LoadoutMetrics(0.0, 0.0, 0.0)
+        )
+        result = fixture.OptimizationResult(
+            evaluated, (), (), frozenset(), 1, 1, 0, 0.0,
+            False, frozenset(),
+        )
+        return policy_module.WarriorOptimizationPreparation(
+            loadout,
+            result,
+            None,
+            ("pending-random-teleport-suppression",) if matching else (),
+        )
+
+    policy._prepare_equipment_optimization = preparation
     surface = Snapshot(
         fixture.player(10, 10, class_id=fixture.PLAYER_CLASS_WARRIOR),
         {
@@ -317,6 +323,21 @@ def _home_suppression_one_shot():
     policy._shopping_approach_store_type = STORE_HOME
 
     class SuppressionWorld(TownWorld):
+        def apply(self, key):
+            inventory_size = len(self.inventory)
+            super().apply(key)
+            if len(self.inventory) > inventory_size:
+                carried = self.inventory[-1]
+                if carried.name == sword.name:
+                    self.inventory[-1] = fixture.item(
+                        carried.slot, sword.tval, sword.sval,
+                        count=sword.count, name=sword.name,
+                        known=sword.known, fully_known=sword.fully_known,
+                        is_equipment=sword.is_equipment, is_ego=sword.is_ego,
+                        is_artifact=sword.is_artifact,
+                        known_flags=sword.known_flags,
+                    )
+
         def visible_terminal(self, reason):
             if (
                 reason == "home:store-context-exit"
@@ -324,6 +345,8 @@ def _home_suppression_one_shot():
                 or reason.startswith("equipment-transaction:")
             ):
                 return "historical Home recovery exit repeated"
+            if reason == "home:atomic-withdraw":
+                return None
             return super().visible_terminal(reason)
 
         def terminal_ends_drive(self, reason, key):
@@ -333,9 +356,15 @@ def _home_suppression_one_shot():
                 or reason.startswith("equipment-transaction:")
             ):
                 return False
+            if reason == "home:atomic-withdraw":
+                return False
             return super().terminal_ends_drive(reason, key)
 
-    return policy, SuppressionWorld(surface, stock=[*fillers, sword])
+    world = SuppressionWorld(
+        surface, stock=[*fillers, sword], purchases_succeed=purchases_succeed
+    )
+    world.expected_terminal_reason = "equipment:suppress-random-teleport"
+    return policy, world
 
 
 def _catalogue_invalidated_with_equipment_work():

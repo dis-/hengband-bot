@@ -105,8 +105,49 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         result = drive(state)
 
         self.assertTrue(result.passed, result.report())
+        self.assertEqual(result.decisions, 2)
+        self.assertEqual(result.entries, 1)
+        self.assertEqual(result.exits, 1)
         self.assertEqual(result.keys["5 pa\x1b"], 1)
         self.assertEqual(result.reasons["home:atomic-withdraw"], 1)
+        self.assertEqual(result.keys["{a.\r"], 1)
+        self.assertEqual(
+            result.reasons["equipment:suppress-random-teleport"], 1
+        )
+
+    def test_refused_home_suppression_take_defers_once_and_does_not_rearm(self):
+        policy, world = cat._home_suppression_one_shot(
+            purchases_succeed=False
+        )
+        reasons = []
+        keys = []
+
+        for decision in range(1, 9):
+            world.deliver_events(policy)
+            snapshot = world.snapshot(decision)
+            key = policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+            keys.append(key)
+            policy.confirm_key_posted(key)
+            world.apply(key)
+
+        signature = policy._item_signature(world.stock[-1])
+        preparation = policy._prepare_equipment_optimization(world.snapshot(9))
+        self.assertGreater(len(reasons), 3)
+        self.assertEqual(
+            reasons.count("home:atomic-withdraw"),
+            1,
+            "without the deferred guard the public drive is unbounded: "
+            "{('home:atomic-withdraw-target-unobserved', '\\x1b'): 30}",
+        )
+        self.assertEqual(keys.count("5 pa\x1b"), 1)
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertFalse(
+            policy._random_teleport_suppression_actionable(
+                world.snapshot(9), preparation
+            )
+        )
 
     def test_public_choose_key_refuses_all_four_live_store_cycles(self):
         names = {

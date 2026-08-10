@@ -40447,7 +40447,10 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             ],
         )
         self.assertTrue(all(row["town_plan"]["index"] == 0 for row in cycle))
-        detail = evidence[0]["incomplete_item_details"][0]
+        optimization = evidence[0]["equipment_optimization"]
+        self.assertNotIn("incomplete_items", evidence[0])
+        self.assertEqual(optimization["incomplete_items"], 1)
+        detail = optimization["incomplete_item_details"][0]
         self.assertEqual(
             (detail["origin"], detail["tval"], detail["sval"]),
             ("home", 23, 25),
@@ -40514,6 +40517,20 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             policy._home_random_teleport_withdrawal,
             policy._item_signature(sword),
         )
+        registry_calls = []
+        specs = []
+        for spec in policy._town_need_registry():
+            if spec.category != "equipment-catalog":
+                specs.append(spec)
+                continue
+            original_satisfied = spec.satisfied
+
+            def observed_satisfied(snapshot, original=original_satisfied):
+                registry_calls.append(snapshot.turn)
+                return original(snapshot)
+
+            specs.append(replace(spec, satisfied=observed_satisfied))
+        policy._town_need_specs = tuple(specs)
 
         carried = item(
             "q", 23, 25, name=sword.name, known=True,
@@ -40531,6 +40548,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             INSCRIBE_KEY + "q.\r",
         )
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
+        self.assertEqual(registry_calls, [outside.turn])
         self.assertEqual(
             (
                 policy._town_visit_ledger.store_visits[STORE_HOME],
@@ -40605,6 +40623,94 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertTrue(key.startswith("01k"), key)
         self.assertNotIn(BUY_KEY, key)
         self.assertIsNone(policy._home_pending_item)
+
+    def test_home_suppression_arming_is_outside_and_uses_town_pack_predicate(self):
+        stored = store_item(
+            "a", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((stored,))
+        owned = policy._equipment_catalog.items[0]
+        loadout = Loadout((("head", owned),), "empty")
+        evaluated = EvaluatedLoadout(
+            loadout, LoadoutMetrics(0.0, 0.0, 0.0)
+        )
+        result = OptimizationResult(
+            evaluated, (), (), frozenset(), 1, 1, 0, 0.0,
+            False, frozenset(),
+        )
+        preparation = policy_module.WarriorOptimizationPreparation(
+            loadout,
+            result,
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: preparation
+        inventory = [
+            item(
+                chr(ord("a") + index), TVAL_POTION, SV_POTION_SLEEP,
+                name=f"sleep-{index}", known=True,
+            )
+            for index in range(PACK_CAPACITY - MIN_FREE_PACK_SLOTS + 1)
+        ]
+        outside = self._town(inventory=inventory)
+
+        self.assertFalse(policy._town_pack_space_ready(outside))
+        self.assertIsNone(policy._town_random_teleport_suppression_key(outside))
+        self.assertIsNone(policy._home_pending_item)
+
+        inside = replace(outside, inventory=[], store=StoreState(STORE_HOME, [stored]))
+        self.assertIsNone(policy._town_random_teleport_suppression_key(inside))
+        self.assertIsNone(policy._home_pending_item)
+
+        roomy = replace(outside, inventory=inventory[:-1])
+        self.assertTrue(policy._town_pack_space_ready(roomy))
+        self.assertIsNone(policy._town_random_teleport_suppression_key(roomy))
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(stored)
+        )
+
+    def test_deferred_home_suppression_is_not_actionable_for_departure(self):
+        stored = store_item(
+            "a", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((stored,))
+        owned = policy._equipment_catalog.items[0]
+        loadout = Loadout((("head", owned),), "empty")
+        evaluated = EvaluatedLoadout(
+            loadout, LoadoutMetrics(0.0, 0.0, 0.0)
+        )
+        result = OptimizationResult(
+            evaluated, (), (), frozenset(), 1, 1, 0, 0.0,
+            False, frozenset(),
+        )
+        preparation = policy_module.WarriorOptimizationPreparation(
+            loadout,
+            result,
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        snapshot = replace(
+            self._town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+        )
+
+        self.assertTrue(
+            policy._random_teleport_suppression_actionable(snapshot, preparation)
+        )
+        policy._deferred_home_items.add(policy._item_signature(stored))
+        self.assertFalse(
+            policy._random_teleport_suppression_actionable(snapshot, preparation)
+        )
 
     def test_leaves_store_before_inscribing_carried_item(self):
         mask = item(
@@ -44239,6 +44345,18 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "entries": entries,
             "withdrawal_decisions": withdrawal_decisions,
         }
+        # The catalogue visit is the sole Home pass; none of the twelve
+        # successful atomic restore takes consumes another visit/pass.
+        self.assertEqual(policy._town_visit_ledger.store_visits[STORE_HOME], 1)
+        self.assertEqual(
+            policy._town_visit_ledger.need_attempts.get(
+                "calibration-restore", 0
+            ),
+            0,
+        )
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 1
+        )
     def test_public_restore_attempt_does_not_release_home_approach_bound(self):
         policy = HengbotPolicy()
         pack = self._real_pack()
