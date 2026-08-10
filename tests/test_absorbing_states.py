@@ -91,9 +91,9 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 23)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 23)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 23)
+        self.assertEqual(len(SEEDED_STATES), 24)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 24)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 24)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):
@@ -141,6 +141,11 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             "{('home:atomic-withdraw-target-unobserved', '\\x1b'): 30}",
         )
         self.assertEqual(keys.count("5 pa\x1b"), 1)
+        self.assertLessEqual(
+            reasons.count("home:atomic-withdraw-target-unobserved"),
+            1,
+            "the refused withdrawal must not spin on an unobserved target",
+        )
         self.assertIn(signature, policy._deferred_home_items)
         self.assertIsNone(policy._home_pending_item)
         self.assertFalse(

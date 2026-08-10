@@ -151,8 +151,9 @@ A refused suppression take now records its signature in
 `_deferred_home_items`, cannot re-arm the outside withdrawal, and is no longer
 actionable to equipment departure readiness. The public refusal world runs
 eight decisions, posts `5 pa\x1b` exactly once, retains the deferred signature,
-and would expose the guard-reverted absorbing shape
-`{('home:atomic-withdraw-target-unobserved', '\x1b'): 30}`. Deferred suppression
+and bounds `home:atomic-withdraw-target-unobserved` to at most one occurrence.
+An arming-guard-only scratch mutation produced seven such spins in the same
+eight-decision drive; the restored tip produced zero. Deferred suppression
 therefore follows the existing departure rule: deferred means not actionable,
 so a confirmed loadout may proceed instead of requiring another Home take.
 
@@ -165,9 +166,14 @@ or unsatisfied passes. Arming is outside-only and uses
 sequence-29 row is emitter-shaped verbatim, with `incomplete_items` and
 `incomplete_item_details` nested under `equipment_optimization`.
 
-The deepened registered seed now enters and exits Home once, observes the
-withdrawal, and posts the outside inscription on decision 2. At `81f86dc` it
-fails after 20 decisions with no durable progress; at the fixed tip it passes.
+The happy-path registered seed enters and exits Home once, observes the
+withdrawal, and posts the outside inscription on decision 2. It passes
+byte-identically at `400be44` and therefore does not discriminate the deferred
+re-arming guard. The separate
+`home-random-teleport-suppression-refusal` seed uses the refusal world: at
+`400be44` it exhausts 20 decisions with
+`home:atomic-withdraw-target-unobserved` repeated 19 times, while at `9290496`
+and the current tip it defers the take once and reaches a different decision.
 The default five-mutation battery passed 5/5 with
 `repo_tree_untouched: true`, sale-key lint reported zero violations, and the
 fixture-only live coverage audit reported this one existing orphan:
@@ -187,5 +193,7 @@ Scenario transfer:
   `test_refused_home_suppression_take_defers_once_and_does_not_rearm`.
 - Calibration pass ownership remains in
   `test_public_calibration_restore_converges_twelve_items`.
-- The unchanged seed name `home-random-teleport-suppression-one-shot` now owns
-  the deeper withdrawal-plus-inscription drive.
+- The unchanged seed name `home-random-teleport-suppression-one-shot` owns the
+  withdrawal-plus-inscription happy path; it does not pin the deferred guard.
+- `home-random-teleport-suppression-refusal` owns the `400be44` historical
+  failure and pins release from the guard-reverted absorbing shape.

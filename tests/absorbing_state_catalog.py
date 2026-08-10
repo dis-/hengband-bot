@@ -340,6 +340,11 @@ def _home_suppression_one_shot(*, purchases_succeed=True):
 
         def visible_terminal(self, reason):
             if (
+                not purchases_succeed
+                and reason == self.expected_terminal_reason
+            ):
+                return super().visible_terminal(reason)
+            if (
                 reason == "home:store-context-exit"
                 or reason.startswith("calibration:")
                 or reason.startswith("equipment-transaction:")
@@ -350,6 +355,8 @@ def _home_suppression_one_shot(*, purchases_succeed=True):
             return super().visible_terminal(reason)
 
         def terminal_ends_drive(self, reason, key):
+            if not purchases_succeed and reason == self.expected_terminal_reason:
+                return super().terminal_ends_drive(reason, key)
             if (
                 reason == "home:store-context-exit"
                 or reason.startswith("calibration:")
@@ -363,8 +370,17 @@ def _home_suppression_one_shot(*, purchases_succeed=True):
     world = SuppressionWorld(
         surface, stock=[*fillers, sword], purchases_succeed=purchases_succeed
     )
-    world.expected_terminal_reason = "equipment:suppress-random-teleport"
+    world.expected_terminal_reason = (
+        "equipment:suppress-random-teleport"
+        if purchases_succeed
+        else "calibration:strip-installed"
+    )
     return policy, world
+
+
+def _home_suppression_refusal():
+    """A refused Home take must defer once and release to another decision."""
+    return _home_suppression_one_shot(purchases_succeed=False)
 
 
 def _catalogue_invalidated_with_equipment_work():
@@ -1198,6 +1214,10 @@ SEEDED_STATES = (
     AbsorbingState(
         "home-random-teleport-suppression-one-shot", 20,
         _home_suppression_one_shot,
+    ),
+    AbsorbingState(
+        "home-random-teleport-suppression-refusal", 20,
+        _home_suppression_refusal,
     ),
     AbsorbingState(
         "catalogue-invalidated-equipment-work-repetition", 20,
