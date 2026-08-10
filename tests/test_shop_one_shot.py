@@ -505,37 +505,154 @@ class ShopOneShotTest(unittest.TestCase):
 
     def test_entry_flush_ledger_requires_two_stage_release(self):
         """70dcabc failure: one store iteration followed ``5d0y ESC``;
-        only ``5`` entered the command loop and the entry flush lost its tail.
+        only ``5`` entered the command loop, the entry flush lost its tail,
+        and the unchanged ledger never completed the transaction.
         """
         fixture = Path(__file__).with_name("fixtures") / "oneshot_flush_ledger.jsonl"
         rows = [json.loads(line) for line in fixture.read_text(encoding="utf-8").splitlines()]
         self.assertEqual([row["type"] for row in rows if row["kind"] == "snapshot"], ["store", "player_turn"])
         self.assertEqual([row["gold"] for row in rows if row["kind"] == "snapshot"], [7121, 7121])
 
-        def consume(entry_batch, operation_batch=None):
-            buffered = list(entry_batch)
-            self.assertEqual(buffered.pop(0), "5")
-            buffered.clear()  # GAME-IO #2: entry disturb/flush/term_flush.
-            if operation_batch is not None:
-                buffered.extend(operation_batch)
-            return "".join(buffered)
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        outside = self._outside(policy, inside)
 
-        self.assertEqual(consume("5d0y\x1b"), "")
-        self.assertEqual(consume("5", "d0y\x1b"), "d0y\x1b")
+        entry_batch = policy.choose_key(outside)
+        self.assertEqual(entry_batch, "5")
+        buffered = list(entry_batch)
+        self.assertEqual(buffered.pop(0), "5")
+        buffered.clear()  # GAME-IO #2: entry disturb/flush/term_flush.
+        self.assertEqual(buffered, [])
 
-    def test_stage_two_refuses_a_different_visits_store_page(self):
+        operation_batch = policy.choose_key(replace(inside, turn=outside.turn + 1))
+        self.assertEqual(operation_batch, "d0y\x1b")
+        completed = replace(
+            outside,
+            inventory=[],
+            player=replace(outside.player, gold=outside.player.gold + 125),
+            turn=outside.turn + 2,
+        )
+        policy.choose_key(completed)
+        self.assertIsNone(policy._batch_sell_pending)
+        self.assertFalse(policy._store_visit.operation_posted)
+
+    def test_stage_one_entry_wait_expires_and_routing_resumes(self):
+        """2f449d2 returned 80 empty shop:one-shot-in-flight decisions."""
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
         inside = self._inside(STORE_TEMPLE, [], [ware])
         policy = HengbotPolicy()
         policy.choose_key(inside)
         outside = self._outside(policy, inside)
         self.assertEqual(policy.choose_key(outside), "5")
+
+        waits = [
+            policy.choose_key(replace(outside, turn=outside.turn + turn))
+            for turn in range(1, STORE_STUCK_LIMIT + 2)
+        ]
+        self.assertEqual(waits[:STORE_STUCK_LIMIT], [""] * STORE_STUCK_LIMIT)
+        self.assertNotEqual(waits[-1], "")
+        self.assertEqual(
+            policy._store_visit_last_closed.outcome,
+            "one-shot-entry-unconfirmed",
+        )
+
+    def test_close_after_release_clears_buy_inflight(self):
+        """2f449d2 stranded ``(3, ('wares', 70, 11), ...)`` after close."""
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, _key = self._compose(policy, inside)
+        self.assertTrue(policy._store_visit.operation_released)
+        self.assertIsNotNone(policy._store_buy_inflight)
+
+        policy._close_store_visit("fixture-close-after-release")
+
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertIsNone(policy._store_visit)
+
+    def test_close_after_release_clears_batch_sell_pending(self):
+        """2f449d2 left an ownerless await-sale batch after released close."""
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        self._compose(policy, inside)
+        self.assertTrue(policy._store_visit.operation_released)
+        self.assertEqual(policy._batch_sell_pending["phase"], "await-sale")
+
+        policy._close_store_visit("fixture-close-after-release")
+
+        self.assertIsNone(policy._batch_sell_pending)
+        self.assertIsNone(policy._store_visit)
+
+    def test_buy_budget_resolves_even_if_visit_owner_is_already_none(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, _key = self._compose(policy, inside)
+        policy._store_visit = None  # Reproduce the 2f449d2 orphaned shape.
+
+        for turn in range(1, STORE_STUCK_LIMIT + 1):
+            self._decision(policy, replace(outside, turn=outside.turn + turn))
+
+        self.assertIsNone(policy._store_buy_inflight)
+
+    def test_sale_budget_resolves_even_if_visit_owner_is_already_none(self):
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        outside, _key = self._compose(policy, inside)
+        policy._store_visit = None  # Reproduce the 2f449d2 orphaned shape.
+
+        for turn in range(1, STORE_STUCK_LIMIT + 1):
+            self._decision(policy, replace(outside, turn=outside.turn + turn))
+
+        self.assertIsNone(policy._batch_sell_pending)
+
+    def test_stage_two_releases_fresh_page_and_enters_operating_phase(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = replace(self._inside(STORE_TEMPLE, [], [ware]), turn=99)
+        policy = HengbotPolicy()
+        policy.choose_key(inside)
+        outside = replace(self._outside(policy, inside), turn=140)
+        self.assertEqual(policy.choose_key(outside), "5")
+
+        self.assertEqual(policy.choose_key(replace(inside, turn=140)), "pa\r\x1b")
+        self.assertTrue(policy._store_visit.operation_released)
+        self.assertEqual(policy._store_visit.phase.value, "operating")
+
+    def test_stage_two_refuses_stale_store_page(self):
+        """2f449d2 released a turn-99 page for a turn-140 stage-one post."""
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = replace(self._inside(STORE_TEMPLE, [], [ware]), turn=99)
+        policy = HengbotPolicy()
+        policy.choose_key(inside)
+        outside = replace(self._outside(policy, inside), turn=140)
+        self.assertEqual(policy.choose_key(outside), "5")
+
+        self.assertEqual(policy.choose_key(inside), "")
+        self.assertFalse(policy._store_visit.operation_released)
+
+    def test_stage_two_refuses_a_different_visits_store_page(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        inside = replace(inside, turn=10)
+        policy.choose_key(inside)
+        outside = replace(self._outside(policy, inside), turn=11)
+        self.assertEqual(policy.choose_key(outside), "5")
         first_visit = policy._store_visit
         policy._close_store_visit("fixture-other-visit")
         policy._shopping_approach_store_type = STORE_TEMPLE
 
+        newer_inside = replace(inside, turn=12)
+        self.assertEqual(policy.choose_key(newer_inside), "\x1b")
+        newer_outside = replace(outside, turn=13)
+        self.assertEqual(policy.choose_key(newer_outside), "5")
         self.assertIsNot(policy._store_visit, first_visit)
-        self.assertEqual(policy.choose_key(replace(inside, turn=outside.turn + 1)), "\x1b")
+        self.assertTrue(policy._store_visit.operation_posted)
+        self.assertEqual(policy.choose_key(newer_inside), "")
         self.assertFalse(policy._store_visit.operation_released)
 
 

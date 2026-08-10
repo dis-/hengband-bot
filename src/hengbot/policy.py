@@ -2638,9 +2638,7 @@ class HengbotPolicy:
         visit = self._store_visit
         if value is None:
             if visit is not None and visit.phase == StoreVisitPhase.LEAVING:
-                visit.close(visit.outcome or "completed")
-                self._store_visit_last_closed = visit
-                self._store_visit = None
+                self._close_store_visit(visit.outcome or "completed")
             return
         sequence, turn, store_type = value
         if visit is None:
@@ -2657,7 +2655,7 @@ class HengbotPolicy:
         visit = self._store_visit
         if visit is None:
             return
-        if visit.operation_posted and not visit.operation_released:
+        if visit.operation_posted:
             if (
                 self._store_buy_inflight is not None
                 and self._store_buy_inflight[0] == visit.store_type
@@ -2754,9 +2752,7 @@ class HengbotPolicy:
             ):
                 visit = self._store_visit
                 if visit is not None:
-                    visit.close("refused-with-evidence")
-                    self._store_visit_last_closed = visit
-                    self._store_visit = None
+                    self._close_store_visit("refused-with-evidence")
                 self.last_reason = "livelock:exhausted"
                 self._emission_previous_state = state
                 return WAIT_KEY
@@ -2961,8 +2957,10 @@ class HengbotPolicy:
         if (
             snapshot.store is None
             and self._store_buy_inflight is not None
-            and self._store_visit is not None
-            and self._store_visit.operation_released
+            and (
+                self._store_visit is None
+                or self._store_visit.operation_released
+            )
         ):
             (
                 watched_store,
@@ -2998,8 +2996,10 @@ class HengbotPolicy:
             snapshot.store is None
             and self._batch_sell_pending is not None
             and self._batch_sell_pending.get("phase") == "await-sale"
-            and self._store_visit is not None
-            and self._store_visit.operation_released
+            and (
+                self._store_visit is None
+                or self._store_visit.operation_released
+            )
         ):
             # Match the buy lifecycle: lagged surface and intermediate store
             # pages remain owned by the posted one-shot.  Only its own pack or
@@ -4111,6 +4111,27 @@ class HengbotPolicy:
             # stay key but before the queued store UI consumes the transaction.
             # The posted macro owns that page just as it owns an intermediate
             # store page; only observed completion or visit closure releases it.
+            self._town_visit_ledger.pending_store_context_waits += 1
+            if (
+                self._town_visit_ledger.pending_store_context_waits
+                < STORE_STUCK_LIMIT
+            ):
+                self.last_reason = "shop:one-shot-in-flight"
+                return ""
+            self._close_store_visit("one-shot-entry-unconfirmed")
+        if (
+            snapshot.store is None
+            and (
+                self._store_buy_inflight is not None
+                or (
+                    self._batch_sell_pending is not None
+                    and self._batch_sell_pending.get("phase") == "await-sale"
+                )
+            )
+        ):
+            # A legacy/orphaned watch has no visit phase to own this page, but
+            # its confirmation budget above remains authoritative.  Do not let
+            # ordinary routing create a replacement visit before it resolves.
             self.last_reason = "shop:one-shot-in-flight"
             return ""
 
@@ -4134,11 +4155,14 @@ class HengbotPolicy:
                 and not visit.operation_released
                 and visit.operation_key is not None
                 and snapshot.store.store_type == visit.store_type
+                and visit.posted_turn is not None
+                and snapshot.turn >= visit.posted_turn
             ):
                 # Selection and composition happened on the preceding outside
                 # page.  This page makes no policy choice: it only proves that
                 # this exact visit crossed the entry flush, so the sender may
                 # release the already-bound operation tail.
+                visit.transition(StoreVisitPhase.OPERATING)
                 visit.operation_released = True
                 self.last_reason = (
                     "shop:one-shot-buy"
@@ -18609,6 +18633,7 @@ class HengbotPolicy:
                 self._store_visit.operation_released = False
                 self._store_visit.composed_key = key
                 self._store_visit.posted_sequence = generation
+                self._store_visit.posted_turn = snapshot.turn
                 self._store_entry_wait_owner = observed_store.store_type
                 self._store_entry_wait_key = key
             return key
