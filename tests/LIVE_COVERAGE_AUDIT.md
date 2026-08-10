@@ -382,9 +382,11 @@ The one-shot visit latch now survives the documented lagged entrance
 player-turn and the intermediate store page. The closed-loop consumer injects
 both snapshots while consuming `5pa\r\x1b`; policy emits no foreign key, the
 macro debits gold exactly once, and the true outside pack/gold observation
-records the purchase and clears the latch. The earlier `ecf55de` claim was
-incorrect: the measured key trace is `['5', '\x1b']`, still demonstrating
-that foreign input enters the live macro.
+records the purchase and clears the latch. The `ecf55de` failure trace,
+reviewer-measured, is `['5', '\x1b', '5pa\r\x1b']`: the lagged page dropped
+the latch (`'5'`, not `''` as first recorded), the Escape entered the live
+macro, and the buy was composed again — a second gold debit. Only the first
+element of the original claim was wrong; the double-composition was real.
 
 Buy release is evidence-gated on carried-count growth or a gold decrease. A
 negative observation retains the watch and posted-operation latch until the

@@ -232,7 +232,9 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
 
     def test_lagged_surface_inside_live_macro_confirms_exactly_one_buy(self):
-        """ecf55de actually produced ['5', '\\x1b']; neither is allowed."""
+        """ecf55de produced ['5', '\\x1b', '5pa\\r\\x1b'] (reviewer-measured):
+        the lagged page dropped the latch, a foreign ESC entered the live
+        macro, and the SAME buy was composed again. None of that is allowed."""
         ware = store_item(
             "a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20
         )
@@ -432,7 +434,6 @@ class ShopOneShotTest(unittest.TestCase):
             ],
         )
         policy = HengbotPolicy()
-        policy._find_weapon_sale = lambda snapshot: None
         outside, key = self._compose(policy, inside)
         self.assertEqual(key, "5pd2\r\r\x1b")
         completed = replace(
