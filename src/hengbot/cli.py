@@ -379,9 +379,16 @@ def _uses_multiplier_combat_grace(reason: str) -> bool:
 
 
 def _advance_town_blocked_streak(
-    streak: int, reason: str, *, durable_progress: bool = False
+    streak: int,
+    reason: str,
+    *,
+    in_town: bool = True,
+    floor_changed: bool = False,
+    durable_progress: bool = False,
 ) -> int:
-    """Count unproductive town-block decisions until durable state changes."""
+    """Count unproductive decisions during one uninterrupted town visit."""
+    if floor_changed or not in_town:
+        return 0
     if durable_progress:
         streak = 0
     if reason.startswith("town:blocked:"):
@@ -1896,7 +1903,7 @@ def _run_follow(
         stalled_command_count = 0
         blocked_streak = 0
         town_blocked_durable_state = (
-            policy._town_observable_effect_state(initial_snapshot)
+            policy._town_workflow_progress_state(initial_snapshot)
             if initial_snapshot is not None
             else None
         )
@@ -2003,9 +2010,10 @@ def _run_follow(
                                 look_barrier_started_at = time.monotonic()
                             last_activity = time.monotonic()
                             continue
-                    if _floor_transition_needs_prompt_clear(
+                    floor_changed = _floor_transition_needs_prompt_clear(
                         last_snapshot_floor_key, snapshot.floor_key
-                    ):
+                    )
+                    if floor_changed:
                         # Hengband can print a level feeling / arrival message
                         # after emitting the first snapshot on a new floor. With
                         # quick_messages enabled, the first policy key dismisses
@@ -2280,9 +2288,9 @@ def _run_follow(
                     # Count the blocked decisions directly (in-store leaves do
                     # not break the streak).  Filler actions such as restock
                     # waits and wandering do not erase blocked evidence either:
-                    # only an observed durable store effect resets the fuse.
+                    # only observed town-workflow progress resets the fuse.
                     current_town_blocked_durable_state = (
-                        policy._town_observable_effect_state(snapshot)
+                        policy._town_workflow_progress_state(snapshot)
                     )
                     durable_town_progress = (
                         town_blocked_durable_state is not None
@@ -2295,6 +2303,11 @@ def _run_follow(
                     blocked_streak = _advance_town_blocked_streak(
                         blocked_streak,
                         policy.last_reason,
+                        in_town=(
+                            snapshot.floor_key[0] == 0
+                            and snapshot.floor_key[1] == 0
+                        ),
+                        floor_changed=floor_changed,
                         durable_progress=durable_town_progress,
                     )
                     if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:

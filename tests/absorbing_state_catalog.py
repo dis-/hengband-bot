@@ -67,6 +67,7 @@ class TownWorld:
         self.entries = int(self.inside)
         self.exits = 0
         self.depth = snapshot.dungeon_level
+        self.equipment = list(snapshot.equipment)
         self.blocked_streak = 0
         self.last_key = ""
         self.turn = snapshot.turn
@@ -75,6 +76,7 @@ class TownWorld:
         self.pending_home_scan_snapshots = []
         self.character_events_delivered = 0
         self._town_blocked_durable_state = self.durable_fingerprint()
+        self._town_blocked_depth = self.depth
 
     def snapshot(self, decision: int) -> Snapshot:
         grids = dict(self.base.grids)
@@ -209,14 +211,37 @@ class TownWorld:
     def durable_fingerprint(self):
         # Position and turn are intentionally excluded: a two-cell shuffle and
         # mere passage of turns do not advance a town workflow.
+        def items(values):
+            return tuple(
+                (
+                    getattr(i, "slot", None), i.tval, i.sval, i.name,
+                    i.count, i.charges, i.inscription, i.known,
+                    i.fully_known, i.is_equipment,
+                )
+                for i in values
+            )
+
         return (
-            self.depth, self.gold,
-            tuple(sorted((i.tval, i.sval, i.count, i.name) for i in self.inventory)),
-            tuple(sorted((i.tval, i.sval, i.count, i.name) for i in self.stock)),
+            (
+                self.entrance_type,
+                len(self.stock),
+                self.top,
+                items(self.stock[self.top:self.top + self.page_size]),
+            )
+            if self.inside else None,
+            items(self.inventory),
+            items(self.equipment),
+            self.gold,
         )
 
     def visible_terminal(self, reason: str):
         if getattr(self, "invalid_store_entries", 0):
+            return None
+        if self.depth != self._town_blocked_depth:
+            self.blocked_streak = 0
+            self._town_blocked_depth = self.depth
+        if self.depth != 0:
+            self.blocked_streak = 0
             return None
         durable_state = self.durable_fingerprint()
         if durable_state != self._town_blocked_durable_state:
@@ -1170,55 +1195,6 @@ def _all_nonhome_needs_unobtainable():
     return policy, world
 
 
-def _stale_restock_verdict_identify_staff_wander():
-    """A resolved recall verdict must not suppress the next Black Market route."""
-    helper = fixture.NoSafeRecallDestinationTest()
-    policy, snap = helper._fixture()
-    black_market = replace(
-        fixture.grid(45, 124, lit=True, in_view=True),
-        store_number=policy_module.STORE_BLACK,
-    )
-    identify_staff = replace(
-        snap.inventory[2], count=1, charges=19, pval=19
-    )
-    snap = replace(
-        snap,
-        turn=4052134,
-        grids={**snap.grids, black_market.position: black_market},
-        inventory=[*snap.inventory[:2], identify_staff],
-    )
-    policy._equipment_optimization_preparation = SimpleNamespace(
-        blockers=(), result=None,
-    )
-    policy._town_was_in_town = True
-    policy._floor_key = snap.floor_key
-    durable_state = policy._town_observable_effect_state(snap)
-    for store_type in (
-        policy_module.STORE_GENERAL,
-        policy_module.STORE_ARMOURY,
-        policy_module.STORE_WEAPON,
-        policy_module.STORE_TEMPLE,
-        policy_module.STORE_ALCHEMIST,
-        policy_module.STORE_MAGIC,
-    ):
-        policy._town_visit_ledger.nonhome_attempted_without_effect[
-            store_type
-        ] = durable_state
-    policy._town_errand_plan = None
-    policy._town_blocked_reason = "restocked-recall-store-unreachable"
-    stock = [
-        fixture.store_item(
-            "a", policy_module.TVAL_STAFF, policy_module.SV_STAFF_IDENTIFY,
-            name="Identify staff", charges=12,
-        )
-    ]
-
-    class StaleVerdictWorld(TownWorld):
-        expected_terminal_reason = "shop:one-shot-buy"
-
-    return policy, StaleVerdictWorld(snap, entrance=policy_module.STORE_BLACK, stock=stock)
-
-
 def _doubled_store_entry_cycle():
     """Delay the Alchemist page once after accepting its bare entrance WAIT."""
     policy, surface, target = _ordinary_alchemist_entry_seed(
@@ -1365,10 +1341,6 @@ def _aborted_shop_one_shot_stall_escape():
 
 
 SEEDED_STATES = (
-    AbsorbingState(
-        "stale-restock-verdict-identify-staff-wander", 40,
-        _stale_restock_verdict_identify_staff_wander,
-    ),
     AbsorbingState(
         "all-nonhome-needs-unobtainable-departure-unsatisfiable", 20,
         _all_nonhome_needs_unobtainable,

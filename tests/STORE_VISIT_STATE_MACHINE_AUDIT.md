@@ -178,3 +178,50 @@ the 27-seed absorbing catalogue passed; mutation battery passed 5/5 with
 fakery guard reported no new undeclared/source-text-only shape.  The stale-
 latch parent behavior remains the required `'5' != '6'` failure, while the
 durable-refusal and terminal-latching pins remain green.
+
+## 2026-08-11 town blocked-streak progress-projection remediation
+
+time: `2026-08-11T02:18:43.2379118+09:00`
+
+The blocked-streak reset now uses `_town_workflow_progress_state`: store type,
+stock count, page top and visible stock; pack items; equipped items; and player
+gold.  Each retained field is direct evidence that a town transaction, store
+page operation, inventory transfer, equipment operation, purchase, or sale
+advanced.  Messages are excluded because transient board text, character-dump
+notices, wall bumps, day/night notices, and their later disappearance are not
+town-workflow progress.  The message-bearing
+`_town_observable_effect_state` remains the separate durable non-Home refusal
+key.
+
+The CLI passes authoritative floor context into the real
+`_advance_town_blocked_streak`: a floor transition clears the streak, and any
+non-town decision clears and cannot advance it.  The harness now uses the same
+store/inventory/equipment/gold progress fields and separately gates/reset its
+fuse by town depth.
+
+The fixture copy of `evidence-identify-staff-wander.jsonl` replays 98 captured
+decisions through the real streak function.  The legacy message-bearing replay
+has maximum streak 24/30 and no fuse; with messages excluded, the replay fires
+within the 30-decision limit.  Focused pins also show 40 dungeon `explore`
+decisions remain at streak zero, a floor transition clears an inherited town
+streak, genuine progress resets it, and quiet alternation still reaches 30.
+
+The vacuous `stale-restock-verdict-identify-staff-wander` seed and its dedicated
+catalogue test were dropped, correcting the catalogue from 27 to 26 seeds.  Its
+harness verdict accepted the generic blocked fuse at `092c42e`, so it did not
+pin the expected Black Market purchase.  The public stale-latch unit pin remains
+and behaviorally distinguishes `092c42e` (`'5' != '6'`).  Scenario-transfer
+record: this remediation added three test names and removed that one vacuous
+seed test (net +2); `878e34d` had also removed
+`test_cli.TownBlockedStreakTest.test_any_other_reason_resets_the_streak`, which
+was not disclosed in its prior event.
+
+Measured in `C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe`
+with `PYTHONPATH=src`, the full suite passed twice: 2,547 tests in 221.474s and
+225.492s, one existing skip each.  This corrects the earlier audit prose that
+claimed a clean 2,539-test run; the task-entry worktree was instead measured as
+`failures=1, errors=3, skipped=57` in its prior environment.  At this tip the
+26-seed catalogue passes, mutation battery is 5/5 with
+`repo_tree_untouched: true`, sale-key lint reports zero, and test-fakery lint
+reports zero new source-text-only findings (seven existing violations and 98
+declared findings).

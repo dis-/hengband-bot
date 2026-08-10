@@ -91,30 +91,10 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 27)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 27)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 27)
+        self.assertEqual(len(SEEDED_STATES), 26)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 26)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 26)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
-
-    def test_stale_restock_verdict_reaches_black_market_purchase(self):
-        state = next(
-            state for state in SEEDED_STATES
-            if state.name == "stale-restock-verdict-identify-staff-wander"
-        )
-
-        result = drive(state)
-
-        self.assertTrue(result.passed, result.report())
-        self.assertEqual(
-            result.outcome, "drive-ending terminal expected shop:one-shot-buy"
-        )
-        self.assertGreaterEqual(result.entries, 1)
-        self.assertEqual(
-            result.reasons[
-                "town:blocked:restocked-recall-store-unreachable"
-            ],
-            0,
-        )
 
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):
         state = next(
@@ -358,15 +338,25 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             TownWorld, "visible_terminal", return_value=None
         ):
             results = [drive(state) for state in SEEDED_STATES]
-        # The narrowed entrance guard preserves the equipment owner's terminal
-        # reason verbatim. That terminal ends the drive independently of the
-        # world's ordinary visible-terminal catalogue; the live evidence
-        # replays correctly depend on livelock:exhausted being visible.
+        # Store entry/page state is real town-workflow progress, independent of
+        # the visible-terminal catalogue. The narrowed entrance guard also
+        # preserves the equipment owner's drive-ending terminal verbatim.
         passed = [result for result in results if result.passed]
         self.assertEqual(
             [result.state for result in passed],
-            ["transaction-abandoned-mid-strip"],
+            [
+                "doubled-store-entry-cycle",
+                "lagged-successful-store-entry",
+                "transaction-abandoned-mid-strip",
+                "movement-opens-store-before-surface-observation",
+            ],
         )
-        self.assertTrue(all(
-            result.outcome.startswith("drive-ending terminal") for result in passed
-        ))
+        self.assertEqual(
+            [result.outcome for result in passed],
+            [
+                "durable progress within decision bound",
+                "durable progress within decision bound",
+                "drive-ending terminal equipment transaction owns ten-item restoration",
+                "durable progress within decision bound",
+            ],
+        )

@@ -15127,8 +15127,8 @@ class HengbotPolicy:
         return None
 
     @staticmethod
-    def _town_observable_effect_state(snapshot: Snapshot) -> tuple[object, ...]:
-        """Project durable store effects; ignore turn passage and walking."""
+    def _town_workflow_progress_state(snapshot: Snapshot) -> tuple[object, ...]:
+        """Project state changes that demonstrate town-workflow progress."""
         def item_state(item: object) -> tuple[object, ...]:
             return tuple(
                 getattr(item, field, None)
@@ -15147,11 +15147,16 @@ class HengbotPolicy:
         )
         return (
             store_state,
-            tuple(snapshot.messages),
             tuple(item_state(item) for item in snapshot.inventory),
             tuple(item_state(item) for item in snapshot.equipment),
             snapshot.player.gold,
         )
+
+    @staticmethod
+    def _town_observable_effect_state(snapshot: Snapshot) -> tuple[object, ...]:
+        """Project durable refusal evidence; ignore turn passage and walking."""
+        workflow = HengbotPolicy._town_workflow_progress_state(snapshot)
+        return (workflow[0], tuple(snapshot.messages), *workflow[1:])
 
     def _refresh_nonhome_effect_refusals(self, snapshot: Snapshot) -> None:
         """Release a refused route only after the game exposes different state."""

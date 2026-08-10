@@ -2275,6 +2275,111 @@ class TownBlockedStreakTest(unittest.TestCase):
         )
         self.assertEqual(streak, 0)
 
+    def test_dungeon_decisions_clear_and_never_advance_town_streak(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        streak = _advance_town_blocked_streak(
+            1, "explore", in_town=False, floor_changed=True
+        )
+        for _ in range(40):
+            streak = _advance_town_blocked_streak(
+                streak, "explore", in_town=False
+            )
+        self.assertEqual(streak, 0)
+
+    def test_floor_change_clears_town_streak(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        self.assertEqual(
+            _advance_town_blocked_streak(
+                12, "town:blocked:repetition", floor_changed=True
+            ),
+            0,
+        )
+
+    def test_real_wander_capture_fuses_when_messages_are_not_progress(self):
+        from hengbot.cli import (
+            TOWN_BLOCKED_STOP_LIMIT,
+            _advance_town_blocked_streak,
+        )
+        from hengbot.policy import HengbotPolicy
+
+        quiet = SimpleNamespace(
+            store=None,
+            messages=(),
+            inventory=(),
+            equipment=(),
+            player=SimpleNamespace(gold=6289),
+        )
+        noisy = SimpleNamespace(**{
+            **vars(quiet),
+            "messages": ("character dump complete",),
+        })
+        self.assertEqual(
+            HengbotPolicy._town_workflow_progress_state(quiet),
+            HengbotPolicy._town_workflow_progress_state(noisy),
+        )
+
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "evidence-identify-staff-wander.jsonl"
+        )
+        rows = [
+            json.loads(line)
+            for line in fixture_path.read_text(encoding="utf-8").splitlines()
+        ]
+        decisions = [
+            row for row in rows if row.get("decision_sequence") is not None
+        ]
+
+        def captured_progress(row, *, messages):
+            player = row.get("player") or {}
+            inventory = row.get("inventory")
+            return (
+                row.get("store_type"),
+                tuple(row.get("messages") or ()) if messages else (),
+                None if inventory is None else tuple(sorted(inventory.items())),
+                player.get("gold"),
+            )
+
+        legacy_streak = legacy_max = 0
+        legacy_previous = None
+        legacy_fuse = None
+        for index, row in enumerate(decisions):
+            current = captured_progress(row, messages=True)
+            changed = legacy_previous is not None and current != legacy_previous
+            legacy_previous = current
+            legacy_streak = _advance_town_blocked_streak(
+                legacy_streak, f"town:blocked:{row['reason']}",
+                durable_progress=changed,
+            )
+            legacy_max = max(legacy_max, legacy_streak)
+            if legacy_streak >= TOWN_BLOCKED_STOP_LIMIT:
+                legacy_fuse = index
+                break
+
+        self.assertEqual(len(decisions), 98)
+        self.assertEqual((legacy_max, legacy_fuse), (24, None))
+
+        streak = 0
+        previous = None
+        fused_at = None
+        for index, row in enumerate(decisions):
+            current = captured_progress(row, messages=False)
+            changed = previous is not None and current != previous
+            previous = current
+            streak = _advance_town_blocked_streak(
+                streak, f"town:blocked:{row['reason']}",
+                in_town=True, durable_progress=changed,
+            )
+            if streak >= TOWN_BLOCKED_STOP_LIMIT:
+                fused_at = index
+                break
+
+        self.assertIsNotNone(fused_at)
+        self.assertLess(fused_at, len(decisions))
+
     def test_rederived_block_reasons_reach_the_fuse_through_fillers(self):
         from hengbot.cli import (
             TOWN_BLOCKED_STOP_LIMIT,
