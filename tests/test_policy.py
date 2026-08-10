@@ -26375,6 +26375,70 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         ):
             self.assertEqual(policy._batch_sell_key(snap), "d0y")
 
+    def test_collision_evidence_reinscribes_intended_item_before_sale(self):
+        evidence = json.loads(
+            Path("tests/fixtures/sale_inscription_collision_20260810.json")
+            .read_text(encoding="utf-8")
+        )
+        potion = replace(
+            item("b", TVAL_POTION, 1, count=2, name="Resist Heat potion"),
+            inscription="@0",
+        )
+        staff = replace(
+            item("m", TVAL_STAFF, 1, count=1, name="Light staff"),
+            inscription="@0",
+        )
+        snap = Snapshot(
+            player(10, 10, gold=evidence["gold"], class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[potion, staff],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(
+            policy, "_current_store_sale_candidates", return_value=[staff]
+        ), patch.object(policy, "_retention_surplus", return_value=1):
+            first = policy._batch_sell_key(snap)
+            self.assertEqual(first, "{m@1\r")
+            self.assertNotEqual(first, evidence["posted_key"])
+            observed = replace(
+                snap, inventory=[potion, replace(staff, inscription="@1")]
+            )
+            self.assertEqual(policy._batch_sell_key(observed), "d1y")
+            self.assertNotIn("d0", first + "d1y")
+
+    def test_unique_preinscribed_sale_still_composes_directly(self):
+        sale = replace(item("m", TVAL_STAFF, 1, name="staff"), inscription="@7")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[sale],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(policy, "_retention_surplus", return_value=1):
+            self.assertEqual(policy._batch_sell_key(snap, [sale]), "d7y")
+
+    def test_sale_refuses_when_no_unique_numeric_tag_is_available(self):
+        blockers = [
+            replace(item(chr(ord("a") + digit), TVAL_STAFF, digit + 1),
+                    inscription=f"@{digit}")
+            for digit in range(10)
+        ]
+        intended = replace(
+            item("m", TVAL_STAFF, 20, name="intended"), inscription="@0"
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            inventory=[*blockers, intended],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._batch_sell_key(snap, [intended]), LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "shop:sale-inscription-ambiguous-leave"
+        )
+
     def test_batch_straggler_advances_attempt_and_does_not_rebatch(self):
         candidates = [
             item("x", TVAL_WAND, 1, name="one", count=2),

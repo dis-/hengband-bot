@@ -1,0 +1,12 @@
+{
+  "source": "jsonlog/evidence-sale-not-completing.jsonl",
+  "posted_key": "d0y\u001b",
+  "turn": 4032412,
+  "gold": 7121,
+  "store_type": 5,
+  "stock_num": 16,
+  "inventory": [
+    {"slot": "b", "tval": 75, "count": 2, "inscription": "@0"},
+    {"slot": "m", "tval": 55, "count": 1, "inscription": "@0"}
+  ]
+}

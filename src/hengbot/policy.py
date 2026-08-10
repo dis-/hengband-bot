@@ -17478,6 +17478,14 @@ class HengbotPolicy:
                     item = observed_tagged(entry)
                     if item is None:
                         continue
+                    if not self._sale_tag_is_unique(
+                        snapshot, item, str(entry["tag"])
+                    ):
+                        self._unsellable_items.add(entry["signature"])
+                        self._store_sale_refused.add(store.store_type)
+                        self._batch_sell_pending = None
+                        self.last_reason = "shop:sale-inscription-ambiguous-leave"
+                        return LEAVE_STORE_KEY
                     sale = self._batch_sale_entry(snapshot, item, entry["tag"])
                     if sale is None:
                         self._batch_sell_pending = None
@@ -17533,12 +17541,22 @@ class HengbotPolicy:
         entries: list[dict[str, object]] = []
         inscribe_parts: list[str] = []
         for item in candidates[:1]:
-            digit = str(len(entries))
+            digit = self._unique_sale_tag(snapshot, item)
+            if digit is None:
+                self._unsellable_items.add(self._item_signature(item))
+                self._store_sale_refused.add(store.store_type)
+                self._batch_sell_pending = None
+                self.last_reason = "shop:sale-inscription-ambiguous-leave"
+                return LEAVE_STORE_KEY
             exact_tag = f"@{digit}"
             has_exact_tag = re.search(rf"@{digit}(?!\d)", item.inscription) is not None
             # Other @ inscriptions may be command bindings owned outside sale
             # policy.  Never overwrite them merely to make a batch possible.
-            if "@" in item.inscription and not has_exact_tag:
+            has_numeric_tag = any(
+                re.search(rf"@{value}(?!\d)", item.inscription)
+                for value in "0123456789"
+            )
+            if "@" in item.inscription and not has_exact_tag and not has_numeric_tag:
                 continue
             if not has_exact_tag:
                 inscribe_parts.append("{" + item.slot + exact_tag + "\r")
@@ -17570,6 +17588,42 @@ class HengbotPolicy:
         return "".join(inscribe_parts) if inscribe_parts else "".join(
             entry["sell"] for entry in entries
         )
+
+    def _sale_tag_is_unique(
+        self, snapshot: Snapshot, intended: InventoryItem, tag: str
+    ) -> bool:
+        """Match Hengband's numeric-tag resolver over store-eligible pack items."""
+        matches = [
+            item for item in snapshot.inventory
+            if self._store_accepts_sale(snapshot.store.store_type, item)
+            and re.search(rf"@{tag}(?!\d)", item.inscription)
+        ]
+        return (
+            len(matches) == 1
+            and self._item_signature(matches[0]) == self._item_signature(intended)
+        )
+
+    def _unique_sale_tag(
+        self, snapshot: Snapshot, intended: InventoryItem
+    ) -> str | None:
+        """Reuse an unambiguous numeric tag, or allocate a fresh one."""
+        existing = next(
+            (digit for digit in "0123456789"
+             if re.search(rf"@{digit}(?!\d)", intended.inscription)),
+            None,
+        )
+        if existing is not None and self._sale_tag_is_unique(
+            snapshot, intended, existing
+        ):
+            return existing
+        used = {
+            digit
+            for item in snapshot.inventory
+            if self._store_accepts_sale(snapshot.store.store_type, item)
+            for digit in "0123456789"
+            if re.search(rf"@{digit}(?!\d)", item.inscription)
+        }
+        return next((digit for digit in "0123456789" if digit not in used), None)
 
     def _batch_sale_entry(
         self, snapshot: Snapshot, item: InventoryItem, tag: str
