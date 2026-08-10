@@ -382,19 +382,19 @@ The one-shot visit latch now survives the documented lagged entrance
 player-turn and the intermediate store page. The closed-loop consumer injects
 both snapshots while consuming `5pa\r\x1b`; policy emits no foreign key, the
 macro debits gold exactly once, and the true outside pack/gold observation
-records the purchase and clears the latch. At `ecf55de` the same pin produces
-`['', '\x1b', '5pa\r\x1b']`: Escape enters the live macro and the buy is
-composed again.
+records the purchase and clears the latch. The earlier `ecf55de` claim was
+incorrect: the measured key trace is `['5', '\x1b']`, still demonstrating
+that foreign input enters the live macro.
 
 Buy release is evidence-gated on carried-count growth or a gold decrease. A
 negative observation retains the watch and posted-operation latch until the
 existing `STORE_STUCK_LIMIT` watch count closes the visit as
 `one-shot-buy-unconfirmed`. Sale release is evidence-gated on gold growth or
 the tagged stack reaching its expected post-sale count. A negative sale
-observation first advances `_store_sell_attempt`, then closes the visit as
-`one-shot-sale-unconfirmed`; `StoreVisit.close()` clears the latch, and the
-existing sale attempt/straggler bounds own any later retry. Thus neither kind
-uses an arbitrary outside page as completion evidence.
+observation retains the watch without advancing `_store_sell_attempt` until
+`STORE_STUCK_LIMIT`; only that genuine bounded failure closes the visit as
+`one-shot-sale-unconfirmed` and advances the attempt. Thus neither kind uses
+an arbitrary outside page as completion evidence.
 
 The former FIX-2 in-store `assertNotIn("pa", ...)` claim was removed: an
 in-store page cannot compose the door-prefixed purchase at either historical

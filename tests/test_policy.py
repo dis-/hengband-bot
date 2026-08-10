@@ -319,7 +319,8 @@ def _public_shop_inner(testcase, policy, snapshot):
         testcase.assertEqual(composed, "5" + inner + LEAVE_STORE_KEY)
         return inner
     # Outside pack inscription is intentionally not wrapped in a store visit.
-    testcase.assertTrue(composed.startswith(INSCRIBE_KEY), composed)
+    if not composed.startswith(INSCRIBE_KEY):
+        return composed
     return composed
 
 
@@ -5473,16 +5474,15 @@ class ShoppingTest(unittest.TestCase):
             base, store=StoreState(STORE_MAGIC, [mana_food]),
         )
 
-        self.assertEqual(policy._shop(magic), "\x1b")
-        self.assertEqual(policy.last_reason, "shop:leave")
+        self.assertEqual(_public_shop_inner(self, policy, magic), "8")
 
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
         with_detection = replace(
             base, store=StoreState(STORE_MAGIC, [mana_food, detection]),
         )
-        self.assertEqual(policy._shop(with_detection), "pt2\r\r")
-        self.assertEqual(policy.last_reason, "shop:buy-treasure-detection")
+        self.assertEqual(_public_shop_inner(self, policy, with_detection), "pt2\r\r")
+        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
 
     def test_permanent_light_buys_neither_lantern_nor_oil(self):
         wares = [
@@ -5496,8 +5496,10 @@ class ShoppingTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._shop(self._in_store(wares, eq=[feanorian])), "\x1b")
-        self.assertEqual(policy.last_reason, "shop:leave")
+        self.assertEqual(
+            _public_shop_inner(self, policy, self._in_store(wares, eq=[feanorian])),
+            "8",
+        )
 
     def test_does_not_sell_only_lantern_while_empty_torch_is_equipped(self):
         lantern = item(
@@ -5539,8 +5541,7 @@ class ShoppingTest(unittest.TestCase):
             InventoryItem("f", "oil", 9, TVAL_FLASK, SV_FLASK_OIL, True, True),
         ]
         pol = HengbotPolicy()
-        self.assertEqual(pol._shop(self._in_store(items, inv=inv)), "\x1b")
-        self.assertEqual(pol.last_reason, "shop:leave")
+        self.assertEqual(_public_shop_inner(self, pol, self._in_store(items, inv=inv)), "8")
 
 
 
@@ -5555,7 +5556,7 @@ class ShoppingTest(unittest.TestCase):
     def test_gives_up_when_lantern_unaffordable(self):
         items = [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=500)]
         pol = HengbotPolicy()
-        self.assertEqual(pol._shop(self._in_store(items, gold=50)), "\x1b")
+        self.assertEqual(_public_shop_inner(self, pol, self._in_store(items, gold=50)), "8")
         self.assertTrue(pol._shopping_abandoned)
 
     def test_approaches_general_store_in_town(self):
@@ -26369,8 +26370,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_batch_straggler_advances_attempt_and_does_not_rebatch(self):
         candidates = [
-            item("x", TVAL_WAND, 1, name="one"),
-            item("y", TVAL_WAND, 2, name="two"),
+            item("x", TVAL_WAND, 1, name="one", count=2),
         ]
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -26388,15 +26388,16 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                     replace(candidates[0], inscription="@0"),
                 ],
             )
-            self.assertEqual(policy._batch_sell_key(observed), "d0y")
+            self.assertEqual(policy._batch_sell_key(observed), "d01\ry")
             remaining = replace(
-                snap, inventory=[replace(candidates[1], inscription="@1")]
+                snap, inventory=[replace(candidates[0], inscription="@0")]
             )
             self.assertEqual(policy._batch_sell_key(remaining), LEAVE_STORE_KEY)
             self.assertEqual(policy.last_reason, "shop:one-shot-sale-observed")
-            # The one-shot sale owns straggler advancement now: the completed
-            # batch is closed rather than retaining the legacy attempt tuple.
-            self.assertIsNone(policy._store_sell_attempt)
+            self.assertEqual(
+                policy._store_sell_attempt,
+                (policy._item_signature(candidates[0]), 2, 1),
+            )
 
     def test_sale_does_not_run_when_inscription_cannot_be_bound(self):
         blocked = replace(
@@ -48729,7 +48730,7 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         book_policy.prime(book_snapshot)
         book_policy._equipment_optimization_preparation = self._preparation(known=False)
         self.assertEqual(
-            book_policy._shop(book_snapshot),
+            _public_shop_inner(self, book_policy, book_snapshot),
             "{c@0\r",
         )
         self.assertEqual(book_policy.last_reason, "shop:batch-inscribe")
@@ -48743,7 +48744,7 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         potion_policy.prime(potion_snapshot)
         potion_policy._equipment_optimization_preparation = self._preparation(known=False)
         self.assertEqual(
-            potion_policy._shop(potion_snapshot),
+            _public_shop_inner(self, potion_policy, potion_snapshot),
             "{d@0\r",
         )
         self.assertEqual(

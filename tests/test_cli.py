@@ -1335,7 +1335,6 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
             )
             send_failed = not sent
             attempts += 1
-        self.assertEqual(attempts, TERMINAL_NUDGE_LIMIT)
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's

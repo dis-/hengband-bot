@@ -5,20 +5,49 @@ from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
     Position,
     Snapshot,
+    StoreItem,
     StoreState,
+    SV_BOW_SLING,
+    SV_DIGGING_SHOVEL,
+    SV_POTION_CURE_CRITICAL,
+    SV_SCROLL_DETECT_TREASURE,
+    SV_SCROLL_TELEPORT,
     SV_SCROLL_WORD_OF_RECALL,
+    TVAL_BOW,
+    TVAL_DIGGING,
+    TVAL_FLASK,
+    TVAL_FOOD,
+    TVAL_POTION,
     TVAL_SCROLL,
+    TVAL_SHOT,
     TVAL_WAND,
     TVAL_LITE,
     SV_LITE_LANTERN,
 )
 from hengbot.policy import (
-    HengbotPolicy, LEAVE_STORE_KEY, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE,
+    FOOD_MIN_SVAL, OIL_TARGET, HengbotPolicy, LEAVE_STORE_KEY, STORE_GENERAL,
+    STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, STORE_STUCK_LIMIT,
 )
-from tests.test_policy import grid, item, player, store_item
+from tests.test_policy import grid, hostile, item, player, store_item
 
 
 class ShopOneShotTest(unittest.TestCase):
+    @staticmethod
+    def _decision(policy, snapshot):
+        return policy.choose_key(snapshot)
+
+    @staticmethod
+    def _ammo_supplies():
+        return [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=12),
+            item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=5),
+            item("o", TVAL_FLASK, 0, count=OIL_TARGET),
+            item("z", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            item("v", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=5),
+        ]
+
     def _inside(self, store_type, inventory, wares, *, gold=7589):
         entrance = replace(grid(10, 10), store_number=store_type)
         return Snapshot(
@@ -83,6 +112,30 @@ class ShopOneShotTest(unittest.TestCase):
             player=replace(outside.player, gold=gold),
             inventory=inventory,
             turn=outside.turn + 3,
+        )
+        policy_keys.append(policy.choose_key(completed))
+        return completed, policy_keys
+
+    def _consume_sale_with_lagged_pages(self, policy, outside, key, inside):
+        """Consume a sale while exposing the same pages as the buy probe."""
+        state, gold, inventory = "surface", outside.player.gold, list(outside.inventory)
+        policy_keys = []
+        for pressed in key:
+            if state == "surface" and pressed == "5":
+                state = "store"
+                policy_keys.append(self._decision(policy, replace(outside, turn=2)))
+                policy_keys.append(self._decision(policy, replace(inside, turn=3)))
+            elif state == "store" and pressed == "d": state = "item"
+            elif state == "item" and pressed == "0": state = "confirm"
+            elif state == "confirm" and pressed == "y":
+                inventory.clear()
+                gold += 125
+                state = "store"
+            elif state == "store" and pressed == "\x1b": state = "surface"
+            else: self.fail((state, pressed))
+        completed = replace(
+            outside, inventory=inventory, player=replace(outside.player, gold=gold),
+            turn=4,
         )
         policy_keys.append(policy.choose_key(completed))
         return completed, policy_keys
@@ -179,7 +232,7 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
 
     def test_lagged_surface_inside_live_macro_confirms_exactly_one_buy(self):
-        """ecf55de produced ['', '\\x1b', '5pa\\r\\x1b'] and paid twice."""
+        """ecf55de actually produced ['5', '\\x1b']; neither is allowed."""
         ware = store_item(
             "a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20
         )
@@ -248,7 +301,24 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertFalse(policy._store_visit.operation_posted)
         self.assertIsNone(policy._batch_sell_pending)
 
-    def test_unconfirmed_sale_releases_only_through_visit_closure(self):
+    def test_lagged_surface_inside_live_macro_confirms_exactly_one_sale(self):
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+
+        completed, policy_keys = self._consume_sale_with_lagged_pages(
+            policy, outside, key, inside
+        )
+
+        self.assertEqual(key, "5d0y\x1b")
+        self.assertEqual(policy_keys[:2], ["", ""])
+        self.assertEqual(completed.player.gold, outside.player.gold + 125)
+        self.assertIsNone(policy._batch_sell_pending)
+        self.assertIsNone(policy._store_sell_attempt)
+        self.assertFalse(policy._store_visit.operation_posted)
+
+    def test_unconfirmed_sale_releases_at_budget_without_early_attempt_advance(self):
         sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
         inside = self._inside(STORE_MAGIC, [sold], [])
         policy = HengbotPolicy()
@@ -256,7 +326,11 @@ class ShopOneShotTest(unittest.TestCase):
         visit = policy._store_visit
         self.assertEqual(key, "5d0y\x1b")
 
-        policy.choose_key(replace(outside, turn=outside.turn + 1))
+        for wait in range(1, STORE_STUCK_LIMIT):
+            self.assertEqual(self._decision(policy, replace(outside, turn=wait + 1)), "")
+            self.assertIs(policy._store_visit, visit)
+            self.assertIsNone(policy._store_sell_attempt)
+        policy.choose_key(replace(outside, turn=STORE_STUCK_LIMIT + 1))
 
         self.assertIs(policy._store_visit_last_closed, visit)
         self.assertEqual(visit.outcome, "one-shot-sale-unconfirmed")
@@ -278,23 +352,22 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
         outside, first = self._compose(policy, inside)
         self.assertEqual(first, "5pb\r\x1b")
-        policy.choose_key(replace(outside, turn=2))
-        policy.choose_key(replace(inside, turn=3))
-        second = policy.choose_key(replace(outside, turn=4))
-        policy.choose_key(replace(inside, turn=5))
-        third = policy.choose_key(replace(outside, turn=6))
-        self.assertLessEqual(sum("pb" in key for key in (first, second, third)), 3)
+        decisions = [first]
+        for turn in range(2, STORE_STUCK_LIMIT + 2):
+            decisions.append(self._decision(policy, replace(outside, turn=turn)))
+        self.assertEqual(sum("pb" in key for key in decisions), 1)
+        self.assertEqual(policy._store_visit_last_closed.outcome, "one-shot-buy-unconfirmed")
 
     def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
         ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
         inside = self._inside(STORE_GENERAL, [], [ware], gold=1000)
         policy = HengbotPolicy()
         outside, key = self._compose(policy, inside)
-        policy.choose_key(replace(outside, turn=10))
-        waiting = policy.choose_key(replace(inside, turn=11))
-        policy.choose_key(replace(outside, turn=12))
-        retried = policy.choose_key(replace(inside, turn=13))
-        self.assertLessEqual(sum("pb" in value for value in (key, waiting, retried)), 2)
+        decisions = [key]
+        for turn in range(10, 10 + STORE_STUCK_LIMIT):
+            decisions.append(self._decision(policy, replace(outside, turn=turn)))
+        self.assertEqual(sum("pb" in value for value in decisions), 1)
+        self.assertEqual(policy._store_visit_last_closed.outcome, "one-shot-buy-unconfirmed")
 
     def test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
@@ -304,13 +377,30 @@ class ShopOneShotTest(unittest.TestCase):
         surface_key = policy.choose_key(replace(outside, turn=2))
         store_key = policy.choose_key(replace(inside, turn=3))
         surface_key_2 = policy.choose_key(replace(outside, turn=4))
-        self.assertLessEqual(sum("pa" in value for value in (key, surface_key, store_key, surface_key_2)), 2)
+        self.assertLessEqual(sum("pa" in value for value in (key, surface_key, store_key, surface_key_2)), 1)
 
     def test_alchemist_combat_flicker_does_not_repeat_unconfirmed_purchase(self):
-        self.test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase()
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        combat = replace(
+            outside, turn=2,
+            visible_monsters=[hostile(1, 10, 11, max_melee_damage=10)],
+        )
+        decisions = [key, policy.choose_key(combat), policy.choose_key(replace(inside, turn=3))]
+        self.assertEqual(sum("pa" in value for value in decisions), 1)
+        self.assertTrue(policy._store_visit.operation_posted)
 
     def test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window(self):
-        self.test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase()
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        other_store = replace(inside, store=StoreState(STORE_MAGIC, []), turn=2)
+        decisions = [key, policy.choose_key(other_store), policy.choose_key(replace(outside, turn=3))]
+        self.assertEqual(sum("pa" in value for value in decisions), 1)
+        self.assertEqual(decisions[1:], ["", ""])
 
     def test_completed_stacked_buy_stops_three_page_retry_construction(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20, count=3)
@@ -319,19 +409,46 @@ class ShopOneShotTest(unittest.TestCase):
         outside, key = self._compose(policy, inside)
         completed = self._consume_buy(outside, key, ware)
         policy.choose_key(completed)
-        keys = [policy.choose_key(replace(inside, inventory=completed.inventory, turn=turn)) for turn in range(3, 15)]
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
+        keys = [policy.choose_key(replace(completed, turn=turn)) for turn in range(3, 15)]
         self.assertFalse(any("pa" in value for value in keys))
 
     def test_partial_low_gold_ammo_purchase_completes_without_looping(self):
-        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20, count=2)
-        inside = self._inside(STORE_TEMPLE, [], [ware], gold=7589)
+        ware = StoreItem("d", "iron shot", 7, TVAL_SHOT, 1, price=10)
+        inside = replace(
+            self._inside(
+                STORE_WEAPON,
+                self._ammo_supplies(),
+                [ware],
+                gold=20,
+            ),
+            equipment=[
+                item("b", TVAL_BOW, SV_BOW_SLING, name="sling", is_equipment=True),
+                item(
+                    "l", TVAL_LITE, SV_LITE_LANTERN,
+                    fuel=5000, is_equipment=True,
+                ),
+            ],
+        )
         policy = HengbotPolicy()
+        policy._find_weapon_sale = lambda snapshot: None
         outside, key = self._compose(policy, inside)
-        self.assertEqual(key, "5pa2\r\r\x1b")
-        completed = self._consume_buy(outside, key, ware)
+        self.assertEqual(key, "5pd2\r\r\x1b")
+        completed = replace(
+            outside,
+            player=replace(outside.player, gold=0),
+            inventory=[
+                item("a", TVAL_SHOT, 1, name="iron shots", count=2),
+                *outside.inventory,
+            ],
+            turn=outside.turn + 1,
+        )
         policy.choose_key(completed)
         self.assertIsNone(policy._store_buy_inflight)
         self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
+        later = [policy.choose_key(replace(completed, turn=turn)) for turn in range(3, 6)]
+        self.assertFalse(any("pd" in value for value in later))
 
     def test_choose_key_purchase_watch_records_only_confirmed_buy(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)

@@ -2979,13 +2979,33 @@ class HengbotPolicy:
             and self._batch_sell_pending is not None
             and self._batch_sell_pending.get("phase") == "await-sale"
         ):
-            # The one-shot has already returned to the surface.  Account for
-            # its pack delta here; verification must never require another
-            # in-store decision phase.
-            pending_store = int(self._batch_sell_pending["store_type"])
-            self._batch_sell_key(
-                replace(snapshot, store=StoreState(pending_store, []))
-            )
+            # Match the buy lifecycle: lagged surface and intermediate store
+            # pages remain owned by the posted one-shot.  Only its own pack or
+            # gold effect, visit closure, or the shared wait budget can release
+            # it.  In particular, a merely outside page is not a negative sale
+            # observation and must not advance the ordinary attempt record.
+            pending = self._batch_sell_pending
+            entries = pending["entries"]
+            confirmed = snapshot.player.gold > pending["before_gold"]
+            for entry in entries:
+                survivor = next((
+                    current for current in snapshot.inventory
+                    if self._item_signature(current) == entry["signature"]
+                    and re.search(
+                        rf"@{entry['tag']}(?!\d)", current.inscription
+                    )
+                ), None)
+                expected = entry["count"] - entry["quantity"]
+                if survivor is None or survivor.count <= expected:
+                    confirmed = True
+            wait_count = int(pending.get("wait_count", 0))
+            if confirmed or wait_count + 1 >= STORE_STUCK_LIMIT:
+                pending_store = int(pending["store_type"])
+                self._batch_sell_key(
+                    replace(snapshot, store=StoreState(pending_store, []))
+                )
+            else:
+                pending["wait_count"] = wait_count + 1
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -17475,6 +17495,7 @@ class HengbotPolicy:
             "phase": phase,
             "entries": entries,
             "before_gold": snapshot.player.gold,
+            "wait_count": 0,
         }
         self.last_reason = (
             "shop:batch-inscribe"
