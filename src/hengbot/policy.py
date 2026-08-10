@@ -15110,7 +15110,7 @@ class HengbotPolicy:
 
     @staticmethod
     def _town_observable_effect_state(snapshot: Snapshot) -> tuple[object, ...]:
-        """Project the posting contract's ordinary observable-effect fields."""
+        """Project durable store effects; ignore turn passage and walking."""
         def item_state(item: object) -> tuple[object, ...]:
             return tuple(
                 getattr(item, field, None)
@@ -15127,11 +15127,7 @@ class HengbotPolicy:
             getattr(store, "page_top", None),
             tuple(item_state(item) for item in store.items),
         )
-        position = snapshot.player.position
         return (
-            snapshot.turn,
-            getattr(snapshot, "floor_key", None),
-            (position.y, position.x),
             store_state,
             tuple(snapshot.messages),
             tuple(item_state(item) for item in snapshot.inventory),

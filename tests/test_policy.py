@@ -30464,6 +30464,44 @@ class IdentifyStaffTest(unittest.TestCase):
             },
         )
 
+    def test_recharge_wander_evidence_keeps_obtainable_magic_buy_live(self):
+        """Replay the durable fields at the evidence trace's Magic visit."""
+        inventory = [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9),
+            item("t", TVAL_SCROLL, 9, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            item("f", TVAL_FOOD, 35, count=9),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=9, fuel=500),
+            self._staff(charges=19),
+        ]
+        base = Snapshot(
+            player(
+                28, 69, gold=6830, class_id=PLAYER_CLASS_WARRIOR,
+                food_type=FOOD_TYPE_MANA,
+            ),
+            {Position(28, 69): grid(28, 69)},
+            [],
+            turn=4034680,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory,
+            store=StoreState(
+                STORE_MAGIC,
+                [store_item(
+                    "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                    price=917, name="Staff of Identify", charges=21,
+                )],
+            ),
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+
+        operation = _public_shop_inner(self, policy, base)
+
+        self.assertEqual(operation, "ph\r")
+        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertGreater(policy._decision_sequence, 1)
+
     def test_home_staff_is_withdrawn_before_buying_replacement(self):
         stored = store_item(
             "h", TVAL_STAFF, SV_STAFF_IDENTIFY,
@@ -43163,7 +43201,8 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(shop), LEAVE_STORE_KEY)
         policy._town_store_attempted.pop(STORE_ALCHEMIST, None)
-        policy.choose_key(town)
+        first_outside = replace(town, turn=town.turn + 10)
+        policy.choose_key(first_outside)
 
         self.assertIn(
             STORE_ALCHEMIST,
@@ -43172,6 +43211,39 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertIsNone(policy._next_required_store_type(town))
         self.assertEqual(
             policy._town_blocked_reason, "departure-unsatisfiable"
+        )
+
+        # WAIT advances the real game turn, and ordinary wandering can change
+        # position.  Neither is a store effect, so neither may release the
+        # refusal or make the Alchemist route live again.
+        route_reasons = []
+        for decision in range(1, 9):
+            advanced = replace(
+                town,
+                turn=first_outside.turn + decision * 10,
+                player=replace(
+                    town.player,
+                    position=Position(
+                        town.player.position.y,
+                        town.player.position.x + decision,
+                    ),
+                ),
+            )
+            key = policy.choose_key(advanced)
+            route_reasons.append(policy.last_reason)
+            self.assertEqual(key, WAIT_KEY)
+            self.assertEqual(
+                policy.last_reason,
+                "town:blocked:departure-unsatisfiable",
+            )
+            self.assertIn(
+                STORE_ALCHEMIST,
+                policy._town_visit_ledger.nonhome_attempted_without_effect,
+            )
+
+        self.assertFalse(
+            any("alchemist" in reason.lower() for reason in route_reasons),
+            route_reasons,
         )
 
     def test_terminal_router_honors_completed_identification_stop(self):

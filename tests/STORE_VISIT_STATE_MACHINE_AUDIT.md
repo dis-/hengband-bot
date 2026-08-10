@@ -80,27 +80,16 @@ organization sale `d1y<Esc>`, then decision 26 exposed an affordable device
 (`f`, 541 gold, 20 charges) and again reported `preempted`. The public trace
 contains no buy composition; decisions 49 onward are `stuck:wander`.
 
-The retained raw snapshot at turn 4,034,686 establishes both Magic claims from
-the production NeedSpec enumeration: mana-food is 14/15 and Identify staff is
-19/20. The store selector agrees both recorded shelf candidates are affordable
-at 6,653/6,830 gold. `_store_accepts_sale` applies to the organization sale,
-not buy eligibility; Magic accepts the sold device type and the selector's
-`wanted_purchase` proves the separate buy predicate. The sale changed gold to
-6,830, but the non-Home leave path omitted `operation_completed`, so
-`_report_town_stop_pass` still charged an unsatisfied pass. Whether that sale
-momentarily reset `passes_since_progress` is NOT ESTABLISHED by the decision
-projection before decision 43; what is measured is that it was already 1 at
-decision 43 and then rose through the subsequent silent wander.
-
 Non-Home routes now ignore `blocked_stores`, `unsatisfied_passes`,
 `need_attempts`, and `approach_fails` as count authorities. A live NeedSpec
 claim remains routable after an observed buy or sale. A visit that leaves its
 claim unsatisfied without an observed operation effect records
-`attempted-without-effect` against the posting contract's observable state
-(turn, floor/position, store stock/page/context, messages, pack/equipment, and
-gold); an equivalent state cannot route it again. Any changed observable state
-releases the refusal. There is no retry tally, cooldown, cap, or tuning
-constant.
+`attempted-without-effect` against durable store state (store
+stock/page/context, messages, pack/equipment, and gold); an equivalent state
+cannot route it again. Turn passage and raw walking position are deliberately
+excluded, because WAIT and wandering are not store effects. Any changed durable
+store state releases the refusal. There is no retry tally, cooldown, cap, or
+tuning constant.
 
 When every remaining live non-Home claim is refused by that equivalence, the
 drive latches the visible `town:blocked:departure-unsatisfiable` exit. This is

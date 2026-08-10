@@ -1123,6 +1123,46 @@ def _ordinary_alchemist_entry_seed(*, turn, target_sval):
     return policy, surface, target
 
 
+def _all_nonhome_needs_unobtainable():
+    """Established no-effect evidence must survive the next WAIT turn."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, surface = helper._fixture()
+    fixture.seed_character_calibration(policy, surface)
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=(), result=None,
+    )
+    policy._recall_destination_safe = lambda *_args: True
+    durable_state = policy._town_observable_effect_state(surface)
+    for store_type in (
+        policy_module.STORE_GENERAL,
+        policy_module.STORE_ARMOURY,
+        policy_module.STORE_WEAPON,
+        policy_module.STORE_TEMPLE,
+        STORE_ALCHEMIST,
+        policy_module.STORE_MAGIC,
+        policy_module.STORE_BLACK,
+    ):
+        policy._town_visit_ledger.nonhome_attempted_without_effect[
+            store_type
+        ] = durable_state
+    policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+        policy._town_store_visit_limit(STORE_HOME)
+    )
+    policy._town_was_in_town = True
+
+    class UnobtainableWorld(TownWorld):
+        expected_terminal_reason = "town:blocked:departure-unsatisfiable"
+
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == WAIT_KEY
+
+    world = UnobtainableWorld(surface, entrance=STORE_ALCHEMIST, stock=())
+    # Model the replacement stop's already-posted WAIT before the next
+    # decision.  At 443e21a this turn tick erases the refusal and wanders.
+    world.turn += EMITTED_TURNS_PER_PLAYER_TURN
+    return policy, world
+
+
 def _doubled_store_entry_cycle():
     """Delay the Alchemist page once after accepting its bare entrance WAIT."""
     policy, surface, target = _ordinary_alchemist_entry_seed(
@@ -1269,6 +1309,10 @@ def _aborted_shop_one_shot_stall_escape():
 
 
 SEEDED_STATES = (
+    AbsorbingState(
+        "all-nonhome-needs-unobtainable-departure-unsatisfiable", 20,
+        _all_nonhome_needs_unobtainable,
+    ),
     AbsorbingState(
         "aborted-shop-one-shot-stall-escape", 12,
         _aborted_shop_one_shot_stall_escape,
