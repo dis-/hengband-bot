@@ -382,6 +382,8 @@ class StoreVisit:
     posted_sequence: int | None = None
     posted_turn: int | None = None
     operation_posted: bool = False
+    operation_key: str | None = None
+    operation_released: bool = False
     outcome: str | None = None
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
@@ -393,6 +395,8 @@ class StoreVisit:
 
     def close(self, outcome: str) -> None:
         self.operation_posted = False
+        self.operation_key = None
+        self.operation_released = False
         self.phase = StoreVisitPhase.CLOSED
         self.outcome = outcome
 
@@ -2653,6 +2657,17 @@ class HengbotPolicy:
         visit = self._store_visit
         if visit is None:
             return
+        if visit.operation_posted and not visit.operation_released:
+            if (
+                self._store_buy_inflight is not None
+                and self._store_buy_inflight[0] == visit.store_type
+            ):
+                self._store_buy_inflight = None
+            if (
+                self._batch_sell_pending is not None
+                and self._batch_sell_pending.get("store_type") == visit.store_type
+            ):
+                self._batch_sell_pending = None
         visit.close(outcome)
         self._store_visit_last_closed = visit
         self._store_visit = None
@@ -2943,7 +2958,12 @@ class HengbotPolicy:
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
-        if snapshot.store is None and self._store_buy_inflight is not None:
+        if (
+            snapshot.store is None
+            and self._store_buy_inflight is not None
+            and self._store_visit is not None
+            and self._store_visit.operation_released
+        ):
             (
                 watched_store,
                 watched_signature,
@@ -2978,6 +2998,8 @@ class HengbotPolicy:
             snapshot.store is None
             and self._batch_sell_pending is not None
             and self._batch_sell_pending.get("phase") == "await-sale"
+            and self._store_visit is not None
+            and self._store_visit.operation_released
         ):
             # Match the buy lifecycle: lagged surface and intermediate store
             # pages remain owned by the posted one-shot.  Only its own pack or
@@ -4105,6 +4127,25 @@ class HengbotPolicy:
 
         # In a store the town map and monsters are irrelevant — only buy/leave.
         if snapshot.store is not None:
+            visit = self._store_visit
+            if (
+                visit is not None
+                and visit.operation_posted
+                and not visit.operation_released
+                and visit.operation_key is not None
+                and snapshot.store.store_type == visit.store_type
+            ):
+                # Selection and composition happened on the preceding outside
+                # page.  This page makes no policy choice: it only proves that
+                # this exact visit crossed the entry flush, so the sender may
+                # release the already-bound operation tail.
+                visit.operation_released = True
+                self.last_reason = (
+                    "shop:one-shot-buy"
+                    if visit.operation_key.startswith(BUY_KEY)
+                    else "shop:one-shot-sell"
+                )
+                return visit.operation_key
             if (
                 (self._store_visit is not None and self._store_visit.operation_posted)
                 or self._store_buy_inflight is not None
@@ -18549,7 +18590,8 @@ class HengbotPolicy:
         # the composition boundary; no cached item candidate is trusted.
         inner = self._shop(replace(snapshot, store=observed_store))
         if inner.startswith((BUY_KEY, SELL_KEY)):
-            key = WAIT_KEY + inner + LEAVE_STORE_KEY
+            operation_key = inner + LEAVE_STORE_KEY
+            key = WAIT_KEY
             self._shop_observation = None
             self._town_visit_ledger.pending_store_transaction = (
                 observed_store.store_type,
@@ -18563,8 +18605,12 @@ class HengbotPolicy:
             )
             if self._store_visit is not None:
                 self._store_visit.operation_posted = True
+                self._store_visit.operation_key = operation_key
+                self._store_visit.operation_released = False
                 self._store_visit.composed_key = key
                 self._store_visit.posted_sequence = generation
+                self._store_entry_wait_owner = observed_store.store_type
+                self._store_entry_wait_key = key
             return key
         if inner.startswith("{"):
             # Inscription is an outside pack operation.  Retain this page while

@@ -1,5 +1,7 @@
 import unittest
+import json
 from dataclasses import replace
+from pathlib import Path
 
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -144,7 +146,10 @@ class ShopOneShotTest(unittest.TestCase):
         """Drive the public observation boundary and return its one-shot."""
         self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
         outside = self._outside(policy, inside)
-        return outside, policy.choose_key(outside)
+        entry = policy.choose_key(outside)
+        self.assertEqual(entry, "5")
+        operation = policy.choose_key(replace(inside, turn=outside.turn + 1))
+        return outside, entry + operation
 
     def test_sale_observe_then_driven_one_shot_changes_pack_and_gold(self):
         sold = replace(
@@ -154,7 +159,9 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(inside), "\x1b")
         outside = self._outside(policy, inside)
-        key = policy.choose_key(outside)
+        entry = policy.choose_key(outside)
+        self.assertEqual(entry, "5")
+        key = entry + policy.choose_key(replace(inside, turn=outside.turn + 1))
         self.assertEqual(key, "5d0y\x1b")
 
         state = "surface"
@@ -185,7 +192,9 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(inside), "\x1b")
         outside = self._outside(policy, inside)
-        key = policy.choose_key(outside)
+        entry = policy.choose_key(outside)
+        self.assertEqual(entry, "5")
+        key = entry + policy.choose_key(replace(inside, turn=outside.turn + 1))
         self.assertEqual(key, "5pa\r\x1b")
 
         state, gold, count = "surface", outside.player.gold, 0
@@ -216,7 +225,8 @@ class ShopOneShotTest(unittest.TestCase):
         )
         policy.choose_key(changed)
         outside = self._outside(policy, changed)
-        self.assertEqual(policy.choose_key(outside), "5pb\r\x1b")
+        self.assertEqual(policy.choose_key(outside), "5")
+        self.assertEqual(policy.choose_key(replace(changed, turn=outside.turn + 1)), "pb\r\x1b")
 
     def test_intermediate_one_shot_pages_emit_no_foreign_keys(self):
         ware = store_item(
@@ -226,8 +236,10 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.choose_key(inside)
         outside = self._outside(policy, inside)
-        self.assertEqual(policy.choose_key(outside), "5pa\r\x1b")
+        self.assertEqual(policy.choose_key(outside), "5")
         intermediate = replace(inside, turn=inside.turn + 2)
+        self.assertEqual(policy.choose_key(intermediate), "pa\r\x1b")
+        intermediate = replace(inside, turn=inside.turn + 3)
         self.assertEqual(policy.choose_key(intermediate), "")
         self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
 
@@ -262,7 +274,8 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(inside), "\x1b")
         outside = self._outside(policy, inside)
-        key = policy.choose_key(outside)
+        self.assertEqual(policy.choose_key(outside), "5")
+        key = "5" + policy.choose_key(replace(inside, turn=outside.turn + 1))
         completed = self._consume_buy(outside, key, ware)
         policy.choose_key(completed)
 
@@ -275,9 +288,7 @@ class ShopOneShotTest(unittest.TestCase):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
         inside = self._inside(STORE_TEMPLE, [], [ware])
         policy = HengbotPolicy()
-        policy.choose_key(inside)
-        outside = self._outside(policy, inside)
-        key = policy.choose_key(outside)
+        outside, key = self._compose(policy, inside)
         completed = self._consume_buy(outside, key, ware)
         policy.choose_key(completed)
 
@@ -491,6 +502,41 @@ class ShopOneShotTest(unittest.TestCase):
         outside = self._outside(policy, inside)
         self.assertNotIn("pa", policy.choose_key(outside))
         self.assertIsNone(policy._shop_observation)
+
+    def test_entry_flush_ledger_requires_two_stage_release(self):
+        """70dcabc failure: one store iteration followed ``5d0y ESC``;
+        only ``5`` entered the command loop and the entry flush lost its tail.
+        """
+        fixture = Path(__file__).with_name("fixtures") / "oneshot_flush_ledger.jsonl"
+        rows = [json.loads(line) for line in fixture.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([row["type"] for row in rows if row["kind"] == "snapshot"], ["store", "player_turn"])
+        self.assertEqual([row["gold"] for row in rows if row["kind"] == "snapshot"], [7121, 7121])
+
+        def consume(entry_batch, operation_batch=None):
+            buffered = list(entry_batch)
+            self.assertEqual(buffered.pop(0), "5")
+            buffered.clear()  # GAME-IO #2: entry disturb/flush/term_flush.
+            if operation_batch is not None:
+                buffered.extend(operation_batch)
+            return "".join(buffered)
+
+        self.assertEqual(consume("5d0y\x1b"), "")
+        self.assertEqual(consume("5", "d0y\x1b"), "d0y\x1b")
+
+    def test_stage_two_refuses_a_different_visits_store_page(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        policy.choose_key(inside)
+        outside = self._outside(policy, inside)
+        self.assertEqual(policy.choose_key(outside), "5")
+        first_visit = policy._store_visit
+        policy._close_store_visit("fixture-other-visit")
+        policy._shopping_approach_store_type = STORE_TEMPLE
+
+        self.assertIsNot(policy._store_visit, first_visit)
+        self.assertEqual(policy.choose_key(replace(inside, turn=outside.turn + 1)), "\x1b")
+        self.assertFalse(policy._store_visit.operation_released)
 
 
 if __name__ == "__main__":

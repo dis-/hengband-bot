@@ -1135,7 +1135,7 @@ def _doubled_store_entry_cycle():
             self.expected_terminal_reason = "shop:one-shot-buy"
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key.startswith("5p")
+            return reason == self.expected_terminal_reason and key.startswith("p")
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -1171,7 +1171,7 @@ def _lagged_successful_store_entry():
             self.expected_terminal_reason = "shop:one-shot-buy"
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key.startswith("5p")
+            return reason == self.expected_terminal_reason and key.startswith("p")
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -1239,7 +1239,7 @@ def _aborted_shop_one_shot_stall_escape():
             return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
 
         def apply(self, key):
-            if key.startswith("5p"):
+            if self.inside and key.startswith("p"):
                 # The game accepts entry and the buy selector, then stops
                 # consuming before confirmation and the composed tail.
                 self.inside = True

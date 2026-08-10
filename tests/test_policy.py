@@ -314,14 +314,15 @@ def _public_shop_inner(testcase, policy, snapshot):
     testcase.assertEqual(policy.choose_key(observed), LEAVE_STORE_KEY)
     outside = replace(observed, store=None, turn=observed.turn + 1)
     composed = policy.choose_key(outside)
-    if composed.startswith("5") and composed.endswith(LEAVE_STORE_KEY):
-        inner = composed[1:-1]
-        testcase.assertEqual(composed, "5" + inner + LEAVE_STORE_KEY)
-        return inner
     # Outside pack inscription is intentionally not wrapped in a store visit.
-    if not composed.startswith(INSCRIBE_KEY):
+    if composed.startswith(INSCRIBE_KEY):
         return composed
-    return composed
+    if policy._store_visit is None or not policy._store_visit.operation_posted:
+        return composed
+    testcase.assertEqual(composed, WAIT_KEY)
+    operation = policy.choose_key(replace(observed, turn=outside.turn + 1))
+    testcase.assertTrue(operation.endswith(LEAVE_STORE_KEY))
+    return operation[:-1]
 
 
 def player(y, x, *, hp=20, max_hp=20, mp=0, max_mp=0, level=1, food=12000, food_type=0, gold=FUNDRAISING_START_GOLD, word_recall=0, afraid=False, confused=False, blind=False, poisoned=False, cut=False, class_id=-1, main_hand_blows=0, main_hand_to_h=0, main_hand_to_d=0, drained_stats=(), abilities=frozenset(), speed=110):
@@ -26207,7 +26208,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
         surface = replace(snap, store=None, turn=snap.turn + 1)
-        key = policy.choose_key(surface)
+        entry = policy.choose_key(surface)
+        self.assertEqual(entry, "5")
+        operation = policy.choose_key(replace(snap, turn=surface.turn + 1))
+        key = entry + operation
         posted = []
         sent, _ = _send_new_decision_key(
             lambda value, **_kwargs: posted.extend(value) or True,
@@ -26255,7 +26259,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
         surface = replace(snap, store=None, turn=snap.turn + 1)
-        key = policy.choose_key(surface)
+        entry = policy.choose_key(surface)
+        self.assertEqual(entry, "5")
+        operation = policy.choose_key(replace(snap, turn=surface.turn + 1))
+        key = entry + operation
         posted = []
         sent, _ = _send_new_decision_key(
             lambda value, **_kwargs: posted.extend(value) or True,
