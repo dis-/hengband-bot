@@ -74,6 +74,7 @@ class TownWorld:
         self.pending_home_knowledge = False
         self.pending_home_scan_snapshots = []
         self.character_events_delivered = 0
+        self._town_blocked_durable_state = self.durable_fingerprint()
 
     def snapshot(self, decision: int) -> Snapshot:
         grids = dict(self.base.grids)
@@ -217,6 +218,10 @@ class TownWorld:
     def visible_terminal(self, reason: str):
         if getattr(self, "invalid_store_entries", 0):
             return None
+        durable_state = self.durable_fingerprint()
+        if durable_state != self._town_blocked_durable_state:
+            self.blocked_streak = 0
+            self._town_blocked_durable_state = durable_state
         if reason == getattr(self, "expected_terminal_reason", None):
             return f"expected {reason}"
         if reason == "home:atomic-withdraw":
@@ -227,15 +232,17 @@ class TownWorld:
             self.blocked_streak += 1
             if self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
                 return "town:blocked:* fuse"
-        elif reason != "shop:leave":
-            self.blocked_streak = 0
+        elif self.blocked_streak and reason != "shop:leave":
+            self.blocked_streak += 1
+            if self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
+                return "town:blocked:* fuse"
 
     def terminal_ends_drive(self, reason: str, key: str) -> bool:
         """Model only terminals whose owner actually ends the CLI drive."""
         if reason == "livelock:exhausted":
             return True
-        if reason.startswith("town:blocked:"):
-            return self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT
+        if self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
+            return True
         if reason == "equipment-transaction:restore-blocked-terminal":
             from hengbot import cli
             return reason in getattr(cli, "POLICY_FINAL_STOP_REASONS", ())
@@ -409,6 +416,34 @@ def _catalogue_invalidated_with_equipment_work():
     world = TownWorld(surface)
     world.expected_terminal_reason = "home:request-knowledge-scan"
     return policy, world
+
+
+def _invalid_command_noop_home_cycle():
+    """An observation-only disposal pass cannot own a Home entry."""
+    helper = fixture.TownErrandPlanTest()
+    surface = helper._snapshot(turn=2994536)
+    entrance = Position(10, 11)
+    surface = replace(
+        surface,
+        player=replace(surface.player, position=entrance, class_id=1),
+        floor_key=(0, 0, 0),
+        grids={
+            **surface.grids,
+            entrance: replace(
+                fixture.grid(entrance.y, entrance.x), store_number=STORE_HOME
+            ),
+        },
+        equipment=[
+            fixture.item(
+                "light", policy_module.TVAL_LITE,
+                policy_module.SV_LITE_TORCH, fuel=5000,
+            )
+        ],
+    )
+    policy = HengbotPolicy()
+    policy._home_disposal_pass = True
+
+    return policy, TownWorld(surface, passable_positions={entrance})
 
 
 def _doubled_store_entry_cycle():
@@ -1181,11 +1216,6 @@ def _stale_restock_verdict_identify_staff_wander():
     class StaleVerdictWorld(TownWorld):
         expected_terminal_reason = "shop:one-shot-buy"
 
-        def visible_terminal(self, reason):
-            if reason == "town:blocked:restocked-recall-store-unreachable":
-                return None
-            return super().visible_terminal(reason)
-
     return policy, StaleVerdictWorld(snap, entrance=policy_module.STORE_BLACK, stock=stock)
 
 
@@ -1392,6 +1422,10 @@ SEEDED_STATES = (
     AbsorbingState(
         "frozen-approach-optimizer-transaction", 200,
         _frozen_approach_optimizer_transaction,
+    ),
+    AbsorbingState(
+        "invalid-command-noop-home-cycle", 40,
+        _invalid_command_noop_home_cycle,
     ),
     AbsorbingState("doubled-store-entry-cycle", 10, _doubled_store_entry_cycle),
     AbsorbingState("lagged-successful-store-entry", 10, _lagged_successful_store_entry),

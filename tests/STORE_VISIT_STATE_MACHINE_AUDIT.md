@@ -126,3 +126,55 @@ At historical base `830690d`, the transferred count-retirement pins fail by
 construction because count-blocked, count-budget-exhausted, and
 count-approach-exhausted non-Home claims are discarded, while the retained
 evidence proceeds from decision 49 as `stuck:wander` with no buy.
+
+## 2026-08-11 absorbing-seed restoration and alternation-bound fix event
+
+time: `2026-08-11T01:47:27.0653803+09:00`
+
+Restored `invalid-command-noop-home-cycle` verbatim from the `092c42e` blob
+and kept it registered.  The catalogue now contains 27 unique seeds.  The
+seed had been silently deleted by `63c799a`; a failing absorbing seed is
+evidence and must not be removed to make a change pass.
+
+The CLI previously reset `blocked_streak` in
+`_advance_town_blocked_streak` whenever an emitted decision reason was
+neither `town:blocked:*` nor `shop:leave`.  Thus a real `R300\r` restock wait
+erased the preceding blocked decision.  The fuse now compares each observed
+snapshot with the existing `_town_observable_effect_state` projection.  Only
+an observed durable store effect resets the streak; once a block is observed,
+interleaved no-progress restock waits, rests, wandering, and other filler
+decisions advance it.  `shop:leave` retains its established non-counting,
+non-resetting treatment.  No constant or gate changed;
+`TOWN_BLOCKED_STOP_LIMIT == 30` remains the bound.
+
+Blast-radius confirmation covers all six block reasons released by per-
+decision re-derivation: `restocked-recall-store-unreachable`,
+`dominated-item-destroy-failed`, `departure-no-light`, `digging-tool-lost`,
+`equipment-home-unavailable`, and `equipment-departure-incomplete`.  The last
+two originate in `_terminal_equipment_blocker`.  Each reaches the same bounded
+visible fuse through an alternating no-progress filler row.
+
+The authored `StaleVerdictWorld.visible_terminal` override was removed; the
+stale-verdict seed uses the real terminal protocol.  The fixture-literal
+`test_stale_restock_evidence_chain_and_walkable_store_are_preserved` and its
+now-unused JSON fixture were deleted.  The three drive-ending terminal latches
+are each exercised across 40 materially distinct observations.
+
+Measured restored-seed results:
+
+- `63c799a`: FAIL, decision bound exhausted; 40 decisions, 20
+  `town:wait-restock:temple`, 20
+  `town:blocked:restocked-recall-store-unreachable`, zero durable progress.
+- tip: PASS, drive-ending `town:blocked:*` fuse; 31 decisions, 16 restock
+  waits and 15 blocked rows, zero durable progress.
+- `092c42e`: PASS, drive-ending `town:blocked:*` fuse; 31 decisions, one
+  restock wait and 30 blocked rows, zero durable progress.
+
+The `63c799a` fix event claimed +3 test names, but the historical source delta
+is +4 names.  This remediation measures 2,545 tests, +1 versus the required
+2,544 baseline, with one existing skip.  The mandated full suite passed twice;
+the 27-seed absorbing catalogue passed; mutation battery passed 5/5 with
+`repo_tree_untouched: true`; sale-key lint reported zero; and the repository
+fakery guard reported no new undeclared/source-text-only shape.  The stale-
+latch parent behavior remains the required `'5' != '6'` failure, while the
+durable-refusal and terminal-latching pins remain green.

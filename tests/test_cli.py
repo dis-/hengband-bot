@@ -2259,11 +2259,49 @@ class TownBlockedStreakTest(unittest.TestCase):
             streak = _advance_town_blocked_streak(streak, reason)
         self.assertEqual(streak, 3)
 
-    def test_any_other_reason_resets_the_streak(self):
+    def test_no_progress_filler_preserves_the_streak(self):
         from hengbot.cli import _advance_town_blocked_streak
 
-        streak = _advance_town_blocked_streak(5, "shop:travel")
+        streak = _advance_town_blocked_streak(
+            5, "town:wait-restock:temple"
+        )
+        self.assertEqual(streak, 6)
+
+    def test_observed_durable_progress_resets_the_streak(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        streak = _advance_town_blocked_streak(
+            5, "town:wait-restock:temple", durable_progress=True
+        )
         self.assertEqual(streak, 0)
+
+    def test_rederived_block_reasons_reach_the_fuse_through_fillers(self):
+        from hengbot.cli import (
+            TOWN_BLOCKED_STOP_LIMIT,
+            _advance_town_blocked_streak,
+        )
+
+        reasons = (
+            "restocked-recall-store-unreachable",
+            "dominated-item-destroy-failed",
+            "departure-no-light",
+            "digging-tool-lost",
+            "equipment-home-unavailable",
+            "equipment-departure-incomplete",
+        )
+        for reason in reasons:
+            with self.subTest(reason=reason):
+                streak = 0
+                for decision in range(TOWN_BLOCKED_STOP_LIMIT):
+                    emitted_reason = (
+                        f"town:blocked:{reason}"
+                        if decision % 2 == 0
+                        else "town:wait-restock:temple"
+                    )
+                    streak = _advance_town_blocked_streak(
+                        streak, emitted_reason
+                    )
+                self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
 
 
 class TownResidenceStreakTest(unittest.TestCase):

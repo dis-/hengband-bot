@@ -48012,33 +48012,6 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(policy._shopping_approach_goal, black_market.position)
         self.assertIsNone(policy._town_blocked_reason)
 
-    def test_stale_restock_evidence_chain_and_walkable_store_are_preserved(self):
-        evidence = json.loads(
-            (
-                Path(__file__).parent
-                / "fixtures"
-                / "stale_town_block_latch_20260811.json"
-            ).read_text(encoding="utf-8")
-        )
-
-        self.assertEqual(
-            (evidence["first_block"]["decision_sequence"],
-             evidence["first_block"]["turn"]),
-            (99, 4039616),
-        )
-        self.assertNotIn(
-            "recall_departure_ready", evidence["recall_satisfied"]["failed"]
-        )
-        self.assertEqual(
-            evidence["recall_satisfied"]["latched_town_blocked_reason"],
-            evidence["first_block"]["reason"].removeprefix("town:blocked:"),
-        )
-        self.assertEqual(evidence["unbounded_wander"]["reason"], "stuck:wander")
-        self.assertEqual(evidence["unbounded_wander"]["passes_since_progress"], 40)
-        self.assertEqual(evidence["unbounded_wander"]["departure_unsatisfiable_count"], 0)
-        self.assertTrue(evidence["captured_snapshot_grid"]["black_market"]["known"])
-        self.assertTrue(evidence["captured_snapshot_grid"]["black_market"]["passable"])
-
     def test_drive_ending_town_terminals_survive_decision_rederivation(self):
         for terminal in (
             "departure-unsatisfiable",
@@ -48051,11 +48024,19 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 policy._floor_key = snapshot.floor_key
                 policy._town_blocked_reason = terminal
 
-                key = policy.choose_key(snapshot)
+                for decision in range(40):
+                    current = replace(
+                        snapshot,
+                        turn=snapshot.turn + decision,
+                        messages=(f"terminal observation {decision}",),
+                    )
+                    key = policy.choose_key(current)
 
-                self.assertEqual(key, WAIT_KEY)
-                self.assertEqual(policy.last_reason, f"town:blocked:{terminal}")
-                self.assertEqual(policy._town_blocked_reason, terminal)
+                    self.assertEqual(key, WAIT_KEY)
+                    self.assertEqual(
+                        policy.last_reason, f"town:blocked:{terminal}"
+                    )
+                    self.assertEqual(policy._town_blocked_reason, terminal)
 
     def test_no_town_work_latches_visible_terminal(self):
         policy, snapshot = self._fixture()

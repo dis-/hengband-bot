@@ -378,15 +378,17 @@ def _uses_multiplier_combat_grace(reason: str) -> bool:
     return reason.startswith("fundraise:eliminate-multiplier")
 
 
-def _advance_town_blocked_streak(streak: int, reason: str) -> int:
-    """Count consecutive latched-town-block decisions. In-store leaves do not
-    break the streak: standing blocked on a store door alternates blocked WAITs
-    with shop:leave rows."""
+def _advance_town_blocked_streak(
+    streak: int, reason: str, *, durable_progress: bool = False
+) -> int:
+    """Count unproductive town-block decisions until durable state changes."""
+    if durable_progress:
+        streak = 0
     if reason.startswith("town:blocked:"):
         return streak + 1
-    if reason == "shop:leave":
-        return streak
-    return 0
+    if streak and reason != "shop:leave":
+        return streak + 1
+    return streak
 
 
 def _advance_town_residence_streak(
@@ -1893,6 +1895,11 @@ def _run_follow(
         pending_action_wait: tuple[str, float] | None = None
         stalled_command_count = 0
         blocked_streak = 0
+        town_blocked_durable_state = (
+            policy._town_observable_effect_state(initial_snapshot)
+            if initial_snapshot is not None
+            else None
+        )
         town_residence_streak = 0
         residence_floor_key = None
         starving_streak = 0
@@ -2271,9 +2278,24 @@ def _run_follow(
                     # on a store door interleaves store snapshots that reset the
                     # cell-based guard below — the visible stop would never fire.
                     # Count the blocked decisions directly (in-store leaves do
-                    # not break the streak).
+                    # not break the streak).  Filler actions such as restock
+                    # waits and wandering do not erase blocked evidence either:
+                    # only an observed durable store effect resets the fuse.
+                    current_town_blocked_durable_state = (
+                        policy._town_observable_effect_state(snapshot)
+                    )
+                    durable_town_progress = (
+                        town_blocked_durable_state is not None
+                        and current_town_blocked_durable_state
+                        != town_blocked_durable_state
+                    )
+                    town_blocked_durable_state = (
+                        current_town_blocked_durable_state
+                    )
                     blocked_streak = _advance_town_blocked_streak(
-                        blocked_streak, policy.last_reason
+                        blocked_streak,
+                        policy.last_reason,
+                        durable_progress=durable_town_progress,
                     )
                     if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
                         print(
