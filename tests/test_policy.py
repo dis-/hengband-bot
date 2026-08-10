@@ -47973,6 +47973,90 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "explore")
         self.assertIsNone(policy._town_blocked_reason)
 
+    def test_stale_restock_verdict_cannot_blind_black_market_approach(self):
+        """Turn 4052134: recall is satisfied; the live staff need owns store 7."""
+        policy, snapshot = self._fixture()
+        black_market = replace(
+            grid(45, 124, lit=True, in_view=True), store_number=STORE_BLACK
+        )
+        identify_staff = replace(
+            snapshot.inventory[2], count=1, charges=19, pval=19
+        )
+        snapshot = replace(
+            snapshot,
+            turn=4052134,
+            grids={**snapshot.grids, black_market.position: black_market},
+            inventory=[*snapshot.inventory[:2], identify_staff],
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=None
+        )
+        policy._town_was_in_town = True
+        policy._floor_key = snapshot.floor_key
+        durable_state = policy._town_observable_effect_state(snapshot)
+        for store_type in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC,
+        ):
+            policy._town_visit_ledger.nonhome_attempted_without_effect[
+                store_type
+            ] = durable_state
+        policy._town_errand_plan = None
+        policy._town_blocked_reason = "restocked-recall-store-unreachable"
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_BLACK)
+        self.assertEqual(policy._shopping_approach_goal, black_market.position)
+        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_stale_restock_evidence_chain_and_walkable_store_are_preserved(self):
+        evidence = json.loads(
+            (
+                Path(__file__).parent
+                / "fixtures"
+                / "stale_town_block_latch_20260811.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            (evidence["first_block"]["decision_sequence"],
+             evidence["first_block"]["turn"]),
+            (99, 4039616),
+        )
+        self.assertNotIn(
+            "recall_departure_ready", evidence["recall_satisfied"]["failed"]
+        )
+        self.assertEqual(
+            evidence["recall_satisfied"]["latched_town_blocked_reason"],
+            evidence["first_block"]["reason"].removeprefix("town:blocked:"),
+        )
+        self.assertEqual(evidence["unbounded_wander"]["reason"], "stuck:wander")
+        self.assertEqual(evidence["unbounded_wander"]["passes_since_progress"], 40)
+        self.assertEqual(evidence["unbounded_wander"]["departure_unsatisfiable_count"], 0)
+        self.assertTrue(evidence["captured_snapshot_grid"]["black_market"]["known"])
+        self.assertTrue(evidence["captured_snapshot_grid"]["black_market"]["passable"])
+
+    def test_drive_ending_town_terminals_survive_decision_rederivation(self):
+        for terminal in (
+            "departure-unsatisfiable",
+            "no-safe-recall-destination",
+            "equipment-work-home-route-exhausted",
+        ):
+            with self.subTest(terminal=terminal):
+                policy, snapshot = self._fixture()
+                policy._town_was_in_town = True
+                policy._floor_key = snapshot.floor_key
+                policy._town_blocked_reason = terminal
+
+                key = policy.choose_key(snapshot)
+
+                self.assertEqual(key, WAIT_KEY)
+                self.assertEqual(policy.last_reason, f"town:blocked:{terminal}")
+                self.assertEqual(policy._town_blocked_reason, terminal)
+
     def test_no_town_work_latches_visible_terminal(self):
         policy, snapshot = self._fixture()
         seed_character_calibration(policy, snapshot)

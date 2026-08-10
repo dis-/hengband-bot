@@ -4098,6 +4098,24 @@ class HengbotPolicy:
         return key
 
     def _decide(self, snapshot: Snapshot) -> str:
+        # Routing failures describe the snapshot that produced them; they are
+        # not authority to skip the next snapshot's need and route evaluation.
+        # The three drive-ending town terminals remain latched until the caller
+        # stops the drive.  Repetition also persists because it owns a bounded
+        # departure route and is explicitly exempt from suppressing shopping;
+        # equipment-transaction terminals retain their restoration/abort owner.
+        if (
+            self._town_blocked_reason not in {
+                "departure-unsatisfiable",
+                "no-safe-recall-destination",
+                "equipment-work-home-route-exhausted",
+                "repetition",
+            }
+            and not (self._town_blocked_reason or "").startswith(
+                "equipment-transaction:"
+            )
+        ):
+            self._town_blocked_reason = None
         # A TR_WARNING prompt reported by this snapshot is disposed of before
         # any other purpose is pursued: a refused movement is latched so it is
         # not re-chosen (the loop this handler removes), and an unsanctioned

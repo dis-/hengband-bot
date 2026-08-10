@@ -96,6 +96,26 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         self.assertEqual(len({state.build for state in SEEDED_STATES}), 26)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
+    def test_stale_restock_verdict_reaches_black_market_purchase(self):
+        state = next(
+            state for state in SEEDED_STATES
+            if state.name == "stale-restock-verdict-identify-staff-wander"
+        )
+
+        result = drive(state)
+
+        self.assertTrue(result.passed, result.report())
+        self.assertEqual(
+            result.outcome, "drive-ending terminal expected shop:one-shot-buy"
+        )
+        self.assertGreaterEqual(result.entries, 1)
+        self.assertEqual(
+            result.reasons[
+                "town:blocked:restocked-recall-store-unreachable"
+            ],
+            0,
+        )
+
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):
         state = next(
             state for state in SEEDED_STATES

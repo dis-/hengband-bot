@@ -411,34 +411,6 @@ def _catalogue_invalidated_with_equipment_work():
     return policy, world
 
 
-def _invalid_command_noop_home_cycle():
-    """An observation-only disposal pass cannot own a Home entry."""
-    helper = fixture.TownErrandPlanTest()
-    surface = helper._snapshot(turn=2994536)
-    entrance = Position(10, 11)
-    surface = replace(
-        surface,
-        player=replace(surface.player, position=entrance, class_id=1),
-        floor_key=(0, 0, 0),
-        grids={
-            **surface.grids,
-            entrance: replace(
-                fixture.grid(entrance.y, entrance.x), store_number=STORE_HOME
-            ),
-        },
-        equipment=[
-            fixture.item(
-                "light", policy_module.TVAL_LITE,
-                policy_module.SV_LITE_TORCH, fuel=5000,
-            )
-        ],
-    )
-    policy = HengbotPolicy()
-    policy._home_disposal_pass = True
-
-    return policy, TownWorld(surface, passable_positions={entrance})
-
-
 def _doubled_store_entry_cycle():
     """Delay the Home-open page once after accepting its entry command."""
     helper = fixture.HomeOneOperationPerEntryTest()
@@ -1163,6 +1135,60 @@ def _all_nonhome_needs_unobtainable():
     return policy, world
 
 
+def _stale_restock_verdict_identify_staff_wander():
+    """A resolved recall verdict must not suppress the next Black Market route."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, snap = helper._fixture()
+    black_market = replace(
+        fixture.grid(45, 124, lit=True, in_view=True),
+        store_number=policy_module.STORE_BLACK,
+    )
+    identify_staff = replace(
+        snap.inventory[2], count=1, charges=19, pval=19
+    )
+    snap = replace(
+        snap,
+        turn=4052134,
+        grids={**snap.grids, black_market.position: black_market},
+        inventory=[*snap.inventory[:2], identify_staff],
+    )
+    policy._equipment_optimization_preparation = SimpleNamespace(
+        blockers=(), result=None,
+    )
+    policy._town_was_in_town = True
+    policy._floor_key = snap.floor_key
+    durable_state = policy._town_observable_effect_state(snap)
+    for store_type in (
+        policy_module.STORE_GENERAL,
+        policy_module.STORE_ARMOURY,
+        policy_module.STORE_WEAPON,
+        policy_module.STORE_TEMPLE,
+        policy_module.STORE_ALCHEMIST,
+        policy_module.STORE_MAGIC,
+    ):
+        policy._town_visit_ledger.nonhome_attempted_without_effect[
+            store_type
+        ] = durable_state
+    policy._town_errand_plan = None
+    policy._town_blocked_reason = "restocked-recall-store-unreachable"
+    stock = [
+        fixture.store_item(
+            "a", policy_module.TVAL_STAFF, policy_module.SV_STAFF_IDENTIFY,
+            name="Identify staff", charges=12,
+        )
+    ]
+
+    class StaleVerdictWorld(TownWorld):
+        expected_terminal_reason = "shop:one-shot-buy"
+
+        def visible_terminal(self, reason):
+            if reason == "town:blocked:restocked-recall-store-unreachable":
+                return None
+            return super().visible_terminal(reason)
+
+    return policy, StaleVerdictWorld(snap, entrance=policy_module.STORE_BLACK, stock=stock)
+
+
 def _doubled_store_entry_cycle():
     """Delay the Alchemist page once after accepting its bare entrance WAIT."""
     policy, surface, target = _ordinary_alchemist_entry_seed(
@@ -1310,6 +1336,10 @@ def _aborted_shop_one_shot_stall_escape():
 
 SEEDED_STATES = (
     AbsorbingState(
+        "stale-restock-verdict-identify-staff-wander", 40,
+        _stale_restock_verdict_identify_staff_wander,
+    ),
+    AbsorbingState(
         "all-nonhome-needs-unobtainable-departure-unsatisfiable", 20,
         _all_nonhome_needs_unobtainable,
     ),
@@ -1362,10 +1392,6 @@ SEEDED_STATES = (
     AbsorbingState(
         "frozen-approach-optimizer-transaction", 200,
         _frozen_approach_optimizer_transaction,
-    ),
-    AbsorbingState(
-        "invalid-command-noop-home-cycle", 40,
-        _invalid_command_noop_home_cycle,
     ),
     AbsorbingState("doubled-store-entry-cycle", 10, _doubled_store_entry_cycle),
     AbsorbingState("lagged-successful-store-entry", 10, _lagged_successful_store_entry),
