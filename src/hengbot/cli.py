@@ -1440,12 +1440,15 @@ def _send_stall_recovery_nudge(
 def _stall_recovery_action(
     quiet_seconds: float, stall_timeout: float, *, in_store: bool,
     recovery_attempts: int = 0,
+    send_failed: bool = False,
 ) -> str:
     """Choose the transport recovery without bypassing store ownership."""
     if quiet_seconds <= stall_timeout:
         return "wait"
     if in_store:
-        return "store-escape" if recovery_attempts == 0 else "wait"
+        if recovery_attempts == 0:
+            return "store-escape"
+        return "nudge" if send_failed else "wait"
     return "nudge"
 
 
@@ -1877,6 +1880,7 @@ def _run_follow(
         last_activity = time.monotonic()
         quiet_ok_until = 0.0  # suppress the nudge while a rest is expected to run
         nudge_streak = 0  # consecutive nudges with no snapshot in between
+        recovery_send_failed = False
         last_player_level = initial_snapshot.player.level if initial_snapshot is not None else None
         # (floor_key, y, x) of the last LOOP_WINDOW decisions, for loop detection.
         recent_cells: deque[tuple] = deque(maxlen=MULTIPLIER_COMBAT_LOOP_WINDOW)
@@ -1971,6 +1975,7 @@ def _run_follow(
                     args.last_snapshot = snapshot
                     # A snapshot means the game is alive and awaiting a command.
                     nudge_streak = 0
+                    recovery_send_failed = False
                     last_player_level = snapshot.player.level
                     now = time.monotonic()
                     last_activity = now
@@ -2352,6 +2357,7 @@ def _run_follow(
             if _rewind_if_truncated(file, args.state_file):
                 pending = ""
                 nudge_streak = 0
+                recovery_send_failed = False
                 continue
 
             # No new snapshot. If the game has gone quiet for too long it is
@@ -2363,6 +2369,7 @@ def _run_follow(
                 args.stall_timeout,
                 in_store=snapshot is not None and snapshot.store is not None,
                 recovery_attempts=nudge_streak,
+                send_failed=recovery_send_failed,
             )
             if (
                 args.send_to_window
@@ -2381,6 +2388,7 @@ def _run_follow(
                     posted_decision_keys,
                     in_store=False,
                 )
+                recovery_send_failed = not recovery_sent
                 if recovery_sent:
                     print(
                         "<instrument:store-one-shot-abort-escape>"
@@ -2432,6 +2440,7 @@ def _run_follow(
                         flush=True,
                     )
                     nudge_streak = 0
+                    recovery_send_failed = False
 
             time.sleep(args.poll_interval)
 

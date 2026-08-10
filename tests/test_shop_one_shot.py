@@ -26,6 +26,28 @@ class ShopOneShotTest(unittest.TestCase):
     def _outside(self, policy, inside):
         return replace(inside, store=None, turn=inside.turn + 1)
 
+    def _consume_buy(self, outside, key, ware):
+        state, gold, inventory = "surface", outside.player.gold, list(outside.inventory)
+        for pressed in key:
+            if state == "surface" and pressed == "5": state = "store"
+            elif state == "store" and pressed == "p": state = "item"
+            elif state == "item" and pressed == ware.letter: state = "confirm"
+            elif state == "confirm" and pressed == "\r":
+                gold -= ware.price
+                inventory.append(item(
+                    "z", ware.tval, ware.sval, name=ware.name, count=1
+                ))
+                state = "store"
+            elif state == "store" and pressed == "\x1b": state = "surface"
+            else: self.fail((state, pressed))
+        self.assertEqual(state, "surface")
+        return replace(
+            outside,
+            player=replace(outside.player, gold=gold),
+            inventory=inventory,
+            turn=outside.turn + 1,
+        )
+
     def test_sale_observe_then_driven_one_shot_changes_pack_and_gold(self):
         sold = replace(
             item("j", TVAL_WAND, 1, name="wand"), inscription="@0"
@@ -110,6 +132,37 @@ class ShopOneShotTest(unittest.TestCase):
         intermediate = replace(inside, turn=inside.turn + 2)
         self.assertEqual(policy.choose_key(intermediate), "")
         self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
+
+    def test_completed_one_shot_new_store_page_is_not_permanent_silence(self):
+        """9f05878 returned ten empty shop:one-shot-in-flight decisions."""
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(inside), "\x1b")
+        outside = self._outside(policy, inside)
+        key = policy.choose_key(outside)
+        completed = self._consume_buy(outside, key, ware)
+        policy.choose_key(completed)
+
+        new_page = replace(inside, inventory=completed.inventory, turn=completed.turn + 1)
+        decision = policy.choose_key(new_page)
+        self.assertNotEqual((decision, policy.last_reason), ("", "shop:one-shot-in-flight"))
+
+    def test_door_composed_buy_survives_to_outside_purchase_accounting(self):
+        """9f05878 completed with town_visit_purchases: set() and gold -20."""
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        policy.choose_key(inside)
+        outside = self._outside(policy, inside)
+        key = policy.choose_key(outside)
+        completed = self._consume_buy(outside, key, ware)
+        policy.choose_key(completed)
+
+        signature = policy._item_signature(ware)
+        self.assertIn(signature, policy._town_visit_purchases)
+        repeat_page = replace(inside, inventory=completed.inventory, turn=completed.turn + 1)
+        self.assertNotIn("pa", policy.choose_key(repeat_page))
 
 
 if __name__ == "__main__":

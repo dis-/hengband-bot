@@ -1319,6 +1319,23 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
                 attempts += 1
         self.assertGreaterEqual(attempts, 20)
 
+    def test_failed_window_send_reaches_terminal_attempt_bound_in_store(self):
+        """9f05878 froze at recovery_attempts=1: every later action was wait."""
+        attempts = 0
+        send_failed = False
+        while attempts < 8:
+            action = _stall_recovery_action(
+                2.0, 1.5, in_store=True, recovery_attempts=attempts,
+                send_failed=send_failed,
+            )
+            self.assertIn(action, {"store-escape", "nudge"})
+            sent = _send_stall_recovery_nudge(
+                lambda _value: False, "\x1b", set(), in_store=True
+            )
+            send_failed = not sent
+            attempts += 1
+        self.assertEqual(attempts, 8)
+
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's
         # Enter must not reach the command loop. After confirmation, the

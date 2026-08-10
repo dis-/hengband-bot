@@ -278,3 +278,31 @@ zero violations; changed-file fakery lint introduced zero new violations. The
 real-repository full suite passed twice with `PYTHONPATH=src` and the mandated
 runtime: 2,518 tests in 221.200s and 2,518 tests in 215.354s, both `OK
 (skipped=1)`.
+
+## One-shot completion accounting fix event
+
+time: `2026-08-10T14:55:22.0234763+09:00`
+
+- B1: the outside completion observation and every `StoreVisit.close()` now
+  clear `operation_posted`. The public consumer pin completes a buy and then
+  presents a new store page; it cannot reproduce 9f05878's ten decisions of
+  `key=''`, `reason='shop:one-shot-in-flight'`.
+- B2: door composition records the store-transaction ledger correlation before
+  `choose_key` performs its post-decision cleanup. The modeled key consumer
+  derives the pack and gold changes; the first outside observation records the
+  signature in `_town_visit_purchases`, and the same visit cannot buy it again.
+  At 9f05878 the probe instead ended with `town_visit_purchases: set()` despite
+  gold decreasing by 20.
+- S3: `_stall_recovery_action` distinguishes a refused successful in-store
+  Escape from a failed window send. Successful nudges remain bounded to one;
+  send failures continue to `TERMINAL_NUDGE_LIMIT`. At 9f05878 the first
+  failure froze `recovery_attempts` at 1 because every later action was `wait`.
+- S6: the unreachable `shop:batch-sale-item-unobserved` branch was deleted.
+  The already-pinned `_batch_sale_entry` refusal owns an absent signature and
+  records `shop:batch-sale-signature-unobserved`.
+
+The four behavioral pins pass. Both mandated full-suite runs report 2,511
+tests, `OK (skipped=1)`, preserving the 2,507 baseline plus four new tests.
+The mutation battery passed 5/5 with `repo_tree_untouched: true`; sale-key lint
+reported zero violations; test-fakery lint retained eight pre-existing
+repository findings and introduced zero findings in changed tests.

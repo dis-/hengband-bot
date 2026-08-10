@@ -26682,6 +26682,20 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 "{j@0\r",
             )
 
+    def test_batch_sale_entry_owns_absent_signature_refusal(self):
+        """S6 deletes the unreachable caller branch and pins the real refusal."""
+        missing = replace(
+            item("x", TVAL_WAND, 1, name="missing"), inscription="@0"
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[], town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertIsNone(policy._batch_sale_entry(snapshot, missing, "0"))
+        self.assertEqual(policy.last_reason, "shop:batch-sale-signature-unobserved")
+
     def test_batch_sale_inscribes_then_sells_by_stable_tags(self):
         candidates = [
             item("x", TVAL_WAND, 1, count=1, name="one"),

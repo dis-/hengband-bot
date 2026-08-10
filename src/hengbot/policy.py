@@ -392,6 +392,7 @@ class StoreVisit:
             self.composed_key = key
 
     def close(self, outcome: str) -> None:
+        self.operation_posted = False
         self.phase = StoreVisitPhase.CLOSED
         self.outcome = outcome
 
@@ -2652,6 +2653,7 @@ class HengbotPolicy:
         visit = self._store_visit
         if visit is None:
             return
+        visit.operation_posted = False
         visit.close(outcome)
         self._store_visit_last_closed = visit
         self._store_visit = None
@@ -2942,6 +2944,13 @@ class HengbotPolicy:
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
+        if (
+            snapshot.store is None
+            and self._store_visit is not None
+            and self._store_visit.store_type != STORE_HOME
+            and self._store_visit.operation_posted
+        ):
+            self._store_visit.operation_posted = False
         if snapshot.store is None and self._store_buy_inflight is not None:
             (
                 watched_store,
@@ -17362,10 +17371,7 @@ class HengbotPolicy:
                 # from the pre-inscription candidate cached in the plan.
                 for entry in entries:
                     item = observed_tagged(entry)
-                    if item is None:
-                        self._batch_sell_pending = None
-                        self.last_reason = "shop:batch-sale-item-unobserved"
-                        return ""
+                    assert item is not None
                     sale = self._batch_sale_entry(snapshot, item, entry["tag"])
                     if sale is None:
                         self._batch_sell_pending = None
@@ -18488,6 +18494,11 @@ class HengbotPolicy:
         if inner.startswith((BUY_KEY, SELL_KEY)):
             key = WAIT_KEY + inner + LEAVE_STORE_KEY
             self._shop_observation = None
+            self._town_visit_ledger.pending_store_transaction = (
+                observed_store.store_type,
+                self._decision_sequence,
+            )
+            self._town_visit_ledger.pending_store_context_waits = 0
             self.last_reason = (
                 "shop:one-shot-buy"
                 if inner.startswith(BUY_KEY)
