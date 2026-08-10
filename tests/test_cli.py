@@ -1274,8 +1274,8 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
 
         self.assertEqual(posted, ["\x1b"])
 
-    def test_live_store_transaction_refuses_unowned_stall_escape(self):
-        """11:55: d0y was followed by an unowned Escape after 1.5 seconds."""
+    def test_aborted_one_shot_allows_one_bounded_stall_escape(self):
+        """The old in-store d0y owner is gone; recovery may clear an abort."""
         posted = []
         posted_keys = {"d0y"}
 
@@ -1286,18 +1286,24 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
             in_store=True,
         )
 
-        self.assertFalse(sent)
-        self.assertEqual(posted, [])
-        self.assertEqual(posted_keys, {"d0y"})
+        self.assertTrue(sent)
+        self.assertEqual(posted, ["\x1b"])
+        self.assertEqual(posted_keys, set())
 
-    def test_store_recovery_waits_fresh_then_ends_drive_at_stall_bound(self):
+    def test_store_recovery_waits_fresh_then_escapes_once_at_stall_bound(self):
         timeout = 1.5
         self.assertEqual(
             _stall_recovery_action(1.49, timeout, in_store=True), "wait"
         )
         self.assertEqual(
             _stall_recovery_action(1.51, timeout, in_store=True),
-            "incident-stop",
+            "store-escape",
+        )
+        self.assertEqual(
+            _stall_recovery_action(
+                10.0, timeout, in_store=True, recovery_attempts=1
+            ),
+            "wait",
         )
         self.assertEqual(
             _stall_recovery_action(1.51, timeout, in_store=False), "nudge"

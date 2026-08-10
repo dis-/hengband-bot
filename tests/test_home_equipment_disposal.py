@@ -60,7 +60,7 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
             [need.store_type for need in policy._enumerate_town_needs(outside)],
         )
         smith = replace(outside, store=StoreState(store_type=STORE_WEAPON, items=[]))
-        self.assertEqual(policy.choose_key(smith), "{d@0\r")
+        self.assertEqual(policy._shop(smith), "{d@0\r")
 
     def test_unknown_cursed_and_reserved_items_are_not_disposable(self):
         strong = store_item(

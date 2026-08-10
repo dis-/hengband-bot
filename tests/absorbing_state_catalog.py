@@ -24,7 +24,7 @@ from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import (
     CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
 )
-from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
+from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _stall_recovery_action
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
@@ -748,6 +748,9 @@ def _movement_opens_store_before_surface_observation():
             self.invalid_store_entries = 0
             self.expected_terminal_reason = "shop:leave"
 
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+
         def snapshot(self, decision):
             current = super().snapshot(decision)
             if lag[0]:
@@ -1126,7 +1129,10 @@ def _doubled_store_entry_cycle():
         def __init__(self, snapshot):
             super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
             self.invalid_store_entries = 0
-            self.expected_terminal_reason = "shop:leave"
+            self.expected_terminal_reason = "shop:observe-and-leave"
+
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -1159,7 +1165,10 @@ def _lagged_successful_store_entry():
         def __init__(self, snapshot):
             super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
             self.invalid_store_entries = 0
-            self.expected_terminal_reason = "shop:leave"
+            self.expected_terminal_reason = "shop:observe-and-leave"
+
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -1210,7 +1219,58 @@ def _failed_store_entry_same_turn():
     return policy, RefusedEntryWorld(surface)
 
 
+def _aborted_shop_one_shot_stall_escape():
+    """A swallowed transaction tail gets one bounded Escape and resumes."""
+    base = Snapshot(
+        fixture.player(10, 10),
+        {Position(10, 10): fixture.grid(10, 10)},
+        [], town_flag=True,
+    )
+
+    class RecoveryPolicy:
+        def __init__(self):
+            self.calls = 0
+            self.last_reason = ""
+
+        def choose_key(self, _snapshot):
+            self.calls += 1
+            if self.calls == 1:
+                self.last_reason = "shop:one-shot-buy"
+                return "5pa\r\x1b"
+            if self.calls == 2:
+                action = _stall_recovery_action(
+                    2.0, 1.5, in_store=True, recovery_attempts=0
+                )
+                self.last_reason = "instrument:store-one-shot-abort-escape"
+                return LEAVE_STORE_KEY if action == "store-escape" else ""
+            self.last_reason = "recovery:drive-continues"
+            return "6"
+
+        def confirm_key_posted(self, _key):
+            return None
+
+    class AbortedWorld(TownWorld):
+        expected_terminal_reason = "instrument:store-one-shot-abort-escape"
+
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+
+        def apply(self, key):
+            if key == "5pa\r\x1b":
+                self.entries += 1
+                self.inside = True
+                self.last_key = key
+                return
+            super().apply(key)
+
+    return RecoveryPolicy(), AbortedWorld(base, entrance=STORE_ALCHEMIST)
+
+
 SEEDED_STATES = (
+    AbsorbingState(
+        "aborted-shop-one-shot-stall-escape", 12,
+        _aborted_shop_one_shot_stall_escape,
+    ),
     AbsorbingState(
         "home-random-teleport-suppression-one-shot", 20,
         _home_suppression_one_shot,

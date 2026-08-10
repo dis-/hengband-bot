@@ -203,7 +203,7 @@ def test_repeated_drive():
 
 class TestTreeFakeryLint(unittest.TestCase):
     EXPECTED_UNDECLARED = {
-        ("literal-success-predicate", "test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window"),
+        ("literal-success-predicate", "scenario_transferred_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window"),
         ("invariant-input-overwritten", "test_incomplete_optimizer_blocks_normal_direct_entrance"),
         ("pipeline-result-injected", "test_unactionable_suppression_keeps_confirmed_loadout"),
         ("frozen-drive-state", "test_live_home_door_block_replay_never_posts_stay_publicly"),

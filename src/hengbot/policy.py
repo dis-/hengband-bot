@@ -178,6 +178,7 @@ from hengbot.model import (
     TVAL_SHOT,
     TVAL_STAFF,
     TVAL_WAND,
+    StoreState,
     TVAL_HAFTED,
     TVAL_POLEARM,
     TVAL_SWORD,
@@ -1938,6 +1939,8 @@ class HengbotPolicy:
         self._store_buy_inflight: tuple[
             int, tuple[str, int, int], int, int, int, int
         ] | None = None
+        # Latest authoritative normal-shop page, consumed only while outside.
+        self._shop_observation: tuple[StoreState, int] | None = None
         # Store actions share the decision sequence as a monotonic correctness
         # generation.  A leave owns older store snapshots until the feed shows
         # either the surface or a non-older in-store action generation.
@@ -2936,6 +2939,37 @@ class HengbotPolicy:
                     self._home_pending_item = None
                     self._home_pending_slot = None
                 self.last_reason = "home:atomic-withdraw-failed"
+        # Shop one-shots complete (or become retryable) only from the following
+        # outside inventory/gold observation.  No in-store confirmation phase
+        # owns a key.
+        if snapshot.store is None and self._store_buy_inflight is not None:
+            (
+                watched_store,
+                watched_signature,
+                before_count,
+                before_gold,
+                _wait_count,
+                _action_generation,
+            ) = self._store_buy_inflight
+            if (
+                self._inventory_signature_count(snapshot, watched_signature)
+                > before_count
+                or snapshot.player.gold < before_gold
+            ):
+                self._town_visit_purchases.add(watched_signature)
+            self._store_buy_inflight = None
+        if (
+            snapshot.store is None
+            and self._batch_sell_pending is not None
+            and self._batch_sell_pending.get("phase") == "await-sale"
+        ):
+            # The one-shot has already returned to the surface.  Account for
+            # its pack delta here; verification must never require another
+            # in-store decision phase.
+            pending_store = int(self._batch_sell_pending["store_type"])
+            self._batch_sell_key(
+                replace(snapshot, store=StoreState(pending_store, []))
+            )
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -3128,7 +3162,27 @@ class HengbotPolicy:
             leave_generation, leave_turn, leave_store = self._store_leave_inflight
             if snapshot.store is None:
                 self._store_leave_inflight = None
-                key = self._decide(snapshot)
+                # Visit A has just produced its authoritative page and left.
+                # Give the derived address first ownership of this adjacent
+                # outside generation; unrelated town waits cannot interleave
+                # between observation and the one-shot Visit B.
+                if (
+                    leave_store != STORE_HOME
+                    and self._shop_observation is not None
+                    and self._shop_observation[0].store_type == leave_store
+                ):
+                    self._store_visit = StoreVisit(
+                        owner="shop-one-shot",
+                        purpose="observed-transaction",
+                        store_type=leave_store,
+                        phase=StoreVisitPhase.APPROACHING,
+                        opened_sequence=self._decision_sequence,
+                    )
+                    key = self._atomic_shop_transaction_key(snapshot)
+                    if key is None:
+                        key = self._decide(snapshot)
+                else:
+                    key = self._decide(snapshot)
             elif snapshot.store.store_type != leave_store:
                 self._store_leave_inflight = None
                 key = self._decide(snapshot)
@@ -4002,7 +4056,22 @@ class HengbotPolicy:
 
         # In a store the town map and monsters are irrelevant — only buy/leave.
         if snapshot.store is not None:
-            key = self._shop(snapshot)
+            if (
+                (self._store_visit is not None and self._store_visit.operation_posted)
+                or self._store_buy_inflight is not None
+                or (
+                    self._batch_sell_pending is not None
+                    and self._batch_sell_pending.get("phase") == "await-sale"
+                )
+            ):
+                # The already-posted one-shot owns these intermediate pages.
+                # Its queued tail is the only input; policy contributes none.
+                self.last_reason = "shop:one-shot-in-flight"
+                return ""
+            # Observation visit: never select or answer an item prompt here.
+            self._shop_observation = (snapshot.store, self._decision_sequence)
+            self.last_reason = "shop:observe-and-leave"
+            key = LEAVE_STORE_KEY
             self._record_shop_selector_diagnostics(snapshot, key)
             return key
 
@@ -17293,14 +17362,17 @@ class HengbotPolicy:
                 # from the pre-inscription candidate cached in the plan.
                 for entry in entries:
                     item = observed_tagged(entry)
-                    assert item is not None
+                    if item is None:
+                        self._batch_sell_pending = None
+                        self.last_reason = "shop:batch-sale-item-unobserved"
+                        return ""
                     sale = self._batch_sale_entry(snapshot, item, entry["tag"])
                     if sale is None:
                         self._batch_sell_pending = None
                         return ""
                     entry.update(sale)
                 pending["phase"] = "await-sale"
-                self.last_reason = "shop:batch-sell"
+                self.last_reason = "shop:one-shot-sale-compose"
                 return "".join(entry["sell"] for entry in entries)
 
             # Exactly one post-sale snapshot verifies every tagged item.  Any
@@ -17328,7 +17400,7 @@ class HengbotPolicy:
             # A completed batch can compact every following inventory slot.
             # Leave before starting another transaction from a snapshot that
             # may still reflect the pre-sale inventory layout.
-            self.last_reason = "shop:batch-verify-leave"
+            self.last_reason = "shop:one-shot-sale-observed"
             return LEAVE_STORE_KEY
 
         candidates = (
@@ -17341,7 +17413,7 @@ class HengbotPolicy:
 
         entries: list[dict[str, object]] = []
         inscribe_parts: list[str] = []
-        for item in candidates[:10]:
+        for item in candidates[:1]:
             digit = str(len(entries))
             exact_tag = f"@{digit}"
             has_exact_tag = re.search(rf"@{digit}(?!\d)", item.inscription) is not None
@@ -17369,7 +17441,11 @@ class HengbotPolicy:
             "phase": phase,
             "entries": entries,
         }
-        self.last_reason = "shop:batch-inscribe" if inscribe_parts else "shop:batch-sell"
+        self.last_reason = (
+            "shop:batch-inscribe"
+            if inscribe_parts
+            else "shop:one-shot-sale-compose"
+        )
         return "".join(inscribe_parts) if inscribe_parts else "".join(
             entry["sell"] for entry in entries
         )
@@ -17405,45 +17481,6 @@ class HengbotPolicy:
         if store is None:
             self.last_reason = "shop:invalid"
             return LEAVE_STORE_KEY
-        inflight = self._store_buy_inflight
-        if inflight is not None:
-            (
-                watched_store,
-                watched_signature,
-                before_count,
-                before_gold,
-                wait_count,
-                action_generation,
-            ) = inflight
-            if watched_store != store.store_type:
-                self._store_buy_inflight = None
-            elif self._decision_sequence > action_generation:
-                carried_increased = (
-                    self._inventory_signature_count(snapshot, watched_signature)
-                    > before_count
-                )
-                gold_decreased = snapshot.player.gold < before_gold
-                if carried_increased or gold_decreased:
-                    self._store_buy_inflight = None
-                    self._town_visit_purchases.add(watched_signature)
-                    if gold_decreased and not carried_increased:
-                        self.last_reason = "shop:await-buy-confirmation"
-                        return WAIT_KEY
-                elif wait_count + 1 < STORE_STUCK_LIMIT:
-                    self._store_buy_inflight = (
-                        watched_store,
-                        watched_signature,
-                        before_count,
-                        before_gold,
-                        wait_count + 1,
-                        action_generation,
-                    )
-                    self.last_reason = "shop:await-buy-confirmation"
-                    return WAIT_KEY
-                else:
-                    # This action generation expired without a confirming store
-                    # generation.  A later retry is a new transaction attempt.
-                    self._store_buy_inflight = None
         if (
             store.store_type == STORE_TEMPLE
             and self._star_remove_curse_reserve_buy_inflight is not None
@@ -18375,6 +18412,9 @@ class HengbotPolicy:
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )
         if not entry_failed_here:
+            atomic_shop = self._atomic_shop_transaction_key(snapshot)
+            if atomic_shop is not None:
+                return atomic_shop
             atomic_withdrawal = self._atomic_home_withdraw_key(snapshot, step)
             if atomic_withdrawal is not None:
                 return atomic_withdrawal
@@ -18425,6 +18465,45 @@ class HengbotPolicy:
             self._store_entry_wait_key = travel
             return travel
         return self._step_toward(snapshot, step)
+
+    def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
+        """Compose one transaction from the latest observed page, outside."""
+        observation = self._shop_observation
+        store_type = self._shopping_approach_store_type
+        if (
+            observation is None
+            or snapshot.store is not None
+            or store_type in {None, STORE_HOME}
+            or observation[0].store_type != store_type
+        ):
+            return None
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is None or here.store_number != store_type:
+            return None
+
+        observed_store, generation = observation
+        # Current inventory/gold are paired with exactly this latest page at
+        # the composition boundary; no cached item candidate is trusted.
+        inner = self._shop(replace(snapshot, store=observed_store))
+        if inner.startswith((BUY_KEY, SELL_KEY)):
+            key = WAIT_KEY + inner + LEAVE_STORE_KEY
+            self._shop_observation = None
+            self.last_reason = (
+                "shop:one-shot-buy"
+                if inner.startswith(BUY_KEY)
+                else "shop:one-shot-sell"
+            )
+            if self._store_visit is not None:
+                self._store_visit.operation_posted = True
+                self._store_visit.composed_key = key
+                self._store_visit.posted_sequence = generation
+            return key
+        if inner.startswith("{"):
+            # Inscription is an outside pack operation.  Retain this page while
+            # the next outside snapshot re-resolves the newly tagged item.
+            return inner
+        self._shop_observation = None
+        return None
 
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str

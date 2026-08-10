@@ -1430,9 +1430,7 @@ def _stall_recovery_key(
 def _send_stall_recovery_nudge(
     send, key: str, posted_keys: set[str], *, in_store: bool = False,
 ) -> bool:
-    """Send a command-loop recovery nudge, never into a store transaction."""
-    if in_store:
-        return False
+    """Send one bounded command-loop recovery nudge."""
     sent = send(key)
     if sent:
         posted_keys.clear()
@@ -1440,13 +1438,14 @@ def _send_stall_recovery_nudge(
 
 
 def _stall_recovery_action(
-    quiet_seconds: float, stall_timeout: float, *, in_store: bool
+    quiet_seconds: float, stall_timeout: float, *, in_store: bool,
+    recovery_attempts: int = 0,
 ) -> str:
     """Choose the transport recovery without bypassing store ownership."""
     if quiet_seconds <= stall_timeout:
         return "wait"
     if in_store:
-        return "incident-stop"
+        return "store-escape" if recovery_attempts == 0 else "wait"
     return "nudge"
 
 
@@ -2363,6 +2362,7 @@ def _run_follow(
                 now - last_activity,
                 args.stall_timeout,
                 in_store=snapshot is not None and snapshot.store is not None,
+                recovery_attempts=nudge_streak,
             )
             if (
                 args.send_to_window
@@ -2370,15 +2370,6 @@ def _run_follow(
                 and now >= quiet_ok_until
                 and recovery_action != "wait"
             ):
-                if recovery_action == "incident-stop":
-                    print(
-                        "<store-input-ownership-stall> authoritative store "
-                        "snapshot exceeded the configured stall bound; "
-                        "stopping bot (game left running)",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    return incident_stop("store-input-ownership-stall", snapshot)
                 recovery_key, recovery_marker = _stall_recovery_key(
                     nudge_streak,
                     last_player_level,
@@ -2388,10 +2379,15 @@ def _run_follow(
                     send,
                     recovery_key,
                     posted_decision_keys,
-                    in_store=snapshot is not None and snapshot.store is not None,
+                    in_store=False,
                 )
                 if recovery_sent:
-                    print(recovery_marker, flush=True)
+                    print(
+                        "<instrument:store-one-shot-abort-escape>"
+                        if recovery_action == "store-escape"
+                        else recovery_marker,
+                        flush=True,
+                    )
                 last_activity = now
                 # A refused store recovery never reaches this branch.  Outside
                 # a store, both a successful post and a vanished-window send
