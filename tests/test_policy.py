@@ -26503,53 +26503,27 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(observed), "d0y")
 
-    def test_batch_sale_reclassifies_inscription_merged_stack_from_current_snapshot(self):
+    def test_preinscribed_stack_plan_build_uses_current_snapshot_count(self):
         evidence = json.loads(
             Path("tests/fixtures/batch_sell_stack_quantity_20260810.json")
             .read_text(encoding="utf-8")
         )
-        potion = replace(
-            item(
-                evidence["slot"],
-                evidence["tval"],
-                evidence["sval"],
-                count=evidence["pre_inscription_count"],
-                name=evidence["name"],
-            ),
-            inscription="",
+        observed_stack = replace(
+            item("j", TVAL_WAND, 1, count=2, name="wand"), inscription="@0"
         )
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[potion],
-            store=StoreState(store_type=STORE_ALCHEMIST, items=[]),
+            inventory=[observed_stack],
+            store=StoreState(store_type=STORE_MAGIC, items=[]),
             town_flag=True,
-            turn=evidence["pre_inscription_turn"],
         )
         policy = HengbotPolicy()
-        with patch.object(
-            policy, "_current_store_sale_candidates", return_value=[potion]
-        ), patch.object(
-            policy, "_retention_surplus", side_effect=lambda snapshot, target: target.count
-        ):
-            self.assertEqual(policy._batch_sell_key(snap), "{b@0\r")
-            observed = replace(
-                snap,
-                inventory=[
-                    replace(
-                        potion,
-                        count=evidence["observed_count"],
-                        inscription=evidence["observed_inscription"],
-                    )
-                ],
-                turn=evidence["observed_turn"],
-            )
-
-            key = policy._batch_sell_key(observed)
+        key = policy.choose_key(snap)
 
         self.assertEqual(key, "d099\ry")
-        self.assertNotEqual(key, evidence["live_composed_key"])
+        self.assertNotEqual(key, evidence["attempts"][0]["key"])
 
     def test_pile_sale_quantity_is_capped_by_retention_surplus(self):
         pile = item("j", TVAL_FOOD, FOOD_MIN_SVAL, count=3, name="rations")

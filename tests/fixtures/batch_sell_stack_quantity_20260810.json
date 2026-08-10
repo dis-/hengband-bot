@@ -1,13 +1,10 @@
 {
-  "source": "jsonlog/evidence-depth34-recall-bypass.jsonl and bot-state-fixed",
-  "pre_inscription_turn": 4022462,
-  "observed_turn": 4022463,
-  "slot": "b",
-  "tval": 75,
-  "sval": 1,
-  "name": "incident potion",
-  "pre_inscription_count": 1,
-  "observed_count": 2,
-  "observed_inscription": "{@0}",
-  "live_composed_key": "d0y"
+  "source": "jsonlog/evidence-depth34-recall-bypass.jsonl lines 22 and 29",
+  "candidate_count": "NOT ESTABLISHED",
+  "candidate_name": "NOT ESTABLISHED",
+  "candidate_inscription": "NOT ESTABLISHED",
+  "attempts": [
+    {"decision_sequence": 18, "time": "2026-08-10T05:54:03+0900", "key": "d0y"},
+    {"decision_sequence": 25, "time": "2026-08-10T05:54:55+0900", "key": "d0y"}
+  ]
 }

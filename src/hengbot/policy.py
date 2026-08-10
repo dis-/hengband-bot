@@ -17278,13 +17278,7 @@ class HengbotPolicy:
                 # from the pre-inscription candidate cached in the plan.
                 for entry in entries:
                     item = inventory[entry["signature"]]
-                    surplus = self._retention_surplus(snapshot, item)
-                    quantity = item.count if surplus <= 0 else min(item.count, surplus)
-                    amount = "99" if quantity == item.count else str(quantity)
-                    quantity_answer = "" if item.count == 1 else amount + "\r"
-                    entry["count"] = item.count
-                    entry["quantity"] = quantity
-                    entry["sell"] = SELL_KEY + entry["tag"] + quantity_answer + "y"
+                    entry.update(self._batch_sale_entry(snapshot, item, entry["tag"]))
                 pending["phase"] = "await-sale"
                 self.last_reason = "shop:batch-sell"
                 return "".join(entry["sell"] for entry in entries)
@@ -17330,23 +17324,12 @@ class HengbotPolicy:
             # policy.  Never overwrite them merely to make a batch possible.
             if "@" in item.inscription and not has_exact_tag:
                 continue
-            surplus = self._retention_surplus(snapshot, item)
-            quantity = item.count if surplus <= 0 else min(item.count, surplus)
             if not has_exact_tag:
                 inscribe_parts.append("{" + item.slot + exact_tag + "\r")
-            amount = "99" if quantity == item.count else str(quantity)
-            # The store always asks for the offered-price confirmation.  A
-            # stack first asks for a quantity; a singleton does not.  Keep the
-            # two prompt sequences explicit so Return can never be mistaken
-            # for the confirmation (the live fire-resistance-potion incident).
-            quantity_answer = "" if item.count == 1 else amount + "\r"
-            sell = SELL_KEY + digit + quantity_answer + "y"
             entries.append({
                 "signature": self._item_signature(item),
                 "tag": digit,
-                "count": item.count,
-                "quantity": quantity,
-                "sell": sell,
+                **self._batch_sale_entry(snapshot, item, digit),
             })
         if not entries:
             self.last_reason = "shop:sale-inscription-unavailable-leave"
@@ -17361,6 +17344,22 @@ class HengbotPolicy:
         return "".join(inscribe_parts) if inscribe_parts else "".join(
             entry["sell"] for entry in entries
         )
+
+    def _batch_sale_entry(
+        self, snapshot: Snapshot, item: InventoryItem, tag: str
+    ) -> dict[str, object]:
+        """Classify one tagged sale from the snapshot being composed."""
+        surplus = self._retention_surplus(snapshot, item)
+        quantity = item.count if surplus <= 0 else min(item.count, surplus)
+        amount = "99" if quantity == item.count else str(quantity)
+        # The store always asks for the offered-price confirmation.  A stack
+        # first asks for a quantity; a singleton does not.
+        quantity_answer = "" if item.count == 1 else amount + "\r"
+        return {
+            "count": item.count,
+            "quantity": quantity,
+            "sell": SELL_KEY + tag + quantity_answer + "y",
+        }
 
     def _shop(self, snapshot: Snapshot) -> str:
         store = snapshot.store
