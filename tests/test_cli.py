@@ -2332,6 +2332,41 @@ class TownBlockedStreakTest(unittest.TestCase):
             )
         self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
 
+    def test_live_wiring_ignores_message_churn(self):
+        """Board text is not workflow progress at the live seam.
+
+        The seam must project workflow state, not the message-bearing effect
+        state: the bot's own periodic character export and wall bumps churn
+        `messages` every few decisions, and treating that as progress resets
+        the fuse forever (measured live: max streak 24/30, never fired).
+        """
+        from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
+        from hengbot.model import PlayerState, Snapshot
+        from hengbot.policy import HengbotPolicy
+
+        policy = HengbotPolicy()
+        policy.last_reason = "town:blocked:repetition"
+        quiet = Snapshot(
+            player=PlayerState(
+                position=Position(10, 10), hp=10, max_hp=10,
+                mp=0, max_mp=0, level=1,
+            ),
+            grids={},
+            visible_monsters=[],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        noisy = replace(quiet, messages=("キャラクタ情報のファイルへの書き出しに成功しました。",))
+
+        streak = 0
+        state = None
+        for index in range(TOWN_BLOCKED_STOP_LIMIT):
+            snapshot = noisy if index % 2 else quiet
+            streak, state = _advance_town_blocked_iteration(
+                policy, snapshot, streak, state
+            )
+        self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
+
     def test_live_wiring_real_gold_progress_never_fuses(self):
         from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
         from hengbot.model import PlayerState, Snapshot

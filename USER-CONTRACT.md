@@ -46,6 +46,19 @@ Gaps (directives without an automated gate yet): #2 lacks a stability pin over p
 (recall-depth variation is pinned); a consolidated `tests/test_user_contract.py` that names each entry is
 queued. Until then this table is the checklist.
 
+## Absorbing seeds are evidence, not obstacles (2026-08-11)
+
+An absorbing-state seed may **never** be deleted, disabled, or have its terminal overridden in
+order to make a change pass. A failing seed is evidence that the change reintroduced an
+unbounded state. If a seeded world is genuinely invalid, that must be argued on the record in
+the fix event and reviewed — silent removal is treated as fabricated verification.
+
+Enforcement gaps this rule closes (measured in `63c799a`): `tests/test_absorbing_states.py`
+asserts only `len(SEEDED_STATES)`, so remove-one/add-one is invisible; seeds are not test
+methods, so "zero test-name losses" does not cover them. Reviewers MUST diff the seed NAME set,
+not the count, and MUST check for `visible_terminal`/harness overrides that disable the stop
+rule under test.
+
 ## Scenario transfer when decision paths change
 
 Deleting or rebuilding a decision path requires a scenario-transfer list in the fix event. The list MUST
