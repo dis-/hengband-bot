@@ -99,7 +99,8 @@ from hengbot.model import (
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
-    Loadout, OwnedEquipment, OwnedEquipmentCatalog, TR_TELEPORT, current_loadout,
+    EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult,
+    OwnedEquipment, OwnedEquipmentCatalog, TR_TELEPORT, current_loadout,
 )
 from hengbot.monrace_knowledge import (
     MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
@@ -40370,14 +40371,127 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._equipment_catalog.observe_home_page([mask], allow_wrap=False)
 
         key = policy._town_random_teleport_suppression_key(
-            self._town(store=StoreState(STORE_HOME, [mask]))
+            self._town()
         )
 
-        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertIsNone(key)
         self.assertEqual(
-            policy.last_reason, "home:queue-random-teleport-for-inscription"
+            policy._home_pending_item, policy._item_signature(mask)
         )
 
+    def test_home_random_teleport_uses_derived_page_address_then_pack_inscription(self):
+        evidence = [
+            json.loads(line)
+            for line in Path(
+                "tests/fixtures/home_suppression_cycle_20260810.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+        ]
+        cycle = [row for row in evidence if 79 <= row["decision_sequence"] <= 85]
+        self.assertEqual(
+            [row["reason"] for row in cycle],
+            [
+                "home:store-context-exit",
+                "shop:approach",
+                "store:entry-await-observation",
+                "shop:approach",
+                "store:entry-await-observation",
+                "home:store-context-exit",
+            ],
+        )
+        self.assertTrue(all(row["town_plan"]["index"] == 0 for row in cycle))
+        detail = evidence[0]["incomplete_item_details"][0]
+        self.assertEqual(
+            (detail["origin"], detail["tval"], detail["sval"]),
+            ("home", 23, 25),
+        )
+
+        fillers = [
+            store_item("a", TVAL_POTION, index, name=f"filler-{index}")
+            for index in range(12)
+        ]
+        sword = store_item(
+            "a", 23, 25, name="selected sword", known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(tuple([*fillers, sword]))
+        policy._home_page_size = 12
+
+        def preparation(_snapshot):
+            matching = [
+                candidate for candidate in policy._equipment_catalog.items
+                if policy_module.equipment_identity(candidate.item)
+                == policy_module.equipment_identity(sword)
+            ]
+            loadout = Loadout(
+                (("main_hand", matching[0]),) if matching else (),
+                "one_handed" if matching else "empty",
+            )
+            evaluated = EvaluatedLoadout(
+                loadout, LoadoutMetrics(0.0, 0.0, 0.0)
+            )
+            result = OptimizationResult(
+                evaluated, (), (), frozenset(), 1, 1, 0, 0.0,
+                False, frozenset(),
+            )
+            return policy_module.WarriorOptimizationPreparation(
+                loadout,
+                result,
+                None,
+                ("pending-random-teleport-suppression",) if matching else (),
+            )
+
+        policy._prepare_equipment_optimization = preparation
+        entrance = replace(
+            self._town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+        )
+
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("equipment-catalog",)},
+        )
+        self.assertEqual(
+            policy.choose_key(entrance),
+            "5 pa\x1b",
+        )
+        home_plan = policy._town_errand_plan
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(
+            policy._home_random_teleport_withdrawal,
+            policy._item_signature(sword),
+        )
+
+        carried = item(
+            "q", 23, 25, name=sword.name, known=True,
+            fully_known=False, is_equipment=True, is_ego=True,
+        )
+        outside = replace(entrance, inventory=[carried], turn=1)
+        self.assertEqual(
+            policy._inventory_signature_count(
+                outside, policy._item_signature(sword)
+            ),
+            1,
+        )
+        self.assertEqual(
+            policy.choose_key(outside),
+            INSCRIBE_KEY + "q.\r",
+        )
+        self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
+        self.assertEqual(
+            (
+                policy._town_visit_ledger.store_visits[STORE_HOME],
+                home_plan.index,
+                home_plan.current_stop_passes,
+                home_plan.completed_this_visit,
+            ),
+            (1, 1, 0, [STORE_HOME]),
+        )
     def test_repeated_home_suppression_actions_do_not_grow_catalog(self):
         stored = store_item(
             "b", 23, 17, name="Werewindle", known=True,
@@ -40404,6 +40518,45 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 self._town(store=StoreState(STORE_HOME, [visible]))
             )
             self.assertEqual(len(policy._equipment_catalog.items), catalog_size)
+
+    def test_zero_pack_space_defers_home_suppression_to_existing_disposal(self):
+        stored = store_item(
+            "a", 32, 5, name="Terror Mask", known=True, fully_known=True,
+            is_equipment=True, is_artifact=True,
+            known_flags=frozenset({TR_TELEPORT}),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((stored,))
+        owned = policy._equipment_catalog.items[0]
+        loadout = Loadout((("head", owned),), "empty")
+        evaluated = EvaluatedLoadout(
+            loadout, LoadoutMetrics(0.0, 0.0, 0.0)
+        )
+        result = OptimizationResult(
+            evaluated, (), (), frozenset(), 1, 1, 0, 0.0,
+            False, frozenset(),
+        )
+        preparation = policy_module.WarriorOptimizationPreparation(
+            loadout,
+            result,
+            None,
+            ("pending-random-teleport-suppression",),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: preparation
+        full_pack = [
+            item(
+                chr(ord("a") + index), TVAL_POTION, SV_POTION_SLEEP,
+                name=f"sleep-{index}", known=True,
+            )
+            for index in range(PACK_CAPACITY)
+        ]
+        snapshot = self._town(inventory=full_pack)
+
+        key = policy.choose_key(snapshot)
+
+        self.assertTrue(key.startswith("01k"), key)
+        self.assertNotIn(BUY_KEY, key)
+        self.assertIsNone(policy._home_pending_item)
 
     def test_leaves_store_before_inscribing_carried_item(self):
         mask = item(

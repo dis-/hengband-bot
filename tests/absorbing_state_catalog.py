@@ -264,6 +264,80 @@ def _departure_freeze():
     return policy, TownWorld(snap)
 
 
+def _home_suppression_one_shot():
+    """Selected Home gear must withdraw before recovery exits can repeat."""
+    fillers = [
+        fixture.store_item("a", TVAL_POTION, index, name=f"filler-{index}")
+        for index in range(12)
+    ]
+    sword = fixture.store_item(
+        "a", 23, 25, name="selected sword", known=True,
+        fully_known=False, is_equipment=True, is_ego=True,
+    )
+    policy = HengbotPolicy()
+    policy.consume_home_knowledge(tuple([*fillers, sword]))
+    policy._home_page_size = 12
+    owned = next(
+        owned for owned in policy._equipment_catalog.items
+        if policy_module.equipment_identity(owned.item)
+        == policy_module.equipment_identity(sword)
+    )
+    loadout = fixture.Loadout((("main_hand", owned),), "one_handed")
+    evaluated = fixture.EvaluatedLoadout(
+        loadout, fixture.LoadoutMetrics(0.0, 0.0, 0.0)
+    )
+    result = fixture.OptimizationResult(
+        evaluated, (), (), frozenset(), 1, 1, 0, 0.0, False, frozenset()
+    )
+    preparation = policy_module.WarriorOptimizationPreparation(
+        loadout,
+        result,
+        None,
+        ("pending-random-teleport-suppression",),
+    )
+    policy._prepare_equipment_optimization = lambda _snapshot: preparation
+    surface = Snapshot(
+        fixture.player(10, 10, class_id=fixture.PLAYER_CLASS_WARRIOR),
+        {
+            Position(10, 10): replace(
+                fixture.grid(10, 10), store_number=STORE_HOME
+            ),
+            Position(10, 9): fixture.grid(10, 9),
+        },
+        [],
+        floor_key=(0, 0, 0),
+        town_flag=True,
+        equipment=[
+            fixture.item(
+                "light", fixture.TVAL_LITE, fixture.SV_LITE_LANTERN,
+                fuel=7000, known=True, is_equipment=True,
+            )
+        ],
+    )
+    policy._shopping_approach_store_type = STORE_HOME
+
+    class SuppressionWorld(TownWorld):
+        def visible_terminal(self, reason):
+            if (
+                reason == "home:store-context-exit"
+                or reason.startswith("calibration:")
+                or reason.startswith("equipment-transaction:")
+            ):
+                return "historical Home recovery exit repeated"
+            return super().visible_terminal(reason)
+
+        def terminal_ends_drive(self, reason, key):
+            if (
+                reason == "home:store-context-exit"
+                or reason.startswith("calibration:")
+                or reason.startswith("equipment-transaction:")
+            ):
+                return False
+            return super().terminal_ends_drive(reason, key)
+
+    return policy, SuppressionWorld(surface, stock=[*fillers, sword])
+
+
 def _catalogue_invalidated_with_equipment_work():
     """A cleared catalogue must release through ~9 despite equipment work."""
     surface = fixture.TownErrandPlanTest()._snapshot(turn=3542954)
@@ -1092,6 +1166,10 @@ def _failed_store_entry_same_turn():
 
 
 SEEDED_STATES = (
+    AbsorbingState(
+        "home-random-teleport-suppression-one-shot", 20,
+        _home_suppression_one_shot,
+    ),
     AbsorbingState(
         "catalogue-invalidated-equipment-work-repetition", 20,
         _catalogue_invalidated_with_equipment_work,

@@ -2185,6 +2185,7 @@ class HengbotPolicy:
         self._no_teleport_rearm_pending = False
         self._yeek_conquest_processed = False
         self._home_pending_item: tuple[str, int, int] | None = None
+        self._home_random_teleport_withdrawal: tuple[str, int, int] | None = None
         self._home_pending_slot: str | None = None
         self._home_pending_quantity: int | None = None
         self._home_pending_batch: list[tuple[str, int, int]] = []
@@ -2879,9 +2880,33 @@ class HengbotPolicy:
             self._home_atomic_withdraw_pending = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                suppression_withdrawal = (
+                    self._home_random_teleport_withdrawal == signature
+                )
                 self._equipment_catalog.record_home_withdrawal(
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
+                )
+                self._equipment_catalog.refresh_carried(
+                    snapshot.inventory, snapshot.equipment
+                )
+                if suppression_withdrawal and self._home_pending_item == signature:
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_random_teleport_withdrawal = None
+                # An atomic visit has no intervening store snapshot on which
+                # the ordinary leave handler can close the plan stop.  The
+                # observed pack delta is the operation's authoritative effect,
+                # so account for that completed Home pass here.
+                self._report_town_stop_pass(
+                    snapshot,
+                    STORE_HOME,
+                    goal_satisfied=(
+                        suppression_withdrawal
+                        or not self._home_owner_goal_pending(snapshot)
+                    ),
+                    operation_completed=True,
+                    observed_effect_completes_stop=suppression_withdrawal,
                 )
                 if (
                     withdrawn.tval == TVAL_SCROLL
@@ -2905,6 +2930,8 @@ class HengbotPolicy:
                         STORE_HOME, release_visit_bound=True
                     )
             else:
+                if self._home_random_teleport_withdrawal == signature:
+                    self._home_random_teleport_withdrawal = None
                 self._deferred_home_items.add(signature)
                 if signature in self._home_pending_batch:
                     self._home_pending_batch.remove(signature)
@@ -11587,6 +11614,8 @@ class HengbotPolicy:
                 signature = self._home_pending_item
             elif self._home_pending_batch:
                 signature = self._home_pending_batch[0]
+        if self._home_random_teleport_withdrawal == signature:
+            self._home_random_teleport_withdrawal = None
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
         if signature is None and action is not None and action.kind == "withdraw":
@@ -14855,6 +14884,7 @@ class HengbotPolicy:
             self._home_pending_item = None
             self._home_pending_batch.clear()
             self._home_atomic_withdraw_pending = None
+            self._home_random_teleport_withdrawal = None
 
     def _report_town_stop_pass(
         self,
@@ -14863,6 +14893,7 @@ class HengbotPolicy:
         *,
         goal_satisfied: bool,
         operation_completed: bool = False,
+        observed_effect_completes_stop: bool = False,
     ) -> None:
         """Report one handler pass to the plan that owns this town objective."""
         self._town_visit_ledger.store_visits[store_type] += 1
@@ -14880,7 +14911,7 @@ class HengbotPolicy:
         if not owned_categories:
             owned_categories = tuple(need.category for need in store_needs)
         registry_satisfied = True
-        if owned_categories:
+        if owned_categories and not observed_effect_completes_stop:
             self._town_need_evaluation_snapshot = snapshot
             self._town_need_evaluation_candidates = self._town_need_candidates(
                 snapshot
@@ -19122,26 +19153,21 @@ class HengbotPolicy:
                 self.last_reason = "equipment:suppress-equipped-random-teleport"
                 return INSCRIBE_KEY + "/" + slot_key + ".\r"
 
-        store = snapshot.store
-        if store is None or store.store_type != STORE_HOME:
-            return None
         home_owned = next(
             (owned for owned in pending if owned.origin == "home"), None
         )
-        if home_owned is None:
-            return None
-        home_item = next(
-            (
-                item for item in store.items
-                if equipment_identity(item) == equipment_identity(home_owned.item)
-            ),
-            None,
-        )
-        if home_item is None:
-            return None
-        self._home_pending_item = self._item_signature(home_item)
-        self.last_reason = "home:queue-random-teleport-for-inscription"
-        return LEAVE_STORE_KEY
+        if (
+            home_owned is not None
+            and self._home_pending_item is None
+            and len(snapshot.inventory) < PACK_CAPACITY
+        ):
+            # Arm the ordinary derived-address withdrawal while still outside.
+            # The completed ~9 catalogue owns the identity and shelf ordinal;
+            # the entrance composer below owns pack-space, visit bounds,
+            # posting, page arithmetic, the take command, and the exit.
+            self._home_pending_item = self._item_signature(home_owned.item)
+            self._home_random_teleport_withdrawal = self._home_pending_item
+        return None
 
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
         player = snapshot.player

@@ -69,3 +69,51 @@ key-shape '{n@0\r'; reason shop:buy-healing;
 reason shop:sale-inscription-unobserved-leave;
 reason town:wait-restock:temple
 ```
+
+## Home random-teleport suppression one-shot fix event
+
+time: `2026-08-10T09:03:41.5596751+09:00`
+
+Measured chain: the fixture copied from
+`jsonlog/evidence-home-stop-cycle.jsonl` records a complete `~9` scan of 117
+items, the selected incomplete Home sword
+`home:b57f63b4c7ce1c07:0` (`tval=23`, `sval=25`), and the repeating
+`shop:approach` -> `store:entry-await-observation` ->
+`home:store-context-exit` cycle.  Every copied cycle record has
+`town_plan.index=0`; the later records reach `town:blocked:repetition` waits.
+At `81f86dc`, the public replay emitted only `5` where the fixed route emits
+`5 pa\x1b`, and its absorbing seed failed on decision 4 with
+`visible terminal repeated without ending drive`.
+
+One-shot composition: selected Home-origin suppression now arms the standard
+outside `_home_pending_item` address.  At the Home entrance, the completed
+knowledge order and observed 12-item page size derive page 1, page-relative
+letter `a`, and compose `5 pa\x1b` (entry, one page, take, exit) as a single
+posted decision.  The observed pack delta completes the original Home plan
+stop; the existing pack branch then emits `{q.\r`.  A zero-space public pin is
+owned by the pre-existing `01k<slot>` disposal path and never posts `p`.
+
+Scenario transfer:
+
+- The old in-store scenario
+  `GlobalEquipmentOptimizationOwnershipTest.test_withdraws_home_random_teleport_item_before_inscribing`
+  remains under the same name and now covers outside arming; the deleted
+  `home:queue-random-teleport-for-inscription` branch has no remaining test or
+  producer.
+- Its former store-page selection/leave behavior transfers to
+  `test_home_random_teleport_uses_derived_page_address_then_pack_inscription`,
+  which covers the copied cycle, public page-relative composition, observed
+  Home-stop completion, and the existing outside inscription.
+- Pack-origin direct inscription remains in
+  `test_inscribes_pack_random_teleport_item_in_town`.
+- Zero-space deferral lives in
+  `test_zero_pack_space_defers_home_suppression_to_existing_disposal`.
+- The approach/exit liveness scenario lives in absorbing seed
+  `home-random-teleport-suppression-one-shot`.
+
+The live coverage audit of the preserved evidence reports these six existing
+orphans: key shapes `5pY\x1b`, `Cf\ry\x1b\x1b`, `wn`, and `wnd`; reasons
+`equipment-transaction:await-confirmation-leave-home` and
+`home:atomic-withdraw-target-unobserved`.  The deleted
+`home:queue-random-teleport-for-inscription` reason is absent from the orphan
+list.

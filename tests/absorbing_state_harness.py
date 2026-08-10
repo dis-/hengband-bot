@@ -96,10 +96,10 @@ def drive(state: AbsorbingState) -> DriveResult:
             count = (
                 repeated_visible_terminal[1] + 1
                 if repeated_visible_terminal is not None
-                and repeated_visible_terminal[0] == reason
+                and repeated_visible_terminal[0] == terminal
                 else 1
             )
-            repeated_visible_terminal = (reason, count)
+            repeated_visible_terminal = (terminal, count)
             if count > 3:
                 return DriveResult(
                     state.name, False,
