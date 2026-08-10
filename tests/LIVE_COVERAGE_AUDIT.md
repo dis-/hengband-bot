@@ -306,3 +306,70 @@ tests, `OK (skipped=1)`, preserving the 2,507 baseline plus four new tests.
 The mutation battery passed 5/5 with `repo_tree_untouched: true`; sale-key lint
 reported zero violations; test-fakery lint retained eight pre-existing
 repository findings and introduced zero findings in changed tests.
+
+## 2026-08-10 one-shot test-estate restoration
+
+time: `2026-08-10T15:20:29.9318214+09:00`
+
+The dead `scenario_transferred_*` methods were deleted.  Their live successors
+all drive `choose_key`: a store-page observation posts Escape, the next outside
+snapshot composes the door transaction, and confirmation is supplied only by
+the modeled consumer's resulting outside pack/gold snapshot.
+
+| Lost scenario | Live destination |
+| --- | --- |
+| `store_wait_is_noop_and_never_emits_page_turn_key` | `test_shop_one_shot.ShopOneShotTest.test_store_wait_is_noop_and_never_emits_page_turn_key` |
+| `pending_buy_preempts_leave_from_unchanged_store_snapshot` | `test_intermediate_one_shot_pages_emit_no_foreign_keys` |
+| `unaccepted_purchase_is_not_recorded_as_completed` | same-named `ShopOneShotTest` |
+| `leaves_store_when_purchase_never_registers` | same-named `ShopOneShotTest` |
+| `purchase_waits_for_real_incident_gold_delta` | `test_buy_observe_then_driven_one_shot_debits_gold_and_adds_pack` |
+| `public_purchase_key_completes_stacked_and_preserves_single_ware` | `test_completed_stacked_buy_stops_three_page_retry_construction` plus the singleton buy grammar pin |
+| `purchase_wait_clears_on_carried_item_progress` | `test_door_composed_buy_survives_to_outside_purchase_accounting` |
+| `purchase_wait_clears_on_different_store_page` | `test_newer_page_invalidates_old_letter_and_recomposes` |
+| `alchemist_context_flicker_does_not_repeat_unconfirmed_purchase` | same-named `ShopOneShotTest` |
+| `alchemist_combat_flicker_does_not_repeat_unconfirmed_purchase` | same-named `ShopOneShotTest` |
+| `alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window` | same-named `ShopOneShotTest` |
+| `completed_stacked_buy_stops_three_page_retry_construction` | same-named `ShopOneShotTest` |
+| `rejected_purchase_times_out_and_stuck_backstop_leaves` | same-named `ShopOneShotTest` |
+| `partial_low_gold_ammo_purchase_completes_without_looping` | same-named `ShopOneShotTest` |
+| `choose_key_purchase_watch_records_only_confirmed_buy` | same-named `ShopOneShotTest` |
+
+The former batch-straggler `_store_sell_attempt` assertion transfers to the
+one-shot ownership invariant in its unchanged test: completion closes the
+legacy attempt tuple instead of retaining a straggler signature.
+
+The page-relative-letter invariant is guarded at the atomic composer. Page
+zero composes normally; a nonzero `page_top` clears the observation and forces
+a re-observation without emitting a purchase. Shops never emit a page-turn key.
+
+The real absorbing seed reaches `shop:one-shot-buy` with `5pa\r\x1b`, stops
+the modeled consumer mid-prompt, and terminates on the extracted bounded
+`instrument:store-one-shot-abort-escape`. At tip it passes in four decisions.
+Running the current seed at `aadc336` is not directly loadable because that
+revision predates `_stall_recovery_action` (`ImportError`), the seam whose
+absence left the historical store transaction without a bounded recovery.
+`doubled-store-entry-cycle` and `lagged-successful-store-entry` now terminate
+only after reaching the purchase (`shop:one-shot-buy`), not at observation.
+
+The two live-shaped sale/buy replays now post through the public door-composed
+path and model the complete `5d0y\x1b` / `5pa\r\x1b` consumers; the swallowed
+Escape lambda and private `_shop` drive are gone.
+
+Reverting `ecf55de`'s completion-accounting production commit beneath the
+restored one-shot file produced five failures. In particular,
+`test_completed_one_shot_new_store_page_is_not_permanent_silence` reproduced
+`('', 'shop:one-shot-in-flight')`, while
+`test_door_composed_buy_survives_to_outside_purchase_accounting` and
+`test_choose_key_purchase_watch_records_only_confirmed_buy` both found the
+confirmed signature absent from `_town_visit_purchases`. These are three
+independent quoted mutation targets for watch release, ledger survival, and
+confirmed-purchase recording.
+
+Verification: both final full-suite runs passed 2,523 tests in 202.185s and 201.454s,
+`OK (skipped=1)`. Mutation battery passed 5/5 with
+`repo_tree_untouched: true`; sale-key lint reported zero. The fakery ratchet
+shrunk from eight to seven undeclared instances and from 101 to 98 declared
+findings, with no new changed-test finding. The live-coverage auditor now
+tolerates the BOM in `evidence-home-entry-capture-head.jsonl`; its run proceeds
+to a separate malformed JSON record at line 6 (`Expecting ',' delimiter`),
+which is evidence corruption rather than the former BOM crash.

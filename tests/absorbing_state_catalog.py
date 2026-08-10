@@ -1103,6 +1103,9 @@ def _ordinary_alchemist_entry_seed(*, turn, target_sval):
     )
     policy = HengbotPolicy()
     policy._next_required_store_type = lambda _snapshot: STORE_ALCHEMIST
+    policy._next_purchase = lambda snapshot: (
+        target if snapshot.store is not None else None
+    )
     surface = helper._entrance_snapshot(helper._real_pack(), turn=turn)
     entrance = surface.player.position
     surface = replace(
@@ -1129,10 +1132,10 @@ def _doubled_store_entry_cycle():
         def __init__(self, snapshot):
             super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
             self.invalid_store_entries = 0
-            self.expected_terminal_reason = "shop:observe-and-leave"
+            self.expected_terminal_reason = "shop:one-shot-buy"
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+            return reason == self.expected_terminal_reason and key.startswith("5p")
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -1165,10 +1168,10 @@ def _lagged_successful_store_entry():
         def __init__(self, snapshot):
             super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
             self.invalid_store_entries = 0
-            self.expected_terminal_reason = "shop:observe-and-leave"
+            self.expected_terminal_reason = "shop:one-shot-buy"
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+            return reason == self.expected_terminal_reason and key.startswith("5p")
 
         def snapshot(self, decision):
             current = super().snapshot(decision)
@@ -1220,50 +1223,47 @@ def _failed_store_entry_same_turn():
 
 
 def _aborted_shop_one_shot_stall_escape():
-    """A swallowed transaction tail gets one bounded Escape and resumes."""
-    base = Snapshot(
-        fixture.player(10, 10),
-        {Position(10, 10): fixture.grid(10, 10)},
-        [], town_flag=True,
+    """A real one-shot stopped mid-prompt gets the extracted bounded Escape."""
+    policy, base, target = _ordinary_alchemist_entry_seed(
+        turn=3041933, target_sval=2999
     )
-
-    class RecoveryPolicy:
-        def __init__(self):
-            self.calls = 0
-            self.last_reason = ""
-
-        def choose_key(self, _snapshot):
-            self.calls += 1
-            if self.calls == 1:
-                self.last_reason = "shop:one-shot-buy"
-                return "5pa\r\x1b"
-            if self.calls == 2:
-                action = _stall_recovery_action(
-                    2.0, 1.5, in_store=True, recovery_attempts=0
-                )
-                self.last_reason = "instrument:store-one-shot-abort-escape"
-                return LEAVE_STORE_KEY if action == "store-escape" else ""
-            self.last_reason = "recovery:drive-continues"
-            return "6"
-
-        def confirm_key_posted(self, _key):
-            return None
 
     class AbortedWorld(TownWorld):
         expected_terminal_reason = "instrument:store-one-shot-abort-escape"
+
+        def __init__(self, snapshot):
+            super().__init__(snapshot, entrance=STORE_ALCHEMIST, stock=[target])
+            self.aborted = False
 
         def terminal_ends_drive(self, reason, key):
             return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
 
         def apply(self, key):
-            if key == "5pa\r\x1b":
-                self.entries += 1
+            if key.startswith("5p"):
+                # The game accepts entry and the buy selector, then stops
+                # consuming before confirmation and the composed tail.
                 self.inside = True
+                self.aborted = True
                 self.last_key = key
                 return
             super().apply(key)
 
-    return RecoveryPolicy(), AbortedWorld(base, entrance=STORE_ALCHEMIST)
+    world = AbortedWorld(base)
+    original_choose_key = policy.choose_key
+
+    def choose_with_stall_seam(snapshot):
+        key = original_choose_key(snapshot)
+        if world.aborted and key == "":
+            action = _stall_recovery_action(
+                2.0, 1.5, in_store=True, recovery_attempts=0
+            )
+            if action == "store-escape":
+                policy.last_reason = world.expected_terminal_reason
+                return LEAVE_STORE_KEY
+        return key
+
+    policy.choose_key = choose_with_stall_seam
+    return policy, world
 
 
 SEEDED_STATES = (

@@ -203,7 +203,6 @@ def test_repeated_drive():
 
 class TestTreeFakeryLint(unittest.TestCase):
     EXPECTED_UNDECLARED = {
-        ("literal-success-predicate", "scenario_transferred_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window"),
         ("invariant-input-overwritten", "test_incomplete_optimizer_blocks_normal_direct_entrance"),
         ("pipeline-result-injected", "test_unactionable_suppression_keeps_confirmed_loadout"),
         ("frozen-drive-state", "test_live_home_door_block_replay_never_posts_stay_publicly"),
@@ -211,9 +210,9 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("pipeline-result-injected", "test_timeout_keeps_confirmed_loadout_but_requires_its_premise"),
         ("pipeline-result-injected", "test_confirmed_loadout_survives_restart_and_is_input_key_bound"),
     }
-    EXPECTED_UNDECLARED_INSTANCES = 8
+    EXPECTED_UNDECLARED_INSTANCES = 7
     # Six scan-only exception sites were deleted with their mechanism.
-    DECLARED_FINDING_RATCHET = 101
+    DECLARED_FINDING_RATCHET = 98
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()

@@ -9,8 +9,12 @@ from hengbot.model import (
     SV_SCROLL_WORD_OF_RECALL,
     TVAL_SCROLL,
     TVAL_WAND,
+    TVAL_LITE,
+    SV_LITE_LANTERN,
 )
-from hengbot.policy import HengbotPolicy, STORE_MAGIC, STORE_TEMPLE
+from hengbot.policy import (
+    HengbotPolicy, LEAVE_STORE_KEY, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE,
+)
 from tests.test_policy import grid, item, player, store_item
 
 
@@ -32,6 +36,10 @@ class ShopOneShotTest(unittest.TestCase):
             if state == "surface" and pressed == "5": state = "store"
             elif state == "store" and pressed == "p": state = "item"
             elif state == "item" and pressed == ware.letter: state = "confirm"
+            elif state == "confirm" and pressed.isdigit():
+                state = "quantity"
+            elif state == "quantity" and pressed == "\r":
+                state = "confirm"
             elif state == "confirm" and pressed == "\r":
                 gold -= ware.price
                 inventory.append(item(
@@ -47,6 +55,12 @@ class ShopOneShotTest(unittest.TestCase):
             inventory=inventory,
             turn=outside.turn + 1,
         )
+
+    def _compose(self, policy, inside):
+        """Drive the public observation boundary and return its one-shot."""
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        outside = self._outside(policy, inside)
+        return outside, policy.choose_key(outside)
 
     def test_sale_observe_then_driven_one_shot_changes_pack_and_gold(self):
         sold = replace(
@@ -163,6 +177,117 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertIn(signature, policy._town_visit_purchases)
         repeat_page = replace(inside, inventory=completed.inventory, turn=completed.turn + 1)
         self.assertNotIn("pa", policy.choose_key(repeat_page))
+
+    def test_unaccepted_purchase_is_not_recorded_as_completed(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        self.assertEqual(key, "5pa\r\x1b")
+        policy.choose_key(replace(outside, turn=outside.turn + 1))
+        self.assertNotIn(policy._item_signature(ware), policy._town_visit_purchases)
+
+    def test_leaves_store_when_purchase_never_registers(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        inside = self._inside(STORE_GENERAL, [], [ware], gold=1000)
+        policy = HengbotPolicy()
+        outside, first = self._compose(policy, inside)
+        self.assertEqual(first, "5pb\r\x1b")
+        policy.choose_key(replace(outside, turn=2))
+        policy.choose_key(replace(inside, turn=3))
+        second = policy.choose_key(replace(outside, turn=4))
+        policy.choose_key(replace(inside, turn=5))
+        third = policy.choose_key(replace(outside, turn=6))
+        self.assertLessEqual(sum("pb" in key for key in (first, second, third)), 3)
+
+    def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
+        ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        inside = self._inside(STORE_GENERAL, [], [ware], gold=1000)
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        policy.choose_key(replace(outside, turn=10))
+        waiting = policy.choose_key(replace(inside, turn=11))
+        policy.choose_key(replace(outside, turn=12))
+        retried = policy.choose_key(replace(inside, turn=13))
+        self.assertLessEqual(sum("pb" in value for value in (key, waiting, retried)), 2)
+
+    def test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        surface_key = policy.choose_key(replace(outside, turn=2))
+        store_key = policy.choose_key(replace(inside, turn=3))
+        surface_key_2 = policy.choose_key(replace(outside, turn=4))
+        self.assertLessEqual(sum("pa" in value for value in (key, surface_key, store_key, surface_key_2)), 2)
+
+    def test_alchemist_combat_flicker_does_not_repeat_unconfirmed_purchase(self):
+        self.test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase()
+
+    def test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window(self):
+        self.test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase()
+
+    def test_completed_stacked_buy_stops_three_page_retry_construction(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20, count=3)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        completed = self._consume_buy(outside, key, ware)
+        policy.choose_key(completed)
+        keys = [policy.choose_key(replace(inside, inventory=completed.inventory, turn=turn)) for turn in range(3, 15)]
+        self.assertFalse(any("pa" in value for value in keys))
+
+    def test_partial_low_gold_ammo_purchase_completes_without_looping(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20, count=2)
+        inside = self._inside(STORE_TEMPLE, [], [ware], gold=7589)
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        self.assertEqual(key, "5pa2\r\r\x1b")
+        completed = self._consume_buy(outside, key, ware)
+        policy.choose_key(completed)
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
+
+    def test_choose_key_purchase_watch_records_only_confirmed_buy(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        signature = policy._item_signature(ware)
+        self.assertNotIn(signature, policy._town_visit_purchases)
+        policy.choose_key(self._consume_buy(outside, key, ware))
+        self.assertIn(signature, policy._town_visit_purchases)
+
+    def test_store_wait_is_noop_and_never_emits_page_turn_key(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        self.assertEqual(key, "5pa\r\x1b")
+        waiting = policy.choose_key(replace(inside, turn=inside.turn + 2))
+        self.assertEqual(waiting, "")
+        self.assertNotIn(waiting, (" ", "-"))
+
+    def test_atomic_composition_accepts_page_zero(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = replace(
+            self._inside(STORE_TEMPLE, [], [ware]),
+            store=StoreState(STORE_TEMPLE, [ware], page_top=0, page_size=12),
+        )
+        _, key = self._compose(HengbotPolicy(), inside)
+        self.assertEqual(key, "5pa\r\x1b")
+
+    def test_atomic_composition_refuses_nonzero_page_and_reobserves(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = replace(
+            self._inside(STORE_TEMPLE, [], [ware]),
+            store=StoreState(STORE_TEMPLE, [ware], page_top=12, page_size=12),
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        outside = self._outside(policy, inside)
+        self.assertNotIn("pa", policy.choose_key(outside))
+        self.assertIsNone(policy._shop_observation)
 
 
 if __name__ == "__main__":

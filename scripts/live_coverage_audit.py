@@ -27,7 +27,9 @@ def read_live_values(paths: Iterable[Path]) -> tuple[Counter[str], Counter[str]]
     reasons: Counter[str] = Counter()
     keys: Counter[str] = Counter()
     for path in paths:
-        with path.open(encoding="utf-8") as stream:
+        # Windows evidence captures may carry a UTF-8 BOM.  Treat it as an
+        # encoding marker rather than feeding U+FEFF to the first JSON parser.
+        with path.open(encoding="utf-8-sig") as stream:
             for line_number, line in enumerate(stream, 1):
                 if not line.strip():
                     continue

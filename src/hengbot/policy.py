@@ -18488,6 +18488,13 @@ class HengbotPolicy:
             return None
 
         observed_store, generation = observation
+        # Store item letters are relative to page zero.  Ordinary shops reset
+        # to that page on every entry, so a non-zero observation is stale or
+        # malformed and must never be used to compose an atomic transaction.
+        if observed_store.page_top not in (None, 0):
+            self._shop_observation = None
+            self.last_reason = "shop:one-shot-page-not-zero"
+            return None
         # Current inventory/gold are paired with exactly this latest page at
         # the composition boundary; no cached item candidate is trusted.
         inner = self._shop(replace(snapshot, store=observed_store))
