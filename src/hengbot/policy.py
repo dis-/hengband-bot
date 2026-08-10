@@ -17277,6 +17277,18 @@ class HengbotPolicy:
                     self._batch_sell_pending = None
                     self.last_reason = "shop:sale-inscription-unobserved-leave"
                     return LEAVE_STORE_KEY
+                # Inscribing can merge identical pack items.  Compose each
+                # prompt chain from the item in this observed snapshot, not
+                # from the pre-inscription candidate cached in the plan.
+                for entry in entries:
+                    item = inventory[entry["signature"]]
+                    surplus = self._retention_surplus(snapshot, item)
+                    quantity = item.count if surplus <= 0 else min(item.count, surplus)
+                    amount = "99" if quantity == item.count else str(quantity)
+                    quantity_answer = "" if item.count == 1 else amount + "\r"
+                    entry["count"] = item.count
+                    entry["quantity"] = quantity
+                    entry["sell"] = SELL_KEY + entry["tag"] + quantity_answer + "y"
                 pending["phase"] = "await-sale"
                 self.last_reason = "shop:batch-sell"
                 return "".join(entry["sell"] for entry in entries)

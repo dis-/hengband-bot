@@ -26503,6 +26503,54 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(observed), "d0y")
 
+    def test_batch_sale_reclassifies_inscription_merged_stack_from_current_snapshot(self):
+        evidence = json.loads(
+            Path("tests/fixtures/batch_sell_stack_quantity_20260810.json")
+            .read_text(encoding="utf-8")
+        )
+        potion = replace(
+            item(
+                evidence["slot"],
+                evidence["tval"],
+                evidence["sval"],
+                count=evidence["pre_inscription_count"],
+                name=evidence["name"],
+            ),
+            inscription="",
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[potion],
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[]),
+            town_flag=True,
+            turn=evidence["pre_inscription_turn"],
+        )
+        policy = HengbotPolicy()
+        with patch.object(
+            policy, "_current_store_sale_candidates", return_value=[potion]
+        ), patch.object(
+            policy, "_retention_surplus", side_effect=lambda snapshot, target: target.count
+        ):
+            self.assertEqual(policy._batch_sell_key(snap), "{b@0\r")
+            observed = replace(
+                snap,
+                inventory=[
+                    replace(
+                        potion,
+                        count=evidence["observed_count"],
+                        inscription=evidence["observed_inscription"],
+                    )
+                ],
+                turn=evidence["observed_turn"],
+            )
+
+            key = policy._batch_sell_key(observed)
+
+        self.assertEqual(key, "d099\ry")
+        self.assertNotEqual(key, evidence["live_composed_key"])
+
     def test_pile_sale_quantity_is_capped_by_retention_surplus(self):
         pile = item("j", TVAL_FOOD, FOOD_MIN_SVAL, count=3, name="rations")
         snap = Snapshot(
