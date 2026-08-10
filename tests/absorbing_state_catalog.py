@@ -1050,11 +1050,13 @@ def _exhausted_equipment_home_route():
         policy_module.STORE_ALCHEMIST,
         policy_module.STORE_MAGIC,
         policy_module.STORE_BLACK,
-        STORE_HOME,
     ):
-        policy._town_visit_ledger.approach_fails[store_type] = (
-            policy._town_store_visit_limit(store_type)
+        policy._town_visit_ledger.nonhome_attempted_without_effect[store_type] = (
+            policy._town_observable_effect_state(snap)
         )
+    policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+        policy._town_store_visit_limit(STORE_HOME)
+    )
     return policy, TownWorld(snap)
 
 

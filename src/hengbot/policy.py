@@ -384,6 +384,7 @@ class StoreVisit:
     operation_posted: bool = False
     operation_key: str | None = None
     operation_released: bool = False
+    operation_effect_observed: bool = False
     outcome: str | None = None
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
@@ -458,6 +459,10 @@ class TownVisitLedger:
     ] = field(default_factory=dict)
     pending_store_transaction: tuple[int, int] | None = None
     pending_store_context_waits: int = 0
+    nonhome_attempted_without_effect: dict[int, tuple[object, ...]] = field(
+        default_factory=dict
+    )
+    pending_nonhome_effect_observation: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -2979,6 +2984,7 @@ class HengbotPolicy:
                 self._town_visit_purchases.add(watched_signature)
                 if self._store_visit is not None:
                     self._store_visit.operation_posted = False
+                    self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
             elif wait_count + 1 >= STORE_STUCK_LIMIT:
                 self._store_buy_inflight = None
@@ -3341,7 +3347,13 @@ class HengbotPolicy:
                 for need in self._enumerate_town_needs(snapshot)
             )
             self._report_town_stop_pass(
-                snapshot, store_type, goal_satisfied=goal_satisfied
+                snapshot,
+                store_type,
+                goal_satisfied=goal_satisfied,
+                operation_completed=bool(
+                    self._store_visit is not None
+                    and self._store_visit.operation_effect_observed
+                ),
             )
         key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
@@ -14482,6 +14494,7 @@ class HengbotPolicy:
 
     def _town_claims_active(self, snapshot: Snapshot) -> bool:
         """Record live route owners from the same registry used by projection."""
+        self._refresh_nonhome_effect_refusals(snapshot)
         claims: list[str] = []
         departure_ready: bool | None = None
         specs = {spec.category: spec for spec in self._town_need_registry()}
@@ -14491,17 +14504,24 @@ class HengbotPolicy:
                 "equipment-work", "equipment-transaction"
             }
             if (
-                self._town_store_blocked_under_applicable_bound(need.store_type)
-                or self._town_visit_ledger.approach_fails[need.store_type]
-                >= self._town_store_visit_limit(need.store_type)
+                need.store_type
+                in self._town_visit_ledger.nonhome_attempted_without_effect
                 or (
-                    spec is not None
-                    and self._town_visit_ledger.need_attempts.get(need.category, 0)
-                    >= spec.budget
-                    and not equipment_owner
-                    and not (
-                        need.store_type == STORE_HOME
-                        and self._outstanding_equipment_work()
+                    need.store_type == STORE_HOME
+                    and (
+                        self._town_store_blocked_under_applicable_bound(
+                            need.store_type
+                        )
+                        or self._town_visit_ledger.approach_fails[need.store_type]
+                        >= self._town_store_visit_limit(need.store_type)
+                        or (
+                            spec is not None
+                            and self._town_visit_ledger.need_attempts.get(
+                                need.category, 0
+                            ) >= spec.budget
+                            and not equipment_owner
+                            and not self._outstanding_equipment_work()
+                        )
                     )
                 )
             ):
@@ -14764,9 +14784,6 @@ class HengbotPolicy:
             return (
                 None
                 if food_store in self._town_store_attempted
-                or food_store in self._town_visit_ledger.blocked_stores
-                or self._town_visit_ledger.approach_fails[food_store]
-                >= TOWN_STOP_PASS_LIMIT
                 else food_store
             )
         opening_q34 = self._opening_q34_torch_shortage(snapshot) > 0
@@ -14804,14 +14821,17 @@ class HengbotPolicy:
             and not opening_q34
         ):
             self._start_fundraising(snapshot)
+        self._refresh_nonhome_effect_refusals(snapshot)
         ledger_blocked = {
             store
             for store in self._town_visit_ledger.blocked_stores
-            if self._town_store_blocked_under_applicable_bound(store)
+            if store == STORE_HOME
+            and self._town_store_blocked_under_applicable_bound(store)
         } | {
             store
             for store, failures in self._town_visit_ledger.approach_fails.items()
-            if failures >= self._town_store_visit_limit(store)
+            if store == STORE_HOME
+            and failures >= self._town_store_visit_limit(store)
         }
         live_needs = self._enumerate_live_store_claims(snapshot)
         if self._town_blocked_reason == "repetition":
@@ -14829,6 +14849,8 @@ class HengbotPolicy:
             need
             for need in live_needs
             if need.store_type not in ledger_blocked
+            and need.store_type
+            not in self._town_visit_ledger.nonhome_attempted_without_effect
         ]
         warned = set(self._town_visit_ledger.drift_warnings)
         live_pairs = {(need.store_type, need.category) for need in needs}
@@ -15042,6 +15064,15 @@ class HengbotPolicy:
             self._town_restock_rechecked.discard(STORE_GENERAL)
             return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
 
+        if live_needs and all(
+            need.store_type != STORE_HOME
+            and need.store_type
+            in self._town_visit_ledger.nonhome_attempted_without_effect
+            for need in live_needs
+        ):
+            self._town_blocked_reason = "departure-unsatisfiable"
+            return None
+
         self._town_terminal_transitions(snapshot)
         refreshed_needs = self._enumerate_town_needs(snapshot)
         if refreshed_needs:
@@ -15068,7 +15099,60 @@ class HengbotPolicy:
                         and store_type not in self._town_store_attempted
                     ):
                         return store_type
+        if live_needs and all(
+            need.store_type != STORE_HOME
+            and need.store_type
+            in self._town_visit_ledger.nonhome_attempted_without_effect
+            for need in live_needs
+        ):
+            self._town_blocked_reason = "departure-unsatisfiable"
         return None
+
+    @staticmethod
+    def _town_observable_effect_state(snapshot: Snapshot) -> tuple[object, ...]:
+        """Project the posting contract's ordinary observable-effect fields."""
+        def item_state(item: object) -> tuple[object, ...]:
+            return tuple(
+                getattr(item, field, None)
+                for field in (
+                    "slot", "tval", "sval", "name", "count", "charges",
+                    "inscription", "known", "fully_known", "is_equipment",
+                )
+            )
+
+        store = snapshot.store
+        store_state = None if store is None else (
+            store.store_type,
+            getattr(store, "stock_num", None),
+            getattr(store, "page_top", None),
+            tuple(item_state(item) for item in store.items),
+        )
+        position = snapshot.player.position
+        return (
+            snapshot.turn,
+            getattr(snapshot, "floor_key", None),
+            (position.y, position.x),
+            store_state,
+            tuple(snapshot.messages),
+            tuple(item_state(item) for item in snapshot.inventory),
+            tuple(item_state(item) for item in snapshot.equipment),
+            snapshot.player.gold,
+        )
+
+    def _refresh_nonhome_effect_refusals(self, snapshot: Snapshot) -> None:
+        """Release a refused route only after the game exposes different state."""
+        state = self._town_observable_effect_state(snapshot)
+        pending = self._town_visit_ledger.pending_nonhome_effect_observation
+        if snapshot.store is None:
+            for store_type in tuple(pending):
+                self._town_visit_ledger.nonhome_attempted_without_effect[
+                    store_type
+                ] = state
+                pending.discard(store_type)
+        refused = self._town_visit_ledger.nonhome_attempted_without_effect
+        for store_type, previous in tuple(refused.items()):
+            if previous != state:
+                refused.pop(store_type, None)
 
     def _release_blocked_store_latches(self, store_type: int) -> None:
         """Release flow state that a blocked store can no longer service."""
@@ -15142,10 +15226,19 @@ class HengbotPolicy:
             plan.current_stop_passes = 0
             plan.index += 1
             return
-        limit = self._town_store_visit_limit(store_type)
-        if operation_completed and limit == TOWN_STOP_PASS_LIMIT:
+        if store_type != STORE_HOME:
+            if operation_completed:
+                plan.current_stop_passes = 0
+                return
+            self._town_visit_ledger.pending_nonhome_effect_observation.add(
+                store_type
+            )
+            plan.blocked_this_visit.append(store_type)
             plan.current_stop_passes = 0
+            plan.index += 1
+            self._town_store_attempted[store_type] = snapshot.turn
             return
+        limit = self._town_store_visit_limit(store_type)
         # During calibration, one completed Home entry is the unit of work:
         # an atomic deposit/withdrawal still consumes an entry when its owner
         # remains live.  The same ledger counter therefore enforces the user's
@@ -15207,19 +15300,24 @@ class HengbotPolicy:
         ]
 
     def _town_store_visit_limit(self, store_type: int) -> int:
-        """Return the visit-local terminal ceiling for this store.
+        """Return the user-authorised visit-local terminal ceiling for Home.
 
         The authorised 54 Home visits cover outstanding equipment work,
         including applying an optimizer result after the optimizer succeeds.
         Mixed Home work within that interval is part of completing the work;
-        other stores and later Home work retain the ordinary hard terminal.
+        Later Home work retains the ordinary hard terminal. Non-Home routing is
+        state-based and must never ask for a visit limit.
         """
+        if store_type != STORE_HOME:
+            raise ValueError("non-Home stores have no visit-count limit")
         if store_type == STORE_HOME and self._outstanding_equipment_work():
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
     def _town_store_blocked_under_applicable_bound(self, store_type: int) -> bool:
         """Return whether the recorded block has authority over current work."""
+        if store_type != STORE_HOME:
+            return False
         if store_type not in self._town_visit_ledger.blocked_stores:
             return False
         authority = self._town_visit_ledger.blocked_store_limits.get(store_type)
@@ -17522,6 +17620,7 @@ class HengbotPolicy:
             self._store_sell_stuck_count = 0
             if confirmed and self._store_visit is not None:
                 self._store_visit.operation_posted = False
+                self._store_visit.operation_effect_observed = True
             elif not confirmed:
                 self._close_store_visit("one-shot-sale-unconfirmed")
             # A completed batch can compact every following inventory slot.
@@ -18454,7 +18553,8 @@ class HengbotPolicy:
                 opened_sequence=self._decision_sequence,
             )
         if (
-            self._town_visit_ledger.approach_fails[store_type]
+            store_type == STORE_HOME
+            and self._town_visit_ledger.approach_fails[store_type]
             >= self._town_store_visit_limit(store_type)
         ):
             self._town_store_attempted[store_type] = snapshot.turn

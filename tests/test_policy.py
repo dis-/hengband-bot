@@ -28058,7 +28058,9 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         pol._identification_need = "normal"
         pol._home_candidate_waiting = True
-        pol._town_visit_ledger.need_attempts["identification-source"] = 5
+        pol._town_visit_ledger.nonhome_attempted_without_effect[
+            STORE_ALCHEMIST
+        ] = pol._town_observable_effect_state(snap)
         pol._town_visit_ledger.drift_warnings.append(
             "drift:alchemist:identification-source"
         )
@@ -42172,7 +42174,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._town_claim_categories, ["food"])
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
 
-    def test_blocked_store_ledger_kills_departure_blocking_claim(self):
+    def test_nonhome_count_block_does_not_kill_departure_blocking_claim(self):
         needs = [TownNeed(STORE_GENERAL, "light", "normal")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
@@ -42182,12 +42184,10 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._town_special_key = Mock(return_value="DEPART")
 
-        self.assertFalse(policy._town_claims_active(snapshot))
-        self.assertEqual(policy._decide(snapshot), "DEPART")
-        policy._shopping_approach_step.assert_not_called()
-        policy._town_special_key.assert_called()
+        self.assertTrue(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
 
-    def test_exhausted_need_budget_kills_departure_blocking_claim(self):
+    def test_nonhome_need_count_does_not_kill_departure_blocking_claim(self):
         needs = [TownNeed(STORE_MAGIC, "identify-staff", "normal")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
@@ -42199,12 +42199,10 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._town_special_key = Mock(return_value="DEPART")
 
-        self.assertFalse(policy._town_claims_active(snapshot))
-        self.assertEqual(policy._decide(snapshot), "DEPART")
-        policy._shopping_approach_step.assert_not_called()
-        policy._town_special_key.assert_called()
+        self.assertTrue(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_MAGIC)
 
-    def test_exhausted_approach_failures_kill_departure_blocking_claim(self):
+    def test_nonhome_approach_count_does_not_kill_departure_blocking_claim(self):
         needs = [TownNeed(STORE_TEMPLE, "recall", "normal")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
@@ -42216,10 +42214,8 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._town_special_key = Mock(return_value="DEPART")
 
-        self.assertFalse(policy._town_claims_active(snapshot))
-        self.assertEqual(policy._decide(snapshot), "DEPART")
-        policy._shopping_approach_step.assert_not_called()
-        policy._town_special_key.assert_called()
+        self.assertTrue(policy._town_claims_active(snapshot))
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_TEMPLE)
 
     def test_claimless_town_turn_runs_terminal_bookkeeping(self):
         policy = self._policy([])
@@ -42798,11 +42794,8 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._town_store_visit_limit(STORE_HOME),
             CALIBRATION_HOME_VISIT_LIMIT,
         )
-        self.assertEqual(
-            policy._town_store_visit_limit(STORE_ALCHEMIST),
-            TOWN_STOP_PASS_LIMIT,
-            "the 54-visit allowance remains Home-only",
-        )
+        with self.assertRaisesRegex(ValueError, "no visit-count limit"):
+            policy._town_store_visit_limit(STORE_ALCHEMIST)
 
     def test_home_identity_queue_is_outstanding_equipment_work(self):
         policy = self._policy([])
@@ -43168,15 +43161,18 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._next_required_store_type(town), STORE_ALCHEMIST
         )
 
-        for _ in range(TOWN_STOP_PASS_LIMIT):
-            self.assertEqual(policy.choose_key(shop), LEAVE_STORE_KEY)
-            # Model the identification owner re-opening the normal visit latch.
-            policy._town_store_attempted.pop(STORE_ALCHEMIST, None)
+        self.assertEqual(policy.choose_key(shop), LEAVE_STORE_KEY)
+        policy._town_store_attempted.pop(STORE_ALCHEMIST, None)
+        policy.choose_key(town)
 
-        self.assertEqual(
-            policy._town_errand_plan.blocked_this_visit, [STORE_ALCHEMIST]
+        self.assertIn(
+            STORE_ALCHEMIST,
+            policy._town_visit_ledger.nonhome_attempted_without_effect,
         )
         self.assertIsNone(policy._next_required_store_type(town))
+        self.assertEqual(
+            policy._town_blocked_reason, "departure-unsatisfiable"
+        )
 
     def test_terminal_router_honors_completed_identification_stop(self):
         # The errand plan can finish while a full-identification request remains
@@ -47913,14 +47909,18 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=(), result=None,
         )
+        stopped = replace(snapshot, turn=snapshot.turn + 1)
         for store_type in (
             STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
-            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK,
         ):
-            policy._town_visit_ledger.approach_fails[store_type] = (
-                policy_module.TOWN_STOP_PASS_LIMIT
+            policy._town_visit_ledger.nonhome_attempted_without_effect[store_type] = (
+                policy._town_observable_effect_state(stopped)
             )
-        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
+        key = policy.choose_key(stopped)
 
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
@@ -48023,8 +48023,8 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
             STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK,
         ):
-            policy._town_visit_ledger.approach_fails[store_type] = (
-                policy._town_store_visit_limit(store_type)
+            policy._town_visit_ledger.nonhome_attempted_without_effect[store_type] = (
+                policy._town_observable_effect_state(snapshot)
             )
         policy._town_visit_ledger.approach_fails[STORE_HOME] = (
             policy._town_store_visit_limit(STORE_HOME) - 1
@@ -48105,7 +48105,16 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
     @staticmethod
     def _record_exhausted_equipment_decision(policy, snap, reasons, i):
-        policy.choose_key(replace(snap, turn=snap.turn + 1 + i))
+        candidate = replace(snap, turn=snap.turn + 1 + i)
+        state = policy._town_observable_effect_state(candidate)
+        for store_type in (
+            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
+            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK,
+        ):
+            policy._town_visit_ledger.nonhome_attempted_without_effect[
+                store_type
+            ] = state
+        policy.choose_key(candidate)
         reasons[policy.last_reason] += 1
 
     def _exhausted_equipment_home_route_probe(self):
@@ -48115,13 +48124,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=("optimization-timeout",), result=None
         )
-        for st in (
-            STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
-            STORE_ALCHEMIST, STORE_MAGIC, STORE_BLACK, STORE_HOME,
-        ):
-            policy._town_visit_ledger.approach_fails[st] = (
-                policy._town_store_visit_limit(st)
-            )
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            policy._town_store_visit_limit(STORE_HOME)
+        )
         reasons = Counter()
         for i in range(40):
             self._record_exhausted_equipment_decision(policy, snap, reasons, i)

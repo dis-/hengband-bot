@@ -24,7 +24,7 @@ from absorbing_state_catalog import TownWorld
 
 class LatchOnsetCaptureTest(unittest.TestCase):
     @staticmethod
-    def _exhaust_town_work(policy):
+    def _exhaust_town_work(policy, snapshot):
         policy._town_errand_plan = None
         for store_type in (
             STORE_GENERAL,
@@ -34,11 +34,13 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             STORE_ALCHEMIST,
             STORE_MAGIC,
             STORE_BLACK,
-            STORE_HOME,
         ):
-            policy._town_visit_ledger.approach_fails[store_type] = (
-                policy_module.TOWN_STOP_PASS_LIMIT
-            )
+            policy._town_visit_ledger.nonhome_attempted_without_effect[
+                store_type
+            ] = policy._town_observable_effect_state(snapshot)
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
 
     def test_none_to_value_captures_bounded_replayable_four_decision_window(self):
         policy, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
@@ -49,9 +51,9 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             before_key = policy.choose_key(snapshot)
             before_reason = policy.last_reason
             policy._equipment_optimization_preparation = None
-            self._exhaust_town_work(policy)
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 17
             installing_snapshot = replace(snapshot, turn=snapshot.turn + 1)
+            self._exhaust_town_work(policy, installing_snapshot)
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 17
             installing_key = policy.choose_key(installing_snapshot)
             installing_reason = policy.last_reason
             following = [
@@ -136,8 +138,8 @@ class LatchOnsetCaptureTest(unittest.TestCase):
     def test_enabled_capture_is_decision_pure_for_150_paired_decisions(self):
         disabled, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
         enabled, _ = test_policy.NoSafeRecallDestinationTest()._fixture()
-        self._exhaust_town_work(disabled)
-        self._exhaust_town_work(enabled)
+        self._exhaust_town_work(disabled, snapshot)
+        self._exhaust_town_work(enabled, snapshot)
         disabled_world = TownWorld(snapshot)
         enabled_world = TownWorld(snapshot)
         with TemporaryDirectory() as directory:
