@@ -28815,8 +28815,7 @@ class HengbotPolicy:
         if step is not None:
             self.last_reason = "explore:immobile-breeder-giveup"
             return self._step_toward(snapshot, step)
-        self.last_reason = "explore:immobile-breeder-giveup-wait"
-        return WAIT_KEY
+        return None
 
     def _validated_choke_route(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

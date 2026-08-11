@@ -2944,6 +2944,28 @@ class CombatTest(unittest.TestCase):
         self.assertTrue(breeder_cells <= policy._engagement_avoid_cells)
         self.assertEqual(moved.floor_key, snapshot.floor_key)
 
+    def test_immobile_breeder_giveup_exhaustion_falls_through_to_progression(self):
+        origin = Position(10, 10)
+        breeder_cell = Position(10, 11)
+        snapshot = Snapshot(
+            player(origin.y, origin.x, hp=20, max_hp=20),
+            {origin: grid(origin.y, origin.x, downstairs=True, lit=True)},
+            [], floor_key=(7, 24, 0), turn=1,
+        )
+        policy = HengbotPolicy()
+        policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
+            floor=snapshot.floor_key, phase="release",
+            destination=Position(10, 9), covered_retreat_direction=(0, -1),
+            trigger_last_seen={1: breeder_cell}, start_exp=0,
+            start_gold=0, start_breeder_count=1, last_player_hp=20,
+            release_cause="immobile-breeder-growth",
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), (">", "descend"))
+        self.assertIn(breeder_cell, policy._engagement_avoid_cells)
+
     def test_mobile_breeder_growth_and_progressing_reposition_keep_prior_keys(self):
         mobile = HengbotPolicy()
         mobile.choose_key(self._orc_cave_choke_cycle_snapshot(Position(29, 169), 2))
