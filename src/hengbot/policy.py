@@ -2074,6 +2074,12 @@ class HengbotPolicy:
         self._breeder_previous_exp: int | None = None
         self._breeder_previous_indices: set[int] = set()
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
+        # A plan is disposable, but fruitless work against the same observed
+        # swarm is not.  Values are (spent decisions, high-water outcome marker)
+        # and live for the whole floor visit so release/re-plan cannot mint a
+        # fresh combat budget.
+        self._choke_outcome_floor: tuple[int, int, int] | None = None
+        self._choke_outcome_budgets: dict[frozenset[int], tuple[int, tuple[int, ...]]] = {}
         self._cross_decision_latches["_choke_engagement_plan"] = CrossDecisionLatch(
             "melee-engagement",
             "_release_invalid_choke_plan",
@@ -4378,7 +4384,10 @@ class HengbotPolicy:
         if (
             giveup_plan is not None
             and giveup_plan.floor == snapshot.floor_key
-            and giveup_plan.release_cause == "immobile-breeder-growth"
+            and giveup_plan.release_cause in {
+                "immobile-breeder-growth",
+                "breeder-outcome-bound",
+            }
         ):
             self._claim_engagement_avoid_cells([
                 *giveup_plan.trigger_last_seen.values(),
@@ -6352,6 +6361,8 @@ class HengbotPolicy:
             self._nav_known_high = 0
             self._nav_progress_marker = None
             self._oscillation_outcome_marker = None
+            self._choke_outcome_floor = snapshot.floor_key
+            self._choke_outcome_budgets.clear()
 
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1
@@ -6477,7 +6488,10 @@ class HengbotPolicy:
         ignoring_immobile_breeders = (
             giveup_plan is not None
             and giveup_plan.floor == snapshot.floor_key
-            and giveup_plan.release_cause == "immobile-breeder-growth"
+            and giveup_plan.release_cause in {
+                "immobile-breeder-growth",
+                "breeder-outcome-bound",
+            }
         )
         return [
             monster
@@ -29044,6 +29058,9 @@ class HengbotPolicy:
                     ),
                     last_movement=(snapshot.player.position, step),
                 )
+                self._inherit_choke_outcome_budget(
+                    snapshot, self._choke_engagement_plan
+                )
                 self.last_reason = "melee:choke"
                 return self._step_toward(snapshot, step)
 
@@ -29064,6 +29081,9 @@ class HengbotPolicy:
                     ),
                     last_player_hp=snapshot.player.hp,
                     closest_destination_distance=0,
+                )
+                self._inherit_choke_outcome_budget(
+                    snapshot, self._choke_engagement_plan
                 )
             if adjacent and not snapshot.player.afraid:
                 self.last_reason = "melee:choke"
@@ -29113,12 +29133,65 @@ class HengbotPolicy:
         plan.phase = "breakthrough" if cause == "breeder-breakthrough" else "release"
         plan.release_cause = cause
 
+    def _choke_outcome_key(self, plan: ChokeEngagementPlan) -> frozenset[int]:
+        return frozenset(plan.trigger_last_seen)
+
+    def _choke_outcome_marker(
+        self, snapshot: Snapshot, trigger_count: int, breeder_count: int
+    ) -> tuple[int, ...]:
+        """Return monotone, observable benefits of continuing this engagement."""
+        return (
+            snapshot.player.exp,
+            snapshot.player.gold,
+            -trigger_count,
+            -breeder_count,
+            len(self._remembered_known_t),
+            snapshot.player.hp,
+        )
+
+    def _inherit_choke_outcome_budget(
+        self, snapshot: Snapshot, plan: ChokeEngagementPlan
+    ) -> None:
+        if self._choke_outcome_floor != snapshot.floor_key:
+            self._choke_outcome_floor = snapshot.floor_key
+            self._choke_outcome_budgets.clear()
+        key = self._choke_outcome_key(plan)
+        marker = self._choke_outcome_marker(
+            snapshot, len(plan.trigger_last_seen), plan.start_breeder_count
+        )
+        spent, high = self._choke_outcome_budgets.get(key, (0, marker))
+        plan.no_progress_decisions = spent
+        self._choke_outcome_budgets[key] = (spent, high)
+
+    def _spend_choke_outcome_budget(
+        self,
+        snapshot: Snapshot,
+        plan: ChokeEngagementPlan,
+        trigger_count: int,
+        breeder_count: int,
+    ) -> None:
+        """Charge one decision unless an observable beneficial outcome improved."""
+        key = self._choke_outcome_key(plan)
+        marker = self._choke_outcome_marker(snapshot, trigger_count, breeder_count)
+        spent, high = self._choke_outcome_budgets.get(key, (0, marker))
+        improved = any(current > previous for current, previous in zip(marker, high))
+        if improved:
+            spent = 0
+            high = tuple(max(current, previous) for current, previous in zip(marker, high))
+        else:
+            spent += 1
+        plan.no_progress_decisions = spent
+        self._choke_outcome_budgets[key] = (spent, high)
+
     def _immobile_breeder_giveup_key(self, snapshot: Snapshot) -> str | None:
         plan = self._choke_engagement_plan
         if (
             plan is None
             or plan.floor != snapshot.floor_key
-            or plan.release_cause != "immobile-breeder-growth"
+            or plan.release_cause not in {
+                "immobile-breeder-growth",
+                "breeder-outcome-bound",
+            }
         ):
             return None
         breeders = self._engagement_breeder_population(snapshot)
@@ -29129,7 +29202,11 @@ class HengbotPolicy:
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         step = self._explore_step(snapshot)
         if step is not None:
-            self.last_reason = "explore:immobile-breeder-giveup"
+            self.last_reason = (
+                "explore:breeder-giveup"
+                if plan.release_cause == "breeder-outcome-bound"
+                else "explore:immobile-breeder-giveup"
+            )
             return self._step_toward(snapshot, step)
         return None
 
@@ -29205,6 +29282,9 @@ class HengbotPolicy:
             self._release_choke_plan("ranged-threat")
             return None
         breeder_population = self._engagement_breeder_population(snapshot)
+        self._spend_choke_outcome_budget(
+            snapshot, plan, len(visible_triggers), len(breeder_population)
+        )
         if len(breeder_population) > plan.start_breeder_count:
             immobile_multipliers = bool(breeder_population) and all(
                 monster.can_multiply
@@ -29274,14 +29354,13 @@ class HengbotPolicy:
             self._release_choke_plan("destination-invalid")
             return None
         plan.phase = "hold"
-        took_damage = snapshot.player.hp < plan.last_player_hp
         plan.last_player_hp = snapshot.player.hp
-        if adjacent or took_damage:
-            plan.no_progress_decisions = 0
-        else:
-            plan.no_progress_decisions += 1
         if plan.no_progress_decisions >= COMBAT_OUTCOME_WINDOW:
-            self._release_choke_plan("engagement-stall-bound")
+            self._release_choke_plan(
+                "breeder-outcome-bound"
+                if breeder_population
+                else "engagement-stall-bound"
+            )
             return None
         if not adjacent:
             ranged = self._ranged_attack_key(snapshot, visible_triggers, adjacent)

@@ -3149,7 +3149,9 @@ class CombatTest(unittest.TestCase):
         )
 
     @staticmethod
-    def _stationary_choke_snapshot(monsters, *, hp=1000, turn=1):
+    def _stationary_choke_snapshot(
+        monsters, *, hp=1000, exp=1000, gold=0, turn=1
+    ):
         grids = {
             Position(10, x): grid(10, x, lit=True, in_view=True)
             for x in range(6, 16)
@@ -3159,7 +3161,11 @@ class CombatTest(unittest.TestCase):
                 grids[monster.position], has_monster=True
             )
         return Snapshot(
-            replace(player(10, 10, hp=hp, max_hp=1000, level=20), exp=1000),
+            replace(
+                player(10, 10, hp=hp, max_hp=1000, level=20),
+                exp=exp,
+                gold=gold,
+            ),
             grids,
             monsters,
             floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
@@ -3194,37 +3200,135 @@ class CombatTest(unittest.TestCase):
             ("release", "engagement-stall-bound"),
         )
 
-    def test_choke_hold_progress_resets_for_contact_and_damage(self):
+    def test_choke_hold_adjacent_breeder_swarm_hits_outcome_bound(self):
         adjacent = [
-            hostile(1, 10, 11, distance=1, max_melee_damage=3, race_id=500),
-            hostile(2, 10, 9, distance=1, max_melee_damage=3, race_id=500),
+            hostile(
+                index, 10, x, distance=1, max_melee_damage=3,
+                race_id=500, can_multiply=True,
+            )
+            for index, x in ((1, 11), (2, 9))
         ]
-        far = [
-            hostile(1, 10, 12, distance=2, max_melee_damage=3, race_id=500),
-            hostile(2, 10, 8, distance=2, max_melee_damage=3, race_id=500),
-        ]
+        far = [replace(monster, position=Position(10, 12), distance=2)
+               for monster in adjacent]
         policy = HengbotPolicy()
         armed = self._stationary_choke_snapshot(adjacent)
         policy.prime(armed)
         policy.choose_key(armed)
 
-        for turn in range(2, policy_module.COMBAT_OUTCOME_WINDOW + 4):
-            key = policy.choose_key(
-                self._stationary_choke_snapshot(adjacent, turn=turn)
+        for decision in range(2, 798):
+            monsters = adjacent if decision % 10 else far
+            snapshot = self._stationary_choke_snapshot(monsters, turn=decision * 10)
+            policy._build_grid_index(snapshot)
+            policy._choke_engagement_key(
+                snapshot, monsters, policy._physical_adjacent_hostiles(snapshot)
             )
-            self.assertIn(key, {"4", "6"})
-        self.assertEqual(policy.choke_engagement_state()["no_progress_decisions"], 0)
-        self.assertIsNone(policy.choke_engagement_state()["release_cause"])
+            if policy.choke_engagement_state()["release_cause"] is not None:
+                break
 
-        policy._choke_engagement_plan.no_progress_decisions = (
-            policy_module.COMBAT_OUTCOME_WINDOW
+        state = policy.choke_engagement_state()
+        self.assertLess(decision, 797)
+        self.assertEqual(
+            (state["no_progress_decisions"], state["release_cause"]),
+            (policy_module.COMBAT_OUTCOME_WINDOW, "breeder-outcome-bound"),
         )
-        damaged = self._stationary_choke_snapshot(
-            far, hp=999, turn=policy_module.COMBAT_OUTCOME_WINDOW + 4
+
+    def test_choke_outcome_budget_survives_release_and_same_trigger_replan(self):
+        monsters = [
+            hostile(
+                index, 10, x, distance=1, max_melee_damage=3,
+                race_id=500, can_multiply=True,
+            )
+            for index, x in ((1, 11), (2, 9))
+        ]
+        snapshot = self._stationary_choke_snapshot(monsters)
+        policy = HengbotPolicy()
+        plan = policy_module.ChokeEngagementPlan(
+            floor=snapshot.floor_key, phase="hold", destination=Position(10, 10),
+            covered_retreat_direction=(0, 0),
+            trigger_last_seen={monster.index: monster.position for monster in monsters},
+            start_exp=1000, start_gold=0, start_breeder_count=2,
+            last_player_hp=1000,
         )
-        policy.choose_key(damaged)
-        self.assertEqual(policy.choke_engagement_state()["no_progress_decisions"], 0)
-        self.assertIsNone(policy.choke_engagement_state()["release_cause"])
+        policy._choke_engagement_plan = plan
+        policy._inherit_choke_outcome_budget(snapshot, plan)
+        for turn in range(1, 101):
+            current = replace(snapshot, turn=turn)
+            policy._build_grid_index(current)
+            policy._choke_engagement_key(current, monsters, monsters)
+        spent_before_release = plan.no_progress_decisions
+        policy._release_choke_plan("destination-invalid")
+        replacement = replace(
+            plan, phase="hold", no_progress_decisions=0, release_cause=None,
+        )
+        policy._choke_engagement_plan = replacement
+        policy._inherit_choke_outcome_budget(snapshot, replacement)
+
+        self.assertEqual(replacement.no_progress_decisions, spent_before_release)
+        self.assertGreater(spent_before_release, 0)
+
+    def test_productive_choke_outcomes_replenish_existing_budget(self):
+        monsters = [
+            hostile(
+                index, 10, x, distance=1, max_melee_damage=3,
+                race_id=500, can_multiply=True,
+            )
+            for index, x in ((1, 11), (2, 9))
+        ]
+        policy = HengbotPolicy()
+        armed = self._stationary_choke_snapshot(monsters)
+        policy.prime(armed)
+        policy.choose_key(armed)
+
+        for decision in range(2, policy_module.COMBAT_OUTCOME_WINDOW * 2):
+            exp = 1000 + decision // (policy_module.COMBAT_OUTCOME_WINDOW // 2)
+            snapshot = self._stationary_choke_snapshot(
+                monsters, exp=exp, turn=decision
+            )
+            policy._build_grid_index(snapshot)
+            policy._choke_engagement_key(snapshot, monsters, monsters)
+
+        state = policy.choke_engagement_state()
+        self.assertIsNone(state["release_cause"])
+        self.assertLess(
+            state["no_progress_decisions"], policy_module.COMBAT_OUTCOME_WINDOW
+        )
+        self.assertGreater(state["no_progress_decisions"], 0)
+
+    def test_breeder_outcome_giveup_explores_away_on_same_floor(self):
+        origin = Position(10, 10)
+        breeder_cell = Position(10, 11)
+        passable = {Position(10, x) for x in range(7, 12)}
+        grids = {
+            position: grid(
+                position.y, position.x, passable=True, lit=True,
+                in_view=position.x >= 9,
+            )
+            for position in passable
+        }
+        breeder = hostile(
+            1, 10, 11, distance=1, race_id=500,
+            can_multiply=True, max_melee_damage=1,
+        )
+        grids[breeder_cell] = replace(grids[breeder_cell], has_monster=True)
+        snapshot = Snapshot(
+            replace(player(10, 10, hp=1000, max_hp=1000), exp=1000),
+            grids, [breeder], floor_key=(DUNGEON_YEEK_CAVE, 10, 0), turn=1,
+        )
+        policy = HengbotPolicy()
+        policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
+            floor=snapshot.floor_key, phase="release", destination=origin,
+            covered_retreat_direction=(0, 0),
+            trigger_last_seen={1: breeder_cell}, start_exp=1000,
+            start_gold=0, start_breeder_count=1, last_player_hp=1000,
+            no_progress_decisions=policy_module.COMBAT_OUTCOME_WINDOW,
+            release_cause="breeder-outcome-bound",
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("4", "explore:breeder-giveup"))
+        self.assertIn(breeder_cell, policy._engagement_avoid_cells)
+        self.assertEqual(snapshot.floor_key, policy._choke_engagement_plan.floor)
 
     def test_moving_player_still_prepares_for_monsters_that_moved_closer(self):
         snapshot = self._mouse_swarm_snapshot()
