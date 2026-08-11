@@ -42841,6 +42841,51 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertFalse(policy._home_candidate_waiting)
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
 
+    def test_uncomposable_home_stop_advances_without_entry(self):
+        policy = HengbotPolicy()
+        target = item(
+            "a", 23, 25, name="unidentified home blade", known=False,
+            fully_known=False, is_equipment=True,
+        )
+        entrance = replace(
+            self._snapshot(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                ),
+                Position(10, 11): grid(10, 11),
+            },
+        )
+        owned = OwnedEquipment("home-target", target, "home")
+        policy._equipment_catalog._home = {owned.id: owned}
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_items = (target,)
+        policy._home_knowledge_valid_before = 1
+        policy._home_knowledge_current = True
+        policy._home_candidate_waiting = True
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME, STORE_ALCHEMIST],
+            need_categories={STORE_HOME: ("identification-withdrawal",)},
+        )
+
+        posted = policy._shopping_approach_key(
+            entrance, entrance.player.position, "shop:travel"
+        )
+
+        self.assertEqual(posted, WAIT_KEY)
+        self.assertEqual(policy._town_errand_plan.index, 1)
+        self.assertNotEqual(policy._store_entry_wait_owner, STORE_HOME)
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+        following = [
+            policy._shopping_approach_key(
+                entrance, Position(10, 11), "shop:travel"
+            )
+            for _ in range(2)
+        ]
+        self.assertNotIn(WAIT_KEY, following)
+        self.assertNotEqual(policy._store_entry_wait_owner, STORE_HOME)
+
     def test_observed_uncomposable_nonhome_stop_advances_without_entry(self):
         policy = HengbotPolicy()
         entrance = replace(

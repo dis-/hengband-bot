@@ -18990,6 +18990,15 @@ class HengbotPolicy:
             atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
             if atomic_deposit is not None:
                 return atomic_deposit
+            # This is one observed-uncomposable-stop rule with two entry
+            # points: Home is observed through the ~9 knowledge scan and has
+            # no _shop_observation, while ordinary shops must consume their
+            # observed page inside _atomic_shop_transaction_key.
+            if (
+                self._shopping_approach_store_type == STORE_HOME
+                and self._resolve_observed_uncomposable_stop(snapshot)
+            ):
+                return WAIT_KEY
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             self.last_reason = "store:entry-failed-step-off"
