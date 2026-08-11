@@ -36,6 +36,41 @@ class HomeEntryCaptureTest(unittest.TestCase):
         self.assertEqual(markers[0]["field"], "policy._field")
         self.assertEqual(stderr.getvalue().count("policy._field"), 1)
 
+    def test_writer_crossing_threshold_rotates_and_keeps_writing(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "home-entry-capture.jsonl"
+            path.write_text("old\n", encoding="utf-8")
+            capture = HomeEntryCapture(path, rotate_bytes=4, generations=3)
+
+            capture._write({"new": True})
+
+            self.assertEqual(
+                path.with_name(f"{path.name}.1").read_text(encoding="utf-8"),
+                "old\n",
+            )
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")), {"new": True}
+            )
+
+    def test_rotation_failure_does_not_propagate(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "home-entry-capture.jsonl"
+            path.write_text("old\n", encoding="utf-8")
+            capture = HomeEntryCapture(path, rotate_bytes=4, generations=3)
+
+            with patch(
+                "hengbot.flight_recorder.os.replace", side_effect=OSError("locked")
+            ):
+                capture._write({"new": True})
+
+            self.assertEqual(
+                [
+                    json.loads(line)
+                    for line in path.read_text(encoding="utf-8").splitlines()[1:]
+                ],
+                [{"new": True}],
+            )
+
     def test_writes_joined_fields_and_replays_each_record_through_choose_key(self):
         harness = test_policy.HomeOneOperationPerEntryTest()
         policy = test_policy.HengbotPolicy()

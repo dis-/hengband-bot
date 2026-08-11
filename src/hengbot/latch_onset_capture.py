@@ -10,7 +10,7 @@ import pickle
 from pathlib import Path
 from typing import Any
 
-from hengbot.flight_recorder import jsonable
+from hengbot.flight_recorder import jsonable, rotate_log
 
 
 CAPTURE_DECISIONS_AFTER_ONSET = 2
@@ -21,6 +21,8 @@ _CAPTURE_STATE_NAMES = frozenset(
         "_latch_capture_previous",
         "_latch_capture_assignment",
         "_latch_capture_remaining",
+        "_latch_capture_rotate_bytes",
+        "_latch_capture_generations",
         # Derived registry contains local predicate lambdas. It is rebuilt on
         # first use from the authoritative policy state.
         "_town_need_specs",
@@ -204,9 +206,17 @@ def decision_record(
     }
 
 
-def write_window(path: Path, records: list[dict[str, Any]], *, replace: bool) -> None:
+def write_window(
+    path: Path,
+    records: list[dict[str, Any]],
+    *,
+    replace: bool,
+    rotate_bytes: int,
+    generations: int,
+) -> None:
     """Write one bounded four-decision window; a new onset replaces the old one."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    rotate_log(path, rotate_bytes, generations)
     mode = "w" if replace else "a"
     with path.open(mode, encoding="utf-8") as file:
         for record in records:

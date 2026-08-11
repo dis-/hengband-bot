@@ -9,7 +9,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from hengbot.flight_recorder import jsonable
+from hengbot.flight_recorder import (
+    DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
+    DEFAULT_LOG_GENERATIONS,
+    jsonable,
+    rotate_log,
+)
 from hengbot.latch_onset_capture import checkpoint
 from hengbot.model import STORE_HOME, Snapshot
 
@@ -88,8 +93,15 @@ def _home_owned(policy: Any, snapshot: Snapshot) -> bool:
 class HomeEntryCapture:
     """Join decisions, posted WM_CHARs, and the next snapshot read by the CLI."""
 
-    def __init__(self, path: Path | None):
+    def __init__(
+        self,
+        path: Path | None,
+        rotate_bytes: int = DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
+        generations: int = DEFAULT_LOG_GENERATIONS,
+    ):
         self.path = path
+        self.rotate_bytes = rotate_bytes
+        self.generations = generations
         self.active = False
         self.pending: dict[str, Any] | None = None
         self._reported_failures: set[tuple[str, str, str]] = set()
@@ -203,6 +215,7 @@ class HomeEntryCapture:
         if self.path is None:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        rotate_log(self.path, self.rotate_bytes, self.generations)
         with self.path.open("a", encoding="utf-8") as file:
             json.dump(record, file, ensure_ascii=False, separators=(",", ":"))
             file.write("\n")

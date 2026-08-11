@@ -2176,6 +2176,8 @@ class HengbotPolicy:
         self._store_sale_refused: set[int] = set()
         self._town_blocked_reason: str | None = None
         self._latch_capture_path: Path | None = None
+        self._latch_capture_rotate_bytes = 0
+        self._latch_capture_generations = 0
         self._latch_capture_previous: dict[str, object] | None = None
         self._latch_capture_assignment: dict[str, object] | None = None
         self._latch_capture_remaining = 0
@@ -2800,11 +2802,23 @@ class HengbotPolicy:
                     previous["relative_decision"] = -1
                     records.append(previous)
                 records.append(current)
-                write_latch_capture_window(capture_path, records, replace=True)
+                write_latch_capture_window(
+                    capture_path,
+                    records,
+                    replace=True,
+                    rotate_bytes=self._latch_capture_rotate_bytes,
+                    generations=self._latch_capture_generations,
+                )
                 self._latch_capture_remaining = CAPTURE_DECISIONS_AFTER_ONSET
                 self._latch_capture_assignment = None
             elif self._latch_capture_remaining > 0:
-                write_latch_capture_window(capture_path, [current], replace=False)
+                write_latch_capture_window(
+                    capture_path,
+                    [current],
+                    replace=False,
+                    rotate_bytes=self._latch_capture_rotate_bytes,
+                    generations=self._latch_capture_generations,
+                )
                 self._latch_capture_remaining -= 1
             self._latch_capture_previous = current
         except Exception:

@@ -37,6 +37,7 @@ from hengbot.policy import (
 )
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.flight_recorder import (
+    DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
     DEFAULT_CHECKPOINT_INTERVAL,
     DEFAULT_DISK_BUDGET_BYTES,
     DEFAULT_LOG_GENERATIONS,
@@ -1588,7 +1589,11 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     if args.decision_log is None:
         return None
     home_entry_capture = (
-        HomeEntryCapture(args.decision_log.with_name("home-entry-capture.jsonl"))
+        HomeEntryCapture(
+            args.decision_log.with_name("home-entry-capture.jsonl"),
+            DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
+            args.recorder_log_generations,
+        )
         if args.capture_home_entry
         else None
     )
@@ -1598,6 +1603,8 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
         if args.capture_latch_onset
         else None
     )
+    policy._latch_capture_rotate_bytes = DEFAULT_CAPTURE_LOG_ROTATE_BYTES
+    policy._latch_capture_generations = args.recorder_log_generations
     policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
     policy._character_calibration_path = args.decision_log.with_name(
         "character-calibration.json"

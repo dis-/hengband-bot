@@ -120,6 +120,7 @@ class CaptureAndPollDefaultsTest(unittest.TestCase):
 
         self.assertIs(capture, policy._home_entry_capture)
         self.assertEqual(capture.path, Path("home-entry-capture.jsonl"))
+        self.assertEqual(capture.generations, self._args().recorder_log_generations)
         self.assertIsNone(policy._latch_capture_path)
 
     def test_latch_onset_flag_enables_only_latch_onset_capture(self):
@@ -132,6 +133,10 @@ class CaptureAndPollDefaultsTest(unittest.TestCase):
         self.assertIsNone(capture)
         self.assertIsNone(policy._home_entry_capture)
         self.assertEqual(policy._latch_capture_path, Path("latch-onset.jsonl"))
+        self.assertEqual(
+            policy._latch_capture_generations,
+            self._args().recorder_log_generations,
+        )
 
     def test_poll_interval_default_is_point_zero_two_seconds(self):
         self.assertEqual(self._args().poll_interval, 0.02)

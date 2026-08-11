@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import hengbot.policy as policy_module
-from hengbot.latch_onset_capture import restore_checkpoint
+from hengbot.latch_onset_capture import restore_checkpoint, write_window
 from hengbot.model import (
     STORE_ALCHEMIST,
     STORE_ARMOURY,
@@ -23,6 +23,27 @@ from absorbing_state_catalog import TownWorld
 
 
 class LatchOnsetCaptureTest(unittest.TestCase):
+    def test_writer_crossing_threshold_rotates_and_keeps_writing(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "latch-onset.jsonl"
+            path.write_text("old\n", encoding="utf-8")
+
+            write_window(
+                path,
+                [{"new": True}],
+                replace=False,
+                rotate_bytes=4,
+                generations=3,
+            )
+
+            self.assertEqual(
+                path.with_name(f"{path.name}.1").read_text(encoding="utf-8"),
+                "old\n",
+            )
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")), {"new": True}
+            )
+
     @staticmethod
     def _exhaust_town_work(policy, snapshot):
         policy._town_errand_plan = None
