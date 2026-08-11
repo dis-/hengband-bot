@@ -34,6 +34,7 @@ from hengbot.policy import (
     ConservativePolicy,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
+    WAIT_KEY,
     required_depth_gates,
 )
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
@@ -386,6 +387,7 @@ def _advance_town_blocked_streak(
     streak: int,
     reason: str,
     *,
+    key: str | None = None,
     in_town: bool = True,
     floor_changed: bool = False,
     durable_progress: bool = False,
@@ -395,10 +397,14 @@ def _advance_town_blocked_streak(
         return 0
     if durable_progress:
         streak = 0
-    # This reason owns the policy's registered 200-decision escape budget.
-    # Let that visible policy terminal run to completion instead of killing it
-    # with this 30-decision outer fuse while its telemetry claims budget left.
-    if reason == "town:blocked:repetition" and reason in ESCAPE_BUDGETED_WAIT_LIMITS:
+    # Only a WAIT actually spends the policy's registered escape budget. Let
+    # those waits reach its visible terminal; ESC, step-off, and travel keys
+    # remain covered by the short town-block fuse.
+    if (
+        key == WAIT_KEY
+        and reason == "town:blocked:repetition"
+        and reason in ESCAPE_BUDGETED_WAIT_LIMITS
+    ):
         return streak
     if reason.startswith("town:blocked:"):
         return streak + 1
@@ -413,6 +419,7 @@ def _advance_town_blocked_iteration(
     streak: int,
     previous_durable_state,
     *,
+    key: str | None = None,
     floor_changed: bool = False,
 ):
     """Apply the production town-fuse projection and authoritative gate."""
@@ -424,6 +431,7 @@ def _advance_town_blocked_iteration(
     streak = _advance_town_blocked_streak(
         streak,
         policy.last_reason,
+        key=key,
         in_town=snapshot.in_town,
         floor_changed=floor_changed,
         durable_progress=durable_progress,
@@ -1115,6 +1123,27 @@ def _advance_repeating_reason_iteration(
         tracked_reason,
         repeating_reason_count,
         _town_stall_report(snapshot, policy, reason, repeating_reason_count),
+    )
+
+
+def _stopping_town_stall_report(
+    snapshot,
+    policy,
+    repeating_reason_count: int,
+    blocked_streak: int,
+) -> dict | None:
+    """Build the diagnostic attached to either town-stall stop path."""
+    if (
+        blocked_streak < TOWN_BLOCKED_STOP_LIMIT
+        and policy.last_reason != "livelock:exhausted"
+    ):
+        return None
+    return _town_stall_report(
+        snapshot,
+        policy,
+        policy.last_reason,
+        repeating_reason_count,
+        stopping=True,
     )
 
 
@@ -2292,17 +2321,18 @@ def _run_follow(
                             snapshot,
                             blocked_streak,
                             town_blocked_durable_state,
+                            key=key,
                             floor_changed=floor_changed,
                         )
                     )
-                    if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
-                        town_stall_report = _town_stall_report(
-                            snapshot,
-                            policy,
-                            policy.last_reason,
-                            repeating_reason_count,
-                            stopping=True,
-                        )
+                    stopping_town_stall_report = _stopping_town_stall_report(
+                        snapshot,
+                        policy,
+                        repeating_reason_count,
+                        blocked_streak,
+                    )
+                    if stopping_town_stall_report is not None:
+                        town_stall_report = stopping_town_stall_report
                     if policy.last_reason == "periodic:game-save":
                         save_archive.before_post(snapshot, policy._decision_sequence)
                     recent_reasons.append(policy.last_reason)

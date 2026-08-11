@@ -2841,16 +2841,65 @@ class TownBlockedStreakTest(unittest.TestCase):
                     )
                 self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
 
-    def test_registered_repetition_budget_is_exempt_from_town_fuse(self):
-        from hengbot.cli import _advance_town_blocked_streak
+    def test_measured_nonwait_repetition_shape_reaches_fuse_with_report(self):
+        from hengbot.cli import (
+            TOWN_BLOCKED_STOP_LIMIT,
+            _advance_town_blocked_streak,
+            _stopping_town_stall_report,
+        )
 
+        snapshot = DecisionRecordTest._town_snapshot()
+        policy = DecisionRecordTest._town_stall_policy(passes=1)
+        policy.last_reason = "town:blocked:repetition"
         streak = 0
-        for _ in range(ESCAPE_BUDGETED_WAIT_LIMITS["town:blocked:repetition"]):
+        measured_keys = ("\x1b", "7", "7")
+        for decision in range(TOWN_BLOCKED_STOP_LIMIT):
             streak = _advance_town_blocked_streak(
-                streak, "town:blocked:repetition"
+                streak,
+                policy.last_reason,
+                key=measured_keys[decision % len(measured_keys)],
             )
 
+        report = _stopping_town_stall_report(
+            snapshot, policy, TOWN_BLOCKED_STOP_LIMIT, streak
+        )
+        record = _decision_record(
+            snapshot,
+            measured_keys[-1],
+            policy.last_reason,
+            town_stall_report=report,
+        )
+        self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
+        self.assertIn("town_stall_report", record)
+
+    def test_wait_repetition_spends_registered_budget_and_reports_terminal(self):
+        from hengbot.cli import (
+            _advance_town_blocked_streak,
+            _stopping_town_stall_report,
+        )
+        from hengbot.policy import HengbotPolicy, WAIT_KEY
+
+        snapshot = DecisionRecordTest._town_snapshot()
+        policy = HengbotPolicy()
+        streak = 0
+        limit = ESCAPE_BUDGETED_WAIT_LIMITS["town:blocked:repetition"]
+        for _ in range(limit):
+            policy.last_reason = "town:blocked:repetition"
+            key = policy._bound_escape_wait(snapshot, WAIT_KEY)
+            streak = _advance_town_blocked_streak(
+                streak, "town:blocked:repetition", key=key
+            )
+
+        report = _stopping_town_stall_report(snapshot, policy, limit, streak)
+        record = _decision_record(
+            snapshot,
+            key,
+            policy.last_reason,
+            town_stall_report=report,
+        )
         self.assertEqual(streak, 0)
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
+        self.assertIn("town_stall_report", record)
 
 
 class TownResidenceStreakTest(unittest.TestCase):
