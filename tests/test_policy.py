@@ -35812,6 +35812,141 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(key, "6")
         self.assertEqual(pol.last_reason, "town:repetition-required-shopping")
 
+    def test_repetition_block_completes_departure_recall_purchase(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._deepest_level = RECALL_MIN_DEPTH
+        pol._town_blocked_reason = "repetition"
+        position = Position(36, 90)
+        shelf = StoreState(
+            STORE_TEMPLE,
+            [store_item("i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=124,
+                        count=3)],
+        )
+        inside = replace(
+            self._town_snap(y=36, x=90, gold=4096),
+            grids={position: replace(grid(36, 90), store_number=STORE_TEMPLE)},
+            store=shelf,
+            turn=4149055,
+        )
+
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        outside = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(pol.choose_key(outside), WAIT_KEY)
+        posted = pol.choose_key(replace(inside, turn=inside.turn + 2))
+
+        self.assertTrue(posted.startswith(BUY_KEY + "i"), posted)
+
+    def test_repetition_block_still_leaves_for_discretionary_purchase(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._town_blocked_reason = "repetition"
+        lantern = item(
+            "l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True
+        )
+        supplies = [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
+            item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=5),
+        ]
+        torch = store_item("a", TVAL_LITE, SV_LITE_TORCH, price=2, count=5)
+        inside = replace(
+            self._town_snap(gold=4096),
+            inventory=supplies,
+            equipment=[lantern],
+            store=StoreState(STORE_GENERAL, [torch]),
+        )
+
+        self.assertIs(pol._next_purchase(inside), torch)
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertIsNone(pol._shop_observation)
+
+    def test_equipment_transaction_block_still_leaves_store(self):
+        pol = HengbotPolicy()
+        pol._town_blocked_reason = "equipment-transaction:incomplete-catalog"
+        inside = replace(
+            self._town_snap(gold=4096),
+            store=StoreState(
+                STORE_TEMPLE,
+                [store_item("i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                            price=124, count=3)],
+            ),
+        )
+
+        self.assertEqual(pol._town_blocked_key(inside), LEAVE_STORE_KEY)
+        self.assertIsNone(pol._shop_observation)
+
+    def test_repetition_purchase_progress_releases_attempt_and_restock_wait(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._deepest_level = RECALL_MIN_DEPTH
+        pol._town_blocked_reason = "repetition"
+        pol._town_store_attempted[STORE_TEMPLE] = 4148783
+        pol._town_restock_wait_until = 4149783
+        position = Position(36, 90)
+        shelf = StoreState(
+            STORE_TEMPLE,
+            [store_item("i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=124,
+                        count=3)],
+        )
+        inside = replace(
+            self._town_snap(y=36, x=90, gold=4096),
+            grids={position: replace(grid(36, 90), store_number=STORE_TEMPLE)},
+            store=shelf,
+            turn=4149055,
+        )
+        pol.choose_key(inside)
+        pol.choose_key(replace(inside, store=None, turn=inside.turn + 1))
+        posted = pol.choose_key(replace(inside, turn=inside.turn + 2))
+        self.assertTrue(posted.startswith(BUY_KEY + "i"), posted)
+        confirmed = replace(
+            inside,
+            store=None,
+            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3)],
+            player=replace(inside.player, gold=3724),
+            turn=inside.turn + 3,
+        )
+        pol.choose_key(confirmed)
+
+        self.assertNotIn(STORE_TEMPLE, pol._town_store_attempted)
+        self.assertIsNone(pol._town_restock_wait_until)
+
+    def test_measured_repetition_restock_shape_does_not_wait_thirty_times(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._deepest_level = RECALL_MIN_DEPTH
+        pol._town_blocked_reason = "repetition"
+        pol._town_store_attempted = {
+            store_type: 4148144 for store_type in range(9)
+        }
+        pol._town_restock_wait_until = 4149783
+        position = Position(36, 90)
+        inside = replace(
+            self._town_snap(y=36, x=90, gold=4096),
+            grids={position: replace(grid(36, 90), store_number=STORE_TEMPLE)},
+            store=StoreState(
+                STORE_TEMPLE,
+                [store_item("i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                            price=124, count=3)],
+            ),
+            turn=4149055,
+        )
+
+        decisions = [pol.choose_key(inside)]
+        decisions.append(pol.choose_key(replace(inside, store=None,
+                                                turn=inside.turn + 1)))
+        decisions.append(pol.choose_key(replace(inside, turn=inside.turn + 2)))
+        decisions.extend(
+            pol.choose_key(replace(inside, store=None, turn=inside.turn + offset))
+            for offset in range(3, 30)
+        )
+
+        self.assertNotEqual(decisions, [WAIT_KEY] * 30)
+        self.assertTrue(any(key.startswith(BUY_KEY + "i") for key in decisions),
+                        decisions)
+
     def test_yeek_recall_destination_preserves_walk_in_exemptions(self):
         snap = replace(
             self._town_snap(),

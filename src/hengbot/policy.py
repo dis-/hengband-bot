@@ -3049,6 +3049,12 @@ class HengbotPolicy:
             )
             if confirmed:
                 self._town_visit_purchases.add(watched_signature)
+                # A successful purchase is fresh evidence for this supplier.
+                # In particular, the repetition repair may have inherited an
+                # attempted-store latch and restock wait from the cycle it is
+                # breaking; neither may survive observed purchase progress.
+                self._town_store_attempted.pop(watched_store, None)
+                self._town_restock_wait_until = None
                 if self._store_visit is not None:
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
@@ -4302,6 +4308,12 @@ class HengbotPolicy:
         if (
             self._town_blocked_reason is not None
             and self._town_blocked_store_context(snapshot)
+            and not (
+                self._town_blocked_reason == "repetition"
+                and snapshot.store is not None
+                and self._store_visit is not None
+                and self._store_visit.operation_posted
+            )
         ):
             key = self._town_blocked_key(snapshot)
             if snapshot.store is not None:
@@ -19967,6 +19979,35 @@ class HengbotPolicy:
         Other blocked reasons remain visible terminal waits.
         """
         self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        if self._town_blocked_reason == "repetition" and snapshot.store is not None:
+            store = snapshot.store
+            attempted_at = self._town_store_attempted.pop(store.store_type, None)
+            try:
+                # The open shelf is stronger evidence than the stale attempted
+                # latch which routed us here.  Ignore that one latch only while
+                # evaluating live departure needs; retain it until a purchase
+                # is actually observed below.
+                departure_categories = {
+                    need.category
+                    for need in self._departure_blocking_town_needs(snapshot)
+                    if need.store_type == store.store_type
+                }
+            finally:
+                if attempted_at is not None:
+                    self._town_store_attempted[store.store_type] = attempted_at
+            purchase = self._next_purchase(snapshot)
+            if (
+                purchase is not None
+                and departure_categories.intersection(
+                    self._cross_town_item_categories(purchase)
+                )
+            ):
+                # Keep the ordinary two-visit one-shot contract: this page only
+                # records the shelf, then the outside entrance page binds the
+                # exact purchase before re-entry releases its command tail.
+                self._shop_observation = (store, self._decision_sequence)
+                self.last_reason = "shop:observe-and-leave"
+            return LEAVE_STORE_KEY
         if (
             self._town_blocked_reason is not None
             and self._town_blocked_reason.startswith("equipment-transaction:")
