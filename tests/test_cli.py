@@ -32,6 +32,7 @@ from hengbot.cli import (
     TRAVEL_PROMPT_DELAY_SECONDS,
     _add_input_delay_arguments,
     _advance_town_blocked_iteration,
+    _advance_repeating_reason_iteration,
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
@@ -1216,6 +1217,53 @@ class DecisionRecordTest(unittest.TestCase):
             repeating_reason_count=1,
         )
 
+        self.assertIsNone(report)
+
+    def test_live_town_stall_repeating_reason_wiring_counts_and_reports(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy()
+        policy.last_reason = "town:blocked:repetition"
+        previous_reason = None
+        repeating_reason_count = 0
+        report = None
+
+        for _ in range(24):
+            previous_reason, repeating_reason_count, report = (
+                _advance_repeating_reason_iteration(
+                    snapshot,
+                    policy,
+                    previous_reason,
+                    repeating_reason_count,
+                )
+            )
+
+        self.assertEqual(repeating_reason_count, 24)
+        self.assertEqual(
+            report["repeating_named_block"]["consecutive_decisions"], 24
+        )
+
+    def test_live_town_stall_repeating_reason_wiring_resets_after_interruption(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy()
+        previous_reason = None
+        repeating_reason_count = 0
+
+        for reason in (
+            ["town:blocked:repetition"] * 23
+            + ["shop:travel"]
+            + ["town:blocked:repetition"] * 23
+        ):
+            policy.last_reason = reason
+            previous_reason, repeating_reason_count, report = (
+                _advance_repeating_reason_iteration(
+                    snapshot,
+                    policy,
+                    previous_reason,
+                    repeating_reason_count,
+                )
+            )
+
+        self.assertEqual(repeating_reason_count, 23)
         self.assertIsNone(report)
 
     def test_records_snapshot_messages_with_repeat_counter(self):

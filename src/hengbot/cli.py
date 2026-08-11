@@ -1082,6 +1082,25 @@ def _town_stall_report(
     }
 
 
+def _advance_repeating_reason_iteration(
+    snapshot,
+    policy,
+    previous_reason: str | None,
+    repeating_reason_count: int,
+) -> tuple[str, int, dict | None]:
+    """Count one live decision reason and build its town-stall diagnostic."""
+    reason = policy.last_reason
+    if reason == previous_reason:
+        repeating_reason_count += 1
+    else:
+        repeating_reason_count = 1
+    return (
+        reason,
+        repeating_reason_count,
+        _town_stall_report(snapshot, policy, reason, repeating_reason_count),
+    )
+
+
 def _depth_safety(snapshot, policy) -> dict:
     """Surface the depth-requirement check so a lethal resistance gap is visible
     (the bot gates its descent on this — see AGENTS.md)."""
@@ -1098,6 +1117,9 @@ def _depth_safety(snapshot, policy) -> dict:
     }
 
 
+_AUTO_TOWN_STALL_REPORT = object()
+
+
 def _write_decision(
     path: Path | None,
     snapshot,
@@ -1106,6 +1128,7 @@ def _write_decision(
     policy=None,
     economy_ledger: EconomyLedger | None = None,
     repeating_reason_count: int = 0,
+    town_stall_report: dict | None | object = _AUTO_TOWN_STALL_REPORT,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -1233,8 +1256,12 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
-                    _town_stall_report(
-                        snapshot, policy, reason, repeating_reason_count
+                    (
+                        _town_stall_report(
+                            snapshot, policy, reason, repeating_reason_count
+                        )
+                        if town_stall_report is _AUTO_TOWN_STALL_REPORT
+                        else town_stall_report
                     ),
                     getattr(policy, "_decision_sequence", None),
                 ),
@@ -2230,11 +2257,16 @@ def _run_follow(
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
                     )
-                    if policy.last_reason == last_decision_reason:
-                        repeating_reason_count += 1
-                    else:
-                        repeating_reason_count = 1
-                    last_decision_reason = policy.last_reason
+                    (
+                        last_decision_reason,
+                        repeating_reason_count,
+                        town_stall_report,
+                    ) = _advance_repeating_reason_iteration(
+                        snapshot,
+                        policy,
+                        last_decision_reason,
+                        repeating_reason_count,
+                    )
                     if policy.last_reason == "periodic:game-save":
                         save_archive.before_post(snapshot, policy._decision_sequence)
                     recent_reasons.append(policy.last_reason)
@@ -2280,6 +2312,7 @@ def _run_follow(
                         policy,
                         economy_ledger,
                         repeating_reason_count,
+                        town_stall_report,
                     )
                     if policy.last_reason in POLICY_FINAL_STOP_REASONS:
                         print(
