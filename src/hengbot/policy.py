@@ -551,6 +551,7 @@ class ChokeEngagementPlan:
     start_gold: int
     start_breeder_count: int
     last_player_hp: int
+    closest_destination_distance: int = 0
     last_movement: tuple[Position, Position] | None = None
     sight_loss_decisions: int = 0
     no_progress_decisions: int = 0
@@ -28718,6 +28719,9 @@ class HengbotPolicy:
                         self._engagement_breeder_population(snapshot)
                     ),
                     last_player_hp=snapshot.player.hp,
+                    closest_destination_distance=(
+                        snapshot.player.position.distance_to(destination)
+                    ),
                     last_movement=(snapshot.player.position, step),
                 )
                 self.last_reason = "melee:choke"
@@ -28739,6 +28743,7 @@ class HengbotPolicy:
                         self._engagement_breeder_population(snapshot)
                     ),
                     last_player_hp=snapshot.player.hp,
+                    closest_destination_distance=0,
                 )
             if adjacent and not snapshot.player.afraid:
                 self.last_reason = "melee:choke"
@@ -28886,6 +28891,17 @@ class HengbotPolicy:
             return None
         if snapshot.player.position != plan.destination:
             plan.phase = "reposition"
+            destination_distance = snapshot.player.position.distance_to(
+                plan.destination
+            )
+            if destination_distance < plan.closest_destination_distance:
+                plan.closest_destination_distance = destination_distance
+                plan.no_progress_decisions = 0
+            else:
+                plan.no_progress_decisions += 1
+            if plan.no_progress_decisions >= EXTENDED_STUCK_WINDOW:
+                self._release_choke_plan("engagement-stall-bound")
+                return None
             step = self._nearest_goal_step(
                 snapshot, lambda grid: grid.position == plan.destination
             )

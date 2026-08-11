@@ -2767,6 +2767,101 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(state["phase"], "hold")
         self.assertIsNone(state["release_cause"])
 
+    @staticmethod
+    def _quartz_choke_reposition_snapshot(position, *, visible):
+        destination = Position(9, 65)
+        away = Position(2, 67)
+        contact = Position(3, 66)
+        if position == contact:
+            path = {
+                contact, away, Position(3, 68), Position(4, 68),
+                Position(5, 68), Position(6, 68), Position(7, 68),
+                Position(8, 68), Position(9, 68), Position(9, 67),
+                Position(9, 66), destination,
+            }
+        else:
+            path = {
+                away, contact, Position(4, 66), Position(5, 66),
+                Position(6, 66), Position(7, 66), Position(8, 66),
+                Position(9, 66), destination,
+            }
+        grids = {
+            Position(y, x): grid(
+                y, x, passable=Position(y, x) in path, lit=True, in_view=True
+            )
+            for y in range(1, 11)
+            for x in range(64, 70)
+        }
+        monsters = []
+        if visible:
+            monsters = [
+                hostile(
+                    index, 4, x, distance=1, race_id=911,
+                    can_multiply=True, speed=100, max_melee_damage=12,
+                )
+                for index, x in ((186, 66), (190, 67))
+            ]
+            for monster in monsters:
+                grids[monster.position] = replace(
+                    grids[monster.position], has_monster=True
+                )
+        return Snapshot(
+            replace(player(position.y, position.x, hp=668, max_hp=668), exp=1),
+            grids,
+            monsters,
+            floor_key=(7, 24, 0),
+            turn=1,
+        )
+
+    def test_choke_reposition_two_cell_alternation_reaches_existing_release(self):
+        contact = Position(3, 66)
+        away = Position(2, 67)
+        destination = Position(9, 65)
+        policy = HengbotPolicy()
+        policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
+            floor=(7, 24, 0),
+            phase="reposition",
+            destination=destination,
+            covered_retreat_direction=(-1, 1),
+            trigger_last_seen={186: Position(4, 66), 190: Position(4, 67)},
+            start_exp=1,
+            start_gold=3000,
+            start_breeder_count=2,
+            last_player_hp=668,
+        )
+        visible = self._quartz_choke_reposition_snapshot(contact, visible=True)
+        self.assertEqual(
+            policy._predicted_damage(
+                visible, visible.visible_monsters, turns=3
+            ),
+            72,
+        )
+
+        keys = []
+        for decision in range(policy_module.EXTENDED_STUCK_WINDOW + 1):
+            at_contact = decision % 2 == 0
+            snapshot = self._quartz_choke_reposition_snapshot(
+                contact if at_contact else away,
+                visible=at_contact,
+            )
+            policy._build_grid_index(snapshot)
+            key = policy._choke_engagement_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._physical_adjacent_hostiles(snapshot),
+            )
+            if policy.choke_engagement_state()["release_cause"] is not None:
+                break
+            keys.append(key)
+
+        self.assertEqual(keys[:2], ["9", "1"])
+        self.assertLessEqual(len(keys), policy_module.EXTENDED_STUCK_WINDOW)
+        self.assertEqual(
+            (policy.choke_engagement_state()["phase"],
+             policy.choke_engagement_state()["release_cause"]),
+            ("release", "engagement-stall-bound"),
+        )
+
     def test_open_capture_mouth_is_never_accepted_as_choke_hold(self):
         policy = HengbotPolicy()
         snapshot = self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9)
