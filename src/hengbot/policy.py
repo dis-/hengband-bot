@@ -560,6 +560,18 @@ class ChokeEngagementPlan:
 
 
 @dataclass(frozen=True)
+class CrossDecisionLatch:
+    """Declared owner and per-decision release evaluator for a policy latch."""
+
+    owner: str
+    release_evaluator: str
+    permanent_values: tuple[str, ...] = ()
+    retained_values: tuple[str, ...] = ()
+    retained_prefixes: tuple[str, ...] = ()
+    release_sites: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class SupplyStatus:
     kind: str
     count: int
@@ -1688,6 +1700,13 @@ class HengbotPolicy:
         # accessors below expose the old diagnostic names without retaining
         # independent ownership facts.
         self._store_visit: StoreVisit | None = None
+        self._cross_decision_latches: dict[str, CrossDecisionLatch] = {
+            "_store_visit": CrossDecisionLatch(
+                "store-router",
+                "_release_invalid_store_visit",
+                release_sites=("_close_store_visit",),
+            )
+        }
         self._store_visit_last_closed: StoreVisit | None = None
         self._store_visit_pending_goal: Position | None = None
         self._store_entry_failed_owner: int | None = None
@@ -2055,6 +2074,11 @@ class HengbotPolicy:
         self._breeder_previous_exp: int | None = None
         self._breeder_previous_indices: set[int] = set()
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
+        self._cross_decision_latches["_choke_engagement_plan"] = CrossDecisionLatch(
+            "melee-engagement",
+            "_release_invalid_choke_plan",
+            release_sites=("_release_choke_plan",),
+        )
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
         # A breeder floor left by stairs remains an observed walk-out fact until
         # town (or another dungeon) proves the escape complete.  This is not a
@@ -2177,6 +2201,18 @@ class HengbotPolicy:
         # Home to sell there — otherwise it churns futile trips to the full store.
         self._store_sale_refused: set[int] = set()
         self._town_blocked_reason: str | None = None
+        self._cross_decision_latches["_town_blocked_reason"] = CrossDecisionLatch(
+            "town-router",
+            "_release_stale_town_block",
+            (
+                "departure-unsatisfiable",
+                "no-safe-recall-destination",
+                "equipment-work-home-route-exhausted",
+            ),
+            retained_values=("repetition",),
+            retained_prefixes=("equipment-transaction:",),
+            release_sites=("_release_stale_town_block",),
+        )
         self._latch_capture_path: Path | None = None
         self._latch_capture_rotate_bytes = 0
         self._latch_capture_generations = 0
@@ -2340,6 +2376,16 @@ class HengbotPolicy:
         # deliberately independent of the town-owner gate: classifiers must
         # still refuse these pack items if routing ever bypasses that gate.
         self._equipment_transaction_owned_items: list[tuple[str, str]] = []
+        self._cross_decision_latches[
+            "_equipment_transaction_owned_items"
+        ] = CrossDecisionLatch(
+            "equipment-transaction",
+            "_equipment_ownership_release_due",
+            release_sites=(
+                "_release_equipment_transaction_owned_item",
+                "_abandon_blocked_equipment_transaction",
+            ),
+        )
         self._equipment_transaction_restoring = False
         self._equipment_transaction_restore_terminal: str | None = None
         self._equipment_transaction_restore_remainder: tuple[str, ...] = ()
@@ -4134,25 +4180,56 @@ class HengbotPolicy:
                 return QUAFF_KEY + speed.slot
         return key
 
-    def _decide(self, snapshot: Snapshot) -> str:
-        # Routing failures describe the snapshot that produced them; they are
-        # not authority to skip the next snapshot's need and route evaluation.
-        # The three drive-ending town terminals remain latched until the caller
-        # stops the drive.  Repetition also persists because it owns a bounded
-        # departure route and is explicitly exempt from suppressing shopping;
-        # equipment-transaction terminals retain their restoration/abort owner.
+    def _evaluate_cross_decision_latches(self, snapshot: Snapshot) -> None:
+        """Run every declared release evaluator before decision routing."""
+        for latch in self._cross_decision_latches.values():
+            getattr(self, latch.release_evaluator)(snapshot)
+
+    def _release_stale_town_block(self, snapshot: Snapshot) -> None:
+        """Release snapshot-local verdicts; declared drive terminals persist."""
+        del snapshot
+        latch = self._cross_decision_latches["_town_blocked_reason"]
+        reason = self._town_blocked_reason
         if (
-            self._town_blocked_reason not in {
-                "departure-unsatisfiable",
-                "no-safe-recall-destination",
-                "equipment-work-home-route-exhausted",
-                "repetition",
-            }
-            and not (self._town_blocked_reason or "").startswith(
-                "equipment-transaction:"
+            reason not in {*latch.permanent_values, *latch.retained_values}
+            and not any(
+                (reason or "").startswith(prefix)
+                for prefix in latch.retained_prefixes
             )
         ):
             self._town_blocked_reason = None
+
+    def _release_invalid_store_visit(self, snapshot: Snapshot) -> None:
+        """Release a visit whose own lifecycle has already declared it closed."""
+        visit = self._store_visit
+        if visit is not None and (
+            visit.phase == StoreVisitPhase.CLOSED
+            or not snapshot.in_town
+        ):
+            self._close_store_visit(self._store_visit.outcome or "completed")
+
+    def _equipment_ownership_release_due(self, snapshot: Snapshot) -> bool:
+        """Evaluate physical satisfaction without preempting the session owner."""
+        equipped = {
+            (equipment_identity(item), item.slot) for item in snapshot.equipment
+        }
+        return bool(self._equipment_transaction_owned_items) and all(
+            owned in equipped for owned in self._equipment_transaction_owned_items
+        )
+
+    def _release_invalid_choke_plan(self, snapshot: Snapshot) -> None:
+        """Release an active engagement when its defining floor no longer exists."""
+        plan = self._choke_engagement_plan
+        if (
+            plan is not None
+            and plan.phase in {"reposition", "validate", "hold"}
+            and plan.floor != snapshot.floor_key
+        ):
+            self._release_choke_plan("floor-change")
+
+    def _decide(self, snapshot: Snapshot) -> str:
+        self._evaluate_cross_decision_latches(snapshot)
+
         # A TR_WARNING prompt reported by this snapshot is disposed of before
         # any other purpose is pursued: a refused movement is latched so it is
         # not re-chosen (the loop this handler removes), and an unsanctioned
