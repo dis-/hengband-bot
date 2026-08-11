@@ -3797,7 +3797,11 @@ class HengbotPolicy:
 
     def _periodic_game_save_key(self, snapshot: Snapshot, key: str) -> str:
         """Replace a safe filler with Ctrl-S; saving consumes no game energy."""
-        if not self._periodic_save_requested or not self._periodic_filler_is_safe(snapshot):
+        if (
+            not self._periodic_save_requested
+            or key == CHARACTER_DUMP_MACRO
+            or not self._periodic_filler_is_safe(snapshot)
+        ):
             return key
         self._periodic_save_requested = False
         self.last_reason = "periodic:game-save"
@@ -3805,7 +3809,11 @@ class HengbotPolicy:
 
     def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
         """Replace a safe filler action without delaying combat or prompts."""
-        if not self._periodic_dump_requested or not self._periodic_filler_is_safe(snapshot):
+        if (
+            not self._periodic_dump_requested
+            or key == "\x13"
+            or not self._periodic_filler_is_safe(snapshot)
+        ):
             return key
         self._periodic_dump_requested = False
         self.last_reason = "periodic:character-dump"

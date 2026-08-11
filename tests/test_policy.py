@@ -27971,6 +27971,87 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         self.assertEqual(pol.last_reason, "periodic:character-dump")
 
+    def test_same_tick_periodic_requests_both_reach_game_in_town_once(self):
+        pol, town = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )
+        pol.request_game_save()
+        pol.request_character_dump()
+
+        first = pol.choose_key(town)
+        first_reason = pol.last_reason
+        second = pol.choose_key(town)
+        second_reason = pol.last_reason
+        third = pol.choose_key(town)
+
+        self.assertEqual(first, "\x13")
+        self.assertEqual(first_reason, "periodic:game-save")
+        self.assertEqual(second, CHARACTER_DUMP_MACRO)
+        self.assertEqual(second_reason, "periodic:character-dump")
+        self.assertNotIn(third, {"\x13", CHARACTER_DUMP_MACRO})
+
+    def test_same_tick_periodic_requests_both_reach_game_in_dungeon_once(self):
+        pol = HengbotPolicy()
+        quiet = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(1, 5, 0),
+        )
+        pol.request_game_save()
+        pol.request_character_dump()
+
+        posted = []
+        for _ in range(3):
+            pol.last_reason = "explore"
+            key = pol._periodic_game_save_key(quiet, "6")
+            posted.append(pol._periodic_character_dump_key(quiet, key))
+
+        self.assertEqual(posted.count("\x13"), 1)
+        self.assertEqual(posted.count(CHARACTER_DUMP_MACRO), 1)
+
+    def test_unsafe_periodic_requests_post_neither_and_remain_outstanding(self):
+        enemy = hostile(1, 10, 12)
+        visible_hostile = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 12): grid(10, 12, monster=True),
+            },
+            [enemy],
+            floor_key=(1, 5, 0),
+        )
+        town = self._ready_town(
+            8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
+        )[1]
+        unsafe_snapshots = (
+            visible_hostile,
+            replace(
+                visible_hostile,
+                visible_monsters=[hostile(2, 10, 11)],
+                grids={
+                    Position(10, 10): grid(10, 10),
+                    Position(10, 11): grid(10, 11, monster=True),
+                },
+            ),
+            replace(town, store=StoreState(STORE_GENERAL, [])),
+            replace(town, player=replace(town.player, blind=True)),
+            replace(town, player=replace(town.player, confused=True)),
+            replace(town, player=replace(town.player, recalling=True)),
+        )
+
+        for snapshot in unsafe_snapshots:
+            with self.subTest(snapshot=snapshot):
+                pol = HengbotPolicy()
+                pol.request_game_save()
+                pol.request_character_dump()
+
+                key = pol.choose_key(snapshot)
+
+                self.assertNotIn(key, {"\x13", CHARACTER_DUMP_MACRO})
+                self.assertTrue(pol._periodic_save_requested)
+                self.assertTrue(pol._periodic_dump_requested)
+
     def test_periodic_dump_never_emits_in_store_or_adjacent_combat(self):
         enemy = hostile(1, 10, 11)
         combat = Snapshot(
