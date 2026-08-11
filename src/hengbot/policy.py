@@ -2344,6 +2344,9 @@ class HengbotPolicy:
         # Calibration phase state machine: None | "deposit" | "strip" |
         # "capture" | "restore-equip" | "restore-supplies".
         self._calibration_phase: str | None = None
+        # The observation phase to continue after an interruption has been
+        # handled and the originally worn equipment has been restored.
+        self._calibration_suspended_phase: str | None = None
         self._calibration_worn_before: tuple[tuple[str, str], ...] = ()
         self._calibration_restore_signatures: list[tuple[str, int, int]] = []
         self._calibration_restore_seen_pages: set[tuple[str, ...]] = set()
@@ -8939,7 +8942,10 @@ class HengbotPolicy:
         return calibration
 
     def _calibration_active(self) -> bool:
-        return self._calibration_phase is not None
+        return (
+            self._calibration_phase is not None
+            or self._calibration_suspended_phase is not None
+        )
 
     def _outstanding_equipment_work(self) -> bool:
         """Return whether equipment work still owns a route to Home.
@@ -8992,6 +8998,7 @@ class HengbotPolicy:
 
     def _begin_character_calibration(self, snapshot: Snapshot) -> None:
         self._calibration_phase = "deposit"
+        self._calibration_suspended_phase = None
         self._calibration_home_rearm_eligible = False
         self._calibration_home_rearm_queue = None
         self._calibration_worn_before = tuple(
@@ -9006,9 +9013,11 @@ class HengbotPolicy:
         self._calibration_naked_flags = None
 
     def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
-        """Interruption path: stop observing, put the equipment back on."""
+        """Suspend observation, preserving its progress, and redress."""
         self._calibration_aborts_this_visit += 1
         self._calibration_last_abort = f"calibration:abort:{reason}"
+        if reason == "precondition" and self._calibration_suspended_phase is None:
+            self._calibration_suspended_phase = self._calibration_phase
         if (
             reason == "capture-invalid"
             or self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT
@@ -9019,6 +9028,7 @@ class HengbotPolicy:
         self._calibration_session_target = None
         self.last_reason = self._calibration_last_abort
         if self._calibration_blocked_this_visit:
+            self._calibration_suspended_phase = None
             # The failure budget is spent: no more session cycling.  Converge
             # or stop visibly instead of aborting in a loop.
             self._calibration_restore_exhausted(snapshot)
@@ -9051,6 +9061,7 @@ class HengbotPolicy:
         the guard clears; the visit's calibration budget stays spent.
         """
         self._calibration_session_target = None
+        self._calibration_suspended_phase = None
         if (
             not self._calibration_removable_worn(snapshot)
             and self._calibration_preconditions_met(snapshot)
@@ -9336,10 +9347,13 @@ class HengbotPolicy:
             # this is only reachable through death reloads and forced moves.)
             self._calibration_stripped_unrestored = False
             return
-        if phase in {"deposit", "strip", "capture"}:
-            if not self._calibration_preconditions_met(snapshot):
+        if phase in {"deposit", "strip"}:
+            if any(monster.hostile for monster in snapshot.visible_monsters):
                 self._abort_character_calibration(snapshot, "precondition")
                 return
+        if phase == "capture" and not self._calibration_preconditions_met(snapshot):
+            self._abort_character_calibration(snapshot, "precondition")
+            return
         if phase == "strip":
             if self._calibration_session_owned():
                 if self._equipment_transaction_session.complete:
@@ -9381,11 +9395,7 @@ class HengbotPolicy:
                     self._calibration_stripped_unrestored = False
                     self._equipment_transaction_session = None
                     self._calibration_session_target = None
-                    self._calibration_phase = (
-                        "restore-supplies"
-                        if self._calibration_restore_signatures
-                        else None
-                    )
+                    self._calibration_phase = None
             else:
                 # A LIVE session that vanished was abandoned by the stall
                 # bound; only that consumes the per-visit failure budget — an
@@ -9448,6 +9458,32 @@ class HengbotPolicy:
             return None
         phase = self._calibration_phase
         if phase is None:
+            if self._calibration_suspended_phase is not None:
+                suspended = self._calibration_suspended_phase
+                if (
+                    self._calibration_blocked_this_visit
+                    or any(
+                        monster.hostile
+                        for monster in snapshot.visible_monsters
+                    )
+                    or (
+                        suspended == "capture"
+                        and not self._calibration_preconditions_met(snapshot)
+                    )
+                ):
+                    return None
+                phase = suspended
+                self._calibration_suspended_phase = None
+                self._calibration_phase = phase
+                # Redressing made a suspended strip/capture non-naked again.
+                # Re-strip the removable items that are actually still worn;
+                # the original worn-before record remains authoritative.
+                if phase in {"strip", "capture"}:
+                    if self._install_calibration_strip_session(snapshot):
+                        self.last_reason = "calibration:strip-resumed"
+                        return WAIT_KEY
+                    self._abort_character_calibration(snapshot, "no-pack-space")
+                    return WAIT_KEY
             if (
                 self._calibration_blocked_this_visit
                 or self._calibration_restore_signatures
@@ -9457,7 +9493,9 @@ class HengbotPolicy:
                 # never race their withdrawals.
                 or not self._equipment_catalog.home_scan_complete
                 or self._validated_character_calibration(snapshot) is not None
-                or not self._calibration_preconditions_met(snapshot)
+                or any(
+                    monster.hostile for monster in snapshot.visible_monsters
+                )
                 or not self._home_available(snapshot)
                 or self._equipment_transaction_session is not None
                 or self._identification_need is not None
@@ -9523,7 +9561,7 @@ class HengbotPolicy:
             blocker = "home-scan-incomplete"
         elif self._validated_character_calibration(snapshot) is not None:
             blocker = "calibration-valid"
-        elif not self._calibration_preconditions_met(snapshot):
+        elif any(monster.hostile for monster in snapshot.visible_monsters):
             blocker = "calibration-preconditions"
         elif not self._home_available(snapshot):
             blocker = "home-unavailable"
@@ -9538,7 +9576,9 @@ class HengbotPolicy:
         elif self._home_atomic_withdraw_pending is not None:
             blocker = "home-withdraw-inflight"
         state: dict[str, object] = {
-            "phase": self._calibration_phase,
+            "phase": (
+                self._calibration_phase or self._calibration_suspended_phase
+            ),
             "entry_blocker": blocker,
         }
         if self._calibration_last_abort is not None:
@@ -11050,7 +11090,7 @@ class HengbotPolicy:
             ),
             # Never depart mid-calibration or with its supplies still at Home.
             "calibration_phase_complete": (
-                not home_required or self._calibration_phase is None
+                not home_required or not self._calibration_active()
             ),
             "calibration_restore_complete": (
                 not home_required or not self._calibration_restore_signatures

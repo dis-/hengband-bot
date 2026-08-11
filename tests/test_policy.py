@@ -47560,7 +47560,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(policy._calibration_phase)
         self.assertFalse(policy._equipment_departure_ready(snapshot))
 
-    def test_phase_starts_only_after_home_scan_with_clear_preconditions(self):
+    def test_phase_starts_after_home_scan_without_a_hostile(self):
         worn = item(
             "main_hand", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
@@ -47584,12 +47584,10 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(threatened._calibration_phase)
 
         hurt = self._scan_complete_policy()
-        self.assertIsNone(
-            hurt._calibration_town_key(
-                self._snapshot(inventory=(pack,), equipment=(worn,), hp=150)
-            )
+        hurt._calibration_town_key(
+            self._snapshot(inventory=(pack,), equipment=(worn,), hp=150)
         )
-        self.assertIsNone(hurt._calibration_phase)
+        self.assertEqual(hurt._calibration_phase, "deposit")
 
         ready = self._scan_complete_policy()
         ready._calibration_town_key(
@@ -47789,6 +47787,114 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(policy._calibration_phase)
         self.assertEqual(persisted["observed_turn"], naked.turn)
 
+    def test_hostile_suspends_capture_then_resumes_without_restarting(self):
+        policy = self._scan_complete_policy()
+        policy._town_was_in_town = True
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        in_pack = replace(sword, slot="a")
+        threat = hostile(1, 10, 13, distance=3)
+        threatened = self._snapshot(
+            inventory=(in_pack,), monsters=(threat,)
+        )
+        policy._calibration_phase = "capture"
+        policy._calibration_worn_before = (("main_hand", identity),)
+        policy._calibration_stripped_unrestored = True
+        policy._calibration_naked_dump_requested = False
+
+        key = policy.choose_key(threatened)
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "town:kill-mob-approach")
+        self.assertEqual(policy._calibration_suspended_phase, "capture")
+        self.assertEqual(policy._calibration_phase, "restore-equip")
+        self.assertEqual(
+            policy._calibration_worn_before, (("main_hand", identity),)
+        )
+        self.assertNotEqual(policy._calibration_phase, "deposit")
+
+        restore = policy._equipment_transaction_session
+        self.assertIsNotNone(restore)
+        restore.dispatch(
+            restore.current_action,
+            policy_module.observe_equipment_transactions(threatened),
+        )
+        dressed = self._snapshot(equipment=(sword,))
+        restore.observe(policy_module.observe_equipment_transactions(dressed))
+        policy._calibration_observe(dressed)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_suspended_phase, "capture")
+
+        self.assertEqual(policy._calibration_town_key(dressed), "5")
+        self.assertEqual(policy.last_reason, "calibration:strip-resumed")
+        self.assertEqual(
+            policy._calibration_worn_before, (("main_hand", identity),)
+        )
+        strip = policy._equipment_transaction_session
+        takeoff = policy._equipment_transaction_town_key(dressed)
+        self.assertTrue(policy.confirm_key_posted(takeoff))
+        naked = self._snapshot(inventory=(in_pack,))
+        strip.observe(policy_module.observe_equipment_transactions(naked))
+        policy._town_hunt_target = None
+        policy._calibration_observe(naked)
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "character-calibration.json"
+            policy._character_calibration_path = path
+            self.assertEqual(
+                policy._calibration_town_key(naked),
+                policy_module.CHARACTER_DUMP_MACRO,
+            )
+            self.assertTrue(policy.confirm_key_posted(
+                policy_module.CHARACTER_DUMP_MACRO
+            ))
+            policy.observe_character_snapshot({
+                "mutations": [], "characteristics": [],
+            })
+            policy._calibration_observe(naked)
+            self.assertTrue(path.is_file())
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertIsNone(policy._calibration_suspended_phase)
+
+    def test_repeated_hostile_interruptions_spend_the_visit_budget(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        in_pack = replace(sword, slot="a")
+        threatened = self._snapshot(
+            inventory=(in_pack,), monsters=(hostile(1, 10, 13, distance=3),)
+        )
+        for _ in range(policy_module.STORE_STUCK_LIMIT):
+            policy._calibration_phase = "capture"
+            policy._calibration_worn_before = (("main_hand", identity),)
+            policy._calibration_stripped_unrestored = True
+            policy._equipment_transaction_session = None
+            policy._calibration_session_target = None
+            policy._calibration_observe(threatened)
+            if not policy._calibration_blocked_this_visit:
+                self.assertEqual(
+                    policy._calibration_suspended_phase, "capture"
+                )
+                policy._calibration_suspended_phase = None
+
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertGreaterEqual(
+            policy._calibration_aborts_this_visit,
+            policy_module.STORE_STUCK_LIMIT,
+        )
+        self.assertIsNone(policy._calibration_suspended_phase)
+        self.assertEqual(
+            policy.calibration_entry_state(threatened)["last_abort"],
+            "calibration:abort:precondition",
+        )
+
     def test_interruption_restores_the_taken_off_equipment(self):
         policy = self._scan_complete_policy()
         sword = item(
@@ -47821,7 +47927,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         snapshot = self._snapshot()
         gate = policy_module.HengbotPolicy._town_departure_conjuncts
         source = inspect.getsource(gate)
-        self.assertIn("self._calibration_phase is None", source)
+        self.assertIn("not self._calibration_active()", source)
         self.assertIn("not self._calibration_restore_signatures", source)
 
         policy._calibration_phase = "restore-supplies"
