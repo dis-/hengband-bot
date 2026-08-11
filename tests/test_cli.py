@@ -70,12 +70,71 @@ from hengbot.cli import (
     _write_posting_contract_incident,
     _freeze_incident_safely,
     _bot_play_macros_ready,
+    _build_argument_parser,
+    _configure_policy_output_paths,
     _valid_bot_play_macro_pref,
 )
 from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
+
+
+class CaptureAndPollDefaultsTest(unittest.TestCase):
+    def _args(self, *extra):
+        return _build_argument_parser().parse_args(
+            ["--state-file", "state.jsonl", "--decision-log", "decisions.jsonl", *extra]
+        )
+
+    def _policy(self):
+        return SimpleNamespace(
+            _home_entry_capture=None,
+            _latch_capture_path=None,
+            _loadout_report_path=None,
+            _character_calibration_path=None,
+            _confirmed_loadout_path=None,
+        )
+
+    def test_default_argv_disables_captures_and_keeps_confirmed_loadout_path(self):
+        policy = self._policy()
+
+        capture = _configure_policy_output_paths(policy, self._args())
+
+        self.assertIsNone(capture)
+        self.assertIsNone(policy._home_entry_capture)
+        self.assertIsNone(policy._latch_capture_path)
+        self.assertEqual(policy._loadout_report_path, Path("loadout-report.jsonl"))
+        self.assertEqual(
+            policy._character_calibration_path, Path("character-calibration.json")
+        )
+        self.assertEqual(
+            policy._confirmed_loadout_path, Path("confirmed-loadout.json")
+        )
+
+    def test_home_entry_flag_enables_only_home_entry_capture(self):
+        policy = self._policy()
+
+        capture = _configure_policy_output_paths(
+            policy, self._args("--capture-home-entry")
+        )
+
+        self.assertIs(capture, policy._home_entry_capture)
+        self.assertEqual(capture.path, Path("home-entry-capture.jsonl"))
+        self.assertIsNone(policy._latch_capture_path)
+
+    def test_latch_onset_flag_enables_only_latch_onset_capture(self):
+        policy = self._policy()
+
+        capture = _configure_policy_output_paths(
+            policy, self._args("--capture-latch-onset")
+        )
+
+        self.assertIsNone(capture)
+        self.assertIsNone(policy._home_entry_capture)
+        self.assertEqual(policy._latch_capture_path, Path("latch-onset.jsonl"))
+
+    def test_poll_interval_default_is_point_zero_two_seconds(self):
+        self.assertEqual(self._args().poll_interval, 0.02)
 
 
 class AbilitySourceParsingTest(unittest.TestCase):

@@ -1485,13 +1485,23 @@ def _stall_recovery_action(
     return "nudge"
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
     parser.add_argument(
         "--decision-log",
         type=Path,
         help="append structured policy decisions for an external live viewer",
+    )
+    parser.add_argument(
+        "--capture-home-entry",
+        action="store_true",
+        help="capture diagnostic policy state around home entry",
+    )
+    parser.add_argument(
+        "--capture-latch-onset",
+        action="store_true",
+        help="capture diagnostic policy state when a latch begins",
     )
     parser.add_argument(
         "--economy-log",
@@ -1531,7 +1541,7 @@ def main(argv: list[str] | None = None) -> int:
         help="path to strategy/quests (auto-located near the state file if omitted)",
     )
     parser.add_argument("--once", action="store_true")
-    parser.add_argument("--poll-interval", type=float, default=0.1)
+    parser.add_argument("--poll-interval", type=float, default=0.02)
     parser.add_argument("--send-to-window", action="store_true")
     parser.add_argument("--window-title")
     parser.add_argument("--window-title-contains", action="store_true")
@@ -1569,6 +1579,35 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_LOG_GENERATIONS,
         help="retained rotated generations for decision/economy logs (default: 8)",
     )
+    return parser
+
+
+def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
+    if args.decision_log is None:
+        return None
+    home_entry_capture = (
+        HomeEntryCapture(args.decision_log.with_name("home-entry-capture.jsonl"))
+        if args.capture_home_entry
+        else None
+    )
+    policy._home_entry_capture = home_entry_capture
+    policy._latch_capture_path = (
+        args.decision_log.with_name("latch-onset.jsonl")
+        if args.capture_latch_onset
+        else None
+    )
+    policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
+    policy._character_calibration_path = args.decision_log.with_name(
+        "character-calibration.json"
+    )
+    policy._confirmed_loadout_path = args.decision_log.with_name(
+        "confirmed-loadout.json"
+    )
+    return home_entry_capture
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_argument_parser()
     args = parser.parse_args(argv)
     input_delays = _input_delay_values(args)
 
@@ -1640,12 +1679,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.decision_log is not None
         else None
     )
-    home_entry_capture = (
-        HomeEntryCapture(args.decision_log.with_name("home-entry-capture.jsonl"))
-        if args.decision_log is not None
-        else None
-    )
-
     def send(
         key: str, *, in_store: bool = False, decision: dict | None = None
     ) -> bool:
@@ -1784,16 +1817,7 @@ def main(argv: list[str] | None = None) -> int:
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
     posting_contract = PostingContract()
-    if args.decision_log is not None:
-        policy._home_entry_capture = home_entry_capture
-        policy._latch_capture_path = args.decision_log.with_name("latch-onset.jsonl")
-        policy._loadout_report_path = args.decision_log.with_name("loadout-report.jsonl")
-        policy._character_calibration_path = args.decision_log.with_name(
-            "character-calibration.json"
-        )
-        policy._confirmed_loadout_path = args.decision_log.with_name(
-            "confirmed-loadout.json"
-        )
+    home_entry_capture = _configure_policy_output_paths(policy, args)
 
     if args.once:
         for line in _read_last_line(args.state_file):
