@@ -18990,8 +18990,6 @@ class HengbotPolicy:
             atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
             if atomic_deposit is not None:
                 return atomic_deposit
-            if self._resolve_observed_uncomposable_stop(snapshot):
-                return WAIT_KEY
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             self.last_reason = "store:entry-failed-step-off"
@@ -19136,6 +19134,12 @@ class HengbotPolicy:
             # Inscription is an outside pack operation.  Retain this page while
             # the next outside snapshot re-resolves the newly tagged item.
             return inner
+        # Decide the observed no-op while this page is still current, then
+        # consume it exactly as the pre-composition contract did.  A later
+        # pack/gold change must re-observe the shelf before using its letters.
+        if self._resolve_observed_uncomposable_stop(snapshot):
+            return WAIT_KEY
+        self._shop_observation = None
         return None
 
     def _town_travel_key(

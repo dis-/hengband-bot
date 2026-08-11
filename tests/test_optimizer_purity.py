@@ -174,15 +174,11 @@ def _definitions():
 
     ``find_monrace_definitions`` honours HENGBAND_MONRACE_DEFINITIONS first,
     then walks the anchor's parents.  Anchor on this test file AND on the
-    production jsonlog location so the decisive purity fixture runs under the
+    repository test location so the decisive purity fixture runs under the
     plain prescribed suite command from any checkout that can reach the game
     data; the class skips (loudly) only when no candidate exists at all.
     """
-    for anchor in (
-        Path(__file__),
-        Path.cwd() / "jsonlog" / "bot-state-fixed.jsonl",
-        Path(r"C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl"),
-    ):
+    for anchor in (Path(__file__),):
         found = find_monrace_definitions(anchor, None)
         if found is not None:
             return found

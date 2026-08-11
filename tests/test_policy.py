@@ -211,7 +211,7 @@ from hengbot.policy import (
 )
 
 REAL_QUEST_DEFINITIONS = find_quest_definitions(
-    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+    Path(__file__)
 )
 
 
@@ -36100,7 +36100,11 @@ class TownCycleDetectorTest(unittest.TestCase):
         }
         pol._town_restock_wait_until = 4149783
         pol._store_visit = StoreVisit("town-errand", "shopping", STORE_ALCHEMIST)
-        capture = Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        capture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "measured-outside-repetition-stall.jsonl"
+        )
         with capture.open(encoding="utf-8") as records:
             outside = parse_snapshot(json.loads(deque(records, maxlen=1)[0]), {})
 
@@ -42865,6 +42869,31 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._town_errand_plan.index, 1)
         self.assertIn(STORE_GENERAL, policy._town_errand_plan.blocked_this_visit)
         self.assertNotIn("`", key)
+        self.assertIsNone(policy._shop_observation)
+
+    def test_uncomposable_shop_observation_cannot_compose_after_pack_change(self):
+        policy = HengbotPolicy()
+        entrance = replace(
+            self._snapshot(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_GENERAL
+                )
+            },
+        )
+        policy._shopping_approach_store_type = STORE_GENERAL
+        policy._shop_observation = (
+            StoreState(store_type=STORE_GENERAL, items=[], page_top=0), 1
+        )
+        policy._shop = lambda snapshot: LEAVE_STORE_KEY
+
+        self.assertIsNone(policy._atomic_shop_transaction_key(entrance))
+        self.assertIsNone(policy._shop_observation)
+
+        policy._shop = lambda snapshot: BUY_KEY + "a"
+        richer = replace(entrance, player=replace(entrance.player, gold=9999))
+        self.assertIsNone(policy._atomic_shop_transaction_key(richer))
+
 
     def test_visit_ledger_resets_only_on_town_entry(self):
         policy = self._policy([])

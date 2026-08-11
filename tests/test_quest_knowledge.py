@@ -15,7 +15,7 @@ from hengbot.quest_knowledge import (
 from hengbot.monrace_knowledge import _strip_jsonc
 
 REAL_QUEST_DEFINITIONS = find_quest_definitions(
-    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+    Path(__file__)
 )
 
 

@@ -11,7 +11,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 
 REAL_QUEST_DEFINITIONS = find_quest_definitions(
-    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+    Path(__file__)
 )
 
 
@@ -186,7 +186,7 @@ class QuestStrategiesTest(unittest.TestCase):
         from hengbot.policy import FIXED_QUEST_REWARD_POSITIONS
         from hengbot.town_maps import find_town_map, parse_town_map
 
-        state = Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        state = Path(__file__)
         maps = {}
         town_ids = {
             town_id for town_id, _ in FIXED_QUEST_REWARD_POSITIONS.values()

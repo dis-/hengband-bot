@@ -23,7 +23,7 @@ from test_policy import grid, hostile, item, player
 from hengbot.model import QuestState
 
 REAL_QUEST_DEFINITIONS = find_quest_definitions(
-    Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+    Path(__file__)
 )
 
 
