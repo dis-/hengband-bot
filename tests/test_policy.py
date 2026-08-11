@@ -3266,6 +3266,70 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(replacement.no_progress_decisions, spent_before_release)
         self.assertGreater(spent_before_release, 0)
 
+    def test_choke_outcome_budget_survives_replans_with_new_breeder_indices(self):
+        snapshot = self._stationary_choke_snapshot([])
+
+        def decisions_until_bound(churn_indices):
+            policy = HengbotPolicy()
+            for decision in range(1, policy_module.COMBAT_OUTCOME_WINDOW + 1):
+                first_index = decision * 2 if churn_indices else 1
+                plan = policy_module.ChokeEngagementPlan(
+                    floor=snapshot.floor_key, phase="hold",
+                    destination=Position(10, 10),
+                    covered_retreat_direction=(0, 0),
+                    trigger_last_seen={
+                        first_index: Position(10, 11),
+                        first_index + 1: Position(10, 9),
+                    },
+                    start_exp=1000, start_gold=0, start_breeder_count=2,
+                    last_player_hp=1000,
+                )
+                policy._inherit_choke_outcome_budget(snapshot, plan)
+                policy._spend_choke_outcome_budget(snapshot, plan, 2, 2)
+                if plan.no_progress_decisions >= policy_module.COMBAT_OUTCOME_WINDOW:
+                    return decision
+            return None
+
+        self.assertEqual(
+            decisions_until_bound(churn_indices=True),
+            decisions_until_bound(churn_indices=False),
+        )
+        self.assertEqual(
+            decisions_until_bound(churn_indices=True),
+            policy_module.COMBAT_OUTCOME_WINDOW,
+        )
+
+    def test_separate_choke_engagements_keep_independent_outcome_budgets(self):
+        snapshot = self._stationary_choke_snapshot([])
+        policy = HengbotPolicy()
+
+        def plan_at(destination):
+            return policy_module.ChokeEngagementPlan(
+                floor=snapshot.floor_key, phase="hold", destination=destination,
+                covered_retreat_direction=(0, 0),
+                trigger_last_seen={1: Position(10, 11), 2: Position(10, 9)},
+                start_exp=1000, start_gold=0, start_breeder_count=2,
+                last_player_hp=1000,
+            )
+
+        first = plan_at(Position(10, 10))
+        policy._inherit_choke_outcome_budget(snapshot, first)
+        for _ in range(17):
+            policy._spend_choke_outcome_budget(snapshot, first, 2, 2)
+
+        second = plan_at(Position(20, 20))
+        policy._inherit_choke_outcome_budget(snapshot, second)
+        for _ in range(5):
+            policy._spend_choke_outcome_budget(snapshot, second, 2, 2)
+
+        first_replan = plan_at(Position(10, 10))
+        second_replan = plan_at(Position(20, 20))
+        policy._inherit_choke_outcome_budget(snapshot, first_replan)
+        policy._inherit_choke_outcome_budget(snapshot, second_replan)
+
+        self.assertEqual(first_replan.no_progress_decisions, 17)
+        self.assertEqual(second_replan.no_progress_decisions, 5)
+
     def test_productive_choke_outcomes_replenish_existing_budget(self):
         monsters = [
             hostile(

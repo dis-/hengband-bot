@@ -2079,7 +2079,7 @@ class HengbotPolicy:
         # and live for the whole floor visit so release/re-plan cannot mint a
         # fresh combat budget.
         self._choke_outcome_floor: tuple[int, int, int] | None = None
-        self._choke_outcome_budgets: dict[frozenset[int], tuple[int, tuple[int, ...]]] = {}
+        self._choke_outcome_budgets: dict[Position, tuple[int, tuple[int, ...]]] = {}
         self._cross_decision_latches["_choke_engagement_plan"] = CrossDecisionLatch(
             "melee-engagement",
             "_release_invalid_choke_plan",
@@ -29133,8 +29133,9 @@ class HengbotPolicy:
         plan.phase = "breakthrough" if cause == "breeder-breakthrough" else "release"
         plan.release_cause = cause
 
-    def _choke_outcome_key(self, plan: ChokeEngagementPlan) -> frozenset[int]:
-        return frozenset(plan.trigger_last_seen)
+    def _choke_outcome_key(self, plan: ChokeEngagementPlan) -> Position:
+        """Identify the tactical engagement independently of monster churn."""
+        return plan.destination
 
     def _choke_outcome_marker(
         self, snapshot: Snapshot, trigger_count: int, breeder_count: int
