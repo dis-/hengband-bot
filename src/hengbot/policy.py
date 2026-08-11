@@ -552,6 +552,7 @@ class ChokeEngagementPlan:
     start_breeder_count: int
     last_player_hp: int
     closest_destination_distance: int = 0
+    decisions_consumed: int = 1
     last_movement: tuple[Position, Position] | None = None
     sight_loss_decisions: int = 0
     no_progress_decisions: int = 0
@@ -4468,6 +4469,9 @@ class HengbotPolicy:
         )
         if choke_plan is not None:
             return choke_plan
+        immobile_breeder_giveup = self._immobile_breeder_giveup_key(snapshot)
+        if immobile_breeder_giveup is not None:
+            return immobile_breeder_giveup
 
         breeders = [
             monster for monster in strategic_hostiles if monster.can_multiply
@@ -28772,6 +28776,8 @@ class HengbotPolicy:
             ],
             "sight_loss_decisions": plan.sight_loss_decisions,
             "no_progress_decisions": plan.no_progress_decisions,
+            "closest_destination_distance": plan.closest_destination_distance,
+            "decisions_consumed": plan.decisions_consumed,
             "start_breeder_count": plan.start_breeder_count,
             "release_cause": plan.release_cause,
         }
@@ -28790,6 +28796,27 @@ class HengbotPolicy:
             return
         plan.phase = "breakthrough" if cause == "breeder-breakthrough" else "release"
         plan.release_cause = cause
+
+    def _immobile_breeder_giveup_key(self, snapshot: Snapshot) -> str | None:
+        plan = self._choke_engagement_plan
+        if (
+            plan is None
+            or plan.floor != snapshot.floor_key
+            or plan.release_cause != "immobile-breeder-growth"
+        ):
+            return None
+        breeders = self._engagement_breeder_population(snapshot)
+        self._claim_engagement_avoid_cells(
+            [*plan.trigger_last_seen.values(), *(monster.position for monster in breeders)]
+        )
+        if any(step in self._engagement_avoid_cells for step in self._explore_path):
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        step = self._explore_step(snapshot)
+        if step is not None:
+            self.last_reason = "explore:immobile-breeder-giveup"
+            return self._step_toward(snapshot, step)
+        self.last_reason = "explore:immobile-breeder-giveup-wait"
+        return WAIT_KEY
 
     def _validated_choke_route(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -28849,6 +28876,7 @@ class HengbotPolicy:
         plan = self._choke_engagement_plan
         if not self._choke_plan_active(snapshot) or plan is None:
             return None
+        plan.decisions_consumed += 1
         visible_triggers = [
             monster for monster in hostiles if monster.index in plan.trigger_last_seen
         ]
@@ -28861,11 +28889,20 @@ class HengbotPolicy:
         if any(monster.max_ranged_damage > 0 for monster in visible_triggers):
             self._release_choke_plan("ranged-threat")
             return None
-        if (
-            len(self._engagement_breeder_population(snapshot))
-            > plan.start_breeder_count
-        ):
-            self._release_choke_plan("swarm-growth")
+        breeder_population = self._engagement_breeder_population(snapshot)
+        if len(breeder_population) > plan.start_breeder_count:
+            immobile_multipliers = bool(breeder_population) and all(
+                monster.can_multiply
+                and (knowledge := self._monrace_knowledge.get(monster.race_id))
+                is not None
+                and "NEVER_MOVE" in knowledge.flags
+                for monster in breeder_population
+            )
+            self._release_choke_plan(
+                "immobile-breeder-growth"
+                if immobile_multipliers
+                else "swarm-growth"
+            )
             return None
         if (
             snapshot.player.hp_ratio < FLEE_HP_RATIO
@@ -28899,7 +28936,7 @@ class HengbotPolicy:
                 plan.no_progress_decisions = 0
             else:
                 plan.no_progress_decisions += 1
-            if plan.no_progress_decisions >= EXTENDED_STUCK_WINDOW:
+            if plan.decisions_consumed >= EXTENDED_STUCK_WINDOW:
                 self._release_choke_plan("engagement-stall-bound")
                 return None
             step = self._nearest_goal_step(

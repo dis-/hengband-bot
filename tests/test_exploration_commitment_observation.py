@@ -92,6 +92,10 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                     "_latch_warning_refusal",
                     "ExplorationPathOutcome.INVALIDATE",
                 ),
+                (
+                    "_immobile_breeder_giveup_key",
+                    "ExplorationPathOutcome.INVALIDATE",
+                ),
                 ("_fundraising_key", "ExplorationPathOutcome.ABANDON"),
                 ("_return_to_town_key", "ExplorationPathOutcome.PAUSE"),
                 ("_return_to_town_key", "ExplorationPathOutcome.PAUSE"),

@@ -2813,10 +2813,15 @@ class CombatTest(unittest.TestCase):
             turn=1,
         )
 
-    def test_choke_reposition_two_cell_alternation_reaches_existing_release(self):
-        contact = Position(3, 66)
-        away = Position(2, 67)
+    def test_choke_reposition_measured_five_cell_wander_has_absolute_bound(self):
         destination = Position(9, 65)
+        far_wander = [Position(5, 73), Position(6, 73)]
+        middle_wander = [Position(4, 72), Position(5, 72)]
+        wander = (
+            far_wander * 10
+            + middle_wander * 9
+            + [Position(3, 71), Position(5, 73)]
+        )
         policy = HengbotPolicy()
         policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
             floor=(7, 24, 0),
@@ -2828,21 +2833,26 @@ class CombatTest(unittest.TestCase):
             start_gold=3000,
             start_breeder_count=2,
             last_player_hp=668,
-        )
-        visible = self._quartz_choke_reposition_snapshot(contact, visible=True)
-        self.assertEqual(
-            policy._predicted_damage(
-                visible, visible.visible_monsters, turns=3
-            ),
-            72,
+            closest_destination_distance=9,
         )
 
         keys = []
-        for decision in range(policy_module.EXTENDED_STUCK_WINDOW + 1):
-            at_contact = decision % 2 == 0
-            snapshot = self._quartz_choke_reposition_snapshot(
-                contact if at_contact else away,
-                visible=at_contact,
+        for decision, position in enumerate(wander):
+            visible = []
+            if decision % 10 == 0:
+                visible = [
+                    hostile(
+                        186, 2, 64, distance=position.distance_to(Position(2, 64)),
+                        race_id=911, can_multiply=True, max_melee_damage=0,
+                    )
+                ]
+            snapshot = Snapshot(
+                replace(player(position.y, position.x, hp=668, max_hp=668), exp=1),
+                {
+                    Position(y, x): grid(y, x, lit=True, in_view=True)
+                    for y in range(2, 11) for x in range(64, 74)
+                },
+                visible, floor_key=(7, 24, 0), turn=decision + 1,
             )
             policy._build_grid_index(snapshot)
             key = policy._choke_engagement_key(
@@ -2854,13 +2864,115 @@ class CombatTest(unittest.TestCase):
                 break
             keys.append(key)
 
-        self.assertEqual(keys[:2], ["9", "1"])
-        self.assertLessEqual(len(keys), policy_module.EXTENDED_STUCK_WINDOW)
+        state = policy.choke_engagement_state()
         self.assertEqual(
-            (policy.choke_engagement_state()["phase"],
-             policy.choke_engagement_state()["release_cause"]),
+            (state["phase"], state["release_cause"]),
             ("release", "engagement-stall-bound"),
         )
+        self.assertLess(state["decisions_consumed"], 40)
+        self.assertEqual(40 - state["decisions_consumed"], 16)
+        self.assertEqual(state["closest_destination_distance"], 7)
+
+    def test_multiplied_immobile_breeders_release_and_explore_elsewhere(self):
+        origin = Position(10, 10)
+        breeder_cells = {Position(10, 11), Position(10, 12)}
+        passable = {Position(10, x) for x in range(7, 14)}
+        grids = {
+            position: grid(
+                position.y, position.x, passable=True, lit=True,
+                in_view=position.x >= 9,
+            )
+            for position in passable
+        }
+        monsters = [
+            hostile(
+                index, cell.y, cell.x, distance=origin.distance_to(cell),
+                race_id=911, can_multiply=True, max_melee_damage=1,
+            )
+            for index, cell in enumerate(
+                sorted(
+                    breeder_cells,
+                    key=lambda position: (position.y, position.x),
+                ),
+                1,
+            )
+        ]
+        for monster in monsters:
+            grids[monster.position] = replace(
+                grids[monster.position], has_monster=True
+            )
+        snapshot = Snapshot(
+            replace(player(origin.y, origin.x, hp=500, max_hp=500), exp=1),
+            grids, monsters, floor_key=(7, 24, 0), turn=1,
+        )
+        policy = HengbotPolicy(monrace_knowledge={
+            911: MonraceKnowledge(
+                1, 100, False, False, can_multiply=True,
+                flags=frozenset({"NEVER_MOVE"}),
+            )
+        })
+        policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
+            floor=snapshot.floor_key, phase="reposition",
+            destination=Position(10, 9), covered_retreat_direction=(0, -1),
+            trigger_last_seen={1: Position(10, 11)}, start_exp=1,
+            start_gold=0, start_breeder_count=1, last_player_hp=500,
+            closest_destination_distance=1,
+        )
+        policy._build_grid_index(snapshot)
+
+        self.assertIsNone(
+            policy._choke_engagement_key(snapshot, monsters, monsters[:1])
+        )
+        self.assertEqual(
+            policy.choke_engagement_state()["release_cause"],
+            "immobile-breeder-growth",
+        )
+        first = policy.choose_key(snapshot)
+        self.assertEqual((first, policy.last_reason), (
+            "4", "explore:immobile-breeder-giveup",
+        ))
+        moved = replace(
+            snapshot,
+            player=replace(snapshot.player, position=Position(10, 9)),
+            turn=2,
+        )
+        policy._build_grid_index(moved)
+        second = policy.choose_key(moved)
+        self.assertEqual((second, policy.last_reason), (
+            "4", "explore:immobile-breeder-giveup",
+        ))
+        self.assertTrue(breeder_cells <= policy._engagement_avoid_cells)
+        self.assertEqual(moved.floor_key, snapshot.floor_key)
+
+    def test_mobile_breeder_growth_and_progressing_reposition_keep_prior_keys(self):
+        mobile = HengbotPolicy()
+        mobile.choose_key(self._orc_cave_choke_cycle_snapshot(Position(29, 169), 2))
+        grown = self._orc_cave_choke_cycle_snapshot(Position(28, 170), 3)
+        mobile._build_grid_index(grown)
+        self.assertIsNone(mobile._choke_engagement_key(
+            grown, grown.visible_monsters,
+            mobile._physical_adjacent_hostiles(grown),
+        ))
+        mobile_state = mobile.choke_engagement_state()
+        self.assertEqual((mobile_state["phase"], mobile_state["release_cause"]), (
+            "release", "swarm-growth",
+        ))
+
+        progressing = HengbotPolicy()
+        progressing.choose_key(
+            self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9)
+        )
+        key = progressing.choose_key(
+            self._orc_cave_choke_cycle_snapshot(Position(28, 170), 1)
+        )
+        state = progressing.choke_engagement_state()
+        self.assertEqual((key, progressing.last_reason), (
+            "8", "melee:choke-reposition",
+        ))
+        self.assertEqual((state["phase"], state["no_progress_decisions"],
+                          state["release_cause"]), (
+            "reposition", 0, None,
+        ))
 
     def test_open_capture_mouth_is_never_accepted_as_choke_hold(self):
         policy = HengbotPolicy()
