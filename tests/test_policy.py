@@ -2966,6 +2966,41 @@ class CombatTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), (">", "descend"))
         self.assertIn(breeder_cell, policy._engagement_avoid_cells)
 
+    def test_immobile_breeder_giveup_yields_to_adjacent_mobile_hostile(self):
+        origin = Position(10, 10)
+        mobile_cell = Position(10, 11)
+        trigger_cell = Position(10, 12)
+        passable = {Position(10, x) for x in range(7, 13)}
+        grids = {
+            position: grid(
+                position.y, position.x, passable=True, lit=True,
+                in_view=position.x >= 9,
+            )
+            for position in passable
+        }
+        grids[mobile_cell] = replace(grids[mobile_cell], has_monster=True)
+        mobile = hostile(
+            2, mobile_cell.y, mobile_cell.x, distance=1,
+            race_id=912, max_melee_damage=1,
+        )
+        snapshot = Snapshot(
+            player(origin.y, origin.x, hp=500, max_hp=500),
+            grids, [mobile], floor_key=(7, 24, 0), turn=1,
+        )
+        policy = HengbotPolicy()
+        policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
+            floor=snapshot.floor_key, phase="release",
+            destination=Position(10, 9), covered_retreat_direction=(0, -1),
+            trigger_last_seen={1: trigger_cell}, start_exp=0,
+            start_gold=0, start_breeder_count=1, last_player_hp=500,
+            release_cause="immobile-breeder-growth",
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("6", "melee"))
+        self.assertIn(trigger_cell, policy._engagement_avoid_cells)
+
     def test_mobile_breeder_growth_and_progressing_reposition_keep_prior_keys(self):
         mobile = HengbotPolicy()
         mobile.choose_key(self._orc_cave_choke_cycle_snapshot(Position(29, 169), 2))

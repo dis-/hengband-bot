@@ -4271,6 +4271,24 @@ class HengbotPolicy:
 
         self._build_grid_index(snapshot)
         self._refresh_warning_avoidance(snapshot)
+        giveup_plan = self._choke_engagement_plan
+        if (
+            giveup_plan is not None
+            and giveup_plan.floor == snapshot.floor_key
+            and giveup_plan.release_cause == "immobile-breeder-growth"
+        ):
+            self._claim_engagement_avoid_cells([
+                *giveup_plan.trigger_last_seen.values(),
+                *(
+                    monster.position
+                    for monster in self._engagement_breeder_population(snapshot)
+                ),
+            ])
+            if any(
+                step in self._engagement_avoid_cells
+                for step in self._explore_path
+            ):
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         player = snapshot.player
         strategic_hostiles = self._strategic_hostiles(snapshot)
         strategic_adjacent = self._strategic_adjacent_hostiles(snapshot)
@@ -4469,9 +4487,6 @@ class HengbotPolicy:
         )
         if choke_plan is not None:
             return choke_plan
-        immobile_breeder_giveup = self._immobile_breeder_giveup_key(snapshot)
-        if immobile_breeder_giveup is not None:
-            return immobile_breeder_giveup
 
         breeders = [
             monster for monster in strategic_hostiles if monster.can_multiply
@@ -5403,6 +5418,13 @@ class HengbotPolicy:
             self._record_wall_search(player.position)
             self.last_reason = "search"
             return SEARCH_KEY
+
+        # A released immobile-breeder plan is only an exploration fallback.
+        # Ordinary combat, threat, loot, descent, and hunting owners above must
+        # retain their normal priority when another mobile hostile is present.
+        immobile_breeder_giveup = self._immobile_breeder_giveup_key(snapshot)
+        if immobile_breeder_giveup is not None:
+            return immobile_breeder_giveup
 
         # 9. Explore toward the unknown (door- and edge-aware).
         step = self._explore_step(snapshot)
@@ -6348,11 +6370,18 @@ class HengbotPolicy:
         )
 
     def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+        giveup_plan = self._choke_engagement_plan
+        ignoring_immobile_breeders = (
+            giveup_plan is not None
+            and giveup_plan.floor == snapshot.floor_key
+            and giveup_plan.release_cause == "immobile-breeder-growth"
+        )
         return [
             monster
             for monster in snapshot.visible_monsters
             if (
                 monster.hostile
+                and not (ignoring_immobile_breeders and monster.can_multiply)
                 and not (
                     self._breeder_breakthrough_floor == snapshot.floor_key
                     and self._is_weak_breeder(snapshot, monster)
