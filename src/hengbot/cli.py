@@ -395,6 +395,11 @@ def _advance_town_blocked_streak(
         return 0
     if durable_progress:
         streak = 0
+    # This reason owns the policy's registered 200-decision escape budget.
+    # Let that visible policy terminal run to completion instead of killing it
+    # with this 30-decision outer fuse while its telemetry claims budget left.
+    if reason == "town:blocked:repetition" and reason in ESCAPE_BUDGETED_WAIT_LIMITS:
+        return streak
     if reason.startswith("town:blocked:"):
         return streak + 1
     if streak and reason != "shop:leave":
@@ -983,6 +988,8 @@ def _town_stall_report(
     policy,
     reason: str,
     repeating_reason_count: int = 0,
+    *,
+    stopping: bool = False,
 ) -> dict | None:
     """Describe a repeating town stall without changing policy state."""
     if policy is None or not snapshot.in_town:
@@ -998,12 +1005,12 @@ def _town_stall_report(
         or reason == "stuck:wander"
     )
     named_block = reason.startswith("town:blocked:")
-    if (
-        (fallback and not claims)
+    if not stopping and (
+        (fallback and (not claims or passes < EXTENDED_STUCK_WINDOW))
         or not (fallback or named_block)
-        or passes < EXTENDED_STUCK_WINDOW
-        or passes % EXTENDED_STUCK_WINDOW
         or (named_block and repeating_reason_count < EXTENDED_STUCK_WINDOW)
+        or (named_block and repeating_reason_count % EXTENDED_STUCK_WINDOW)
+        or (fallback and passes % EXTENDED_STUCK_WINDOW)
     ):
         return None
 
@@ -1092,10 +1099,20 @@ def _advance_repeating_reason_iteration(
     reason = policy.last_reason
     if reason == previous_reason:
         repeating_reason_count += 1
+    elif reason.startswith("periodic:") and repeating_reason_count:
+        # Periodic CLI housekeeping neither belongs to nor makes progress on a
+        # policy stall. Preserve the named-block count across the whole class;
+        # the measured character dump is one member, not a special case.
+        pass
     else:
         repeating_reason_count = 1
+    tracked_reason = (
+        previous_reason
+        if reason.startswith("periodic:") and previous_reason is not None
+        else reason
+    )
     return (
-        reason,
+        tracked_reason,
         repeating_reason_count,
         _town_stall_report(snapshot, policy, reason, repeating_reason_count),
     )
@@ -2267,6 +2284,25 @@ def _run_follow(
                         last_decision_reason,
                         repeating_reason_count,
                     )
+                    # Diagnose on the existing 24-decision window before the
+                    # 30-decision town-block fuse can stop any counted shape.
+                    blocked_streak, town_blocked_durable_state = (
+                        _advance_town_blocked_iteration(
+                            policy,
+                            snapshot,
+                            blocked_streak,
+                            town_blocked_durable_state,
+                            floor_changed=floor_changed,
+                        )
+                    )
+                    if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
+                        town_stall_report = _town_stall_report(
+                            snapshot,
+                            policy,
+                            policy.last_reason,
+                            repeating_reason_count,
+                            stopping=True,
+                        )
                     if policy.last_reason == "periodic:game-save":
                         save_archive.before_post(snapshot, policy._decision_sequence)
                     recent_reasons.append(policy.last_reason)
@@ -2504,15 +2540,6 @@ def _run_follow(
                     # not break the streak).  Filler actions such as restock
                     # waits and wandering do not erase blocked evidence either:
                     # only observed town-workflow progress resets the fuse.
-                    blocked_streak, town_blocked_durable_state = (
-                        _advance_town_blocked_iteration(
-                            policy,
-                            snapshot,
-                            blocked_streak,
-                            town_blocked_durable_state,
-                            floor_changed=floor_changed,
-                        )
-                    )
                     if blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} "

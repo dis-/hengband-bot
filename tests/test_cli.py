@@ -13,6 +13,7 @@ from hengbot.cli import (
     CHEST_MOVE_RESPONSE_SECONDS,
     DECISION_WATCHDOG_SECONDS,
     DUMP_INTERVAL_SECONDS,
+    EXTENDED_STUCK_WINDOW,
     LOOK_BARRIER_TIMEOUT_SECONDS,
     EconomyLedger,
     LOOP_WINDOW,
@@ -1266,6 +1267,67 @@ class DecisionRecordTest(unittest.TestCase):
         self.assertEqual(repeating_reason_count, 23)
         self.assertIsNone(report)
 
+    def test_measured_named_block_shape_reports_before_thirty_blocks(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy(passes=1)
+        previous_reason = None
+        repeating_reason_count = 0
+        blocked_decisions = 0
+        reports_at = []
+
+        reasons = []
+        for run in (7, 20, 2, 22):
+            reasons.extend(["town:blocked:repetition"] * run)
+            if run in (7, 22):
+                reasons.append("periodic:character-dump")
+        for reason in reasons:
+            policy.last_reason = reason
+            previous_reason, repeating_reason_count, report = (
+                _advance_repeating_reason_iteration(
+                    snapshot, policy, previous_reason, repeating_reason_count
+                )
+            )
+            if reason == "town:blocked:repetition":
+                blocked_decisions += 1
+            if report is not None:
+                reports_at.append(blocked_decisions)
+            if blocked_decisions == 30:
+                break
+
+        self.assertEqual(reports_at, [24])
+
+        previous_reason = None
+        repeating_reason_count = 0
+        for reason in (
+            ["town:blocked:repetition"] * (EXTENDED_STUCK_WINDOW - 1)
+            + ["shop:travel"]
+            + ["town:blocked:repetition"] * (EXTENDED_STUCK_WINDOW - 1)
+        ):
+            policy.last_reason = reason
+            previous_reason, repeating_reason_count, report = (
+                _advance_repeating_reason_iteration(
+                    snapshot, policy, previous_reason, repeating_reason_count
+                )
+            )
+            self.assertIsNone(report)
+
+    def test_stopping_town_block_always_builds_report_before_periodic_window(self):
+        report = _town_stall_report(
+            self._town_snapshot(),
+            self._town_stall_policy(passes=1),
+            "town:blocked:no-safe-recall-destination",
+            repeating_reason_count=1,
+            stopping=True,
+        )
+
+        record = _decision_record(
+            self._town_snapshot(), "_", "loop-detected", town_stall_report=report
+        )
+        self.assertEqual(
+            record["town_stall_report"]["town_blocked_reason"],
+            "owner-returned-none",
+        )
+
     def test_records_snapshot_messages_with_repeat_counter(self):
         snapshot = parse_snapshot(
             {
@@ -2514,10 +2576,10 @@ class TownBlockedStreakTest(unittest.TestCase):
 
         streak = 0
         for reason in (
-            "town:blocked:repetition",
+            "town:blocked:no-safe-recall-destination",
             "shop:leave",
-            "town:blocked:repetition",
-            "town:blocked:repetition",
+            "town:blocked:no-safe-recall-destination",
+            "town:blocked:no-safe-recall-destination",
         ):
             streak = _advance_town_blocked_streak(streak, reason)
         self.assertEqual(streak, 3)
@@ -2566,7 +2628,7 @@ class TownBlockedStreakTest(unittest.TestCase):
         from hengbot.policy import HengbotPolicy
 
         policy = HengbotPolicy()
-        policy.last_reason = "town:blocked:repetition"
+        policy.last_reason = "town:blocked:no-safe-recall-destination"
         wilderness = Snapshot(
             player=PlayerState(
                 position=Position(10, 10), hp=10, max_hp=10,
@@ -2606,7 +2668,7 @@ class TownBlockedStreakTest(unittest.TestCase):
         from hengbot.policy import HengbotPolicy
 
         policy = HengbotPolicy()
-        policy.last_reason = "town:blocked:repetition"
+        policy.last_reason = "town:blocked:no-safe-recall-destination"
         quiet = Snapshot(
             player=PlayerState(
                 position=Position(10, 10), hp=10, max_hp=10,
@@ -2634,7 +2696,7 @@ class TownBlockedStreakTest(unittest.TestCase):
         from hengbot.policy import HengbotPolicy
 
         policy = HengbotPolicy()
-        policy.last_reason = "town:blocked:repetition"
+        policy.last_reason = "town:blocked:no-safe-recall-destination"
         snapshot = Snapshot(
             player=PlayerState(
                 position=Position(10, 10), hp=10, max_hp=10,
@@ -2778,6 +2840,17 @@ class TownBlockedStreakTest(unittest.TestCase):
                         streak, emitted_reason
                     )
                 self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
+
+    def test_registered_repetition_budget_is_exempt_from_town_fuse(self):
+        from hengbot.cli import _advance_town_blocked_streak
+
+        streak = 0
+        for _ in range(ESCAPE_BUDGETED_WAIT_LIMITS["town:blocked:repetition"]):
+            streak = _advance_town_blocked_streak(
+                streak, "town:blocked:repetition"
+            )
+
+        self.assertEqual(streak, 0)
 
 
 class TownResidenceStreakTest(unittest.TestCase):
