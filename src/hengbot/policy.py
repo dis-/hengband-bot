@@ -21642,6 +21642,9 @@ class HengbotPolicy:
             }
         candidates -= self._deferred_loot
         candidates -= self._engagement_avoid_cells
+        if not candidates:
+            self._loot_target = None
+            return None
         target = self._loot_target
         if (
             max_path_distance is None
@@ -31225,12 +31228,13 @@ class HengbotPolicy:
         # that lead OFF this tile into the adjacent open wilderness. Stepping onto
         # one leaves the safe town (a clvl-4 bot wandered out this way and a
         # Cyclops killed it), so town wandering must shun the outer ring.
+        if not snapshot.in_town:
+            return False
         if snapshot is self._map_predicate_snapshot:
             if pos in self._town_border_cache:
                 return self._town_border_cache[pos]
         result = bool(
-            snapshot.in_town
-            and snapshot.width > 0
+            snapshot.width > 0
             and snapshot.height > 0
             and (
             pos.y == 0

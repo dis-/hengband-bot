@@ -8729,6 +8729,34 @@ class PickupTest(unittest.TestCase):
         )
         self.assertIsNone(policy._loot_step(snapshot, include_unsafe=True))
 
+    def test_loot_step_skips_search_only_when_no_candidates_exist(self):
+        start = Position(10, 10)
+        loot = Position(10, 11)
+        snapshot = Snapshot(
+            player(start.y, start.x),
+            {start: grid(start.y, start.x), loot: grid(loot.y, loot.x)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 13, 0),
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        policy._loot_target = Position(99, 99)
+
+        with patch.object(
+            policy, "_walkable_neighbors", wraps=policy._walkable_neighbors
+        ) as neighbors:
+            self.assertIsNone(policy._loot_step(snapshot))
+            self.assertEqual(neighbors.call_count, 0)
+        self.assertIsNone(policy._loot_target)
+
+        policy._known_loot.add(loot)
+        with patch.object(
+            policy, "_walkable_neighbors", wraps=policy._walkable_neighbors
+        ) as neighbors:
+            self.assertEqual(policy._loot_step(snapshot), loot)
+            self.assertGreater(neighbors.call_count, 0)
+        self.assertEqual(policy._loot_target, loot)
+
     def test_partial_floor_pile_pickup_is_not_deferred(self):
         floor_key = (DUNGEON_YEEK_CAVE, 13, 0)
         loot = Position(10, 10)
@@ -27559,6 +27587,21 @@ class WildernessSafetyTest(unittest.TestCase):
             player(2, 2), grids, [], floor_key=(1, 5, 0), width=7, height=5
         )
         self.assertFalse(pol._on_town_border(dungeon, Position(0, 3)))
+
+    def test_on_town_border_does_not_cache_dungeon_cells(self):
+        dungeon = Snapshot(
+            player(2, 2),
+            {Position(0, 0): grid(0, 0)},
+            [],
+            floor_key=(1, 5, 0),
+            width=7,
+            height=5,
+        )
+        pol = HengbotPolicy()
+        pol._begin_map_predicate_cache(dungeon)
+
+        self.assertFalse(pol._on_town_border(dungeon, Position(0, 3)))
+        self.assertEqual(pol._town_border_cache, {})
 
     def test_does_not_shop_or_explore_on_the_wilderness(self):
         # A store tile is visible but we are on an open wilderness tile, not the
