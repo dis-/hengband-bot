@@ -26082,10 +26082,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             inventory=[*entrance.inventory, carried_source],
             turn=entrance.turn + 1,
         )
-        policy.choose_key(withdrawn)
-        self.assertIsNone(policy._home_pending_item)
+        target_withdrawal = policy.choose_key(withdrawn)
+        self.assertEqual(policy._home_pending_item, signature)
         self.assertIsNotNone(policy._find_identification_source(withdrawn, full=True))
-        self.assertTrue(policy._home_candidate_waiting)
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertIn(BUY_KEY + "a", target_withdrawal)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
     def test_unavailable_full_identify_keeps_equipped_candidate_blocking(self):
         town = self._ready_home_town(gold=6411)
@@ -42791,6 +42793,78 @@ class TownErrandPlanTest(unittest.TestCase):
             before,
         )
         self.assertEqual(policy._town_errand_plan.current_stop_passes, 0)
+
+    def test_catalogued_identification_withdrawal_is_composed_before_home_entry(self):
+        policy = HengbotPolicy()
+        target = item(
+            "a", 23, 25, name="unidentified home blade", known=False,
+            fully_known=False, is_equipment=True,
+        )
+        source = item(
+            "b", TVAL_SCROLL, policy_module.SV_SCROLL_IDENTIFY,
+            name="Identify", known=True, aware=True,
+        )
+        entrance = replace(
+            self._snapshot(),
+            inventory=[source],
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+        )
+        owned = OwnedEquipment("home-target", target, "home")
+        policy._equipment_catalog._home = {owned.id: owned}
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_items = (target,)
+        policy._home_knowledge_valid_before = 1
+        policy._home_knowledge_current = True
+        policy._home_page_size = 12
+        policy._home_candidate_waiting = True
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME],
+            need_categories={STORE_HOME: ("identification-withdrawal",)},
+        )
+
+        key = policy._shopping_approach_key(
+            entrance, entrance.player.position, "shop:travel"
+        )
+
+        self.assertEqual(key, "5pa\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertIn(BUY_KEY, key)
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+
+    def test_observed_uncomposable_nonhome_stop_advances_without_entry(self):
+        policy = HengbotPolicy()
+        entrance = replace(
+            self._snapshot(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_GENERAL
+                )
+            },
+        )
+        policy._shopping_approach_store_type = STORE_GENERAL
+        policy._shop_observation = (
+            StoreState(store_type=STORE_GENERAL, items=[], page_top=0), 1
+        )
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_GENERAL, STORE_ALCHEMIST],
+            need_categories={STORE_GENERAL: ("food",)},
+        )
+        policy._shop = lambda snapshot: LEAVE_STORE_KEY
+
+        key = policy._shopping_approach_key(
+            entrance, entrance.player.position, "shop:travel"
+        )
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy._town_errand_plan.index, 1)
+        self.assertIn(STORE_GENERAL, policy._town_errand_plan.blocked_this_visit)
+        self.assertNotIn("`", key)
 
     def test_visit_ledger_resets_only_on_town_entry(self):
         policy = self._policy([])

@@ -12056,6 +12056,50 @@ class HengbotPolicy:
         self.last_reason = reason
         return key
 
+    def _bind_catalogued_home_identification_withdrawal(
+        self, snapshot: Snapshot
+    ) -> None:
+        """Promote a known Home identification target before entering Home.
+
+        Home's ``~9`` knowledge is deliberately addressable only from the
+        entrance.  Once an identification source has been acquired, retaining
+        only ``_home_candidate_waiting`` leaves no operation for the atomic
+        entry composer to post; opening Home cannot repair that omission.
+        """
+        if (
+            not self._home_candidate_waiting
+            or self._home_pending_item is not None
+            or self._home_pending_batch
+            or not self._equipment_catalog.home_scan_complete
+            or not self._home_knowledge_current
+        ):
+            return
+        observed = {
+            self._item_signature(item)
+            for index, item in enumerate(self._home_knowledge_items)
+            if index < self._home_knowledge_valid_before
+        }
+        for owned in self._equipment_catalog.items:
+            if owned.origin != "home" or not owned.identification_incomplete:
+                continue
+            signature = self._item_signature(owned.item)
+            if signature not in observed or signature in self._deferred_home_items:
+                continue
+            full = bool(
+                owned.item.known
+                and item_requires_full_identification(owned.item)
+                and not owned.item.fully_known
+            )
+            source = self._find_identification_source(
+                snapshot, full=full, reliable_only=True,
+                reservation_target=signature,
+            )
+            if source is None:
+                continue
+            self._home_pending_item = signature
+            self._home_pending_quantity = 1
+            return
+
     def _defer_unobserved_home_withdrawal(
         self, signature: tuple[str, int, int] | None = None
     ) -> None:
@@ -18935,6 +18979,8 @@ class HengbotPolicy:
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )
         if not entry_failed_here:
+            if self._shopping_approach_store_type == STORE_HOME:
+                self._bind_catalogued_home_identification_withdrawal(snapshot)
             atomic_shop = self._atomic_shop_transaction_key(snapshot)
             if atomic_shop is not None:
                 return atomic_shop
@@ -18944,6 +18990,8 @@ class HengbotPolicy:
             atomic_deposit = self._atomic_home_deposit_key(snapshot, step)
             if atomic_deposit is not None:
                 return atomic_deposit
+            if self._resolve_observed_uncomposable_stop(snapshot):
+                return WAIT_KEY
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             self.last_reason = "store:entry-failed-step-off"
@@ -18988,6 +19036,51 @@ class HengbotPolicy:
             self._store_entry_wait_key = travel
             return travel
         return self._step_toward(snapshot, step)
+
+    def _resolve_observed_uncomposable_stop(self, snapshot: Snapshot) -> bool:
+        """Advance an observed stop whose one-shot command cannot be composed."""
+        store_type = self._shopping_approach_store_type
+        plan = self._town_errand_plan
+        if (
+            store_type is None
+            or snapshot.store is not None
+            or plan is None
+            or plan.index >= len(plan.stops)
+            or plan.stops[plan.index] != store_type
+        ):
+            return False
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is None or here.store_number != store_type:
+            return False
+        if store_type == STORE_HOME:
+            observed = bool(
+                self._equipment_catalog.home_scan_complete
+                and self._home_knowledge_current
+                and self._home_candidate_waiting
+                and self._home_pending_item is None
+                and not self._home_pending_batch
+                and self._equipment_transaction_session is None
+            )
+        else:
+            observed = bool(
+                self._shop_observation is not None
+                and self._shop_observation[0].store_type == store_type
+            )
+        if not observed:
+            return False
+        plan.blocked_this_visit.append(store_type)
+        plan.current_stop_passes = 0
+        plan.index += 1
+        self._town_store_attempted[store_type] = snapshot.turn
+        if store_type == STORE_HOME:
+            self._release_blocked_store_latches(store_type)
+        else:
+            self._town_visit_ledger.nonhome_attempted_without_effect[
+                store_type
+            ] = self._town_observable_effect_state(snapshot)
+            self._shop_observation = None
+        self.last_reason = "shop:observed-operation-uncomposable"
+        return True
 
     def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
         """Compose one transaction from the latest observed page, outside."""
@@ -19043,7 +19136,6 @@ class HengbotPolicy:
             # Inscription is an outside pack operation.  Retain this page while
             # the next outside snapshot re-resolves the newly tagged item.
             return inner
-        self._shop_observation = None
         return None
 
     def _town_travel_key(
