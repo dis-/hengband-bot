@@ -3,7 +3,7 @@ import inspect
 import json
 import textwrap
 import unittest
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -190,6 +190,8 @@ from hengbot.policy import (
     RUBBLE_DIG_LIMIT,
     SEARCH_LIMIT,
     STORE_STUCK_LIMIT,
+    StoreVisit,
+    StoreVisitPhase,
     SHOP_APPROACH_STUCK_LIMIT,
     TUNNEL_KEY,
     TR_NO_TELE,
@@ -35878,6 +35880,64 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertEqual(pol._town_blocked_key(inside), LEAVE_STORE_KEY)
         self.assertIsNone(pol._shop_observation)
 
+    def test_equipment_transaction_eject_keeps_current_visit_semantics(self):
+        pol = HengbotPolicy()
+        pol._town_blocked_reason = "equipment-transaction:incomplete-catalog"
+        visit = StoreVisit("equipment-transaction", "equipment-work", STORE_TEMPLE)
+        pol._store_visit = visit
+        inside = replace(
+            self._town_snap(gold=4096),
+            store=StoreState(STORE_TEMPLE, []),
+        )
+
+        self.assertEqual(pol._town_blocked_key(inside), LEAVE_STORE_KEY)
+        self.assertIs(pol._store_visit, visit)
+        self.assertNotEqual(visit.phase, StoreVisitPhase.CLOSED)
+        self.assertEqual(visit.outcome, "abandoned-with-restore")
+
+    def test_repetition_eject_closes_abandoned_store_visit(self):
+        pol = HengbotPolicy()
+        pol._town_blocked_reason = "repetition"
+        pol._store_visit = StoreVisit("town-errand", "shopping", STORE_GENERAL)
+        inside = replace(
+            self._town_snap(gold=4096),
+            store=StoreState(STORE_GENERAL, []),
+        )
+
+        self.assertEqual(pol._town_blocked_key(inside), LEAVE_STORE_KEY)
+        self.assertIsNone(pol._store_visit)
+        self.assertEqual(pol._store_visit_last_closed.phase, StoreVisitPhase.CLOSED)
+        self.assertEqual(
+            pol._store_visit_last_closed.outcome, "repetition-block-abandoned"
+        )
+
+    def test_repetition_departure_purchase_keeps_owning_visit_open(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._deepest_level = RECALL_MIN_DEPTH
+        pol._town_blocked_reason = "repetition"
+        position = Position(36, 90)
+        inside = replace(
+            self._town_snap(y=36, x=90, gold=4096),
+            grids={position: replace(grid(36, 90), store_number=STORE_TEMPLE)},
+            store=StoreState(
+                STORE_TEMPLE,
+                [store_item("i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                            price=124, count=3)],
+            ),
+        )
+
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        outside = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(pol.choose_key(outside), WAIT_KEY)
+        visit = pol._store_visit
+        self.assertIsNotNone(visit)
+        posted = pol.choose_key(replace(inside, turn=inside.turn + 2))
+        self.assertTrue(posted.startswith(BUY_KEY + "i"), posted)
+        self.assertIs(pol._store_visit, visit)
+        self.assertNotEqual(visit.phase, StoreVisitPhase.CLOSED)
+        self.assertTrue(visit.operation_posted)
+
     def test_repetition_purchase_progress_releases_attempt_and_restock_wait(self):
         pol = HengbotPolicy()
         pol._floor_key = (0, 0, 0)
@@ -35946,6 +36006,35 @@ class TownCycleDetectorTest(unittest.TestCase):
         self.assertNotEqual(decisions, [WAIT_KEY] * 30)
         self.assertTrue(any(key.startswith(BUY_KEY + "i") for key in decisions),
                         decisions)
+
+    def test_measured_outside_repetition_releases_wrong_store_visit(self):
+        pol = HengbotPolicy()
+        pol._floor_key = (0, 0, 0)
+        pol._deepest_level = RECALL_MIN_DEPTH
+        pol._town_blocked_reason = "repetition"
+        pol._town_store_attempted = {
+            store_type: 4148144 for store_type in range(9)
+        }
+        pol._town_restock_wait_until = 4149783
+        pol._store_visit = StoreVisit("town-errand", "shopping", STORE_ALCHEMIST)
+        capture = Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        with capture.open(encoding="utf-8") as records:
+            outside = parse_snapshot(json.loads(deque(records, maxlen=1)[0]), {})
+
+        self.assertEqual(outside.player.position, Position(36, 90))
+        self.assertEqual(outside.player.gold, 4096)
+        self.assertIsNone(outside.store)
+        self.assertFalse(any(item.is_recall_scroll for item in outside.inventory))
+
+        decisions = []
+        reasons = []
+        for _ in range(30):
+            decisions.append(pol._town_blocked_key(outside))
+            reasons.append(pol.last_reason)
+
+        self.assertNotEqual(decisions, [WAIT_KEY] * 30)
+        self.assertIn("town:repetition-required-shopping", reasons)
+        self.assertEqual(pol._store_visit.store_type, STORE_HOME)
 
     def test_yeek_recall_destination_preserves_walk_in_exemptions(self):
         snap = replace(

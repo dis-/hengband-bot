@@ -20007,6 +20007,8 @@ class HengbotPolicy:
                 # exact purchase before re-entry releases its command tail.
                 self._shop_observation = (store, self._decision_sequence)
                 self.last_reason = "shop:observe-and-leave"
+            else:
+                self._close_store_visit("repetition-block-abandoned")
             return LEAVE_STORE_KEY
         if (
             self._town_blocked_reason is not None
@@ -20051,6 +20053,17 @@ class HengbotPolicy:
             clear_traveler = self._town_kill_mob_key(snapshot)
             if clear_traveler is not None:
                 return clear_traveler
+            required_store = self._next_required_store_type(snapshot)
+            if (
+                self._store_visit is not None
+                and not self._store_visit.operation_posted
+                and required_store is not None
+                and self._store_visit.store_type != required_store
+            ):
+                # A captured outside snapshot can resume after the store-page
+                # eject above.  Release the abandoned owner before asking the
+                # approach router to bind the store that is required now.
+                self._close_store_visit("repetition-block-abandoned")
             shopping_step = self._shopping_approach_step(snapshot)
             if shopping_step is not None:
                 self.last_reason = "town:repetition-required-shopping"
