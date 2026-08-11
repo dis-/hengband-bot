@@ -46,6 +46,7 @@ from hengbot.flight_recorder import (
     map_memory_summary,
     rotate_log,
 )
+from hengbot.save_archive import SaveArchiveCoordinator
 
 
 # Character posted to the window to dismiss a message / "-more-" prompt that the
@@ -75,6 +76,7 @@ def _request_due_dump(policy, now: float, next_dump_at: float) -> float:
     """Deliver one elapsed wall-clock request and return its next deadline."""
     if now >= next_dump_at:
         policy.request_character_dump()
+        policy.request_game_save()
         return now + DUMP_INTERVAL_SECONDS
     return next_dump_at
 
@@ -1895,6 +1897,9 @@ def _run_follow(
         checkpoint_interval=args.recorder_checkpoint_decisions,
     )
     args.flight_recorder = recorder
+    save_archive = SaveArchiveCoordinator(
+        log=lambda message: print(message, file=sys.stderr, flush=True)
+    )
     recent_reasons: deque[str] = deque(maxlen=20)
     if posting_contract is None:
         posting_contract = PostingContract()
@@ -1974,6 +1979,7 @@ def _run_follow(
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
             _arm_decision_watchdog()
+            save_archive.poll(time.monotonic())
             chunk = file.read()
             if chunk:
                 last_activity = _last_activity_after_read(
@@ -2106,6 +2112,8 @@ def _run_follow(
                         and policy._store_leave_inflight is not None
                     )
                     last_decision_reason = policy.last_reason
+                    if policy.last_reason == "periodic:game-save":
+                        save_archive.before_post(snapshot, policy._decision_sequence)
                     recent_reasons.append(policy.last_reason)
                     command_signature = _command_state_signature(
                         snapshot,
@@ -2303,6 +2311,8 @@ def _run_follow(
                         )
                     if sent:
                         policy.confirm_key_posted(key)
+                        if policy.last_reason == "periodic:game-save":
+                            save_archive.posted(time.monotonic())
                     last_activity = time.monotonic()
                     if sent and key in DIRECTION_KEYS:
                         pending_direction = (snapshot, key)

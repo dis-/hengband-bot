@@ -342,9 +342,11 @@ class PeriodicDumpTimerTest(unittest.TestCase):
         deadline = _request_due_dump(policy, 100.0, 99.0)
 
         policy.request_character_dump.assert_called_once_with()
+        policy.request_game_save.assert_called_once_with()
         self.assertEqual(deadline, 100.0 + DUMP_INTERVAL_SECONDS)
         self.assertEqual(_request_due_dump(policy, 101.0, deadline), deadline)
         policy.request_character_dump.assert_called_once_with()
+        policy.request_game_save.assert_called_once_with()
 
 
 class WaitClassificationTest(unittest.TestCase):

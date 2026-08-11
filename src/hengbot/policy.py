@@ -1676,6 +1676,7 @@ class HengbotPolicy:
         # departure, then let the ordinary oil ledger replace the spent flask.
         self._unknown_lantern_departure_refilled = False
         self._periodic_dump_requested = False
+        self._periodic_save_requested = False
         self._shopping_stuck = False  # gave up an unreachable store approach this visit
         self._shop_approach_stuck_count = 0  # oscillating-approach turns without arriving
         # Town stores are fixed landmarks.  Try Hengband's native travel command
@@ -3301,6 +3302,7 @@ class HengbotPolicy:
             key = LEAVE_STORE_KEY
         self._remember_swarm_distances(snapshot)
         key = self._flee_sustain_key(snapshot, key)
+        key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
         if key is None:
             if snapshot.store is not None:
@@ -3687,10 +3689,11 @@ class HengbotPolicy:
         """Latch a CLI timer request until an ordinary quiet filler decision."""
         self._periodic_dump_requested = True
 
-    def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
-        """Replace a safe filler action without delaying combat or prompts."""
-        if not self._periodic_dump_requested:
-            return key
+    def request_game_save(self) -> None:
+        """Latch a CLI timer request until an ordinary quiet filler decision."""
+        self._periodic_save_requested = True
+
+    def _periodic_filler_is_safe(self, snapshot: Snapshot) -> bool:
         safe_exploration = self.last_reason in {
             "explore",
             "fundraise:sweep-explore",
@@ -3709,12 +3712,24 @@ class HengbotPolicy:
             and not snapshot.player.blind
             and not snapshot.player.confused
         )
-        if (
-            not (safe_exploration or safe_q2_patrol or safe_town)
-            or snapshot.store is not None
-            or snapshot.player.recalling
-            or self._physical_adjacent_hostiles(snapshot)
-        ):
+        return (
+            (safe_exploration or safe_q2_patrol or safe_town)
+            and snapshot.store is None
+            and not snapshot.player.recalling
+            and not self._physical_adjacent_hostiles(snapshot)
+        )
+
+    def _periodic_game_save_key(self, snapshot: Snapshot, key: str) -> str:
+        """Replace a safe filler with Ctrl-S; saving consumes no game energy."""
+        if not self._periodic_save_requested or not self._periodic_filler_is_safe(snapshot):
+            return key
+        self._periodic_save_requested = False
+        self.last_reason = "periodic:game-save"
+        return "\x13"
+
+    def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
+        """Replace a safe filler action without delaying combat or prompts."""
+        if not self._periodic_dump_requested or not self._periodic_filler_is_safe(snapshot):
             return key
         self._periodic_dump_requested = False
         self.last_reason = "periodic:character-dump"

@@ -27684,6 +27684,27 @@ class TownRecallReturnTest(unittest.TestCase):
         pol.last_reason = "explore"
         self.assertEqual(pol._periodic_character_dump_key(quiet, "6"), "6")
 
+    def test_periodic_save_rides_the_dump_safe_filler_path_with_own_reason(self):
+        pol = HengbotPolicy()
+        quiet = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(1, 5, 0),
+        )
+        pol.request_game_save()
+        pol.request_character_dump()
+        pol.last_reason = "melee"
+        self.assertEqual(pol._periodic_game_save_key(quiet, "6"), "6")
+        pol.last_reason = "explore"
+        self.assertEqual(pol._periodic_game_save_key(quiet, "6"), "\x13")
+        self.assertEqual(pol.last_reason, "periodic:game-save")
+        pol.last_reason = "explore"
+        self.assertEqual(
+            pol._periodic_character_dump_key(quiet, "6"), CHARACTER_DUMP_MACRO
+        )
+        self.assertEqual(pol.last_reason, "periodic:character-dump")
+
     def test_periodic_dump_never_emits_in_store_or_adjacent_combat(self):
         enemy = hostile(1, 10, 11)
         combat = Snapshot(
