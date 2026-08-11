@@ -2528,7 +2528,7 @@ class CombatTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertTrue(key.startswith("fa"))
+        self.assertTrue(key.startswith("\x1bfa"))
         self.assertTrue(policy.last_reason.startswith("ranged:"))
 
     def test_small_breeder_group_closes_for_melee_without_ranged_option(self):
@@ -11555,7 +11555,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:ranged-fire")
 
@@ -11588,7 +11588,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             for count in (5, 4, 3, 2)
         ]
 
-        self.assertEqual(attempts[:3], ["fj*p744444t5\x1b"] * 3)
+        self.assertEqual(attempts[:3], ["\x1bfj*p744444t5\x1b"] * 3)
         self.assertIsNone(attempts[3])
 
     def test_q31_cursor_fire_rejects_walkable_los_blocker(self):
@@ -13867,14 +13867,14 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         # A failed/no-op light read is still bounded: do not consume all six.
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
         )
 
         lit_grids = dict(grids)
         lit_grids[target.position] = replace(grids[target.position], lit=True)
         illuminated = replace(snapshot, grids=lit_grids, inventory=[bolts])
         self.assertEqual(
-            policy._approved_quest_strategy_key(illuminated, [target], []), "fb6"
+            policy._approved_quest_strategy_key(illuminated, [target], []), "\x1bfb6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
@@ -14287,7 +14287,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
 
-        self.assertEqual(key, "fq6")
+        self.assertEqual(key, "\x1bfq6")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
         self.assertFalse(key in {"7", "9"})
         self.assertIsNotNone(policy._q2_ammo_recovery_floor)
@@ -14705,7 +14705,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
         )
         no_crossbow = replace(
             snapshot,
@@ -14735,7 +14735,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [left, right], [])
 
-        self.assertEqual(key, "fq*p14t5\x1b")
+        self.assertEqual(key, "\x1bfq*p14t5\x1b")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
     def test_q2_deep_puddle_uses_explicit_cursor_instead_of_stalling_target_mode(self):
@@ -14758,7 +14758,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [target], [])
 
-        self.assertTrue(key.startswith("fn*p"), key)
+        self.assertTrue(key.startswith("\x1bfn*p"), key)
         self.assertTrue(key.endswith("t5\x1b"), key)
         self.assertNotIn("*t", key)
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
@@ -14839,7 +14839,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(
                 snapshot, [giant_rat, wererat], []
             ),
-            "fb2",
+            "\x1bfb2",
         )
 
     def test_q2_wererat_lock_hunts_out_of_range_before_next_phase(self):
@@ -17911,7 +17911,7 @@ class SummonerMeleeTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snapshot), "fb6")
+        self.assertEqual(policy.choose_key(snapshot), "\x1bfb6")
         self.assertEqual(policy.last_reason, "summoner:ranged-kill")
 
     def test_unkillable_summoner_retreats_with_exactly_four_open_neighbors(self):
@@ -17996,7 +17996,7 @@ class SummonerMeleeTest(unittest.TestCase):
 
         with patch.object(policy, "_open_neighbor_count", return_value=3):
             self.assertEqual(
-                policy.choose_key(snapshot), "fb6", policy.last_reason
+            policy.choose_key(snapshot), "\x1bfb6", policy.last_reason
             )
         self.assertEqual(policy.last_reason, "ranged:fire")
 
@@ -36635,7 +36635,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs6")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs6")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_fires_along_a_diagonal_ray(self):
@@ -36645,7 +36645,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs3")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs3")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_adjacent_hostile_stays_melee(self):
@@ -36665,7 +36665,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs*t5\x1b")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
     def test_blocked_ray_uses_game_targeting(self):
@@ -36678,7 +36678,7 @@ class RangedAttackTest(unittest.TestCase):
         blocked[Position(10, 12)] = grid(10, 12, passable=False)
         snap = replace(snap, grids=blocked)
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs*t5\x1b")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
     def test_wall_corner_uses_single_grid_offset_aim(self):
@@ -36696,8 +36696,62 @@ class RangedAttackTest(unittest.TestCase):
         snap = replace(snap, grids=grids)
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "fs*p777444444t5\x1b")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs*p777444444t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-offset")
+
+    def test_ranged_fire_reasons_flush_messages_but_store_purchase_does_not(self):
+        cases = (
+            (
+                self._snap(
+                    monsters=[hostile(1, 10, 15, distance=5)],
+                    inventory=[self._shots()],
+                    equipment=[self._sling()],
+                ),
+                "\x1bfs6",
+                "ranged:fire",
+            ),
+            (
+                self._snap(
+                    monsters=[hostile(1, 11, 14, distance=4)],
+                    inventory=[self._shots()],
+                    equipment=[self._sling()],
+                ),
+                "\x1bfs*t5\x1b",
+                "ranged:fire-target",
+            ),
+        )
+        for snap, expected_key, expected_reason in cases:
+            with self.subTest(reason=expected_reason):
+                policy = HengbotPolicy()
+                self.assertEqual(policy.choose_key(snap), expected_key)
+                self.assertEqual(policy.last_reason, expected_reason)
+
+        offset = self._snap(
+            monsters=[hostile(1, 7, 2, distance=8)],
+            inventory=[self._shots()],
+            equipment=[self._sling()],
+        )
+        offset_grids = dict(offset.grids)
+        offset_grids[Position(7, 3)] = grid(7, 3, passable=False)
+        offset = replace(offset, grids=offset_grids)
+        offset_policy = HengbotPolicy()
+        self.assertEqual(
+            offset_policy.choose_key(offset), "\x1bfs*p777444444t5\x1b"
+        )
+        self.assertEqual(offset_policy.last_reason, "ranged:fire-offset")
+
+        store_snapshot = Snapshot(
+            player(10, 10, gold=1000),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            store=StoreState(
+                STORE_GENERAL,
+                [store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)],
+            ),
+        )
+        store_key = _public_shop_inner(self, HengbotPolicy(), store_snapshot)
+        self.assertEqual(store_key, "pb\r")
+        self.assertFalse(store_key.startswith(LEAVE_STORE_KEY))
 
     def test_offset_aim_does_not_depend_on_nearest_targetable_monster(self):
         snap = self._snap(
@@ -36754,7 +36808,9 @@ class RangedAttackTest(unittest.TestCase):
         grids[Position(7, 3)] = grid(7, 3, passable=False)
         snap = replace(snap, grids=grids)
 
-        self.assertEqual(HengbotPolicy().choose_key(snap), "fs*p777444444t5\x1b")
+        self.assertEqual(
+            HengbotPolicy().choose_key(snap), "\x1bfs*p777444444t5\x1b"
+        )
 
     def test_failed_targeting_is_skipped_until_player_moves(self):
         snap = self._snap(
@@ -36765,11 +36821,11 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         attempts = [policy.choose_key(snap) for _ in range(4)]
-        self.assertEqual(attempts[:3], ["fs*t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "fs*t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfs*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfs*t5\x1b")
 
         moved = replace(snap, player=replace(snap.player, position=Position(10, 11)))
-        self.assertEqual(policy.choose_key(moved), "fs*t5\x1b")
+        self.assertEqual(policy.choose_key(moved), "\x1bfs*t5\x1b")
 
         policy = HengbotPolicy()
         progressing = snap
@@ -36780,7 +36836,7 @@ class RangedAttackTest(unittest.TestCase):
                 inventory=[self._shots(count)],
                 visible_monsters=[replace(victim, hp=hp)],
             )
-            self.assertEqual(policy.choose_key(progressing), "fs*t5\x1b")
+            self.assertEqual(policy.choose_key(progressing), "\x1bfs*t5\x1b")
 
     def test_moving_target_without_hp_loss_does_not_reset_failure_guard(self):
         base = self._snap(
@@ -36799,8 +36855,8 @@ class RangedAttackTest(unittest.TestCase):
             )
             attempts.append(policy.choose_key(moving))
 
-        self.assertEqual(attempts[:3], ["fs*t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "fs*t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfs*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfs*t5\x1b")
 
     def test_changing_pack_indices_do_not_hide_failed_targeting_macro(self):
         base = self._snap(
@@ -36819,8 +36875,8 @@ class RangedAttackTest(unittest.TestCase):
             )
             attempts.append(policy.choose_key(changing_pack))
 
-        self.assertEqual(attempts[:3], ["fs*t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "fs*t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfs*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfs*t5\x1b")
 
     def test_failed_offset_targeting_is_skipped_after_three_attempts(self):
         snap = self._snap(
@@ -36834,8 +36890,8 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         attempts = [policy.choose_key(snap) for _ in range(4)]
-        self.assertEqual(attempts[:3], ["fs*p777444444t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "fs*p777444444t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfs*p777444444t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfs*p777444444t5\x1b")
 
     def test_aligned_hostile_is_preferred_when_off_axis_is_also_visible(self):
         snap = self._snap(
@@ -36847,7 +36903,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs6")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs6")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_distant_off_axis_sleeper_is_left_asleep(self):
@@ -36872,7 +36928,7 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
         key = policy.choose_key(snap)
         self.assertEqual(policy.last_reason, "ranged:fire")
-        self.assertEqual(key, "fs6")
+        self.assertEqual(key, "\x1bfs6")
 
     def test_distant_sleeper_is_left_asleep(self):
         snap = self._snap(
@@ -36892,7 +36948,7 @@ class RangedAttackTest(unittest.TestCase):
             player_kw={"afraid": True},
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "fs6")
+        self.assertEqual(policy.choose_key(snap), "\x1bfs6")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_confused_player_does_not_fire(self):
