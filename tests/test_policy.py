@@ -48723,15 +48723,16 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         # the stripped guard holds even though the calibration gate is open.
         self.assertTrue(policy._calibration_stripped_unrestored)
         self.assertFalse(policy._town_departure_ready(snapshot))
-        # An optimizer-owned equipment transaction running to completion IS
-        # the dressing pass: it releases the guard.
+        # An unrelated optimizer completion is not evidence that the recorded
+        # sword returned; the durable calibration debt remains armed.
         policy._equipment_transaction_session = (
             policy_module.EquipmentTransactionSession(
                 policy_module.EquipmentTransactionPlan((), (), 0)
             )
         )
-        policy.choose_key(snapshot)
-        self.assertFalse(policy._calibration_stripped_unrestored)
+        key = policy.choose_key(snapshot)
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
 
     def test_partial_strip_exhaustion_dresses_under_persistent_threat(self):
         """REVIEW-p1-calibration4 BLOCKER regression: partial strip +
@@ -49008,6 +49009,158 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_observe(dressed)
         self.assertIsNone(policy._calibration_phase)
         self.assertFalse(policy._calibration_stripped_unrestored)
+
+    def test_redress_obligation_survives_restart_and_posts_recorded_wear(self):
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "character-calibration.json"
+            first = self._scan_complete_policy()
+            first._character_calibration_path = path
+            first._calibration_worn_before = (("main_hand", identity),)
+            first._calibration_phase = "deposit"
+            self.assertEqual(first._calibration_town_key(
+                self._snapshot(equipment=(sword,))
+            ), "5")
+            self.assertIn("redress_obligation", json.loads(path.read_text()))
+
+            fresh = self._scan_complete_policy()
+            fresh._character_calibration_path = path
+            in_pack = replace(sword, slot="c")
+            stripped = self._snapshot(inventory=(in_pack,))
+            key = fresh.choose_key(stripped)
+            self.assertEqual(key, policy_module.WIELD_KEY + "c")
+            self.assertEqual(fresh.last_reason, "calibration:redress")
+            self.assertTrue(fresh._calibration_stripped_unrestored)
+
+            dressed = self._snapshot(equipment=(sword,))
+            fresh._calibration_observe(dressed)
+            self.assertFalse(fresh._calibration_stripped_unrestored)
+            self.assertNotIn(
+                "redress_obligation", json.loads(path.read_text())
+            )
+
+    def test_legacy_cursed_only_shape_redresses_confirmed_pack_armour(self):
+        cursed = item(
+            "arms", policy_module.TVAL_GLOVES, 1, name="cursed gloves", known=True,
+            fully_known=True, is_equipment=True, is_cursed=True,
+        )
+        body = item("a", policy_module.TVAL_HARD_ARMOR, 1, name="mail", known=True,
+                    fully_known=True, is_equipment=True)
+        outer = item("b", policy_module.TVAL_CLOAK, 1, name="cloak", known=True,
+                     fully_known=True, is_equipment=True)
+        head = item("c", policy_module.TVAL_HELM, 1, name="helm", known=True,
+                    fully_known=True, is_equipment=True)
+        neck = item("d", policy_module.TVAL_AMULET, 1, name="amulet", known=True,
+                    fully_known=True, is_equipment=True)
+        ring = item("e", policy_module.TVAL_RING, 1, name="ring", known=True,
+                    fully_known=True, is_equipment=True)
+        packed = [body, outer, head, neck, ring]
+        snapshot = self._snapshot(inventory=tuple(packed), equipment=(cursed,))
+        calibration = policy_module.calibrate_character_constants(snapshot)
+        with TemporaryDirectory() as directory:
+            directory = Path(directory)
+            calibration_path = directory / "character-calibration.json"
+            confirmed_path = directory / "confirmed-loadout.json"
+            policy_module.save_character_calibration(calibration_path, calibration)
+            ids = frozenset(
+                f"equipped:{policy_module.equipment_identity(entry)}:0"
+                for entry in (*packed, cursed)
+            )
+            policy_module.save_confirmed_loadout(
+                confirmed_path,
+                policy_module.confirmed_loadout_record(ids, "0" * 64),
+            )
+            policy = self._scan_complete_policy()
+            policy._character_calibration_path = calibration_path
+            policy._confirmed_loadout_path = confirmed_path
+
+            equipment = [cursed]
+            posted = []
+            for _ in range(len(packed)):
+                current = self._snapshot(
+                    inventory=tuple(packed), equipment=tuple(equipment)
+                )
+                key = policy.choose_key(current)
+                posted.append(key)
+                letter = key[len(policy_module.WIELD_KEY)]
+                worn = next(entry for entry in packed if entry.slot == letter)
+                target_slot = {
+                    identity: slot
+                    for slot, identity in policy._calibration_worn_before
+                }[policy_module.equipment_identity(worn)]
+                packed.remove(worn)
+                equipment.append(replace(worn, slot=target_slot))
+
+            policy._calibration_observe(self._snapshot(equipment=tuple(equipment)))
+            self.assertEqual(
+                posted,
+                [policy_module.WIELD_KEY + letter for letter in "abcde"[:-1]]
+                + [policy_module.WIELD_KEY + "e" + "d"],
+            )
+            self.assertEqual(
+                {entry.slot for entry in equipment},
+                {"arms", "body", "outer", "head", "neck", "main_ring"},
+            )
+            self.assertFalse(policy._calibration_stripped_unrestored)
+
+    def test_optimizer_completion_does_not_discharge_redress_debt(self):
+        policy = self._scan_complete_policy()
+        sword = item("c", 23, 4, name="sword", known=True,
+                     fully_known=True, is_equipment=True)
+        policy._calibration_worn_before = (
+            ("main_hand", policy_module.equipment_identity(sword)),
+        )
+        policy._calibration_stripped_unrestored = True
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((), (), 0)
+        )
+        policy.choose_key(self._snapshot(inventory=(sword,)))
+        self.assertTrue(policy._calibration_stripped_unrestored)
+
+    def test_forced_floor_change_does_not_discharge_redress_debt(self):
+        policy = self._scan_complete_policy()
+        sword = item("c", 23, 4, name="sword", known=True,
+                     fully_known=True, is_equipment=True)
+        policy._calibration_phase = "capture"
+        policy._calibration_worn_before = (
+            ("main_hand", policy_module.equipment_identity(sword)),
+        )
+        policy._calibration_stripped_unrestored = True
+        policy._calibration_observe(replace(
+            self._snapshot(inventory=(sword,)),
+            floor_key=(1, 1, 0),
+            town_flag=False,
+        ))
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertEqual(len(policy._calibration_worn_before), 1)
+
+    def test_capture_phase_end_does_not_discharge_redress_debt(self):
+        policy = self._scan_complete_policy()
+        sword = item("c", 23, 4, name="sword", known=True,
+                     fully_known=True, is_equipment=True)
+        policy._calibration_phase = "capture"
+        policy._calibration_naked_dump_requested = True
+        policy._calibration_worn_before = (
+            ("main_hand", policy_module.equipment_identity(sword)),
+        )
+        policy._calibration_stripped_unrestored = True
+        policy._calibration_observe(self._snapshot(inventory=(sword,)))
+        self.assertIsNone(policy._calibration_phase)
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertEqual(len(policy._calibration_worn_before), 1)
+
+    def test_never_stripped_character_gets_no_spurious_redress_key(self):
+        policy = self._scan_complete_policy()
+        armour = item("a", policy_module.TVAL_HARD_ARMOR, 1, name="mail", known=True,
+                      fully_known=True, is_equipment=True)
+        snapshot = self._snapshot(inventory=(armour,))
+        policy._restore_calibration_redress_obligation(snapshot)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertIsNone(policy._calibration_redress_key(snapshot))
 
     def test_naked_dump_is_latched_at_posting_with_no_retry_counter(self):
         """The capture-phase `C` request follows the reviewed request rules:

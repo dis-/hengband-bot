@@ -5,6 +5,7 @@ from dataclasses import dataclass, field, replace
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
+import json
 import re
 from enum import Enum
 from typing import Callable, Iterable, Literal
@@ -2361,10 +2362,11 @@ class HengbotPolicy:
         self._calibration_blocked_this_visit = False
         self._calibration_last_abort: str | None = None
         # True from the moment a calibration strip session is installed until
-        # either the restore-equip session or an optimizer-owned equipment
-        # transaction completes.  While set, town departure is impossible: no
+        # every recorded identity is observed worn again.  While set, town
+        # departure is impossible: no
         # escape valve may let a calibration-stripped character dive naked.
         self._calibration_stripped_unrestored = False
+        self._calibration_redress_loaded = False
         # Mutation observation (sorted ids) from `C` character snapshots: the
         # calibration phase's naked dump records it at capture, and the
         # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
@@ -3170,11 +3172,6 @@ class HengbotPolicy:
                     self._abandon_blocked_equipment_transaction(snapshot)
                     self._equipment_optimization_signature = None
                 else:
-                    if not self._calibration_session_owned():
-                        # An optimizer-owned equipment transaction ran to
-                        # completion: the character is dressed per the executed
-                        # plan, releasing the calibration stripped guard.
-                        self._calibration_stripped_unrestored = False
                     self._equipment_transaction_session = None
                     self._equipment_transaction_restoring = False
                     self._equipment_transaction_restore_terminal = None
@@ -8982,6 +8979,107 @@ class HengbotPolicy:
             or self._calibration_suspended_phase is not None
         )
 
+    def _persist_calibration_redress_obligation(self) -> None:
+        """Store the strip debt in the existing calibration record."""
+        path = self._character_calibration_path
+        if path is None:
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        if self._calibration_stripped_unrestored and self._calibration_worn_before:
+            data["redress_obligation"] = [
+                [slot, identity] for slot, identity in self._calibration_worn_before
+            ]
+        else:
+            data.pop("redress_obligation", None)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
+        except OSError:
+            return
+
+    def _legacy_calibration_redress_obligation(
+        self, snapshot: Snapshot
+    ) -> tuple[tuple[str, str], ...]:
+        """Recover a pre-fix strip debt from the last confirmed worn set."""
+        calibration = self._validated_character_calibration(snapshot)
+        record = self._validated_confirmed_loadout()
+        if calibration is None or record is None:
+            return ()
+        worn = [item for item in snapshot.equipment if item.is_equipment]
+        if self._current_pinned_identities(snapshot) != calibration.pinned_identities:
+            return ()
+        confirmed_identities = {
+            parts[1]
+            for item_id in record.item_ids
+            if len(parts := item_id.split(":")) == 3 and parts[0] == "equipped"
+        }
+        worn_identities = {equipment_identity(item) for item in worn}
+        missing = [
+            item
+            for item in snapshot.inventory
+            if item.is_equipment
+            and equipment_identity(item) in confirmed_identities - worn_identities
+        ]
+        if not missing or any(
+            not item.is_cursed
+            and equipment_identity(item) not in confirmed_identities
+            for item in worn
+        ):
+            return ()
+        occupied = {item.slot for item in worn}
+        recovered = []
+        for item in missing:
+            slot = slot_for(item)
+            if item.tval == TVAL_RING:
+                slot = next(
+                    (candidate for candidate in (SLOT_MAIN_RING, SLOT_SUB_RING)
+                     if candidate not in occupied),
+                    None,
+                )
+            elif item.tval in {TVAL_SHIELD, TVAL_CAPTURE, TVAL_CARD}:
+                slot = SLOT_SUB_HAND
+            elif item.tval in {TVAL_DIGGING, TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD}:
+                slot = next(
+                    (candidate for candidate in (SLOT_MAIN_HAND, SLOT_SUB_HAND)
+                     if candidate not in occupied),
+                    None,
+                )
+            if slot is None or slot in occupied:
+                continue
+            occupied.add(slot)
+            recovered.append((slot, equipment_identity(item)))
+        return tuple(recovered)
+
+    def _restore_calibration_redress_obligation(self, snapshot: Snapshot) -> None:
+        if self._calibration_redress_loaded:
+            return
+        self._calibration_redress_loaded = True
+        path = self._character_calibration_path
+        data = {}
+        if path is not None:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        entries = data.get("redress_obligation", ())
+        try:
+            obligation = tuple(
+                (str(slot), str(identity)) for slot, identity in entries
+            )
+        except (TypeError, ValueError):
+            obligation = ()
+        if not obligation:
+            obligation = self._legacy_calibration_redress_obligation(snapshot)
+        if obligation:
+            self._calibration_worn_before = obligation
+            self._calibration_stripped_unrestored = True
+            self._persist_calibration_redress_obligation()
+
     def _outstanding_equipment_work(self) -> bool:
         """Return whether equipment work still owns a route to Home.
 
@@ -9211,13 +9309,9 @@ class HengbotPolicy:
     def _calibration_redress_observe(self, snapshot: Snapshot) -> None:
         """Clear the stripped guard once every recorded item is accounted for.
 
-        Satisfied: the identity is worn again (any slot).  Unrecoverable: the
-        identity is neither worn nor in the pack (observed lost — death
-        reload, destruction); holding the guard for it would be a lock with
-        no transition.  When nothing recoverable remains outstanding the
-        guard clears, making departure reachable again through the ordinary
-        gates; the visit's spent calibration budget stays spent, so the next
-        calibration attempt belongs to a later visit.
+        The guard clears only after every recorded identity is observed worn
+        again.  A phase ending, another transaction completing, or an item
+        disappearing is not evidence that the character was redressed.
         """
         if not (
             self._calibration_stripped_unrestored
@@ -9231,22 +9325,11 @@ class HengbotPolicy:
         satisfied, outstanding, lost = self._calibration_redress_accounting(
             snapshot
         )
-        if lost:
-            # Drop only the LOST entries, preserving recorded order; every
-            # satisfied and outstanding entry keeps consuming its own
-            # occurrence so a duplicate identity can never double-satisfy.
-            lost_remaining = list(lost)
-            pruned = []
-            for entry in self._calibration_worn_before:
-                if entry in lost_remaining:
-                    lost_remaining.remove(entry)
-                    continue
-                pruned.append(entry)
-            self._calibration_worn_before = tuple(pruned)
-        if outstanding:
+        if outstanding or lost or len(satisfied) != len(self._calibration_worn_before):
             return
         self._calibration_worn_before = ()
         self._calibration_stripped_unrestored = False
+        self._persist_calibration_redress_obligation()
         # Deliberately NOT re-armed: _calibration_blocked_this_visit and the
         # abort count stay spent.  Recovery must reopen DEPARTURE (the guard),
         # never the calibration budget — resetting it here re-armed an
@@ -9288,6 +9371,7 @@ class HengbotPolicy:
         self._calibration_session_target = session.target_loadout_id
         self._calibration_phase = "strip"
         self._calibration_stripped_unrestored = True
+        self._persist_calibration_redress_obligation()
         return True
 
     def _install_calibration_restore_session(self, snapshot: Snapshot) -> bool:
@@ -9344,13 +9428,13 @@ class HengbotPolicy:
             save_character_calibration(
                 self._character_calibration_path, calibration
             )
+            self._persist_calibration_redress_obligation()
         self._calibration_phase = (
             "restore-supplies" if self._calibration_restore_signatures else None
         )
-        self._calibration_worn_before = ()
         self._calibration_session_target = None
-        # The optimizer, now unblocked, owns dressing the character: force a
-        # fresh preparation and reopen Home for its withdrawals.
+        # Recompute optimization after the new constants, independently of the
+        # unconditional recorded-loadout redress owner.
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
         self._rearm_town_store_for_new_work(
@@ -9362,6 +9446,7 @@ class HengbotPolicy:
 
     def _calibration_observe(self, snapshot: Snapshot) -> None:
         """Advance the calibration state machine from each new snapshot."""
+        self._restore_calibration_redress_obligation(snapshot)
         self._calibration_redress_observe(snapshot)
         phase = self._calibration_phase
         if phase is None:
@@ -9371,16 +9456,10 @@ class HengbotPolicy:
             # drop the phase; the calibration cache itself stays untouched and
             # the next town visit re-runs the phase from the start.
             self._calibration_phase = None
-            self._calibration_worn_before = ()
             self._calibration_restore_signatures.clear()
             if self._calibration_session_owned():
                 self._equipment_transaction_session = None
             self._calibration_session_target = None
-            # Off the town floor the departure gate this guard feeds is
-            # meaningless and the recorded loadout is gone; holding the guard
-            # would make it unclearable.  (Departure itself was gated, so
-            # this is only reachable through death reloads and forced moves.)
-            self._calibration_stripped_unrestored = False
             return
         if phase in {"deposit", "strip"}:
             if any(monster.hostile for monster in snapshot.visible_monsters):
@@ -9428,6 +9507,9 @@ class HengbotPolicy:
                     # Every recorded item is back on: release the stripped
                     # guard along with the phase.
                     self._calibration_stripped_unrestored = False
+                    if self._calibration_suspended_phase is None:
+                        self._calibration_worn_before = ()
+                    self._persist_calibration_redress_obligation()
                     self._equipment_transaction_session = None
                     self._calibration_session_target = None
                     self._calibration_phase = None
