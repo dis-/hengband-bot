@@ -184,6 +184,31 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
         self.assertEqual(len(flat.ability_sources), 0)
         self.assertIn("resist_fire", flat.abilities)
 
+    def test_renamed_ability_sources_key_parses_like_the_pinned_capture(self):
+        """hengband PR #5517 emits the per-source objects as player.ability_sources.
+
+        The pinned captures predate the rename and still say "abilities"; reading
+        only the new key would make every ability vanish, and reading only the old
+        key would make every ability vanish once the emitter lands.  Both must
+        yield the same parse.
+        """
+        raw = json.loads(LANDED_FIXTURE.read_text(encoding="utf-8"))
+        raw["player"]["ability_sources"] = raw["player"].pop("abilities")
+        renamed = parse_snapshot(raw, {}).player
+
+        self.assertEqual(renamed.abilities, self.landed.player.abilities)
+        self.assertEqual(
+            dict(renamed.ability_sources), dict(self.landed.player.ability_sources)
+        )
+        self.assertEqual(
+            frozenset(
+                ability
+                for ability, sources in renamed.ability_sources.items()
+                if "permanent" in sources
+            ),
+            PERMANENT,
+        )
+
     def test_real_status_and_resistance_consumers_see_parsed_abilities(self):
         monster = MonsterState(1, self.landed.player.position, 10, 10, 0, False, False, race_id=7)
         knowledge = MonraceKnowledge(

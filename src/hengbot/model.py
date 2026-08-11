@@ -771,7 +771,13 @@ def parse_snapshot(
         for name in STAT_NAMES
         if isinstance(stats.get(name), dict) and _as_bool(stats[name].get("drained", False))
     )
-    ability_data = player_data.get("abilities", {})
+    # The emitter moved the per-source objects to "ability_sources" (hengband
+    # PR #5517) precisely because reusing "abilities" for a changed value type
+    # broke this parse silently -- a non-empty dict is truthy, so every ability
+    # read as granted.  Pinned captures and any emitter build older than the
+    # rename still carry them under "abilities", where the value may instead be
+    # a flat boolean, so accept both keys.
+    ability_data = player_data.get("ability_sources") or player_data.get("abilities", {})
     ability_sources = {
         key: frozenset(
             source for source, granted in value.items() if _as_bool(granted)
