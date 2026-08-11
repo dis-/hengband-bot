@@ -206,7 +206,7 @@ TUNNEL_PROMPT_DELAY_SECONDS = 2.0
 # The bot character's pref binds these otherwise-unused control characters to complete
 # tunnelling commands. A single WM_CHAR then lets Hengband's own macro queue
 # supply both ``T`` and the direction without racing the direction prompt.
-BOT_PLAY_MACRO_PREF_MARKER = "HENGBOT_INPUT_MACROS_V3"
+BOT_PLAY_MACRO_PREF_MARKER = "HENGBOT_INPUT_MACROS_V4"
 TUNNEL_MACRO_TRIGGERS = {
     # Ctrl+A is Hengband's built-in repeat-command control.  Use the otherwise
     # unused Ctrl+Y for southwest tunnelling so it expands atomically too.
@@ -249,7 +249,7 @@ TRAVEL_MACRO_TRIGGERS = {
     "\x1b`n%.": "\x10",
     "\x1b`n&.": "\x11",
     "\x1b`n'.": "\x12",
-    "\x1b`n(.": "\x13",
+    "\x1b`n(.": "\x15",
     "\x1b`n>.": "\x14",
 }
 TRAVEL_MACRO_PREF_TRIGGERS = {
@@ -260,7 +260,7 @@ TRAVEL_MACRO_PREF_TRIGGERS = {
     "\x1b`n%.": "^P",
     "\x1b`n&.": "^Q",
     "\x1b`n'.": "^R",
-    "\x1b`n(.": "^S",
+    "\x1b`n(.": "^U",
     "\x1b`n>.": "^T",
 }
 

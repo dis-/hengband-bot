@@ -1952,6 +1952,7 @@ class StallRecoveryTest(unittest.TestCase):
         for macro, trigger in TRAVEL_MACRO_TRIGGERS.items():
             self.assertEqual(_transport_key(macro, True), trigger)
             self.assertEqual(len(_transport_key(macro, True)), 1)
+        self.assertEqual(_transport_key("\x1b`n(.", True), "\x15")
         self.assertEqual(_transport_key("\x1b`n%.", False), "\x1b`n%.")
 
     def test_tunnel_macros_require_pref_loaded_before_this_game_started(self):
@@ -1967,12 +1968,12 @@ class StallRecoveryTest(unittest.TestCase):
             monrace.write_text("{}", encoding="ascii")
             pref = user / "bot-test.prf"
             pref.write_text(
-                "# HENGBOT_INPUT_MACROS_V3\n"
+                "# HENGBOT_INPUT_MACROS_V4\n"
                 "A:T1\nP:^Y\nA:T2\nP:^B\nA:T3\nP:^C\nA:T4\nP:^D\n"
                 "A:T6\nP:^E\nA:T7\nP:^F\nA:T8\nP:^G\nA:T9\nP:^H\n"
                 "A:\\e`n!.\nP:^K\nA:\\e`n\".\nP:^L\nA:\\e`n#.\nP:^N\n"
                 "A:\\e`n$.\nP:^O\nA:\\e`n%.\nP:^P\nA:\\e`n&.\nP:^Q\n"
-                "A:\\e`n'.\nP:^R\nA:\\e`n(.\nP:^S\nA:\\e`n>.\nP:^T\n"
+                "A:\\e`n'.\nP:^R\nA:\\e`n(.\nP:^U\nA:\\e`n>.\nP:^T\n"
                 # The fast input cadence is only valid while the game stops
                 # discarding queued keys, so the pref must disable it.
                 "X:flush_failure\n"
@@ -1981,6 +1982,12 @@ class StallRecoveryTest(unittest.TestCase):
             )
             self.assertTrue(_valid_bot_play_macro_pref(pref))
             valid_pref = pref.read_text(encoding="ascii")
+            pref.write_text(
+                valid_pref.replace("A:\\e`n(.\nP:^U", "A:\\e`n(.\nP:^S"),
+                encoding="ascii",
+            )
+            self.assertFalse(_valid_bot_play_macro_pref(pref))
+            pref.write_text(valid_pref, encoding="ascii")
             pref.write_text(
                 valid_pref.replace("X:command_menu\n", ""), encoding="ascii"
             )
@@ -2000,7 +2007,7 @@ class StallRecoveryTest(unittest.TestCase):
         with TemporaryDirectory() as temp:
             pref = Path(temp) / "bot-test.prf"
             pref.write_text(
-                "# HENGBOT_INPUT_MACROS_V3\nA:T1\nP:^Y\n",
+                "# HENGBOT_INPUT_MACROS_V4\nA:T1\nP:^Y\n",
                 encoding="ascii",
             )
             self.assertFalse(_valid_bot_play_macro_pref(pref))
