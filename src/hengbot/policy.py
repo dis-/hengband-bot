@@ -4208,14 +4208,16 @@ class HengbotPolicy:
         ):
             self._close_store_visit(self._store_visit.outcome or "completed")
 
-    def _equipment_ownership_release_due(self, snapshot: Snapshot) -> bool:
-        """Evaluate physical satisfaction without preempting the session owner."""
+    def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:
+        """Release transaction ownership freshly satisfied by worn observations."""
         equipped = {
             (equipment_identity(item), item.slot) for item in snapshot.equipment
         }
-        return bool(self._equipment_transaction_owned_items) and all(
-            owned in equipped for owned in self._equipment_transaction_owned_items
-        )
+        self._equipment_transaction_owned_items = [
+            owned
+            for owned in self._equipment_transaction_owned_items
+            if owned not in equipped
+        ]
 
     def _release_invalid_choke_plan(self, snapshot: Snapshot) -> None:
         """Release an active engagement when its defining floor no longer exists."""

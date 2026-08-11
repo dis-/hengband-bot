@@ -3,6 +3,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
+from hengbot.equipment_optimizer import equipment_identity
+from hengbot.model import InventoryItem
 from hengbot.policy import HengbotPolicy, StoreVisit, StoreVisitPhase
 
 
@@ -91,6 +93,28 @@ class CrossDecisionLatchOwnershipTest(unittest.TestCase):
 
         self.assertIsNone(policy._store_visit)
         self.assertEqual(StoreVisitPhase.CLOSED, policy._store_visit_last_closed.phase)
+
+    def test_declared_equipment_evaluator_releases_freshly_worn_owner(self):
+        policy = HengbotPolicy()
+        ring = InventoryItem(
+            slot="main_ring",
+            name="Ring of Test",
+            count=1,
+            tval=45,
+            sval=1,
+            aware=True,
+            known=True,
+            is_equipment=True,
+        )
+        policy._equipment_transaction_owned_items = [
+            (equipment_identity(ring), ring.slot)
+        ]
+        snapshot = SimpleNamespace(equipment=[ring])
+
+        policy._evaluate_cross_decision_latches(snapshot)
+
+        self.assertEqual([], policy._equipment_transaction_owned_items)
+        self.assertIsNone(policy._equipment_transaction_town_owner_key(snapshot))
 
 
 if __name__ == "__main__":
