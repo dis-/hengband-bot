@@ -44667,6 +44667,85 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn("p", policy.choose_key(replace(outside, turn=outside.turn + 1)))
 
+    def test_unobserved_transaction_withdrawal_latches_named_terminal(self):
+        observed = store_item("a", TVAL_POTION, 402, name="other item")
+        missing = store_item(
+            "b", TVAL_POTION, 403, name="missing equipment",
+            is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([observed])
+        identity = policy_module.equipment_identity(missing)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home:missing:0",
+            item_identity=identity,
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        entrance = self._entrance_snapshot([])
+
+        self.assertEqual(policy.choose_key(entrance), LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-target-unobserved"
+        )
+
+        passes = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+        step_off = replace(entrance, turn=entrance.turn + 1)
+        self.assertEqual(policy.choose_key(step_off), "4")
+        outside = replace(
+            entrance,
+            player=replace(entrance.player, position=Position(45, 122)),
+        )
+        terminal_reason = (
+            "town:blocked:equipment-transaction:"
+            "withdraw-item-unobserved:home:missing:0"
+        )
+        self.assertEqual(
+            policy.choose_key(replace(outside, turn=entrance.turn + 2)), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, terminal_reason)
+        self.assertEqual(
+            policy.choose_key(replace(outside, turn=entrance.turn + 3)), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, terminal_reason)
+        self.assertEqual(
+            policy.choose_key(replace(outside, turn=entrance.turn + 11)), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, terminal_reason)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], passes
+        )
+
+    def test_observed_transaction_withdrawal_still_composes_exact_macro(self):
+        target = store_item(
+            "a", TVAL_POTION, 404, name="obtainable equipment",
+            is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([target])
+        identity = policy_module.equipment_identity(target)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home:obtainable:0",
+            item_identity=identity,
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+
+        self.assertEqual(
+            policy.choose_key(self._entrance_snapshot([])), "5pa\x1b"
+        )
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:atomic-withdraw"
+        )
+
 
     def test_real_capture_escape_then_posts_stay_deposit_exit_in_one_decision(self):
         policy = HengbotPolicy()

@@ -4160,6 +4160,19 @@ class HengbotPolicy:
         if warning_response is not None:
             return warning_response
 
+        # A failed equipment transaction is a visit-local terminal, including
+        # on the outside Home snapshot where the failure was discovered.  The
+        # store-context guard in choose_key only owns an open/interleaved UI;
+        # without this outside guard the ordinary need router can rebuild Home
+        # immediately, despite there being no executable transaction to post.
+        if (
+            snapshot.in_town
+            and (self._town_blocked_reason or "").startswith(
+                "equipment-transaction:withdraw-item-unobserved:"
+            )
+        ):
+            return self._town_blocked_key(snapshot)
+
         # Once a transaction has physically stripped anything, restoration or
         # completion owns every town decision.  No shopping, sale, disposal,
         # fundraising, or errand classifier is reachable until ownership ends.
@@ -19805,7 +19818,16 @@ class HengbotPolicy:
             self._town_blocked_reason is not None
             and self._town_blocked_reason.startswith("equipment-transaction:")
         ):
+            blocked_reason = self._town_blocked_reason
+            unobserved_withdrawal = blocked_reason.startswith(
+                "equipment-transaction:withdraw-item-unobserved:"
+            )
             self._abandon_blocked_equipment_transaction(snapshot)
+            # Abandoning releases the failed executable plan, but this caller
+            # is the terminal owner.  Preserve the cause so the next outside
+            # snapshot cannot rebuild the same Home need and enter unowned.
+            if unobserved_withdrawal:
+                self._town_blocked_reason = blocked_reason
             if snapshot.store is not None:
                 return LEAVE_STORE_KEY
             here = snapshot.grid_at(snapshot.player.position)
@@ -19816,7 +19838,7 @@ class HengbotPolicy:
                 if neighbors:
                     return self._step_toward(snapshot, neighbors[0])
                 return "2"
-            return None
+            return WAIT_KEY if unobserved_withdrawal else None
         if snapshot.store is None:
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.is_store:
