@@ -978,8 +978,13 @@ def _town_plan_state(policy) -> dict:
     }
 
 
-def _town_stall_report(snapshot, policy, reason: str) -> dict | None:
-    """Describe an ownerless town fallback without changing policy state."""
+def _town_stall_report(
+    snapshot,
+    policy,
+    reason: str,
+    repeating_reason_count: int = 0,
+) -> dict | None:
+    """Describe a repeating town stall without changing policy state."""
     if policy is None or not snapshot.in_town:
         return None
     claims = list(getattr(policy, "_town_claim_categories", ()))
@@ -992,17 +997,20 @@ def _town_stall_report(snapshot, policy, reason: str) -> dict | None:
         or reason.startswith("explore:")
         or reason == "stuck:wander"
     )
+    named_block = reason.startswith("town:blocked:")
     if (
-        not claims
-        or not fallback
+        (fallback and not claims)
+        or not (fallback or named_block)
         or passes < EXTENDED_STUCK_WINDOW
         or passes % EXTENDED_STUCK_WINDOW
+        or (named_block and repeating_reason_count < EXTENDED_STUCK_WINDOW)
     ):
         return None
 
     visit = getattr(policy, "_store_visit", None)
     plan = getattr(policy, "_town_errand_plan", None)
     session = getattr(policy, "_equipment_transaction_session", None)
+    selector = getattr(policy, "_shop_selector_diagnostics", {})
 
     def action_state(action) -> dict | None:
         if action is None:
@@ -1027,6 +1035,21 @@ def _town_stall_report(snapshot, policy, reason: str) -> dict | None:
             "opened_sequence": visit.opened_sequence,
         },
         "town_blocked_reason": getattr(policy, "_town_blocked_reason", None),
+        **(
+            {
+                "repeating_named_block": {
+                    "reason": reason,
+                    "consecutive_decisions": repeating_reason_count,
+                    "out_ranked_candidate": (
+                        selector.get("wanted_purchase")
+                        or selector.get("considered_candidate")
+                    ),
+                    "shop_selector": selector,
+                }
+            }
+            if named_block
+            else {}
+        ),
         "town_plan": None if plan is None else {
             "stops": list(plan.stops),
             "index": plan.index,
@@ -1082,6 +1105,7 @@ def _write_decision(
     reason: str,
     policy=None,
     economy_ledger: EconomyLedger | None = None,
+    repeating_reason_count: int = 0,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -1209,7 +1233,9 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
-                    _town_stall_report(snapshot, policy, reason),
+                    _town_stall_report(
+                        snapshot, policy, reason, repeating_reason_count
+                    ),
                     getattr(policy, "_decision_sequence", None),
                 ),
                 file,
@@ -2041,6 +2067,7 @@ def _run_follow(
         multiplier_combat_grace = 0
         last_decision_line: str | None = None
         last_decision_reason: str | None = None
+        repeating_reason_count = 0
         last_decision_at = 0.0
         posted_decision_line: str | None = None
         posted_decision_keys: set[str] = set()
@@ -2203,6 +2230,10 @@ def _run_follow(
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
                     )
+                    if policy.last_reason == last_decision_reason:
+                        repeating_reason_count += 1
+                    else:
+                        repeating_reason_count = 1
                     last_decision_reason = policy.last_reason
                     if policy.last_reason == "periodic:game-save":
                         save_archive.before_post(snapshot, policy._decision_sequence)
@@ -2248,6 +2279,7 @@ def _run_follow(
                         policy.last_reason,
                         policy,
                         economy_ledger,
+                        repeating_reason_count,
                     )
                     if policy.last_reason in POLICY_FINAL_STOP_REASONS:
                         print(

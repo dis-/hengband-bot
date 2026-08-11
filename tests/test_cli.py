@@ -1118,6 +1118,18 @@ class DecisionRecordTest(unittest.TestCase):
             _equipment_transaction_session=session,
             _equipment_transaction_owned_items=[("weapon-1", "main_hand")],
             _calibration_phase="deposit",
+            _shop_selector_diagnostics={
+                "winning_rung": "town:blocked:repetition",
+                "wanted_purchase": {
+                    "category": "recall",
+                    "name": "Word of Recall",
+                    "letter": "i",
+                    "price": 227,
+                    "count": 20,
+                },
+                "considered_candidate": None,
+                "rejection_reason": "preempted",
+            },
             choke_engagement_state=lambda: {
                 "phase": "release", "release_cause": "no-progress"
             },
@@ -1172,6 +1184,39 @@ class DecisionRecordTest(unittest.TestCase):
         ]
 
         self.assertEqual(emitted, [24, 48, 72])
+
+    def test_repeating_named_town_block_reports_reason_count_and_candidate(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy()
+
+        report = _town_stall_report(
+            snapshot,
+            policy,
+            "town:blocked:repetition",
+            repeating_reason_count=24,
+        )
+
+        block = report["repeating_named_block"]
+        self.assertEqual(block["reason"], "town:blocked:repetition")
+        self.assertEqual(block["consecutive_decisions"], 24)
+        self.assertEqual(
+            block["out_ranked_candidate"],
+            policy._shop_selector_diagnostics["wanted_purchase"],
+        )
+        self.assertEqual(
+            block["shop_selector"]["winning_rung"],
+            "town:blocked:repetition",
+        )
+
+    def test_isolated_named_town_block_emits_no_stall_report(self):
+        report = _town_stall_report(
+            self._town_snapshot(),
+            self._town_stall_policy(passes=1),
+            "town:blocked:repetition",
+            repeating_reason_count=1,
+        )
+
+        self.assertIsNone(report)
 
     def test_records_snapshot_messages_with_repeat_counter(self):
         snapshot = parse_snapshot(
