@@ -42,6 +42,7 @@ from hengbot.cli import (
     _intentional_action_wait_category,
     _input_delay_values,
     _decision_record,
+    _town_stall_report,
     _duplicate_snapshot_ready,
     _direction_desynchronized,
     _look_barrier_allows_decision,
@@ -1078,6 +1079,100 @@ class NewestSnapshotTest(unittest.TestCase):
 
 
 class DecisionRecordTest(unittest.TestCase):
+    @staticmethod
+    def _town_snapshot():
+        data = json.loads(_snap_line(123, 5, 7))
+        data["floor"] = {"dungeon_id": 0, "level": 0, "in_town": True}
+        return parse_snapshot(data, {})
+
+    @staticmethod
+    def _town_stall_policy(passes=24):
+        action = SimpleNamespace(
+            phase="withdraw", kind="withdraw", item_id="sword", target_slot=None
+        )
+        session = SimpleNamespace(
+            target_loadout_id="loadout-1",
+            index=1,
+            complete=False,
+            blockers=["await-home"],
+            required_context="home",
+            current_action=action,
+            pending_action=None,
+        )
+        ledger = SimpleNamespace(
+            store_visits={7: 3},
+            need_attempts={"deposit": 4},
+            approach_fails={7: 1},
+            unsatisfied_passes={7: 2},
+            blocked_stores=set(),
+            passes_since_progress=passes,
+        )
+        return SimpleNamespace(
+            _town_claim_categories=("deposit", "equipment-work"),
+            _town_visit_ledger=ledger,
+            _store_visit=SimpleNamespace(
+                owner="deposit", store_type=7, opened_sequence=91
+            ),
+            _town_blocked_reason="owner-returned-none",
+            _town_errand_plan=SimpleNamespace(stops=[7], index=0),
+            _equipment_transaction_session=session,
+            _equipment_transaction_owned_items=[("weapon-1", "main_hand")],
+            _calibration_phase="deposit",
+            choke_engagement_state=lambda: {
+                "phase": "release", "release_cause": "no-progress"
+            },
+        )
+
+    def test_town_claim_fallback_stall_records_accumulated_policy_state(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy()
+
+        report = _town_stall_report(snapshot, policy, "stuck:wander")
+        record = _decision_record(
+            snapshot, "6", "stuck:wander", town_stall_report=report
+        )
+
+        self.assertEqual(report["store_visit"], {
+            "owner": "deposit", "store": 7, "opened_sequence": 91
+        })
+        self.assertEqual(report["town_blocked_reason"], "owner-returned-none")
+        self.assertEqual(report["town_plan"], {"stops": [7], "index": 0})
+        self.assertEqual(report["visit_ledger"]["passes_since_progress"], 24)
+        self.assertEqual(report["equipment_transaction"]["target_loadout_id"], "loadout-1")
+        self.assertEqual(
+            report["equipment_transaction_owned_items"],
+            [["weapon-1", "main_hand"]],
+        )
+        self.assertEqual(report["calibration_phase"], "deposit")
+        self.assertEqual(report["choke_engagement"]["release_cause"], "no-progress")
+        self.assertEqual(record["town_stall_report"], report)
+
+    def test_ordinary_town_decision_has_no_stall_report_or_changed_key(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy()
+
+        report = _town_stall_report(snapshot, policy, "shop:travel")
+        record = _decision_record(
+            snapshot, "_", "shop:travel", town_stall_report=report
+        )
+
+        self.assertIsNone(report)
+        self.assertNotIn("town_stall_report", record)
+        self.assertEqual(record["key"], "_")
+
+    def test_town_stall_report_repeats_only_at_existing_window_cadence(self):
+        snapshot = self._town_snapshot()
+
+        emitted = [
+            passes
+            for passes in range(1, 73)
+            if _town_stall_report(
+                snapshot, self._town_stall_policy(passes), "breakout:seek-frontier"
+            ) is not None
+        ]
+
+        self.assertEqual(emitted, [24, 48, 72])
+
     def test_records_snapshot_messages_with_repeat_counter(self):
         snapshot = parse_snapshot(
             {

@@ -28,6 +28,7 @@ from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
+    EXTENDED_STUCK_WINDOW,
     FUNDRAISING_START_GOLD,
     PACK_CAPACITY,
     ConservativePolicy,
@@ -728,6 +729,7 @@ def _decision_record(
     choke_engagement: dict | None = None,
     town_teleport_refusal: dict | None = None,
     read: dict | None = None,
+    town_stall_report: dict | None = None,
     decision_sequence: int | None = None,
 ) -> dict:
     player = snapshot.player
@@ -816,6 +818,7 @@ def _decision_record(
             else {}
         ),
         **({"read": read} if read else {}),
+        **({"town_stall_report": town_stall_report} if town_stall_report else {}),
     }
 
 
@@ -975,6 +978,87 @@ def _town_plan_state(policy) -> dict:
     }
 
 
+def _town_stall_report(snapshot, policy, reason: str) -> dict | None:
+    """Describe an ownerless town fallback without changing policy state."""
+    if policy is None or not snapshot.in_town:
+        return None
+    claims = list(getattr(policy, "_town_claim_categories", ()))
+    ledger = getattr(policy, "_town_visit_ledger", None)
+    passes = getattr(ledger, "passes_since_progress", 0)
+    fallback = (
+        reason == "breakout"
+        or reason.startswith("breakout:")
+        or reason == "explore"
+        or reason.startswith("explore:")
+        or reason == "stuck:wander"
+    )
+    if (
+        not claims
+        or not fallback
+        or passes < EXTENDED_STUCK_WINDOW
+        or passes % EXTENDED_STUCK_WINDOW
+    ):
+        return None
+
+    visit = getattr(policy, "_store_visit", None)
+    plan = getattr(policy, "_town_errand_plan", None)
+    session = getattr(policy, "_equipment_transaction_session", None)
+
+    def action_state(action) -> dict | None:
+        if action is None:
+            return None
+        return {
+            "phase": action.phase,
+            "kind": action.kind,
+            "item_id": action.item_id,
+            "target_slot": action.target_slot,
+        }
+
+    return {
+        "trigger": {
+            "window": "passes_since_progress",
+            "value": passes,
+            "cadence": EXTENDED_STUCK_WINDOW,
+        },
+        "town_claims": claims,
+        "store_visit": None if visit is None else {
+            "owner": visit.owner,
+            "store": visit.store_type,
+            "opened_sequence": visit.opened_sequence,
+        },
+        "town_blocked_reason": getattr(policy, "_town_blocked_reason", None),
+        "town_plan": None if plan is None else {
+            "stops": list(plan.stops),
+            "index": plan.index,
+        },
+        "visit_ledger": {
+            "store_visits": dict(getattr(ledger, "store_visits", {})),
+            "need_attempts": dict(getattr(ledger, "need_attempts", {})),
+            "approach_fails": dict(getattr(ledger, "approach_fails", {})),
+            "unsatisfied_passes": dict(
+                getattr(ledger, "unsatisfied_passes", {})
+            ),
+            "blocked_stores": sorted(getattr(ledger, "blocked_stores", ())),
+            "passes_since_progress": passes,
+        },
+        "equipment_transaction": None if session is None else {
+            "target_loadout_id": session.target_loadout_id,
+            "index": session.index,
+            "complete": session.complete,
+            "blockers": list(session.blockers),
+            "required_context": session.required_context,
+            "current_action": action_state(session.current_action),
+            "pending_action": action_state(session.pending_action),
+        },
+        "equipment_transaction_owned_items": [
+            list(item)
+            for item in getattr(policy, "_equipment_transaction_owned_items", ())
+        ],
+        "calibration_phase": getattr(policy, "_calibration_phase", None),
+        "choke_engagement": policy.choke_engagement_state(),
+    }
+
+
 def _depth_safety(snapshot, policy) -> dict:
     """Surface the depth-requirement check so a lethal resistance gap is visible
     (the bot gates its descent on this — see AGENTS.md)."""
@@ -1125,6 +1209,7 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
+                    _town_stall_report(snapshot, policy, reason),
                     getattr(policy, "_decision_sequence", None),
                 ),
                 file,
