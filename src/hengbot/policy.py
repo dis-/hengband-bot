@@ -4217,10 +4217,11 @@ class HengbotPolicy:
             self._town_blocked_reason = None
 
     def _release_invalid_store_visit(self, snapshot: Snapshot) -> None:
-        """Release a visit whose own lifecycle has already declared it closed."""
+        """Release a visit whose lifecycle has no remaining work."""
         visit = self._store_visit
         if visit is not None and (
             visit.phase == StoreVisitPhase.CLOSED
+            or visit.operation_effect_observed
             or not snapshot.in_town
         ):
             self._close_store_visit(self._store_visit.outcome or "completed")

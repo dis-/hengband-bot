@@ -7,6 +7,7 @@ from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
     Position,
     Snapshot,
+    STORE_HOME,
     StoreItem,
     StoreState,
     SV_BOW_SLING,
@@ -294,6 +295,73 @@ class ShopOneShotTest(unittest.TestCase):
 
         signature = policy._item_signature(ware)
         self.assertIn(signature, policy._town_visit_purchases)
+
+    def test_confirmed_store_five_buy_releases_visit_before_store_seven_approach(self):
+        ware = store_item(
+            "a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20
+        )
+        inside = self._inside(STORE_MAGIC, [], [ware])
+        policy = HengbotPolicy(town_map=None)
+        outside, key = self._compose(policy, inside)
+        store_five_visit = policy._store_visit
+        completed = self._consume_buy(outside, key, ware)
+
+        policy.choose_key(completed)
+        self.assertIs(policy._store_visit_last_closed, store_five_visit)
+        self.assertNotEqual(policy._store_visit.store_type, STORE_MAGIC)
+
+        home = Position(10, 13)
+        town_grids = {
+            Position(y, x): grid(y, x)
+            for y in range(9, 12)
+            for x in range(9, 15)
+        }
+        town_grids[home] = replace(town_grids[home], store_number=STORE_HOME)
+        next_decision = replace(
+            completed,
+            grids=town_grids,
+            turn=completed.turn + 1,
+            width=30,
+            height=30,
+        )
+        # Confirmation may already open the next derived supply visit; isolate
+        # the measured store-7 plan from that unrelated supply derivation.
+        policy._close_store_visit("fixture-isolate-store-seven-plan")
+        policy._town_blocked_reason = None
+        policy._shopping_approach_goal = None
+        policy._shopping_approach_store_type = None
+        step = policy._shopping_approach_step(next_decision, STORE_HOME)
+
+        self.assertIsNotNone(step, (
+            policy._town_store_attempted,
+            policy._town_visit_ledger.blocked_stores,
+            policy._town_visit_ledger.approach_fails,
+            policy._shopping_stuck,
+        ))
+        self.assertEqual(policy._direction_key(next_decision.player.position, step), "6")
+        self.assertEqual(policy._store_visit.store_type, STORE_HOME)
+
+    def test_observed_sale_releases_through_declared_store_visit_evaluator(self):
+        sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
+        inside = self._inside(STORE_MAGIC, [sold], [])
+        policy = HengbotPolicy()
+        outside, key = self._compose(policy, inside)
+        visit = policy._store_visit
+        confirmed = replace(
+            outside,
+            inventory=[],
+            player=replace(outside.player, gold=outside.player.gold + 125),
+            turn=outside.turn + 1,
+        )
+
+        policy.choose_key(confirmed)
+        self.assertTrue(visit.operation_effect_observed)
+        policy._evaluate_cross_decision_latches(
+            replace(confirmed, turn=confirmed.turn + 1)
+        )
+
+        self.assertIs(policy._store_visit_last_closed, visit)
+        self.assertIsNot(policy._store_visit, visit)
 
     def test_confirmed_sale_clears_posted_operation_latch(self):
         sold = replace(item("j", TVAL_WAND, 1, name="wand"), inscription="@0")
