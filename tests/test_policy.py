@@ -47352,6 +47352,100 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             self.assertNotIn("calibration-required", preparation.blockers)
             self.assertIsNone(policy._calibration_phase)
 
+    def test_strip_takeoffs_reach_capture_instead_of_generic_restore(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        dressed = self._snapshot(equipment=(sword,))
+        policy._begin_character_calibration(dressed)
+
+        self.assertEqual(policy._calibration_town_key(dressed), "5")
+        takeoff = policy._equipment_transaction_town_key(dressed)
+        self.assertTrue(takeoff.startswith(policy_module.TAKEOFF_KEY), takeoff)
+        self.assertTrue(policy.confirm_key_posted(takeoff))
+
+        naked = self._snapshot(inventory=(replace(sword, slot="a"),))
+        key = policy.choose_key(naked)
+
+        self.assertEqual(key, policy_module.CHARACTER_DUMP_MACRO)
+        self.assertEqual(policy._calibration_phase, "capture")
+        self.assertEqual(policy._equipment_transaction_owned_items, [])
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertEqual(
+            policy.last_reason, "calibration:request-naked-character"
+        )
+
+    def test_capture_invalid_blocks_same_visit_and_reports_abort(self):
+        policy = self._scan_complete_policy()
+        policy._town_was_in_town = True
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        naked = self._snapshot(inventory=(replace(sword, slot="a"),))
+        policy._calibration_phase = "capture"
+        policy._calibration_naked_dump_requested = True
+        policy._calibration_worn_before = (
+            ("main_hand", policy_module.equipment_identity(sword)),
+        )
+        policy._calibration_stripped_unrestored = True
+
+        with patch.object(
+            policy_module, "calibrate_character_constants", return_value=None
+        ):
+            policy.choose_key(naked)
+
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertEqual(policy._calibration_aborts_this_visit, 1)
+        diagnostics = policy.equipment_optimization_state(naked)["calibration"]
+        self.assertEqual(
+            diagnostics["last_abort"],
+            "calibration:abort:capture-invalid",
+        )
+
+        dressed = self._snapshot(equipment=(sword,))
+        policy.choose_key(dressed)
+        policy.choose_key(dressed)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertTrue(policy._calibration_blocked_this_visit)
+
+    def test_successful_capture_writes_calibration_file_and_completes(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        dressed = self._snapshot(equipment=(sword,))
+        policy._begin_character_calibration(dressed)
+        self.assertEqual(policy._calibration_town_key(dressed), "5")
+        takeoff = policy._equipment_transaction_town_key(dressed)
+        self.assertTrue(policy.confirm_key_posted(takeoff))
+        naked = self._snapshot(inventory=(replace(sword, slot="a"),))
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "character-calibration.json"
+            policy._character_calibration_path = path
+            self.assertEqual(
+                policy.choose_key(naked), policy_module.CHARACTER_DUMP_MACRO
+            )
+            self.assertTrue(policy.confirm_key_posted(
+                policy_module.CHARACTER_DUMP_MACRO
+            ))
+            policy.observe_character_snapshot({
+                "mutations": [], "characteristics": [],
+            })
+            policy._calibration_observe(naked)
+
+            self.assertTrue(path.is_file())
+            persisted = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertIsNotNone(policy._character_calibration)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(persisted["observed_turn"], naked.turn)
+
     def test_interruption_restores_the_taken_off_equipment(self):
         policy = self._scan_complete_policy()
         sword = item(

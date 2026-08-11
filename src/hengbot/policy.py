@@ -2310,6 +2310,7 @@ class HengbotPolicy:
         self._calibration_session_target: str | None = None
         self._calibration_aborts_this_visit = 0
         self._calibration_blocked_this_visit = False
+        self._calibration_last_abort: str | None = None
         # True from the moment a calibration strip session is installed until
         # either the restore-equip session or an optimizer-owned equipment
         # transaction completes.  While set, town departure is impossible: no
@@ -3065,7 +3066,11 @@ class HengbotPolicy:
             pending = session.pending_action
             advanced = session.observe(observe_equipment_transactions(snapshot))
             if advanced and pending is not None:
-                if pending.kind == "takeoff" and pending.target_slot is not None:
+                if (
+                    pending.kind == "takeoff"
+                    and pending.target_slot is not None
+                    and not self._calibration_session_owned()
+                ):
                     self._equipment_transaction_owned_items.append(
                         (pending.item_identity, pending.target_slot)
                     )
@@ -5550,6 +5555,7 @@ class HengbotPolicy:
             self._abandoned_quest_carry_requirements.clear()
             self._calibration_aborts_this_visit = 0
             self._calibration_blocked_this_visit = False
+            self._calibration_last_abort = None
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True
@@ -8862,12 +8868,16 @@ class HengbotPolicy:
     def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
         """Interruption path: stop observing, put the equipment back on."""
         self._calibration_aborts_this_visit += 1
-        if self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT:
+        self._calibration_last_abort = f"calibration:abort:{reason}"
+        if (
+            reason == "capture-invalid"
+            or self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT
+        ):
             self._calibration_blocked_this_visit = True
         if self._calibration_session_owned():
             self._equipment_transaction_session = None
         self._calibration_session_target = None
-        self.last_reason = f"calibration:abort:{reason}"
+        self.last_reason = self._calibration_last_abort
         if self._calibration_blocked_this_visit:
             # The failure budget is spent: no more session cycling.  Converge
             # or stop visibly instead of aborting in a loop.
@@ -9387,10 +9397,13 @@ class HengbotPolicy:
             blocker = "home-batch-pending"
         elif self._home_atomic_withdraw_pending is not None:
             blocker = "home-withdraw-inflight"
-        return {
+        state: dict[str, object] = {
             "phase": self._calibration_phase,
             "entry_blocker": blocker,
         }
+        if self._calibration_last_abort is not None:
+            state["last_abort"] = self._calibration_last_abort
+        return state
 
     def equipment_transaction_entry_state(
         self, snapshot: Snapshot
