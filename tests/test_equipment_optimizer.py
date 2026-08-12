@@ -166,6 +166,20 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIn("live-katana-rFire", result.best.loadout.item_ids)
         self.assertGreaterEqual(result.chosen_decision.ratio, 1.0)
 
+    def test_august_11_success_shape_still_chooses_band_30_at_full_melee(self):
+        required_30 = gear("band-30-resists", 37, flags=(48, 49, 51, 52))
+        candidate = Loadout(
+            (("light", self.light), (SLOT_BODY, required_30)), "empty"
+        )
+
+        result = optimize_loadout(
+            (self.light, required_30), lambda _loadout: metrics(100, dps=100),
+            depth=None, candidate_loadouts=(candidate,),
+        )
+
+        self.assertEqual(result.chosen_depth, 30)
+        self.assertEqual(result.chosen_decision.ratio, 1.0)
+
     def test_usable_light_in_pool_rejects_stronger_lightless_loadout(self):
         lighted = Loadout((("light", self.light),), "empty")
         lightless = Loadout((), "empty")
@@ -723,7 +737,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertFalse(helm.exploration_legal)
         self.assertTrue(suppressed.exploration_legal)
 
-    def test_cursed_partial_known_item_still_blocks_optimization(self):
+    def test_cursed_partial_known_item_is_reported_without_blocking_search(self):
         cursed = gear(
             "cursed-ego", 23, ego=True, fully_known=False, cursed=True
         )
@@ -733,9 +747,11 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertFalse(cursed.evaluable)
         self.assertTrue(cursed.identification_incomplete)
         self.assertEqual(result.incomplete_item_ids, {"cursed-ego"})
-        self.assertEqual(result.combinations_considered, 0)
+        self.assertGreater(result.combinations_considered, 0)
+        self.assertIsNotNone(result.best)
+        self.assertNotIn("cursed-ego", result.best.loadout.item_ids)
 
-    def test_not_known_item_still_blocks_optimization(self):
+    def test_not_known_item_is_reported_without_blocking_search(self):
         unknown = gear("unknown", 23, known=False, fully_known=False)
         result = optimize_loadout(
             [self.light, unknown], lambda loadout: metrics(1), depth=1
@@ -743,7 +759,9 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertFalse(unknown.evaluable)
         self.assertTrue(unknown.identification_incomplete)
         self.assertEqual(result.incomplete_item_ids, {"unknown"})
-        self.assertEqual(result.combinations_considered, 0)
+        self.assertGreater(result.combinations_considered, 0)
+        self.assertIsNotNone(result.best)
+        self.assertNotIn("unknown", result.best.loadout.item_ids)
 
     def test_unidentified_average_item_is_ignored_without_blocking(self):
         average = gear(

@@ -412,6 +412,68 @@ class WarriorOptimizationTest(unittest.TestCase):
             prepared.result.combinations_considered, incremental_count
         )
 
+    def test_live_55_item_shape_searches_despite_incomplete_items(self):
+        """The 2026-08-12 11-equipped/44-Home catalogue must enumerate."""
+        equipped_specs = (
+            ("light", "light", 39),
+            ("weapon", "main_hand", 23),
+            ("shield", "sub_hand", 34),
+            ("body", "body", 37),
+            ("head", "head", 32),
+            ("cloak", "outer", 35),
+            ("gloves", "arms", 31),
+            ("boots", "feet", 30),
+            ("amulet", "neck", 40),
+            ("ring-a", "main_ring", 45),
+            ("ring-b", "sub_ring", 45),
+        )
+        equipped = tuple(
+            gear(item_id, "equipped", slot=slot, tval=tval)
+            for item_id, slot, tval in equipped_specs
+        )
+        home = tuple(
+            gear(
+                f"home-{index}", "home",
+                tval=(23, 30, 31, 32, 35, 37, 40, 45)[index % 8],
+            )
+            for index in range(44)
+        )
+        home = (
+            replace(home[0], item=replace(
+                home[0].item, aware=False, known=False, fully_known=False,
+            )),
+            replace(home[1], item=replace(
+                home[1].item, aware=False, known=False, fully_known=False,
+            )),
+            *home[2:],
+        )
+        items = (*equipped, *home)
+        self.assertEqual(len(items), 55)
+        self.assertEqual(sum(item.origin == "equipped" for item in items), 11)
+        self.assertEqual(sum(item.origin == "home" for item in items), 44)
+        self.assertGreaterEqual(len(items), INCREMENTAL_SEARCH_CATALOG_THRESHOLD)
+
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR, stat_cur=(18, 10, 10, 18), level=30,
+            shield_skill=0, speed=110, saving_skill=30, abilities=frozenset(),
+            ac=0, melee_skill=60, two_weapon_skill=0, max_hp=100, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=127, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )
+
+        prepared = prepare_warrior_optimization(
+            snapshot, items, {1: monster}, depth=None,
+            home_scan_complete=True, calibration=seed_calibration(snapshot, items),
+        )
+
+        self.assertEqual(prepared.result.incomplete_item_ids, {"home-0", "home-1"})
+        self.assertGreater(prepared.result.combinations_considered, 0)
+        self.assertIn("incomplete-equipment-catalog", prepared.blockers)
+
     def test_constitution_helm_is_not_replaced_by_small_ac_gain(self):
         light = gear("light", "equipped", slot="light", tval=39)
         weapon = gear("weapon", "equipped", slot="main_hand", to_d=8)

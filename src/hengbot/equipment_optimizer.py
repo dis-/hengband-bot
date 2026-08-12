@@ -1169,22 +1169,10 @@ def optimize_loadout(
         if item.identification_incomplete and not item.evaluable
     )
     started = monotonic()
-    # Only incomplete items that cannot be evaluated block the exact search.
-    # Known, uncursed candidates retain their eventual full-identification
-    # intent while participating now on their confirmed information.
-    if incomplete:
-        return OptimizationResult(
-            best=None,
-            alternatives=(),
-            pareto_frontier=(),
-            dominated_item_ids=frozenset(),
-            combinations_considered=0,
-            combinations_evaluated=0,
-            invalid_combinations=0,
-            elapsed_seconds=monotonic() - started,
-            timed_out=False,
-            incomplete_item_ids=incomplete,
-        )
+    # Unevaluable items are already excluded by the loadout enumerators.  Keep
+    # reporting them so callers can block transaction execution until the
+    # catalogue is complete, but still score the known candidates.  Otherwise
+    # one unknown Home item suppresses every valid loadout in the catalogue.
     considered = evaluated_count = invalid = 0
     evaluated_by_metrics: dict[tuple[object, ...], EvaluatedLoadout] = {}
     timed_out = False
