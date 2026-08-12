@@ -2368,6 +2368,7 @@ class HengbotPolicy:
         # escape valve may let a calibration-stripped character dive naked.
         self._calibration_stripped_unrestored = False
         self._calibration_redress_loaded = False
+        self._calibration_redress_attempts: dict[tuple[str, str], int] = {}
         # Mutation observation (sorted ids) from `C` character snapshots: the
         # calibration phase's naked dump records it at capture, and the
         # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
@@ -9290,6 +9291,14 @@ class HengbotPolicy:
         if not snapshot.in_town or snapshot.store is not None:
             return None
         for slot, identity in self._calibration_redress_items(snapshot):
+            obligation = (slot, identity)
+            if self._calibration_redress_attempts.get(obligation, 0) >= STORE_STUCK_LIMIT:
+                worn_before = list(self._calibration_worn_before)
+                worn_before.remove(obligation)
+                self._calibration_worn_before = tuple(worn_before)
+                self._calibration_redress_attempts.pop(obligation, None)
+                self._persist_calibration_redress_obligation()
+                continue
             target = next(
                 (
                     item
@@ -9304,6 +9313,9 @@ class HengbotPolicy:
             macro = self._equip_macro(snapshot, target, slot)
             if macro is None:
                 continue
+            self._calibration_redress_attempts[obligation] = (
+                self._calibration_redress_attempts.get(obligation, 0) + 1
+            )
             self.last_reason = "calibration:redress"
             return macro
         return None
@@ -9327,6 +9339,12 @@ class HengbotPolicy:
         satisfied, outstanding, lost = self._calibration_redress_accounting(
             snapshot
         )
+        pending = set(outstanding) | set(lost)
+        self._calibration_redress_attempts = {
+            obligation: attempts
+            for obligation, attempts in self._calibration_redress_attempts.items()
+            if obligation in pending
+        }
         if outstanding or lost or len(satisfied) != len(self._calibration_worn_before):
             return
         self._calibration_worn_before = ()
@@ -20881,7 +20899,9 @@ class HengbotPolicy:
         elif item.tval in {TVAL_DIGGING, TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD}:
             suffix = cls._wield_hand_suffix(snapshot, target_slot)
         elif item.tval == TVAL_RING:
-            suffix = EQUIPMENT_SLOT_KEY[target_slot]
+            # Avoid command-specific tag capture in choose_item: endpoint keys
+            # select the two ring slots even while they are empty.
+            suffix = "(" if target_slot == "main_ring" else ")"
         return WIELD_KEY + item.slot + suffix
 
     def _wield_weapon_key(self, snapshot: Snapshot, weapon: InventoryItem) -> str:

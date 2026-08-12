@@ -35649,7 +35649,7 @@ class WieldHandSuffixTest(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            HengbotPolicy._equip_macro(snap, ring, "sub_ring"), "wre"
+            HengbotPolicy._equip_macro(snap, ring, "sub_ring"), "wr)"
         )
 
 
@@ -49193,6 +49193,73 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 "redress_obligation", json.loads(path.read_text())
             )
 
+    def test_redress_ring_uses_original_keyset_endpoint_for_empty_main_ring(self):
+        policy = self._scan_complete_policy()
+        ring = item(
+            "e", policy_module.TVAL_RING, 43, name="ring", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(ring)
+        policy._calibration_worn_before = (("main_ring", identity),)
+        policy._calibration_stripped_unrestored = True
+
+        key = policy._calibration_redress_key(self._snapshot(inventory=(ring,)))
+
+        self.assertEqual(key, "we(")
+        self.assertEqual(policy.last_reason, "calibration:redress")
+
+    def test_six_item_redress_bounds_ring_noop_and_wears_every_later_item(self):
+        policy = self._scan_complete_policy()
+        packed = [
+            item("e", policy_module.TVAL_RING, 43, name="ring", known=True,
+                 fully_known=True, is_equipment=True),
+            item("f", policy_module.TVAL_AMULET, 1, name="amulet", known=True,
+                 fully_known=True, is_equipment=True),
+            item("g", policy_module.TVAL_HARD_ARMOR, 1, name="body armour [24,+23]",
+                 known=True, fully_known=True, is_equipment=True),
+            item("h", policy_module.TVAL_CLOAK, 1, name="cloak", known=True,
+                 fully_known=True, is_equipment=True),
+            item("i", policy_module.TVAL_HELM, 1, name="helm", known=True,
+                 fully_known=True, is_equipment=True),
+            item("j", policy_module.TVAL_BOW, 1, name="sling", known=True,
+                 fully_known=True, is_equipment=True),
+        ]
+        target_slots = ("main_ring", "neck", "body", "outer", "head", "bow")
+        target_by_letter = dict(zip("efghij", target_slots))
+        policy._calibration_worn_before = tuple(
+            (slot, policy_module.equipment_identity(entry))
+            for slot, entry in zip(target_slots, packed)
+        )
+        policy._calibration_stripped_unrestored = True
+        equipment = []
+        posted = []
+
+        while len(equipment) < 5:
+            snapshot = self._snapshot(
+                inventory=tuple(packed), equipment=tuple(equipment)
+            )
+            key = policy._calibration_redress_key(snapshot)
+            posted.append(key)
+            if key == "we(":
+                continue
+            pack_letter = key[1]
+            worn = next(entry for entry in packed if entry.slot == pack_letter)
+            packed.remove(worn)
+            equipment.append(replace(worn, slot=target_by_letter[pack_letter]))
+
+        self.assertEqual(
+            posted,
+            ["we("] * policy_module.STORE_STUCK_LIMIT
+            + ["wf", "wg", "wh", "wi", "wj"],
+        )
+        self.assertLessEqual(posted.count("we("), policy_module.STORE_STUCK_LIMIT)
+        self.assertEqual({entry.slot for entry in equipment},
+                         {"neck", "body", "outer", "head", "bow"})
+        policy._calibration_redress_observe(
+            self._snapshot(inventory=tuple(packed), equipment=tuple(equipment))
+        )
+        self.assertFalse(policy._calibration_stripped_unrestored)
+
     def test_legacy_cursed_only_shape_redresses_confirmed_pack_armour(self):
         cursed = item(
             "arms", policy_module.TVAL_GLOVES, 1, name="cursed gloves", known=True,
@@ -49249,7 +49316,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             self.assertEqual(
                 posted,
                 [policy_module.WIELD_KEY + letter for letter in "abcde"[:-1]]
-                + [policy_module.WIELD_KEY + "e" + "d"],
+                + [policy_module.WIELD_KEY + "e("],
             )
             self.assertEqual(
                 {entry.slot for entry in equipment},
