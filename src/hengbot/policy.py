@@ -9091,17 +9091,38 @@ class HengbotPolicy:
         its result; that success must not revoke the Home allowance the new
         session needs to execute.
         """
-        blockers = getattr(
-            self._equipment_optimization_preparation, "blockers", ()
-        )
+        preparation = self._equipment_optimization_preparation
+        blockers = getattr(preparation, "blockers", ())
+        optimization_already_applied = self._optimization_already_applied(preparation)
         return bool(
-            blockers
+            (blockers and not optimization_already_applied)
             or self._equipment_transaction_session is not None
             or self._home_pending_item is not None
             or self._home_pending_batch
             or self._home_atomic_withdraw_pending is not None
             or self._home_atomic_deposit_pending is not None
             or self._calibration_restore_signatures
+        )
+
+    @staticmethod
+    def _optimization_already_applied(preparation: object | None) -> bool:
+        """Return whether the selected loadout is exactly the worn loadout."""
+        result = getattr(preparation, "result", None)
+        best = getattr(result, "best", None)
+        current = getattr(preparation, "current", None)
+        target = getattr(best, "loadout", None)
+        transaction = getattr(preparation, "transaction", None)
+        return bool(
+            isinstance(current, Loadout)
+            and isinstance(target, Loadout)
+            and current.slots == target.slots
+            and (
+                transaction is None
+                or (
+                    isinstance(transaction, EquipmentTransactionPlan)
+                    and not transaction.actions
+                )
+            )
         )
 
     def _calibration_session_owned(self) -> bool:

@@ -50966,6 +50966,87 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertTrue(projection["outstanding_equipment_work"])
         self.assertTrue(projection["equipment_work_need_present"])
 
+    def test_satisfied_zero_action_optimization_does_not_own_home(self):
+        policy, snapshot = NoSafeRecallDestinationTest()._fixture()
+        policy._home_pending_item = None
+        policy._home_pending_batch = []
+        policy._home_atomic_withdraw_pending = None
+        policy._home_atomic_deposit_pending = None
+        policy._calibration_restore_signatures = []
+        current = Loadout((), "empty")
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            current=current,
+            blockers=("incomplete-equipment-catalog",),
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: regression isolates routing after the measured optimizer result and does not replace the decision path
+            result=SimpleNamespace(
+                best=SimpleNamespace(loadout=current),
+                chosen_depth=30,
+                timed_out=False,
+                combinations_considered=34,
+                combinations_evaluated=34,
+                invalid_combinations=0,
+                elapsed_seconds=0.01,
+                search_truncated=False,
+            ),
+            transaction=policy_module.EquipmentTransactionPlan((), (), 0),
+            encounters_total=1,
+            encounters_evaluated=1,
+        )
+        policy._prepare_equipment_optimization = Mock(
+            return_value=policy._equipment_optimization_preparation
+        )
+        self.assertTrue(
+            policy._optimization_already_applied(
+                policy._equipment_optimization_preparation
+            )
+        )
+        self.assertIsNotNone(snapshot.grid_at(Position(45, 123)))
+
+        posted_keys = []
+        for decision in range(6):
+            current_snapshot = replace(snapshot, turn=snapshot.turn + decision)
+            key = policy.choose_key(current_snapshot)
+            posted_keys.append(
+                (key, policy.last_reason, policy._shopping_approach_store_type)
+            )
+
+        self.assertFalse(policy._outstanding_equipment_work())
+        self.assertLessEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 3
+        )
+        projection = policy.equipment_optimization_state(snapshot)[
+            "home_route_projection"
+        ]
+        self.assertFalse(projection["equipment_work_need_present"])
+        self.assertFalse(projection["outstanding_equipment_work"])
+        self.assertTrue(
+            all(store_type != STORE_HOME for _, _, store_type in posted_keys[1:])
+        )
+
+    def test_zero_action_shape_with_different_target_remains_blocked_work(self):
+        policy = HengbotPolicy()
+        current = Loadout((), "empty")
+        target_item = OwnedEquipment(
+            "home:upgrade",
+            item("a", TVAL_RING, 77, known=True, fully_known=True),
+            "home",
+        )
+        target = Loadout(((policy_module.SLOT_MAIN_RING, target_item),), "empty")
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            current=current,
+            blockers=("missing-item:home:upgrade",),
+            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: branch pin isolates routing after an uncomposable optimizer result and does not replace the decision path
+            result=SimpleNamespace(best=SimpleNamespace(loadout=target)),
+            transaction=None,
+        )
+
+        self.assertFalse(
+            policy._optimization_already_applied(
+                policy._equipment_optimization_preparation
+            )
+        )
+        self.assertTrue(policy._outstanding_equipment_work())
+
     def test_completing_optimization_performs_zero_restores(self):
         policy, snapshot, _ = self._stripped_fixture()
         ring = item(
