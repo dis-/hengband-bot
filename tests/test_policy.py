@@ -4447,7 +4447,7 @@ class CombatTest(unittest.TestCase):
         self.assertIsNotNone(step)
         self.assertIn(step, neighbours)
 
-    def test_disengage_cuts_through_survivable_swarm_instead_of_oscillating(self):
+    def test_disengage_survival_retreat_may_reenter_recent_cell(self):
         from collections import deque
         policy = HengbotPolicy()
         # The last decisions ping-ponged between two corner cells.
@@ -4470,9 +4470,8 @@ class CombatTest(unittest.TestCase):
 
         key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
 
-        # A retreat into a recent corner cell is refused; cut toward open floor.
-        self.assertEqual(policy.last_reason, "combat:disengage-cut-through")
-        self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
+        self.assertEqual(policy.last_reason, "combat:disengage-step")
+        self.assertEqual(key, policy._step_toward(snapshot, Position(1, 79)))
 
     def test_disengage_routes_to_upstairs_when_swarmed(self):
         from collections import deque
@@ -4488,14 +4487,14 @@ class CombatTest(unittest.TestCase):
             hostile(1, 1, 79, hp=4, max_hp=4, distance=1,
                     can_multiply=True, max_melee_damage=4)
         ]
-        policy._summoner_retreat_step = lambda *a: Position(1, 79)  # recent -> refused
+        policy._summoner_retreat_step = lambda *a: None
         policy._escape_by_stairs = lambda s: None  # not standing on stairs
         policy._nearest_goal_step = lambda s, pred: Position(2, 78)  # step to up-stairs
+        policy._blocking_escape_melee_key = lambda *a: "6"
 
         key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
 
-        # With no recall/teleport, leave the floor by routing to the up-stairs
-        # rather than circling the swarm-filled room.
+        # A reachable staircase outranks attacking a route blocker.
         self.assertEqual(policy.last_reason, "combat:disengage-seek-upstairs")
         self.assertEqual(key, policy._step_toward(snapshot, Position(2, 78)))
 
@@ -4531,14 +4530,14 @@ class CombatTest(unittest.TestCase):
         )
         policy._build_grid_index(snapshot)
         with patch.object(
-            policy, "_summoner_retreat_step", return_value=Position(10, 9)
-        ) as retreat:
+            policy, "_summoner_retreat_step", return_value=None
+        ) as retreat, patch.object(policy, "_nearest_goal_step", return_value=None):
             key = policy._disengage_move_or_escalate(
                 snapshot, blockers, blockers
             )
 
         self.assertEqual((key, policy.last_reason), ("6", "combat:disengage-clear-path"))
-        retreat.assert_not_called()
+        retreat.assert_called_once()
 
     def test_disengage_reads_recall_to_leave_the_floor(self):
         from collections import deque
@@ -30261,10 +30260,9 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "7")
         self.assertEqual(pol.last_reason, "emergency:cornered-attack")
 
-    def test_oscillating_emergency_walk_refuses_the_ping_pong_step(self):
-        # Character #5's fatal 2/8 trace repeatedly chose the previous cell
-        # while a breeder swarm attacked. Refuse that walking rung and let the
-        # existing ladder escalate to cutting through an adjacent blocker.
+    def test_oscillating_emergency_walk_posts_reachable_stair_step(self):
+        # Measured death shape: a breeder swarm confines the character to two
+        # cells, but the first reachable up-stairs step is one of those cells.
         snap = self._swarm([])
         pol = HengbotPolicy()
         pol._emergency_escape_pending = True
@@ -30276,13 +30274,13 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
             patch.object(
                 pol, "_nearest_goal_step", return_value=previous
             ),
-            patch.object(pol, "_flee_step", return_value=None),
+            patch.object(pol, "_blocking_escape_melee_key", return_value="7"),
         ):
             self.assertTrue(pol._is_oscillating())
             self.assertEqual(
-                pol._emergency_item(snap, snap.visible_monsters), "7"
+                pol._emergency_item(snap, snap.visible_monsters), "2"
             )
-        self.assertEqual(pol.last_reason, "emergency:cornered-attack")
+        self.assertEqual(pol.last_reason, "emergency:seek-upstairs")
 
     def test_non_oscillating_emergency_walk_is_unchanged(self):
         snap = self._swarm([])
@@ -30298,9 +30296,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
             )
         self.assertEqual(pol.last_reason, "emergency:seek-upstairs")
 
-    def test_choose_key_death_shape_attacks_instead_of_ping_ponging(self):
-        # Character #5's free south cell was the other half of the 2/8 loop;
-        # the mouse is adjacent on a different cell and remains attackable.
+    def test_choose_key_death_shape_posts_escape_instead_of_attack(self):
         current = Position(10, 44)
         repeated = Position(11, 44)
         mouse = MonsterState(
@@ -30345,10 +30341,10 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
 
         self.assertEqual(
             (key, pol.last_reason),
-            ("4", "emergency:cornered-attack"),
+            ("2", "emergency:seek-upstairs"),
         )
 
-    def test_choose_key_no_wait_does_not_reemit_emergency_refused_step(self):
+    def test_choose_key_no_wait_preserves_emergency_survival_step(self):
         current = Position(10, 10)
         repeated = Position(11, 10)
         snap = Snapshot(
@@ -30377,9 +30373,46 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         ):
             key = pol.choose_key(replace(snap, turn=2))
 
-        self.assertNotEqual(key, "2")
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(pol.last_reason, "emergency:wait")
+        self.assertEqual(key, "2")
+        self.assertEqual(pol.last_reason, "no-wait:flee")
+
+    def test_ordinary_navigation_oscillation_guard_still_breaks_cycle(self):
+        west = Position(10, 9)
+        east = Position(10, 10)
+        exit_cell = Position(10, 11)
+        grids = {
+            west: grid(west.y, west.x),
+            east: grid(east.y, east.x),
+            exit_cell: grid(exit_cell.y, exit_cell.x),
+        }
+        pol = HengbotPolicy()
+        pol.last_reason = "explore"
+        pol._position_changed = True
+        for position in grids:
+            pol._visit_counts[position] = 10
+
+        broken = None
+        for index in range(policy_module.EXTENDED_STUCK_WINDOW + 2):
+            position = west if index % 2 else east
+            snap = Snapshot(
+                player(position.y, position.x), grids, [], floor_key=(2, 1, 0)
+            )
+            key = pol._break_positional_oscillation(snap, "5")
+            if pol.last_reason == "nav:break-oscillation":
+                broken = key
+                break
+
+        self.assertEqual(broken, "6")
+        self.assertEqual(pol.last_reason, "nav:break-oscillation")
+
+    def test_exempted_escape_still_reaches_existing_visible_terminal(self):
+        snap = self._swarm([])
+        pol = HengbotPolicy()
+        pol._nav_exhausted = True
+        pol._nav_escape_steps = policy_module.NAV_ESCAPE_STEP_LIMIT
+
+        self.assertEqual(pol._navigation_livelock_key(snap), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "livelock:exhausted")
 
     def test_choose_key_unseen_recall_escalation_still_moves(self):
         current = Position(10, 10)
@@ -32478,7 +32511,7 @@ class NoWaitUnderFireTest(unittest.TestCase):
             )
         self.assertEqual(policy.last_reason, "emergency:wait")
 
-    def test_declared_walkout_no_wait_flee_refuses_two_cell_ping_pong(self):
+    def test_declared_walkout_no_wait_flee_repeats_survival_step(self):
         from collections import deque
 
         snapshot = self._snapshot(include_escape=False)
@@ -32505,9 +32538,9 @@ class NoWaitUnderFireTest(unittest.TestCase):
 
         self.assertEqual(
             key,
-            policy._direction_key(snapshot.player.position, alternate),
+            policy._direction_key(snapshot.player.position, repeated),
         )
-        self.assertEqual(policy.last_reason, "no-wait:least-visited")
+        self.assertEqual(policy.last_reason, "no-wait:flee")
 
 
 class UniqueCombatConsumableTest(unittest.TestCase):

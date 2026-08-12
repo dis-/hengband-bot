@@ -4065,11 +4065,7 @@ class HengbotPolicy:
                 return self._read_key(snapshot, scroll)
 
             step = self._flee_step(snapshot, hostiles)
-            if step is not None and not (
-                self._escape_state.owner in {"disengage", "emergency"}
-                and self._is_oscillating()
-                and step in set(self._recent)
-            ):
+            if step is not None:
                 self.last_reason = "no-wait:flee"
                 return self._direction_key(snapshot.player.position, step)
 
@@ -27276,18 +27272,8 @@ class HengbotPolicy:
                 self._returning_to_town = True
                 self.last_reason = "combat:disengage-recall"
                 return self._read_key(snapshot, recall)
-        # Once walk-out owns the fight, a known exit behind a survivable
-        # single-file blocker chain is nearer than retreating away from it.
-        blocker = self._blocking_escape_melee_key(
-            snapshot, hostiles, self._is_upstairs_target
-        )
-        if blocker is not None:
-            self.last_reason = "combat:disengage-clear-path"
-            return blocker
         step = self._summoner_retreat_step(snapshot, threats, hostiles)
-        if step is not None and not (
-            self._is_oscillating() and step in set(self._recent)
-        ):
+        if step is not None:
             self.last_reason = "combat:disengage-step"
             return self._step_toward(snapshot, step)
         stairs = self._escape_by_stairs(snapshot)
@@ -27302,6 +27288,14 @@ class HengbotPolicy:
         if to_stairs is not None:
             self.last_reason = "combat:disengage-seek-upstairs"
             return self._step_toward(snapshot, to_stairs)
+        # A known exit behind a survivable single-file blocker chain remains
+        # available when neither a retreat nor a route step exists.
+        blocker = self._blocking_escape_melee_key(
+            snapshot, hostiles, self._is_upstairs_target
+        )
+        if blocker is not None:
+            self.last_reason = "combat:disengage-clear-path"
+            return blocker
         if hostiles:
             # Cornered with no retreat or stairs. If the swarm's three-turn
             # projected damage is well under current HP it cannot kill us while
@@ -28400,10 +28394,6 @@ class HengbotPolicy:
                         self.last_reason = "emergency:heal"
                         return QUAFF_KEY + potion.slot
                 step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-                if step is not None and (
-                    self._is_oscillating() and step in set(self._recent)
-                ):
-                    step = None
                 if step is None:
                     blocker = self._blocking_escape_melee_key(
                         snapshot, hostiles, self._is_upstairs_target
@@ -28413,10 +28403,6 @@ class HengbotPolicy:
                         return blocker
                 if step is None:
                     step = self._flee_step(snapshot, hostiles)
-                if step is not None and (
-                    self._is_oscillating() and step in set(self._recent)
-                ):
-                    step = None
                 if step is not None:
                     self.last_reason = "emergency:seek-upstairs"
                     return self._step_toward(snapshot, step)
