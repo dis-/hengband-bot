@@ -29128,8 +29128,9 @@ class HengbotPolicy:
                         hostiles,
                         allow_recall=self._fundraising_mode != "mine",
                     )
-                    assert exit_key is not None
-                    return exit_key
+                    if exit_key is not None:
+                        return exit_key
+                    return None
                 destination, step = route
                 self._choke_engagement_plan = ChokeEngagementPlan(
                     floor=snapshot.floor_key,
@@ -29172,8 +29173,9 @@ class HengbotPolicy:
                         hostiles,
                         allow_recall=self._fundraising_mode != "mine",
                     )
-                    assert exit_key is not None
-                    return exit_key
+                    if exit_key is not None:
+                        return exit_key
+                    return None
                 self._choke_engagement_plan = ChokeEngagementPlan(
                     floor=snapshot.floor_key,
                     phase="hold",

@@ -3199,6 +3199,25 @@ class CombatTest(unittest.TestCase):
         self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
         self.assertIsNotNone(policy._choke_engagement_plan)
 
+    def test_ended_breeder_choke_without_exit_falls_through_to_melee(self):
+        room = Position(29, 169)
+        policy = HengbotPolicy()
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 0))
+        snapshot = self._orc_cave_choke_cycle_snapshot(room, 4)
+        policy._fundraising_mode = "mine"
+        policy._breeder_choke_attempt_ended_floor = snapshot.floor_key
+
+        with patch.object(policy, "_return_to_town_key", return_value=None):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("1", "melee"))
+        self.assertIsNone(policy._choke_engagement_plan)
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(
+            policy._breeder_choke_attempt_ended_floor,
+            snapshot.floor_key,
+        )
+
     def test_new_floor_visit_rearms_breeder_choke_attempt(self):
         room = Position(29, 169)
         mouth = Position(28, 170)
