@@ -4181,7 +4181,7 @@ class HengbotPolicy:
                 )
             if potion is not None:
                 self.last_reason = "emergency:heal"
-                return QUAFF_KEY + potion.slot.upper()
+                return QUAFF_KEY + potion.slot
 
         faster_melee = any(
             monster.max_melee_damage > 0
@@ -4202,7 +4202,7 @@ class HengbotPolicy:
             if speed is not None:
                 self._escape_speed_attempted = True
                 self.last_reason = "emergency:quaff-speed"
-                return QUAFF_KEY + speed.slot.upper()
+                return QUAFF_KEY + speed.slot
         return key
 
     def _evaluate_cross_decision_latches(self, snapshot: Snapshot) -> None:
@@ -4516,7 +4516,7 @@ class HengbotPolicy:
                 refill = self._light_refill_item(snapshot)
                 if refill is not None:
                     self.last_reason = "refill-light"
-                    return REFILL_KEY + refill.slot.upper()
+                    return REFILL_KEY + refill.slot
             info = self._quest_knowledge.get(profile.quest_id)
             if info is None or info.battlefield is None:
                 self.last_reason = "quest:blocked:enter"
@@ -4562,7 +4562,7 @@ class HengbotPolicy:
             speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
             if speed is not None:
                 self.last_reason = "quest:quaff-speed"
-                return QUAFF_KEY + speed.slot.upper()
+                return QUAFF_KEY + speed.slot
 
         # 0a. Open wilderness = a non-town surface tile the town routine strayed
         #     onto by crossing a map border. It spawns out-of-depth monsters (a
@@ -4968,7 +4968,7 @@ class HengbotPolicy:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
-                return EAT_KEY + food.slot.upper()
+                return EAT_KEY + food.slot
 
         # Wilderness monsters can enter town, so shopping is not safe while
         # injured. After an unseen hit, head for the nearest store entrance;
@@ -5202,12 +5202,12 @@ class HengbotPolicy:
             refill = self._light_refill_item(snapshot)
             if refill is not None:
                 self.last_reason = "refill-light"
-                return REFILL_KEY + refill.slot.upper()
+                return REFILL_KEY + refill.slot
             departure_refill = self._unknown_lantern_departure_refill_item(snapshot)
             if departure_refill is not None:
                 self._unknown_lantern_departure_refilled = True
                 self.last_reason = "refill-light"
-                return REFILL_KEY + departure_refill.slot.upper()
+                return REFILL_KEY + departure_refill.slot
 
         # _observe schedules the town circuit breaker before _decide runs.  It
         # must preempt the shopping approach below: that router otherwise
@@ -5408,7 +5408,7 @@ class HengbotPolicy:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "eat"
-                return EAT_KEY + food.slot.upper()
+                return EAT_KEY + food.slot
 
         # 7. Opportunistic hunt for easy XP while no downstairs is in sight.
         step = self._hunt_step(snapshot, strategic_hostiles)
@@ -7090,7 +7090,7 @@ class HengbotPolicy:
         if target is not None:
             self._ranged_target_macro_failures = 0
             self.last_reason = reason
-            return prefix + slot.upper() + self._direction_key(player.position, target.position)
+            return prefix + slot + self._direction_key(player.position, target.position)
 
         eligible = [
             monster
@@ -7143,7 +7143,7 @@ class HengbotPolicy:
             # 'p' resets both interest and free-grid targeting modes to the
             # player, giving the cursor movement a deterministic origin.
             self.last_reason = "ranged:fire-offset"
-            return LEAVE_STORE_KEY + FIRE_KEY + ammo.slot.upper() + "*p" + keys + "t5\x1b"
+            return LEAVE_STORE_KEY + FIRE_KEY + ammo.slot + "*p" + keys + "t5\x1b"
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
@@ -7172,7 +7172,7 @@ class HengbotPolicy:
                 ammo.count,
             )
         self.last_reason = "ranged:fire-target"
-        return LEAVE_STORE_KEY + FIRE_KEY + ammo.slot.upper() + "*t5\x1b"
+        return LEAVE_STORE_KEY + FIRE_KEY + ammo.slot + "*t5\x1b"
 
     def _offset_fire_aim(
         self,
@@ -7532,7 +7532,7 @@ class HengbotPolicy:
                 self._chest_collecting = False
                 self._chest_preopen_objects = None
                 self.last_reason = "chest:drop-unreachable-reserved"
-                return CHEST_DROP_KEY + chest.slot.upper()
+                return CHEST_DROP_KEY + chest.slot
             self.last_reason = "chest:return-reserved-position"
             return self._step_toward(snapshot, step)
         self._chest_drop_origin = player.position
@@ -7540,7 +7540,7 @@ class HengbotPolicy:
         self._chest_collecting = False
         self._chest_preopen_objects = None
         self.last_reason = "chest:drop"
-        return CHEST_DROP_KEY + chest.slot.upper()
+        return CHEST_DROP_KEY + chest.slot
 
     def _weakest(self, monsters: list[MonsterState]) -> MonsterState:
         # Remove adjacent summoners before their minions multiply; otherwise use
@@ -7764,8 +7764,8 @@ class HengbotPolicy:
             self._identify_fail_streak = 0
         self.last_reason = "identify:pack-pressure"
         if command == READ_KEY:
-            return self._read_key(snapshot, src, target.slot.upper())
-        return command + src.slot.upper() + target.slot.upper()
+            return self._read_key(snapshot, src, target.slot)
+        return command + src.slot + target.slot
 
     def _is_spare_lantern(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # A brass lantern in the pack while a light is already worn is a redundant
@@ -7886,7 +7886,7 @@ class HengbotPolicy:
         # option `carry_query_flag` remains off (its current default).
         if command == READ_KEY:
             return self._read_key(snapshot, src, "-")
-        return command + src.slot.upper() + "-"
+        return command + src.slot + "-"
 
     def _cheapest_exchange_item(self, snapshot: Snapshot) -> InventoryItem | None:
         candidates = [
@@ -8225,7 +8225,7 @@ class HengbotPolicy:
         refill = self._light_refill_item(snapshot)
         if refill is not None:
             self.last_reason = "refill-light"
-            return REFILL_KEY + refill.slot.upper()
+            return REFILL_KEY + refill.slot
         torch = self._darkness_torch(snapshot)
         if torch is not None:
             self.last_reason = "wield-light"
@@ -12649,7 +12649,7 @@ class HengbotPolicy:
                 else None
             ),
         )
-        return self.validate_read_key(snapshot, READ_KEY + item.slot.upper() + suffix)
+        return self.validate_read_key(snapshot, READ_KEY + item.slot + suffix)
 
     def validate_read_key(self, snapshot: Snapshot, key: str) -> str:
         """Rebind a composed read to its intended scroll in the acting snapshot."""
@@ -12664,8 +12664,6 @@ class HengbotPolicy:
         ) = self._read_binding
         old_letter = key[1]
         suffix = key[2:]
-        if suffix.startswith("y"):
-            suffix = suffix[1:]
         resolved = next(
             (item for item in snapshot.inventory if item.slot == old_letter), None
         )
@@ -12683,22 +12681,7 @@ class HengbotPolicy:
                 ),
                 None,
             )
-        # choose_item checks command-specific inscription tags before it maps an
-        # inventory label (floor-item-getter.cpp:797-834).  Uppercase cannot
-        # match a lowercase @r<tag>, then the label path lowercases it back to
-        # the intended pack slot.  This selector rule is shared by every item
-        # command; a raw lowercase slot can select the tagged item instead and
-        # leave every composed prompt answer misaligned.  The uppercase label
-        # path then asks ``Try <item>?`` (floor-item-getter.cpp:866-869), so the
-        # selector must be followed by ``y`` before any effect-specific answer.
-        posted_key = (
-            READ_KEY
-            + selected.slot.upper()
-            + "y"
-            + suffix
-            if selected is not None
-            else WAIT_KEY
-        )
+        posted_key = READ_KEY + selected.slot + suffix if selected is not None else WAIT_KEY
         self.read_telemetry = {
             "key": posted_key,
             "letter": selected.slot if selected is not None else None,
@@ -12886,8 +12869,8 @@ class HengbotPolicy:
             self._identification_need = None
             self.last_reason = "home-disposal:identify-before-sale"
             if command == READ_KEY:
-                return self._read_key(snapshot, source_item, target.slot.upper())
-            return command + source_item.slot.upper() + target.slot.upper()
+                return self._read_key(snapshot, source_item, target.slot)
+            return command + source_item.slot + target.slot
         return None
 
     @staticmethod
@@ -13271,14 +13254,13 @@ class HengbotPolicy:
         self.last_reason = (
             "identify:full-equipped" if full else "identify:normal-equipped"
         )
-        suffix = (
-            "/"
+        return (
+            command
+            + source_item.slot
+            + "/"
             + EQUIPMENT_SLOT_KEY[target.slot]
             + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
         )
-        if command == READ_KEY:
-            return self._read_key(snapshot, source_item, suffix)
-        return command + source_item.slot.upper() + suffix
 
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
@@ -13322,8 +13304,8 @@ class HengbotPolicy:
         self._device_identification_candidate = None
         self.last_reason = "identify:device"
         if command == READ_KEY:
-            return self._read_key(snapshot, item, target.slot.upper())
-        return command + item.slot.upper() + target.slot.upper()
+            return self._read_key(snapshot, item, target.slot)
+        return command + item.slot + target.slot
 
     @staticmethod
     def _is_useful_device(item: InventoryItem) -> bool:
@@ -13614,10 +13596,12 @@ class HengbotPolicy:
             else:
                 self._identify_watch = watch
                 self._identify_fail_streak = 0
-        suffix = target.slot.upper() + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
-        if command == READ_KEY:
-            return self._read_key(snapshot, source_item, suffix)
-        return command + source_item.slot.upper() + suffix
+        return (
+            command
+            + source_item.slot
+            + target.slot
+            + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
+        )
 
     def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
@@ -13723,9 +13707,9 @@ class HengbotPolicy:
             self.last_reason = "identify:full"
             if command == READ_KEY:
                 return self._read_key(
-                    snapshot, item, target.slot.upper() + FULL_IDENTIFY_DISMISS_SUFFIX
+                    snapshot, item, target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
                 )
-            return command + item.slot.upper() + target.slot.upper() + FULL_IDENTIFY_DISMISS_SUFFIX
+            return command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
 
         target_signature = self._item_signature(target)
         self._release_identification_source_reservation(self._home_pending_item)
@@ -13979,7 +13963,7 @@ class HengbotPolicy:
             potion = self._carried_restore_potion(snapshot, stat)
             if potion is not None:
                 self.last_reason = f"restore:quaff-{stat}"
-                return QUAFF_KEY + potion.slot.upper()
+                return QUAFF_KEY + potion.slot
         return None
 
     def _stat_gain_quaff_key(
@@ -14002,7 +13986,7 @@ class HengbotPolicy:
         )
         if potion is not None:
             self.last_reason = "stat-gain:quaff"
-            return QUAFF_KEY + potion.slot.upper()
+            return QUAFF_KEY + potion.slot
         return None
 
     def _is_disposable_dominated_armour(
@@ -14257,7 +14241,7 @@ class HengbotPolicy:
         consumes the same arg (no quantity prompt); the item letter then selects
         the stack. Every key is swallowed by the command, so nothing leaks.
         """
-        return f"0{item.count}{DESTROY_COMMAND}{item.slot.upper()}"
+        return f"0{item.count}{DESTROY_COMMAND}{item.slot}"
 
     def _find_low_level_sale(self, snapshot: Snapshot) -> InventoryItem | None:
         sell_unknown = self._deepest_level < 20 or self._sell_scavenged_consumables
@@ -20097,7 +20081,7 @@ class HengbotPolicy:
                 return LEAVE_STORE_KEY
             if pack_owned is not None:
                 self.last_reason = "equipment:suppress-random-teleport"
-                return INSCRIBE_KEY + pack_owned.item.slot.upper() + ".\r"
+                return INSCRIBE_KEY + pack_owned.item.slot + ".\r"
             slot_key = EQUIPMENT_SLOT_KEY.get(equipped_owned.equipped_slot)
             if slot_key is not None:
                 self.last_reason = "equipment:suppress-equipped-random-teleport"
@@ -20955,7 +20939,7 @@ class HengbotPolicy:
             # Avoid command-specific tag capture in choose_item: endpoint keys
             # select the two ring slots even while they are empty.
             suffix = "(" if target_slot == "main_ring" else ")"
-        return WIELD_KEY + item.slot.upper() + suffix
+        return WIELD_KEY + item.slot + suffix
 
     def _wield_weapon_key(self, snapshot: Snapshot, weapon: InventoryItem) -> str:
         """Wield a weapon in the main hand, preserving an occupied off hand."""
@@ -21851,12 +21835,12 @@ class HengbotPolicy:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "fundraise:eat"
-                return EAT_KEY + food.slot.upper()
+                return EAT_KEY + food.slot
 
         refill = self._light_refill_item(snapshot)
         if refill is not None:
             self.last_reason = "fundraise:refill-light"
-            return REFILL_KEY + refill.slot.upper()
+            return REFILL_KEY + refill.slot
 
         if self._escape_state.owner == "disengage":
             # A declared walk-out owns movement until EscapeState releases it.
@@ -22561,7 +22545,7 @@ class HengbotPolicy:
             return (
                 LEAVE_STORE_KEY
                 + FIRE_KEY
-                + ammo.slot.upper()
+                + ammo.slot
                 + "*p"
                 + self._cursor_delta_keys(snapshot.player.position, aim)
                 + "t5\x1b"
@@ -22569,7 +22553,7 @@ class HengbotPolicy:
         return (
             LEAVE_STORE_KEY
             + FIRE_KEY
-            + ammo.slot.upper()
+            + ammo.slot
             + self._direction_key(snapshot.player.position, target.position)
         )
 
@@ -22603,7 +22587,7 @@ class HengbotPolicy:
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
                     self.last_reason = "quest-strategy:q2-quaff-speed"
-                    return QUAFF_KEY + speed.slot.upper()
+                    return QUAFF_KEY + speed.slot
         return None
 
     def _immediate_quest_targets(
@@ -22682,7 +22666,7 @@ class HengbotPolicy:
         if wand is not None:
             self._q2_breach_attempts += 1
             self.last_reason = "quest-strategy:q2-breach-wand"
-            return AIM_WAND_KEY + wand.slot.upper() + direction
+            return AIM_WAND_KEY + wand.slot + direction
 
         equipped = self._equipped_digging_tool(snapshot)
         if equipped is None or equipped.pval < Q2_BREACH_MIN_DIGGING:
@@ -23538,7 +23522,7 @@ class HengbotPolicy:
                         if profile.quest_id == 22
                         else "quest-strategy:opening-speed"
                     )
-                    return QUAFF_KEY + speed.slot.upper()
+                    return QUAFF_KEY + speed.slot
                 phase = 1
             if phase == 1:
                 self._quest_strategy_opening_phase[profile.quest_id] = 2
@@ -23719,7 +23703,7 @@ class HengbotPolicy:
                 speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
                 if speed is not None:
                     self.last_reason = "quest-strategy:quaff-speed"
-                    return QUAFF_KEY + speed.slot.upper()
+                    return QUAFF_KEY + speed.slot
 
         hold_value = profile.engagement_plan.get("hold_position")
         hold = self._quest_strategy_hold_positions.get(profile.quest_id)
@@ -24100,7 +24084,7 @@ class HengbotPolicy:
                 if torch is not None:
                     self.last_reason = "quest-strategy:throw-torch"
                     return (
-                        THROW_KEY + torch.slot.upper()
+                        THROW_KEY + torch.slot
                         + self._direction_key(
                             snapshot.player.position, target_monster.position
                         )
@@ -24119,7 +24103,7 @@ class HengbotPolicy:
                 if target is not None:
                     self.last_reason = "quest-strategy:throw-torch"
                     return (
-                        THROW_KEY + torch.slot.upper()
+                        THROW_KEY + torch.slot
                         + self._direction_key(snapshot.player.position, target.position)
                     )
 
@@ -24437,7 +24421,7 @@ class HengbotPolicy:
                     if torch is not None:
                         self.last_reason = "quest-strategy:throw-never-move-blocker"
                         return (
-                            THROW_KEY + torch.slot.upper()
+                            THROW_KEY + torch.slot
                             + self._direction_key(snapshot.player.position, blocker.position)
                         )
                     self.last_reason = "quest-strategy:avoid-never-move"
@@ -26384,7 +26368,7 @@ class HengbotPolicy:
         if snapshot.in_town:
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
-                return EAT_KEY + food.slot.upper()
+                return EAT_KEY + food.slot
             step = self._shopping_approach_step(snapshot)
             if step is not None:
                 self.last_reason = "survival:shop-approach"
@@ -26398,7 +26382,7 @@ class HengbotPolicy:
             if near_hostiles and not player.fainting:
                 return None
             self.last_reason = "survival:eat"
-            return EAT_KEY + food.slot.upper()
+            return EAT_KEY + food.slot
         if near_hostiles:
             return None  # fight/flee first; re-fires on the next quiet decision
         key = self._return_to_town_key(snapshot, hostiles)
@@ -26637,7 +26621,7 @@ class HengbotPolicy:
             refill = self._light_refill_item(snapshot)
             if refill is not None:
                 self.last_reason = "refill-light"
-                return REFILL_KEY + refill.slot.upper()
+                return REFILL_KEY + refill.slot
 
         recall = self._find_recall_scroll(snapshot)
         if (
@@ -27905,13 +27889,13 @@ class HengbotPolicy:
                     if healing.sval == SV_POTION_HEALING
                     else "unique:quaff-cure-critical"
                 )
-                return QUAFF_KEY + healing.slot.upper()
+                return QUAFF_KEY + healing.slot
 
         if speed_is_material and speed_potion is not None:
             self._unique_speed_attempted = True
             self._unique_combat_committed_race_id = target.race_id
             self.last_reason = "unique:quaff-speed"
-            return QUAFF_KEY + speed_potion.slot.upper()
+            return QUAFF_KEY + speed_potion.slot
         return None
 
     def _committed_unique_fight_viable(
@@ -28094,7 +28078,7 @@ class HengbotPolicy:
             if speed is not None:
                 self._quest_strategy_opening_phase[profile.quest_id] = 1
                 self.last_reason = "quest-strategy:q22-opening-speed"
-                return QUAFF_KEY + speed.slot.upper()
+                return QUAFF_KEY + speed.slot
         if phase == 1 and bool(reposition.get("teleport_once", False)):
             teleport = self._find_teleport_scroll(snapshot)
             if teleport is not None:
@@ -28261,7 +28245,7 @@ class HengbotPolicy:
                 potion = self._find_heal_potion(snapshot, expected_damage=1)
                 if potion is not None:
                     self.last_reason = "unseen-recall:heal"
-                    return QUAFF_KEY + potion.slot.upper()
+                    return QUAFF_KEY + potion.slot
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None and (
                 self._is_oscillating() and step in set(self._recent)
@@ -28335,7 +28319,7 @@ class HengbotPolicy:
         )
         if q22_healing is not None:
             self.last_reason = "quest-strategy:q22-reposition-heal"
-            return QUAFF_KEY + q22_healing.slot.upper()
+            return QUAFF_KEY + q22_healing.slot
         if not summoner_open and not q22_reposition_active:
             unique_consumable = self._unique_combat_consumable(snapshot, hostiles)
             if unique_consumable is not None:
@@ -28357,13 +28341,13 @@ class HengbotPolicy:
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
                     self.last_reason = "quest-strategy:quaff-speed"
-                    return QUAFF_KEY + speed.slot.upper()
+                    return QUAFF_KEY + speed.slot
         q31_healing = self._q31_opening_heal_before_escape(
             snapshot, profile, hostiles
         )
         if q31_healing is not None:
             self.last_reason = "quest-strategy:opening-heal"
-            return QUAFF_KEY + q31_healing.slot.upper()
+            return QUAFF_KEY + q31_healing.slot
         protected_q31_hold = self._q31_opening_hold_absorbs_threat(
             snapshot, profile, hostiles
         )
@@ -28430,7 +28414,7 @@ class HengbotPolicy:
                         if potion.sval == SV_POTION_CURE_CRITICAL
                         else "emergency:cure-status-healing"
                     )
-                    return QUAFF_KEY + potion.slot.upper()
+                    return QUAFF_KEY + potion.slot
 
             if lethal or summoner_open:
                 if not player.blind and not player.confused:
@@ -28476,7 +28460,7 @@ class HengbotPolicy:
                     )
                     if potion is not None:
                         self.last_reason = "emergency:heal"
-                        return QUAFF_KEY + potion.slot.upper()
+                        return QUAFF_KEY + potion.slot
                 route_step = self._nearest_goal_step(
                     snapshot, self._is_upstairs_target
                 )
@@ -28531,7 +28515,7 @@ class HengbotPolicy:
                     if potion.sval == SV_POTION_CURE_CRITICAL
                     else "item:cure-status-healing"
                 )
-                return QUAFF_KEY + potion.slot.upper()
+                return QUAFF_KEY + potion.slot
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         if (
@@ -28547,13 +28531,13 @@ class HengbotPolicy:
             )
             if potion is not None:
                 self.last_reason = "item:heal"
-                return QUAFF_KEY + potion.slot.upper()
+                return QUAFF_KEY + potion.slot
         # Eat before we faint from hunger.
         if player.fainting:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "item:eat"
-                return EAT_KEY + food.slot.upper()
+                return EAT_KEY + food.slot
         return None
 
     def _unresisted_melee_status_threats(

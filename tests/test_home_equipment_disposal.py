@@ -96,7 +96,7 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
         self.assertEqual(policy._dominated_disposal_store(target), STORE_WEAPON)
         policy._disposal_store_attempts.add(STORE_WEAPON)
         policy._destroy_pending = True
-        self.assertEqual(policy._town_destroy_key(snap), "01kA")
+        self.assertEqual(policy._town_destroy_key(snap), "01ka")
 
     @staticmethod
     def launcher(slot, sval, name, *, to_h, to_d, artifact=False):

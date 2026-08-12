@@ -50,44 +50,16 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     consulted first (`floor-item-getter.cpp:797-842`), so a command-specific tag can consume the
     character before `label_to_equipment()` gets it. Thus a pack-`e` ring for the main ring is `we(`.
 
-12. **Reading a scroll is `r` plus a selector-safe pack letter, its verification, and every effect prompt
-    answer.** `do_cmd_read_scroll` asks `Read which scroll?` and calls
-    `choose_item(..., USE_INVEN | USE_FLOOR)` (`cmd-read.cpp:28-47`). Its selector checks
-    command-specific inscription tags before inventory labels (`floor-item-getter.cpp:797-834`), so
-    send the pack letter uppercase: `D` cannot match a lowercase `@rd` tag, then the label path applies
-    `tolower()` and selects pack slot `d`. That uppercase label opens `Try <item>?`
-    (`floor-item-getter.cpp:824-869`), so answer `y` before any scroll-effect prompt. For Word of Recall, an already-active recall cancels
-    immediately with no further prompt (`spells-world.cpp:437-442`), so pack-`d` cancellation is
-    exactly `rDy`. With no recall active in town, Hengband next asks `Which dungeon do you recall?:`
-    (`spells-world.cpp:444-451`); it accepts Escape or `a` through the entered-dungeon count
-    (`spells-world.cpp:388-400`). Thus destination `g` is `rDyg`. Lowercase `rd` can select an `@rd`
-    tagged item instead of slot `d`; its intended recall prompt never opens, and a composed destination
-    key such as the final `g` is then delivered to the wrong input context. Omitting the verification
-    answer has the same shape: in `rDg`, `g` reaches the yes/no prompt and the scroll is never read.
-
-13. **Every inventory selector in a composed key is uppercase; prompt answers are a separate
-    contract.** All commands which select inventory through `choose_item` reach the same item
-    getter: `get_tag()` runs before inventory-label mapping, while the label path applies
-    `tolower()` (`floor-item-getter.cpp:797-834`). Thus a pack item `b` is selected as `B`; the
-    uppercase byte cannot match the bot-created lowercase command tag `@<command>b`, but still maps
-    back to slot `b`. Uppercase read selection additionally requires its `y` verification
-    (`rBy...`); the other examples here remain selector-only. This applies to quaff (`qB`), eat (`EB`), refill (`\FB`),
-    wield (`wB...`), fire (`fB...`), throw (`vB...`), aim-wand (`aB...`), staff/rod source and item
-    targets (`uBC`, `zBC`), destroy (`01kB`), pack inscribe (`{B...`), chest drop (`dB`), and every
-    identify/enchant/remove-curse source or pack-target selector. Equipment targets remain the
-    source-derived `/` plus equipment label or the ring endpoints `(`/`)` (entry 11). Store
-    page-relative buy/sell/Home letters remain lowercase and byte-identical: store addressing does
-    not call this inventory getter (entries 5-8), and sale `@0`/`@1` bindings deliberately name the
-    lowercase store-visible item letter.
-
-    The selector correction does not validate later prompt answers. The following answers are
-    source-derived here: ring endpoints and equipment `/slot` selection (entry 11), recall cancel
-    and destination selection (entry 12), and store/Home page, quantity-presence, and page-relative
-    addressing (entries 5-8). These remain explicitly unverified assumptions pending a separate
-    source audit: Identify and `*Identify*` dismissal tails; enchant and remove-curse targets;
-    staff/rod targets; fire/throw/wand direction and target-mode tails; non-ring wield hand answers;
-    refill, inscribe, uninscribe, destroy, and chest-drop prompt tails; sale/buy confirmation and
-    quantity bytes beyond entries 5-8; pickup repetition; rest counts; dungeon/quest entry answers;
-    character-dump, knowledge, building/menu, rumor, and warning-confirmation macros. Uppercasing
-    only selector positions preserves those suffix bytes exactly rather than silently claiming
-    them to be derived.
+12. **Landmine: composed pack selectors must remain lowercase; do not reintroduce uppercase
+    selectors.** `get_tag()` only examines inscribed items and accepts a command-specific letter tag
+    when the inscription has at least three bytes and its command and tag bytes match
+    (`inventory-util.cpp:95-128`). Numeric sale bindings such as `@0`/`@1` are allocated and emitted as
+    numeric tags (`policy.py:18084-18110`, `policy.py:18146-18167`), so their numeric selector path
+    cannot collide with a letter selector (`inventory-util.cpp:115-119`). Conversely, an uppercase
+    selector for which no tag was found opens the mandatory `Try <item>?` verification
+    (`floor-item-getter.cpp:873-877`). That prompt does not treat an arbitrary wrong byte as an abort:
+    `input_check_strict()` accepts only `y`/`Y`, `n`/`N`, or Escape and otherwise calls `bell()` and
+    loops (`inventory-util.cpp:237-248`, `asking-player.cpp:198-292`). The remaining bytes of a
+    composed key then land in the verification prompt and desynchronize the command. Therefore read,
+    quaff, eat, refill, wield, fire, throw, device, destroy, inscribe, drop, identify, enchant, and
+    remove-curse composers must emit the pack label exactly as its lowercase inventory letter.

@@ -129,8 +129,8 @@ class EquipmentTransactionSessionTest(unittest.TestCase):
         self.assertTrue(session.confirm_posted("pa\r"))
         carried = observation(home=False, pack=("free-action-boots",))
         self.assertTrue(session.observe(carried))
-        self.assertTrue(session.prepare(equip, carried, "wA", ("town", 2)))
-        self.assertTrue(session.confirm_posted("wA"))
+        self.assertTrue(session.prepare(equip, carried, "wa", ("town", 2)))
+        self.assertTrue(session.confirm_posted("wa"))
         wrong_slot = observation(
             home=False, equipped=(("body", "free-action-boots"),)
         )
@@ -140,7 +140,7 @@ class EquipmentTransactionSessionTest(unittest.TestCase):
         )
         self.assertTrue(session.observe(worn))
         self.assertTrue(session.complete)
-        self.assertFalse(session.prepare(equip, worn, "wA", ("town", 3)))
+        self.assertFalse(session.prepare(equip, worn, "wa", ("town", 3)))
 
     def test_accepts_delayed_store_confirmation(self):
         action = EquipmentTransaction(

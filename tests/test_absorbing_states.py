@@ -110,7 +110,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         self.assertEqual(result.exits, 1)
         self.assertEqual(result.keys["5 pa\x1b"], 1)
         self.assertEqual(result.reasons["home:atomic-withdraw"], 1)
-        self.assertEqual(result.keys["{A.\r"], 1)
+        self.assertEqual(result.keys["{a.\r"], 1)
         self.assertEqual(
             result.reasons["equipment:suppress-random-teleport"], 1
         )

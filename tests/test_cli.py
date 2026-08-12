@@ -229,27 +229,27 @@ class UniversalPostingContractTest(unittest.TestCase):
         decision = {"reason": "town:repetition-depart:recall"}
         sent, posted_line = _send_new_decision_key(
             lambda key, **_kwargs: posted.append(key) or True,
-            "recall-first", "rHa", None, set(), in_store=False,
+            "recall-first", "rha", None, set(), in_store=False,
             decision=decision, snapshot=first, posting_contract=contract,
         )
         self.assertTrue(sent)
 
         sent, _ = _send_new_decision_key(
             lambda key, **_kwargs: posted.append(key) or True,
-            "recall-second", "rHa", posted_line, set(), in_store=False,
+            "recall-second", "rha", posted_line, set(), in_store=False,
             decision=decision,
             snapshot=self.snapshot(turn=4020833, recalling=False),
             posting_contract=contract,
         )
         self.assertFalse(sent)
-        self.assertEqual(posted, ["rHa"])
+        self.assertEqual(posted, ["rha"])
         self.assertEqual(
             contract.last_incident["marker"],
             "posting-contract:identical-repost-unobserved",
         )
         self.assertTrue(contract.allow(
             self.snapshot(turn=4020833, recalling=True),
-            "rHa", "town:repetition-depart:recall",
+            "rha", "town:repetition-depart:recall",
         ))
 
     def test_turn_advance_acknowledges_wait_and_mining_repetition(self):
@@ -367,13 +367,13 @@ class WaitClassificationTest(unittest.TestCase):
             parser.parse_args(["--input-key-delay", "0"])
         )
 
-        self.assertEqual(_delay_after_macro_key("qA", 0), 0.02)
+        self.assertEqual(_delay_after_macro_key("qa", 0), 0.02)
         self.assertEqual(
-            _delay_after_macro_key("qA", 0, input_delays=defaults),
+            _delay_after_macro_key("qa", 0, input_delays=defaults),
             0.02,
         )
         self.assertEqual(
-            _delay_after_macro_key("qA", 0, input_delays=overridden),
+            _delay_after_macro_key("qa", 0, input_delays=overridden),
             0.0,
         )
 
@@ -392,7 +392,7 @@ class WaitClassificationTest(unittest.TestCase):
             (STORE_ITEM_PROMPT_DELAY_SECONDS, "input:item-prompt"),
         )
         self.assertEqual(
-            _delay_spec_after_macro_key("qA", 0),
+            _delay_spec_after_macro_key("qa", 0),
             (MULTI_KEY_DELAY_SECONDS, "input:generic-prompt"),
         )
 
@@ -1407,14 +1407,14 @@ class DecisionRecordTest(unittest.TestCase):
     def test_decision_record_carries_read_binding_telemetry(self):
         snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
         telemetry = {
-            "key": "rH",
+            "key": "rh",
             "letter": "h",
             "resolved": {"tval": 70, "sval": 26, "name": "Detect Treasure"},
             "intended": {"tval": 70, "sval": 26, "name": "Detect Treasure"},
         }
 
         record = _decision_record(
-            snapshot, "rH", "fundraise:detect-treasure", read=telemetry
+            snapshot, "rh", "fundraise:detect-treasure", read=telemetry
         )
 
         self.assertEqual(record["read"], telemetry)
@@ -2183,7 +2183,7 @@ class StallRecoveryTest(unittest.TestCase):
     def test_tunnel_macro_waits_for_direction_prompt(self):
         self.assertEqual(_delay_after_macro_key("T3", 0), TUNNEL_PROMPT_DELAY_SECONDS)
         self.assertEqual(_delay_after_macro_key("T3", 1), 0.0)
-        self.assertEqual(_delay_after_macro_key("rB", 0), MULTI_KEY_DELAY_SECONDS)
+        self.assertEqual(_delay_after_macro_key("rb", 0), MULTI_KEY_DELAY_SECONDS)
 
     def test_travel_fallback_waits_for_each_selector_redraw(self):
         key = "\x1b`n%."
@@ -2201,7 +2201,7 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertEqual(_transport_key("T1", True), "\x19")
         self.assertEqual(_transport_key("T5", True), "T5")
         self.assertEqual(_transport_key("T3", False), "T3")
-        self.assertEqual(_transport_key("qF", True), "qF")
+        self.assertEqual(_transport_key("qf", True), "qf")
 
     def test_loaded_travel_macro_replaces_each_destination_with_one_character(self):
         for macro, trigger in TRAVEL_MACRO_TRIGGERS.items():
