@@ -12681,7 +12681,18 @@ class HengbotPolicy:
                 ),
                 None,
             )
-        posted_key = READ_KEY + selected.slot + suffix if selected is not None else WAIT_KEY
+        # choose_item checks command-specific inscription tags before it maps an
+        # inventory label (floor-item-getter.cpp:797-834).  Uppercase cannot
+        # match a lowercase @r<tag>, then the label path lowercases it back to
+        # the intended pack slot.  A raw lowercase slot can select the tagged
+        # item instead and leave every composed prompt answer misaligned.
+        posted_key = (
+            READ_KEY
+            + (selected.slot.upper() if selected.is_recall_scroll else selected.slot)
+            + suffix
+            if selected is not None
+            else WAIT_KEY
+        )
         self.read_telemetry = {
             "key": posted_key,
             "letter": selected.slot if selected is not None else None,

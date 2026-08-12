@@ -49,3 +49,16 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     slots (`inventory-util.cpp:132-142`). Do not send the equipment letter `d`/`e`: `get_tag()` is
     consulted first (`floor-item-getter.cpp:797-842`), so a command-specific tag can consume the
     character before `label_to_equipment()` gets it. Thus a pack-`e` ring for the main ring is `we(`.
+
+12. **Reading a scroll is `r` plus a selector-safe pack letter, followed by every effect prompt
+    answer.** `do_cmd_read_scroll` asks `Read which scroll?` and calls
+    `choose_item(..., USE_INVEN | USE_FLOOR)` (`cmd-read.cpp:28-47`). Its selector checks
+    command-specific inscription tags before inventory labels (`floor-item-getter.cpp:797-834`), so
+    send the pack letter uppercase: `D` cannot match a lowercase `@rd` tag, then the label path applies
+    `tolower()` and selects pack slot `d`. For Word of Recall, an already-active recall cancels
+    immediately with no further prompt (`spells-world.cpp:437-442`), so pack-`d` cancellation is
+    exactly `rD`. With no recall active in town, Hengband next asks `Which dungeon do you recall?:`
+    (`spells-world.cpp:444-451`); it accepts Escape or `a` through the entered-dungeon count
+    (`spells-world.cpp:388-400`). Thus destination `g` is `rDg`. Lowercase `rd` can select an `@rd`
+    tagged item instead of slot `d`; its intended recall prompt never opens, and a composed destination
+    key such as the final `g` is then delivered to the wrong input context.

@@ -657,7 +657,7 @@ class ReadLetterBindingTest(unittest.TestCase):
                 moved = replace(intended, slot="j")
                 self.assertEqual(
                     policy.validate_read_key(self.snapshot([panic, moved]), composed),
-                    READ_KEY + "j" + suffix,
+                    READ_KEY + ("J" if family == "recall" else "j") + suffix,
                 )
 
     def test_matching_letter_posts_unchanged_and_records_identity(self):
@@ -681,6 +681,26 @@ class ReadLetterBindingTest(unittest.TestCase):
                 },
             },
         )
+
+    def test_town_recall_without_active_recall_posts_item_then_destination(self):
+        policy = HengbotPolicy()
+        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, name="Recall")
+        snapshot = self.snapshot([recall])
+
+        self.assertEqual(policy._read_key(snapshot, recall, "g"), "rDg")
+
+    def test_active_recall_cancel_posts_no_destination_answer(self):
+        policy = HengbotPolicy()
+        recall = item("d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, name="Recall")
+        snapshot = self.snapshot([recall])
+
+        self.assertEqual(policy._read_key(snapshot, recall), "rD")
+
+    def test_existing_ring_wear_macro_stays_byte_identical(self):
+        ring = item("e", 45, 1, name="Ring", is_equipment=True)
+        snapshot = self.snapshot([ring])
+
+        self.assertEqual(HengbotPolicy._equip_macro(snapshot, ring, "main_ring"), "we(")
 
 
 class DetectedMonsterChannelTest(unittest.TestCase):
@@ -834,7 +854,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         ):
             key = policy.choose_key(snapshot)
 
-        self.assertEqual((key, policy.last_reason), ("rw", "return:recall"))
+        self.assertEqual((key, policy.last_reason), ("rW", "return:recall"))
 
     def test_emergency_outranks_detected_threat_preparation(self):
         breeder = replace(
@@ -1651,7 +1671,7 @@ class CombatTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, READ_KEY + "r")
+        self.assertEqual(key, READ_KEY + "R")
         self.assertEqual(policy.last_reason, "breeder-breakthrough:recall")
         self.assertIsNotNone(policy._read_binding)
         self.assertEqual(policy._read_binding[1], SV_SCROLL_WORD_OF_RECALL)
@@ -1740,7 +1760,7 @@ class CombatTest(unittest.TestCase):
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
-        self.assertEqual(policy.choose_key(snapshot), READ_KEY + "r")
+        self.assertEqual(policy.choose_key(snapshot), READ_KEY + "R")
         consumed = replace(
             snapshot, turn=snapshot.turn + 1,
             inventory=[replace(recall, count=1)],
@@ -4678,7 +4698,7 @@ class CombatTest(unittest.TestCase):
         policy._returning_to_town = False
         key = policy._disengage_move_or_escalate(snapshot, swarm, swarm)
         self.assertEqual(policy.last_reason, "combat:disengage-recall")
-        self.assertEqual(key, "rf")
+        self.assertEqual(key, "rF")
 
     def test_disengage_retreats_normally_when_not_oscillating(self):
         from collections import deque
@@ -7716,7 +7736,7 @@ class ReturnToTownTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rw")
+        self.assertEqual(policy.choose_key(snap), "rW")
         self.assertEqual(policy.last_reason, "return:recall")
 
     def test_full_pack_without_recall_seeks_upstairs(self):
@@ -8069,7 +8089,7 @@ class ReturnToTownTest(unittest.TestCase):
         with patch.object(policy, "_missing_required_abilities", return_value=()):
             self.assertTrue(policy._should_start_town_return(snap))
             self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
-            self.assertEqual(policy.choose_key(snap), READ_KEY + "r")
+            self.assertEqual(policy.choose_key(snap), READ_KEY + "R")
         self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
         self.assertEqual(policy.last_reason, "return:recall")
 
@@ -8308,7 +8328,7 @@ class ReturnToTownTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rh")
+        self.assertEqual(policy.choose_key(snap), "rH")
         self.assertEqual(policy.last_reason, "return:recall")
 
     def test_food_in_pack_prevents_early_food_return(self):
@@ -9209,7 +9229,7 @@ class PickupTest(unittest.TestCase):
         policy._returning_to_town = True
         policy._last_return_trigger = "food-hungry"
 
-        self.assertEqual(policy.choose_key(snapshot), "rr")
+        self.assertEqual(policy.choose_key(snapshot), "rR")
         self.assertEqual(policy.last_reason, "return:recall")
 
     def test_steps_off_a_new_drop_to_trigger_autodestroy(self):
@@ -10719,7 +10739,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         with patch.object(policy, "_missing_required_abilities", return_value=()):
-            self.assertEqual(policy.choose_key(snap), READ_KEY + "r")
+            self.assertEqual(policy.choose_key(snap), READ_KEY + "R")
         self.assertEqual(policy._last_return_trigger, "escape-kit-empty")
         self.assertEqual(policy.last_reason, "return:recall")
 
@@ -10745,7 +10765,7 @@ class FixedQuestTest(unittest.TestCase):
 
         self.assertTrue(policy._quest_floor_exit_locked(snap))
         with patch.object(policy, "_missing_required_abilities", return_value=()):
-            self.assertNotEqual(policy.choose_key(snap), READ_KEY + "r")
+            self.assertNotEqual(policy.choose_key(snap), READ_KEY + "R")
         self.assertNotEqual(policy.last_reason, "return:recall")
 
     def test_runtime_random_quest_lock_releases_when_complete_or_off_floor(self):
@@ -11787,7 +11807,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             patch.object(policy, "_unique_combat_consumable", return_value=None),
             patch.object(policy, "_predicted_damage", return_value=893),
         ):
-            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rr")
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rR")
         self.assertEqual(policy.last_reason, "emergency:recall-quest-fail")
 
     def test_q31_defers_fixed_target_ammo_recovery_during_opening_wave(self):
@@ -18349,7 +18369,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
             inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
-        self.assertNotEqual(pol.choose_key(safe), "rr")
+        self.assertNotEqual(pol.choose_key(safe), "rR")
         self.assertTrue(pol._returning_to_town)
 
     def test_healthy_first_teleport_landing_continues_dive(self):
@@ -18370,7 +18390,7 @@ class PredictiveEscapeTest(unittest.TestCase):
                 item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
             ],
         )
-        self.assertNotEqual(pol.choose_key(safe), "rr")
+        self.assertNotEqual(pol.choose_key(safe), "rR")
         self.assertFalse(pol._returning_to_town)
         self.assertIsNone(pol._last_return_trigger)
 
@@ -18421,7 +18441,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             ],
         )
         pol._breeder_breakthrough_floor = landing.floor_key
-        self.assertNotEqual(pol.choose_key(landing), "rr")
+        self.assertNotEqual(pol.choose_key(landing), "rR")
         self.assertIsNone(pol._last_return_trigger)
 
 
@@ -23006,7 +23026,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rr")
+        self.assertEqual(policy.choose_key(snap), "rR")
         self.assertEqual(policy.last_reason, "town:cancel-unsafe-recall")
 
     def test_cancels_recall_when_safe_target_changes_during_countdown(self):
@@ -23027,7 +23047,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._target_dungeon_id = 3
 
         with patch.object(policy, "_recall_destination_safe", return_value=True):
-            self.assertEqual(policy._town_cancel_unsafe_recall_key(snap), "rr")
+            self.assertEqual(policy._town_cancel_unsafe_recall_key(snap), "rR")
 
         self.assertEqual(
             policy.last_reason,
@@ -24594,7 +24614,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
 
-        self.assertNotEqual(policy._fundraising_key(snap, []), "rr")
+        self.assertNotEqual(policy._fundraising_key(snap, []), "rR")
         self.assertTrue(policy._returning_to_town)
 
     def obsolete_mining_abandons_a_revisited_treasure_route_before_long_leash(self):
@@ -24676,7 +24696,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
         policy._build_grid_index(snap)
 
-        self.assertEqual(policy._leave_fundraising_floor(snap), "rr")
+        self.assertEqual(policy._leave_fundraising_floor(snap), "rR")
         self.assertEqual(policy.last_reason, "fundraise:recall-stuck")
         self.assertTrue(policy._returning_to_town)
 
@@ -25210,7 +25230,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             blockers=(),
         )
         policy._char_dump_done_this_visit = True  # past the pre-dive dump
-        self.assertEqual(policy.choose_key(snap), "rra")
+        self.assertEqual(policy.choose_key(snap), "rRa")
         self.assertEqual(policy.last_reason, "town:recall-to-angband")
 
     def test_live_capture_home_scan_incomplete_never_reads_recall_after_restart(self):
@@ -25285,7 +25305,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._char_dump_done_this_visit = True
         policy._prepare_equipment_optimization = lambda _snapshot: timed_out
 
-        self.assertNotEqual(policy.choose_key(snap), "rra")
+        self.assertNotEqual(policy.choose_key(snap), "rRa")
         self.assertFalse(policy._equipment_departure_ready(snap))
 
     def test_stale_dressed_timeout_is_refused_for_currently_stripped_snapshot(self):
@@ -25334,7 +25354,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._home_available = lambda candidate_snapshot: True
         policy._equipment_departure_ready = lambda candidate_snapshot: True
 
-        self.assertEqual(policy._town_special_key(snap), "rra")
+        self.assertEqual(policy._town_special_key(snap), "rRa")
         self.assertFalse(policy._home_candidate_waiting)
         self.assertEqual(policy.last_reason, "town:recall-to-angband")
 
@@ -25379,7 +25399,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 policy._home_available = lambda candidate_snapshot: True
                 policy._equipment_departure_ready = lambda candidate_snapshot: True
 
-                self.assertEqual(policy._town_special_key(snap), "rra")
+                self.assertEqual(policy._town_special_key(snap), "rRa")
                 self.assertFalse(policy._home_candidate_waiting)
                 self.assertEqual(policy.last_reason, "town:recall-to-angband")
 
@@ -28298,7 +28318,7 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), CHARACTER_DUMP_MACRO)
         self.assertEqual(pol.last_reason, "town:character-dump")
         # Dump written -> the very next decision commits to the recall.
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
     def test_periodic_dump_waits_for_quiet_exploration_and_emits_once(self):
@@ -28480,7 +28500,7 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         pol._observe(snap)
         self.assertGreaterEqual(pol._deepest_level, RECALL_MIN_DEPTH)
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_recall_depth_only_raises_never_lowers_watermark(self):
@@ -28494,7 +28514,7 @@ class TownRecallReturnTest(unittest.TestCase):
 
     def test_recalls_into_a_deep_yeek_cave_run(self):
         pol, snap = self._ready_town(RECALL_MIN_DEPTH, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_six_scrolls_permit_tenth_floor_yeek_recall_departure(self):
@@ -28518,7 +28538,7 @@ class TownRecallReturnTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
         )
 
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_five_scrolls_refuse_tenth_floor_yeek_recall_departure(self):
@@ -28542,7 +28562,7 @@ class TownRecallReturnTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
         )
 
-        self.assertNotEqual(pol._town_special_key(snap), "rra")
+        self.assertNotEqual(pol._town_special_key(snap), "rRa")
         self.assertNotEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_yeek_recall_ignores_the_games_different_default_destination(self):
@@ -28571,7 +28591,7 @@ class TownRecallReturnTest(unittest.TestCase):
             pol._town_recall_destination(snap),
             ("yeek-cave", DUNGEON_YEEK_CAVE),
         )
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_shallow_run_walks_to_the_entrance_not_recall(self):
@@ -28580,7 +28600,7 @@ class TownRecallReturnTest(unittest.TestCase):
 
     def test_recalls_to_angband_once_unlocked(self):
         pol, snap = self._ready_town(8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True)
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
     def test_exhausted_identify_charges_and_home_catalog_defer_to_recall(self):
@@ -28623,7 +28643,7 @@ class TownRecallReturnTest(unittest.TestCase):
                 pol._town_departure_ready(snap),
                 pol._departure_block_state(snap),
             )
-            self.assertEqual(pol._town_special_key(snap), "rra")
+            self.assertEqual(pol._town_special_key(snap), "rRa")
 
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
@@ -28661,7 +28681,7 @@ class TownRecallReturnTest(unittest.TestCase):
             pol, "_recall_town_departure_conjuncts",
             return_value={"test_ready": True},
         ), patch.object(pol, "_dungeon_entry_allowed", return_value=True):
-            self.assertEqual(pol._town_special_key(snap), "rra")
+            self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
         self.assertIn(STORE_HOME, pol._town_store_attempted)
 
@@ -28704,7 +28724,7 @@ class TownRecallReturnTest(unittest.TestCase):
         ), patch.object(
             pol, "_combat_weapon_ready", return_value=True
         ):
-            self.assertEqual(pol._town_special_key(snap), "rra")
+            self.assertEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
     def test_resume_preserves_an_already_active_town_recall(self):
@@ -28731,7 +28751,7 @@ class TownRecallReturnTest(unittest.TestCase):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
         )
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
 
         self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
         self.assertEqual(pol.last_reason, "town:await-recall-confirmation")
@@ -28749,10 +28769,10 @@ class TownRecallReturnTest(unittest.TestCase):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
         )
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
 
         rejected = replace(snap, turn=snap.turn + 1)
-        self.assertEqual(pol._town_special_key(rejected), "rra")
+        self.assertEqual(pol._town_special_key(rejected), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
     def test_departure_block_telemetry_names_failed_gate_and_values(self):
@@ -29027,7 +29047,7 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertIn("ledger-drop-missing", pol.last_reason)
         self.assertEqual(pol._morivant_home_item_key(home), LEAVE_STORE_KEY)
         self.assertIsNone(pol._morivant_full_identify)
-        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol._town_special_key(snap), "rRa")
 
     def test_one_carried_full_identify_item_keeps_existing_behavior(self):
         pol, snap = self._ready_town(
@@ -29085,7 +29105,7 @@ class TownRecallReturnTest(unittest.TestCase):
                 if not carried.name.startswith("ego ring")
             ],
         )
-        self.assertEqual(pol._town_special_key(departed), "rra")
+        self.assertEqual(pol._town_special_key(departed), "rRa")
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
 
     def test_481_gold_morivant_capture_refuses_without_an_inn_approach_retry(self):
@@ -29394,7 +29414,7 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._home_candidate_waiting = False
 
         self.assertEqual(
-            pol._town_special_key(snap), "rra",
+            pol._town_special_key(snap), "rRa",
             (pol.last_reason, pol.departure_block_state()),
         )
         self.assertIsNone(pol._home_pending_item)
@@ -29412,13 +29432,13 @@ class TownRecallReturnTest(unittest.TestCase):
         signature = pol._item_signature(pending)
         pol._home_pending_item = signature
 
-        self.assertNotEqual(pol._town_special_key(snap), "rra")
+        self.assertNotEqual(pol._town_special_key(snap), "rRa")
         self.assertEqual(pol._home_pending_item, signature)
 
     def test_fundraising_keeps_walking_to_mine_level_one(self):
         pol, snap = self._ready_town(8, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE)
         pol._fundraising_mode = "mine"
-        self.assertNotEqual(pol._town_special_key(snap), "rr")
+        self.assertNotEqual(pol._town_special_key(snap), "rR")
 
     def test_deep_run_drops_the_town_entrance_as_a_descent_goal(self):
         entrance = GridState(
@@ -29481,7 +29501,7 @@ class TownRecallReturnTest(unittest.TestCase):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
         snapshot = replace(snapshot, inventory=[recall])
 
-        self.assertEqual(policy.choose_key(snapshot), "rr")
+        self.assertEqual(policy.choose_key(snapshot), "rR")
         self.assertEqual(policy.last_reason, "fixedquest:claim:return")
 
     def test_q14_completed_in_dungeon_fights_adjacent_hostile_before_recall(self):
@@ -29548,7 +29568,7 @@ class TownRecallReturnTest(unittest.TestCase):
             turn=100 + RECALL_ISSUE_CONFIRM_TURNS + 1,
         )
 
-        self.assertEqual(policy._return_to_town_key(snapshot, []), "rr")
+        self.assertEqual(policy._return_to_town_key(snapshot, []), "rR")
         self.assertEqual(policy.last_reason, "return:recall")
 
     def test_stuck_recall_escape_awaits_consumed_scroll_confirmation(self):
@@ -29570,7 +29590,7 @@ class TownRecallReturnTest(unittest.TestCase):
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         policy.last_reason = "search"
 
-        self.assertEqual(policy.choose_key(snapshot), READ_KEY + "r")
+        self.assertEqual(policy.choose_key(snapshot), READ_KEY + "R")
         self.assertEqual(policy.last_reason, "stuck:recall-escape")
 
         consumed = replace(
@@ -29601,7 +29621,7 @@ class TownRecallReturnTest(unittest.TestCase):
 
         self.assertEqual(
             policy._navigation_livelock_key(snapshot),
-            READ_KEY + "r",
+            READ_KEY + "R",
         )
         self.assertEqual(policy.last_reason, "livelock:recall-escape")
 
@@ -30308,7 +30328,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol._target_dungeon_id = 14
         pol._char_dump_done_this_visit = True  # past the pre-dive dump
         # Mountain is index 5 in ALL_ENTERED -> selection letter 'f'.
-        self.assertEqual(pol._town_special_key(snap), "rrf")
+        self.assertEqual(pol._town_special_key(snap), "rRf")
         self.assertEqual(pol.last_reason, "town:recall-to-alt-dungeon")
 
     def test_alternate_dungeon_recall_keeps_dungeon_reserve_after_use(self):
@@ -30394,7 +30414,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         # exit. Now it reads Word of Recall to start the escape home instead.
         snap = self._swarm([item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5)])
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "rr")
+        self.assertEqual(pol.choose_key(snap), "rR")
         self.assertEqual(pol.last_reason, "emergency:recall")
 
     def test_prefers_teleport_over_recall_when_a_teleport_is_available(self):
@@ -33075,7 +33095,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             visible_monsters=[],
             inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
-        self.assertEqual(policy.choose_key(flickered), "rr")
+        self.assertEqual(policy.choose_key(flickered), "rR")
         self.assertEqual(policy.last_reason, "return:recall")
 
     def test_give_up_walk_heals_before_recall_wait(self):
@@ -34907,7 +34927,7 @@ class StuckEscapeTest(unittest.TestCase):
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), READ_KEY + "r")
+        self.assertEqual(pol.choose_key(snap), READ_KEY + "R")
         self.assertEqual(pol.last_reason, "stuck:recall-escape")
 
     def test_stuck_teleport_escape_without_recall_or_known_downstairs(self):
@@ -34940,7 +34960,7 @@ class StuckEscapeTest(unittest.TestCase):
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), READ_KEY + "r")
+        self.assertEqual(pol.choose_key(snap), READ_KEY + "R")
         self.assertEqual(pol.last_reason, "stuck:recall-escape")
 
     def test_stuck_escape_does_not_burn_phase_door(self):
@@ -35019,7 +35039,7 @@ class StuckEscapeTest(unittest.TestCase):
 
         key = pol.choose_key(snap)
 
-        self.assertNotEqual(key, "rr")
+        self.assertNotEqual(key, "rR")
         self.assertNotEqual(pol.last_reason, "stuck:recall-escape")
 
     def test_conquered_forgetting_maze_recalls_on_stuck_streak(self):
@@ -35040,7 +35060,7 @@ class StuckEscapeTest(unittest.TestCase):
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), "rr")
+        self.assertEqual(pol.choose_key(snap), "rR")
         self.assertEqual(pol.last_reason, "stuck:recall-escape")
 
     def test_visible_maze_upstairs_is_retried_after_stale_route_expiry(self):
@@ -35070,7 +35090,7 @@ class StuckEscapeTest(unittest.TestCase):
 
         key = pol.choose_key(snap)
 
-        self.assertNotEqual(key, "rr")
+        self.assertNotEqual(key, "rR")
         self.assertNotEqual(pol.last_reason, "stuck:recall-escape")
 
     def test_forgetting_maze_routes_to_a_remembered_downstairs(self):
@@ -36276,7 +36296,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         with patch.object(
             pol, "_recall_destination_safe", return_value=True
         ), patch.object(pol, "_descent_step", return_value=None):
-            self.assertEqual(pol._town_special_key(snap), READ_KEY + "rb")
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "Rb")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
         self.assertTrue(pol._emergency_recall_sanctioned)
@@ -36310,7 +36330,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             self.assertEqual(
                 pol._recall_selection_key(snap, DUNGEON_YEEK_CAVE), "a"
             )
-            self.assertEqual(pol._town_special_key(snap), READ_KEY + "ra")
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "Ra")
 
         self.assertNotEqual(pol.last_reason, "town:blocked:repetition")
 
@@ -36716,7 +36736,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             inventory=[recall],
         )
 
-        self.assertEqual(pol._return_to_town_key(snap, []), READ_KEY + "r")
+        self.assertEqual(pol._return_to_town_key(snap, []), READ_KEY + "R")
         self.assertEqual(pol.last_reason, "return:recall")
 
     def test_sanctioned_repetition_recall_ignores_readiness_cancel(self):
@@ -36740,7 +36760,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         ), patch.object(
             pol, "_recall_destination_safe", return_value=True
         ):
-            self.assertEqual(pol._town_blocked_key(snap), READ_KEY + "ra")
+            self.assertEqual(pol._town_blocked_key(snap), READ_KEY + "Ra")
 
         recalling = replace(
             snap, player=replace(snap.player, recalling=True)
@@ -36771,7 +36791,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         )
         with patch.object(pol, "_recall_destination_safe", return_value=True):
             self.assertEqual(
-                pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "r"
+                pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "R"
             )
 
         self.assertEqual(
@@ -36795,7 +36815,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             pol, "_equipment_departure_ready", return_value=False
         ):
             self.assertEqual(
-                pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "r"
+                pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "R"
             )
 
         self.assertEqual(pol.last_reason, "town:cancel-unready-recall")
@@ -36828,7 +36848,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             pol, "_equipment_departure_ready", return_value=False
         ):
             self.assertEqual(
-                pol._town_cancel_unsafe_recall_key(ordinary), READ_KEY + "r"
+                pol._town_cancel_unsafe_recall_key(ordinary), READ_KEY + "R"
             )
         self.assertEqual(pol.last_reason, "town:cancel-unready-recall")
 
@@ -36866,7 +36886,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         ), patch.object(
             pol, "_step_toward", return_value=WAIT_KEY
         ):
-            self.assertEqual(pol._town_special_key(snap), READ_KEY + "da")
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "Da")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
 
@@ -36896,7 +36916,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         ), patch.object(
             pol, "_recall_destination_safe", return_value=True
         ):
-            self.assertEqual(pol._town_special_key(snap), READ_KEY + "da")
+            self.assertEqual(pol._town_special_key(snap), READ_KEY + "Da")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
 
@@ -36914,7 +36934,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         )
 
         with patch.object(pol, "_descent_step", return_value=None):
-            self.assertEqual(pol._town_blocked_key(snap), READ_KEY + "r")
+            self.assertEqual(pol._town_blocked_key(snap), READ_KEY + "R")
 
         self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
 
@@ -42541,7 +42561,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_next_required_store_type", return_value=None
         ):
-            self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rr")
+            self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rR")
 
         self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
         self.assertEqual(policy.last_reason, "town:cancel-wrong-recall-destination")
@@ -42567,7 +42587,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_equipment_departure_ready", return_value=False
         ):
-            self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rr")
+            self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rR")
 
         self.assertEqual(policy.last_reason, "town:cancel-unready-recall")
 
@@ -43186,7 +43206,7 @@ class DungeonConquestTest(unittest.TestCase):
             inventory=[recall],
         )
         pol._victory_loot_dungeon = 4
-        self.assertEqual(pol._conquest_loot_key(snap), "ra")
+        self.assertEqual(pol._conquest_loot_key(snap), "rA")
         self.assertIsNone(pol._victory_loot_dungeon)
         self.assertTrue(pol._returning_to_town)
         self.assertEqual(pol._last_return_trigger, "conquest-complete")
@@ -45078,7 +45098,7 @@ class RecallShortageBehaviorRestrictionTest(unittest.TestCase):
         key = policy.choose_key(dungeon)
 
         self.assertFalse(policy._returning_to_town)
-        self.assertNotEqual(key, READ_KEY + "r")
+        self.assertNotEqual(key, READ_KEY + "R")
         self.assertNotEqual(policy.last_reason, "return:recall")
         self.assertNotEqual(policy._last_return_trigger, "recall-shortage")
 
@@ -46658,7 +46678,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 carried_key = carrying.choose_key(looted)
-            self.assertNotEqual(carried_key, "rra")
+            self.assertNotEqual(carried_key, "rRa")
             self.assertEqual(
                 carrying.last_reason,
                 "town:blocked:equipment-optimization-timeout",
@@ -46675,7 +46695,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             ):
                 key = restarted.choose_key(baseline)
 
-            self.assertNotEqual(key, "rra")
+            self.assertNotEqual(key, "rRa")
             self.assertEqual(
                 restarted.last_reason,
                 "town:blocked:equipment-optimization-timeout",
@@ -46698,7 +46718,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             ):
                 key = restarted.choose_key(ticked)
 
-            self.assertEqual(key, "rra")
+            self.assertEqual(key, "rRa")
             self.assertEqual(restarted.last_reason, "town:recall-to-angband")
 
     def test_light_only_home_upgrade_refuses_through_choose_key(self):
@@ -46729,7 +46749,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
+        self.assertNotEqual(key, "rRa")
         self.assertEqual(
             policy.last_reason, "town:blocked:equipment-optimization-timeout"
         )
@@ -46756,7 +46776,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
+        self.assertNotEqual(key, "rRa")
         self.assertEqual(
             policy.last_reason, "town:blocked:equipment-optimization-timeout"
         )
@@ -46786,7 +46806,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
+        self.assertNotEqual(key, "rRa")
         self.assertEqual(
             policy.last_reason, "town:blocked:equipment-optimization-timeout"
         )
@@ -46825,9 +46845,9 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 "hengbot.policy.prepare_warrior_optimization",
                 side_effect=self._zero_budget(real_prepare),
             ):
-                self.assertNotEqual(policy.choose_key(first), "rra")
+                self.assertNotEqual(policy.choose_key(first), "rRa")
                 key = policy.choose_key(changed)
-        self.assertNotEqual(key, "rra")
+        self.assertNotEqual(key, "rRa")
         self.assertEqual(
             policy._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
@@ -46848,7 +46868,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 snapshot, Path(directory) / "confirmed-loadout.json"
             )
             key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
+        self.assertNotEqual(key, "rRa")
         preparation = policy._equipment_optimization_preparation
         self.assertIsNotNone(preparation.result.best)
         self.assertNotEqual(
@@ -47113,7 +47133,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = restarted.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
+        self.assertNotEqual(key, "rRa")
         self.assertEqual(
             restarted.last_reason,
             "town:blocked:equipment-optimization-timeout",
@@ -47143,7 +47163,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                     side_effect=self._zero_budget(real_prepare),
                 ):
                     key = policy.choose_key(snapshot)
-                self.assertNotEqual(key, "rra")
+                self.assertNotEqual(key, "rRa")
                 self.assertEqual(
                     policy.last_reason,
                     "town:blocked:equipment-optimization-timeout",
