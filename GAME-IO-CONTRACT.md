@@ -50,25 +50,28 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     consulted first (`floor-item-getter.cpp:797-842`), so a command-specific tag can consume the
     character before `label_to_equipment()` gets it. Thus a pack-`e` ring for the main ring is `we(`.
 
-12. **Reading a scroll is `r` plus a selector-safe pack letter, followed by every effect prompt
+12. **Reading a scroll is `r` plus a selector-safe pack letter, its verification, and every effect prompt
     answer.** `do_cmd_read_scroll` asks `Read which scroll?` and calls
     `choose_item(..., USE_INVEN | USE_FLOOR)` (`cmd-read.cpp:28-47`). Its selector checks
     command-specific inscription tags before inventory labels (`floor-item-getter.cpp:797-834`), so
     send the pack letter uppercase: `D` cannot match a lowercase `@rd` tag, then the label path applies
-    `tolower()` and selects pack slot `d`. For Word of Recall, an already-active recall cancels
+    `tolower()` and selects pack slot `d`. That uppercase label opens `Try <item>?`
+    (`floor-item-getter.cpp:824-869`), so answer `y` before any scroll-effect prompt. For Word of Recall, an already-active recall cancels
     immediately with no further prompt (`spells-world.cpp:437-442`), so pack-`d` cancellation is
-    exactly `rD`. With no recall active in town, Hengband next asks `Which dungeon do you recall?:`
+    exactly `rDy`. With no recall active in town, Hengband next asks `Which dungeon do you recall?:`
     (`spells-world.cpp:444-451`); it accepts Escape or `a` through the entered-dungeon count
-    (`spells-world.cpp:388-400`). Thus destination `g` is `rDg`. Lowercase `rd` can select an `@rd`
+    (`spells-world.cpp:388-400`). Thus destination `g` is `rDyg`. Lowercase `rd` can select an `@rd`
     tagged item instead of slot `d`; its intended recall prompt never opens, and a composed destination
-    key such as the final `g` is then delivered to the wrong input context.
+    key such as the final `g` is then delivered to the wrong input context. Omitting the verification
+    answer has the same shape: in `rDg`, `g` reaches the yes/no prompt and the scroll is never read.
 
 13. **Every inventory selector in a composed key is uppercase; prompt answers are a separate
     contract.** All commands which select inventory through `choose_item` reach the same item
     getter: `get_tag()` runs before inventory-label mapping, while the label path applies
     `tolower()` (`floor-item-getter.cpp:797-834`). Thus a pack item `b` is selected as `B`; the
     uppercase byte cannot match the bot-created lowercase command tag `@<command>b`, but still maps
-    back to slot `b`. This applies to read (`rB...`), quaff (`qB`), eat (`EB`), refill (`\FB`),
+    back to slot `b`. Uppercase read selection additionally requires its `y` verification
+    (`rBy...`); the other examples here remain selector-only. This applies to quaff (`qB`), eat (`EB`), refill (`\FB`),
     wield (`wB...`), fire (`fB...`), throw (`vB...`), aim-wand (`aB...`), staff/rod source and item
     targets (`uBC`, `zBC`), destroy (`01kB`), pack inscribe (`{B...`), chest drop (`dB`), and every
     identify/enchant/remove-curse source or pack-target selector. Equipment targets remain the

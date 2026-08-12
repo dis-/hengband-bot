@@ -12664,6 +12664,8 @@ class HengbotPolicy:
         ) = self._read_binding
         old_letter = key[1]
         suffix = key[2:]
+        if suffix.startswith("y"):
+            suffix = suffix[1:]
         resolved = next(
             (item for item in snapshot.inventory if item.slot == old_letter), None
         )
@@ -12686,10 +12688,13 @@ class HengbotPolicy:
         # match a lowercase @r<tag>, then the label path lowercases it back to
         # the intended pack slot.  This selector rule is shared by every item
         # command; a raw lowercase slot can select the tagged item instead and
-        # leave every composed prompt answer misaligned.
+        # leave every composed prompt answer misaligned.  The uppercase label
+        # path then asks ``Try <item>?`` (floor-item-getter.cpp:866-869), so the
+        # selector must be followed by ``y`` before any effect-specific answer.
         posted_key = (
             READ_KEY
             + selected.slot.upper()
+            + "y"
             + suffix
             if selected is not None
             else WAIT_KEY
@@ -13266,13 +13271,14 @@ class HengbotPolicy:
         self.last_reason = (
             "identify:full-equipped" if full else "identify:normal-equipped"
         )
-        return (
-            command
-            + source_item.slot.upper()
-            + "/"
+        suffix = (
+            "/"
             + EQUIPMENT_SLOT_KEY[target.slot]
             + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
         )
+        if command == READ_KEY:
+            return self._read_key(snapshot, source_item, suffix)
+        return command + source_item.slot.upper() + suffix
 
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
@@ -13608,12 +13614,10 @@ class HengbotPolicy:
             else:
                 self._identify_watch = watch
                 self._identify_fail_streak = 0
-        return (
-            command
-            + source_item.slot.upper()
-            + target.slot.upper()
-            + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
-        )
+        suffix = target.slot.upper() + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
+        if command == READ_KEY:
+            return self._read_key(snapshot, source_item, suffix)
+        return command + source_item.slot.upper() + suffix
 
     def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:

@@ -224,7 +224,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertIsNone(policy._descent_step(snapshot))
         self.assertIsNone(policy._nav_ledger.descent_target)
         key = policy.choose_key(snapshot)
-        self.assertEqual(key, "rG")
+        self.assertEqual(key, "rGy")
         self.assertEqual(policy.last_reason, "return:recall")
         self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
         self.assertEqual(_objective_for_reason(policy.last_reason), "Return to town")
@@ -1119,7 +1119,7 @@ class NavigationInvariantTest(unittest.TestCase):
 
         key = policy.choose_key(fighting)
 
-        self.assertEqual(key, "rW")
+        self.assertEqual(key, "rWy")
         self.assertEqual(policy.last_reason, "combat:disengage-recall")
 
     def test_fruitless_disengagement_waits_while_recall_is_active(self):
@@ -1151,7 +1151,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._fruitless_disengage_floor = fighting.floor_key
         policy._returning_to_town = True
 
-        self.assertEqual(policy.choose_key(fighting), "rW")
+        self.assertEqual(policy.choose_key(fighting), "rWy")
 
         self.assertEqual(policy.choose_key(fighting), WAIT_KEY)
         self.assertEqual(
@@ -1178,10 +1178,10 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._fruitless_disengage_floor = fighting.floor_key
         policy._returning_to_town = True
 
-        self.assertEqual(policy.choose_key(fighting), "rW")
+        self.assertEqual(policy.choose_key(fighting), "rWy")
 
         rejected = replace(fighting, turn=fighting.turn + 1)
-        self.assertEqual(policy.choose_key(rejected), "rW")
+        self.assertEqual(policy.choose_key(rejected), "rWy")
         self.assertEqual(policy.last_reason, "combat:disengage-recall")
 
     def test_blocked_fruitless_disengagement_reaches_visible_stop(self):
@@ -1441,7 +1441,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._nav_exhausted = True
-        self.assertEqual(policy.choose_key(snapshot), "rW")
+        self.assertEqual(policy.choose_key(snapshot), "rWy")
         self.assertEqual(policy.last_reason, "livelock:recall-escape")
 
     def test_exhausted_floor_seeks_upstairs_without_a_scroll(self):
@@ -1460,7 +1460,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._returning_to_town = True
         policy._nav_exhausted = True
 
-        self.assertEqual(policy.choose_key(snapshot), "rT")
+        self.assertEqual(policy.choose_key(snapshot), "rTy")
         self.assertEqual(policy.last_reason, "livelock:teleport-explore")
         self.assertFalse(policy._nav_exhausted)
 

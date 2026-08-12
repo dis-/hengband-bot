@@ -93,7 +93,7 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
 
         key = policy.choose_key(self.landed)
 
-        self.assertEqual(key, "rH")
+        self.assertEqual(key, "rHy")
         self.assertEqual(policy.last_reason, "return:recall")
         self.assertEqual(policy._last_return_trigger, "resist-gap")
         self.assertEqual(
