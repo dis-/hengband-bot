@@ -27220,7 +27220,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "rsa" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
 
-    def test_known_cursed_ego_skips_star_identify(self):
+    def test_known_cursed_ego_gets_star_identify(self):
         target = item(
             "a", 23, 1, name="cursed ego sword", known=True,
             fully_known=False, is_equipment=True, is_ego=True, is_cursed=True,
@@ -27239,7 +27239,56 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
 
-        self.assertIsNone(policy._town_item_processing_key(snap))
+        self.assertEqual(policy._town_item_processing_key(snap), "rsa" + "\x1b" * 8)
+        self.assertEqual(policy.last_reason, "identify:full")
+
+    def test_measured_56_item_catalog_identifies_worn_heavy_curse(self):
+        shield = item(
+            "sub_hand", 34, 2, name="plasma shield", known=True,
+            fully_known=False, is_equipment=True, is_cursed=True,
+            inscription=policy_module.HEAVY_CURSE_TAG,
+        )
+        home_weapon = store_item(
+            "a", 23, 25, name="Home weapon", known=True,
+            fully_known=False, is_equipment=True, is_cursed=True,
+        )
+        complete_home = [
+            store_item(
+                chr(ord("a") + index % 26), 30 + index % 8, index,
+                name=f"complete-{index}", known=True, fully_known=True,
+                is_equipment=True,
+            )
+            for index in range(54)
+        ]
+        star_scroll = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, name="star identify"
+        )
+        snapshot = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[star_scroll],
+            equipment=[shield],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        policy._equipment_catalog.observe_home_page(
+            [home_weapon, *complete_home], allow_wrap=False
+        )
+
+        self.assertEqual(len(policy._equipment_catalog.items), 56)
+        self.assertEqual(
+            sum(owned.identification_incomplete
+                for owned in policy._equipment_catalog.items),
+            2,
+        )
+        self.assertTrue(policy._curse_unremovable(shield))
+        self.assertEqual(policy.choose_key(snapshot), "rs/b" + "\x1b" * 8)
+        self.assertEqual(policy.last_reason, "identify:full-equipped")
 
     def test_known_cursed_ego_is_selected_for_sale(self):
         target = item(

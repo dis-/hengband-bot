@@ -12716,8 +12716,11 @@ class HengbotPolicy:
             and (
                 (
                     item.known
-                    and item_requires_full_identification(item)
                     and not item.fully_known
+                    and (
+                        item.is_cursed
+                        or item_requires_full_identification(item)
+                    )
                 )
                 or (not item.known and item.pseudo_feeling != "average")
             )
@@ -12932,8 +12935,7 @@ class HengbotPolicy:
                 )
                 needs_full_identification = (
                     item.known
-                    and item_requires_full_identification(item)
-                    and not item.fully_known
+                    and self._identification_flow_candidate(item)
                 )
                 if (
                     needs_normal_identification
@@ -13228,20 +13230,13 @@ class HengbotPolicy:
                 for item in snapshot.equipment
                 if item.slot in EQUIPMENT_SLOT_KEY
                 and self._item_signature(item) not in self._deferred_home_items
-                and (
-                    (not item.known and item.pseudo_feeling != "average")
-                    or (
-                        item.known
-                        and item_requires_full_identification(item)
-                        and not item.fully_known
-                    )
-                )
+                and self._identification_flow_candidate(item)
             ),
             None,
         )
         if target is None:
             return None
-        full = target.known and item_requires_full_identification(target)
+        full = target.known
         source = self._find_identification_source(
             snapshot, full=full, reliable_only=True
         )
@@ -13622,17 +13617,11 @@ class HengbotPolicy:
                 lambda item: item.is_equipment
                 and self._item_signature(item) not in self._deferred_home_items
                 and self._item_signature(item) not in self._unidentifiable_sigs
-                and (
-                    not item.known
-                    or (
-                        item_requires_full_identification(item)
-                        and not item.fully_known
-                    )
-                ),
+                and self._identification_flow_candidate(item),
             )
             if target is None:
                 return None
-            full = target.known and item_requires_full_identification(target)
+            full = target.known
             key = self._carried_identify_command(snapshot, target, full=full)
             if key is None:
                 if self._item_signature(target) in self._unidentifiable_sigs:
@@ -13698,7 +13687,7 @@ class HengbotPolicy:
             self.last_reason = "identify:normal"
             return key
 
-        if item_requires_full_identification(target) and not target.fully_known:
+        if target.known and self._identification_flow_candidate(target):
             source = self._find_identification_source(
                 snapshot,
                 full=True,
@@ -18638,8 +18627,7 @@ class HengbotPolicy:
                 )
                 needs_full = (
                     candidate.known
-                    and item_requires_full_identification(candidate)
-                    and not candidate.fully_known
+                    and self._identification_flow_candidate(candidate)
                 )
                 if needs_normal and self._find_identification_source(
                     snapshot,
