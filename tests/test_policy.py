@@ -31787,6 +31787,69 @@ class RemoveCurseTest(unittest.TestCase):
         self.assertIsNotNone(purchase)
         self.assertEqual(purchase.sval, SV_SCROLL_REMOVE_CURSE)
 
+    def test_affordable_temple_curse_service_is_first_then_bought_and_read(self):
+        cursed = [
+            item(slot, 23, index, is_equipment=True, is_cursed=True)
+            for index, slot in enumerate(("sub_hand", "arms", "feet"))
+        ]
+        ware = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100,
+            name="remove curse",
+        )
+        policy = HengbotPolicy()
+        policy._observe(self._town(cursed))
+        temple = replace(
+            self._town(cursed),
+            player=player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            store=StoreState(STORE_TEMPLE, [ware]),
+        )
+        policy._observe(temple)
+        policy._town_maps = {
+            0: TownMap(
+                "curse-service-order", 20, 20, frozenset(),
+                {
+                    STORE_GENERAL: Position(10, 11),
+                    STORE_TEMPLE: Position(10, 18),
+                },
+            )
+        }
+        outside = replace(temple, store=None, width=20, height=20)
+        needs = [
+            TownNeed(STORE_GENERAL, "food", "normal"),
+            TownNeed(STORE_TEMPLE, "remove-curse", "normal"),
+        ]
+
+        self.assertEqual(
+            policy._order_town_needs(
+                outside, needs, [STORE_GENERAL, STORE_TEMPLE],
+                outside.player.position,
+            )[0],
+            STORE_TEMPLE,
+        )
+        self.assertEqual(policy._shop(temple), "pz\r")
+        carried = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+        self.assertEqual(policy._town_remove_curse_key(self._town(cursed, [carried])), "rs")
+
+    def test_remove_curse_actionability_tracks_stock_and_current_funds(self):
+        cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
+        ware = store_item("z", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100)
+        policy = HengbotPolicy()
+        base = replace(
+            self._town([cursed]),
+            player=player(10, 10, gold=99, class_id=PLAYER_CLASS_WARRIOR),
+        )
+        policy._observe(base)
+        policy._observe(replace(base, store=StoreState(STORE_TEMPLE, [ware])))
+        self.assertFalse(policy._normal_remove_curse_actionable_this_visit(base))
+        affordable = replace(
+            base, player=player(10, 10, gold=100, class_id=PLAYER_CLASS_WARRIOR)
+        )
+        self.assertTrue(policy._normal_remove_curse_actionable_this_visit(affordable))
+        policy._observe(replace(affordable, store=StoreState(STORE_TEMPLE, [])))
+        self.assertFalse(policy._normal_remove_curse_actionable_this_visit(affordable))
+        policy._observe(replace(affordable, store=StoreState(STORE_TEMPLE, [ware])))
+        self.assertTrue(policy._normal_remove_curse_actionable_this_visit(affordable))
+
     def test_unchanged_normal_read_latches_and_marks_heavy_curse(self):
         cursed = item(
             "main_ring", 23, 0, is_equipment=True, is_cursed=True,
@@ -32228,7 +32291,7 @@ class RemoveCurseTest(unittest.TestCase):
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
         self.assertFalse(policy._equipment_departure_ready(self._town([cursed])))
 
-    def test_unactionable_curse_optimizer_blocker_allows_confirmed_loadout(self):
+    def test_absent_scroll_allows_loadout_but_affordable_stock_blocks_it(self):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_TEMPLE] = 0
@@ -32250,8 +32313,23 @@ class RemoveCurseTest(unittest.TestCase):
             ready=False,
         )
         policy._prepare_equipment_optimization = lambda _snapshot: blocked
+        policy._observe(snapshot)
+        policy._observe(replace(snapshot, store=StoreState(STORE_TEMPLE, [])))
         seed_confirmed_loadout(policy, snapshot)
         self.assertTrue(policy._equipment_departure_ready(snapshot))
+
+        affordable = replace(
+            self._town([cursed]),
+            player=player(10, 10, gold=100, class_id=PLAYER_CLASS_WARRIOR),
+        )
+        policy._observe(replace(
+            affordable,
+            store=StoreState(
+                STORE_TEMPLE,
+                [store_item("z", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100)],
+            ),
+        ))
+        self.assertFalse(policy._equipment_departure_ready(affordable))
 
     def test_actionable_normal_scroll_keeps_departure_blocked(self):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)

@@ -15113,6 +15113,17 @@ class HengbotPolicy:
             return 2
         return 0
 
+    def _town_need_effective_phase(
+        self, snapshot: Snapshot, need: TownNeed
+    ) -> int:
+        """Put concretely affordable curse service ahead of ordinary errands."""
+        if (
+            need.category == "remove-curse"
+            and self._normal_remove_curse_actionable_this_visit(snapshot)
+        ):
+            return -1
+        return self._town_need_phase(need)
+
     def _order_town_needs(
         self,
         snapshot: Snapshot,
@@ -15129,7 +15140,7 @@ class HengbotPolicy:
         ]
         phase_by_store = {
             store_type: min(
-                self._town_need_phase(need)
+                self._town_need_effective_phase(snapshot, need)
                 for need in needs
                 if need.store_type == store_type
             )
@@ -19645,7 +19656,13 @@ class HengbotPolicy:
             and self._town_map.store_position(STORE_TEMPLE) is None
         ):
             return False
-        return STORE_TEMPLE not in self._town_store_attempted
+        observed = self._town_visit_ledger.shelf_observations.get(
+            (STORE_TEMPLE, "remove-curse")
+        )
+        return bool(
+            observed
+            and any(price <= snapshot.player.gold for price, _units in observed)
+        )
 
     def _affordable_star_remove_curse(self, snapshot: Snapshot) -> StoreItem | None:
         store = snapshot.store
