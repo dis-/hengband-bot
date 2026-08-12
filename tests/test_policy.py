@@ -11,7 +11,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import hengbot.policy as policy_module
-from hengbot.cli import _send_new_decision_key, _send_stall_recovery_nudge
+from hengbot.cli import (
+    POLICY_FINAL_STOP_REASONS,
+    _send_new_decision_key,
+    _send_stall_recovery_nudge,
+)
 
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.wilderness_map import WildernessMap
@@ -28066,8 +28070,9 @@ class WildernessSafetyTest(unittest.TestCase):
 
     def test_routes_on_global_map_and_enters_town(self):
         wilderness = WildernessMap(("#####", "#*1.#", "#####"))
+        observed = {Position(1, 1): grid(1, 1)}
         travelling = Snapshot(
-            player(1, 1), {}, [], floor_key=(0, 0, 0),
+            player(1, 1), observed, [], floor_key=(0, 0, 0),
             width=5, height=3, town_flag=False,
         )
         pol = HengbotPolicy(wilderness_map=wilderness)
@@ -28077,6 +28082,23 @@ class WildernessSafetyTest(unittest.TestCase):
         at_town = replace(travelling, player=player(1, 2))
         self.assertEqual(pol.choose_key(at_town), ">")
         self.assertEqual(pol.last_reason, "wilderness:enter-town")
+
+    def test_gridless_measured_global_map_stops_without_posting_entry(self):
+        rows = ["." * 99 for _ in range(66)]
+        rows[48] = f"{rows[48][:5]}1{rows[48][6:]}"
+        wilderness = WildernessMap(tuple(rows))
+        measured = Snapshot(
+            player(48, 5), {}, [], floor_key=(0, 0, 0),
+            width=99, height=66, town_flag=False, town_id=-1, town_index=0,
+        )
+        pol = HengbotPolicy(wilderness_map=wilderness)
+
+        decisions = [pol.choose_key(measured) for _ in range(3)]
+
+        self.assertEqual(decisions, [WAIT_KEY, WAIT_KEY, WAIT_KEY])
+        self.assertNotIn(">", decisions)
+        self.assertEqual(pol.last_reason, "wilderness:global-position-unavailable")
+        self.assertIn(pol.last_reason, POLICY_FINAL_STOP_REASONS)
 
     def test_global_route_prefers_road_and_never_uses_water(self):
         wilderness = WildernessMap((
@@ -39034,6 +39056,11 @@ class EntranceTravelTest(unittest.TestCase):
             grids,
             [],
             floor_key=(0, 0, 0),
+            width=198,
+            height=66,
+            town_flag=True,
+            town_id=0,
+            town_index=1,
             turn=turn,
             inventory=[
                 item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3)

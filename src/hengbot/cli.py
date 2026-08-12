@@ -340,7 +340,10 @@ TOWN_BLOCKED_STOP_LIMIT = 30
 # the recorded reasons (about 25+ minutes at normal decision cadence).
 TOWN_RESIDENCE_STOP_LIMIT = 1500
 POLICY_FINAL_STOP_REASONS = frozenset(
-    {"equipment-transaction:restore-blocked-terminal"}
+    {
+        "equipment-transaction:restore-blocked-terminal",
+        "wilderness:global-position-unavailable",
+    }
 )
 # Relocated from the travel-guard block: assert against the real constant so
 # a retuned residence net cannot silently invert the guard ordering.
@@ -2381,12 +2384,21 @@ def _run_follow(
                         town_stall_report,
                     )
                     if policy.last_reason in POLICY_FINAL_STOP_REASONS:
-                        print(
-                            "<equipment-transaction:restore-blocked-terminal> "
-                            "recoverable gear restored; missing owned items "
-                            "remain; stopping the bot for investigation",
-                            flush=True,
-                        )
+                        if policy.last_reason == "wilderness:global-position-unavailable":
+                            print(
+                                "<wilderness:global-position-unavailable> "
+                                "global-map world position and entrance terrain "
+                                "are not observable; stopping the bot for "
+                                "investigation",
+                                flush=True,
+                            )
+                        else:
+                            print(
+                                "<equipment-transaction:restore-blocked-terminal> "
+                                "recoverable gear restored; missing owned items "
+                                "remain; stopping the bot for investigation",
+                                flush=True,
+                            )
                         return incident_stop(policy.last_reason, snapshot)
                     recorder.after_decision(policy, snapshot)
                     starving_position_changed = (

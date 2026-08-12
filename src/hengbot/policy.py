@@ -26541,8 +26541,21 @@ class HengbotPolicy:
             global_map is not None
             and snapshot.width == global_map.width
             and snapshot.height == global_map.height
+            and snapshot.town_id == -1
+            and snapshot.town_index == 0
+            and not snapshot.in_town
         )
         if in_global_map:
+            # The JSON emitter currently omits every global-map grid.  Moreover,
+            # the reported player position is the fixed display-space placement
+            # used by wilderness_gen_small, not WildernessGrids' saved world
+            # coordinate.  Feeding it to the definition router can therefore
+            # mistake an ordinary tile for a town glyph and blindly post `>`.
+            # Stop visibly until the emitter supplies either the saved world
+            # position or an observed grid/entrance under the player.
+            if not snapshot.grids:
+                self.last_reason = "wilderness:global-position-unavailable"
+                return WAIT_KEY
             key = global_map.next_key_to_town(player.position.y, player.position.x)
             if key == DOWN_STAIRS_KEY:
                 self.last_reason = "wilderness:enter-town"
