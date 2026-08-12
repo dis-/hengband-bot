@@ -1554,21 +1554,34 @@ def _direction_desynchronized(before, key: str, after) -> bool:
 
 def _look_barrier_allows_decision(complete_lines: list[str]) -> bool:
     """Resume at an ordinary board after look, or make progress if look is lost."""
+    decoded_lines = _decode_response_lines(complete_lines)
     eligible_lines, _, _ = _look_barrier_timed_release(
-        complete_lines, False, LOOK_BARRIER_TIMEOUT_SECONDS
+        complete_lines,
+        False,
+        LOOK_BARRIER_TIMEOUT_SECONDS,
+        decoded_lines,
     )
-    return bool(_newest_snapshot_entry(eligible_lines, {}))
+    eligible_decoded_lines = (
+        decoded_lines[-len(eligible_lines) :] if eligible_lines else []
+    )
+    return bool(
+        _newest_snapshot_entry(
+            eligible_lines, {}, decoded_lines=eligible_decoded_lines
+        )
+    )
 
 
 def _look_barrier_release(
-    complete_lines: list[str], look_seen: bool = False
+    complete_lines: list[str], look_seen: bool = False, decoded_lines=None
 ) -> tuple[list[str], bool]:
     """Return only lines eligible after the one-shot look consumption barrier."""
+    if decoded_lines is None:
+        decoded_lines = _decode_response_lines(complete_lines)
     last_look_index = None
-    for index, line in enumerate(complete_lines):
+    for index, data in enumerate(decoded_lines):
         try:
-            response_type = json.loads(line).get("type")
-        except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+            response_type = data.get("type")
+        except (AttributeError, TypeError):
             continue
         if response_type == "look":
             last_look_index = index
@@ -1581,11 +1594,11 @@ def _look_barrier_release(
 
 
 def _look_barrier_timed_release(
-    complete_lines: list[str], look_seen: bool, elapsed: float
+    complete_lines: list[str], look_seen: bool, elapsed: float, decoded_lines=None
 ) -> tuple[list[str], bool, bool]:
     """Apply the look barrier, escaping once if its response was lost."""
     eligible_lines, look_seen = _look_barrier_release(
-        complete_lines, look_seen
+        complete_lines, look_seen, decoded_lines
     )
     timed_out = not look_seen and elapsed >= LOOK_BARRIER_TIMEOUT_SECONDS
     if timed_out:
@@ -2182,13 +2195,18 @@ def _run_follow(
                 )
                 complete_lines, pending = _split_complete_lines(pending + chunk)
                 recorder.record_snapshot_lines(complete_lines)
-                _dispatch_response_lines(complete_lines, policy, send)
+                decoded_lines = _decode_response_lines(complete_lines)
+                _dispatch_response_lines(
+                    complete_lines, policy, send, decoded_lines=decoded_lines
+                )
                 needs_ordered_snapshots = (
                     home_entry_capture is not None
                     and home_entry_capture.pending is not None
                 )
                 ordered_snapshot_entries = (
-                    _snapshot_entries_in_order(complete_lines, monrace_knowledge)
+                    _snapshot_entries_in_order(
+                        complete_lines, monrace_knowledge, decoded_lines=decoded_lines
+                    )
                     if needs_ordered_snapshots
                     else []
                 )
@@ -2220,9 +2238,17 @@ def _run_follow(
                         complete_lines,
                         look_barrier_seen,
                         time.monotonic() - look_barrier_started_at,
+                        decoded_lines,
+                    )
+                    eligible_decoded_lines = (
+                        decoded_lines[-len(eligible_lines) :]
+                        if eligible_lines
+                        else []
                     )
                     entry = _newest_snapshot_entry(
-                        eligible_lines, monrace_knowledge
+                        eligible_lines,
+                        monrace_knowledge,
+                        decoded_lines=eligible_decoded_lines,
                     )
                     if entry is None:
                         continue
@@ -2231,7 +2257,9 @@ def _run_follow(
                     look_barrier_started_at = 0.0
                 else:
                     entry = _newest_snapshot_entry(
-                        complete_lines, monrace_knowledge
+                        complete_lines,
+                        monrace_knowledge,
+                        decoded_lines=decoded_lines,
                     )
                 if entry is not None:
                     snapshot, snapshot_line = entry
@@ -2826,15 +2854,19 @@ def _newest_snapshot(
 
 
 def _snapshot_entries_in_order(
-    complete_lines: list[str], monrace_knowledge=None
+    complete_lines: list[str], monrace_knowledge=None, *, decoded_lines=None
 ) -> list:
     """Parse ordinary board snapshots in file order without deciding on them."""
+    if decoded_lines is None:
+        decoded_lines = _decode_response_lines(complete_lines)
     snapshots = []
-    for line in complete_lines:
+    for line, data in zip(complete_lines, decoded_lines):
         if not line.strip():
             continue
+        if isinstance(data, Exception):
+            print(f"invalid snapshot: {data}", file=sys.stderr)
+            continue
         try:
-            data = json.loads(line)
             if data.get("type") in {"knowledge", "look", "character"}:
                 continue
             snapshots.append(parse_snapshot(data, monrace_knowledge))
@@ -2859,14 +2891,18 @@ def _observe_home_entry_capture(home_entry_capture, ordered_snapshots) -> None:
 
 
 def _newest_snapshot_entry(
-    complete_lines: list[str], monrace_knowledge=None
+    complete_lines: list[str], monrace_knowledge=None, *, decoded_lines=None
 ):
     """Return the newest parseable snapshot together with its exact JSONL line."""
-    for line in reversed(complete_lines):
+    if decoded_lines is None:
+        decoded_lines = _decode_response_lines(complete_lines)
+    for line, data in reversed(list(zip(complete_lines, decoded_lines))):
         if not line.strip():
             continue
+        if isinstance(data, Exception):
+            print(f"invalid snapshot: {data}", file=sys.stderr)
+            continue
         try:
-            data = json.loads(line)
             if data.get("type") in {"knowledge", "look", "character"}:
                 continue
             return parse_snapshot(data, monrace_knowledge), line
@@ -2877,17 +2913,34 @@ def _newest_snapshot_entry(
     return None
 
 
-def _dispatch_response_lines(complete_lines, policy, send) -> int:
-    """Consume requested menu responses without treating them as board states."""
-    consumed = 0
+def _decode_response_lines(complete_lines):
+    """Decode each complete JSONL line once for all consumers in one read."""
+    decoded_lines = []
     for line in complete_lines:
+        if not line.strip():
+            decoded_lines.append(None)
+            continue
+        try:
+            decoded_lines.append(json.loads(line))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            decoded_lines.append(exc)
+    return decoded_lines
+
+
+def _dispatch_response_lines(
+    complete_lines, policy, send, *, decoded_lines=None
+) -> int:
+    """Consume requested menu responses without treating them as board states."""
+    if decoded_lines is None:
+        decoded_lines = _decode_response_lines(complete_lines)
+    consumed = 0
+    for line, data in zip(complete_lines, decoded_lines):
         if not line.strip():
             continue
         try:
-            data = json.loads(line)
-        except (TypeError, ValueError, json.JSONDecodeError):
+            response_type = data.get("type")
+        except (AttributeError, TypeError):
             continue
-        response_type = data.get("type")
         if response_type not in {"knowledge", "look", "character"}:
             continue
         consumed += 1

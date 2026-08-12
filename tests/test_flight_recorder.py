@@ -8,6 +8,7 @@ import unittest
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from hengbot.cli import _rewind_if_truncated
 from hengbot.flight_recorder import (
@@ -240,6 +241,53 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertTrue(live.exists())
             self.assertTrue(decision.exists())
             self.assertTrue(incident.exists())
+
+    def test_repeated_snapshot_appends_walk_budget_far_less_often(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog",
+                root / "incidents",
+                budget_bytes=1_000_000,
+                snapshot_generation_bytes=1_000_000,
+            )
+            with patch.object(recorder, "prune_budget") as prune_budget:
+                for turn in range(20):
+                    recorder.record_snapshot_lines([json.dumps({"turn": turn})])
+
+            self.assertEqual(prune_budget.call_count, 1)
+
+    def test_snapshot_archive_uses_fast_gzip_level(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+
+            recorder.record_snapshot_lines(["snapshot payload"])
+
+            # Gzip's XFL byte is 4 for the compressor's fastest level.
+            self.assertEqual(recorder.snapshot_path.read_bytes()[8], 4)
+
+    def test_recording_past_budget_prunes_old_rotated_snapshots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog",
+                root / "incidents",
+                budget_bytes=80,
+                snapshot_generation_bytes=1,
+            )
+            recorder.record_snapshot_lines(["first" * 100])
+            recorder.record_snapshot_lines(["second" * 100])
+
+            self.assertEqual(
+                [
+                    path
+                    for path in recorder.snapshot_dir.glob("snapshots-*.jsonl.gz")
+                    if path != recorder.snapshot_path
+                ],
+                [],
+            )
+            self.assertTrue(recorder.snapshot_path.exists())
 
 
 if __name__ == "__main__":

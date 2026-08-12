@@ -47,6 +47,8 @@ from hengbot.cli import (
     _town_stall_report,
     _duplicate_snapshot_ready,
     _direction_desynchronized,
+    _decode_response_lines,
+    _dispatch_response_lines,
     _look_barrier_allows_decision,
     _look_barrier_release,
     _look_barrier_timed_release,
@@ -59,6 +61,7 @@ from hengbot.cli import (
     _deduplicate_consecutive,
     _is_looping,
     _newest_snapshot,
+    _newest_snapshot_entry,
     _read_last_line,
     _request_due_dump,
     _rewind_if_truncated,
@@ -622,6 +625,65 @@ class NewestSnapshotTest(unittest.TestCase):
     def test_returns_none_for_empty_or_all_blank(self):
         self.assertIsNone(_newest_snapshot([]))
         self.assertIsNone(_newest_snapshot(["\n", "   \n"]))
+
+    def test_one_read_decodes_each_line_once_for_all_consumers(self):
+        lines = [
+            _snap_line(100, 5, 5),
+            json.dumps({"type": "knowledge", "knowledge": {}}) + "\n",
+            json.dumps({"type": "look", "look": {}}) + "\n",
+            json.dumps({"type": "character", "character": {}}) + "\n",
+            _snap_line(120, 6, 6),
+        ]
+        policy = SimpleNamespace(
+            _home_knowledge_scan_inflight=False,
+            _look_probe_inflight=False,
+            observe_character_snapshot=lambda _character: None,
+        )
+        real_loads = json.loads
+        with patch("hengbot.cli.json.loads", wraps=real_loads) as loads:
+            decoded = _decode_response_lines(lines)
+            _dispatch_response_lines(
+                lines, policy, lambda _key: None, decoded_lines=decoded
+            )
+            eligible, _ = _look_barrier_release(lines, decoded_lines=decoded)
+            eligible_decoded = decoded[-len(eligible) :] if eligible else []
+            _newest_snapshot_entry(
+                eligible, {}, decoded_lines=eligible_decoded
+            )
+
+        self.assertEqual(loads.call_count, len(lines))
+
+    def test_mixed_response_batch_preserves_dispatch_and_newest_line(self):
+        player_turn = _snap_line(120, 6, 6)
+        lines = [
+            _snap_line(100, 5, 5),
+            player_turn,
+            json.dumps({"type": "knowledge", "knowledge": {}}) + "\n",
+            json.dumps({"type": "look", "look": {"cursor": [1, 2]}}) + "\n",
+            json.dumps({"type": "character", "character": {"mutations": [7]}}) + "\n",
+        ]
+        observed = []
+        policy = SimpleNamespace(
+            _home_knowledge_scan_inflight=False,
+            _look_probe_inflight=True,
+            consume_look=lambda data: observed.append(("look", data)),
+            observe_character_snapshot=lambda data: observed.append(
+                ("character", data)
+            ),
+        )
+        sent = []
+        decoded = _decode_response_lines(lines)
+
+        consumed = _dispatch_response_lines(
+            lines, policy, sent.append, decoded_lines=decoded
+        )
+        entry = _newest_snapshot_entry(lines, {}, decoded_lines=decoded)
+
+        self.assertEqual(consumed, 3)
+        self.assertEqual(sent, [])
+        self.assertEqual([kind for kind, _ in observed], ["look", "character"])
+        self.assertEqual(entry[0].turn, 120)
+        self.assertEqual(entry[1].encode("utf-8"), player_turn.encode("utf-8"))
 
     def test_parses_visible_grid_lighting_for_quest_area_setup(self):
         data = json.loads(_snap_line(100, 5, 5))
