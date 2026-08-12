@@ -1849,7 +1849,7 @@ class HengbotPolicy:
         # a stair key without spending a turn, which gives stronger evidence than
         # ordinary navigation stalls that remembered terrain is a phantom.
         self._pending_stair_command: (
-            tuple[str, tuple[int, int, int], Position, int] | None
+            tuple[str, tuple[int, int, int], Position, int, Snapshot] | None
         ) = None
         self._stair_rejection_strikes: Counter[tuple[str, Position]] = Counter()
         self._unverified_stairs: set[tuple[str, Position]] = set()
@@ -3180,7 +3180,7 @@ class HengbotPolicy:
                     self._equipment_transaction_restore_remainder = ()
                     self._equipment_optimization_signature = None
         self._calibration_observe(snapshot)
-        self._observe(snapshot)
+        self._observe(snapshot, observation=latest_snapshot)
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
         self.town_teleport_refusal = None
@@ -3470,7 +3470,10 @@ class HengbotPolicy:
                 self.last_reason = "equipment-transaction:await-confirmation-on-home"
                 key = LEAVE_STORE_KEY
         key = self._forbid_wait_on_town_entrance(snapshot, key)
-        self._remember_stair_command(snapshot, key)
+        key = self._suppress_pending_stair_command(key)
+        self._remember_stair_command(
+            snapshot, key, observation=latest_snapshot
+        )
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
         if (
@@ -5622,31 +5625,32 @@ class HengbotPolicy:
         return WAIT_KEY
 
     # -------------------------------------------------------------- observers
-    def _remember_stair_command(self, snapshot: Snapshot, key: str) -> None:
+    def _suppress_pending_stair_command(self, key: str) -> str:
+        """Post at most one floor-changing command per observation."""
+        if (
+            self._pending_stair_command is not None
+            and key
+            and key[0] in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
+        ):
+            self.last_reason = "stair:await-observation"
+            return ""
+        return key
+
+    def _remember_stair_command(
+        self, snapshot: Snapshot, key: str, *, observation: Snapshot | None = None
+    ) -> None:
         """Retain a stair command until its result snapshot can verify it."""
-        if not key:
+        if not key or key[0] not in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}:
             return
         direction = key[0]
         position = snapshot.player.position
-        here = snapshot.grids.get(position)
-        believed = (
-            direction == DOWN_STAIRS_KEY
-            and (
-                position in self._remembered_downstairs
-                or (here is not None and here.is_descent)
-                or self._town_map_descent_entrance(snapshot) == position
-            )
-        ) or (
-            direction == UP_STAIRS_KEY
-            and (
-                position in self._remembered_upstairs
-                or (here is not None and here.has_up_stairs)
-            )
+        self._pending_stair_command = (
+            direction,
+            snapshot.floor_key,
+            position,
+            snapshot.turn,
+            snapshot if observation is None else observation,
         )
-        if believed:
-            self._pending_stair_command = (
-                direction, snapshot.floor_key, position, snapshot.turn
-            )
 
     def _is_upstairs_target(self, grid: GridState) -> bool:
         return grid.has_up_stairs and (
@@ -5666,13 +5670,18 @@ class HengbotPolicy:
             and self._nav_ledger.is_expired("descend", position)
         )
 
-    def _observe_stair_command(self, snapshot: Snapshot) -> None:
+    def _observe_stair_command(
+        self, snapshot: Snapshot, *, observation: Snapshot | None = None
+    ) -> None:
         """Strike a remembered stair only on conclusive command rejection."""
         pending = self._pending_stair_command
-        self._pending_stair_command = None
         if pending is None:
             return
-        direction, floor_key, position, turn = pending
+        direction, floor_key, position, turn, pending_observation = pending
+        current_observation = snapshot if observation is None else observation
+        if current_observation is pending_observation:
+            return
+        self._pending_stair_command = None
         if (
             snapshot.floor_key != floor_key
             or snapshot.player.position != position
@@ -5693,7 +5702,9 @@ class HengbotPolicy:
         self._unverified_stairs.discard((direction, position))
         self._nav_ledger.expire(kind, position)
 
-    def _observe(self, snapshot: Snapshot) -> None:
+    def _observe(
+        self, snapshot: Snapshot, *, observation: Snapshot | None = None
+    ) -> None:
         # The threat memo exists only for repeat lookups within ONE decision
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()
@@ -5733,7 +5744,7 @@ class HengbotPolicy:
             and current_town_id != self._observed_town_id
         )
         self._observed_town_id = current_town_id
-        self._observe_stair_command(snapshot)
+        self._observe_stair_command(snapshot, observation=observation)
         if not snapshot.in_town and snapshot.player.recalling:
             self._saw_dungeon_recall = True
             self._emergency_return_active = False

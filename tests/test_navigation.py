@@ -272,14 +272,64 @@ class StairRejectionInvalidationTest(unittest.TestCase):
             turn=turn,
         )
 
+    @staticmethod
+    def _fundraising_ascender(snapshot):
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._floor_key = snapshot.floor_key
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        return policy
+
+    def test_same_observed_turn_posts_only_one_fundraising_ascend_character(self):
+        snapshot = self._stair_snapshot(upstairs=True, turn=4519803)
+        policy = self._fundraising_ascender(snapshot)
+
+        posted = [
+            key
+            for key in (policy.choose_key(snapshot), policy.choose_key(snapshot))
+            if key
+        ]
+
+        self.assertEqual(posted, ["<"])
+
+    def test_floor_change_releases_stair_command_for_a_new_post(self):
+        snapshot = self._stair_snapshot(upstairs=True, turn=4519803)
+        policy = self._fundraising_ascender(snapshot)
+        first = policy.choose_key(snapshot)
+        changed_floor = replace(snapshot, floor_key=(2, 4, 0), turn=4519804)
+
+        second = policy.choose_key(changed_floor)
+
+        self.assertEqual([first, second], ["<", "<"])
+
+    def test_new_unchanged_observation_retries_through_rejection_strikes(self):
+        snapshot = self._stair_snapshot(upstairs=True, turn=4519803)
+        policy = self._fundraising_ascender(snapshot)
+        self.assertEqual(policy.choose_key(snapshot), "<")
+        self.assertEqual(policy.choose_key(snapshot), "")
+
+        retry = policy.choose_key(replace(snapshot))
+
+        target = snapshot.player.position
+        self.assertEqual(retry, "<")
+        self.assertEqual(policy._stair_rejection_strikes[("<", target)], 1)
+
+    def test_all_floor_command_shapes_share_pending_suppression(self):
+        snapshot = self._stair_snapshot(downstairs=True)
+        for key in ("<", ">", ">\ry", ">y"):
+            with self.subTest(key=key):
+                policy = HengbotPolicy()
+                policy._remember_stair_command(snapshot, key)
+                self.assertEqual(policy._suppress_pending_stair_command(key), "")
+
     def test_two_rejected_descents_expire_phantom_from_routing_only(self):
         snapshot = self._stair_snapshot(downstairs=True)
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(snapshot), ">")
-        self.assertEqual(policy.choose_key(snapshot), ">")
+        self.assertEqual(policy.choose_key(replace(snapshot)), ">")
         self.assertIn(snapshot.player.position, policy._remembered_downstairs)
-        key = policy.choose_key(snapshot)
+        key = policy.choose_key(replace(snapshot))
 
         target = snapshot.player.position
         self.assertEqual(key, ">")
@@ -316,7 +366,7 @@ class StairRejectionInvalidationTest(unittest.TestCase):
 
         for _ in range(2):
             policy._remember_stair_command(snapshot, "<")
-            policy._observe_stair_command(snapshot)
+            policy._observe_stair_command(replace(snapshot))
 
         self.assertNotIn(target, policy._remembered_upstairs)
         self.assertTrue(policy._nav_ledger.is_expired("ascend", target))
@@ -361,8 +411,8 @@ class StairRejectionInvalidationTest(unittest.TestCase):
         policy._descent_block_countdown = 0
 
         self.assertEqual(policy.choose_key(snapshot), ">")
-        self.assertEqual(policy.choose_key(snapshot), ">")
-        key = policy.choose_key(snapshot)
+        self.assertEqual(policy.choose_key(replace(snapshot)), ">")
+        key = policy.choose_key(replace(snapshot))
 
         self.assertEqual(key, ">")
         self.assertNotIn((">", target), policy._unverified_stairs)
@@ -383,7 +433,7 @@ class StairRejectionInvalidationTest(unittest.TestCase):
             )
             for _ in range(2):
                 policy._remember_stair_command(snapshot, ">")
-                policy._observe_stair_command(snapshot)
+                policy._observe_stair_command(replace(snapshot))
 
         self.assertFalse(policy._remembered_downstairs)
         self.assertEqual(
