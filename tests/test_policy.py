@@ -631,8 +631,8 @@ class ReadLetterBindingTest(unittest.TestCase):
             self.snapshot([panic, moved_detection]), composed
         )
 
-        self.assertEqual(posted, READ_KEY + "i")
-        self.assertNotEqual(posted, READ_KEY + "h")
+        self.assertEqual(posted, READ_KEY + "I")
+        self.assertNotEqual(posted, READ_KEY + "H")
         self.assertEqual(policy.read_telemetry["resolved"]["sval"], SV_SCROLL_DETECT_TREASURE)
         self.assertEqual(policy.read_telemetry["composed"]["letter"], "h")
 
@@ -657,7 +657,7 @@ class ReadLetterBindingTest(unittest.TestCase):
                 moved = replace(intended, slot="j")
                 self.assertEqual(
                     policy.validate_read_key(self.snapshot([panic, moved]), composed),
-                    READ_KEY + ("J" if family == "recall" else "j") + suffix,
+                    READ_KEY + "J" + suffix,
                 )
 
     def test_matching_letter_posts_unchanged_and_records_identity(self):
@@ -667,7 +667,7 @@ class ReadLetterBindingTest(unittest.TestCase):
 
         key = policy._read_key(snapshot, scroll, "\x1b")
 
-        self.assertEqual(key, READ_KEY + "h\x1b")
+        self.assertEqual(key, READ_KEY + "H\x1b")
         self.assertEqual(
             policy.read_telemetry,
             {
@@ -696,11 +696,11 @@ class ReadLetterBindingTest(unittest.TestCase):
 
         self.assertEqual(policy._read_key(snapshot, recall), "rD")
 
-    def test_existing_ring_wear_macro_stays_byte_identical(self):
+    def test_ring_wear_uses_selector_safe_item_then_same_endpoint(self):
         ring = item("e", 45, 1, name="Ring", is_equipment=True)
         snapshot = self.snapshot([ring])
 
-        self.assertEqual(HengbotPolicy._equip_macro(snapshot, ring, "main_ring"), "we(")
+        self.assertEqual(HengbotPolicy._equip_macro(snapshot, ring, "main_ring"), "wE(")
 
 
 class DetectedMonsterChannelTest(unittest.TestCase):
@@ -869,7 +869,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         def emergency(_snapshot, _hostiles):
             policy.last_reason = "emergency:teleport"
-            return "rt"
+            return "rT"
 
         with (
             patch.object(policy, "_emergency_item", side_effect=emergency),
@@ -880,7 +880,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         ):
             key = policy.choose_key(snapshot)
 
-        self.assertEqual((key, policy.last_reason), ("rt", "emergency:teleport"))
+        self.assertEqual((key, policy.last_reason), ("rT", "emergency:teleport"))
         detected_preparation.assert_not_called()
 
     def test_armed_unseen_retreat_outranks_detected_threat_preparation(self):
@@ -1162,7 +1162,7 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(len(policy._physical_hostiles(snapshot)), 18)
         self.assertEqual(len(policy._physical_adjacent_hostiles(snapshot)), 2)
         self.assertEqual(policy._strategic_hostiles(snapshot), [])
-        self.assertNotEqual((key, policy.last_reason), (REST_MACRO, "rest"))
+        self.assertNotEqual((key, policy.last_reason), (REST_MACRO, "rEST"))
 
     def test_policy_exposes_no_default_hostile_accessor(self):
         policy = HengbotPolicy()
@@ -1335,7 +1335,7 @@ class CombatTest(unittest.TestCase):
 
                 self.assertEqual(
                     (key, policy.last_reason),
-                    (READ_KEY + "q", "no-wait:escape-scroll"),
+                    (READ_KEY + "Q", "no-wait:escape-scroll"),
                 )
 
     def test_choke_hold_ignores_adjacent_suppressed_weak_breeder(self):
@@ -1788,7 +1788,7 @@ class CombatTest(unittest.TestCase):
         policy._breeder_fled_floor = (7, 20, 0)
 
         self.assertEqual(
-            policy.choose_key(snapshot), "Ef",
+            policy.choose_key(snapshot), "EF",
             "a breeder walkout must not starve the survival gate",
         )
         self.assertEqual(policy.last_reason, "survival:eat")
@@ -2554,7 +2554,7 @@ class CombatTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertTrue(key.startswith("\x1bfa"))
+        self.assertTrue(key.startswith("\x1bfA"))
         self.assertTrue(policy.last_reason.startswith("ranged:"))
 
     def test_small_breeder_group_closes_for_melee_without_ranged_option(self):
@@ -4354,7 +4354,7 @@ class CombatTest(unittest.TestCase):
         key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
 
         self.assertEqual((key, policy.last_reason), (
-            READ_KEY + "p", "no-wait:escape-scroll",
+            READ_KEY + "P", "no-wait:escape-scroll",
         ))
 
     def test_kill_less_choke_hold_does_not_arm_walk_out(self):
@@ -5672,7 +5672,7 @@ class UnseenAttackerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(key, "rt")
+        self.assertEqual(key, "rT")
         self.assertEqual(pol.last_reason, "emergency:teleport")
         self.assertTrue(pol._emergency_escape_pending)
         self.assertTrue(pol._emergency_return_active)
@@ -5705,7 +5705,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 floor_key=floor,
             )
         )
-        self.assertNotEqual(first_hit, "rt")
+        self.assertNotEqual(first_hit, "rT")
         self.assertEqual(pol.last_reason, "unseen-recall:move")
         key = pol.choose_key(
             Snapshot(
@@ -5719,7 +5719,7 @@ class UnseenAttackerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(key, "rt")
+        self.assertEqual(key, "rT")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
     def test_modest_first_unseen_hit_walks_instead_of_spending_teleport(self):
@@ -6171,7 +6171,7 @@ class ShoppingTest(unittest.TestCase):
         )
 
         pol = HengbotPolicy(town_map=town_map)
-        self.assertEqual(pol.choose_key(snap), "wa")
+        self.assertEqual(pol.choose_key(snap), "wA")
         self.assertEqual(pol.last_reason, "wield-light")
         snap = replace(
             snap,
@@ -6265,7 +6265,7 @@ class ShoppingTest(unittest.TestCase):
         )
 
         pol = HengbotPolicy(town_map=town_map)
-        self.assertEqual(pol.choose_key(snap), "Ea")
+        self.assertEqual(pol.choose_key(snap), "EA")
         self.assertEqual(pol.last_reason, "town:eat-before-travel")
 
     def test_breaks_out_when_store_approach_move_is_rejected(self):
@@ -6354,7 +6354,7 @@ class ShoppingTest(unittest.TestCase):
         lantern_inv = InventoryItem("e", "lantern", 1, TVAL_LITE, SV_LITE_LANTERN, True, True, fuel=7500)
         snap = Snapshot(player(10, 10), grids, [], inventory=[lantern_inv], equipment=[torch_eq])
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "we")
+        self.assertEqual(pol.choose_key(snap), "wE")
         self.assertEqual(pol.last_reason, "wield-light")
 
     def test_upgrades_lantern_to_feanorian_lamp(self):
@@ -6377,7 +6377,7 @@ class ShoppingTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "wf")
+        self.assertEqual(policy.choose_key(snap), "wF")
         self.assertEqual(policy.last_reason, "wield-light")
 
     def test_selects_feanorian_lamp_ahead_of_pack_lantern(self):
@@ -6627,8 +6627,8 @@ class WieldLightTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._darkness_recovery_key(snap), "\\Fo")
-        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy._darkness_recovery_key(snap), "\\FO")
+        self.assertEqual(policy.choose_key(snap), "\\FO")
         self.assertEqual(policy.last_reason, "refill-light")
 
     def test_dark_unknown_lantern_wields_identified_torch_without_oil(self):
@@ -6651,7 +6651,7 @@ class WieldLightTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "wt")
+        self.assertEqual(policy.choose_key(snap), "wT")
         self.assertEqual(policy.last_reason, "wield-light")
 
     def test_lit_or_blind_does_not_trigger_hidden_lantern_recovery(self):
@@ -6735,9 +6735,9 @@ class WieldLightTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.choose_key(snap), "\\FO")
         self.assertEqual(policy.last_reason, "refill-light")
-        self.assertNotEqual(policy.choose_key(snap), "\\Fo")
+        self.assertNotEqual(policy.choose_key(snap), "\\FO")
 
     def test_wields_a_torch_when_nothing_is_lit(self):
         # The Half-Troll death: a stack of torches in the pack, none wielded, so it
@@ -6746,7 +6746,7 @@ class WieldLightTest(unittest.TestCase):
         torch = item("e", 39, 0, name="torch", count=5, fuel=2500)
         snap = Snapshot(player(10, 10), grids, [], inventory=[torch], equipment=[])
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "we")
+        self.assertEqual(pol.choose_key(snap), "wE")
         self.assertEqual(pol.last_reason, "wield-light")
 
     def test_does_not_wield_when_a_light_is_equipped(self):
@@ -6780,7 +6780,7 @@ class WieldLightTest(unittest.TestCase):
                 item("b", TVAL_LITE, SV_LITE_TORCH, fuel=2400),
             ],
         )
-        self.assertEqual(HengbotPolicy().choose_key(snap), "wb")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "wB")
 
     def test_refills_a_low_lantern_from_oil(self):
         grids = {Position(10, 10): grid(10, 10)}
@@ -6792,7 +6792,7 @@ class WieldLightTest(unittest.TestCase):
             equipment=[item("f", TVAL_LITE, SV_LITE_LANTERN, name="lantern", fuel=900)],
         )
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "\\Fb")
+        self.assertEqual(pol.choose_key(snap), "\\FB")
         self.assertEqual(pol.last_reason, "refill-light")
 
     def test_wields_fuelled_torch_when_low_lantern_has_no_oil(self):
@@ -6816,7 +6816,7 @@ class WieldLightTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
 
-        self.assertEqual(pol.choose_key(snap), "wb")
+        self.assertEqual(pol.choose_key(snap), "wB")
         self.assertEqual(pol.last_reason, "wield-light")
 
     def test_restores_empty_pack_lantern_after_oil_is_acquired(self):
@@ -6846,7 +6846,7 @@ class WieldLightTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
 
-        self.assertEqual(pol.choose_key(town), "wo")
+        self.assertEqual(pol.choose_key(town), "wO")
         self.assertEqual(pol.last_reason, "restore-lantern")
 
         lantern_equipped = replace(
@@ -6854,7 +6854,7 @@ class WieldLightTest(unittest.TestCase):
             inventory=[oil, replace(torch, slot="t")],
             equipment=[replace(empty_lantern, slot="light")],
         )
-        self.assertEqual(pol.choose_key(lantern_equipped), "\\Fa")
+        self.assertEqual(pol.choose_key(lantern_equipped), "\\FA")
         self.assertEqual(pol.last_reason, "refill-light")
 
     def test_does_not_equip_empty_pack_lantern_without_oil(self):
@@ -6910,7 +6910,7 @@ class WieldLightTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
 
-        self.assertEqual(pol.choose_key(snap), "\\Fb")
+        self.assertEqual(pol.choose_key(snap), "\\FB")
         self.assertEqual(pol.last_reason, "refill-light")
 
     def test_does_not_refill_an_unidentified_light(self):
@@ -7473,7 +7473,7 @@ class ConsumableTest(unittest.TestCase):
         inv = [item("c", POTION, 35)]  # Potion of Cure Serious Wounds
         threat = hostile(1, 10, 13, hp=30, max_hp=30, distance=3)  # a monster is near
         snap = Snapshot(player(10, 10, hp=20, max_hp=100), grids, [threat], inventory=inv)
-        self.assertEqual(HengbotPolicy().choose_key(snap), "qc")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "qC")
 
     def test_excludes_healing_potion_weaker_than_expected_next_turn_damage(self):
         grids = self._open_room()
@@ -7490,7 +7490,7 @@ class ConsumableTest(unittest.TestCase):
             policy, "_predicted_damage",
             side_effect=lambda *_args, **kwargs: 40 if kwargs.get("expected") else 0,
         ):
-            self.assertEqual(policy.choose_key(snap), "qh")
+            self.assertEqual(policy.choose_key(snap), "qH")
             self.assertEqual(policy.last_reason, "item:heal")
 
     def test_uses_no_healing_potion_when_all_restore_less_than_expected_damage(self):
@@ -7506,7 +7506,7 @@ class ConsumableTest(unittest.TestCase):
             policy, "_predicted_damage",
             side_effect=lambda *_args, **kwargs: 40 if kwargs.get("expected") else 0,
         ):
-            self.assertNotEqual(policy.choose_key(snap), "qc")
+            self.assertNotEqual(policy.choose_key(snap), "qC")
 
     def test_rests_instead_of_quaffing_when_safe(self):
         # Hurt but no enemy in sight: rest heals for free, so don't burn a potion.
@@ -7537,13 +7537,13 @@ class ConsumableTest(unittest.TestCase):
         inv = [item("d", SCROLL, 9)]  # Scroll of Teleport
         mon = hostile(1, 10, 11, hp=30, max_hp=30)
         snap = Snapshot(player(10, 10, hp=5, max_hp=100), grids, [mon], inventory=inv)
-        self.assertEqual(HengbotPolicy().choose_key(snap), "rd")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "rD")
 
     def test_eats_food_when_hungry_and_safe(self):
         grids = self._open_room()
         inv = [item("b", FOOD, 35)]  # Ration of Food
         snap = Snapshot(player(10, 10, food=100), grids, [], inventory=inv)
-        self.assertEqual(HengbotPolicy().choose_key(snap), "Eb")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "EB")
 
     def test_does_not_eat_when_well_fed(self):
         grids = self._open_room()
@@ -7557,7 +7557,7 @@ class ConsumableTest(unittest.TestCase):
         grids = self._open_room()
         inv = [item("d", STAFF, 0, charges=20)]
         snap = Snapshot(player(10, 10, food=100, food_type=FOOD_TYPE_MANA), grids, [], inventory=inv)
-        self.assertEqual(HengbotPolicy().choose_key(snap), "Ed")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "ED")
 
     def test_mana_race_ignores_a_depleted_staff(self):
         grids = self._open_room()
@@ -7707,7 +7707,7 @@ class ReturnToTownTest(unittest.TestCase):
 
         def emergency(_snapshot, _hostiles):
             policy.last_reason = "emergency:teleport"
-            return "rt"
+            return "rT"
 
         with (
             patch.object(policy, "_emergency_item", side_effect=emergency),
@@ -7718,7 +7718,7 @@ class ReturnToTownTest(unittest.TestCase):
                 policy, "_return_to_town_key", wraps=policy._return_to_town_key
             ) as town_return,
         ):
-            self.assertEqual(policy.choose_key(snapshot), "rt")
+            self.assertEqual(policy.choose_key(snapshot), "rT")
 
         self.assertEqual(policy.last_reason, "emergency:teleport")
         unseen.assert_not_called()
@@ -8240,7 +8240,7 @@ class ReturnToTownTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertFalse(policy._should_start_town_return(snap))
-        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.choose_key(snap), "\\FO")
         self.assertEqual(policy.last_reason, "refill-light")
 
     def test_latched_return_refills_empty_lantern_before_reading_recall(self):
@@ -8258,7 +8258,7 @@ class ReturnToTownTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._returning_to_town = True
 
-        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.choose_key(snap), "\\FO")
         self.assertEqual(policy.last_reason, "refill-light")
 
     def test_return_mode_survives_an_opened_pack_slot_and_blocks_descent(self):
@@ -8356,7 +8356,7 @@ class ReturnToTownTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertFalse(policy._should_start_town_return(snap))
-        self.assertNotEqual(policy.choose_key(snap), "rh")
+        self.assertNotEqual(policy.choose_key(snap), "rH")
 
     def test_hungry_without_supplies_starts_return(self):
         # Once genuinely hungry (below the "normal" band) with nothing to eat, end
@@ -8395,7 +8395,7 @@ class ReturnToTownTest(unittest.TestCase):
         )
 
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "01ka")
+        self.assertEqual(pol.choose_key(snap), "01kA")
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
 
 
@@ -8427,7 +8427,7 @@ class OverflowDisposalTest(unittest.TestCase):
         pol = HengbotPolicy()
         key = pol.choose_key(self._town([recall] + staves))
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
-        self.assertEqual(key, "01kb")
+        self.assertEqual(key, "01kB")
 
     def test_preserves_charged_identify_staff_during_overflow_disposal(self):
         identify = item(
@@ -8443,7 +8443,7 @@ class OverflowDisposalTest(unittest.TestCase):
         key = pol.choose_key(self._town([identify, *junk]))
 
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
-        self.assertEqual(key, "01kb")
+        self.assertEqual(key, "01kB")
 
     def test_preserves_entire_detection_stack_when_only_part_is_surplus(self):
         detection = item(
@@ -8488,7 +8488,7 @@ class OverflowDisposalTest(unittest.TestCase):
         key = pol.choose_key(self._town(staves))
 
         self.assertEqual(pol.last_reason, "town:destroy-overflow")
-        self.assertEqual(key, "01ka")
+        self.assertEqual(key, "01kA")
 
     def test_four_slots_are_terminally_ready_when_no_safe_route_can_free_fifth(self):
         snapshot = self._town(self._inventory(PACK_CAPACITY - 4))
@@ -8657,7 +8657,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "01ka")
+        self.assertEqual(policy.choose_key(snap), "01kA")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_full_pack_destroys_cure_light_wounds(self):
@@ -8675,7 +8675,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "01ka")
+        self.assertEqual(policy.choose_key(snap), "01kA")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_town_compacts_surplus_diggers_before_departure(self):
@@ -8700,7 +8700,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "01kb")
+        self.assertEqual(policy.choose_key(snap), "01kB")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_town_compacts_ammo_when_no_launcher_is_owned(self):
@@ -8719,7 +8719,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "014ka")
+        self.assertEqual(policy.choose_key(snap), "014kA")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_town_preserves_ammo_when_a_launcher_is_owned(self):
@@ -8756,7 +8756,7 @@ class OverflowDisposalTest(unittest.TestCase):
                     inventory=[disposable, *filler],
                 )
                 policy = HengbotPolicy()
-                self.assertEqual(policy.choose_key(snap), "01ka")
+                self.assertEqual(policy.choose_key(snap), "01kA")
                 self.assertEqual(
                     policy.last_reason, "inventory:destroy-disposable-item"
                 )
@@ -8777,7 +8777,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "03ka")
+        self.assertEqual(policy.choose_key(snap), "03kA")
         self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_full_pack_discards_average_or_cursed_pseudo_identified_items(self):
@@ -8803,7 +8803,7 @@ class OverflowDisposalTest(unittest.TestCase):
                 )
 
                 policy = HengbotPolicy()
-                self.assertEqual(policy.choose_key(snap), "01ka")
+                self.assertEqual(policy.choose_key(snap), "01kA")
                 self.assertEqual(
                     policy.last_reason, "inventory:destroy-disposable-item"
                 )
@@ -8829,7 +8829,7 @@ class OverflowDisposalTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        self.assertNotEqual(policy.choose_key(snap), "01ka")
+        self.assertNotEqual(policy.choose_key(snap), "01kA")
 
     def test_does_not_destroy_unidentified_zero_fuel_torch(self):
         torch = item(
@@ -8845,7 +8845,7 @@ class OverflowDisposalTest(unittest.TestCase):
             [],
             inventory=[torch, *filler],
         )
-        self.assertNotEqual(HengbotPolicy().choose_key(snap), "01ka")
+        self.assertNotEqual(HengbotPolicy().choose_key(snap), "01kA")
 
 
 class StatusTest(unittest.TestCase):
@@ -10385,9 +10385,9 @@ class FixedQuestTest(unittest.TestCase):
         # An identify source/target is available: identify in place instead of
         # deferring the loot. (The standalone pack-pressure identify never runs
         # mid-quest, so the quest sweep must invoke it itself.)
-        policy._pack_pressure_identify_key = lambda _snapshot: "uab"
+        policy._pack_pressure_identify_key = lambda _snapshot: "uAB"
         self.assertEqual(
-            policy._quest_sweep_pack_space_key(snapshot, floor_grid), "uab"
+            policy._quest_sweep_pack_space_key(snapshot, floor_grid), "uAB"
         )
         self.assertEqual(policy.last_reason, "quest:sweep:identify")
 
@@ -10955,9 +10955,9 @@ class FixedQuestTest(unittest.TestCase):
         )
         policy = HengbotPolicy(self._town_map())
 
-        self.assertEqual(policy.choose_key(snapshot), "qs")
+        self.assertEqual(policy.choose_key(snapshot), "qS")
         self.assertEqual(policy.last_reason, "quest:quaff-speed")
-        self.assertNotEqual(policy.choose_key(snapshot), "qs")
+        self.assertNotEqual(policy.choose_key(snapshot), "qS")
 
         not_once = QuestInfo(1, "Thieves Hideout", 6, 5, 2)
         policy = HengbotPolicy(self._town_map(), quest_knowledge={1: not_once})
@@ -11492,7 +11492,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(
                 at(3), [revealed_wave], []
             ),
-            "rl",
+            "rL",
         )
         self.assertEqual(policy.last_reason, "quest-strategy:post-wave-light")
         self.assertEqual(policy._approved_quest_strategy_key(at(3), [], []), "6")
@@ -11606,13 +11606,13 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(
                 at_hold([rushing]), [rushing], [rushing]
             ),
-            "rl",
+            "rL",
         )
         self.assertEqual(
             policy._approved_quest_strategy_key(at_hold([]), [], []), WAIT_KEY
         )
         self.assertEqual(
-            policy._approved_quest_strategy_key(at_hold([]), [], []), "rl"
+            policy._approved_quest_strategy_key(at_hold([]), [], []), "rL"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:post-wave-light")
 
@@ -11666,7 +11666,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         ):
             self.assertEqual(
                 policy._emergency_item(snapshot, enemies),
-                "qs",
+                "qS",
             )
         self.assertEqual(policy.last_reason, "quest-strategy:quaff-speed")
 
@@ -11719,9 +11719,9 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
                 return_value={"operational_total": 511},
             ),
         ):
-            self.assertEqual(policy._emergency_item(snapshot, enemies), "qs")
+            self.assertEqual(policy._emergency_item(snapshot, enemies), "qS")
             self.assertEqual(policy.last_reason, "quest-strategy:quaff-speed")
-            self.assertEqual(policy._emergency_item(snapshot, enemies), "qh")
+            self.assertEqual(policy._emergency_item(snapshot, enemies), "qH")
         self.assertEqual(policy.last_reason, "quest-strategy:opening-heal")
 
     def test_q31_stationary_sweep_does_not_recall_at_full_hp(self):
@@ -11936,7 +11936,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [], [])
 
-        self.assertNotIn(key, {"qs", "rt"})
+        self.assertNotIn(key, {"qS", "rT"})
         self.assertEqual(policy._quest_strategy_opening_phase[22], 3)
         self.assertEqual(policy._quest_strategy_hold_positions[22], hold)
 
@@ -11968,11 +11968,11 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [], []), "qs"
+            policy._approved_quest_strategy_key(snapshot, [], []), "qS"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-speed")
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [], []), "rt"
+            policy._approved_quest_strategy_key(snapshot, [], []), "rT"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-teleport")
 
@@ -11995,10 +11995,10 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         )
 
         with patch.object(policy, "_predicted_damage", return_value=432):
-            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "qs")
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "qS")
             self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-speed")
             self.assertFalse(policy._fixed_quest_speed_attempted)
-            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rt")
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rT")
             self.assertEqual(policy.last_reason, "quest-strategy:q22-opening-teleport")
             self.assertFalse(policy._fixed_quest_speed_attempted)
 
@@ -12024,7 +12024,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             return 40 if turns == 1 and expected else 10
 
         with patch.object(policy, "_predicted_damage", side_effect=damage):
-            self.assertEqual(policy._emergency_item(below_threshold, [enemy]), "qh")
+            self.assertEqual(policy._emergency_item(below_threshold, [enemy]), "qH")
             self.assertEqual(policy.last_reason, "quest-strategy:q22-reposition-heal")
 
         at_threshold = replace(
@@ -12085,7 +12085,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         )
 
         with patch.object(policy, "_predicted_damage", return_value=100):
-            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rt")
+            self.assertEqual(policy._emergency_item(snapshot, [enemy]), "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_q22_restart_off_entrance_routes_without_reusing_consumables(self):
@@ -12155,7 +12155,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfB6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:ranged-fire")
 
@@ -12188,7 +12188,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             for count in (5, 4, 3, 2)
         ]
 
-        self.assertEqual(attempts[:3], ["\x1bfj*p744444t5\x1b"] * 3)
+        self.assertEqual(attempts[:3], ["\x1bfJ*p744444t5\x1b"] * 3)
         self.assertIsNone(attempts[3])
 
     def test_q31_cursor_fire_rejects_walkable_los_blocker(self):
@@ -12460,7 +12460,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             floor_key=(0, 22, 31),
         )
 
-        self.assertEqual(policy.choose_key(snapshot), "\\Fa")
+        self.assertEqual(policy.choose_key(snapshot), "\\FA")
         self.assertEqual(policy.last_reason, "refill-light")
 
     def test_q31_restart_uses_static_route_to_retake_distant_hold(self):
@@ -13373,13 +13373,13 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=3)],
         )
 
-        self.assertEqual(policy._q2_breach_key(snapshot, navigator), "aw2")
+        self.assertEqual(policy._q2_breach_key(snapshot, navigator), "aW2")
         self.assertFalse(policy._q2_breach_complete)
         still_closed = replace(
             snapshot,
             inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)],
         )
-        self.assertEqual(policy._q2_breach_key(still_closed, navigator), "aw2")
+        self.assertEqual(policy._q2_breach_key(still_closed, navigator), "aW2")
         self.assertFalse(policy._q2_breach_complete)
         opened = replace(
             still_closed,
@@ -13388,7 +13388,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._q2_breach_key(opened, navigator), "2")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-approach")
         next_wall = replace(opened, player=player(7, 47))
-        self.assertEqual(policy._q2_breach_key(next_wall, navigator), "aw2")
+        self.assertEqual(policy._q2_breach_key(next_wall, navigator), "aW2")
         confirmed = replace(
             next_wall,
             player=player(10, 47),
@@ -13515,7 +13515,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             [], floor_key=(0, 1, 2), inventory=[wand],
         )
         action = policy._q2_phase_key(breach_ready, profile, navigator)
-        self.assertEqual(action, "aw2")
+        self.assertEqual(action, "aW2")
         self.assertFalse(policy._q2_breach_complete)
 
         opened = Snapshot(
@@ -13535,7 +13535,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             opened,
             player=player(7, 47, hp=300, max_hp=300),
         )
-        self.assertEqual(policy._q2_phase_key(next_wall, profile, navigator), "aw2")
+        self.assertEqual(policy._q2_phase_key(next_wall, profile, navigator), "aW2")
         confirmed = replace(
             next_wall,
             player=player(10, 47, hp=300, max_hp=300),
@@ -13829,7 +13829,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "ri"
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "rI"
         )
         self.assertEqual(
             policy.last_reason, "quest-strategy:q2-light-after-opening"
@@ -13858,7 +13858,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "ri"
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "rI"
         )
         self.assertEqual(
             policy.last_reason, "quest-strategy:q2-light-after-opening"
@@ -14048,7 +14048,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
 
-        self.assertEqual(key, "aw2")
+        self.assertEqual(key, "aW2")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-wand")
         self.assertIn(153, policy._q2_cleared_races)
 
@@ -14461,20 +14461,20 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "rl"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "rL"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-light-area")
 
         # A failed/no-op light read is still bounded: do not consume all six.
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfB6"
         )
 
         lit_grids = dict(grids)
         lit_grids[target.position] = replace(grids[target.position], lit=True)
         illuminated = replace(snapshot, grids=lit_grids, inventory=[bolts])
         self.assertEqual(
-            policy._approved_quest_strategy_key(illuminated, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(illuminated, [target], []), "\x1bfB6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
@@ -14887,7 +14887,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
 
-        self.assertEqual(key, "\x1bfq6")
+        self.assertEqual(key, "\x1bfQ6")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
         self.assertFalse(key in {"7", "9"})
         self.assertIsNotNone(policy._q2_ammo_recovery_floor)
@@ -14941,7 +14941,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         def emergency(_snapshot, _hostiles):
             policy.last_reason = "emergency:teleport"
-            return "rt"
+            return "rT"
 
         with (
             patch.object(policy, "_emergency_item", side_effect=emergency),
@@ -14949,7 +14949,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ):
             key = policy.choose_key(emergency_snapshot)
 
-        self.assertEqual((key, policy.last_reason), ("rt", "emergency:teleport"))
+        self.assertEqual((key, policy.last_reason), ("rT", "emergency:teleport"))
         phase.assert_not_called()
 
     def test_q2_abandons_oscillating_dry_ammo_route_and_engages_cluster(self):
@@ -15305,7 +15305,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfB6"
         )
         no_crossbow = replace(
             snapshot,
@@ -15335,7 +15335,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [left, right], [])
 
-        self.assertEqual(key, "\x1bfq*p14t5\x1b")
+        self.assertEqual(key, "\x1bfQ*p14t5\x1b")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
     def test_q2_deep_puddle_uses_explicit_cursor_instead_of_stalling_target_mode(self):
@@ -15358,7 +15358,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [target], [])
 
-        self.assertTrue(key.startswith("\x1bfn*p"), key)
+        self.assertTrue(key.startswith("\x1bfN*p"), key)
         self.assertTrue(key.endswith("t5\x1b"), key)
         self.assertNotIn("*t", key)
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
@@ -15394,11 +15394,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(base, [wererat], [wererat]), "qs"
+            policy._approved_quest_strategy_key(base, [wererat], [wererat]), "qS"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-quaff-speed")
         self.assertNotEqual(
-            policy._approved_quest_strategy_key(base, [wererat], [wererat]), "qs"
+            policy._approved_quest_strategy_key(base, [wererat], [wererat]), "qS"
         )
 
         crocodile = replace(hostile(2, 19, 11, distance=1), race_id=1044)
@@ -15415,7 +15415,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(
                 croc_snapshot, [crocodile], [crocodile]
             ),
-            "qs",
+            "qS",
         )
 
     def test_q2_wererat_lock_overrides_earlier_profile_targets(self):
@@ -15439,7 +15439,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(
                 snapshot, [giant_rat, wererat], []
             ),
-            "\x1bfb2",
+            "\x1bfB2",
         )
 
     def test_q2_wererat_lock_hunts_out_of_range_before_next_phase(self):
@@ -15520,7 +15520,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 policy._emergency_item(
                     swarm_snapshot, [wererat, *summoned]
                 ),
-                "rt",
+                "rT",
             )
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
@@ -15546,7 +15546,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, adjacent, adjacent), "rt"
+            policy._approved_quest_strategy_key(snapshot, adjacent, adjacent), "rT"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-teleport-reset")
 
@@ -15850,7 +15850,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         firing = replace(approach, player=player(7, 13))
         self.assertEqual(
-            policy._approved_quest_strategy_key(firing, [cloaker], []), "vt6"
+            policy._approved_quest_strategy_key(firing, [cloaker], []), "vT6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:throw-torch")
 
@@ -15871,7 +15871,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
         policy._build_grid_index(volley)
         self.assertEqual(
-            policy._approved_quest_strategy_key(volley, [cloaker], []), "vt6"
+            policy._approved_quest_strategy_key(volley, [cloaker], []), "vT6"
         )
 
         sword = replace(hostile(2, 9, 11, distance=4), race_id=107)
@@ -16614,7 +16614,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            policy._approved_quest_strategy_key(carried, [], []), "wl"
+            policy._approved_quest_strategy_key(carried, [], []), "wL"
         )
         self.assertEqual(
             policy.last_reason, "quest-strategy:equip-opening-lantern"
@@ -16728,7 +16728,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             inventory=[item("f", TVAL_FOOD, FOOD)],
         )
 
-        self.assertEqual(policy._approved_quest_strategy_key(hungry, [], []), "Ef")
+        self.assertEqual(policy._approved_quest_strategy_key(hungry, [], []), "EF")
         self.assertEqual(policy.last_reason, "survival:eat")
 
     def test_approved_quest_uses_profile_heal_threshold(self):
@@ -16742,7 +16742,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         policy._fixed_quest_speed_attempted = True
 
-        self.assertEqual(policy.choose_key(snap), "qh")
+        self.assertEqual(policy.choose_key(snap), "qH")
         self.assertEqual(policy.last_reason, "item:heal")
 
     def test_q1_retakes_hold_and_throws_at_distance_two(self):
@@ -16755,7 +16755,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         at_hold = replace(displaced, player=player(8, 3), visible_monsters=[thief],
                           inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)])
         policy._fixed_quest_speed_attempted = True
-        self.assertEqual(policy._approved_quest_strategy_key(at_hold, [thief], []), "vt6")
+        self.assertEqual(policy._approved_quest_strategy_key(at_hold, [thief], []), "vT6")
 
     def test_q1_recovers_thrown_torch_before_retaking_hold(self):
         policy = self._policy()
@@ -16804,9 +16804,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                         inventory=[item("s", TVAL_POTION, SV_POTION_SPEED)],
                         floor_key=(0, 1, 1))
         with patch.object(policy, "threat_prediction", return_value={"operational_total": 49}):
-            self.assertNotEqual(policy._approved_quest_strategy_key(snap, [monster], []), "qs")
+            self.assertNotEqual(policy._approved_quest_strategy_key(snap, [monster], []), "qS")
         with patch.object(policy, "threat_prediction", return_value={"operational_total": 50}):
-            self.assertEqual(policy._approved_quest_strategy_key(snap, [monster], []), "qs")
+            self.assertEqual(policy._approved_quest_strategy_key(snap, [monster], []), "qS")
 
     def test_abort_allowed_leaves_at_threshold_but_once_profiles_do_not(self):
         upstairs = {Position(10, 10): grid(10, 10, upstairs=True)}
@@ -17289,14 +17289,14 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         snap = Snapshot(
             player(10, 10, food=400, food_type=4), grids, [], inventory=[wand]
         )
-        self.assertEqual(HengbotPolicy().choose_key(snap), "Ed")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "ED")
 
     def test_wields_an_unidentified_light_rather_than_walking_dark(self):
         grids = {Position(10, 10): grid(10, 10)}
         torch = item("c", TVAL_LITE, SV_LITE_TORCH, aware=False)  # fuel hidden
         snap = Snapshot(player(10, 10), grids, [], inventory=[torch], equipment=[])
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "wc")
+        self.assertEqual(pol.choose_key(snap), "wC")
         self.assertEqual(pol.last_reason, "wield-light")
 
     def test_chargeless_mana_race_needs_device_food_restock(self):
@@ -17551,7 +17551,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
         )
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "rt")
+        self.assertEqual(pol.choose_key(snap), "rT")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
     def test_escapes_before_ranged_blindness_forces_a_lethal_cure_turn(self):
@@ -17625,7 +17625,7 @@ class PredictiveEscapeTest(unittest.TestCase):
                 1: 103,
             }[turns],
         ):
-            self.assertEqual(policy.choose_key(snapshot), "rt")
+            self.assertEqual(policy.choose_key(snapshot), "rT")
 
         self.assertEqual(policy.last_reason, "emergency:teleport")
         self.assertEqual(
@@ -17690,7 +17690,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={6001: knowledge})
 
-        self.assertEqual(policy.choose_key(snap), "rt")
+        self.assertEqual(policy.choose_key(snap), "rT")
         self.assertEqual(policy.last_reason, "status-threat:scroll")
 
         protected = replace(
@@ -17723,7 +17723,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={6002: knowledge})
 
-        self.assertEqual(policy.choose_key(snap), "rt")
+        self.assertEqual(policy.choose_key(snap), "rT")
         self.assertEqual(policy.last_reason, "status-threat:scroll")
 
         protected = replace(
@@ -17761,7 +17761,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
         self.assertEqual(policy._strategic_hostiles(snapshot), [])
-        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "status-threat:scroll")
 
     def test_status_threat_retreat_vetoes_immediate_explore_return(self):
@@ -17906,7 +17906,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         snap = replace(snap, player=replace(snap.player, confused=True))
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "qh")
+        self.assertEqual(policy.choose_key(snap), "qH")
         self.assertEqual(policy.last_reason, "emergency:cure-status-healing")
 
     def test_threat_prediction_records_per_monster_damage_breakdown(self):
@@ -18305,7 +18305,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster,
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
         )
-        self.assertEqual(HengbotPolicy().choose_key(snap), "rt")
+        self.assertEqual(HengbotPolicy().choose_key(snap), "rT")
 
     def test_upstairs_is_preferred_to_the_last_teleport_scroll(self):
         monster = hostile(1, 10, 11, max_melee_damage=20)
@@ -18324,7 +18324,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster, inventory=[item("p", TVAL_SCROLL, 8)]
         )
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "rp")
+        self.assertEqual(pol.choose_key(snap), "rP")
         self.assertEqual(pol.last_reason, "emergency:phase")
 
     def test_cures_blindness_then_retains_the_escape_decision(self):
@@ -18340,9 +18340,9 @@ class PredictiveEscapeTest(unittest.TestCase):
             floor_key=first.floor_key,
             inventory=first.inventory,
         )
-        self.assertEqual(pol.choose_key(first), "qc")
+        self.assertEqual(pol.choose_key(first), "qC")
         second = self._line_snapshot(monster, inventory=[teleport])
-        self.assertEqual(pol.choose_key(second), "rt")
+        self.assertEqual(pol.choose_key(second), "rT")
 
     def test_cure_critical_is_not_spent_as_low_hp_healing(self):
         monster = hostile(1, 10, 11)
@@ -18352,7 +18352,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             inventory=[item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL)],
         )
         pol = HengbotPolicy()
-        self.assertNotEqual(pol.choose_key(snap), "qc")
+        self.assertNotEqual(pol.choose_key(snap), "qC")
 
     def test_low_hp_teleport_landing_starts_recall(self):
         monster = hostile(1, 10, 11, max_melee_damage=20)
@@ -18361,7 +18361,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster,
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
         )
-        self.assertEqual(pol.choose_key(first), "rt")
+        self.assertEqual(pol.choose_key(first), "rT")
         safe = Snapshot(
             player(20, 20, hp=30, max_hp=100),
             {Position(20, 20): grid(20, 20)},
@@ -18379,7 +18379,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster,
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
         )
-        self.assertEqual(pol.choose_key(first), "rt")
+        self.assertEqual(pol.choose_key(first), "rT")
         safe = Snapshot(
             player(20, 20, hp=90, max_hp=100),
             {Position(20, 20): grid(20, 20)},
@@ -18401,7 +18401,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster,
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3)],
         )
-        self.assertEqual(pol.choose_key(first), "rt")
+        self.assertEqual(pol.choose_key(first), "rT")
         safe = Snapshot(
             player(20, 20, hp=90, max_hp=100),
             {Position(20, 20): grid(20, 20)},
@@ -18414,7 +18414,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster,
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
         )
-        self.assertEqual(pol.choose_key(second), "rt")
+        self.assertEqual(pol.choose_key(second), "rT")
         self.assertTrue(pol._returning_to_town)
 
     def test_weak_breeder_after_teleport_does_not_start_return(self):
@@ -18424,7 +18424,7 @@ class PredictiveEscapeTest(unittest.TestCase):
             monster,
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
         )
-        self.assertEqual(pol.choose_key(first), "rt")
+        self.assertEqual(pol.choose_key(first), "rT")
         multiplier = hostile(2, 20, 22, max_melee_damage=1, can_multiply=True)
         landing = Snapshot(
             player(20, 20, hp=90, max_hp=100),
@@ -18511,7 +18511,7 @@ class SummonerMeleeTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snapshot), "\x1bfb6")
+        self.assertEqual(policy.choose_key(snapshot), "\x1bfB6")
         self.assertEqual(policy.last_reason, "summoner:ranged-kill")
 
     def test_unkillable_summoner_retreats_with_exactly_four_open_neighbors(self):
@@ -18542,7 +18542,7 @@ class SummonerMeleeTest(unittest.TestCase):
             patch.object(policy, "_open_neighbor_count", return_value=4),
             patch.object(policy, "_summoner_cover_in_one_step", return_value=False),
         ):
-            self.assertEqual(policy.choose_key(snapshot), "rt")
+            self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_lethal_direct_damage_still_escapes_killable_summoner(self):
@@ -18569,7 +18569,7 @@ class SummonerMeleeTest(unittest.TestCase):
             floor_key=(1, 5, 0),
         )
 
-        self.assertEqual(HengbotPolicy().choose_key(snapshot), "rt")
+        self.assertEqual(HengbotPolicy().choose_key(snapshot), "rT")
 
     def test_unkillable_summoner_is_shot_from_a_choke(self):
         grids = {
@@ -18596,7 +18596,7 @@ class SummonerMeleeTest(unittest.TestCase):
 
         with patch.object(policy, "_open_neighbor_count", return_value=3):
             self.assertEqual(
-            policy.choose_key(snapshot), "\x1bfb6", policy.last_reason
+            policy.choose_key(snapshot), "\x1bfB6", policy.last_reason
             )
         self.assertEqual(policy.last_reason, "ranged:fire")
 
@@ -18654,7 +18654,7 @@ class SummonerMeleeTest(unittest.TestCase):
             inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
         )
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "rt")
+        self.assertEqual(pol.choose_key(snap), "rT")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
 
@@ -21541,7 +21541,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-        self.assertEqual(policy.choose_key(snap), "rd", policy.last_reason)
+        self.assertEqual(policy.choose_key(snap), "rD", policy.last_reason)
         self.assertEqual(policy.last_reason, "fundraise:detect-treasure")
         self.assertEqual(policy.choose_key(snap), "T6")
         self.assertEqual(policy.last_reason, "fundraise:sweep-explore")
@@ -21636,7 +21636,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
 
-        self.assertEqual(policy.choose_key(snap), "wt", policy.last_reason)
+        self.assertEqual(policy.choose_key(snap), "wT", policy.last_reason)
         self.assertEqual(policy.last_reason, "fundraise:wield-light")
 
         after_wield = replace(
@@ -22161,7 +22161,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         with patch.object(policy, "_darkness_recovery_key", return_value=None):
             self.assertEqual(
                 (policy.choose_key(snap), policy.last_reason),
-                ("vt6", "ranged:throw-torch"),
+                ("vT6", "ranged:throw-torch"),
             )
 
     def test_mining_swarm_throws_then_restores_weapon_on_contact(self):
@@ -22189,7 +22189,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._build_grid_index(base)
 
         self.assertEqual(
-            policy._melee_swarm_combat_key(base, [approaching], []), "vt6"
+            policy._melee_swarm_combat_key(base, [approaching], []), "vT6"
         )
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
 
@@ -22220,7 +22220,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._melee_swarm_combat_key(
                 contact, contact.visible_monsters, contact.visible_monsters
             ),
-            "wsn",
+            "wSn",
         )
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
 
@@ -22272,12 +22272,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             probe._melee_swarm_combat_key(
                 approaching, approaching_monsters, []
             ),
-            "vt6",
+            "vT6",
         )
         opening_key = policy.choose_key(approaching)
         self.assertEqual(
             (opening_key, policy.last_reason),
-            ("vt6", "ranged:throw-torch"),
+            ("vT6", "ranged:throw-torch"),
         )
 
         contact_monsters = [
@@ -22301,7 +22301,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy.choose_key(contact)
             self.assertNotEqual(policy.last_reason, "melee:restore-weapon")
             self.assertEqual(policy._mining_combat_contact_streak, decision)
-        self.assertEqual(policy.choose_key(contact), "wsn")
+        self.assertEqual(policy.choose_key(contact), "wSn")
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
 
         choke_grids = dict(room)
@@ -22418,7 +22418,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # weak breeders, but mining combat must still count their real contact.
         self.assertEqual(policy._strategic_hostiles(mining), [])
 
-        self.assertEqual(policy.choose_key(mining), "wsa")
+        self.assertEqual(policy.choose_key(mining), "wSa")
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
 
         main_restored = replace(
@@ -22483,7 +22483,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         with patch.object(
             policy, "_finish_mining_floor", return_value="FINISH"
         ) as finish:
-            self.assertEqual(policy._fundraising_key(mining, []), "wsa")
+            self.assertEqual(policy._fundraising_key(mining, []), "wSa")
             finish.assert_not_called()
 
             armed = replace(
@@ -22576,7 +22576,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-        self.assertEqual(policy.choose_key(snap), "Ef")
+        self.assertEqual(policy.choose_key(snap), "EF")
         # The R1 survival gate now owns hunger-eating and runs before the
         # fundraising steps; the action (eat, same slot, same turn) is
         # unchanged, only the reason label moved.
@@ -22736,7 +22736,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._normal_weapon_name = "sword"
         # n answers the "Dual wielding?" prompt (sub hand free) with "replace
         # the main hand", swapping the digger out instead of dual-wielding.
-        self.assertEqual(policy.choose_key(snap), "wsn")
+        self.assertEqual(policy.choose_key(snap), "wSn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_fundraising_descends_from_matching_static_entrance(self):
@@ -22832,7 +22832,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
         policy._normal_weapon_name = None  # unknown after a restart
-        self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
+        self.assertEqual(policy._town_restore_weapon_key(snap), "wSn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_town_restore_after_restart_skips_unknown_and_cursed_weapons(self):
@@ -22861,7 +22861,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._normal_weapon_name = None
 
-        self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
+        self.assertEqual(policy._town_restore_weapon_key(snap), "wSn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_town_restore_weapon_is_a_noop_without_any_combat_weapon(self):
@@ -23083,7 +23083,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             inventory=[safe, replace(blocked, slot="b")],
             equipment=[self._lantern()],
         )
-        self.assertEqual(policy._town_restore_weapon_key(removed), "ws")
+        self.assertEqual(policy._town_restore_weapon_key(removed), "wS")
         self.assertEqual(policy.last_reason, "town:replace-no-teleport-weapon")
 
     def test_town_resumes_no_teleport_rearm_after_bot_restart(self):
@@ -23106,7 +23106,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         restarted_policy = HengbotPolicy()
 
-        self.assertEqual(restarted_policy._town_restore_weapon_key(snap), "ws")
+        self.assertEqual(restarted_policy._town_restore_weapon_key(snap), "wS")
         self.assertEqual(
             restarted_policy.last_reason, "town:replace-no-teleport-weapon"
         )
@@ -25267,7 +25267,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             reasons.append(policy.last_reason)
 
         self.assertNotIn(
-            "rra",
+            "rRA",
             keys,
             "fresh restart must not post recall while home-scan-incomplete has no result",
         )
@@ -26344,7 +26344,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._home_page_size = 12
 
         first_key = policy.choose_key(outside)
-        self.assertEqual(first_key, "rvu")
+        self.assertEqual(first_key, "rVU")
         self.assertEqual(policy.last_reason, "identify:normal")
         self.assertEqual(policy._total_identify_staff_charges(outside), 19)
         self.assertEqual(
@@ -26511,7 +26511,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
 
-        self.assertNotEqual(policy.choose_key(snap), "ria")
+        self.assertNotEqual(policy.choose_key(snap), "rIA")
         self.assertNotEqual(policy.last_reason, "identify:normal")
 
     def test_identification_prefers_reliable_scroll_over_fallible_staff(self):
@@ -26534,7 +26534,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # A failed device activation never reaches the target prompt, so a
         # concatenated target letter becomes an unrelated town command.  Use
         # the scroll, whose read command reliably reaches item selection.
-        self.assertEqual(policy.choose_key(snap), "ria")
+        self.assertEqual(policy.choose_key(snap), "rIA")
         self.assertEqual(policy.last_reason, "identify:normal")
 
     def test_identifies_an_unknown_wand_in_town(self):
@@ -26549,7 +26549,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "ria")
+        self.assertEqual(policy.choose_key(snap), "rIA")
         self.assertEqual(policy.last_reason, "identify:device")
 
     def test_unknown_jewelry_with_only_staff_routes_to_buy_identify_scroll(self):
@@ -27237,7 +27237,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
-        self.assertEqual(policy.choose_key(snap), "rsa" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snap), "rSA" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
 
     def test_known_cursed_ego_gets_star_identify(self):
@@ -27259,7 +27259,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
 
-        self.assertEqual(policy._town_item_processing_key(snap), "rsa" + "\x1b" * 8)
+        self.assertEqual(policy._town_item_processing_key(snap), "rSA" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
 
     def test_measured_56_item_catalog_identifies_worn_heavy_curse(self):
@@ -27307,7 +27307,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             2,
         )
         self.assertTrue(policy._curse_unremovable(shield))
-        self.assertEqual(policy.choose_key(snapshot), "rs/b" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snapshot), "rS/b" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full-equipped")
 
     def test_known_cursed_ego_is_selected_for_sale(self):
@@ -27344,7 +27344,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
 
-        self.assertEqual(policy.choose_key(snap), "rsa" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snap), "rSA" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
 
     def test_pseudo_cursed_unknown_item_still_gets_basic_identify(self):
@@ -27363,7 +27363,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
 
-        self.assertEqual(policy.choose_key(snap), "rsa")
+        self.assertEqual(policy.choose_key(snap), "rSA")
         self.assertEqual(policy.last_reason, "identify:normal")
 
     def test_dragon_helm_requires_star_identify_for_random_resistance(self):
@@ -27389,7 +27389,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
 
-        self.assertEqual(policy.choose_key(snap), "rsa" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snap), "rSA" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
 
     def test_equipped_dragon_helm_is_fully_identified_in_place(self):
@@ -27416,7 +27416,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rs/j" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snap), "rS/j" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full-equipped")
 
     def test_equipped_unidentified_weapon_is_identified_in_place(self):
@@ -27448,7 +27448,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rs/a")
+        self.assertEqual(policy.choose_key(snap), "rS/a")
         self.assertEqual(policy.last_reason, "identify:normal-equipped")
 
     def test_equipped_unidentified_weapon_without_source_routes_to_buy_identify(self):
@@ -27567,7 +27567,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
 
-        self.assertEqual(policy._town_item_processing_key(snap), "rsa")
+        self.assertEqual(policy._town_item_processing_key(snap), "rSA")
         self.assertNotIn(
             policy._item_signature(weapon), policy._deferred_home_items
         )
@@ -27681,7 +27681,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "rsl" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snap), "rSL" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
 
     def test_carried_ego_weapon_without_source_routes_to_buy_star_identify(self):
@@ -27742,7 +27742,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._home_pending_item = unknown_signature
         policy._home_pending_slot = "l"
 
-        self.assertEqual(policy.choose_key(snap), "rsk" + "\x1b" * 8)
+        self.assertEqual(policy.choose_key(snap), "rSK" + "\x1b" * 8)
         self.assertEqual(policy.last_reason, "identify:full")
         self.assertEqual(policy._home_pending_slot, "k")
 
@@ -27956,7 +27956,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._pending_disposal_slot = "a"
         policy._pending_disposal_item = policy._item_signature(inferior)
         policy._disposal_store_attempts.add(STORE_ARMOURY)
-        self.assertEqual(policy.choose_key(snap), "01ka")
+        self.assertEqual(policy.choose_key(snap), "01kA")
         self.assertEqual(
             policy.last_reason, "equipment:destroy-unsellable-dominated"
         )
@@ -29180,7 +29180,7 @@ class TownRecallReturnTest(unittest.TestCase):
         travel.assert_not_called()
         self.assertEqual(
             pol._town_item_processing_key(snap),
-            "rop" + policy_module.FULL_IDENTIFY_DISMISS_SUFFIX,
+            "rOP" + policy_module.FULL_IDENTIFY_DISMISS_SUFFIX,
         )
 
     def test_capture_affordable_identify_staff_vetoes_cross_town_expedition(self):
@@ -30423,7 +30423,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
             item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
         ])
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(snap), "rt")
+        self.assertEqual(pol.choose_key(snap), "rT")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
     def test_stale_emergency_snapshot_does_not_spend_a_second_scroll(self):
@@ -30437,7 +30437,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         ])
         pol = HengbotPolicy()
 
-        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rt")
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rT")
         self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), WAIT_KEY)
         self.assertEqual(
             pol.last_reason, "emergency:await-consumable-confirmation"
@@ -30462,10 +30462,10 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         ])
         pol = HengbotPolicy()
 
-        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rt")
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rT")
         rejected = replace(snap, turn=snap.turn + 1)
         self.assertEqual(
-            pol._emergency_item(rejected, rejected.visible_monsters), "rt"
+            pol._emergency_item(rejected, rejected.visible_monsters), "rT"
         )
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
@@ -30724,7 +30724,7 @@ class EmergencyHealBeforeFleeTest(unittest.TestCase):
             policy, "_predicted_damage", side_effect=self._predicted_damage
         ):
             self.assertEqual(
-                policy._emergency_item(snap, snap.visible_monsters), "qh"
+                policy._emergency_item(snap, snap.visible_monsters), "qH"
             )
         self.assertEqual(policy.last_reason, "emergency:heal")
 
@@ -30741,7 +30741,7 @@ class EmergencyHealBeforeFleeTest(unittest.TestCase):
             policy, "_predicted_damage", side_effect=self._predicted_damage
         ):
             self.assertEqual(
-                policy._emergency_item(snap, snap.visible_monsters), "rt"
+                policy._emergency_item(snap, snap.visible_monsters), "rT"
             )
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
@@ -31539,7 +31539,7 @@ class IdentifyStaffTest(unittest.TestCase):
         snap = self._pressured_pack(staff, unknown)
         pol = HengbotPolicy()
         # Original-keyset use-staff u + staff slot s + target slot t.
-        self.assertEqual(pol._pack_pressure_identify_key(snap), "ust")
+        self.assertEqual(pol._pack_pressure_identify_key(snap), "uST")
         self.assertEqual(pol.last_reason, "identify:pack-pressure")
 
     def test_pack_pressure_identifies_aware_but_unknown_equipment(self):
@@ -31553,7 +31553,7 @@ class IdentifyStaffTest(unittest.TestCase):
         snap = self._pressured_pack(staff, gloves)
 
         pol = HengbotPolicy()
-        self.assertEqual(pol._pack_pressure_identify_key(snap), "ust")
+        self.assertEqual(pol._pack_pressure_identify_key(snap), "uST")
         self.assertEqual(pol.last_reason, "identify:pack-pressure")
 
     def test_pack_pressure_skips_ammunition_and_identifies_real_equipment(self):
@@ -31569,7 +31569,7 @@ class IdentifyStaffTest(unittest.TestCase):
         snap = self._pressured_pack(staff, arrows, gloves)
 
         pol = HengbotPolicy()
-        self.assertEqual(pol._pack_pressure_identify_key(snap), "usu")
+        self.assertEqual(pol._pack_pressure_identify_key(snap), "uSU")
         self.assertEqual(pol.last_reason, "identify:pack-pressure")
 
     def test_pack_pressure_does_not_identify_ammunition(self):
@@ -31590,7 +31590,7 @@ class IdentifyStaffTest(unittest.TestCase):
         snap = self._pressured_pack(staff, unknown)
         pol = HengbotPolicy()
         results = [pol._pack_pressure_identify_key(snap) for _ in range(IDENTIFY_FAIL_LIMIT + 2)]
-        self.assertEqual(results[0], "ust")
+        self.assertEqual(results[0], "uST")
         self.assertIsNone(results[-1])
         self.assertIn(pol._item_signature(unknown), pol._unidentifiable_sigs)
 
@@ -31840,7 +31840,7 @@ class RemoveCurseTest(unittest.TestCase):
         cursed = item("a", 23, 0, is_equipment=True, is_cursed=True, name="cursed")
         scroll = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
         pol = HengbotPolicy()
-        self.assertEqual(pol._town_remove_curse_key(self._town([cursed], [scroll])), "rs")
+        self.assertEqual(pol._town_remove_curse_key(self._town([cursed], [scroll])), "rS")
         self.assertEqual(pol.last_reason, "town:remove-curse")
 
     def test_no_remove_curse_without_cursed_equipment(self):
@@ -31933,7 +31933,7 @@ class RemoveCurseTest(unittest.TestCase):
         )
         self.assertEqual(policy._shop(temple), "pz\r")
         carried = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
-        self.assertEqual(policy._town_remove_curse_key(self._town(cursed, [carried])), "rs")
+        self.assertEqual(policy._town_remove_curse_key(self._town(cursed, [carried])), "rS")
 
     def test_remove_curse_actionability_tracks_stock_and_current_funds(self):
         cursed = item("main_ring", 23, 0, is_equipment=True, is_cursed=True)
@@ -31963,7 +31963,7 @@ class RemoveCurseTest(unittest.TestCase):
         normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
         policy = HengbotPolicy()
         snapshot = self._town([cursed], [normal])
-        self.assertEqual(policy._town_remove_curse_key(snapshot), "rs")
+        self.assertEqual(policy._town_remove_curse_key(snapshot), "rS")
         policy._observe(self._town([cursed], []))
 
         self.assertIsNone(policy._town_remove_curse_key(self._town([cursed], [normal])))
@@ -32037,7 +32037,7 @@ class RemoveCurseTest(unittest.TestCase):
             policy._observe(self._town([cursed], []))
 
         policy._observe(self._town([cursed], [star]))
-        self.assertEqual(policy._town_remove_curse_key(self._town([cursed], [star])), "rt")
+        self.assertEqual(policy._town_remove_curse_key(self._town([cursed], [star])), "rT")
 
     def test_heavy_curse_buys_stocked_star_scroll_then_reads_it(self):
         cursed = item(
@@ -32072,7 +32072,7 @@ class RemoveCurseTest(unittest.TestCase):
         self.assertEqual(policy._next_purchase(temple).sval, SV_SCROLL_STAR_REMOVE_CURSE)
 
         star = item("t", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, name="star remove curse")
-        self.assertEqual(policy._town_remove_curse_key(self._town([cursed], [star])), "rt")
+        self.assertEqual(policy._town_remove_curse_key(self._town([cursed], [star])), "rT")
         uncursed = replace(cursed, is_cursed=False)
         policy._observe(self._town([uncursed], []))
         self.assertNotIn(signature, policy._heavy_cursed_items)
@@ -32309,7 +32309,7 @@ class RemoveCurseTest(unittest.TestCase):
         )
         self.assertEqual(
             policy._town_remove_curse_key(self._town([cursed], [carried])),
-            "rs",
+            "rS",
         )
         cured = replace(cursed, is_cursed=False)
         policy._observe(self._town([cured], []))
@@ -32470,7 +32470,7 @@ class RemoveCurseTest(unittest.TestCase):
         normal = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="remove curse")
         policy = HengbotPolicy()
         snapshot = self._town([cursed], [normal])
-        self.assertEqual(policy._town_remove_curse_key(snapshot), "rs")
+        self.assertEqual(policy._town_remove_curse_key(snapshot), "rS")
         policy._observe(snapshot)
         self.assertFalse(policy._heavy_cursed_items)
         self.assertIsNone(policy._heavy_curse_inscription_pending)
@@ -32542,13 +32542,13 @@ class LauncherEnchantTest(unittest.TestCase):
         policy = HengbotPolicy()
         first = self._town(launcher, [hit, dam])
 
-        self.assertEqual(policy._town_enchant_launcher_key(first), "rh/c")
+        self.assertEqual(policy._town_enchant_launcher_key(first), "rH/c")
         self.assertEqual(policy.last_reason, "town:enchant-launcher-tohit")
         # The scroll disappeared but the launcher did not improve: failure or a
         # wrong target. It must move to the other stat, never retry To-Hit.
         failed = self._town(launcher, [dam])
         policy._observe_launcher_enchant(failed)
-        self.assertEqual(policy._town_enchant_launcher_key(failed), "ri/c")
+        self.assertEqual(policy._town_enchant_launcher_key(failed), "rI/c")
         self.assertEqual(policy.last_reason, "town:enchant-launcher-todam")
         policy._observe_launcher_enchant(self._town(launcher))
         self.assertIsNone(policy._town_enchant_launcher_key(self._town(launcher)))
@@ -32757,7 +32757,7 @@ class NoWaitUnderFireTest(unittest.TestCase):
         with patch.object(policy, "_decide", side_effect=disengage_wait):
             key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, READ_KEY + "t")
+        self.assertEqual(key, READ_KEY + "T")
         self.assertEqual(policy.last_reason, "no-wait:escape-scroll")
 
     def test_sanctioned_waits_are_preserved(self):
@@ -32768,7 +32768,7 @@ class NoWaitUnderFireTest(unittest.TestCase):
         for reason in (
             "return:wait-recall",
             "quest-strategy:hold",
-            "rest",
+            "rEST",
         ):
             with self.subTest(reason=reason):
                 policy.last_reason = reason
@@ -32988,7 +32988,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
                     extra_turns=1,
                 )
             )
-            self.assertEqual(policy.choose_key(snapshot), "qs")
+            self.assertEqual(policy.choose_key(snapshot), "qS")
             self.assertEqual(policy.last_reason, "unique:quaff-speed")
 
             continued_monster = replace(monster, hp=200, max_hp=250)
@@ -33044,7 +33044,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
         self.assertTrue(policy._consumable_fight_target(snapshot, monster))
-        self.assertEqual(policy._unique_combat_consumable(snapshot, [monster]), "qs")
+        self.assertEqual(policy._unique_combat_consumable(snapshot, [monster]), "qS")
 
     def test_unwinnable_quest_target_still_teleports(self):
         snapshot, _, knowledge = self._snapshot(
@@ -33060,7 +33060,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
-        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
         self.assertIsNone(policy._unique_combat_committed_race_id)
 
@@ -33131,7 +33131,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             ),
         )
         with patch.object(policy, "_predicted_damage", return_value=768):
-            self.assertEqual(policy.choose_key(endangered), "qh")
+            self.assertEqual(policy.choose_key(endangered), "qH")
             self.assertEqual(policy.last_reason, "emergency:heal")
 
     def test_unviable_quest_without_recall_keeps_return_owner_after_flicker(self):
@@ -33182,7 +33182,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         with patch.object(policy, "_predicted_damage", return_value=768):
             key = policy._flee_sustain_key(snapshot, "4")
 
-        self.assertEqual(key, "qc")
+        self.assertEqual(key, "qC")
         self.assertEqual(policy.last_reason, "emergency:heal")
 
     def test_mid_escape_at_full_hp_preserves_heals_and_keeps_walking(self):
@@ -33247,7 +33247,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
         policy.last_reason = "return:seek-upstairs"
 
-        self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "qs")
+        self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "qS")
         self.assertEqual(policy.last_reason, "emergency:quaff-speed")
 
         hasted = replace(
@@ -33271,7 +33271,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         snapshot = replace(snapshot, floor_key=(1, 24, 0))
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
         policy.last_reason = "return:seek-upstairs"
-        self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "qs")
+        self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "qS")
 
         policy.last_reason = "melee"
         self.assertEqual(policy._flee_sustain_key(snapshot, "6"), "6")
@@ -33291,7 +33291,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         snapshot = replace(snapshot, floor_key=(1, 24, 0))
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
         policy.last_reason = "emergency:teleport"
-        self.assertEqual(policy._flee_sustain_key(snapshot, "rt"), "rt")
+        self.assertEqual(policy._flee_sustain_key(snapshot, "rT"), "rT")
         self.assertFalse(policy._escape_sustain_active)
 
     def test_two_adjacent_quest_targets_do_not_commit(self):
@@ -33391,7 +33391,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertIsNotNone(plan)
         self.assertGreater(plan["healing_uses"], 0)
         self.assertEqual(
-            policy._unique_combat_consumable(snapshot, [monster]), "qc"
+            policy._unique_combat_consumable(snapshot, [monster]), "qC"
         )
 
     def test_guardian_without_healing_doses_remains_nonviable(self):
@@ -33439,7 +33439,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
-        self.assertEqual(policy.choose_key(snapshot), "qs")
+        self.assertEqual(policy.choose_key(snapshot), "qS")
         self.assertEqual(policy.last_reason, "unique:quaff-speed")
 
     def test_does_not_spend_speed_when_unique_needs_no_healing_potion(self):
@@ -33478,7 +33478,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         self.assertIsNotNone(plan)
         self.assertEqual(plan["healing_uses"], 2)
-        self.assertEqual(policy.choose_key(snapshot), "qh")
+        self.assertEqual(policy.choose_key(snapshot), "qH")
         self.assertEqual(policy.last_reason, "unique:quaff-healing")
 
         continued = replace(
@@ -33489,7 +33489,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
                 item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
             ],
         )
-        self.assertEqual(policy.choose_key(continued), "qh")
+        self.assertEqual(policy.choose_key(continued), "qH")
         self.assertEqual(policy.last_reason, "unique:quaff-healing")
 
     def test_full_hp_unique_fight_quaffs_speed_before_reserved_healing(self):
@@ -33506,7 +33506,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
-        self.assertEqual(policy.choose_key(snapshot), "qs")
+        self.assertEqual(policy.choose_key(snapshot), "qS")
         self.assertEqual(policy.last_reason, "unique:quaff-speed")
 
     def test_does_not_spend_speed_when_unique_fight_is_not_viable(self):
@@ -33521,7 +33521,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
-        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_disengages_from_harmless_unique_that_exceeds_attack_budget(self):
@@ -33607,7 +33607,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         key = policy._fruitless_disengage_key(snapshot, [breeder])
 
-        self.assertEqual(key, "rt")
+        self.assertEqual(key, "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_armed_fruitless_latch_fights_beatable_single_nonbreeder(self):
@@ -33740,7 +33740,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         self.assertNotEqual(policy.last_reason, "flee")
         self.assertTrue(policy.last_reason.startswith("melee"))
-        self.assertNotEqual(key, "qs")
+        self.assertNotEqual(key, "qS")
         self.assertNotEqual(policy.last_reason, "emergency:quaff-speed")
 
     def test_low_hp_lost_fight_with_improving_step_still_flees(self):
@@ -33918,7 +33918,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             "threat_prediction",
             return_value={"operational_total": snapshot.player.hp},
         ):
-            self.assertEqual(policy.choose_key(snapshot), "rt")
+            self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_weak_breeder_containment_never_arms_disengage(self):
@@ -34038,7 +34038,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             monrace_knowledge={9001: replace(knowledge, can_summon=True)}
         )
 
-        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
 
@@ -34888,7 +34888,7 @@ class StuckEscapeTest(unittest.TestCase):
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), "wdn")
+        self.assertEqual(pol.choose_key(snap), "wDn")
         self.assertEqual(pol.last_reason, "breakout:wield-digging-tool")
 
         digging = replace(
@@ -34907,7 +34907,7 @@ class StuckEscapeTest(unittest.TestCase):
                 Position(10, 12): grid(10, 12, downstairs=True),
             },
         )
-        self.assertEqual(pol.choose_key(opened), "wan")
+        self.assertEqual(pol.choose_key(opened), "wAn")
         self.assertEqual(pol.last_reason, "breakout:restore-combat-weapon")
 
     def test_stuck_recall_escape_without_digging_tool(self):
@@ -34943,7 +34943,7 @@ class StuckEscapeTest(unittest.TestCase):
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), READ_KEY + "t")
+        self.assertEqual(pol.choose_key(snap), READ_KEY + "T")
         self.assertEqual(pol.last_reason, "stuck:teleport-escape")
 
     def test_stuck_recall_escape_is_preferred_over_teleport(self):
@@ -34978,7 +34978,7 @@ class StuckEscapeTest(unittest.TestCase):
 
         key = pol.choose_key(snap)
 
-        self.assertNotEqual(key, READ_KEY + "p")
+        self.assertNotEqual(key, READ_KEY + "P")
         self.assertNotEqual(pol.last_reason, "stuck:teleport-escape")
 
     def test_stuck_teleport_escape_is_locked_on_quest_floor(self):
@@ -34996,7 +34996,7 @@ class StuckEscapeTest(unittest.TestCase):
 
         key = pol.choose_key(snap)
 
-        self.assertNotEqual(key, READ_KEY + "t")
+        self.assertNotEqual(key, READ_KEY + "T")
         self.assertNotEqual(pol.last_reason, "stuck:teleport-escape")
 
     def test_stuck_uses_walkable_downstairs_route_without_tunnelling(self):
@@ -35391,7 +35391,7 @@ class StatRestoreTest(unittest.TestCase):
         ]
         pol = HengbotPolicy()
         snap = self._snap(inventory=inv, drained=("str",))
-        self.assertEqual(pol._stat_restore_quaff_key(snap, []), "qb")
+        self.assertEqual(pol._stat_restore_quaff_key(snap, []), "qB")
         self.assertEqual(pol.last_reason, "restore:quaff-str")
 
     def test_no_quaff_while_hostiles_are_present(self):
@@ -35479,12 +35479,12 @@ class StatGainTest(unittest.TestCase):
     def test_quaffs_a_strength_potion_on_sight(self):
         inv = [item("k", TVAL_POTION, SV_POTION_INC_STR, name="Strength")]
         pol = HengbotPolicy()
-        self.assertEqual(pol._stat_gain_quaff_key(self._snap(inv), []), "qk")
+        self.assertEqual(pol._stat_gain_quaff_key(self._snap(inv), []), "qK")
         self.assertEqual(pol.last_reason, "stat-gain:quaff")
 
     def test_quaffs_augmentation(self):
         inv = [item("k", TVAL_POTION, SV_POTION_AUGMENTATION)]
-        self.assertEqual(HengbotPolicy()._stat_gain_quaff_key(self._snap(inv), []), "qk")
+        self.assertEqual(HengbotPolicy()._stat_gain_quaff_key(self._snap(inv), []), "qK")
 
     def test_no_quaff_with_hostiles(self):
         inv = [item("k", TVAL_POTION, SV_POTION_INC_STR)]
@@ -35499,7 +35499,7 @@ class StatGainTest(unittest.TestCase):
     def test_gain_potion_is_drunk_through_the_full_decision(self):
         inv = [item("k", TVAL_POTION, SV_POTION_INC_STR)]
         pol = HengbotPolicy()
-        self.assertEqual(pol.choose_key(self._snap(inv)), "qk")
+        self.assertEqual(pol.choose_key(self._snap(inv)), "qK")
         self.assertEqual(pol.last_reason, "stat-gain:quaff")
 
 
@@ -35807,7 +35807,7 @@ class WieldHandSuffixTest(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            HengbotPolicy._equip_macro(before, shield, "sub_hand"), "wob"
+            HengbotPolicy._equip_macro(before, shield, "sub_hand"), "wOb"
         )
 
         after = self._snap(
@@ -35832,7 +35832,7 @@ class WieldHandSuffixTest(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            HengbotPolicy._equip_macro(snap, ring, "sub_ring"), "wr)"
+            HengbotPolicy._equip_macro(snap, ring, "sub_ring"), "wR)"
         )
 
 
@@ -37775,7 +37775,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "\x1bfs6")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS6")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_fires_along_a_diagonal_ray(self):
@@ -37785,7 +37785,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "\x1bfs3")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS3")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_adjacent_hostile_stays_melee(self):
@@ -37805,7 +37805,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "\x1bfs*t5\x1b")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
     def test_blocked_ray_uses_game_targeting(self):
@@ -37818,7 +37818,7 @@ class RangedAttackTest(unittest.TestCase):
         blocked[Position(10, 12)] = grid(10, 12, passable=False)
         snap = replace(snap, grids=blocked)
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "\x1bfs*t5\x1b")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS*t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-target")
 
     def test_wall_corner_uses_single_grid_offset_aim(self):
@@ -37836,7 +37836,7 @@ class RangedAttackTest(unittest.TestCase):
         snap = replace(snap, grids=grids)
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "\x1bfs*p777444444t5\x1b")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS*p777444444t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-offset")
 
     def test_ranged_fire_reasons_flush_messages_but_store_purchase_does_not(self):
@@ -37847,7 +37847,7 @@ class RangedAttackTest(unittest.TestCase):
                     inventory=[self._shots()],
                     equipment=[self._sling()],
                 ),
-                "\x1bfs6",
+                "\x1bfS6",
                 "ranged:fire",
             ),
             (
@@ -37856,7 +37856,7 @@ class RangedAttackTest(unittest.TestCase):
                     inventory=[self._shots()],
                     equipment=[self._sling()],
                 ),
-                "\x1bfs*t5\x1b",
+                "\x1bfS*t5\x1b",
                 "ranged:fire-target",
             ),
         )
@@ -37876,7 +37876,7 @@ class RangedAttackTest(unittest.TestCase):
         offset = replace(offset, grids=offset_grids)
         offset_policy = HengbotPolicy()
         self.assertEqual(
-            offset_policy.choose_key(offset), "\x1bfs*p777444444t5\x1b"
+            offset_policy.choose_key(offset), "\x1bfS*p777444444t5\x1b"
         )
         self.assertEqual(offset_policy.last_reason, "ranged:fire-offset")
 
@@ -37949,7 +37949,7 @@ class RangedAttackTest(unittest.TestCase):
         snap = replace(snap, grids=grids)
 
         self.assertEqual(
-            HengbotPolicy().choose_key(snap), "\x1bfs*p777444444t5\x1b"
+            HengbotPolicy().choose_key(snap), "\x1bfS*p777444444t5\x1b"
         )
 
     def test_failed_targeting_is_skipped_until_player_moves(self):
@@ -37961,11 +37961,11 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         attempts = [policy.choose_key(snap) for _ in range(4)]
-        self.assertEqual(attempts[:3], ["\x1bfs*t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "\x1bfs*t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfS*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfS*t5\x1b")
 
         moved = replace(snap, player=replace(snap.player, position=Position(10, 11)))
-        self.assertEqual(policy.choose_key(moved), "\x1bfs*t5\x1b")
+        self.assertEqual(policy.choose_key(moved), "\x1bfS*t5\x1b")
 
         policy = HengbotPolicy()
         progressing = snap
@@ -37976,7 +37976,7 @@ class RangedAttackTest(unittest.TestCase):
                 inventory=[self._shots(count)],
                 visible_monsters=[replace(victim, hp=hp)],
             )
-            self.assertEqual(policy.choose_key(progressing), "\x1bfs*t5\x1b")
+            self.assertEqual(policy.choose_key(progressing), "\x1bfS*t5\x1b")
 
     def test_moving_target_without_hp_loss_does_not_reset_failure_guard(self):
         base = self._snap(
@@ -37995,8 +37995,8 @@ class RangedAttackTest(unittest.TestCase):
             )
             attempts.append(policy.choose_key(moving))
 
-        self.assertEqual(attempts[:3], ["\x1bfs*t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "\x1bfs*t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfS*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfS*t5\x1b")
 
     def test_changing_pack_indices_do_not_hide_failed_targeting_macro(self):
         base = self._snap(
@@ -38015,8 +38015,8 @@ class RangedAttackTest(unittest.TestCase):
             )
             attempts.append(policy.choose_key(changing_pack))
 
-        self.assertEqual(attempts[:3], ["\x1bfs*t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "\x1bfs*t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfS*t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfS*t5\x1b")
 
     def test_failed_offset_targeting_is_skipped_after_three_attempts(self):
         snap = self._snap(
@@ -38030,8 +38030,8 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         attempts = [policy.choose_key(snap) for _ in range(4)]
-        self.assertEqual(attempts[:3], ["\x1bfs*p777444444t5\x1b"] * 3)
-        self.assertNotEqual(attempts[3], "\x1bfs*p777444444t5\x1b")
+        self.assertEqual(attempts[:3], ["\x1bfS*p777444444t5\x1b"] * 3)
+        self.assertNotEqual(attempts[3], "\x1bfS*p777444444t5\x1b")
 
     def test_aligned_hostile_is_preferred_when_off_axis_is_also_visible(self):
         snap = self._snap(
@@ -38043,7 +38043,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "\x1bfs6")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS6")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_distant_off_axis_sleeper_is_left_asleep(self):
@@ -38068,7 +38068,7 @@ class RangedAttackTest(unittest.TestCase):
         policy = HengbotPolicy()
         key = policy.choose_key(snap)
         self.assertEqual(policy.last_reason, "ranged:fire")
-        self.assertEqual(key, "\x1bfs6")
+        self.assertEqual(key, "\x1bfS6")
 
     def test_distant_sleeper_is_left_asleep(self):
         snap = self._snap(
@@ -38088,7 +38088,7 @@ class RangedAttackTest(unittest.TestCase):
             player_kw={"afraid": True},
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "\x1bfs6")
+        self.assertEqual(policy.choose_key(snap), "\x1bfS6")
         self.assertEqual(policy.last_reason, "ranged:fire")
 
     def test_confused_player_does_not_fire(self):
@@ -38111,7 +38111,7 @@ class RangedAttackTest(unittest.TestCase):
             equipment=[self._sling()],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "vo6")
+        self.assertEqual(policy.choose_key(snap), "vO6")
         self.assertEqual(policy.last_reason, "ranged:throw-oil")
 
     def test_early_floor_throws_cheap_torches(self):
@@ -38121,7 +38121,7 @@ class RangedAttackTest(unittest.TestCase):
             inventory=[torch],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "vt6")
+        self.assertEqual(policy.choose_key(snap), "vT6")
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
 
     def test_deep_floor_does_not_throw_torches(self):
@@ -38545,7 +38545,7 @@ class ChestProcessingTest(unittest.TestCase):
         snap = self._snap(inventory=[chest])
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "dc")
+        self.assertEqual(policy.choose_key(snap), "dC")
         self.assertEqual(policy.last_reason, "chest:drop")
         self.assertIsNone(policy._chest_position)
         self.assertEqual(policy._chest_drop_origin, Position(10, 10))
@@ -38666,7 +38666,7 @@ class ChestProcessingTest(unittest.TestCase):
                 policy._chest_processing_key(
                     snap, [], allowed_positions={Position(10, 8)}
                 ),
-                "dc",
+                "dC",
             )
 
         self.assertEqual(policy.last_reason, "chest:drop-unreachable-reserved")
@@ -38814,7 +38814,7 @@ class ChestProcessingTest(unittest.TestCase):
         snap = self._snap(inventory=[chest], player_pos=(10, 10))
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "dc")
+        self.assertEqual(policy.choose_key(snap), "dC")
         displaced_grids = dict(snap.grids)
         actual = Position(10, 12)
         displaced_grids[actual] = grid(
@@ -38832,7 +38832,7 @@ class ChestProcessingTest(unittest.TestCase):
         snap = self._snap(inventory=[chest])
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "dc")
+        self.assertEqual(policy.choose_key(snap), "dC")
         self.assertEqual(policy.choose_key(snap), "5")
         self.assertEqual(policy.last_reason, "chest:await-drop")
 
@@ -40165,7 +40165,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             [Position(12, 126), Position(13, 126)] * 5, maxlen=STUCK_WINDOW
         )
         key = pol._fundraising_key(snap, [])
-        self.assertNotEqual(key, "rt")  # the teleport scroll stays in the kit
+        self.assertNotEqual(key, "rT")  # the teleport scroll stays in the kit
         self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
         self.assertIn(Position(12, 129), pol._mining_dropped_veins)
         self.assertEqual(pol._mining_veins_dropped, 1)
@@ -40362,7 +40362,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
-        self.assertEqual(pol._fundraising_key(snap, []), "wja")
+        self.assertEqual(pol._fundraising_key(snap, []), "wJa")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
         self.assertEqual(pol._normal_weapon_name, "Broad Sword")  # remembered to re-wield
 
@@ -40385,7 +40385,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
-        self.assertEqual(pol._fundraising_key(snap, []), "wjn")
+        self.assertEqual(pol._fundraising_key(snap, []), "wJn")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
 
     def test_gives_up_mining_when_the_weapon_will_not_swap_for_the_digger(self):
@@ -40411,7 +40411,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
         keys = [pol._fundraising_key(snap, []) for _ in range(DIGGER_WIELD_LIMIT)]
-        self.assertTrue(all(k == "wja" for k in keys[:-1]))  # kept trying, then...
+        self.assertTrue(all(k == "wJa" for k in keys[:-1]))  # kept trying, then...
         self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
         self.assertIsNone(pol._fundraising_mode)  # mining abandoned
 
@@ -40431,7 +40431,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._wield_digging_tool_key(first, "mine:wield"), "wja"
+            pol._wield_digging_tool_key(first, "mine:wield"), "wJa"
         )
         second = Snapshot(
             first.player,
@@ -40444,7 +40444,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._wield_digging_tool_key(second, "mine:wield"), "wkb"
+            pol._wield_digging_tool_key(second, "mine:wield"), "wKb"
         )
         self.assertEqual(pol._normal_sub_hand_name, "Shield")
 
@@ -40464,7 +40464,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
              patch.object(pol, "_mining_detection_scroll_target", return_value=0):
             self.assertTrue(pol._fundraising_supplies_ready(snap))
         self.assertEqual(
-            pol._wield_digging_tool_key(snap, "mine:wield"), "wja"
+            pol._wield_digging_tool_key(snap, "mine:wield"), "wJa"
         )
 
     def test_mining_end_restores_both_combat_hands(self):
@@ -40485,7 +40485,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(first, "restore"), "wwa"
+            pol._restore_mining_combat_hand_key(first, "restore"), "wWa"
         )
         second = Snapshot(
             first.player,
@@ -40498,7 +40498,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(second, "restore"), "wsb"
+            pol._restore_mining_combat_hand_key(second, "restore"), "wSb"
         )
 
     def test_mining_restores_optimizer_single_hand_not_displaced_dual_wield(self):
@@ -40522,7 +40522,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 item("sub_hand", 22, 1, is_equipment=True, name="Naginata"),
             ],
         )
-        self.assertEqual(pol._wield_digging_tool_key(observed, "mine:wield"), "wja")
+        self.assertEqual(pol._wield_digging_tool_key(observed, "mine:wield"), "wJa")
 
         both_diggers = replace(
             observed,
@@ -40537,7 +40537,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(both_diggers, "restore"), "wsa"
+            pol._restore_mining_combat_hand_key(both_diggers, "restore"), "wSa"
         )
         main_restored = replace(
             both_diggers,
@@ -40585,7 +40585,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 item("sub_hand", TVAL_DIGGING, 4, is_equipment=True),
             ],
         )
-        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wsa")
+        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wSa")
         self.assertEqual(
             pol._restore_mining_combat_hand_key(
                 replace(
@@ -40598,7 +40598,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 ),
                 "restore",
             ),
-            "wdb",
+            "wDb",
         )
 
     def test_mining_restore_without_optimizer_falls_back_to_observed_weapon(self):
@@ -40616,7 +40616,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             inventory=[item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)],
             equipment=[item("main_hand", TVAL_DIGGING, 1, is_equipment=True)],
         )
-        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wsn")
+        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wSn")
 
     def test_combat_restore_abandons_when_target_identity_never_appears(self):
         from hengbot.policy import DIGGER_WIELD_LIMIT
@@ -40645,7 +40645,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol._restore_mining_combat_hand_key(stuck, "restore")
             for _ in range(DIGGER_WIELD_LIMIT)
         ]
-        self.assertEqual(keys[:-1], ["wsb"] * (DIGGER_WIELD_LIMIT - 1))
+        self.assertEqual(keys[:-1], ["wSb"] * (DIGGER_WIELD_LIMIT - 1))
         self.assertIsNone(keys[-1])
         self.assertEqual(
             pol.last_reason, "restore:abandon-unconfirmed-equip"
@@ -40693,7 +40693,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol._wield_digging_tool_key(
                 snap, "fundraise:wield-digging-tool"
             ),
-            "wjy",
+            "wJy",
         )
         self.assertIsNone(pol._normal_weapon_name)
 
@@ -40758,7 +40758,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol._wield_digging_tool_key(snap, "mine:wield")
             for _ in range(DIGGER_WIELD_LIMIT)
         ]
-        self.assertEqual(keys[:-1], ["wjy"] * (DIGGER_WIELD_LIMIT - 1))
+        self.assertEqual(keys[:-1], ["wJy"] * (DIGGER_WIELD_LIMIT - 1))
         self.assertIsNone(keys[-1])
         self.assertEqual(pol._digger_wield_attempts, 0)
 
@@ -41229,7 +41229,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             self._town(inventory=(mask,))
         )
 
-        self.assertEqual(key, "{a.\r")
+        self.assertEqual(key, "{A.\r")
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
 
     def test_inscribes_partial_known_uncursed_item_before_equipping(self):
@@ -41257,7 +41257,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             self._town(inventory=(glaive,))
         )
 
-        self.assertEqual(key, INSCRIBE_KEY + "a.\r")
+        self.assertEqual(key, INSCRIBE_KEY + "A.\r")
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
 
     def test_fresh_selected_partial_artifact_suppression_matches_blocker(self):
@@ -41296,7 +41296,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             preparation.blockers,
             ("pending-random-teleport-suppression",),
         )
-        self.assertEqual(key, INSCRIBE_KEY + "a.\r")
+        self.assertEqual(key, INSCRIBE_KEY + "A.\r")
 
     def test_inscribed_selected_partial_artifact_clears_departure_blocker(self):
         artifact = item(
@@ -41599,7 +41599,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         self.assertEqual(
             policy.choose_key(outside),
-            INSCRIBE_KEY + "q.\r",
+            INSCRIBE_KEY + "Q.\r",
         )
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
         self.assertEqual(registry_calls, [outside.turn])
@@ -42098,7 +42098,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._store_leave_inflight = (
             policy._decision_sequence, home.turn, STORE_HOME
         )
-        for command in ("pa\r", "da\r", "Ea", "ra", "ua", "qa"):
+        for command in ("pa\r", "da\r", "EA", "rA", "ua", "qA"):
             # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
             with self.subTest(command=command), patch.object(
                 policy, "_decide", return_value=command
@@ -42618,12 +42618,12 @@ class FullPackDisposalTest(unittest.TestCase):
         pol = HengbotPolicy()
         # Original destroy = k; "01" forces it (no confirmation prompt) and
         # destroys the whole stack with no movement/confirmation keys leaking.
-        self.assertEqual(pol._full_pack_destroy_key(self._full_pack(torch)), "01kq")
+        self.assertEqual(pol._full_pack_destroy_key(self._full_pack(torch)), "01kQ")
 
     def test_stacked_disposable_destroys_whole_stack_via_command_arg(self):
         potions = item("q", TVAL_POTION, SV_POTION_SLEEP, name="sleep", count=4)
         pol = HengbotPolicy()
-        self.assertEqual(pol._full_pack_destroy_key(self._full_pack(potions)), "04kq")
+        self.assertEqual(pol._full_pack_destroy_key(self._full_pack(potions)), "04kQ")
 
     def test_empty_chests_are_disposable_junk(self):
         policy = HengbotPolicy()
@@ -42636,7 +42636,7 @@ class FullPackDisposalTest(unittest.TestCase):
                 chest = item("q", TVAL_CHEST, 1, name=name)
                 self.assertTrue(policy._is_disposable_item(chest))
                 self.assertEqual(
-                    policy._full_pack_destroy_key(self._full_pack(chest)), "01kq"
+                    policy._full_pack_destroy_key(self._full_pack(chest)), "01kQ"
                 )
                 policy._destroy_watch = None
 
@@ -42659,7 +42659,7 @@ class FullPackDisposalTest(unittest.TestCase):
         # Re-deciding on an unchanged pack means the destroy never took. After the
         # retry budget the item is abandoned and None lets return-to-town take over.
         results = [pol._full_pack_destroy_key(snap) for _ in range(DESTROY_FAIL_LIMIT + 2)]
-        self.assertEqual(results[0], "01kq")
+        self.assertEqual(results[0], "01kQ")
         self.assertIsNone(results[-1])
         self.assertIn(pol._item_signature(torch), pol._undestroyable_sigs)
 
@@ -42670,7 +42670,7 @@ class FullPackDisposalTest(unittest.TestCase):
         pol._undestroyable_sigs.add(pol._item_signature(torch))
         # The torch is skipped; the empty bottle is the next disposable target.
         self.assertEqual(
-            pol._full_pack_destroy_key(self._full_pack(torch, bottle)), "01kr"
+            pol._full_pack_destroy_key(self._full_pack(torch, bottle)), "01kR"
         )
 
     def test_all_undestroyable_returns_none_for_town_return(self):
@@ -43051,7 +43051,7 @@ class DungeonConquestTest(unittest.TestCase):
         )
         policy._target_dungeon_id = 2
 
-        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "guardian:teleport-to-cover")
         self.assertEqual(policy._last_return_trigger, "guardian-reposition")
         self.assertFalse(policy._returning_to_town)
@@ -43190,7 +43190,7 @@ class DungeonConquestTest(unittest.TestCase):
         )
         pol._yeek_victory_loot = True
 
-        self.assertEqual(pol._victory_loot_key(snap), "01ka")
+        self.assertEqual(pol._victory_loot_key(snap), "01kA")
         self.assertEqual(pol.last_reason, "inventory:destroy-disposable-item")
 
     def test_conquest_loot_returns_once_the_floor_is_clean(self):
@@ -49150,7 +49150,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             key = policy.choose_key(snapshot)
             if not key or not key.startswith(policy_module.WIELD_KEY):
                 continue
-            letter = key[len(policy_module.WIELD_KEY)]
+            letter = key[len(policy_module.WIELD_KEY)].lower()
             worn_item = next(
                 (entry for entry in inventory if entry.slot == letter), None
             )
@@ -49226,7 +49226,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         # ...and the decision itself is the wear edge for the pack copy.
         self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
-        self.assertIn("c", key)
+        self.assertIn("C", key)
         self.assertEqual(policy.last_reason, "calibration:redress")
 
         # Both slots filled: the observed release is now correct.  (Driving
@@ -49370,7 +49370,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             in_pack = replace(sword, slot="c")
             stripped = self._snapshot(inventory=(in_pack,))
             key = fresh.choose_key(stripped)
-            self.assertEqual(key, policy_module.WIELD_KEY + "c")
+            self.assertEqual(key, policy_module.WIELD_KEY + "C")
             self.assertEqual(fresh.last_reason, "calibration:redress")
             self.assertTrue(fresh._calibration_stripped_unrestored)
 
@@ -49393,7 +49393,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         key = policy._calibration_redress_key(self._snapshot(inventory=(ring,)))
 
-        self.assertEqual(key, "we(")
+        self.assertEqual(key, "wE(")
         self.assertEqual(policy.last_reason, "calibration:redress")
 
     def test_six_item_redress_bounds_ring_noop_and_wears_every_later_item(self):
@@ -49428,19 +49428,19 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             )
             key = policy._calibration_redress_key(snapshot)
             posted.append(key)
-            if key == "we(":
+            if key == "wE(":
                 continue
-            pack_letter = key[1]
+            pack_letter = key[1].lower()
             worn = next(entry for entry in packed if entry.slot == pack_letter)
             packed.remove(worn)
             equipment.append(replace(worn, slot=target_by_letter[pack_letter]))
 
         self.assertEqual(
             posted,
-            ["we("] * policy_module.STORE_STUCK_LIMIT
-            + ["wf", "wg", "wh", "wi", "wj"],
+            ["wE("] * policy_module.STORE_STUCK_LIMIT
+            + ["wF", "wG", "wH", "wI", "wJ"],
         )
-        self.assertLessEqual(posted.count("we("), policy_module.STORE_STUCK_LIMIT)
+        self.assertLessEqual(posted.count("wE("), policy_module.STORE_STUCK_LIMIT)
         self.assertEqual({entry.slot for entry in equipment},
                          {"neck", "body", "outer", "head", "bow"})
         policy._calibration_redress_observe(
@@ -49491,7 +49491,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 )
                 key = policy.choose_key(current)
                 posted.append(key)
-                letter = key[len(policy_module.WIELD_KEY)]
+                letter = key[len(policy_module.WIELD_KEY)].lower()
                 worn = next(entry for entry in packed if entry.slot == letter)
                 target_slot = {
                     identity: slot
@@ -49503,8 +49503,8 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._calibration_observe(self._snapshot(equipment=tuple(equipment)))
             self.assertEqual(
                 posted,
-                [policy_module.WIELD_KEY + letter for letter in "abcde"[:-1]]
-                + [policy_module.WIELD_KEY + "e("],
+                [policy_module.WIELD_KEY + letter.upper() for letter in "abcde"[:-1]]
+                + [policy_module.WIELD_KEY + "E("],
             )
             self.assertEqual(
                 {entry.slot for entry in equipment},

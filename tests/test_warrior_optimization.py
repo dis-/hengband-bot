@@ -828,8 +828,8 @@ class WarriorOptimizationTest(unittest.TestCase):
             player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
 
-        self.assertEqual(policy._equipment_transaction_town_key(before), "wa")
-        self.assertTrue(policy.confirm_key_posted("wa"))
+        self.assertEqual(policy._equipment_transaction_town_key(before), "wA")
+        self.assertTrue(policy.confirm_key_posted("wA"))
         equipped = SimpleNamespace(
             in_town=True, store=None, inventory=(),
             equipment=(gear("shield", "equipped", slot="sub_hand", tval=34).item,),

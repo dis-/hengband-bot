@@ -76,14 +76,14 @@ class GuardianLootTriageTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._yeek_victory_loot = True
         key = policy._victory_loot_key(full_snapshot(self._unknown_pack()))
-        self.assertTrue(key.startswith("ua"), key)
+        self.assertTrue(key.startswith("uA"), key)
         self.assertEqual(policy.last_reason, "identify:pack-pressure")
 
     def test_conquest_full_pack_identifies_instead_of_recalling(self):
         policy = HengbotPolicy()
         policy._victory_loot_dungeon = 4
         key = policy._conquest_loot_key(full_snapshot(self._unknown_pack(), dungeon=4))
-        self.assertTrue(key.startswith("ua"), key)
+        self.assertTrue(key.startswith("uA"), key)
         self.assertEqual(policy.last_reason, "identify:pack-pressure")
 
     def test_cost_exchange_never_selects_word_of_recall(self):
@@ -117,7 +117,7 @@ class GuardianLootTriageTest(unittest.TestCase):
         }
         policy._full_pack_destroy_key = lambda _snapshot: None
         policy._pack_pressure_identify_key = lambda _snapshot: None
-        self.assertEqual(policy._full_pack_loot_triage_key(snapshot), "ua-")
+        self.assertEqual(policy._full_pack_loot_triage_key(snapshot), "uA-")
         self.assertEqual(policy.last_reason, "loot:identify-floor-item")
 
     def test_unaware_floor_item_on_pile_is_not_identified(self):

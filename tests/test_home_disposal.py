@@ -118,7 +118,7 @@ class HomeDisposalTests(unittest.TestCase):
         carried = InventoryItem("a", "a Staff", 1, TVAL_STAFF, 2, True, True)
         policy._home_disposal_pending = (policy._item_signature(staff), "destroy")
         outside = SimpleNamespace(in_town=True, store=None, inventory=(carried,))
-        self.assertEqual(policy._home_disposal_processing_key(outside), "01ka")
+        self.assertEqual(policy._home_disposal_processing_key(outside), "01kA")
         self.assertEqual(policy.last_reason, "home-disposal:destroy-approved")
 
         policy._home_disposal_pending = (policy._item_signature(undecided), "keep")
@@ -153,7 +153,7 @@ class HomeDisposalTests(unittest.TestCase):
 
         withdrawn = InventoryItem("c", approved[0], 1, approved[1], approved[2], True, False)
         appeared = SimpleNamespace(in_town=True, store=None, inventory=(undecided, withdrawn))
-        self.assertEqual(policy._home_disposal_processing_key(appeared), "01kc")
+        self.assertEqual(policy._home_disposal_processing_key(appeared), "01kC")
 
 
 if __name__ == "__main__":

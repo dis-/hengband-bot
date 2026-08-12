@@ -1460,7 +1460,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._returning_to_town = True
         policy._nav_exhausted = True
 
-        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.choose_key(snapshot), "rT")
         self.assertEqual(policy.last_reason, "livelock:teleport-explore")
         self.assertFalse(policy._nav_exhausted)
 
@@ -1664,7 +1664,7 @@ class SurvivalGateTest(unittest.TestCase):
             food=1500, inventory=[item("b", FOOD, 35)], grids=grids
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "Eb")
+        self.assertEqual(policy.choose_key(snap), "EB")
         self.assertEqual(policy.last_reason, "survival:eat")
 
     def test_starving_with_no_food_overrides_mining_mode(self):
@@ -1730,7 +1730,7 @@ class SurvivalGateTest(unittest.TestCase):
             monsters=[hostile(1, 10, 20, distance=10)],
         )
         policy = HengbotPolicy()
-        self.assertEqual(policy.choose_key(snap), "Eb")
+        self.assertEqual(policy.choose_key(snap), "EB")
         self.assertEqual(policy.last_reason, "survival:eat")
 
     def test_weak_with_no_food_leaves_a_kill_quest_floor(self):

@@ -81,7 +81,7 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
 
         key = policy.choose_key(self.town)
 
-        self.assertNotEqual(key, "rha")
+        self.assertNotEqual(key, "rHa")
         self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
         self.assertEqual(
             policy._missing_required_abilities(self.town, 34),

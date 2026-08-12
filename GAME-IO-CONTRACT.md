@@ -62,3 +62,29 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     (`spells-world.cpp:388-400`). Thus destination `g` is `rDg`. Lowercase `rd` can select an `@rd`
     tagged item instead of slot `d`; its intended recall prompt never opens, and a composed destination
     key such as the final `g` is then delivered to the wrong input context.
+
+13. **Every inventory selector in a composed key is uppercase; prompt answers are a separate
+    contract.** All commands which select inventory through `choose_item` reach the same item
+    getter: `get_tag()` runs before inventory-label mapping, while the label path applies
+    `tolower()` (`floor-item-getter.cpp:797-834`). Thus a pack item `b` is selected as `B`; the
+    uppercase byte cannot match the bot-created lowercase command tag `@<command>b`, but still maps
+    back to slot `b`. This applies to read (`rB...`), quaff (`qB`), eat (`EB`), refill (`\FB`),
+    wield (`wB...`), fire (`fB...`), throw (`vB...`), aim-wand (`aB...`), staff/rod source and item
+    targets (`uBC`, `zBC`), destroy (`01kB`), pack inscribe (`{B...`), chest drop (`dB`), and every
+    identify/enchant/remove-curse source or pack-target selector. Equipment targets remain the
+    source-derived `/` plus equipment label or the ring endpoints `(`/`)` (entry 11). Store
+    page-relative buy/sell/Home letters remain lowercase and byte-identical: store addressing does
+    not call this inventory getter (entries 5-8), and sale `@0`/`@1` bindings deliberately name the
+    lowercase store-visible item letter.
+
+    The selector correction does not validate later prompt answers. The following answers are
+    source-derived here: ring endpoints and equipment `/slot` selection (entry 11), recall cancel
+    and destination selection (entry 12), and store/Home page, quantity-presence, and page-relative
+    addressing (entries 5-8). These remain explicitly unverified assumptions pending a separate
+    source audit: Identify and `*Identify*` dismissal tails; enchant and remove-curse targets;
+    staff/rod targets; fire/throw/wand direction and target-mode tails; non-ring wield hand answers;
+    refill, inscribe, uninscribe, destroy, and chest-drop prompt tails; sale/buy confirmation and
+    quantity bytes beyond entries 5-8; pickup repetition; rest counts; dungeon/quest entry answers;
+    character-dump, knowledge, building/menu, rumor, and warning-confirmation macros. Uppercasing
+    only selector positions preserves those suffix bytes exactly rather than silently claiming
+    them to be derived.
