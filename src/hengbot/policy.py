@@ -2081,6 +2081,7 @@ class HengbotPolicy:
         # fresh combat budget.
         self._choke_outcome_floor: tuple[int, int, int] | None = None
         self._choke_outcome_budgets: dict[Position, tuple[int, tuple[int, ...]]] = {}
+        self._breeder_choke_attempt_ended_floor: tuple[int, int, int] | None = None
         self._cross_decision_latches["_choke_engagement_plan"] = CrossDecisionLatch(
             "melee-engagement",
             "_release_invalid_choke_plan",
@@ -6360,6 +6361,7 @@ class HengbotPolicy:
             self._oscillation_outcome_marker = None
             self._choke_outcome_floor = snapshot.floor_key
             self._choke_outcome_budgets.clear()
+            self._breeder_choke_attempt_ended_floor = None
 
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1
@@ -29115,6 +29117,19 @@ class HengbotPolicy:
         if openness > SUMMONER_CHOKE_NEIGHBORS - 1:
             route = self._validated_choke_route(snapshot, melee_hostiles)
             if route is not None:
+                if (
+                    self._breeder_choke_attempt_ended_floor == snapshot.floor_key
+                    and self._engagement_breeder_population(snapshot)
+                ):
+                    self._returning_to_town = True
+                    self._last_return_trigger = "breeder-choke-attempt-ended"
+                    exit_key = self._return_to_town_key(
+                        snapshot,
+                        hostiles,
+                        allow_recall=self._fundraising_mode != "mine",
+                    )
+                    assert exit_key is not None
+                    return exit_key
                 destination, step = route
                 self._choke_engagement_plan = ChokeEngagementPlan(
                     floor=snapshot.floor_key,
@@ -29146,6 +29161,19 @@ class HengbotPolicy:
 
         if openness <= SUMMONER_CHOKE_NEIGHBORS - 1:
             if not self._choke_plan_active(snapshot):
+                if (
+                    self._breeder_choke_attempt_ended_floor == snapshot.floor_key
+                    and self._engagement_breeder_population(snapshot)
+                ):
+                    self._returning_to_town = True
+                    self._last_return_trigger = "breeder-choke-attempt-ended"
+                    exit_key = self._return_to_town_key(
+                        snapshot,
+                        hostiles,
+                        allow_recall=self._fundraising_mode != "mine",
+                    )
+                    assert exit_key is not None
+                    return exit_key
                 self._choke_engagement_plan = ChokeEngagementPlan(
                     floor=snapshot.floor_key,
                     phase="hold",
@@ -29210,6 +29238,8 @@ class HengbotPolicy:
         plan = self._choke_engagement_plan
         if plan is None:
             return
+        if plan.start_breeder_count > 0:
+            self._breeder_choke_attempt_ended_floor = plan.floor
         plan.phase = "breakthrough" if cause == "breeder-breakthrough" else "release"
         plan.release_cause = cause
 

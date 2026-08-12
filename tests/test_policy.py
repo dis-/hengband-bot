@@ -3148,6 +3148,102 @@ class CombatTest(unittest.TestCase):
             ("release", "sight-loss-bound"),
         )
 
+    def test_released_breeder_choke_abandons_floor_instead_of_rearming(self):
+        room = Position(29, 169)
+        mouth = Position(28, 170)
+        choke = Position(27, 170)
+        policy = HengbotPolicy()
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
+        policy._choke_engagement_plan.sight_loss_decisions = (
+            policy_module.EXTENDED_STUCK_WINDOW
+        )
+
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0))
+        self.assertEqual(
+            policy.choke_engagement_state()["release_cause"],
+            "sight-loss-bound",
+        )
+        posted = []
+        for turn, position in enumerate((room, mouth, choke), 2):
+            snapshot = self._orc_cave_choke_cycle_snapshot(position, 9)
+            snapshot = replace(
+                snapshot,
+                grids={
+                    grid_position: replace(
+                        cell,
+                        has_up_stairs=grid_position == choke,
+                    )
+                    for grid_position, cell in snapshot.grids.items()
+                },
+                turn=turn,
+            )
+            posted.append((policy.choose_key(snapshot), policy.last_reason))
+
+        self.assertEqual(posted, [
+            ("9", "return:seek-upstairs"),
+            ("8", "return:seek-upstairs"),
+            ("<", "return:ascend"),
+        ])
+        self.assertEqual(
+            policy.choke_engagement_state()["release_cause"],
+            "sight-loss-bound",
+        )
+
+    def test_fresh_floor_gets_its_first_breeder_choke_attempt(self):
+        snapshot = self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9)
+        policy = HengbotPolicy()
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("9", "melee:choke"))
+        self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
+        self.assertIsNotNone(policy._choke_engagement_plan)
+
+    def test_new_floor_visit_rearms_breeder_choke_attempt(self):
+        room = Position(29, 169)
+        mouth = Position(28, 170)
+        policy = HengbotPolicy()
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
+        policy._choke_engagement_plan.sight_loss_decisions = (
+            policy_module.EXTENDED_STUCK_WINDOW
+        )
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0))
+
+        new_visit = replace(
+            self._orc_cave_choke_cycle_snapshot(room, 9),
+            floor_key=(3, 13, 0),
+        )
+        key = policy.choose_key(new_visit)
+
+        self.assertEqual((key, policy.last_reason), ("9", "melee:choke"))
+        self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
+        self.assertEqual(policy._choke_engagement_plan.floor, (3, 13, 0))
+
+    def test_quest_floor_suppresses_repeat_choke_without_abandoning(self):
+        snapshot = replace(
+            self._orc_cave_choke_cycle_snapshot(Position(29, 169), 9),
+            floor_key=(3, 12, 34),
+        )
+        policy = HengbotPolicy()
+        self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
+        policy._breeder_choke_attempt_ended_floor = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+
+        with patch.object(policy, "_active_fixed_quest_id", return_value=34):
+            key = policy._melee_swarm_combat_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._physical_adjacent_hostiles(snapshot),
+            )
+
+        self.assertIsNone(key)
+        self.assertFalse(policy._returning_to_town)
+        self.assertIsNone(policy._choke_engagement_plan)
+        self.assertEqual(
+            policy._breeder_choke_attempt_ended_floor,
+            snapshot.floor_key,
+        )
+
     @staticmethod
     def _stationary_choke_snapshot(
         monsters, *, hp=1000, exp=1000, gold=0, turn=1
