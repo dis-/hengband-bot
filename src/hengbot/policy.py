@@ -4065,7 +4065,11 @@ class HengbotPolicy:
                 return self._read_key(snapshot, scroll)
 
             step = self._flee_step(snapshot, hostiles)
-            if step is not None:
+            if step is not None and not (
+                self._escape_state.owner in {"disengage", "emergency"}
+                and self._is_oscillating()
+                and step in set(self._recent)
+            ):
                 self.last_reason = "no-wait:flee"
                 return self._direction_key(snapshot.player.position, step)
 
@@ -27273,7 +27277,9 @@ class HengbotPolicy:
                 self.last_reason = "combat:disengage-recall"
                 return self._read_key(snapshot, recall)
         step = self._summoner_retreat_step(snapshot, threats, hostiles)
-        if step is not None:
+        if step is not None and not (
+            self._is_oscillating() and step in set(self._recent)
+        ):
             self.last_reason = "combat:disengage-step"
             return self._step_toward(snapshot, step)
         stairs = self._escape_by_stairs(snapshot)
@@ -28393,19 +28399,25 @@ class HengbotPolicy:
                     if potion is not None:
                         self.last_reason = "emergency:heal"
                         return QUAFF_KEY + potion.slot
-                step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-                if step is None:
+                route_step = self._nearest_goal_step(
+                    snapshot, self._is_upstairs_target
+                )
+                if route_step is None:
                     blocker = self._blocking_escape_melee_key(
                         snapshot, hostiles, self._is_upstairs_target
                     )
                     if blocker is not None:
                         self.last_reason = "emergency:clear-escape-path"
                         return blocker
-                if step is None:
-                    step = self._flee_step(snapshot, hostiles)
-                if step is not None:
+                if route_step is not None:
                     self.last_reason = "emergency:seek-upstairs"
-                    return self._step_toward(snapshot, step)
+                    return self._step_toward(snapshot, route_step)
+                flee_step = self._flee_step(snapshot, hostiles)
+                if flee_step is not None and not (
+                    self._is_oscillating() and flee_step in set(self._recent)
+                ):
+                    self.last_reason = "emergency:seek-upstairs"
+                    return self._step_toward(snapshot, flee_step)
                 adjacent = [
                     monster for monster in hostiles if monster.distance <= 1
                 ]
