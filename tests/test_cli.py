@@ -80,7 +80,7 @@ from hengbot.cli import (
     _configure_policy_output_paths,
     _valid_bot_play_macro_pref,
 )
-from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS
+from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS, TOWN_TRAVEL_STALL_LIMIT
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
@@ -2207,6 +2207,10 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertLess(COMMAND_RESPONSE_GRACE, REST_STALL_GRACE)
         self.assertEqual(
             _command_response_grace("\x1b`n!.", "shop:travel"),
+            COMMAND_RESPONSE_GRACE / TOWN_TRAVEL_STALL_LIMIT,
+        )
+        self.assertEqual(
+            _command_response_grace("\x1b`n>.", "town:travel-entrance"),
             COMMAND_RESPONSE_GRACE,
         )
         self.assertEqual(_command_response_grace("dj\r", "home:deposit"), 0.0)

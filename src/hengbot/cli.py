@@ -611,6 +611,12 @@ def _intentional_action_wait_category(key: str, reason: str) -> str | None:
 def _command_response_grace(key: str, reason: str) -> float:
     """Extra snapshot silence allowed only for genuinely multi-turn commands."""
     if key in TRAVEL_MACRO_TRIGGERS:
+        if reason == "shop:travel":
+            # A rejected symbol selection stays in point_target without
+            # consuming a turn.  Do not grant that modal selector the full
+            # multi-turn travel window: one share of the existing no-progress
+            # allowance is enough to distinguish prompt settling from silence.
+            return COMMAND_RESPONSE_GRACE / TOWN_TRAVEL_STALL_LIMIT
         return COMMAND_RESPONSE_GRACE
     return 0.0
 

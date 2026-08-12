@@ -40,6 +40,19 @@ for bot fixers).
 
 Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`, `1ce92ea709`.
 
+10a. **Travel point selection is modal and its symbol list is game-internal.** `` ` `` enters
+    `do_cmd_travel`; when an old non-player goal exists, `n` declines the "continue travel?"
+    prompt, otherwise point selection receives and ignores the non-direction `n`
+    (`cmd-travel.cpp:15-24`, `grid-selector.cpp:201-274`). In the selector, shifted store
+    symbols search the marked acceptable-target vector (`grid-selector.cpp:34-68, 102-112,
+    231-247`). If no symbol match exists, the cursor is reset to the player
+    (`grid-selector.cpp:153-162`). `.` at the player clears the byte but does not select a
+    point, so the selector remains open; Escape is what exits it (`grid-selector.cpp:216-230`).
+    The emitted `nearby_grids` set is not proof that the selector's live candidate vector will
+    accept a symbol: the turn-4684095 artifact disclosed marked Home `(45,123)`, yet the posted
+    `(` selection made no movement and consumed no turn. Bot recovery must therefore bound an
+    observed failed issue rather than claim it can predict selector reachability.
+
 11. **Wear/wield input is `w` plus the pack letter, followed by every prompt answer.** Most armour has
     no second prompt. Weapons and digging tools retain their `do_cmd_wield` hand answer (for example
     `wja`). Rings always open a second `choose_item(..., USE_EQUIP)` selector

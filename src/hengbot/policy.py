@@ -2946,6 +2946,21 @@ class HengbotPolicy:
             if observed_failed_entry:
                 self._store_entry_failed_owner = posted_entry_owner
             else:
+                state = self._town_travel_state
+                if (
+                    state is not None
+                    and (self._store_entry_wait_key or "").startswith("\x1b`")
+                    and state.last_turn == snapshot.turn
+                    and snapshot.player.position.distance_to(state.goal)
+                    >= state.best_distance
+                ):
+                    # Native travel emits no player-turn snapshot while it is
+                    # running.  An unchanged snapshot after this posted macro
+                    # therefore arrives only after the CLI's Escape recovered
+                    # a selector/command that made no progress.  Fail over now;
+                    # reissuing the same symbol can only repeat that modal wait.
+                    self._town_travel_fallback = state.goal
+                    self._town_travel_state = None
                 self.last_reason = "store:entry-await-observation"
                 return ""
         pending_store_transaction = (
@@ -19311,11 +19326,10 @@ class HengbotPolicy:
         does. Near goals just walk — a travel round-trip costs more than the
         last couple of steps."""
         if goal not in snapshot.grids:
-            # The game-side selector can jump only to grids the game remembers;
-            # snapshot.grids is its is_mark/is_view set. For an absent goal the
-            # symbol jump resets the cursor to the player, where ``.`` refuses
-            # to confirm, leaving the selector open until the multi-second stall
-            # nudge. Walk toward and reveal the static-map goal instead.
+            # An undisclosed goal cannot support native travel.  The emitted
+            # grid set is not, however, an authoritative projection of
+            # point_target's live candidate vector; a disclosed goal may still
+            # be rejected.  That failure is handled after the recovery nudge.
             return None
         position = snapshot.player.position
         distance = position.distance_to(goal)

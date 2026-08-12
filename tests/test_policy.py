@@ -37664,6 +37664,23 @@ class StoreTravelRetryTest(unittest.TestCase):
         # Interrupted mid-route but closer than before: travel again.
         self.assertEqual(self._approach(pol, self._snap(110)), "\x1b`n%.")
 
+    def test_remembered_store_symbols_keep_byte_identical_travel_macros(self):
+        snap = self._snap(94)
+        for store_type, expected in (
+            (STORE_ALCHEMIST, "\x1b`n%."),
+            (STORE_TEMPLE, "\x1b`n$."),
+        ):
+            with self.subTest(store_type=store_type):
+                pol = HengbotPolicy()
+                pol._shopping_approach_goal = Position(34, 130)
+                pol._shopping_approach_store_type = store_type
+                self.assertEqual(
+                    pol._shopping_approach_key(
+                        snap, Position(34, 95), "shop:travel"
+                    ),
+                    expected,
+                )
+
     def test_native_store_travel_owns_lagged_entry_observation(self):
         pol = HengbotPolicy()
         approach = self._approach(pol, self._snap(94))
@@ -37673,6 +37690,36 @@ class StoreTravelRetryTest(unittest.TestCase):
         lagged_surface = self._snap(130, turn=1)
         self.assertEqual(pol.choose_key(lagged_surface), "")
         self.assertEqual(pol.last_reason, "store:entry-await-observation")
+
+    def test_frozen_home_whiff_falls_back_after_two_followup_decisions(self):
+        artifact = Path("jsonlog/evidence-travel-whiff-snapshots.jsonl")
+        raw = json.loads(artifact.read_text(encoding="utf-8").splitlines()[0])
+        snap = parse_snapshot(raw, {})
+        goal = Position(45, 123)
+        self.assertEqual(snap.turn, 4684095)
+        self.assertEqual(snap.player.position, Position(47, 110))
+        self.assertEqual(snap.grids[goal].store_number, STORE_HOME)
+
+        pol = HengbotPolicy()
+        pol._shopping_approach_goal = goal
+        pol._shopping_approach_store_type = STORE_HOME
+        first = pol._shopping_approach_key(snap, goal, "shop:travel")
+        decisions = [first]
+        self.assertEqual(first, "\x1b`n(.")
+        self.assertTrue(pol.confirm_key_posted(first))
+
+        decisions.append(pol.choose_key(snap))
+        self.assertEqual(decisions[-1], "")
+        self.assertEqual(pol.last_reason, "store:entry-await-observation")
+        self.assertEqual(pol._town_travel_fallback, goal)
+        decisions.append(
+            pol._shopping_approach_key(snap, goal, "shop:travel")
+        )
+        self.assertEqual(decisions[-1], "9")
+
+        # Macro issue, lagged/recovery observation, then BFS: two follow-up
+        # decisions instead of the measured eight no-progress allowances.
+        self.assertEqual(len(decisions), 3)
 
     def test_unremembered_static_store_goal_walks_without_recording_issue(self):
         pol = HengbotPolicy()
