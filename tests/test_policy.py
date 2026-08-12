@@ -28083,7 +28083,7 @@ class WildernessSafetyTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(at_town), ">")
         self.assertEqual(pol.last_reason, "wilderness:enter-town")
 
-    def test_gridless_measured_global_map_stops_without_posting_entry(self):
+    def test_gridless_measured_global_map_routes_and_enters_town(self):
         rows = ["." * 99 for _ in range(66)]
         rows[48] = f"{rows[48][:5]}1{rows[48][6:]}"
         wilderness = WildernessMap(tuple(rows))
@@ -28093,11 +28093,25 @@ class WildernessSafetyTest(unittest.TestCase):
         )
         pol = HengbotPolicy(wilderness_map=wilderness)
 
-        decisions = [pol.choose_key(measured) for _ in range(3)]
+        self.assertEqual(pol.choose_key(measured), ">")
+        self.assertEqual(pol.last_reason, "wilderness:enter-town")
 
-        self.assertEqual(decisions, [WAIT_KEY, WAIT_KEY, WAIT_KEY])
-        self.assertNotIn(">", decisions)
-        self.assertEqual(pol.last_reason, "wilderness:global-position-unavailable")
+        non_town = replace(measured, player=player(48, 4))
+        routing_key = pol.choose_key(non_town)
+        self.assertEqual(routing_key, "6")
+        self.assertNotEqual(routing_key, ">")
+        self.assertEqual(pol.last_reason, "wilderness:global-travel")
+
+    def test_gridless_global_map_without_route_stops_safely(self):
+        wilderness = WildernessMap(("###", "#1#", "###"))
+        stranded = Snapshot(
+            player(0, 0), {}, [], floor_key=(0, 0, 0),
+            width=3, height=3, town_flag=False, town_id=-1, town_index=0,
+        )
+        pol = HengbotPolicy(wilderness_map=wilderness)
+
+        self.assertEqual(pol.choose_key(stranded), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "wilderness:no-safe-route")
         self.assertIn(pol.last_reason, POLICY_FINAL_STOP_REASONS)
 
     def test_global_route_prefers_road_and_never_uses_water(self):

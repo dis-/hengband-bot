@@ -342,7 +342,7 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 POLICY_FINAL_STOP_REASONS = frozenset(
     {
         "equipment-transaction:restore-blocked-terminal",
-        "wilderness:global-position-unavailable",
+        "wilderness:no-safe-route",
     }
 )
 # Relocated from the travel-guard block: assert against the real constant so
@@ -2384,11 +2384,10 @@ def _run_follow(
                         town_stall_report,
                     )
                     if policy.last_reason in POLICY_FINAL_STOP_REASONS:
-                        if policy.last_reason == "wilderness:global-position-unavailable":
+                        if policy.last_reason == "wilderness:no-safe-route":
                             print(
-                                "<wilderness:global-position-unavailable> "
-                                "global-map world position and entrance terrain "
-                                "are not observable; stopping the bot for "
+                                "<wilderness:no-safe-route> global-map route to "
+                                "town is unavailable; stopping the bot for "
                                 "investigation",
                                 flush=True,
                             )
