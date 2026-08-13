@@ -30578,6 +30578,73 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         )
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
+    def test_damaged_confirmation_watch_reenters_emergency_ladder_sequence(self):
+        """The frozen turn-4709556 shape cannot absorb consecutive damage."""
+        snap = replace(
+            self._swarm([
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=8),
+            ]),
+            turn=4709556,
+            player=replace(
+                self._swarm([]).player, hp=610, max_hp=668,
+            ),
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol.choose_key(snap), "rt")
+        same_board = replace(snap, inventory=[replace(snap.inventory[0], count=2), snap.inventory[1]])
+        self.assertEqual(pol.choose_key(same_board), WAIT_KEY)
+        damaged = replace(
+            same_board,
+            turn=4709567,
+            player=replace(same_board.player, hp=459),
+        )
+        self.assertEqual(pol.choose_key(damaged), "rt")
+        self.assertEqual(pol.last_reason, "emergency:teleport")
+
+    def test_blind_damaged_confirmation_watch_quaffs_instead_of_reading(self):
+        snap = replace(
+            self._swarm([
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=8),
+            ]),
+            turn=4709556,
+            player=replace(
+                self._swarm([]).player, hp=610, max_hp=668,
+            ),
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol.choose_key(snap), "rt")
+        same_board = replace(snap, inventory=[replace(snap.inventory[0], count=2), snap.inventory[1]])
+        self.assertEqual(pol.choose_key(same_board), WAIT_KEY)
+        damaged_blind = replace(
+            same_board,
+            turn=4709585,
+            player=replace(same_board.player, hp=401, blind=True),
+        )
+        self.assertEqual(pol.choose_key(damaged_blind), "qc")
+        self.assertEqual(pol.last_reason, "emergency:cure-critical")
+
+    def test_confirmation_arriving_on_next_observation_preserves_exact_wait(self):
+        snap = self._swarm([
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=5),
+        ])
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rt")
+        self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "5")
+        arrived = replace(
+            snap,
+            turn=snap.turn + 1,
+            player=replace(snap.player, position=Position(20, 20)),
+            inventory=[replace(snap.inventory[0], count=2), snap.inventory[1]],
+        )
+        self.assertIsNone(pol._emergency_item(arrived, []))
+        self.assertIsNone(pol._emergency_consumable_issue_watch)
+
     def test_cornered_without_any_escape_attacks_instead_of_waiting(self):
         # Live Yeek 1F fundraising death: after relocation and recall supplies
         # were exhausted, a blocked route to the stairs emitted wait on six

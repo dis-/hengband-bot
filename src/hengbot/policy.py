@@ -28265,9 +28265,19 @@ class HengbotPolicy:
                     and player.position != issue_position
                 )
                 if not accepted:
-                    self.last_reason = "emergency:await-consumable-confirmation"
-                    return WAIT_KEY
-                self._emergency_consumable_issue_watch = None
+                    if not self._took_damage:
+                        self.last_reason = "emergency:await-consumable-confirmation"
+                        return WAIT_KEY
+                    # The stack changed without the effect we issued the item
+                    # for.  Once HP also falls, another WAIT has measured cost
+                    # but cannot make that missing effect arrive (the item may
+                    # have been destroyed, or its command refused before it was
+                    # posted).  Release the watch on that observation and let
+                    # the existing emergency ladder choose stairs, a potion,
+                    # relocation, or flight immediately.
+                    self._emergency_consumable_issue_watch = None
+                else:
+                    self._emergency_consumable_issue_watch = None
             elif snapshot.turn <= issue_turn:
                 # Exact/interleaved redraw of the command state: never spend a
                 # second scroll.  A queued wait is harmless after a successful
