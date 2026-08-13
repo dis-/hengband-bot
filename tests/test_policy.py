@@ -13128,6 +13128,96 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertTrue(policy._opening_q34_active(taken))
         self.assertFalse(policy._opening_q34_active(cleared))
 
+    def _frozen_armed_q34_board(self):
+        evidence = Path(
+            "jsonlog/evidence-home-armed-reenter-loop-20260814.jsonl"
+        )
+        with evidence.open(encoding="utf-8") as records:
+            decisions = [json.loads(record) for record in records]
+        self.assertEqual(len(decisions), 219)
+        tail = [
+            row for row in decisions
+            if row.get("decision_sequence") in {215, 216, 217}
+        ]
+        self.assertEqual(
+            [(row["decision_sequence"], row["key"]) for row in tail],
+            [(215, "1"), (216, ""), (217, LEAVE_STORE_KEY)],
+        )
+
+        target = tail[0]
+        board = self._measured_q34_opening()
+        return replace(
+            board,
+            turn=target["turn"],
+            player=replace(board.player, gold=target["player"]["gold"]),
+            inventory=[
+                item("b", TVAL_LITE, SV_LITE_TORCH, count=7, fuel=1500),
+                item("c", TVAL_LITE, SV_LITE_TORCH, count=13, fuel=2500),
+            ],
+        )
+
+    def test_frozen_armed_q34_board_rejects_fundraising_and_leaves_home_cycle(self):
+        snapshot = self._frozen_armed_q34_board()
+        policy = self._policy()
+
+        self.assertTrue(policy._opening_q34_active(snapshot))
+        self.assertEqual(policy._opening_q34_torch_shortage(snapshot), 0)
+        self.assertFalse(policy._start_fundraising(snapshot))
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        claims = policy._enumerate_live_store_claims(snapshot)
+        self.assertFalse(
+            any("fundraising" in claim.category or claim.category.startswith("mining-")
+                or claim.category.startswith("stored-") for claim in claims),
+            claims,
+        )
+        self.assertIsNone(policy._fundraising_mode)
+
+        released = replace(
+            snapshot,
+            quests={
+                **snapshot.quests,
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                ),
+            },
+        )
+        resumed = self._policy()
+        self.assertTrue(resumed._start_fundraising(released))
+        resumed_claims = resumed._enumerate_live_store_claims(snapshot)
+        self.assertFalse(
+            any("fundraising" in claim.category or claim.category.startswith("mining-")
+                or claim.category.startswith("stored-") for claim in resumed_claims),
+            resumed_claims,
+        )
+        self.assertEqual(resumed._next_required_store_type(snapshot), STORE_HOME)
+        self.assertIsNone(resumed._fundraising_mode)
+
+        keys = [policy.choose_key(replace(snapshot, turn=snapshot.turn + offset))
+                for offset in range(3)]
+        self.assertEqual(keys, ["9", "9", "9"])
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertNotIn(LEAVE_STORE_KEY, keys)
+        self.assertNotIn("", keys)
+
+    def test_finished_q34_capture_releases_fundraising_start_and_claims(self):
+        captured = self._frozen_armed_q34_board()
+        finished = replace(
+            captured,
+            quests={
+                **captured.quests,
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                ),
+            },
+        )
+        policy = self._policy()
+
+        self.assertFalse(policy._opening_q34_active(finished))
+        self.assertTrue(policy._start_fundraising(finished))
+        claims = policy._enumerate_live_store_claims(finished)
+        self.assertIn("fundraising-kit", {claim.category for claim in claims})
+        self.assertEqual(policy._fundraising_mode, "prepare")
+
     def test_q34_opening_weaponless_home_recovery_rearms_exactly(self):
         policy = self._policy()
         opening = replace(self._measured_q34_opening(), equipment=[])

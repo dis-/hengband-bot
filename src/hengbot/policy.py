@@ -14637,6 +14637,7 @@ class HengbotPolicy:
         fundraising_active = (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and snapshot.player.gold < FUNDRAISING_GOLD_TARGET
+            and not self._opening_q34_active(snapshot)
         )
         star_reserve_surplus = (
             snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
@@ -15485,7 +15486,7 @@ class HengbotPolicy:
                 if food_store in self._town_store_attempted
                 else food_store
             )
-        opening_q34 = self._opening_q34_torch_shortage(snapshot) > 0
+        opening_q34 = self._opening_q34_active(snapshot)
         if opening_q34 and self._fundraising_mode in {
             "prepare", "mine", "scavenge"
         }:
@@ -16867,7 +16868,7 @@ class HengbotPolicy:
     def _start_fundraising(self, snapshot: Snapshot) -> bool:
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return True
-        if self._opening_q34_torch_shortage(snapshot) > 0:
+        if self._opening_q34_active(snapshot):
             return False
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False
