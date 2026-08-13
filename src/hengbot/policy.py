@@ -414,6 +414,64 @@ class EmissionState:
     equipment: tuple[tuple[object, ...], ...]
 
 
+@dataclass(frozen=True)
+class OwnerObservation:
+    """Progress facts an issued owner is allowed to wait for."""
+
+    floor: tuple[int, int, int] | None
+    position: Position
+    store_type: int | None
+    gold: int
+    experience: int
+    inventory: tuple[tuple[object, ...], ...]
+    equipment: tuple[tuple[object, ...], ...]
+
+
+@dataclass(frozen=True)
+class OwnerExpectation:
+    observation: OwnerObservation
+    expected_changes: frozenset[str]
+
+
+class OwnerExpectationRegistry:
+    """Yield result-waiting owners until their issuing observation changes."""
+
+    def __init__(self) -> None:
+        self._pending: dict[str, OwnerExpectation] = {}
+
+    def post(
+        self,
+        owner: str,
+        observation: OwnerObservation,
+        *expected_changes: str,
+    ) -> None:
+        if not expected_changes:
+            raise ValueError("an owner expectation must name an observable change")
+        self._pending[owner] = OwnerExpectation(
+            observation, frozenset(expected_changes)
+        )
+
+    def may_select(self, owner: str, observation: OwnerObservation) -> bool:
+        pending = self._pending.get(owner)
+        if pending is None:
+            return True
+        if pending.observation != observation:
+            self._pending.pop(owner, None)
+            return True
+        return False
+
+    def yield_owner(self, owner: str) -> None:
+        """Keep an already-posted owner yielded after sender refusal."""
+        # The pending expectation already contains the issuing observation.
+        # This named operation makes refusal migration explicit without a
+        # second owner-specific latch.
+        if owner not in self._pending:
+            return
+
+    def release(self, owner: str) -> None:
+        self._pending.pop(owner, None)
+
+
 TOWN_STOP_PASS_LIMIT = 3
 # それならば一旦多少の非効率は許容する。訪問回数の最大値を54回まで緩和することを許可するのでまずは処理を
 # 完遂させること。効率化はその後。
@@ -1669,13 +1727,6 @@ class HengbotPolicy:
         self._dungeon_recall_issue_watch: tuple[
             tuple[int, int, int], int, int
         ] | None = None
-        # A sender-side refusal proves that the recall read had no observable
-        # effect.  Bind that evidence to the same observation used by the
-        # posting contract; while it remains unchanged, route to the up-stairs
-        # instead of alternating another read with a confirmation WAIT.
-        self._dungeon_recall_posting_refusal: tuple[
-            tuple[int, int, int], bool
-        ] | None = None
         # Emergency scroll commands can be followed by an exact stale snapshot
         # after the CLI's duplicate retry interval.  Reissuing the same read on
         # that board spends a second escape scroll and also double-counts one
@@ -2008,6 +2059,7 @@ class HengbotPolicy:
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
         self._decision_sequence = 0
+        self._owner_expectations = OwnerExpectationRegistry()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
         self._escape_sustain_floor: tuple[int, int, int] | None = None
         self._escape_sustain_active = False
@@ -2761,6 +2813,22 @@ class HengbotPolicy:
             key = home_capture.choose_key(self, snapshot)
         else:
             key = self._choose_key_with_latch_capture(snapshot)
+        if (
+            key
+            and (self.last_reason or "").startswith("equipment-transaction:")
+            and not (self.last_reason or "").startswith(
+                "equipment-transaction:await-"
+            )
+        ):
+            self._post_owner_expectation(
+                snapshot,
+                "equipment-transaction",
+                "inventory",
+                "equipment",
+                "store_type",
+                "gold",
+                "position",
+            )
         return self._refuse_no_progress_cycle(snapshot, key)
 
     @staticmethod
@@ -2788,6 +2856,37 @@ class HengbotPolicy:
                 (self._emission_item_state(item) for item in snapshot.equipment),
                 key=repr,
             )),
+        )
+
+    def _owner_observation(self, snapshot: Snapshot) -> OwnerObservation:
+        return OwnerObservation(
+            floor=getattr(snapshot, "floor_key", None),
+            position=snapshot.player.position,
+            store_type=(
+                snapshot.store.store_type if snapshot.store is not None else None
+            ),
+            gold=getattr(snapshot.player, "gold", 0),
+            experience=getattr(snapshot.player, "exp", 0),
+            inventory=tuple(sorted(
+                (self._emission_item_state(item) for item in snapshot.inventory),
+                key=repr,
+            )),
+            equipment=tuple(sorted(
+                (self._emission_item_state(item) for item in snapshot.equipment),
+                key=repr,
+            )),
+        )
+
+    def _post_owner_expectation(
+        self, snapshot: Snapshot, owner: str, *expected_changes: str
+    ) -> None:
+        self._owner_expectations.post(
+            owner, self._owner_observation(snapshot), *expected_changes
+        )
+
+    def _owner_may_select(self, snapshot: Snapshot, owner: str) -> bool:
+        return self._owner_expectations.may_select(
+            owner, self._owner_observation(snapshot)
         )
 
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
@@ -3389,8 +3488,15 @@ class HengbotPolicy:
             # Home item selection is never decided in the store loop.  Every
             # authorized deposit/withdrawal is a complete outside-composed
             # one-shot; an independently observed Home context is recovery-only.
-            self.last_reason = "home:store-context-exit"
-            key = LEAVE_STORE_KEY
+            rearm = self._home_rearm_key(snapshot)
+            if rearm is not None:
+                key = rearm
+            else:
+                self.last_reason = "home:store-context-exit"
+                self._post_owner_expectation(
+                    snapshot, self.last_reason, "store_type"
+                )
+                key = LEAVE_STORE_KEY
         else:
             key = self._decide(snapshot)
         if (
@@ -10858,11 +10964,7 @@ class HengbotPolicy:
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
         if owner == "return:recall" and key.startswith(READ_KEY):
-            issue_watch = self._dungeon_recall_issue_watch
-            if issue_watch is not None:
-                self._dungeon_recall_posting_refusal = (
-                    issue_watch[0], False
-                )
+            self._owner_expectations.yield_owner(owner)
             # The command was not posted, so there is nothing to await.  The
             # refusal latch above makes the existing walk-out route the next
             # return action without guessing why Hengband ignored the read.
@@ -19329,6 +19431,14 @@ class HengbotPolicy:
             travel_reason,
         )
         if travel is not None:
+            if not self._owner_may_select(snapshot, travel_reason):
+                self._town_travel_fallback = goal
+                self._town_travel_state = None
+                self.last_reason = "shop:approach"
+                return self._step_toward(snapshot, step)
+            self._post_owner_expectation(
+                snapshot, travel_reason, "position", "store_type"
+            )
             # Native travel runs to completion without an intermediate bot
             # snapshot and may therefore perform the final movement onto the
             # shop tile itself.  Own that possible entry exactly like the
@@ -20429,6 +20539,10 @@ class HengbotPolicy:
             and self._town_blocked_reason.startswith("equipment-transaction:")
         ):
             blocked_reason = self._town_blocked_reason
+            blocked_owner = f"town:blocked:{blocked_reason}"
+            if not self._owner_may_select(snapshot, blocked_owner):
+                self._town_blocked_reason = None
+                return None
             unobserved_withdrawal = blocked_reason.startswith(
                 "equipment-transaction:withdraw-item-unobserved:"
             )
@@ -20439,6 +20553,9 @@ class HengbotPolicy:
             if unobserved_withdrawal:
                 self._town_blocked_reason = blocked_reason
             if snapshot.store is not None:
+                self._post_owner_expectation(
+                    snapshot, blocked_owner, "store_type", "inventory", "equipment"
+                )
                 return LEAVE_STORE_KEY
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.is_store:
@@ -20446,8 +20563,17 @@ class HengbotPolicy:
                     snapshot, snapshot.player.position
                 )
                 if neighbors:
+                    self._post_owner_expectation(
+                        snapshot, blocked_owner, "position", "inventory", "equipment"
+                    )
                     return self._step_toward(snapshot, neighbors[0])
+                self._post_owner_expectation(
+                    snapshot, blocked_owner, "position", "inventory", "equipment"
+                )
                 return "2"
+            self._post_owner_expectation(
+                snapshot, blocked_owner, "inventory", "equipment", "gold"
+            )
             return WAIT_KEY if unobserved_withdrawal else None
         if snapshot.store is None:
             here = snapshot.grid_at(snapshot.player.position)
@@ -26198,6 +26324,9 @@ class HengbotPolicy:
             snapshot.turn,
             recall_count,
         )
+        self._post_owner_expectation(
+            snapshot, "return:recall", "inventory", "recalling", "floor"
+        )
         return self._read_key(snapshot, recall)
 
     def _dungeon_recall_confirmation_key(
@@ -26206,6 +26335,11 @@ class HengbotPolicy:
         """Share the pending dungeon-recall read guard between all issuers."""
         issue_watch = self._dungeon_recall_issue_watch
         if snapshot.player.recalling or issue_watch is None:
+            return None
+        if not self._owner_may_select(
+            snapshot, "return:await-recall-confirmation"
+        ):
+            self._dungeon_recall_issue_watch = None
             return None
         watched_floor, issue_turn, pre_read_count = issue_watch
         if watched_floor != snapshot.floor_key:
@@ -26223,10 +26357,18 @@ class HengbotPolicy:
             # exported recalling flag can lag behind either, so reading again
             # can consume a second scroll.
             self.last_reason = "return:await-recall-confirmation"
+            self._post_owner_expectation(
+                snapshot,
+                self.last_reason,
+                "inventory",
+                "recalling",
+                "floor",
+            )
             return WAIT_KEY
         # The turn advanced without consuming the scroll: the command was
         # genuinely rejected, so one ordinary retry is safe.
         self._dungeon_recall_issue_watch = None
+        self._owner_expectations.release("return:recall")
         return None
 
     def _track_idle_items(
@@ -26739,14 +26881,7 @@ class HengbotPolicy:
         player = snapshot.player
         if snapshot.in_town:
             self._dungeon_recall_issue_watch = None
-            self._dungeon_recall_posting_refusal = None
             return None
-        recall_observation = (snapshot.floor_key, player.recalling)
-        if (
-            self._dungeon_recall_posting_refusal is not None
-            and self._dungeon_recall_posting_refusal != recall_observation
-        ):
-            self._dungeon_recall_posting_refusal = None
         active_fixed = self._active_fixed_quest_id(snapshot)
         if (
             self._quest_floor_exit_locked(snapshot)
@@ -26793,7 +26928,7 @@ class HengbotPolicy:
             and recall is not None
             and not player.blind
             and not player.confused
-            and self._dungeon_recall_posting_refusal != recall_observation
+            and self._owner_may_select(snapshot, "return:recall")
         ):
             self.last_reason = "return:recall"
             return self._read_dungeon_recall_scroll_key(snapshot, recall)
@@ -28315,6 +28450,9 @@ class HengbotPolicy:
             item_kind,
         )
         self.last_reason = reason
+        self._post_owner_expectation(
+            snapshot, reason, "inventory", "position", "recalling", "floor"
+        )
         return self._read_key(snapshot, item)
 
     def _emergency_item(
@@ -28348,8 +28486,23 @@ class HengbotPolicy:
                 )
                 if not accepted:
                     if not self._took_damage:
-                        self.last_reason = "emergency:await-consumable-confirmation"
-                        return WAIT_KEY
+                        if not self._owner_may_select(
+                            snapshot, "emergency:await-consumable-confirmation"
+                        ):
+                            self._emergency_consumable_issue_watch = None
+                        else:
+                            self.last_reason = (
+                                "emergency:await-consumable-confirmation"
+                            )
+                            self._post_owner_expectation(
+                                snapshot,
+                                self.last_reason,
+                                "position",
+                                "recalling",
+                                "inventory",
+                                "hp",
+                            )
+                            return WAIT_KEY
                     # The stack changed without the effect we issued the item
                     # for.  Once HP also falls, another WAIT has measured cost
                     # but cannot make that missing effect arrive (the item may
@@ -28364,8 +28517,14 @@ class HengbotPolicy:
                 # Exact/interleaved redraw of the command state: never spend a
                 # second scroll.  A queued wait is harmless after a successful
                 # relocation and advances the board after a genuine rejection.
-                self.last_reason = "emergency:await-consumable-confirmation"
-                return WAIT_KEY
+                owner = "emergency:await-consumable-confirmation"
+                if self._owner_may_select(snapshot, owner):
+                    self.last_reason = owner
+                    self._post_owner_expectation(
+                        snapshot, owner, "position", "recalling", "inventory"
+                    )
+                    return WAIT_KEY
+                self._emergency_consumable_issue_watch = None
             else:
                 # The turn advanced with the same stack and no relocation: the
                 # original read was rejected, so one ordinary retry is safe.

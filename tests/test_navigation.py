@@ -737,6 +737,7 @@ class NavigationInvariantTest(unittest.TestCase):
             "posting-contract:identical-repost-unobserved",
         )
         policy.refuse_key_posting(incident["owner"], incident["key"])
+        self.assertFalse(policy._owner_may_select(snapshot, "return:recall"))
 
         fallback = policy.choose_key(snapshot)
         self.assertEqual(

@@ -383,11 +383,13 @@ class DecisionTimingTest(unittest.TestCase):
             sent = []
 
             def append_snapshots():
-                time.sleep(0.05)
+                time.sleep(0.5)
                 with state_path.open("a", encoding="utf-8") as stream:
                     stream.write(decision_line)
                     stream.flush()
-                    time.sleep(0.05)
+                    # Keep the decision record in a distinct follow poll on
+                    # Windows hosts whose scheduler coalesces 50 ms sleeps.
+                    time.sleep(0.5)
                     stream.write(stop_line)
                     stream.flush()
 

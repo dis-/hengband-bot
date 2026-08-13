@@ -6216,7 +6216,7 @@ class ShoppingTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "shop:approach")
         self.assertIsNone(pol._town_travel_state)
 
-    def test_interrupted_town_travel_retries_then_falls_back(self):
+    def test_interrupted_town_travel_yields_after_one_unchanged_retry(self):
         walkable = frozenset(Position(10, x) for x in range(1, 16))
         goal = Position(10, 15)
         town_map = TownMap(
@@ -6246,13 +6246,8 @@ class ShoppingTest(unittest.TestCase):
         # walking the remaining ten tiles one decision each.
         self.assertEqual(pol.choose_key(interrupted), "\x1b`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
-        # No progress across two more issues: give the goal back to walking.
-        for _ in range(TOWN_TRAVEL_STALL_LIMIT - 1):
-            self.assertEqual(pol.choose_key(interrupted), "\x1b`n!.")
-        self.assertEqual(
-            pol.choose_key(interrupted),
-            "6",
-        )
+        # A second selection against that same board must yield immediately.
+        self.assertEqual(pol.choose_key(interrupted), "6")
         self.assertEqual(pol.last_reason, "shop:approach")
         self.assertEqual(pol.choose_key(interrupted), "6")
 
@@ -8892,6 +8887,16 @@ class RestTest(unittest.TestCase):
     def test_rests_to_recover_when_hurt_and_safe(self):
         snap = Snapshot(player(10, 10, hp=40, max_hp=100), self._open_room(), [])
         self.assertEqual(HengbotPolicy().choose_key(snap), REST_MACRO)
+
+    def test_stationary_rest_repeats_without_owner_expectation_exemption(self):
+        snap = Snapshot(player(10, 10, hp=40, max_hp=100), self._open_room(), [])
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            [policy.choose_key(snap), policy.choose_key(snap)],
+            [REST_MACRO, REST_MACRO],
+        )
+        self.assertEqual(policy._owner_expectations._pending, {})
 
     def test_does_not_rest_while_bleeding(self):
         # A dungeon floor: these exercise the DUNGEON rest rules, not the town
@@ -13094,7 +13099,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         self.assertEqual(policy._next_required_store_type(opening), STORE_HOME)
-        self.assertEqual(policy._home_rearm_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
+        self.assertNotEqual(policy.last_reason, "home:store-context-exit")
         policy.consume_home_knowledge((home_weapon,))
         policy._home_page_size = 12
         policy._shopping_approach_store_type = STORE_HOME
@@ -13115,6 +13122,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         armed_pack = replace(entrance, inventory=[home_weapon])
         self.assertEqual(policy._opening_q34_town_key(armed_pack, []), "wa")
+        self.assertNotEqual(policy.last_reason, "shop:approach")
 
     def test_q34_opening_releases_stale_withdraw_terminal(self):
         policy = self._policy()
@@ -30788,6 +30796,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         pol = HengbotPolicy()
 
         self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "rt")
+        self.assertFalse(pol._owner_may_select(snap, "emergency:teleport"))
         self.assertEqual(pol._emergency_item(snap, snap.visible_monsters), "5")
         arrived = replace(
             snap,
@@ -38115,48 +38124,12 @@ class StoreTravelRetryTest(unittest.TestCase):
         self.assertEqual(self._approach(pol, self._snap(95)), "\x1b`n%.")
         self.assertEqual(pol.last_reason, "shop:travel")
 
-    def test_no_progress_twice_falls_back_to_walking(self):
+    def test_unchanged_travel_observation_falls_back_to_walking(self):
         pol = HengbotPolicy()
         snap = self._snap(94, turn=1)
-        for _ in range(TOWN_TRAVEL_STALL_LIMIT):
-            self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
-        self.assertNotEqual(self._approach(pol, snap), "\x1b`n%.")
+        self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
+        self.assertEqual(self._approach(pol, snap), "6")
         self.assertEqual(pol._town_travel_fallback, Position(34, 130))
-
-    def test_input_latency_gets_several_reissues_before_fallback(self):
-        pol = HengbotPolicy()
-        snap = self._snap(94, turn=7)
-
-        for _ in range(5):
-            self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
-
-        self.assertIsNone(pol._town_travel_fallback)
-        self.assertEqual(pol._town_travel_state[2], 4)
-
-    def test_consumed_turn_resets_stalls_even_without_distance_gain(self):
-        pol = HengbotPolicy()
-        snap = self._snap(94, turn=7)
-        for _ in range(5):
-            self.assertEqual(self._approach(pol, snap), "\x1b`n%.")
-
-        detour = self._snap(94, turn=8)
-        self.assertEqual(self._approach(pol, detour), "\x1b`n%.")
-        self.assertEqual(pol._town_travel_state[2], 0)
-
-    def test_consumed_turns_without_distance_progress_eventually_fall_back(self):
-        pol = HengbotPolicy()
-        for turn in range(1, TOWN_TRAVEL_TURN_STALL_LIMIT + 1):
-            self.assertEqual(
-                self._approach(pol, self._snap(94, turn=turn)), "\x1b`n%."
-            )
-
-        self.assertNotEqual(
-            self._approach(
-                pol,
-                self._snap(94, turn=TOWN_TRAVEL_TURN_STALL_LIMIT + 1),
-            ),
-            "\x1b`n%.",
-        )
 
 
 class RangedAttackTest(unittest.TestCase):
@@ -46287,7 +46260,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn("p", policy.choose_key(replace(outside, turn=outside.turn + 1)))
 
-    def test_unobserved_transaction_withdrawal_latches_named_terminal(self):
+    def test_unobserved_transaction_withdrawal_terminal_yields_unchanged_board(self):
         observed = store_item("a", TVAL_POTION, 402, name="other item")
         missing = store_item(
             "b", TVAL_POTION, 403, name="missing equipment",
@@ -46328,14 +46301,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy.choose_key(replace(outside, turn=entrance.turn + 2)), WAIT_KEY
         )
         self.assertEqual(policy.last_reason, terminal_reason)
-        self.assertEqual(
-            policy.choose_key(replace(outside, turn=entrance.turn + 3)), WAIT_KEY
+        yielded = policy.choose_key(
+            replace(outside, turn=entrance.turn + 3)
         )
-        self.assertEqual(policy.last_reason, terminal_reason)
-        self.assertEqual(
-            policy.choose_key(replace(outside, turn=entrance.turn + 11)), WAIT_KEY
-        )
-        self.assertEqual(policy.last_reason, terminal_reason)
+        self.assertEqual(yielded, WAIT_KEY)
+        self.assertNotEqual(policy.last_reason, terminal_reason)
+        self.assertIsNone(policy._town_blocked_reason)
         self.assertEqual(
             policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], passes
         )
@@ -51678,6 +51649,31 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertEqual(policy._equipment_transaction_owned_items, [])
         self.assertEqual(restore_trigger.call_count, 0)
+
+
+class OwnerExpectationContractTest(unittest.TestCase):
+    def test_posted_owner_cannot_be_selected_twice_on_unchanged_observation(self):
+        snapshot = Snapshot(
+            player(10, 10, gold=123),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+        )
+        policy = HengbotPolicy()
+        observation = policy._owner_observation(snapshot)
+        registry = policy_module.OwnerExpectationRegistry()
+
+        self.assertTrue(registry.may_select("owner", observation))
+        registry.post("owner", observation, "position")
+        self.assertFalse(registry.may_select("owner", observation))
+        self.assertFalse(registry.may_select("owner", observation))
+        moved = policy._owner_observation(
+            replace(
+                snapshot,
+                player=replace(snapshot.player, position=Position(10, 11)),
+            )
+        )
+        self.assertTrue(registry.may_select("owner", moved))
 
 
 if __name__ == "__main__":
