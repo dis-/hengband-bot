@@ -12931,7 +12931,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         quest = QuestState(id=34, status=0, fixed=True, level=5)
         snap = Snapshot(player(10, 10, class_id=PLAYER_CLASS_WARRIOR), {Position(10, 10): grid(10, 10, building_special=34)}, [],
                         floor_key=(0, 0, 0), town_flag=True, quests={34: quest},
-                        inventory=[torches])
+                        inventory=[torches], equipment=[item(
+                            "main_hand", TVAL_SWORD, 1,
+                            name="short sword", is_equipment=True,
+                        )])
         self.assertEqual(policy._retention_reservation(snap, torches), 20)
         short = replace(snap, inventory=[replace(torches, count=19)])
         needs = policy._enumerate_town_needs(short)
@@ -12962,6 +12965,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 item("t", TVAL_LITE, SV_LITE_TORCH, count=6, fuel=5000),
                 item("d", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=4),
             ],
+            equipment=[
+                item(
+                    "main_hand", TVAL_SWORD, 1,
+                    name="short sword", is_equipment=True,
+                )
+            ],
         )
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
@@ -12973,6 +12982,150 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 STORE_GENERAL, "quest-throwing-items", "opening-quest"
             )],
         )
+
+    def _measured_q34_opening(self, *, status=QUEST_STATUS_UNTAKEN):
+        weapon = item(
+            "main_hand", TVAL_SWORD, 1,
+            name="short sword", is_equipment=True,
+        )
+        return Snapshot(
+            player(
+                10, 9, level=1, class_id=PLAYER_CLASS_WARRIOR, gold=271,
+            ),
+            {
+                Position(10, 9): grid(10, 9),
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_GENERAL,
+                ),
+                Position(9, 10): replace(
+                    grid(9, 10), store_number=STORE_HOME,
+                ),
+                Position(11, 10): grid(11, 10, building_special=34),
+            },
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            quests={
+                34: QuestState(id=34, status=status, fixed=True, level=5)
+            },
+            equipment=[weapon],
+        )
+
+    def test_measured_q34_opening_routes_and_buys_torches_exactly(self):
+        policy = self._policy()
+        torch = store_item(
+            "a", TVAL_LITE, SV_LITE_TORCH,
+            name="torch", count=99, price=1,
+        )
+        opening = replace(
+            self._measured_q34_opening(),
+            store=StoreState(STORE_GENERAL, [torch]),
+        )
+
+        routing_policy = self._policy()
+        self.assertEqual(
+            routing_policy.choose_key(replace(opening, store=None)), "6",
+        )
+        self.assertEqual(routing_policy.last_reason, "shop:approach")
+        self.assertEqual(policy._next_required_store_type(opening), STORE_GENERAL)
+        self.assertEqual(_public_shop_inner(self, policy, opening), "pa20\r\r")
+        self.assertNotEqual(policy.last_reason, "home:atomic-deposit")
+        self.assertFalse(policy.last_reason.startswith("calibration:"))
+        self.assertNotEqual(policy.last_reason, "equipment-transaction:takeoff")
+
+    def test_q34_opening_sequence_never_reaches_calibration_or_takeoff(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+
+        keys = [policy.choose_key(replace(opening, turn=0))]
+        reasons = [policy.last_reason]
+        keys.append(policy.choose_key(replace(opening, turn=1)))
+        reasons.append(policy.last_reason)
+        keys.append(policy.choose_key(replace(opening, turn=2)))
+        reasons.append(policy.last_reason)
+        keys.append(policy.choose_key(replace(opening, turn=3)))
+        reasons.append(policy.last_reason)
+
+        self.assertEqual(keys, ["6", "6", "6", "6"])
+        self.assertEqual(reasons, ["shop:approach"] * 4)
+        self.assertNotIn("home:atomic-deposit", reasons)
+        self.assertFalse(any(reason.startswith("calibration:") for reason in reasons))
+        self.assertNotIn("equipment-transaction:takeoff", reasons)
+
+    def test_q34_opening_holds_when_taken_and_releases_only_when_cleared(self):
+        policy = self._policy()
+        untaken = self._measured_q34_opening()
+        taken = replace(
+            untaken,
+            quests={
+                34: replace(untaken.quests[34], status=QUEST_STATUS_TAKEN)
+            },
+        )
+        cleared = replace(
+            untaken,
+            quests={
+                34: replace(untaken.quests[34], status=QUEST_STATUS_COMPLETED)
+            },
+        )
+
+        self.assertTrue(policy._opening_q34_active(untaken))
+        self.assertTrue(policy._opening_q34_active(taken))
+        self.assertFalse(policy._opening_q34_active(cleared))
+
+    def test_q34_opening_weaponless_home_recovery_rearms_exactly(self):
+        policy = self._policy()
+        opening = replace(self._measured_q34_opening(), equipment=[])
+        home_weapon = item(
+            "a", TVAL_SWORD, 1,
+            name="short sword", is_equipment=True,
+        )
+        home = replace(
+            opening,
+            store=StoreState(
+                STORE_HOME,
+                [
+                    store_item(
+                        "a", TVAL_SWORD, 1,
+                        name="short sword", count=1, price=0,
+                    )
+                ],
+            ),
+        )
+
+        self.assertEqual(policy._next_required_store_type(opening), STORE_HOME)
+        self.assertEqual(policy._home_rearm_key(home), LEAVE_STORE_KEY)
+        policy.consume_home_knowledge((home_weapon,))
+        policy._home_page_size = 12
+        policy._shopping_approach_store_type = STORE_HOME
+        entrance = replace(
+            opening,
+            grids={
+                opening.player.position: replace(
+                    grid(10, 9), store_number=STORE_HOME,
+                ),
+                Position(11, 10): grid(11, 10, building_special=34),
+            },
+        )
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(
+                entrance, entrance.player.position,
+            ),
+            "5pa\x1b",
+        )
+        armed_pack = replace(entrance, inventory=[home_weapon])
+        self.assertEqual(policy._opening_q34_town_key(armed_pack, []), "wa")
+
+    def test_q34_opening_releases_stale_withdraw_terminal(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+        policy._town_blocked_reason = (
+            "equipment-transaction:withdraw-item-unobserved:home:stale:0"
+        )
+
+        self.assertEqual(policy.choose_key(opening), "6")
+        self.assertFalse(policy.last_reason.startswith("town:blocked:"))
+        self.assertIsNone(policy._town_blocked_reason)
 
     def test_fresh_q34_torch_shortage_blocks_fundraising_start(self):
         policy = self._policy()

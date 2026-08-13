@@ -3210,6 +3210,7 @@ class HengbotPolicy:
         if (
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
+            and not self._opening_q34_active(snapshot)
             and (
                 "home-scan-incomplete" in getattr(
                     self._equipment_optimization_preparation, "blockers", ()
@@ -4296,6 +4297,7 @@ class HengbotPolicy:
         # immediately, despite there being no executable transaction to post.
         if (
             snapshot.in_town
+            and not self._opening_q34_active(snapshot)
             and (self._town_blocked_reason or "").startswith(
                 "equipment-transaction:withdraw-item-unobserved:"
             )
@@ -4305,7 +4307,11 @@ class HengbotPolicy:
         # Once a transaction has physically stripped anything, restoration or
         # completion owns every town decision.  No shopping, sale, disposal,
         # fundraising, or errand classifier is reachable until ownership ends.
-        if snapshot.in_town and self._equipment_transaction_owned_items:
+        if (
+            snapshot.in_town
+            and self._equipment_transaction_owned_items
+            and not self._opening_q34_active(snapshot)
+        ):
             return self._equipment_transaction_town_owner_key(snapshot) or WAIT_KEY
 
         if (
@@ -4503,6 +4509,10 @@ class HengbotPolicy:
         darkness_recovery = self._darkness_recovery_key(snapshot)
         if darkness_recovery is not None:
             return darkness_recovery
+
+        opening_q34 = self._opening_q34_town_key(snapshot, strategic_hostiles)
+        if opening_q34 is not None:
+            return opening_q34
 
         # A calibration-stripped character gets dressed before ANY other town
         # activity: one wear key per decision, unconditionally — under threat,
@@ -6723,23 +6733,76 @@ class HengbotPolicy:
             not snapshot.in_town
             or snapshot.town_id not in {-1, 0}
             or snapshot.player.class_id < 0
-            or snapshot.player.level != 1
         ):
             return False
         quest = self._known_fixed_quests(snapshot).get(34)
         if (
             quest is None
-            or quest.status != QUEST_STATUS_UNTAKEN
-            or not self._fixed_quest_is_offered(snapshot, 34)
+            or quest.status not in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
+            or (
+                quest.status == QUEST_STATUS_UNTAKEN
+                and (
+                    snapshot.player.level != 1
+                    or not self._fixed_quest_is_offered(snapshot, 34)
+                )
+            )
             or any(
                 candidate.fixed
                 and candidate.status == QUEST_STATUS_TAKEN
+                and candidate.id != 34
                 and candidate.id not in WIN_QUEST_IDS
                 for candidate in snapshot.quests.values()
             )
         ):
             return False
         return self.approved_quest_strategy(34) is not None
+
+    def _opening_q34_town_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Give the accepted Q34 opening sole non-emergency town ownership."""
+        if not self._opening_q34_active(snapshot):
+            return None
+
+        if (self._town_blocked_reason or "").startswith(
+            "equipment-transaction:withdraw-item-unobserved:"
+        ):
+            self._abandon_blocked_equipment_transaction(snapshot)
+        if self._equipment_transaction_owned_items:
+            return self._equipment_transaction_town_owner_key(snapshot) or WAIT_KEY
+
+        if not any(item.slot == "main_hand" for item in snapshot.equipment):
+            weapon = self._first_item(
+                snapshot,
+                lambda item: item.is_equipment
+                and item.is_melee_weapon
+                and item.known
+                and not item.is_cursed
+                and not item.is_broken
+                and not self._blocks_teleport(item),
+            )
+            if weapon is not None:
+                self.last_reason = "opening-q34:rearm"
+                return self._wield_weapon_key(snapshot, weapon)
+
+        restore_weapon = self._town_restore_weapon_key(snapshot)
+        if restore_weapon is not None:
+            return restore_weapon
+
+        claims_active = self._town_claims_active(snapshot)
+        if not claims_active:
+            self._town_terminal_transitions(snapshot)
+        if claims_active:
+            step = self._shopping_approach_step(snapshot)
+            if step is not None:
+                self.last_reason = "shop:approach"
+                return self._shopping_approach_key(snapshot, step, "shop:travel")
+
+        fixed_quest = self._fixed_quest_key(snapshot, hostiles)
+        if fixed_quest is not None:
+            return fixed_quest
+        self.last_reason = "opening-q34:wait"
+        return WAIT_KEY
 
     def _opening_q34_torch_shortage(self, snapshot: Snapshot) -> int:
         """Return the mandatory torch shortage for a fresh Outpost warrior."""
@@ -14524,6 +14587,17 @@ class HengbotPolicy:
         # fundraising turn its own missing digger/detection kit into an earlier
         # Home or Alchemist stop; that created a circular readiness lock where
         # Q34 waited for torches while fundraising hid their procurement need.
+        if self._opening_q34_active(snapshot):
+            equipped_weapon = next(
+                (item for item in snapshot.equipment if item.slot == "main_hand"),
+                None,
+            )
+            if (
+                equipped_weapon is None
+                and not self._pack_has_safe_melee_weapon(snapshot)
+            ):
+                add(STORE_HOME, "combat-weapon", "home-first")
+                return needs
         if self._opening_q34_torch_shortage(snapshot) > 0:
             add(STORE_GENERAL, "quest-throwing-items", "opening-quest")
             return needs
@@ -17722,7 +17796,9 @@ class HengbotPolicy:
             and equipped_weapon.is_melee_weapon
             and not self._blocks_teleport(equipped_weapon)
         )
-        needs_replacement = self._equipped_digging_tool(snapshot) is not None or (
+        needs_replacement = (
+            equipped_weapon is None and self._opening_q34_active(snapshot)
+        ) or self._equipped_digging_tool(snapshot) is not None or (
             equipped_weapon is not None and self._blocks_teleport(equipped_weapon)
         ) or self._no_teleport_rearm_pending or (
             blocked_weapon_in_pack and not safe_weapon_equipped
@@ -17732,7 +17808,13 @@ class HengbotPolicy:
             and store.store_type == STORE_HOME
             and needs_replacement
             and not self._pack_has_safe_melee_weapon(snapshot)
-            and not self._combat_weapon_ready(snapshot)
+            and (
+                (
+                    equipped_weapon is None
+                    and self._opening_q34_active(snapshot)
+                )
+                or not self._combat_weapon_ready(snapshot)
+            )
         )
         if not needs_weapon:
             self._home_rearm_seen_pages.clear()
