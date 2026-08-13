@@ -3305,7 +3305,10 @@ class HengbotPolicy:
         if (
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
-            and not self._opening_q34_active(snapshot)
+            and (
+                not self._opening_q34_active(snapshot)
+                or self._home_withdrawal_queued
+            )
             and (
                 "home-scan-incomplete" in getattr(
                     self._equipment_optimization_preparation, "blockers", ()

@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 import hengbot.policy as policy_module
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
+    _dispatch_response_lines,
     _send_new_decision_key,
     _send_stall_recovery_nudge,
 )
@@ -46260,8 +46261,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn("p", policy.choose_key(replace(outside, turn=outside.turn + 1)))
 
-    def test_measured_home_rearm_cycle_completes_once_and_rearms(self):
-        policy = HengbotPolicy()
+    def test_captured_q34_home_errand_requests_knowledge_and_rearms(self):
+        policy = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+        )
         weapon = store_item("a", TVAL_SWORD, 2, name="safe scimitar")
         light = item(
             "light", TVAL_LITE, 0, name="a light", is_equipment=True,
@@ -46269,70 +46272,98 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         pack = self._real_pack()
         inside = replace(
             self._home_page_snapshot(
-                pack, [weapon], turn=2247500, stock_num=1,
+                pack, [weapon], turn=76933, stock_num=1,
                 page_top=0, page_size=12,
             ),
             equipment=[light],
         )
         entrance = replace(
-            self._entrance_snapshot(pack, turn=2247501), equipment=[light],
+            self._entrance_snapshot(pack, turn=76949),
+            equipment=[light],
+            town_id=0,
+            quests={
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_UNTAKEN, fixed=True, level=5,
+                )
+            },
+        )
+        entrance.grids[Position(46, 123)] = grid(
+            46, 123, building_special=34,
         )
         approach = replace(
             entrance,
-            player=replace(entrance.player, position=Position(45, 122)),
+            # evidence-home-yield-loop-20260813.jsonl decision 6, turn 76959.
+            player=replace(entrance.player, position=Position(44, 124)),
+        )
+        inside = replace(inside, town_id=0, quests=entrance.quests)
+        inside.grids[Position(46, 123)] = grid(46, 123, building_special=34)
+
+        no_errand = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+        )
+        equipped_weapon = item(
+            "main_hand", TVAL_SWORD, 2, name="safe scimitar",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        self.assertNotEqual(
+            no_errand.choose_key(
+                replace(approach, equipment=[equipped_weapon, light])
+            ),
+            "~9",
         )
 
-        with patch.object(policy, "_opening_q34_active", return_value=True):
-            decisions = [policy.choose_key(inside)]
-            reasons = [policy.last_reason]
-            self.assertTrue(policy._home_withdrawal_queued)
-            decisions.append(policy.choose_key(approach))
-            reasons.append(policy.last_reason)
-            decisions.append(policy.choose_key(replace(entrance, turn=2247502)))
-            reasons.append(policy.last_reason)
-            decisions.append(policy.choose_key(replace(inside, turn=2247503)))
-            reasons.append(policy.last_reason)
-            self.assertEqual(
-                policy.last_reason, "home:queued-combat-weapon-withdraw-yield"
-            )
-            policy.consume_home_knowledge((weapon,))
-            policy._home_page_size = 12
-            decisions.append(policy.choose_key(replace(approach, turn=2247504)))
-            reasons.append(policy.last_reason)
-            decisions.append(policy.choose_key(replace(entrance, turn=2247505)))
-            reasons.append(policy.last_reason)
-            decisions.append(policy.choose_key(replace(inside, turn=2247506)))
+        # evidence-home-yield-loop-20260813.jsonl decision 6 records this
+        # queued signature; decision 8 is the matching off-tile board.
+        policy._home_pending_item = policy._item_signature(weapon)
+        policy._home_withdrawal_queued = True
+        decisions = [policy.choose_key(approach)]
+        reasons = [policy.last_reason]
+        self.assertEqual(decisions, ["~9"])
+        policy.confirm_key_posted("~9")
+        response = json.dumps({
+            "type": "knowledge",
+            "knowledge": {
+                "category": "home", "menu_key": "9", "items": [{
+                    "slot": "a", "tval": TVAL_SWORD, "sval": 2,
+                    "name": "safe scimitar", "known": True,
+                    "fully_known": True, "is_equipment": True,
+                }],
+            },
+        })
+        self.assertEqual(_dispatch_response_lines([response], policy, Mock()), 1)
+        policy._home_page_size = 12
+        for snapshot in (
+            replace(approach, turn=76960),
+            replace(entrance, turn=76961),
+            replace(inside, turn=76962),
+        ):
+            decisions.append(policy.choose_key(snapshot))
             reasons.append(policy.last_reason)
 
-            carried = item(
-                "f", TVAL_SWORD, 2, name="safe scimitar",
-                known=True, fully_known=True, is_equipment=True,
-            )
-            outside_after = replace(
-                approach, turn=2247507, inventory=[*pack, carried],
-            )
-            decisions.append(policy.choose_key(outside_after))
-            reasons.append(policy.last_reason)
-            armed = replace(
-                outside_after,
-                turn=2247508,
-                inventory=pack,
-                equipment=[replace(carried, slot="main_hand"), light],
-            )
-            decisions.append(policy.choose_key(armed))
-            reasons.append(policy.last_reason)
+        carried = item(
+            "f", TVAL_SWORD, 2, name="safe scimitar",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        outside_after = replace(
+            approach, turn=76963, inventory=[*pack, carried],
+        )
+        decisions.append(policy.choose_key(outside_after))
+        reasons.append(policy.last_reason)
+        armed = replace(
+            outside_after,
+            turn=76964,
+            inventory=pack,
+            equipment=[replace(carried, slot="main_hand"), light],
+        )
+        decisions.append(policy.choose_key(armed))
+        reasons.append(policy.last_reason)
 
         self.assertEqual(
-            decisions[:8],
-            [
-                LEAVE_STORE_KEY, "6", WAIT_KEY, LEAVE_STORE_KEY,
-                "6", "5pa\x1b", LEAVE_STORE_KEY, "wf",
-            ],
+            decisions[:5], ["~9", "1", "5pa\x1b", LEAVE_STORE_KEY, "wf"],
         )
-        self.assertEqual(reasons.count("home:queue-combat-weapon-withdraw"), 1)
-        self.assertNotEqual(
-            reasons[8], "home:queue-combat-weapon-withdraw"
-        )
+        self.assertNotIn("home:queue-combat-weapon-withdraw", reasons)
+        self.assertLessEqual(len(decisions), 6)
+        self.assertNotEqual(reasons[-1], "home:queue-combat-weapon-withdraw")
         self.assertTrue(policy._combat_weapon_ready(armed))
 
     def test_unobserved_transaction_withdrawal_terminal_yields_unchanged_board(self):
