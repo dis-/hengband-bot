@@ -415,12 +415,11 @@ class EmissionState:
 
 
 @dataclass(frozen=True)
-class OwnerObservation:
-    """Progress facts an issued owner is allowed to wait for."""
+class OwnerProgressCore:
+    """Durable progress facts an issued owner is allowed to wait for."""
 
     floor: tuple[int, int, int] | None
     position: Position
-    store_type: int | None
     gold: int
     experience: int
     inventory: tuple[tuple[object, ...], ...]
@@ -429,12 +428,12 @@ class OwnerObservation:
 
 @dataclass(frozen=True)
 class OwnerExpectation:
-    observation: OwnerObservation
+    progress_core: OwnerProgressCore
     expected_changes: frozenset[str]
 
 
 class OwnerExpectationRegistry:
-    """Yield result-waiting owners until their issuing observation changes."""
+    """Yield result-waiting owners until their issuing progress core changes."""
 
     def __init__(self) -> None:
         self._pending: dict[str, OwnerExpectation] = {}
@@ -442,20 +441,20 @@ class OwnerExpectationRegistry:
     def post(
         self,
         owner: str,
-        observation: OwnerObservation,
+        progress_core: OwnerProgressCore,
         *expected_changes: str,
     ) -> None:
         if not expected_changes:
             raise ValueError("an owner expectation must name an observable change")
         self._pending[owner] = OwnerExpectation(
-            observation, frozenset(expected_changes)
+            progress_core, frozenset(expected_changes)
         )
 
-    def may_select(self, owner: str, observation: OwnerObservation) -> bool:
+    def may_select(self, owner: str, progress_core: OwnerProgressCore) -> bool:
         pending = self._pending.get(owner)
         if pending is None:
             return True
-        if pending.observation != observation:
+        if pending.progress_core != progress_core:
             self._pending.pop(owner, None)
             return True
         return False
@@ -2858,13 +2857,10 @@ class HengbotPolicy:
             )),
         )
 
-    def _owner_observation(self, snapshot: Snapshot) -> OwnerObservation:
-        return OwnerObservation(
+    def _owner_progress_core(self, snapshot: Snapshot) -> OwnerProgressCore:
+        return OwnerProgressCore(
             floor=getattr(snapshot, "floor_key", None),
             position=snapshot.player.position,
-            store_type=(
-                snapshot.store.store_type if snapshot.store is not None else None
-            ),
             gold=getattr(snapshot.player, "gold", 0),
             experience=getattr(snapshot.player, "exp", 0),
             inventory=tuple(sorted(
@@ -2881,12 +2877,12 @@ class HengbotPolicy:
         self, snapshot: Snapshot, owner: str, *expected_changes: str
     ) -> None:
         self._owner_expectations.post(
-            owner, self._owner_observation(snapshot), *expected_changes
+            owner, self._owner_progress_core(snapshot), *expected_changes
         )
 
     def _owner_may_select(self, snapshot: Snapshot, owner: str) -> bool:
         return self._owner_expectations.may_select(
-            owner, self._owner_observation(snapshot)
+            owner, self._owner_progress_core(snapshot)
         )
 
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
@@ -17942,12 +17938,25 @@ class HengbotPolicy:
                 None,
             )
             weapon = remembered or max(weapons, key=self._home_rearm_weapon_score)
+            owner = "home:queue-combat-weapon-withdraw"
+            signature = self._item_signature(weapon)
+            if (
+                self._home_withdrawal_queued
+                and self._home_pending_item == signature
+                and not self._owner_may_select(snapshot, owner)
+            ):
+                self.last_reason = "home:queued-combat-weapon-withdraw-yield"
+                return LEAVE_STORE_KEY
             self._home_rearm_seen_pages.clear()
-            self._home_pending_item = self._item_signature(weapon)
+            self._home_pending_item = signature
             self._home_pending_slot = None
             self._identification_candidate = None
             self._home_candidate_waiting = False
-            self.last_reason = "home:queue-combat-weapon-withdraw"
+            self._home_withdrawal_queued = True
+            self.last_reason = owner
+            self._post_owner_expectation(
+                snapshot, owner, "inventory", "equipment"
+            )
             return LEAVE_STORE_KEY
 
         page = tuple(

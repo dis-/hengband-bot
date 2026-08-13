@@ -46260,6 +46260,81 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn("p", policy.choose_key(replace(outside, turn=outside.turn + 1)))
 
+    def test_measured_home_rearm_cycle_completes_once_and_rearms(self):
+        policy = HengbotPolicy()
+        weapon = store_item("a", TVAL_SWORD, 2, name="safe scimitar")
+        light = item(
+            "light", TVAL_LITE, 0, name="a light", is_equipment=True,
+        )
+        pack = self._real_pack()
+        inside = replace(
+            self._home_page_snapshot(
+                pack, [weapon], turn=2247500, stock_num=1,
+                page_top=0, page_size=12,
+            ),
+            equipment=[light],
+        )
+        entrance = replace(
+            self._entrance_snapshot(pack, turn=2247501), equipment=[light],
+        )
+        approach = replace(
+            entrance,
+            player=replace(entrance.player, position=Position(45, 122)),
+        )
+
+        with patch.object(policy, "_opening_q34_active", return_value=True):
+            decisions = [policy.choose_key(inside)]
+            reasons = [policy.last_reason]
+            self.assertTrue(policy._home_withdrawal_queued)
+            decisions.append(policy.choose_key(approach))
+            reasons.append(policy.last_reason)
+            decisions.append(policy.choose_key(replace(entrance, turn=2247502)))
+            reasons.append(policy.last_reason)
+            decisions.append(policy.choose_key(replace(inside, turn=2247503)))
+            reasons.append(policy.last_reason)
+            self.assertEqual(
+                policy.last_reason, "home:queued-combat-weapon-withdraw-yield"
+            )
+            policy.consume_home_knowledge((weapon,))
+            policy._home_page_size = 12
+            decisions.append(policy.choose_key(replace(approach, turn=2247504)))
+            reasons.append(policy.last_reason)
+            decisions.append(policy.choose_key(replace(entrance, turn=2247505)))
+            reasons.append(policy.last_reason)
+            decisions.append(policy.choose_key(replace(inside, turn=2247506)))
+            reasons.append(policy.last_reason)
+
+            carried = item(
+                "f", TVAL_SWORD, 2, name="safe scimitar",
+                known=True, fully_known=True, is_equipment=True,
+            )
+            outside_after = replace(
+                approach, turn=2247507, inventory=[*pack, carried],
+            )
+            decisions.append(policy.choose_key(outside_after))
+            reasons.append(policy.last_reason)
+            armed = replace(
+                outside_after,
+                turn=2247508,
+                inventory=pack,
+                equipment=[replace(carried, slot="main_hand"), light],
+            )
+            decisions.append(policy.choose_key(armed))
+            reasons.append(policy.last_reason)
+
+        self.assertEqual(
+            decisions[:8],
+            [
+                LEAVE_STORE_KEY, "6", WAIT_KEY, LEAVE_STORE_KEY,
+                "6", "5pa\x1b", LEAVE_STORE_KEY, "wf",
+            ],
+        )
+        self.assertEqual(reasons.count("home:queue-combat-weapon-withdraw"), 1)
+        self.assertNotEqual(
+            reasons[8], "home:queue-combat-weapon-withdraw"
+        )
+        self.assertTrue(policy._combat_weapon_ready(armed))
+
     def test_unobserved_transaction_withdrawal_terminal_yields_unchanged_board(self):
         observed = store_item("a", TVAL_POTION, 402, name="other item")
         missing = store_item(
@@ -51652,7 +51727,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
 
 
 class OwnerExpectationContractTest(unittest.TestCase):
-    def test_posted_owner_cannot_be_selected_twice_on_unchanged_observation(self):
+    def test_posted_owner_cannot_be_selected_twice_on_unchanged_progress_core(self):
         snapshot = Snapshot(
             player(10, 10, gold=123),
             {Position(10, 10): grid(10, 10)},
@@ -51660,14 +51735,21 @@ class OwnerExpectationContractTest(unittest.TestCase):
             floor_key=(0, 0, 0),
         )
         policy = HengbotPolicy()
-        observation = policy._owner_observation(snapshot)
+        progress_core = policy._owner_progress_core(snapshot)
         registry = policy_module.OwnerExpectationRegistry()
 
-        self.assertTrue(registry.may_select("owner", observation))
-        registry.post("owner", observation, "position")
-        self.assertFalse(registry.may_select("owner", observation))
-        self.assertFalse(registry.may_select("owner", observation))
-        moved = policy._owner_observation(
+        self.assertTrue(registry.may_select("owner", progress_core))
+        registry.post("owner", progress_core, "position")
+        self.assertFalse(registry.may_select("owner", progress_core))
+        inside_store = replace(
+            snapshot,
+            store=StoreState(STORE_HOME, []),
+        )
+        self.assertFalse(
+            registry.may_select("owner", policy._owner_progress_core(inside_store))
+        )
+        self.assertFalse(registry.may_select("owner", progress_core))
+        moved = policy._owner_progress_core(
             replace(
                 snapshot,
                 player=replace(snapshot.player, position=Position(10, 11)),

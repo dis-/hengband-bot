@@ -53,6 +53,11 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     `(` selection made no movement and consumed no turn. Bot recovery must therefore bound an
     observed failed issue rather than claim it can predict selector reachability.
 
+10b. **State that the bot's own action necessarily changes must never count as progress.** The
+    `evidence-home-queue-withdraw-loop` incident survived owner expectations because leaving and
+    re-entering Home changed store context; owner progress is instead floor, position, gold,
+    experience, pack, and equipment.
+
 11. **Wear/wield input is `w` plus the pack letter, followed by every prompt answer.** Most armour has
     no second prompt. Weapons and digging tools retain their `do_cmd_wield` hand answer (for example
     `wja`). Rings always open a second `choose_item(..., USE_EQUIP)` selector
