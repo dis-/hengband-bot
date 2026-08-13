@@ -1,6 +1,8 @@
 import json
 import os
 import argparse
+import threading
+import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -63,6 +65,7 @@ from hengbot.cli import (
     _newest_snapshot,
     _newest_snapshot_entry,
     _read_last_line,
+    _run_follow,
     _request_due_dump,
     _rewind_if_truncated,
     _send_new_decision_key,
@@ -80,7 +83,11 @@ from hengbot.cli import (
     _configure_policy_output_paths,
     _valid_bot_play_macro_pref,
 )
-from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS, TOWN_TRAVEL_STALL_LIMIT
+from hengbot.policy import (
+    ESCAPE_BUDGETED_WAIT_LIMITS,
+    HengbotPolicy,
+    TOWN_TRAVEL_STALL_LIMIT,
+)
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
@@ -344,6 +351,99 @@ class DecisionWatchdogTest(unittest.TestCase):
             self.assertGreater(DECISION_WATCHDOG_SECONDS, 60)
             self.assertTrue(call.kwargs["repeat"])
             self.assertIsNotNone(call.kwargs["file"])
+
+
+class DecisionTimingTest(unittest.TestCase):
+    def test_follow_decision_records_all_non_negative_timing_phases(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            initial_line = _snap_line(1, 5, 5)
+            decision_line = _snap_line(2, 5, 5)
+            stop_line = _snap_line(3, 5, 5)
+            state_path.write_text(initial_line, encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path),
+                "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+
+            def choose(snapshot):
+                if snapshot.turn == 3:
+                    policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                    return ""
+                policy.last_reason = "timing:test"
+                policy._decision_sequence += 1
+                return "5"
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            sent = []
+
+            def append_snapshots():
+                time.sleep(0.05)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(decision_line)
+                    stream.flush()
+                    time.sleep(0.05)
+                    stream.write(stop_line)
+                    stream.flush()
+
+            writer = threading.Thread(target=append_snapshots)
+            writer.start()
+            try:
+                result = _run_follow(
+                    args, policy,
+                    lambda key, **_kwargs: sent.append(key) or True,
+                    {},
+                )
+            finally:
+                writer.join()
+
+            rows = [
+                json.loads(line)
+                for line in decision_path.read_text(encoding="utf-8").splitlines()
+            ]
+            row = next(record for record in rows if record["reason"] == "timing:test")
+            timing = row["timing"]
+            phase_keys = {
+                "record_snapshot_lines_ms", "decode_ms", "parse_snapshot_ms",
+                "choose_key_ms", "send_ms",
+            }
+
+            self.assertEqual(result, 0)
+            self.assertEqual(sent, ["5"])
+            self.assertTrue(phase_keys.issubset(timing))
+            self.assertTrue(all(timing[name] >= 0 for name in phase_keys))
+            self.assertLessEqual(sum(timing[name] for name in phase_keys), timing["total_ms"])
+            self.assertEqual(timing["snapshot_bytes"], len(decision_line.encode("utf-8")))
+            self.assertEqual(
+                timing["nearby_grids"],
+                len(json.loads(decision_line).get("nearby_grids", ())),
+            )
+
+    def test_timing_addition_preserves_the_existing_decision_row(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(7, 5, 6)), {})
+        timing = {
+            "record_snapshot_lines_ms": 0.1,
+            "decode_ms": 0.2,
+            "parse_snapshot_ms": 0.3,
+            "choose_key_ms": 0.4,
+            "send_ms": 0.5,
+            "total_ms": 2.0,
+            "snapshot_bytes": 123,
+            "nearby_grids": 4,
+        }
+
+        original = _decision_record(snapshot, "6", "timing:test")
+        instrumented = _decision_record(
+            snapshot, "6", "timing:test", timing=timing
+        )
+        del instrumented["timing"]
+
+        self.assertEqual(instrumented, original)
 
 
 class PeriodicDumpTimerTest(unittest.TestCase):

@@ -753,6 +753,7 @@ def _decision_record(
     read: dict | None = None,
     town_stall_report: dict | None = None,
     decision_sequence: int | None = None,
+    timing: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -841,6 +842,7 @@ def _decision_record(
         ),
         **({"read": read} if read else {}),
         **({"town_stall_report": town_stall_report} if town_stall_report else {}),
+        **({"timing": timing} if timing is not None else {}),
     }
 
 
@@ -1184,6 +1186,7 @@ def _write_decision(
     economy_ledger: EconomyLedger | None = None,
     repeating_reason_count: int = 0,
     town_stall_report: dict | None | object = _AUTO_TOWN_STALL_REPORT,
+    timing: dict | None = None,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -1319,6 +1322,7 @@ def _write_decision(
                         else town_stall_report
                     ),
                     getattr(policy, "_decision_sequence", None),
+                    timing,
                 ),
                 file,
                 ensure_ascii=False,
@@ -2196,12 +2200,28 @@ def _run_follow(
             save_archive.poll(time.monotonic())
             chunk = file.read()
             if chunk:
+                decision_started_at = time.perf_counter()
+                decision_timing = {
+                    "record_snapshot_lines_ms": 0.0,
+                    "decode_ms": 0.0,
+                    "parse_snapshot_ms": 0.0,
+                    "choose_key_ms": 0.0,
+                    "send_ms": 0.0,
+                }
                 last_activity = _last_activity_after_read(
                     last_activity, time.monotonic(), chunk
                 )
                 complete_lines, pending = _split_complete_lines(pending + chunk)
+                phase_started_at = time.perf_counter()
                 recorder.record_snapshot_lines(complete_lines)
+                decision_timing["record_snapshot_lines_ms"] = round(
+                    (time.perf_counter() - phase_started_at) * 1000, 3
+                )
+                phase_started_at = time.perf_counter()
                 decoded_lines = _decode_response_lines(complete_lines)
+                decision_timing["decode_ms"] = round(
+                    (time.perf_counter() - phase_started_at) * 1000, 3
+                )
                 _dispatch_response_lines(
                     complete_lines, policy, send, decoded_lines=decoded_lines
                 )
@@ -2255,6 +2275,7 @@ def _run_follow(
                         eligible_lines,
                         monrace_knowledge,
                         decoded_lines=eligible_decoded_lines,
+                        timing=decision_timing,
                     )
                     if entry is None:
                         continue
@@ -2266,6 +2287,7 @@ def _run_follow(
                         complete_lines,
                         monrace_knowledge,
                         decoded_lines=decoded_lines,
+                        timing=decision_timing,
                     )
                 if entry is not None:
                     snapshot, snapshot_line = entry
@@ -2334,7 +2356,11 @@ def _run_follow(
                     store_leave_was_inflight = (
                         policy._store_leave_inflight is not None
                     )
+                    phase_started_at = time.perf_counter()
                     chosen_key = policy.choose_key(snapshot)
+                    decision_timing["choose_key_ms"] = round(
+                        (time.perf_counter() - phase_started_at) * 1000, 3
+                    )
                     key = policy.validate_read_key(snapshot, chosen_key)
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
@@ -2392,6 +2418,13 @@ def _run_follow(
                             "loop-detected",
                             policy,
                             economy_ledger,
+                            timing={
+                                **decision_timing,
+                                "total_ms": round(
+                                    (time.perf_counter() - decision_started_at) * 1000,
+                                    3,
+                                ),
+                            },
                         )
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} "
@@ -2407,17 +2440,19 @@ def _run_follow(
                             flush=True,
                         )
                         return incident_stop("loop-detected", snapshot)
-                    _write_decision(
-                        args.decision_log,
-                        snapshot,
-                        key,
-                        policy.last_reason,
-                        policy,
-                        economy_ledger,
-                        repeating_reason_count,
-                        town_stall_report,
-                    )
                     if policy.last_reason in POLICY_FINAL_STOP_REASONS:
+                        _write_decision(
+                            args.decision_log, snapshot, key, policy.last_reason,
+                            policy, economy_ledger, repeating_reason_count,
+                            town_stall_report,
+                            timing={
+                                **decision_timing,
+                                "total_ms": round(
+                                    (time.perf_counter() - decision_started_at) * 1000,
+                                    3,
+                                ),
+                            },
+                        )
                         if policy.last_reason == "wilderness:no-safe-route":
                             print(
                                 "<wilderness:no-safe-route> global-map route to "
@@ -2523,6 +2558,7 @@ def _run_follow(
                         print(f"<duplicate-key:suppressed> {key}", flush=True)
                     else:
                         print(key, flush=True)
+                    phase_started_at = time.perf_counter()
                     sent, posted_decision_line = _send_new_decision_key(
                         send,
                         snapshot_line,
@@ -2539,6 +2575,17 @@ def _run_follow(
                         },
                         snapshot=snapshot,
                         posting_contract=posting_contract,
+                    )
+                    decision_timing["send_ms"] = round(
+                        (time.perf_counter() - phase_started_at) * 1000, 3
+                    )
+                    decision_timing["total_ms"] = round(
+                        (time.perf_counter() - decision_started_at) * 1000, 3
+                    )
+                    _write_decision(
+                        args.decision_log, snapshot, key, policy.last_reason,
+                        policy, economy_ledger, repeating_reason_count,
+                        town_stall_report, timing=decision_timing,
                     )
                     if posting_contract.last_incident is not None:
                         incident = posting_contract.last_incident
@@ -2558,12 +2605,13 @@ def _run_follow(
                             )),
                             str(incident.get("key", key)),
                         )
+                        phase_started_at = time.perf_counter()
                         key = policy.choose_key(snapshot)
-                        key = policy.validate_read_key(snapshot, key)
-                        _write_decision(
-                            args.decision_log, snapshot, key, policy.last_reason,
-                            policy, economy_ledger,
+                        decision_timing["choose_key_ms"] += round(
+                            (time.perf_counter() - phase_started_at) * 1000, 3
                         )
+                        key = policy.validate_read_key(snapshot, key)
+                        phase_started_at = time.perf_counter()
                         sent, posted_decision_line = _send_new_decision_key(
                             send, snapshot_line, key, posted_decision_line,
                             posted_decision_keys,
@@ -2576,6 +2624,18 @@ def _run_follow(
                             },
                             snapshot=snapshot,
                             posting_contract=posting_contract,
+                        )
+                        decision_timing["send_ms"] = round(
+                            decision_timing["send_ms"]
+                            + (time.perf_counter() - phase_started_at) * 1000,
+                            3,
+                        )
+                        decision_timing["total_ms"] = round(
+                            (time.perf_counter() - decision_started_at) * 1000, 3
+                        )
+                        _write_decision(
+                            args.decision_log, snapshot, key, policy.last_reason,
+                            policy, economy_ledger, timing=decision_timing,
                         )
                     if sent:
                         policy.confirm_key_posted(key)
@@ -2673,6 +2733,13 @@ def _run_follow(
                             "loop-detected",
                             policy,
                             economy_ledger,
+                            timing={
+                                **decision_timing,
+                                "total_ms": round(
+                                    (time.perf_counter() - decision_started_at) * 1000,
+                                    3,
+                                ),
+                            },
                         )
                         loop_cells = list(recent_cells)[-loop_window:]
                         cells = sorted({(c[1], c[2]) for c in loop_cells})
@@ -2897,7 +2964,8 @@ def _observe_home_entry_capture(home_entry_capture, ordered_snapshots) -> None:
 
 
 def _newest_snapshot_entry(
-    complete_lines: list[str], monrace_knowledge=None, *, decoded_lines=None
+    complete_lines: list[str], monrace_knowledge=None, *, decoded_lines=None,
+    timing=None,
 ):
     """Return the newest parseable snapshot together with its exact JSONL line."""
     if decoded_lines is None:
@@ -2911,7 +2979,15 @@ def _newest_snapshot_entry(
         try:
             if data.get("type") in {"knowledge", "look", "character"}:
                 continue
-            return parse_snapshot(data, monrace_knowledge), line
+            parse_started_at = time.perf_counter()
+            snapshot = parse_snapshot(data, monrace_knowledge)
+            if timing is not None:
+                timing["parse_snapshot_ms"] = round(
+                    (time.perf_counter() - parse_started_at) * 1000, 3
+                )
+                timing["snapshot_bytes"] = len(line.encode("utf-8"))
+                timing["nearby_grids"] = len(data.get("nearby_grids", ()))
+            return snapshot, line
         except MissingMonraceKnowledgeError:
             raise
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
