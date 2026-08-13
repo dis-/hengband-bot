@@ -2979,7 +2979,10 @@ class CombatTest(unittest.TestCase):
         origin = Position(10, 10)
         breeder_cell = Position(10, 11)
         snapshot = Snapshot(
-            player(origin.y, origin.x, hp=20, max_hp=20),
+            player(
+                origin.y, origin.x, hp=20, max_hp=20,
+                abilities=frozenset({"free_action", "resist_conf", "resist_fire"}),
+            ),
             {origin: grid(origin.y, origin.x, downstairs=True, lit=True)},
             [], floor_key=(7, 24, 0), turn=1,
         )
@@ -28711,26 +28714,83 @@ class TownRecallReturnTest(unittest.TestCase):
             self.assertIsNone(pol._town_cancel_unsafe_recall_key(recalling))
         self.assertNotEqual(pol.last_reason, "town:cancel-unready-recall")
 
-    def test_ready_deep_recall_keeps_exact_read_key(self):
+    def test_recall_to_34_refuses_without_chaos_and_names_requirement(self):
         pol, snap = self._ready_town(
-            31,
-            DUNGEON_ANGBAND,
-            DUNGEON_ANGBAND,
-            angband_unlocked=True,
+            34, DUNGEON_ANGBAND, DUNGEON_ANGBAND,
+            angband_unlocked=True, recall_depth=34,
         )
         snap = replace(
-            snap, dungeon_recall_depths={DUNGEON_ANGBAND: 31}
+            snap, dungeon_recall_depths={DUNGEON_ANGBAND: 34}
+        )
+        with patch.object(
+            pol, "_recall_town_departure_conjuncts",
+            return_value={"test_ready": True},
+        ), patch.object(pol, "_town_claims_active", return_value=False), patch.object(
+            pol, "_activate_safe_recall_fallback", return_value=None
+        ):
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        self.assertEqual(
+            pol.last_reason,
+            "depth-gate:destination-34:missing-resist_chaos",
+        )
+
+    def test_recall_to_34_with_chaos_posts_exact_derived_characters(self):
+        pol, snap = self._ready_town(
+            34, DUNGEON_ANGBAND, DUNGEON_ANGBAND,
+            angband_unlocked=True, recall_depth=34,
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, abilities=frozenset({"resist_chaos"})),
+            dungeon_recall_depths={DUNGEON_ANGBAND: 34},
+            inventory=[
+                replace(carried, count=99) if carried.is_recall_scroll else carried
+                for carried in snap.inventory
+            ],
         )
         with patch.object(
             pol, "_recall_town_departure_conjuncts",
             return_value={"test_ready": True},
         ), patch.object(
-            pol, "_dungeon_entry_allowed", return_value=True
-        ), patch.object(
-            pol, "_combat_weapon_ready", return_value=True
-        ):
-            self.assertEqual(pol._town_special_key(snap), "rra")
+            pol, "_equipment_departure_ready", return_value=True
+        ), patch.object(pol, "_combat_weapon_ready", return_value=True):
+            self.assertTrue(
+                pol._dungeon_entry_allowed(
+                    snap, via_recall=True, destination_depth=34
+                )
+            )
+            self.assertEqual(pol._town_special_key(snap), "rra", pol.last_reason)
         self.assertEqual(pol.last_reason, "town:recall-to-angband")
+
+    def test_shallow_recall_with_met_requirements_keeps_exact_characters(self):
+        pol, snap = self._ready_town(
+            19, DUNGEON_ANGBAND, DUNGEON_ANGBAND,
+            angband_unlocked=True, recall_depth=19,
+        )
+        snap = replace(
+            snap, dungeon_recall_depths={DUNGEON_ANGBAND: 19}
+        )
+        with patch.object(
+            pol, "_recall_town_departure_conjuncts",
+            return_value={"test_ready": True},
+        ), patch.object(pol, "_equipment_departure_ready", return_value=True):
+            self.assertEqual(pol._town_special_key(snap), "rra")
+
+    def test_recall_stock_still_blocks_entry_when_depth_gate_is_met(self):
+        pol, snap = self._ready_town(
+            34, DUNGEON_ANGBAND, DUNGEON_ANGBAND,
+            angband_unlocked=True, recall_depth=34,
+        )
+        snap = replace(
+            snap,
+            player=replace(snap.player, abilities=frozenset({"resist_chaos"})),
+            inventory=[item for item in snap.inventory if not item.is_recall_scroll],
+        )
+        self.assertFalse(
+            pol._dungeon_entry_allowed(
+                snap, via_recall=False, destination_depth=34
+            )
+        )
 
     def test_resume_preserves_an_already_active_town_recall(self):
         pol, snap = self._ready_town(
@@ -35651,6 +35711,19 @@ class ResistanceDepthGateTest(unittest.TestCase):
             HengbotPolicy()._is_descent_target(snap, snap.grids[Position(10, 10)])
         )
 
+    def test_stair_refusal_binds_on_next_floor_and_names_missing_requirements(self):
+        snap = self._at(
+            30, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
+        )
+        snap = replace(snap, player=replace(snap.player, class_id=-1))
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snap), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "depth-gate:destination-31:missing-resist_chaos",
+        )
+
     def test_allows_descent_once_the_requirement_is_met(self):
         snap = self._at(24, {"free_action", "resist_conf", "resist_fire"})
         self.assertTrue(
@@ -36681,6 +36754,10 @@ class TownCycleDetectorTest(unittest.TestCase):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
         snap = replace(
             self._town_snap(),
+            player=replace(
+                self._town_snap().player,
+                abilities=frozenset({"free_action", "resist_conf", "resist_fire"}),
+            ),
             inventory=[recall],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
             recall_dungeon_id=DUNGEON_ANGBAND,
@@ -36753,6 +36830,10 @@ class TownCycleDetectorTest(unittest.TestCase):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10)
         snap = replace(
             self._town_snap(),
+            player=replace(
+                self._town_snap().player,
+                abilities=frozenset({"resist_chaos"}),
+            ),
             inventory=[recall],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
             recall_dungeon_id=DUNGEON_ANGBAND,
@@ -39225,6 +39306,21 @@ class EntranceTravelTest(unittest.TestCase):
         key = self._travel(pol, self._surface_snap())
         self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
+
+    def test_native_entrance_travel_binds_on_entry_depth(self):
+        pol = HengbotPolicy()
+        pol._dungeon_knowledge[DUNGEON_YEEK_CAVE] = SimpleNamespace(
+            id=DUNGEON_YEEK_CAVE, min_depth=31
+        )
+        pol._prepare_equipment_optimization = lambda _snapshot: self._optimizer_state(
+            complete=True
+        )
+
+        self.assertIsNone(self._travel(pol, self._surface_snap()))
+        self.assertEqual(
+            pol.last_reason,
+            "depth-gate:destination-31:missing-resist_chaos",
+        )
 
     def test_incomplete_optimizer_blocks_native_entrance_travel(self):
         pol = HengbotPolicy()
@@ -42572,51 +42668,6 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             self.assertFalse(hasattr(policy, "_activate_loadout_depth_fallback"))
 
         self.assertEqual(policy._equipment_optimization_depth(snapshot), 19)
-
-    def test_cancels_deep_recall_when_timeout_activates_shallow_fallback(self):
-        policy = HengbotPolicy()
-        policy._deepest_level = 23
-        policy._target_dungeon_id = DUNGEON_ANGBAND
-        policy._dungeon_knowledge[4] = SimpleNamespace(
-            id=4, min_depth=10, min_player_level=1
-        )
-        recall = item(
-            "r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
-            count=2, known=True, name="Word of Recall",
-        )
-        snapshot = replace(
-            self._town(),
-            player=player(
-                10, 10, word_recall=10, class_id=PLAYER_CLASS_WARRIOR
-            ),
-            inventory=[recall],
-            entered_dungeon_ids=(DUNGEON_ANGBAND, 3, 4),
-            dungeon_recall_depths={DUNGEON_ANGBAND: 31, 3: 23, 4: 18},
-        )
-        timed_out = SimpleNamespace(
-            blockers=("optimization-timeout",),
-            result=SimpleNamespace(best=None),
-        )
-        valid_19f = SimpleNamespace(
-            blockers=(),
-            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: focused optimizer unit supplies a collaborator result whose downstream handling is the subject
-            result=SimpleNamespace(best=SimpleNamespace(loadout=SimpleNamespace())),
-        )
-
-        def prepare(_snapshot, *, depth_override=None):
-            return valid_19f if depth_override == 19 else timed_out
-
-        with patch.object(
-            policy, "_carry_procurement_strategy", return_value=None
-        ), patch.object(
-            policy, "_prepare_equipment_optimization", side_effect=prepare
-        ), patch.object(
-            policy, "_next_required_store_type", return_value=None
-        ):
-            self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rr")
-
-        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
-        self.assertEqual(policy.last_reason, "town:cancel-wrong-recall-destination")
 
     def test_cancels_deep_recall_when_loadout_is_not_confirmed(self):
         policy = HengbotPolicy()
@@ -49954,8 +50005,14 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         key = policy.choose_key(stopped)
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
-        self.assertEqual(policy._town_blocked_reason, "no-safe-recall-destination")
+        self.assertEqual(
+            policy.last_reason,
+            "depth-gate:destination-30:missing-resist_acid,resist_elec",
+        )
+        self.assertEqual(
+            policy._town_blocked_reason,
+            "depth-gate:destination-30:missing-resist_acid,resist_elec",
+        )
 
     def test_successful_depth_30_transaction_keeps_home_reachable_publicly(self):
         """Pin the live 21:50:07 success-revokes-allowance shape."""

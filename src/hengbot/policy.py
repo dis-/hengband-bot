@@ -5342,6 +5342,30 @@ class HengbotPolicy:
             and here is not None
             and self._is_active_dungeon_entrance(here)
         )
+        direct_destination_depth = (
+            self._dungeon_entry_depth(
+                snapshot, self._active_dungeon_target(), via_recall=False
+            )
+            if static_entrance_here
+            or (
+                snapshot.dungeon_level == 0
+                and here is not None
+                and here.has_entrance
+                and self._is_active_dungeon_entrance(here)
+            )
+            else snapshot.dungeon_level + 1
+            if snapshot.dungeon_level > 0
+            and here is not None
+            and here.is_descent
+            else None
+        )
+        if (
+            direct_destination_depth is not None
+            and not self._destination_depth_allowed(
+                snapshot, direct_destination_depth
+            )
+        ):
+            return WAIT_KEY
         if (
             (
                 here is not None
@@ -8475,6 +8499,8 @@ class HengbotPolicy:
         )
         if mining_walk_in:
             return True
+        if not self._destination_depth_allowed(snapshot, destination_depth):
+            return False
         # Recall, direct entrance confirmation, native entrance travel, and
         # fixed-quest entry share this boundary. Mining is the sole absolute
         # exception. Open wilderness is explicitly outside the town gate.
@@ -8520,6 +8546,19 @@ class HengbotPolicy:
         if depth <= 0 and dungeon is not None:
             depth = dungeon.min_depth
         return max(1, depth)
+
+    def _destination_depth_allowed(
+        self, snapshot: Snapshot, destination_depth: int
+    ) -> bool:
+        """Bind a deeper-floor decision and its refusal to the arrival depth."""
+        missing = self._missing_required_abilities(snapshot, destination_depth)
+        if not missing:
+            return True
+        self.last_reason = (
+            f"depth-gate:destination-{destination_depth}:missing-"
+            + ",".join(sorted(missing))
+        )
+        return False
 
     @staticmethod
     def _ledger_return_shortages(
@@ -8721,11 +8760,7 @@ class HengbotPolicy:
         self, snapshot: Snapshot, dungeon_id: int
     ) -> bool:
         """Reject recall when its landing floor violates mandatory depth gates."""
-        if dungeon_id == snapshot.recall_dungeon_id:
-            depth = snapshot.recall_depth
-        else:
-            info = self._dungeon_knowledge.get(dungeon_id)
-            depth = info.min_depth if info is not None else 1
+        depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
         return not self._missing_required_abilities(snapshot, depth)
 
     def _recall_departure_minimum(self, snapshot: Snapshot) -> int:
@@ -20758,13 +20793,16 @@ class HengbotPolicy:
                 return CHARACTER_DUMP_MACRO
             if not snapshot.player.blind and not snapshot.player.confused:
                 recall = self._find_recall_scroll(snapshot)
-                if recall is not None and self._dungeon_entry_allowed(
-                    snapshot,
-                    via_recall=True,
-                    destination_depth=self._dungeon_entry_depth(
+                if recall is not None:
+                    destination_depth = self._dungeon_entry_depth(
                         snapshot, recall_dungeon_id, via_recall=True
-                    ),
-                ):
+                    )
+                    if not self._dungeon_entry_allowed(
+                        snapshot,
+                        via_recall=True,
+                        destination_depth=destination_depth,
+                    ):
+                        return WAIT_KEY
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )
@@ -20819,6 +20857,12 @@ class HengbotPolicy:
             if self._outstanding_equipment_work():
                 self._town_blocked_reason = "equipment-work-home-route-exhausted"
                 return self._town_blocked_key(snapshot)
+            destination_depth = self._dungeon_entry_depth(
+                snapshot, DUNGEON_ANGBAND, via_recall=True
+            )
+            if not self._destination_depth_allowed(snapshot, destination_depth):
+                self._town_blocked_reason = self.last_reason
+                return WAIT_KEY
             self._town_blocked_reason = "no-safe-recall-destination"
             return self._town_blocked_key(snapshot)
         return None
@@ -30150,6 +30194,13 @@ class HengbotPolicy:
             and self._quest_regen_phase == "descend"
             and snapshot.dungeon_level == info.level - 1
         ):
+            destination_depth = snapshot.dungeon_level + 1
+            if (
+                here is not None
+                and here.is_descent
+                and not self._destination_depth_allowed(snapshot, destination_depth)
+            ):
+                return WAIT_KEY
             if here is not None and here.is_descent and self._kill_quest_descent_allowed(snapshot):
                 self.last_reason = "quest:regen:descend"
                 return DOWN_STAIRS_KEY

@@ -82,7 +82,10 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
         key = policy.choose_key(self.town)
 
         self.assertNotEqual(key, "rha")
-        self.assertEqual(policy.last_reason, "town:blocked:no-safe-recall-destination")
+        self.assertEqual(
+            policy.last_reason,
+            "depth-gate:destination-34:missing-resist_chaos",
+        )
         self.assertEqual(
             policy._missing_required_abilities(self.town, 34),
             frozenset({"resist_chaos"}),
