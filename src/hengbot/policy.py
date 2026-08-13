@@ -2828,7 +2828,8 @@ class HengbotPolicy:
                 "gold",
                 "position",
             )
-        return self._refuse_no_progress_cycle(snapshot, key)
+        key = self._refuse_no_progress_cycle(snapshot, key)
+        return self._forbid_wait_while_damaged(snapshot, key)
 
     @staticmethod
     def _emission_item_state(item: object) -> tuple[object, ...]:
@@ -3569,7 +3570,6 @@ class HengbotPolicy:
             )
         key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
-        key = self._forbid_wait_under_fire(snapshot, key)
         key = self._bound_escape_wait(snapshot, key)
         if (
             key == WAIT_KEY
@@ -4120,10 +4120,20 @@ class HengbotPolicy:
                 self._last_move_key = key
         return key
 
-    def _forbid_wait_under_fire(self, snapshot: Snapshot, key: str) -> str:
-        """Replace an unsanctioned WAIT when an attacker can hurt the player."""
-        if key != WAIT_KEY or snapshot.store is not None:
+    def _forbid_wait_while_damaged(self, snapshot: Snapshot, key: str) -> str:
+        """Reject every bare no-op after an observed HP loss."""
+        bare_no_op = key == WAIT_KEY or (
+            snapshot.store is not None and key == "\r"
+        )
+        if not bare_no_op:
             return key
+
+        # The public choose_key return is the only enforcement point.  In-store
+        # carriage return is the store-loop equivalent of WAIT; leave that
+        # command language before selecting an ordinary survival action.
+        if self._took_damage and snapshot.store is not None:
+            self.last_reason = "no-wait:leave-store"
+            return LEAVE_STORE_KEY
 
         reason = self.last_reason
         strategic_hostiles = (
@@ -4172,7 +4182,7 @@ class HengbotPolicy:
             or reason.endswith(":recover")
             or choke_hold
         )
-        if sanctioned:
+        if sanctioned and not self._took_damage:
             return key
 
         under_fire = self._took_damage or any(
@@ -4221,6 +4231,14 @@ class HengbotPolicy:
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position
             )
+
+        # A completely boxed player has no legal movement alternative.  Keep
+        # the invariant explicit even there: attack the nearest observed threat
+        # instead of spending another turn on a bare no-op.
+        if self._took_damage and hostiles and not snapshot.player.afraid:
+            target = min(hostiles, key=lambda monster: monster.distance)
+            self.last_reason = "no-wait:attack"
+            return self._direction_key(snapshot.player.position, target.position)
 
         return key
 
@@ -28497,32 +28515,23 @@ class HengbotPolicy:
                     and player.position != issue_position
                 )
                 if not accepted:
-                    if not self._took_damage:
-                        if not self._owner_may_select(
-                            snapshot, "emergency:await-consumable-confirmation"
-                        ):
-                            self._emergency_consumable_issue_watch = None
-                        else:
-                            self.last_reason = (
-                                "emergency:await-consumable-confirmation"
-                            )
-                            self._post_owner_expectation(
-                                snapshot,
-                                self.last_reason,
-                                "position",
-                                "recalling",
-                                "inventory",
-                                "hp",
-                            )
-                            return WAIT_KEY
-                    # The stack changed without the effect we issued the item
-                    # for.  Once HP also falls, another WAIT has measured cost
-                    # but cannot make that missing effect arrive (the item may
-                    # have been destroyed, or its command refused before it was
-                    # posted).  Release the watch on that observation and let
-                    # the existing emergency ladder choose stairs, a potion,
-                    # relocation, or flight immediately.
-                    self._emergency_consumable_issue_watch = None
+                    if not self._owner_may_select(
+                        snapshot, "emergency:await-consumable-confirmation"
+                    ):
+                        self._emergency_consumable_issue_watch = None
+                    else:
+                        self.last_reason = (
+                            "emergency:await-consumable-confirmation"
+                        )
+                        self._post_owner_expectation(
+                            snapshot,
+                            self.last_reason,
+                            "position",
+                            "recalling",
+                            "inventory",
+                            "hp",
+                        )
+                        return WAIT_KEY
                 else:
                     self._emergency_consumable_issue_watch = None
             elif snapshot.turn <= issue_turn:

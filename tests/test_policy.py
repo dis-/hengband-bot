@@ -1270,7 +1270,7 @@ class CombatTest(unittest.TestCase):
                 policy._took_damage = False
                 policy.last_reason = "fundraise:upstairs-not-found"
 
-                key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+                key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
 
                 self.assertNotEqual(key, WAIT_KEY)
                 self.assertIn(
@@ -1311,7 +1311,7 @@ class CombatTest(unittest.TestCase):
                 policy._took_damage = True
                 policy.last_reason = "fundraise:upstairs-not-found"
 
-                key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+                key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
 
                 self.assertNotEqual(key, WAIT_KEY)
                 self.assertNotEqual(policy.last_reason, "no-wait:escape-scroll")
@@ -1337,7 +1337,7 @@ class CombatTest(unittest.TestCase):
                 policy._took_damage = took_damage
                 policy.last_reason = "fundraise:upstairs-not-found"
 
-                key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+                key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
 
                 self.assertEqual(
                     (key, policy.last_reason),
@@ -1372,7 +1372,7 @@ class CombatTest(unittest.TestCase):
         policy._took_damage = False
         policy.last_reason = "melee:choke-hold"
 
-        key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+        key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
 
         self.assertEqual((key, policy.last_reason), (
             WAIT_KEY, "melee:choke-hold",
@@ -4360,7 +4360,7 @@ class CombatTest(unittest.TestCase):
         policy._build_grid_index(snapshot)
         policy.last_reason = "melee:choke-hold"
 
-        key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+        key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
 
         self.assertEqual((key, policy.last_reason), (
             READ_KEY + "p", "no-wait:escape-scroll",
@@ -13058,6 +13058,55 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotIn("home:atomic-deposit", reasons)
         self.assertFalse(any(reason.startswith("calibration:") for reason in reasons))
         self.assertNotIn("equipment-transaction:takeoff", reasons)
+
+    def test_frozen_q34_town_damage_replay_steps_away_on_each_hp_drop(self):
+        artifact = Path("jsonlog/evidence-death2-20260814-0300.jsonl")
+        records = {
+            row["decision_sequence"]: row
+            for row in map(json.loads, artifact.read_text(encoding="utf-8").splitlines())
+            if row.get("decision_sequence") in {675, 681, 689}
+        }
+        self.assertEqual(
+            [(seq, records[seq]["player"]["hp"]) for seq in (675, 681, 689)],
+            [(675, 9), (681, 5), (689, 2)],
+        )
+        policy = self._policy()
+        base = self._measured_q34_opening()
+        position = Position(45, 109)
+        base = replace(
+            base,
+            turn=records[675]["turn"],
+            player=replace(
+                base.player, position=position, hp=9, max_hp=85, gold=1
+            ),
+            grids={
+                position: grid(45, 109, building_special=34),
+                Position(44, 108): grid(44, 108),
+                Position(44, 109): grid(44, 109),
+                Position(45, 108): grid(45, 108),
+            },
+            inventory=[
+                item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=5000)
+            ],
+        )
+
+        keys = []
+        reasons = []
+        for sequence in (675, 681, 689):
+            record = records[sequence]
+            snapshot = replace(
+                base,
+                turn=record["turn"],
+                player=replace(base.player, hp=record["player"]["hp"]),
+            )
+            keys.append(policy.choose_key(snapshot))
+            reasons.append(policy.last_reason)
+
+        self.assertEqual(keys, [WAIT_KEY, "7", "7"])
+        self.assertEqual(
+            reasons,
+            ["opening-q34:wait", "no-wait:least-visited", "no-wait:least-visited"],
+        )
 
     def test_q34_opening_holds_when_taken_and_releases_only_when_cleared(self):
         policy = self._policy()
@@ -30765,6 +30814,66 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(damaged), "rt")
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
+    def test_frozen_cl30_confirmation_damage_replay_reuses_teleport(self):
+        artifact = Path("jsonlog/evidence-death-20260813-1130.jsonl")
+        records = {
+            row["decision_sequence"]: row
+            for row in map(json.loads, artifact.read_text(encoding="utf-8").splitlines())
+            if row.get("decision_sequence") in {2116, 2118}
+        }
+        self.assertEqual(
+            [(seq, records[seq]["player"]["hp"]) for seq in (2116, 2118)],
+            [(2116, 610), (2118, 459)],
+        )
+        original = self._swarm([
+                item("c", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
+                item("h", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=8),
+            ])
+        offset_y, offset_x = 20, 93
+        translated_grids = {
+            Position(position.y + offset_y, position.x + offset_x): replace(
+                cell,
+                position=Position(
+                    cell.position.y + offset_y, cell.position.x + offset_x
+                ),
+            )
+            for position, cell in original.grids.items()
+        }
+        translated_hostiles = [
+            replace(
+                monster,
+                position=Position(
+                    monster.position.y + offset_y,
+                    monster.position.x + offset_x,
+                ),
+            )
+            for monster in original.visible_monsters
+        ]
+        snap = replace(
+            original,
+            turn=records[2116]["turn"],
+            player=replace(
+                original.player,
+                position=Position(30, 137), hp=610, max_hp=668,
+            ),
+            grids=translated_grids,
+            visible_monsters=translated_hostiles,
+        )
+        pol = HengbotPolicy()
+
+        self.assertEqual(pol.choose_key(snap), "rc")
+        consumed = replace(
+            snap, inventory=[replace(snap.inventory[0], count=2), snap.inventory[1]]
+        )
+        self.assertEqual(pol.choose_key(consumed), WAIT_KEY)
+        damaged = replace(
+            consumed,
+            turn=records[2118]["turn"],
+            player=replace(consumed.player, hp=459, hallucinated=True),
+        )
+        self.assertEqual(pol.choose_key(damaged), "rc")
+        self.assertEqual(pol.last_reason, "emergency:teleport")
+
     def test_blind_damaged_confirmation_watch_quaffs_instead_of_reading(self):
         snap = replace(
             self._swarm([
@@ -33026,6 +33135,29 @@ class HighValueBookSaleTest(unittest.TestCase):
 
 
 class NoWaitUnderFireTest(unittest.TestCase):
+    def test_damage_wait_guard_has_one_public_consumer_and_no_owner_release(self):
+        source = Path(policy_module.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        functions = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        consumers = [
+            function.name
+            for function in functions.values()
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_forbid_wait_while_damaged"
+        ]
+
+        self.assertEqual(consumers, ["choose_key"])
+        watch_section = source.split(
+            "issue_watch = self._emergency_consumable_issue_watch", 1
+        )[1].split("# Recall takes many game turns.", 1)[0]
+        self.assertNotIn("_took_damage", watch_section)
+
     def test_each_registered_escape_wait_has_a_visible_policy_terminal(self):
         from hengbot.policy import ESCAPE_BUDGETED_WAIT_LIMITS
 
@@ -33099,10 +33231,9 @@ class NoWaitUnderFireTest(unittest.TestCase):
         self.assertEqual(key, READ_KEY + "t")
         self.assertEqual(policy.last_reason, "no-wait:escape-scroll")
 
-    def test_sanctioned_waits_are_preserved(self):
+    def test_stationary_waits_are_preserved_without_damage(self):
         snapshot = self._snapshot(include_escape=False)
         policy = HengbotPolicy()
-        policy._took_damage = True
 
         for reason in (
             "return:wait-recall",
@@ -33112,7 +33243,7 @@ class NoWaitUnderFireTest(unittest.TestCase):
             with self.subTest(reason=reason):
                 policy.last_reason = reason
                 self.assertEqual(
-                    policy._forbid_wait_under_fire(snapshot, WAIT_KEY),
+                    policy._forbid_wait_while_damaged(snapshot, WAIT_KEY),
                     WAIT_KEY,
                 )
                 self.assertEqual(policy.last_reason, reason)
@@ -33126,12 +33257,12 @@ class NoWaitUnderFireTest(unittest.TestCase):
         policy.last_reason = "return:wait"
 
         self.assertEqual(
-            policy._forbid_wait_under_fire(snapshot, WAIT_KEY),
+            policy._forbid_wait_while_damaged(snapshot, WAIT_KEY),
             WAIT_KEY,
         )
         self.assertEqual(policy.last_reason, "return:wait")
 
-    def test_true_dead_end_under_fire_keeps_wait(self):
+    def test_boxed_wait_under_fire_attacks_observed_threat(self):
         snapshot = self._snapshot(include_escape=False)
         policy = HengbotPolicy()
         policy._took_damage = True
@@ -33145,10 +33276,36 @@ class NoWaitUnderFireTest(unittest.TestCase):
             ),
         ):
             self.assertEqual(
-                policy._forbid_wait_under_fire(snapshot, WAIT_KEY),
-                WAIT_KEY,
+                policy._forbid_wait_while_damaged(snapshot, WAIT_KEY),
+                "6",
             )
-        self.assertEqual(policy.last_reason, "emergency:wait")
+        self.assertEqual(policy.last_reason, "no-wait:attack")
+
+    def test_every_bare_no_op_is_rejected_after_snapshot_damage(self):
+        baseline = replace(
+            self._snapshot(include_escape=False), visible_monsters=[]
+        )
+        damaged = replace(
+            baseline,
+            turn=baseline.turn + 1,
+            player=replace(baseline.player, hp=baseline.player.hp - 1),
+        )
+        policy = HengbotPolicy()
+
+        policy.choose_key(baseline)
+        policy.choose_key(damaged)
+
+        for bare_no_op in (WAIT_KEY,):
+            with self.subTest(key=repr(bare_no_op)):
+                self.assertNotEqual(
+                    policy._forbid_wait_while_damaged(damaged, bare_no_op),
+                    bare_no_op,
+                )
+
+        store = replace(damaged, store=StoreState(STORE_GENERAL, []))
+        self.assertEqual(
+            policy._forbid_wait_while_damaged(store, "\r"), LEAVE_STORE_KEY
+        )
 
     def test_declared_walkout_no_wait_refuses_destinationless_ping_pong(self):
         from collections import deque
@@ -33173,7 +33330,7 @@ class NoWaitUnderFireTest(unittest.TestCase):
                 return_value=alternate,
             ),
         ):
-            key = policy._forbid_wait_under_fire(snapshot, WAIT_KEY)
+            key = policy._forbid_wait_while_damaged(snapshot, WAIT_KEY)
 
         self.assertEqual(
             key,
