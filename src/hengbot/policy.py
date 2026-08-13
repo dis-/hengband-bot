@@ -1669,6 +1669,13 @@ class HengbotPolicy:
         self._dungeon_recall_issue_watch: tuple[
             tuple[int, int, int], int, int
         ] | None = None
+        # A sender-side refusal proves that the recall read had no observable
+        # effect.  Bind that evidence to the same observation used by the
+        # posting contract; while it remains unchanged, route to the up-stairs
+        # instead of alternating another read with a confirmation WAIT.
+        self._dungeon_recall_posting_refusal: tuple[
+            tuple[int, int, int], bool
+        ] | None = None
         # Emergency scroll commands can be followed by an exact stale snapshot
         # after the CLI's duplicate retry interval.  Reissuing the same read on
         # that board spends a second escape scroll and also double-counts one
@@ -10753,6 +10760,16 @@ class HengbotPolicy:
 
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
+        if owner == "return:recall" and key.startswith(READ_KEY):
+            issue_watch = self._dungeon_recall_issue_watch
+            if issue_watch is not None:
+                self._dungeon_recall_posting_refusal = (
+                    issue_watch[0], False
+                )
+            # The command was not posted, so there is nothing to await.  The
+            # refusal latch above makes the existing walk-out route the next
+            # return action without guessing why Hengband ignored the read.
+            self._dungeon_recall_issue_watch = None
         if owner in {"shop:travel", "town:travel-entrance"}:
             state = self._town_travel_state
             if state is not None:
@@ -26597,7 +26614,14 @@ class HengbotPolicy:
         player = snapshot.player
         if snapshot.in_town:
             self._dungeon_recall_issue_watch = None
+            self._dungeon_recall_posting_refusal = None
             return None
+        recall_observation = (snapshot.floor_key, player.recalling)
+        if (
+            self._dungeon_recall_posting_refusal is not None
+            and self._dungeon_recall_posting_refusal != recall_observation
+        ):
+            self._dungeon_recall_posting_refusal = None
         active_fixed = self._active_fixed_quest_id(snapshot)
         if (
             self._quest_floor_exit_locked(snapshot)
@@ -26644,6 +26668,7 @@ class HengbotPolicy:
             and recall is not None
             and not player.blind
             and not player.confused
+            and self._dungeon_recall_posting_refusal != recall_observation
         ):
             self.last_reason = "return:recall"
             return self._read_dungeon_recall_scroll_key(snapshot, recall)

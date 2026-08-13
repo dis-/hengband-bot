@@ -17,6 +17,7 @@ from pathlib import Path
 from hengbot.model import Position, Snapshot, parse_snapshot
 from hengbot.cli import (
     LOOP_WINDOW,
+    PostingContract,
     STARVING_STOP_LIMIT,
     _advance_starving_streak,
     _objective_for_reason,
@@ -697,6 +698,62 @@ class NavigationInvariantTest(unittest.TestCase):
                 return "6" if snapshot.player.position.x == 10 else "4"
 
         return ScriptedPolicy()
+
+    @staticmethod
+    def _recall_refusal_snapshot():
+        position = Position(42, 20)
+        upstairs = Position(42, 19)
+        return Snapshot(
+            player(position.y, position.x, level=23),
+            {
+                position: grid(position.y, position.x),
+                upstairs: grid(upstairs.y, upstairs.x, upstairs=True),
+            },
+            [],
+            floor_key=(3, 23, 0),
+            width=80,
+            height=50,
+            inventory=[item(
+                "d", SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9,
+                name="Word of Recall",
+            )],
+        )
+
+    def test_refused_return_recall_routes_to_upstairs_without_burning_a_turn(self):
+        snapshot = self._recall_refusal_snapshot()
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+        contract = PostingContract()
+        contract.posted(snapshot, "rd", "return:recall")
+
+        proposed = policy.choose_key(snapshot)
+        self.assertEqual((proposed, policy.last_reason), ("rd", "return:recall"))
+        self.assertFalse(contract.allow(
+            snapshot, proposed, policy.last_reason
+        ))
+        incident = contract.last_incident
+        self.assertEqual(
+            incident["marker"],
+            "posting-contract:identical-repost-unobserved",
+        )
+        policy.refuse_key_posting(incident["owner"], incident["key"])
+
+        fallback = policy.choose_key(snapshot)
+        self.assertEqual(
+            (fallback, policy.last_reason), ("4", "return:seek-upstairs")
+        )
+        self.assertNotEqual(fallback, WAIT_KEY)
+
+    def test_unrefused_return_recall_posts_exact_derived_characters(self):
+        snapshot = self._recall_refusal_snapshot()
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+        contract = PostingContract()
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual((key, policy.last_reason), ("rd", "return:recall"))
+        self.assertTrue(contract.allow(snapshot, key, policy.last_reason))
 
     def test_combat_interspersed_two_cell_ping_pong_breaks_out(self):
         cells = {
