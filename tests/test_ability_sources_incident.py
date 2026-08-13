@@ -84,7 +84,7 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
         self.assertNotEqual(key, "rha")
         self.assertEqual(
             policy.last_reason,
-            "depth-gate:destination-34:missing-resist_chaos",
+            "town:blocked:depth-gate:destination-34:missing-resist_chaos",
         )
         self.assertEqual(
             policy._missing_required_abilities(self.town, 34),

@@ -22821,6 +22821,50 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertIn("equipment_departure_ready", policy._departure_block["failed"])
 
+    def test_fresh_level_one_warrior_enters_shallow_dungeon_exactly(self):
+        entrance = Position(10, 10)
+        town_map = TownMap(
+            name="test",
+            width=20,
+            height=20,
+            walkable=frozenset({entrance}),
+            entrance=entrance,
+        )
+        snap = Snapshot(
+            player(
+                entrance.y,
+                entrance.x,
+                level=1,
+                class_id=PLAYER_CLASS_WARRIOR,
+                abilities=frozenset(),
+            ),
+            {
+                entrance: grid(
+                    entrance.y,
+                    entrance.x,
+                    entrance=True,
+                    entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+                )
+            },
+            [],
+            floor_key=(0, 0, 0),
+            width=20,
+            height=20,
+            town_flag=True,
+            inventory=self._strict_supplies(recall=10),
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy(town_map=town_map)
+        set_completed_equipment_optimization(policy)
+        policy._town_special_key = lambda _snapshot: None
+        policy._recall_departure_shortage = lambda _snapshot: False
+
+        self.assertEqual(
+            policy.choose_key(snap), policy_module.ENTER_DUNGEON_MACRO,
+            (policy.last_reason, policy.departure_block_state()),
+        )
+        self.assertEqual(policy.last_reason, "descend")
+
     def test_town_restores_a_weapon_even_when_the_name_is_unknown(self):
         # A fresh bot process that inherited an already-wielded pickaxe has no recorded
         # combat-weapon name, but must STILL swap the pickaxe out for a real weapon before
@@ -28731,7 +28775,7 @@ class TownRecallReturnTest(unittest.TestCase):
             self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
         self.assertEqual(
             pol.last_reason,
-            "depth-gate:destination-34:missing-resist_chaos",
+            "town:blocked:depth-gate:destination-34:missing-resist_chaos",
         )
 
     def test_recall_to_34_with_chaos_posts_exact_derived_characters(self):
@@ -35711,18 +35755,48 @@ class ResistanceDepthGateTest(unittest.TestCase):
             HengbotPolicy()._is_descent_target(snap, snap.grids[Position(10, 10)])
         )
 
-    def test_stair_refusal_binds_on_next_floor_and_names_missing_requirements(self):
+    def test_stair_refusal_explores_across_consecutive_decisions(self):
         snap = self._at(
             30, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
         )
-        snap = replace(snap, player=replace(snap.player, class_id=-1))
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy.choose_key(snap), WAIT_KEY)
-        self.assertEqual(
-            policy.last_reason,
-            "depth-gate:destination-31:missing-resist_chaos",
+        grids = {
+            Position(y, x): grid(
+                y, x, lit=True, downstairs=(y == 10 and x == 10)
+            )
+            for y in range(7, 14)
+            for x in range(7, 14)
+        }
+        snap = replace(
+            snap,
+            player=replace(snap.player, class_id=-1),
+            grids=grids,
         )
+        policy = HengbotPolicy()
+        directions = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        position = snap.player.position
+        visited = {position}
+        keys = []
+
+        for decision in range(6):
+            current = replace(
+                snap,
+                turn=snap.turn + decision,
+                player=replace(snap.player, position=position),
+            )
+            key = policy.choose_key(current)
+            keys.append(key)
+            self.assertIn(key, directions, (decision, key, policy.last_reason))
+            dy, dx = directions[key]
+            position = Position(position.y + dy, position.x + dx)
+            visited.add(position)
+
+        self.assertEqual(keys, ["7", "3", "8", "2", "9", "1"])
+        self.assertNotIn(WAIT_KEY, keys)
+        self.assertNotIn(policy_module.DOWN_STAIRS_KEY, keys)
+        self.assertGreaterEqual(len(visited), 4)
 
     def test_allows_descent_once_the_requirement_is_met(self):
         snap = self._at(24, {"free_action", "resist_conf", "resist_fire"})
@@ -50007,7 +50081,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(
             policy.last_reason,
-            "depth-gate:destination-30:missing-resist_acid,resist_elec",
+            "town:blocked:depth-gate:destination-30:missing-resist_acid,resist_elec",
         )
         self.assertEqual(
             policy._town_blocked_reason,

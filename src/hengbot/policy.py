@@ -5360,13 +5360,6 @@ class HengbotPolicy:
             else None
         )
         if (
-            direct_destination_depth is not None
-            and not self._destination_depth_allowed(
-                snapshot, direct_destination_depth
-            )
-        ):
-            return WAIT_KEY
-        if (
             (
                 here is not None
                 and here.is_descent
@@ -5378,6 +5371,12 @@ class HengbotPolicy:
             # Routing toward town may yield to another escape owner, but no
             # owner may route us back into the breeder floor we just fled.
             and not self._breeder_walkout_active(snapshot)
+            and (
+                direct_destination_depth is None
+                or self._destination_depth_allowed(
+                    snapshot, direct_destination_depth
+                )
+            )
             and (
                 not (
                     static_entrance_here
@@ -20862,7 +20861,7 @@ class HengbotPolicy:
             )
             if not self._destination_depth_allowed(snapshot, destination_depth):
                 self._town_blocked_reason = self.last_reason
-                return WAIT_KEY
+                return self._town_blocked_key(snapshot)
             self._town_blocked_reason = "no-safe-recall-destination"
             return self._town_blocked_key(snapshot)
         return None
