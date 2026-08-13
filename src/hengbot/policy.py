@@ -25844,9 +25844,17 @@ class HengbotPolicy:
         # In-town emitter snapshots include the full memorized town map.  Once
         # it contains building specials, that live data is authoritative for
         # conditional offer chains (1 -> 14 -> 18, etc.).
+        # Store snapshots deliberately omit the map.  That omission is not a
+        # new observation that the visible offer disappeared: consult only the
+        # terrain retained from the preceding player-turn snapshot.  Do not use
+        # static quest data here; remembered building specials were emitted to
+        # the player and preserve conditional offer chains fairly.
+        grids = snapshot.grids
+        if snapshot.store is not None and not grids:
+            grids = self._remembered_grids
         specials = {
             grid.building_special
-            for grid in snapshot.grids.values()
+            for grid in grids.values()
             if grid.building_special
         }
         if specials:

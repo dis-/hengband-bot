@@ -13128,6 +13128,78 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertTrue(policy._opening_q34_active(taken))
         self.assertFalse(policy._opening_q34_active(cleared))
 
+    def test_frozen_q34_offer_is_stable_across_mapless_store_snapshot(self):
+        evidence = Path(
+            "jsonlog/evidence-q34-contract-flicker-20260814.jsonl"
+        )
+        with evidence.open(encoding="utf-8") as records:
+            decisions = [json.loads(record) for record in records]
+        captured = [
+            row for row in decisions
+            if row.get("decision_sequence") in {1, 2}
+        ]
+        self.assertEqual(
+            [
+                (
+                    row["decision_sequence"], row.get("store_type"),
+                    row.get("timing", {}).get("nearby_grids"),
+                )
+                for row in captured
+            ],
+            [(1, None, None), (1, STORE_HOME, 0), (2, None, 10448)],
+        )
+
+        policy = self._policy()
+        outside = self._measured_q34_opening()
+        boards = [
+            replace(
+                outside,
+                turn=captured[0]["turn"],
+                player=replace(
+                    outside.player, gold=captured[0]["player"]["gold"]
+                ),
+            ),
+            replace(
+                outside,
+                turn=captured[1]["turn"],
+                player=replace(
+                    outside.player, gold=captured[1]["player"]["gold"]
+                ),
+                grids={},
+                store=StoreState(STORE_HOME, []),
+            ),
+            replace(
+                outside,
+                turn=captured[2]["turn"],
+                player=replace(
+                    outside.player, gold=captured[2]["player"]["gold"]
+                ),
+            ),
+        ]
+
+        evaluated = []
+        for board in boards:
+            policy._with_grid_memory(board)
+            evaluated.append(policy._fixed_quest_is_offered(board, 34))
+        self.assertEqual(evaluated, [True, True, True])
+        self.assertEqual(
+            [policy._opening_q34_active(board) for board in boards],
+            [True, True, True],
+        )
+        self.assertEqual(
+            [policy._fixed_quest_head(board).id for board in boards],
+            [34, 34, 34],
+        )
+        self.assertTrue(all(
+            not any(
+                "fundraising" in claim.category
+                or claim.category.startswith("mining-")
+                or claim.category.startswith("stored-")
+                for claim in policy._enumerate_live_store_claims(board)
+            )
+            for board in boards
+        ))
+
     def _frozen_armed_q34_board(self):
         evidence = Path(
             "jsonlog/evidence-home-armed-reenter-loop-20260814.jsonl"
