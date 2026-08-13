@@ -13235,13 +13235,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertTrue(policy._opening_q34_active(snapshot))
         self.assertEqual(policy._opening_q34_torch_shortage(snapshot), 0)
         self.assertFalse(policy._start_fundraising(snapshot))
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         claims = policy._enumerate_live_store_claims(snapshot)
-        self.assertFalse(
-            any("fundraising" in claim.category or claim.category.startswith("mining-")
-                or claim.category.startswith("stored-") for claim in claims),
-            claims,
-        )
+        self.assertEqual(claims, [])
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertIsNone(policy._fundraising_mode)
 
         released = replace(
@@ -13261,15 +13257,109 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 or claim.category.startswith("stored-") for claim in resumed_claims),
             resumed_claims,
         )
-        self.assertEqual(resumed._next_required_store_type(snapshot), STORE_HOME)
+        self.assertEqual(resumed._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertIsNone(resumed._fundraising_mode)
 
         keys = [policy.choose_key(replace(snapshot, turn=snapshot.turn + offset))
                 for offset in range(3)]
-        self.assertEqual(keys, ["9", "9", "9"])
-        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertEqual(keys, ["5", "5", "5"])
+        self.assertEqual(policy.last_reason, "opening-q34:wait")
         self.assertNotIn(LEAVE_STORE_KEY, keys)
         self.assertNotIn("", keys)
+
+    @staticmethod
+    def _ninth_strike_monrace_ids(value):
+        if isinstance(value, dict):
+            race_id = value.get("race_id")
+            if isinstance(race_id, int):
+                yield race_id
+            for nested in value.values():
+                yield from ApprovedQuestStrategyExecutionTest._ninth_strike_monrace_ids(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                yield from ApprovedQuestStrategyExecutionTest._ninth_strike_monrace_ids(nested)
+
+    def _warmed_ninth_strike_replay(self):
+        artifact = Path("jsonlog/evidence-ninth-strike-snapshots.jsonl")
+        raw_rows = [
+            json.loads(line)
+            for line in artifact.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(len(raw_rows), 137)
+        policy = self._policy()
+        boards = []
+        for raw in raw_rows:
+            knowledge = {
+                race_id: MonraceKnowledge(1, 110, False, False)
+                for race_id in set(self._ninth_strike_monrace_ids(raw))
+            }
+            boards.append(policy._with_grid_memory(parse_snapshot(raw, knowledge)))
+        return policy, boards
+
+    def test_ninth_strike_archive_opening_claim_gate_and_decisions(self):
+        policy, boards = self._warmed_ninth_strike_replay()
+        outside = [board for board in boards if board.store is None][-2:]
+
+        self.assertTrue(all(policy._opening_q34_active(board) for board in outside))
+        self.assertEqual(
+            [policy._enumerate_live_store_claims(board) for board in outside],
+            [[], []],
+        )
+        self.assertEqual(
+            [policy._next_required_store_type(board) for board in outside],
+            [STORE_GENERAL, STORE_GENERAL],
+        )
+        keys = [policy.choose_key(board) for board in outside]
+        self.assertEqual(keys, ["5", "5"])
+        self.assertEqual(policy.last_reason, "opening-q34:wait")
+
+    def test_ninth_strike_archive_finished_q34_restores_claims_unchanged(self):
+        policy, boards = self._warmed_ninth_strike_replay()
+        outside = next(board for board in reversed(boards) if board.store is None)
+        finished = replace(
+            outside,
+            quests={
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                )
+            },
+        )
+
+        restored = policy._enumerate_live_store_claims(finished)
+        self.assertFalse(policy._opening_q34_active(finished))
+        restored_categories = Counter(claim.category for claim in restored)
+        expected_suppressed = Counter({
+                "identification-withdrawal": 1,
+                "recall": 2,
+                "teleport": 1,
+                "cure-critical": 2,
+                "oil": 1,
+                "food": 1,
+                "quest-speed": 1,
+                "quest-healing": 2,
+                "equipment-catalog": 1,
+                "black-market": 1,
+        })
+        self.assertEqual(
+            Counter({
+                category: restored_categories[category]
+                for category in expected_suppressed
+            }),
+            expected_suppressed,
+        )
+
+    def test_ninth_strike_archive_opening_hunger_precedes_claim_gate(self):
+        policy, boards = self._warmed_ninth_strike_replay()
+        outside = next(board for board in reversed(boards) if board.store is None)
+        hungry = replace(
+            outside,
+            player=replace(outside.player, food_state="hungry"),
+            inventory=[item for item in outside.inventory if item.tval != TVAL_FOOD],
+        )
+
+        self.assertTrue(policy._opening_q34_active(hungry))
+        self.assertEqual(policy._enumerate_live_store_claims(hungry), [])
+        self.assertEqual(policy._next_required_store_type(hungry), STORE_GENERAL)
 
     def test_finished_q34_capture_releases_fundraising_start_and_claims(self):
         captured = self._frozen_armed_q34_board()

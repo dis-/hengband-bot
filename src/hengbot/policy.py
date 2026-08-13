@@ -15257,6 +15257,17 @@ class HengbotPolicy:
         This is the sole input to the town-plan projection.
         """
         claims = list(self._enumerate_town_needs(snapshot))
+        if self._opening_q34_active(snapshot):
+            # Q34's opening owns town until the quest clears.  Candidate
+            # generation is not the claim boundary: NeedSpecs can remain true
+            # outside _town_need_candidates, and the equipment state machines
+            # below are independent producers.  Admit only the opening's two
+            # errands here, at the final producer consumed by town routing.
+            return [
+                claim
+                for claim in claims
+                if claim.category in {"combat-weapon", "quest-throwing-items"}
+            ]
         post_alchemist_home = any(
             claim.ordering_class == "post-alchemist-home"
             or claim.category == "identification-source"
