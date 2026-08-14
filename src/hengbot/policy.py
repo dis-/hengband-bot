@@ -1829,6 +1829,7 @@ class HengbotPolicy:
         self._town_fact_snapshot: Snapshot | None = None
         # Predicate results are valid only for one merged decision snapshot.
         self._map_predicate_snapshot: Snapshot | None = None
+        self._fixed_quest_offers: frozenset[int] = frozenset()
         self._equipment_departure_cache_token: int | None = None
         self._equipment_departure_cache_value = False
         self._hazard_cache: dict[Position, bool] = {}
@@ -2621,6 +2622,11 @@ class HengbotPolicy:
 
     def _begin_map_predicate_cache(self, snapshot: Snapshot) -> None:
         self._map_predicate_snapshot = snapshot
+        self._fixed_quest_offers = frozenset(
+            grid.building_special
+            for grid in snapshot.grids.values()
+            if grid.building_special
+        )
         self._hazard_cache.clear()
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
@@ -25872,6 +25878,12 @@ class HengbotPolicy:
         # terrain retained from the preceding player-turn snapshot.  Do not use
         # static quest data here; remembered building specials were emitted to
         # the player and preserve conditional offer chains fairly.
+        if snapshot is self._map_predicate_snapshot:
+            if self._fixed_quest_offers:
+                return quest_id in self._fixed_quest_offers
+            if self._town_map_active(snapshot):
+                return bool(self._town_map.quest_building_positions(quest_id))
+            return False
         grids = snapshot.grids
         if snapshot.store is not None and not grids:
             grids = self._remembered_grids

@@ -107,6 +107,50 @@ def snapshot(grids, *, floor_key=(0, 0, 0), town=True, width=7, height=5, town_i
 
 
 class TownLatencyCacheTest(unittest.TestCase):
+    def test_fixed_quest_offer_scan_runs_once_per_merged_decision(self):
+        class CountingGrids(dict):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.values_calls = 0
+
+            def values(self):
+                self.values_calls += 1
+                return super().values()
+
+        offer = Position(2, 4)
+        first_grids = CountingGrids({offer: grid(offer, building_special=34)})
+        first = snapshot(first_grids)
+        policy = HengbotPolicy()
+
+        policy._begin_map_predicate_cache(first)
+        self.assertEqual(first_grids.values_calls, 1)
+        for _ in range(20):
+            self.assertTrue(policy._fixed_quest_is_offered(first, 34))
+            self.assertFalse(policy._fixed_quest_is_offered(first, 14))
+        self.assertEqual(first_grids.values_calls, 1)
+
+        second_grids = CountingGrids({offer: grid(offer, building_special=14)})
+        second = snapshot(second_grids)
+        policy._begin_map_predicate_cache(second)
+        self.assertEqual(second_grids.values_calls, 1)
+        self.assertFalse(policy._fixed_quest_is_offered(second, 34))
+        self.assertTrue(policy._fixed_quest_is_offered(second, 14))
+        self.assertEqual(second_grids.values_calls, 1)
+
+    def test_fixed_quest_offer_cache_preserves_gridless_fallback(self):
+        quest = Position(2, 4)
+        town_map = TownMap(
+            name="quest-town", width=7, height=5,
+            walkable=frozenset({quest}), quest_buildings={34: frozenset({quest})},
+        )
+        policy = HengbotPolicy(town_maps={0: town_map})
+        board = snapshot({})
+
+        policy._begin_map_predicate_cache(board)
+
+        self.assertTrue(policy._fixed_quest_is_offered(board, 34))
+        self.assertFalse(policy._fixed_quest_is_offered(board, 14))
+
     def test_persistent_signature_covers_every_non_transient_grid_field(self):
         pos = Position(2, 3)
         original = grid(pos)
