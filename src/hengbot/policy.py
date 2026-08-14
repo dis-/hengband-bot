@@ -8703,13 +8703,23 @@ class HengbotPolicy:
         recall = self._supply_ledger(snapshot, destination_depth)["recall"]
         return recall.count >= max(1, recall.required_return)
 
-    def _quest_equipment_entry_allowed(self, snapshot: Snapshot) -> bool:
+    def _quest_equipment_entry_allowed(
+        self, snapshot: Snapshot, quest_id: int
+    ) -> bool:
         """Apply only the equipment boundary to a fixed quest entered on foot."""
         if (
             self._morivant_full_identify is not None
             and self._morivant_full_identify.temporary_deposits
         ):
             return False
+        if self._opening_q34_active(snapshot) and quest_id == 34:
+            ready = self._evaluate_fixed_quest_readiness(
+                snapshot, quest_id, require_target_town=True
+            )
+            if not ready:
+                reason = self._fixed_quest_readiness.get("reason", "unready")
+                self.last_reason = f"quest:readiness:{reason}"
+            return ready
         if self._equipment_departure_ready(snapshot):
             return True
         self._departure_block = self._departure_block_state(snapshot)
@@ -25939,7 +25949,7 @@ class HengbotPolicy:
         if snapshot.player.position in positions:
             if not self._kill_quest_descent_allowed(snapshot):
                 return None
-            if not self._quest_equipment_entry_allowed(snapshot):
+            if not self._quest_equipment_entry_allowed(snapshot, quest_id):
                 return None
             self.last_reason = "fixedquest:enter"
             return DOWN_STAIRS_KEY + "y"

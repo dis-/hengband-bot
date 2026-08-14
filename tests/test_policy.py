@@ -13128,6 +13128,87 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertTrue(policy._opening_q34_active(taken))
         self.assertFalse(policy._opening_q34_active(cleared))
 
+    def _warmed_current_q34_entrance_replay(self):
+        policy = self._q34_source_policy()
+        policy._character_calibration_path = Path(
+            "tests/fixtures/q34-entry-character-calibration-20260814.json"
+        )
+        with Path(
+            "tests/fixtures/q34-entry-current-tail-20260814.jsonl"
+        ).open(encoding="utf-8-sig") as records:
+            raw_rows = [json.loads(row) for row in records]
+        boards = [
+            policy._with_grid_memory(parse_snapshot(raw, policy._monrace_knowledge))
+            for raw in raw_rows
+        ]
+        board = replace(
+            boards[-1],
+            quests={
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_TAKEN, fixed=True, level=5
+                )
+            },
+        )
+        self.assertEqual(board.player.position, Position(45, 109))
+        self.assertEqual((board.player.hp, board.player.max_hp), (85, 85))
+        self.assertEqual(board.player.gold, 33)
+        self.assertEqual(policy._count_throwing_torches(board), 20)
+        return policy, board
+
+    def test_current_q34_entrance_replay_enters_on_reviewed_readiness(self):
+        policy, board = self._warmed_current_q34_entrance_replay()
+
+        uncalibrated = self._policy()
+        preparation = uncalibrated._prepare_equipment_optimization(board)
+        self.assertEqual(preparation.blockers, ("calibration-required",))
+        self.assertFalse(uncalibrated._equipment_departure_ready(board))
+        self.assertTrue(policy._evaluate_fixed_quest_readiness(
+            board, 34, require_target_town=True
+        ))
+        self.assertAlmostEqual(
+            policy._fixed_quest_readiness["strategy_force"]["dps"]["measured"],
+            22.4,
+            places=1,
+        )
+
+        self.assertEqual(QuestFloorNavigator.enter_from_town(policy, board, 34), ">y")
+        self.assertEqual(policy.last_reason, "quest:enter")
+
+    def test_current_q34_entrance_replay_refuses_failed_strategy_force(self):
+        policy, board = self._warmed_current_q34_entrance_replay()
+        injured = replace(board, player=replace(board.player, hp=9, max_hp=9))
+
+        self.assertIsNone(QuestFloorNavigator.enter_from_town(policy, injured, 34))
+        self.assertEqual(policy._fixed_quest_readiness["reason"], "strategy-force")
+        self.assertEqual(policy.last_reason, "quest:readiness:strategy-force")
+
+    def test_finished_q34_other_quest_keeps_calibration_entry_refusal(self):
+        policy, board = self._warmed_current_q34_entrance_replay()
+        control = replace(
+            board,
+            quests={
+                34: QuestState(
+                    id=34, status=QUEST_STATUS_FINISHED, fixed=True, level=5
+                ),
+                1: QuestState(
+                    id=1, status=QUEST_STATUS_TAKEN, fixed=True, level=5
+                ),
+            },
+        )
+
+        self.assertFalse(policy._opening_q34_active(control))
+        self.assertFalse(policy._quest_equipment_entry_allowed(control, 1))
+        self.assertEqual(policy._town_blocked_reason, "equipment-departure-incomplete")
+        self.assertEqual(policy._departure_block["failed"], [
+            "recall_departure_ready",
+            "food_ready",
+            "teleport_ready",
+            "cure_critical_ready",
+            "equipment_departure_ready",
+            "home_candidate_resolved",
+            "home_catalog_ready",
+        ])
+
     def test_frozen_q34_offer_is_stable_across_mapless_store_snapshot(self):
         evidence = Path(
             "jsonlog/evidence-q34-contract-flicker-20260814.jsonl"
