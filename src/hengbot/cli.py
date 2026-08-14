@@ -51,6 +51,10 @@ from hengbot.flight_recorder import (
 )
 from hengbot.save_archive import SaveArchiveCoordinator
 
+CAPTURE_LEDGER_ROOT = Path(__file__).resolve().parents[2] / "capture-ledger"
+READ_BATCH_LEDGER_PATH = CAPTURE_LEDGER_ROOT / "read-batches.jsonl"
+KNOWLEDGE_RESPONSE_LEDGER_PATH = CAPTURE_LEDGER_ROOT / "knowledge-responses.jsonl"
+
 
 # Character posted to the window to dismiss a message / "-more-" prompt that the
 # game shows without emitting a new bot snapshot (e.g. the level feeling printed
@@ -2136,8 +2140,22 @@ def _run_follow(
     recent_reasons: deque[str] = deque(maxlen=20)
     if posting_contract is None:
         posting_contract = PostingContract()
+    batch_seq = 0
+    pending_batch_row = None
+
+    def finish_pending_batch() -> None:
+        nonlocal pending_batch_row
+        if pending_batch_row is not None:
+            _append_capture_ledger(
+                READ_BATCH_LEDGER_PATH,
+                pending_batch_row,
+                args.recorder_log_rotate_bytes,
+                args.recorder_log_generations,
+            )
+            pending_batch_row = None
 
     def incident_stop(kind: str, snapshot) -> int:
+        finish_pending_batch()
         _freeze_incident_safely(
             recorder,
             kind, policy, snapshot, args.decision_log, list(recent_reasons)
@@ -2212,10 +2230,12 @@ def _run_follow(
         look_barrier_started_at = 0.0
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         while True:
+            finish_pending_batch()
             _arm_decision_watchdog()
             save_archive.poll(time.monotonic())
             chunk = file.read()
             if chunk:
+                batch_seq += 1
                 decision_started_at = time.perf_counter()
                 decision_timing = {
                     "record_snapshot_lines_ms": 0.0,
@@ -2238,6 +2258,21 @@ def _run_follow(
                 decision_timing["decode_ms"] = round(
                     (time.perf_counter() - phase_started_at) * 1000, 3
                 )
+                pending_batch_row = {
+                    "time": datetime.now().isoformat(),
+                    "batch_seq": batch_seq,
+                    "line_count": len(complete_lines),
+                    "line_turns": [
+                        row.get("turn") if isinstance(row, dict) else None
+                        for row in decoded_lines
+                    ],
+                    "line_types": [
+                        row.get("type") if isinstance(row, dict) else None
+                        for row in decoded_lines
+                    ],
+                    "decided": False,
+                    "posted_key": None,
+                }
                 needs_ordered_snapshots = (
                     home_entry_capture is not None
                     and home_entry_capture.pending is not None
@@ -2380,6 +2415,7 @@ def _run_follow(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
                     key = policy.validate_read_key(snapshot, chosen_key)
+                    pending_batch_row["decided"] = True
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
@@ -2603,6 +2639,7 @@ def _run_follow(
                         snapshot=snapshot,
                         posting_contract=posting_contract,
                     )
+                    pending_batch_row["posted_key"] = key if sent else None
                     decision_timing["send_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
@@ -2652,6 +2689,7 @@ def _run_follow(
                             snapshot=snapshot,
                             posting_contract=posting_contract,
                         )
+                        pending_batch_row["posted_key"] = key if sent else None
                         decision_timing["send_ms"] = round(
                             decision_timing["send_ms"]
                             + (time.perf_counter() - phase_started_at) * 1000,
@@ -3036,8 +3074,24 @@ def _decode_response_lines(complete_lines):
     return decoded_lines
 
 
+def _append_capture_ledger(
+    path: Path, row: Mapping, rotate_bytes=DEFAULT_LOG_ROTATE_BYTES,
+    generations=DEFAULT_LOG_GENERATIONS,
+) -> None:
+    """Append one bounded instrumentation row without affecting play."""
+    try:
+        rotate_log(path, rotate_bytes, generations)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
+            stream.write("\n")
+    except (OSError, TypeError, ValueError) as exc:
+        print(f"capture ledger failed to append {path}: {exc}", file=sys.stderr)
+
+
 def _dispatch_response_lines(
-    complete_lines, policy, send, *, decoded_lines=None
+    complete_lines, policy, send, *, decoded_lines=None,
+    knowledge_ledger_path: Path | None = None,
 ) -> int:
     """Consume requested menu responses without treating them as board states."""
     if decoded_lines is None:
@@ -3054,6 +3108,9 @@ def _dispatch_response_lines(
             continue
         consumed += 1
         knowledge = data.get("knowledge")
+        inflight_at_arrival = bool(
+            getattr(policy, "_home_knowledge_scan_inflight", False)
+        )
         requested_home_knowledge = (
             response_type == "knowledge"
             and isinstance(knowledge, dict)
@@ -3061,6 +3118,24 @@ def _dispatch_response_lines(
             and knowledge.get("menu_key") == "9"
             and getattr(policy, "_home_knowledge_scan_inflight", False)
         )
+        if response_type == "knowledge" and isinstance(knowledge, dict):
+            knowledge_items = knowledge.get("items", ())
+            _append_capture_ledger(
+                knowledge_ledger_path or KNOWLEDGE_RESPONSE_LEDGER_PATH,
+                {
+                    "time": datetime.now().isoformat(),
+                    "turn": data.get("turn"),
+                    "category": knowledge.get("category"),
+                    "menu_key": knowledge.get("menu_key"),
+                    "item_count": len(knowledge_items) if isinstance(
+                        knowledge_items, (list, tuple)
+                    ) else 0,
+                    "accepted": requested_home_knowledge,
+                    "inflight_at_arrival": inflight_at_arrival,
+                },
+                getattr(policy, "_recorder_log_rotate_bytes", DEFAULT_LOG_ROTATE_BYTES),
+                getattr(policy, "_recorder_log_generations", DEFAULT_LOG_GENERATIONS),
+            )
         if requested_home_knowledge:
             policy.consume_home_knowledge(
                 tuple(_parse_items(knowledge.get("items", [])))
@@ -3084,13 +3159,43 @@ def _dispatch_response_lines(
 
 def _consume_response_sequence(
     complete_lines, policy, send, monrace_knowledge=None, *, decoded_lines=None,
-    parse_snapshots=True,
+    parse_snapshots=True, batch_ledger=None, knowledge_ledger_path=None,
+    batch_callback=None,
 ):
     """Deliver every JSONL record through the live response consumption path."""
+    if batch_ledger is not None:
+        if isinstance(batch_ledger, (str, Path)):
+            batch_rows = [
+                json.loads(line)
+                for line in Path(batch_ledger).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        else:
+            batch_rows = list(batch_ledger)
+        offset = 0
+        all_decoded = []
+        all_snapshots = []
+        for batch in batch_rows:
+            count = int(batch["line_count"])
+            group = complete_lines[offset : offset + count]
+            offset += count
+            group_decoded, group_snapshots = _consume_response_sequence(
+                group, policy, send, monrace_knowledge,
+                parse_snapshots=parse_snapshots,
+                knowledge_ledger_path=knowledge_ledger_path,
+            )
+            all_decoded.extend(group_decoded)
+            all_snapshots.extend(group_snapshots)
+            if batch_callback is not None:
+                batch_callback(group_decoded, group_snapshots)
+        if offset != len(complete_lines):
+            raise ValueError("batch ledger line counts do not cover the response sequence")
+        return all_decoded, all_snapshots
     if decoded_lines is None:
         decoded_lines = _decode_response_lines(complete_lines)
     _dispatch_response_lines(
-        complete_lines, policy, send, decoded_lines=decoded_lines
+        complete_lines, policy, send, decoded_lines=decoded_lines,
+        knowledge_ledger_path=knowledge_ledger_path,
     )
     snapshots = (
         _snapshot_entries_in_order(

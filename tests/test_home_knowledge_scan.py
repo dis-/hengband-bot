@@ -2,6 +2,7 @@ import json
 import inspect
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -280,6 +281,46 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertEqual([snapshot.store is not None for snapshot in snapshots], [False, True])
         self.assertEqual(policy._home_scan_item_count, 2)
         self.assertEqual(sent, ["\x1b\x1b"])
+
+    def test_full_sequence_replay_uses_three_recorded_batches_for_six_lines(self):
+        lines = [json.dumps(row) for row in (
+            {"type": "player_turn", "turn": 1, "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20}},
+            {"type": "player_turn", "turn": 2, "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20}},
+            home_response(),
+            {"type": "player_turn", "turn": 3, "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20}},
+            {"type": "look", "turn": 3, "look": {"grids": []}},
+            {"type": "player_turn", "turn": 4, "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20}},
+        )]
+        ledger = [{"line_count": 2}, {"line_count": 2}, {"line_count": 2}]
+
+        def run(grouped):
+            policy = HengbotPolicy()
+            policy._home_knowledge_scan_inflight = True
+            decision_keys = []
+
+            def decide(_decoded, snapshots):
+                decision_keys.append(
+                    f"{len(snapshots)}:{policy._home_scan_item_count}"
+                )
+
+            with TemporaryDirectory() as directory:
+                if grouped:
+                    _consume_response_sequence(
+                        lines, policy, lambda _key: None,
+                        batch_ledger=ledger, batch_callback=decide,
+                        knowledge_ledger_path=Path(directory) / "knowledge.jsonl",
+                    )
+                else:
+                    for start in range(0, 6, 2):
+                        decoded, snapshots = _consume_response_sequence(
+                            lines[start:start + 2], policy, lambda _key: None,
+                            knowledge_ledger_path=Path(directory) / "knowledge.jsonl",
+                        )
+                        decide(decoded, snapshots)
+            return decision_keys
+
+        self.assertEqual(run(True), run(False))
+        self.assertEqual(run(True), ["2:None", "1:2", "1:2"])
 
     def test_missing_response_falls_back_to_existing_page_scan(self):
         policy = HengbotPolicy()

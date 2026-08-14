@@ -406,14 +406,20 @@ class DecisionWatchdogTest(unittest.TestCase):
 
 
 class DecisionTimingTest(unittest.TestCase):
-    def test_follow_decision_records_all_non_negative_timing_phases(self):
+    def test_follow_records_batch_spans_posted_key_and_inflight_knowledge(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
+            batch_path = root / "read-batches.jsonl"
+            knowledge_path = root / "knowledge-responses.jsonl"
             state_path = root / "state.jsonl"
             decision_path = root / "decisions.jsonl"
             initial_line = _snap_line(1, 5, 5)
             decision_line = _snap_line(2, 5, 5)
             stop_line = _snap_line(3, 5, 5)
+            knowledge_line = json.dumps({
+                "type": "knowledge", "turn": 2,
+                "knowledge": {"category": "home", "menu_key": "9", "items": []},
+            }) + "\n"
             state_path.write_text(initial_line, encoding="utf-8")
             args = _build_argument_parser().parse_args([
                 "--state-file", str(state_path),
@@ -427,9 +433,10 @@ class DecisionTimingTest(unittest.TestCase):
                 if snapshot.turn == 3:
                     policy.last_reason = "equipment-transaction:restore-blocked-terminal"
                     return ""
-                policy.last_reason = "timing:test"
+                policy.last_reason = "home:request-knowledge-scan"
+                policy._home_knowledge_scan_requested = True
                 policy._decision_sequence += 1
-                return "5"
+                return "~9"
 
             policy.choose_key = unittest.mock.Mock(side_effect=choose)
             sent = []
@@ -442,17 +449,24 @@ class DecisionTimingTest(unittest.TestCase):
                     # Keep the decision record in a distinct follow poll on
                     # Windows hosts whose scheduler coalesces 50 ms sleeps.
                     time.sleep(0.5)
+                    stream.write(knowledge_line)
+                    stream.flush()
+                    time.sleep(0.5)
                     stream.write(stop_line)
                     stream.flush()
 
             writer = threading.Thread(target=append_snapshots)
             writer.start()
             try:
-                result = _run_follow(
-                    args, policy,
-                    lambda key, **_kwargs: sent.append(key) or True,
-                    {},
-                )
+                with (
+                    patch("hengbot.cli.READ_BATCH_LEDGER_PATH", batch_path),
+                    patch("hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH", knowledge_path),
+                ):
+                    result = _run_follow(
+                        args, policy,
+                        lambda key, **_kwargs: sent.append(key) or True,
+                        {},
+                    )
             finally:
                 writer.join()
 
@@ -460,7 +474,7 @@ class DecisionTimingTest(unittest.TestCase):
                 json.loads(line)
                 for line in decision_path.read_text(encoding="utf-8").splitlines()
             ]
-            row = next(record for record in rows if record["reason"] == "timing:test")
+            row = next(record for record in rows if record["reason"] == "home:request-knowledge-scan")
             timing = row["timing"]
             phase_keys = {
                 "record_snapshot_lines_ms", "decode_ms", "parse_snapshot_ms",
@@ -468,7 +482,7 @@ class DecisionTimingTest(unittest.TestCase):
             }
 
             self.assertEqual(result, 0)
-            self.assertEqual(sent, ["5"])
+            self.assertEqual(sent, ["~9", "\x1b\x1b"])
             self.assertTrue(phase_keys.issubset(timing))
             self.assertTrue(all(timing[name] >= 0 for name in phase_keys))
             self.assertLessEqual(sum(timing[name] for name in phase_keys), timing["total_ms"])
@@ -477,8 +491,23 @@ class DecisionTimingTest(unittest.TestCase):
                 timing["nearby_grids"],
                 len(json.loads(decision_line).get("nearby_grids", ())),
             )
+            batch_rows = [
+                json.loads(line) for line in batch_path.read_text().splitlines()
+            ]
+            knowledge_rows = [
+                json.loads(line) for line in knowledge_path.read_text().splitlines()
+            ]
+            self.assertEqual([item["line_count"] for item in batch_rows], [1, 1, 1])
+            self.assertEqual(batch_rows[0]["line_turns"], [2])
+            self.assertEqual(batch_rows[0]["posted_key"], "~9")
+            self.assertTrue(batch_rows[0]["decided"])
+            self.assertEqual(batch_rows[1]["line_types"], ["knowledge"])
+            self.assertFalse(batch_rows[1]["decided"])
+            self.assertTrue(knowledge_rows[0]["accepted"])
+            self.assertTrue(knowledge_rows[0]["inflight_at_arrival"])
 
-    def test_timing_addition_preserves_the_existing_decision_row(self):
+    @patch("hengbot.cli._append_capture_ledger")
+    def test_capture_ledger_preserves_decision_row_shape_including_timing(self, append):
         snapshot = parse_snapshot(json.loads(_snap_line(7, 5, 6)), {})
         timing = {
             "record_snapshot_lines_ms": 0.1,
@@ -492,12 +521,14 @@ class DecisionTimingTest(unittest.TestCase):
         }
 
         original = _decision_record(snapshot, "6", "timing:test")
-        instrumented = _decision_record(
+        before = _decision_record(
             snapshot, "6", "timing:test", timing=timing
         )
-        del instrumented["timing"]
+        append(Path("ignored"), {"instrumentation": True})
+        after = _decision_record(snapshot, "6", "timing:test", timing=timing)
 
-        self.assertEqual(instrumented, original)
+        self.assertEqual(before, after)
+        self.assertEqual({key: value for key, value in before.items() if key != "timing"}, original)
 
 
 class PeriodicDumpTimerTest(unittest.TestCase):
