@@ -15498,6 +15498,20 @@ class HengbotPolicy:
                 departure_ready = self._town_departure_ready(snapshot)
             return departure_ready
 
+        # An inscription is only the entry half of a two-stage sale.  Keep the
+        # store that owns its pending tail ahead of freshly rebuilt purchase,
+        # Home, and fundraising claims until the tagged item is observed and
+        # the sale is composed.  Otherwise an unaffordable purchase can route
+        # away from the sale that would fund it, leaving the batch owner alive
+        # but permanently uncomposable.
+        pending_sale = self._batch_sell_pending
+        if (
+            snapshot.in_town
+            and pending_sale is not None
+            and pending_sale.get("phase") in {"await-inscription", "await-sale"}
+        ):
+            return int(pending_sale["store_type"])
+
         if (
             snapshot.in_town
             and snapshot.player.hungry

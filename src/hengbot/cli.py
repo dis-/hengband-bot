@@ -1175,6 +1175,13 @@ def _stopping_town_stall_report(
     )
 
 
+def _town_stall_report_terminates_named_block(
+    report: dict | None, reason: str
+) -> bool:
+    """Treat the existing named-block report cadence as its terminal bound."""
+    return report is not None and reason.startswith("town:blocked:")
+
+
 def _depth_safety(snapshot, policy) -> dict:
     """Surface the depth-requirement check so a lethal resistance gap is visible
     (the bot gates its descent on this — see AGENTS.md)."""
@@ -2405,6 +2412,15 @@ def _run_follow(
                             floor_changed=floor_changed,
                         )
                     )
+                    # A named block report is emitted only after the existing
+                    # extended no-progress cadence has matured.  At that point
+                    # another WAIT cannot discover new work: make the report's
+                    # ledger-backed terminal authoritative instead of letting
+                    # an escape-budget exemption post WAIT indefinitely.
+                    if _town_stall_report_terminates_named_block(
+                        town_stall_report, policy.last_reason
+                    ):
+                        blocked_streak = TOWN_BLOCKED_STOP_LIMIT
                     stopping_town_stall_report = _stopping_town_stall_report(
                         snapshot,
                         policy,

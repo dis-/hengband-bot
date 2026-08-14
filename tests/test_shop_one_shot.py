@@ -7,12 +7,14 @@ from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
     Position,
     Snapshot,
+    STORE_ALCHEMIST,
     STORE_HOME,
     StoreItem,
     StoreState,
     SV_BOW_SLING,
     SV_DIGGING_SHOVEL,
     SV_POTION_CURE_CRITICAL,
+    SV_POTION_RESIST_COLD,
     SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_TELEPORT,
     SV_SCROLL_WORD_OF_RECALL,
@@ -184,6 +186,33 @@ class ShopOneShotTest(unittest.TestCase):
             else:
                 self.fail((state, pressed))
         self.assertEqual((state, len(pack), gold), ("surface", 0, 7714))
+
+    def test_pending_inscription_bound_sale_outranks_purchase_and_composes_exact_tail(self):
+        """The frozen low-level sale may not lose its second visit to buying."""
+        sold = item("b", TVAL_POTION, SV_POTION_RESIST_COLD, name="potion")
+        wanted = store_item(
+            "m", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, price=24, count=46
+        )
+        inside = self._inside(STORE_ALCHEMIST, [sold], [wanted], gold=104)
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        outside = self._outside(policy, inside)
+        self.assertEqual(policy.choose_key(outside), "{b@0\r")
+
+        tagged_outside = replace(
+            outside,
+            inventory=[replace(sold, inscription="@0")],
+            turn=outside.turn + 1,
+        )
+        self.assertEqual(policy.choose_key(tagged_outside), "5")
+        tagged_inside = replace(
+            inside,
+            inventory=tagged_outside.inventory,
+            turn=tagged_outside.turn + 1,
+        )
+        self.assertEqual(policy.choose_key(tagged_inside), "d0y\x1b")
+        self.assertEqual(policy.last_reason, "shop:one-shot-sell")
 
     def test_buy_observe_then_driven_one_shot_debits_gold_and_adds_pack(self):
         ware = store_item(

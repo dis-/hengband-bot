@@ -47,6 +47,7 @@ from hengbot.cli import (
     _input_delay_values,
     _decision_record,
     _town_stall_report,
+    _town_stall_report_terminates_named_block,
     _duplicate_snapshot_ready,
     _direction_desynchronized,
     _decode_response_lines,
@@ -1422,6 +1423,23 @@ class DecisionRecordTest(unittest.TestCase):
         )
 
         self.assertIsNone(report)
+
+    def test_named_block_becomes_terminal_at_existing_report_cadence(self):
+        snapshot = self._town_snapshot()
+        policy = self._town_stall_policy()
+        reason = "town:blocked:repetition"
+
+        before = _town_stall_report(
+            snapshot, policy, reason,
+            repeating_reason_count=EXTENDED_STUCK_WINDOW - 1,
+        )
+        due = _town_stall_report(
+            snapshot, policy, reason,
+            repeating_reason_count=EXTENDED_STUCK_WINDOW,
+        )
+
+        self.assertFalse(_town_stall_report_terminates_named_block(before, reason))
+        self.assertTrue(_town_stall_report_terminates_named_block(due, reason))
 
     def test_live_town_stall_repeating_reason_wiring_counts_and_reports(self):
         snapshot = self._town_snapshot()
