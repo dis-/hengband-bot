@@ -17221,6 +17221,42 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:approach-opening-lantern"
         )
 
+    def test_q34_routes_back_from_lantern_on_static_battlefield(self):
+        policy = self._policy(q34_opening_light=True)
+        terrain = {
+            **{(y, 20): "floor" for y in range(1, 11)},
+            **{(1, x): "floor" for x in range(1, 21)},
+            **{(y, 1): "floor" for y in range(1, 12)},
+            (11, 2): "door",
+        }
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            battlefield=QuestBattlefield(terrain=terrain),
+        )
+        snapshot = Snapshot(
+            player(10, 20),
+            {
+                Position(10, 20): grid(10, 20),
+                Position(9, 20): grid(9, 20),
+            },
+            [],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN,
+                    aware=False, fuel=0, is_equipment=True,
+                )
+            ],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), "8"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:approach-opening-door"
+        )
+
     def test_q34_recovery_never_routes_through_glass_doors(self):
         policy = self._policy()
         grids = {

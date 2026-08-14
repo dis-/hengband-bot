@@ -24007,7 +24007,9 @@ class HengbotPolicy:
                         corner = Position(*opening_corner)
                         if snapshot.player.position.x != corner.x:
                             route_goal = corner
-                    step = self._town_map_goal_step(snapshot, route_goal)
+                    step = self._quest_strategy_route_step(
+                        snapshot, profile, route_goal
+                    )
                     if step is None:
                         self.last_reason = "quest-strategy:opening-door-unreachable"
                         return WAIT_KEY
