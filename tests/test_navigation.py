@@ -293,6 +293,23 @@ class StairRejectionInvalidationTest(unittest.TestCase):
 
         self.assertEqual(posted, ["<"])
 
+    def test_message_clear_stale_board_does_not_repost_fundraising_ascend(self):
+        first_board = replace(
+            self._stair_snapshot(upstairs=True, turn=329416),
+            messages=("The bell rings three times!",),
+        )
+        stale_board = replace(first_board, messages=())
+        policy = self._fundraising_ascender(first_board)
+
+        posted = [
+            key for key in (
+                policy.choose_key(first_board),
+                policy.choose_key(stale_board),
+            ) if key
+        ]
+
+        self.assertEqual(posted, ["<"])
+
     def test_floor_change_releases_stair_command_for_a_new_post(self):
         snapshot = self._stair_snapshot(upstairs=True, turn=4519803)
         policy = self._fundraising_ascender(snapshot)
@@ -738,6 +755,11 @@ class NavigationInvariantTest(unittest.TestCase):
         )
         policy.refuse_key_posting(incident["owner"], incident["key"])
         self.assertFalse(policy._owner_may_select(snapshot, "return:recall"))
+
+        probe = policy.choose_key(snapshot)
+        self.assertEqual((probe, policy.last_reason), ("l\x1b", "return:recall"))
+        self.assertTrue(contract.allow(snapshot, probe, policy.last_reason))
+        contract.posted(snapshot, probe, policy.last_reason)
 
         fallback = policy.choose_key(snapshot)
         self.assertEqual(

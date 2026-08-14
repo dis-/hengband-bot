@@ -1643,6 +1643,8 @@ class HengbotPolicy:
         self._look_floor_object_counts: dict[Position, int] = {}
         self._look_floor_key: tuple[int, int, int] | None = None
         self._look_probe_inflight = False
+        self._posting_refusal_probe: tuple[str, OwnerProgressCore] | None = None
+        self._last_policy_progress_core: OwnerProgressCore | None = None
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
         self._quest_strategy_visible_never_move: dict[int, set[int]] = {}
         self._quest_strategy_defeated_never_move: dict[int, set[int]] = {}
@@ -2819,6 +2821,17 @@ class HengbotPolicy:
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
+        current_progress_core = self._owner_progress_core(snapshot)
+        refusal_probe = self._posting_refusal_probe
+        if refusal_probe is not None:
+            self._posting_refusal_probe = None
+            refusal_owner, refusal_core = refusal_probe
+            if current_progress_core == refusal_core:
+                self._last_policy_progress_core = current_progress_core
+                key = self._look_probe_key(snapshot)
+                self.last_reason = refusal_owner
+                return key
+        self._last_policy_progress_core = current_progress_core
         home_capture = self._home_entry_capture
         if home_capture is not None:
             key = home_capture.choose_key(self, snapshot)
@@ -4657,6 +4670,12 @@ class HengbotPolicy:
         strategic_adjacent = self._strategic_adjacent_hostiles(snapshot)
         physical_hostiles = self._physical_hostiles(snapshot)
         physical_adjacent = self._physical_adjacent_hostiles(snapshot)
+        # The global map is a distinct command space.  Town/store owners can
+        # retain durable work while crossing it, but their travel, shopping,
+        # repetition, and fundraising commands are not valid here.  Route or
+        # enter the town before allowing any of those owners to select again.
+        if self._on_global_wilderness_map(snapshot):
+            return self._wilderness_survival_key(snapshot, physical_hostiles)
         self._update_mining_combat_streaks(
             snapshot, physical_hostiles, physical_adjacent
         )
@@ -5959,7 +5978,16 @@ class HengbotPolicy:
             return
         direction, floor_key, position, turn, pending_observation = pending
         current_observation = snapshot if observation is None else observation
-        if current_observation is pending_observation:
+        if (
+            current_observation is pending_observation
+            or (
+                pending_observation.messages
+                and not current_observation.messages
+                and current_observation.turn == pending_observation.turn
+                and self._owner_progress_core(current_observation)
+                == self._owner_progress_core(pending_observation)
+            )
+        ):
             return
         self._pending_stair_command = None
         if (
@@ -11092,6 +11120,20 @@ class HengbotPolicy:
 
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
+        # The posting contract correctly refuses an identical key/effect pair.
+        # Interleave the existing look probe while the issuing progress core is
+        # frozen so a recovered modal cannot make that refusal absorbing.
+        pending = self._owner_expectations._pending.get(owner)
+        if pending is None and owner.startswith("equipment-transaction:"):
+            pending = self._owner_expectations._pending.get(
+                "equipment-transaction"
+            )
+        if pending is not None:
+            self._posting_refusal_probe = (owner, pending.progress_core)
+        else:
+            core = self._last_policy_progress_core
+            if core is not None:
+                self._posting_refusal_probe = (owner, core)
         if owner == "return:recall" and key.startswith(READ_KEY):
             self._owner_expectations.yield_owner(owner)
             # The command was not posted, so there is nothing to await.  The
@@ -27196,15 +27238,7 @@ class HengbotPolicy:
         """
         player = snapshot.player
         global_map = self._wilderness_map
-        in_global_map = (
-            global_map is not None
-            and snapshot.width == global_map.width
-            and snapshot.height == global_map.height
-            and snapshot.town_id == -1
-            and snapshot.town_index == 0
-            and not snapshot.in_town
-        )
-        if in_global_map:
+        if self._on_global_wilderness_map(snapshot):
             key = global_map.next_key_to_town(player.position.y, player.position.x)
             if key == DOWN_STAIRS_KEY:
                 self.last_reason = "wilderness:enter-town"
@@ -27232,6 +27266,18 @@ class HengbotPolicy:
                     return self._read_key(snapshot, scroll)
         self.last_reason = "wilderness:enter-global"
         return UP_STAIRS_KEY
+
+    def _on_global_wilderness_map(self, snapshot: Snapshot) -> bool:
+        """Classify the measured global-map command space."""
+        global_map = self._wilderness_map
+        return (
+            global_map is not None
+            and snapshot.width == global_map.width
+            and snapshot.height == global_map.height
+            and snapshot.town_id == -1
+            and snapshot.town_index == 0
+            and not snapshot.in_town
+        )
 
     def _return_to_town_key(
         self,

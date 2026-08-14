@@ -6194,6 +6194,8 @@ class ShoppingTest(unittest.TestCase):
         # Live 2026-08-10 shape: the unchanged board made the policy select the
         # identical native-travel macro, which the sender correctly refused.
         pol.refuse_key_posting("shop:travel", "\x1b`n!.")
+        probe = pol.choose_key(snap)
+        self.assertEqual((probe, pol.last_reason), ("l\x1b", "shop:travel"))
         replacement = pol.choose_key(snap)
         self.assertEqual(replacement, "6")
         self.assertEqual(pol.last_reason, "shop:approach")
