@@ -224,7 +224,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         send.assert_called_once_with("\x1b\x1b")
 
-    def test_empty_response_cannot_authorize_a_nonempty_home(self):
+    def test_empty_response_is_authoritative_despite_prior_page_size(self):
         policy = HengbotPolicy()
         policy._home_page_size = 52
         policy._home_errand.file(
@@ -239,18 +239,11 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         _dispatch_response_lines([json.dumps(response)], policy, sent.append)
 
         self.assertEqual(sent, ["\x1b\x1b"])
-        self.assertFalse(policy._home_knowledge_current)
+        self.assertTrue(policy._home_knowledge_current)
         self.assertEqual(policy._home_knowledge_valid_before, 0)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-        self.assertTrue(policy._home_knowledge_invalidated)
-        self.assertEqual(policy._home_errand.state, HomeErrandState.NEED_KNOWLEDGE)
-        policy._home_knowledge_scan_retries_remaining = 0
-        policy.choose_key(town_with_home())
-        self.assertEqual(policy._home_errand.state, HomeErrandState.STOPPED)
-        self.assertEqual(
-            policy._home_errand.reason("ignored"),
-            "home-errand:stopped:knowledge-response-missing",
-        )
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertFalse(policy._home_knowledge_invalidated)
+        self.assertEqual(policy._home_errand.state, HomeErrandState.COMPOSABLE)
 
     def test_full_sequence_helper_delivers_every_response_and_snapshot_in_order(self):
         policy = HengbotPolicy()

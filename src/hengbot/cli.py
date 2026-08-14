@@ -355,6 +355,7 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 POLICY_FINAL_STOP_REASONS = frozenset(
     {
         "equipment-transaction:restore-blocked-terminal",
+        "town:blocked:home-known-empty-withdrawal",
         "wilderness:no-safe-route",
     }
 )

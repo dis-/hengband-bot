@@ -22039,7 +22039,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._home_pending_slot, "a")
         self.assertNotIn(signature, policy._deferred_home_items)
 
-    def test_returns_home_after_buying_star_identify_for_stored_candidate(self):
+    def test_unobserved_identify_candidate_does_not_claim_home_route(self):
         target = item(
             "a",
             23,
@@ -22074,9 +22074,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._home_candidate_waiting = True
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
-        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        self.assertNotEqual(policy._next_required_store_type(snap), STORE_HOME)
         self.assertNotEqual(policy.choose_key(snap), RESTOCK_WAIT_MACRO)
-        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertNotEqual(policy.last_reason, "shop:approach")
 
     def test_full_identify_errand_precedes_unrelated_home_deposit(self):
         target = item(
@@ -42818,7 +42818,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertIsNotNone(candidate)
         self.assertEqual(candidate.name, "unknown sword")
 
-    def test_prime_queues_only_equipment_needing_identification(self):
+    def test_prime_does_not_claim_pack_identification_candidate_is_in_home(self):
         complete = item(
             "a", 23, 1, name="known sword", known=True, fully_known=True,
             is_equipment=True,
@@ -42831,12 +42831,9 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         policy.prime(self._town(inventory=(complete, incomplete)))
 
-        self.assertEqual(
-            policy._home_pending_batch,
-            [policy._item_signature(incomplete)],
-        )
+        self.assertEqual(policy._home_pending_batch, [])
 
-    def test_prime_queues_unknown_nonaverage_light(self):
+    def test_prime_does_not_claim_pack_light_is_in_home(self):
         lamp = item(
             "n", TVAL_LITE, 2, name="unknown permanent light",
             known=False, fully_known=False, is_equipment=True,
@@ -42846,12 +42843,9 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         policy.prime(self._town(inventory=(lamp,)))
 
-        self.assertEqual(
-            policy._home_pending_batch,
-            [policy._item_signature(lamp)],
-        )
+        self.assertEqual(policy._home_pending_batch, [])
 
-    def test_identification_owner_predicate_matches_prime_queue(self):
+    def test_identification_owner_predicate_does_not_create_home_claims(self):
         items = (
             item(
                 "a", 23, 1, name="unknown ego", known=False,
@@ -42875,12 +42869,8 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         policy.prime(self._town(inventory=items))
 
-        expected = [
-            policy._item_signature(candidate)
-            for candidate in items
-            if policy._identification_flow_candidate(candidate)
-        ]
-        self.assertEqual(policy._home_pending_batch, expected)
+        self.assertTrue(any(policy._identification_flow_candidate(item) for item in items))
+        self.assertEqual(policy._home_pending_batch, [])
 
     def test_optimizer_preserves_identification_owned_pack_item(self):
         pending = item(
@@ -45371,7 +45361,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._home_pending_batch, [pending])
         self.assertEqual(policy._home_atomic_withdraw_pending, inflight)
 
-    def test_next_town_visit_rebuilds_blocked_home_identification_batch(self):
+    def test_next_town_visit_does_not_rebuild_pack_item_as_home_claim(self):
         needs = [TownNeed(STORE_HOME, "safe-weapon", "home-first")]
         policy = self._policy(needs)
         town = replace(self._snapshot(), town_flag=True)
@@ -45392,10 +45382,7 @@ class TownErrandPlanTest(unittest.TestCase):
         next_visit = replace(town, inventory=(pending,), turn=town.turn + 1)
         policy.prime(next_visit)
 
-        self.assertEqual(
-            policy._home_pending_batch,
-            [policy._item_signature(pending)],
-        )
+        self.assertEqual(policy._home_pending_batch, [])
 
     def test_unsatisfied_stop_blocks_across_plan_rebuild(self):
         needs = [
@@ -46799,6 +46786,65 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             )
         )
         self.assertEqual(policy.last_reason, "home:await-fresh-knowledge")
+
+    def test_in_store_stock_count_invalidates_stale_empty_knowledge(self):
+        observed = store_item("a", TVAL_POTION, 361, name="observed")
+        policy = HengbotPolicy()
+        self.assertTrue(policy.consume_home_knowledge(()))
+
+        policy.choose_key(
+            self._home_page_snapshot(
+                [], [observed], turn=76934, stock_num=1,
+                page_top=0, page_size=52,
+            )
+        )
+
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertIsNone(policy._home_scan_item_count)
+
+    def test_in_store_stock_count_invalidates_stale_nonempty_knowledge(self):
+        stale = store_item("a", TVAL_POTION, 362, name="stale")
+        policy = HengbotPolicy()
+        self.assertTrue(policy.consume_home_knowledge((stale,)))
+
+        policy.choose_key(
+            self._home_page_snapshot(
+                [], [], turn=76935, stock_num=0,
+                page_top=0, page_size=52,
+            )
+        )
+
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertIsNone(policy._home_scan_item_count)
+
+    def test_known_empty_home_completes_withdrawal_only_owner(self):
+        pending = ("phantom", TVAL_SWORD, 99)
+        policy = HengbotPolicy()
+        policy._home_pending_batch = [pending]
+        self.assertTrue(policy.consume_home_knowledge(()))
+        snapshot = self._entrance_snapshot([])
+
+        self.assertFalse(policy._home_owner_goal_pending(snapshot))
+        self.assertNotIn(
+            "equipment-catalog",
+            {
+                need.category
+                for need in policy._enumerate_town_needs(snapshot)
+                if need.store_type == STORE_HOME
+            },
+        )
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            stops=[STORE_HOME, STORE_MAGIC],
+            need_categories={STORE_HOME: ("equipment-catalog",)},
+        )
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=True,
+        )
+        self.assertEqual(policy._town_errand_plan.index, 1)
+        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
+        self.assertEqual(
+            policy._town_blocked_reason, "home-known-empty-withdrawal",
+        )
 
     def test_observed_page_letter_is_authoritative_not_absolute_index(self):
         target = store_item("Q", TVAL_POTION, 370, name="unusual displayed letter")

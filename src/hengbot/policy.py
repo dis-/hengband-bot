@@ -3033,6 +3033,16 @@ class HengbotPolicy:
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
+            and self._home_knowledge_current
+            and getattr(snapshot.store, "stock_num", None) is not None
+            and snapshot.store.stock_num != self._home_scan_item_count
+        ):
+            # The in-store count and ~9 are independent observations.  Whichever
+            # arrives second invalidates a contradictory address catalogue.
+            self._invalidate_home_observation()
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
             and getattr(snapshot.store, "page_size", None) is not None
             and snapshot.store.page_size > 0
         ):
@@ -3451,11 +3461,24 @@ class HengbotPolicy:
             snapshot.store is not None and self._store_visit is None
         )
         if unintended_store_context:
-            self.last_reason = (
-                "home:store-context-exit"
-                if snapshot.store.store_type == STORE_HOME
-                else "shop:store-context-exit"
-            )
+            if (
+                snapshot.store.store_type == STORE_HOME
+                and self._home_knowledge_current
+                and self._home_scan_item_count == 0
+                and self._home_atomic_deposit_pending is None
+                and not self._calibration_active()
+                and self._equipment_transaction_session is None
+            ):
+                self._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=True,
+                )
+                self.last_reason = "town:blocked:home-known-empty-withdrawal"
+            else:
+                self.last_reason = (
+                    "home:store-context-exit"
+                    if snapshot.store.store_type == STORE_HOME
+                    else "shop:store-context-exit"
+                )
             key = LEAVE_STORE_KEY
         elif pending_home_transaction:
             # Observation above already accounts for the posted action.  This
@@ -3517,7 +3540,19 @@ class HengbotPolicy:
             elif getattr(snapshot, "turn", 0) > leave_turn:
                 self._store_leave_inflight = None
                 if snapshot.store.store_type == STORE_HOME:
-                    self.last_reason = "home:store-context-exit"
+                    if (
+                        self._home_knowledge_current
+                        and self._home_scan_item_count == 0
+                        and self._home_atomic_deposit_pending is None
+                        and not self._calibration_active()
+                        and self._equipment_transaction_session is None
+                    ):
+                        self._report_town_stop_pass(
+                            snapshot, STORE_HOME, goal_satisfied=True,
+                        )
+                        self.last_reason = "town:blocked:home-known-empty-withdrawal"
+                    else:
+                        self.last_reason = "home:store-context-exit"
                     key = LEAVE_STORE_KEY
                 else:
                     key = self._decide(snapshot)
@@ -3550,6 +3585,18 @@ class HengbotPolicy:
             rearm = self._home_rearm_key(snapshot)
             if rearm is not None:
                 key = rearm
+            elif (
+                self._home_knowledge_current
+                and self._home_scan_item_count == 0
+                and self._home_atomic_deposit_pending is None
+                and not self._calibration_active()
+                and self._equipment_transaction_session is None
+            ):
+                self._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=True,
+                )
+                self.last_reason = "town:blocked:home-known-empty-withdrawal"
+                key = LEAVE_STORE_KEY
             else:
                 self.last_reason = "home:store-context-exit"
                 self._post_owner_expectation(
@@ -3910,14 +3957,6 @@ class HengbotPolicy:
 
     def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> bool:
         """Consume the complete Home list returned by the emitter's ``~9``."""
-        if not items and (
-            (self._home_page_size is not None and self._home_page_size > 0)
-            or (self._home_scan_item_count or 0) > 0
-        ):
-            self._home_knowledge_current = False
-            self._home_knowledge_invalidated = True
-            self._home_errand.observe_knowledge(False)
-            return False
         self._home_knowledge_items = tuple(items)
         self._home_knowledge_valid_before = len(items)
         self._home_knowledge_current = True
@@ -4076,17 +4115,9 @@ class HengbotPolicy:
                 self._home_pending_item = self._item_signature(withdrawn)
                 self._home_pending_slot = withdrawn.slot
         if snapshot.in_town:
-            seen = {
-                self._home_pending_item
-            } if self._home_pending_item is not None else set()
-            for item in snapshot.inventory:
-                if not self._identification_flow_candidate(item):
-                    continue
-                signature = self._item_signature(item)
-                if signature in seen:
-                    continue
-                seen.add(signature)
-                self._home_pending_batch.append(signature)
+            # Inventory candidates are not evidence of Home membership.  The
+            # identification flow owns them in the pack; only Home-sourced
+            # observations may create Home withdrawal claims.
             if self._home_pending_item is not None or self._home_pending_batch:
                 self._home_candidate_waiting = False
         treasure_scrolls = self._count_treasure_detection_scrolls(snapshot)
@@ -12631,7 +12662,10 @@ class HengbotPolicy:
                 knowledge_current=self._home_knowledge_current,
             )
             return
-        if self._identification_candidate is not None:
+        if (
+            self._identification_candidate is not None
+            and self._identification_candidate in observed
+        ):
             self._file_home_errand(
                 snapshot,
                 HomeErrandRequest(
@@ -15055,6 +15089,16 @@ class HengbotPolicy:
                     add(STORE_GENERAL, "throwing-torches")
             return needs
 
+        home_identification_claim = (
+            self._identification_candidate is None
+            or self._home_errand.active
+            or any(
+                owned.origin == "home"
+                and self._item_signature(owned.item)
+                == self._identification_candidate
+                for owned in self._equipment_catalog.items
+            )
+        )
         if self._identification_need is not None:
             source = self._find_identification_source(
                 snapshot,
@@ -15063,10 +15107,18 @@ class HengbotPolicy:
             )
             if source is None and STORE_ALCHEMIST not in self._town_store_attempted:
                 add(STORE_ALCHEMIST, "identification-source", "before-withdrawal")
-            elif self._home_candidate_waiting and self._home_available(snapshot):
+            elif (
+                self._home_candidate_waiting
+                and home_identification_claim
+                and self._home_available(snapshot)
+            ):
                 add(STORE_HOME, "identification-withdrawal", "post-alchemist-home")
             return needs
-        if self._home_candidate_waiting and self._home_available(snapshot):
+        if (
+            self._home_candidate_waiting
+            and home_identification_claim
+            and self._home_available(snapshot)
+        ):
             add(STORE_HOME, "identification-withdrawal", "post-alchemist-home")
 
         supply_categories = {
@@ -15206,6 +15258,10 @@ class HengbotPolicy:
             add(STORE_ALCHEMIST, "launcher-enchant")
         if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            and not (
+                self._home_knowledge_current
+                and self._home_scan_item_count == 0
+            )
             and (
                 (
                     not self._equipment_catalog.home_scan_complete
@@ -15395,6 +15451,18 @@ class HengbotPolicy:
         finally:
             self._town_need_evaluation_snapshot = None
             self._town_need_evaluation_candidates = None
+        if (
+            self._home_knowledge_current
+            and self._home_scan_item_count == 0
+            and not self._calibration_active()
+            and self._equipment_transaction_session is None
+        ):
+            needs = [
+                need
+                for need in needs
+                if need.store_type != STORE_HOME
+                or need.category in {"deposit", "weight-overload"}
+            ]
         return needs
 
     def _enumerate_live_store_claims(self, snapshot: Snapshot) -> list[TownNeed]:
@@ -16074,6 +16142,20 @@ class HengbotPolicy:
             if plan is not None
             else tuple(need.category for need in store_needs)
         )
+        if (
+            store_type == STORE_HOME
+            and self._home_knowledge_current
+            and self._home_scan_item_count == 0
+            and not self._calibration_active()
+            and self._equipment_transaction_session is None
+        ):
+            # Reconcile a plan built before the knowledge response.  Categories
+            # whose only fulfillment was an empty-Home withdrawal no longer own
+            # this stop; live deposit categories remain visible in store_needs.
+            owned_categories = tuple(need.category for need in store_needs)
+            if plan is not None and STORE_HOME not in plan.blocked_this_visit:
+                plan.blocked_this_visit.append(STORE_HOME)
+            self._town_blocked_reason = "home-known-empty-withdrawal"
         if not owned_categories:
             owned_categories = tuple(need.category for need in store_needs)
         registry_satisfied = True
@@ -16240,6 +16322,17 @@ class HengbotPolicy:
             or self._home_atomic_deposit_pending is not None
             or self._calibration_restore_signatures
         )
+        if (
+            self._home_knowledge_current
+            and self._home_scan_item_count == 0
+            and self._home_atomic_deposit_pending is None
+            and not self._calibration_active()
+            and self._equipment_transaction_session is None
+        ):
+            # Empty Home knowledge is a state terminal for withdrawal-only
+            # work.  It is process-independent, so a restart cannot resurrect
+            # the visit-count-bounded route.
+            return False
         home_categories = {
             need.category
             for need in self._enumerate_town_needs(snapshot)

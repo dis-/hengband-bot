@@ -235,6 +235,9 @@ class TownWorld:
         )
 
     def visible_terminal(self, reason: str):
+        from hengbot import cli
+        if reason in getattr(cli, "POLICY_FINAL_STOP_REASONS", ()):
+            return f"policy final stop: {reason}"
         if getattr(self, "invalid_store_entries", 0):
             return None
         if self.depth != self._town_blocked_depth:
@@ -264,12 +267,14 @@ class TownWorld:
 
     def terminal_ends_drive(self, reason: str, key: str) -> bool:
         """Model only terminals whose owner actually ends the CLI drive."""
+        from hengbot import cli
+        if reason in getattr(cli, "POLICY_FINAL_STOP_REASONS", ()):
+            return True
         if reason == "livelock:exhausted":
             return True
         if self.blocked_streak >= TOWN_BLOCKED_STOP_LIMIT:
             return True
         if reason == "equipment-transaction:restore-blocked-terminal":
-            from hengbot import cli
             return reason in getattr(cli, "POLICY_FINAL_STOP_REASONS", ())
         if reason == getattr(self, "expected_terminal_reason", None):
             return True
