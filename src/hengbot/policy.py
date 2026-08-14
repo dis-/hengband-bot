@@ -3715,7 +3715,7 @@ class HengbotPolicy:
                 self.last_reason = "equipment-transaction:await-confirmation-on-home"
                 key = LEAVE_STORE_KEY
         key = self._forbid_wait_on_town_entrance(snapshot, key)
-        key = self._suppress_pending_stair_command(key)
+        key = self._suppress_pending_stair_command(snapshot, key)
         self._remember_stair_command(
             snapshot, key, observation=latest_snapshot
         )
@@ -5924,13 +5924,22 @@ class HengbotPolicy:
         return WAIT_KEY
 
     # -------------------------------------------------------------- observers
-    def _suppress_pending_stair_command(self, key: str) -> str:
+    def _suppress_pending_stair_command(self, snapshot: Snapshot, key: str) -> str:
         """Post at most one floor-changing command per observation."""
         if (
             self._pending_stair_command is not None
             and key
             and key[0] in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
         ):
+            # The sender can refuse a floor key after policy selection (for
+            # example when its prompt owner no longer matches).  That refusal
+            # releases the ordinary observation expectation: there is then no
+            # posted effect for this older watch to await.  Enforce the same
+            # ownership here, at the suppressor, so the stale watch cannot
+            # turn every recovery re-post into an unbounded empty command.
+            if self._owner_may_select(snapshot, "stair-command"):
+                self._pending_stair_command = None
+                return key
             self.last_reason = "stair:await-observation"
             return ""
         return key
@@ -5949,6 +5958,9 @@ class HengbotPolicy:
             position,
             snapshot.turn,
             snapshot if observation is None else observation,
+        )
+        self._post_owner_expectation(
+            snapshot, "stair-command", "turn", "floor", "position"
         )
 
     def _is_upstairs_target(self, grid: GridState) -> bool:
@@ -11134,6 +11146,8 @@ class HengbotPolicy:
             core = self._last_policy_progress_core
             if core is not None:
                 self._posting_refusal_probe = (owner, core)
+        if key and key[0] in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}:
+            self._owner_expectations.release("stair-command")
         if owner == "return:recall" and key.startswith(READ_KEY):
             self._owner_expectations.yield_owner(owner)
             # The command was not posted, so there is nothing to await.  The

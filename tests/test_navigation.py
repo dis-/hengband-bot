@@ -338,7 +338,45 @@ class StairRejectionInvalidationTest(unittest.TestCase):
             with self.subTest(key=key):
                 policy = HengbotPolicy()
                 policy._remember_stair_command(snapshot, key)
-                self.assertEqual(policy._suppress_pending_stair_command(key), "")
+                self.assertEqual(
+                    policy._suppress_pending_stair_command(snapshot, key), ""
+                )
+
+    def test_refused_stair_recovery_reposts_instead_of_absorbing_empty_keys(self):
+        snapshot = replace(
+            self._stair_snapshot(downstairs=True, turn=334683),
+            messages=("You see no relevant prompt.",),
+        )
+        policy = HengbotPolicy()
+
+        first = policy.choose_key(snapshot)
+        policy.refuse_key_posting("descend", first)
+        probe = policy.choose_key(snapshot)
+        # Capture batches 257-259 were one player_turn, then look+player_turn,
+        # then one player_turn.  The latter boards cleared the message while
+        # retaining turn 334683 and the owner progress core.
+        recovered = policy.choose_key(replace(snapshot, messages=()))
+
+        self.assertEqual(first, ">")
+        self.assertEqual(probe, "l\x1b")
+        self.assertEqual(recovered, ">")
+        self.assertNotEqual(policy.last_reason, "stair:await-observation")
+
+    def test_refused_stair_recovery_is_restart_immune_for_two_fresh_instances(self):
+        snapshot = replace(
+            self._stair_snapshot(downstairs=True, turn=334683),
+            messages=("You see no relevant prompt.",),
+        )
+        delivered = []
+
+        for _ in range(2):
+            policy = HengbotPolicy()
+            first = policy.choose_key(snapshot)
+            policy.refuse_key_posting("descend", first)
+            delivered.append(policy.choose_key(snapshot))
+            delivered.append(policy.choose_key(replace(snapshot, messages=())))
+
+        self.assertEqual(delivered, ["l\x1b", ">", "l\x1b", ">"])
 
     def test_two_rejected_descents_expire_phantom_from_routing_only(self):
         snapshot = self._stair_snapshot(downstairs=True)
