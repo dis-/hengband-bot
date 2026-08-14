@@ -2230,21 +2230,34 @@ def _run_follow(
         look_barrier_seen = False
         look_barrier_started_at = 0.0
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
+        poll_wait_started_at = time.perf_counter()
         while True:
             finish_pending_batch()
             _arm_decision_watchdog()
             save_archive.poll(time.monotonic())
+            if poll_wait_started_at is None:
+                poll_wait_started_at = time.perf_counter()
+            read_started_at = time.perf_counter()
             chunk = file.read()
+            read_finished_at = time.perf_counter()
             if chunk:
                 batch_seq += 1
-                decision_started_at = time.perf_counter()
+                decision_started_at = read_finished_at
                 decision_timing = {
+                    "read_ms": round(
+                        (read_finished_at - read_started_at) * 1000, 3
+                    ),
+                    "batch_bytes": len(chunk),
+                    "poll_wait_ms": round(
+                        (read_started_at - poll_wait_started_at) * 1000, 3
+                    ),
                     "record_snapshot_lines_ms": 0.0,
                     "decode_ms": 0.0,
                     "parse_snapshot_ms": 0.0,
                     "choose_key_ms": 0.0,
                     "send_ms": 0.0,
                 }
+                poll_wait_started_at = None
                 last_activity = _last_activity_after_read(
                     last_activity, time.monotonic(), chunk
                 )
@@ -2647,6 +2660,7 @@ def _run_follow(
                     decision_timing["total_ms"] = round(
                         (time.perf_counter() - decision_started_at) * 1000, 3
                     )
+                    poll_wait_started_at = time.perf_counter()
                     _write_decision(
                         args.decision_log, snapshot, key, policy.last_reason,
                         policy, economy_ledger, repeating_reason_count,
@@ -2699,6 +2713,7 @@ def _run_follow(
                         decision_timing["total_ms"] = round(
                             (time.perf_counter() - decision_started_at) * 1000, 3
                         )
+                        poll_wait_started_at = time.perf_counter()
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,

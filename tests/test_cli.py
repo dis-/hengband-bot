@@ -480,12 +480,16 @@ class DecisionTimingTest(unittest.TestCase):
                 "record_snapshot_lines_ms", "decode_ms", "parse_snapshot_ms",
                 "choose_key_ms", "send_ms",
             }
+            gap_keys = {"read_ms", "batch_bytes", "poll_wait_ms"}
 
             self.assertEqual(result, 0)
             self.assertEqual(sent, ["~9", "\x1b\x1b"])
             self.assertTrue(phase_keys.issubset(timing))
+            self.assertTrue(gap_keys.issubset(timing))
             self.assertTrue(all(timing[name] >= 0 for name in phase_keys))
+            self.assertTrue(all(timing[name] >= 0 for name in gap_keys))
             self.assertLessEqual(sum(timing[name] for name in phase_keys), timing["total_ms"])
+            self.assertEqual(timing["batch_bytes"], len(decision_line))
             self.assertEqual(timing["snapshot_bytes"], len(decision_line.encode("utf-8")))
             self.assertEqual(
                 timing["nearby_grids"],
@@ -507,9 +511,12 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertTrue(knowledge_rows[0]["inflight_at_arrival"])
 
     @patch("hengbot.cli._append_capture_ledger")
-    def test_capture_ledger_preserves_decision_row_shape_including_timing(self, append):
+    def test_decision_row_shape_is_byte_identical_when_timing_is_removed(self, append):
         snapshot = parse_snapshot(json.loads(_snap_line(7, 5, 6)), {})
         timing = {
+            "read_ms": 0.01,
+            "batch_bytes": 456,
+            "poll_wait_ms": 1.5,
             "record_snapshot_lines_ms": 0.1,
             "decode_ms": 0.2,
             "parse_snapshot_ms": 0.3,
@@ -529,6 +536,81 @@ class DecisionTimingTest(unittest.TestCase):
 
         self.assertEqual(before, after)
         self.assertEqual({key: value for key, value in before.items() if key != "timing"}, original)
+
+    def test_follow_accounts_for_idle_gap_between_two_decision_batches(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            initial_line = _snap_line(1, 5, 5)
+            first_line = _snap_line(2, 5, 5)
+            second_line = _snap_line(3, 5, 6)
+            state_path.write_text(initial_line, encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path),
+                "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            posted_at = []
+
+            def choose(snapshot):
+                policy.last_reason = f"timing:batch-{snapshot.turn}"
+                return "\x1b"
+
+            def send(key, **_kwargs):
+                posted_at.append(time.perf_counter())
+                return True
+
+            def append_snapshots():
+                time.sleep(0.5)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(first_line)
+                    stream.flush()
+                    time.sleep(0.1)
+                    stream.write(second_line)
+                    stream.flush()
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            writer = threading.Thread(target=append_snapshots)
+            writer.start()
+            try:
+                with (
+                    patch("hengbot.cli._append_capture_ledger"),
+                    patch("hengbot.cli._cell_loop_guard_applies", return_value=True),
+                    patch(
+                        "hengbot.cli._is_looping",
+                        side_effect=lambda *_args, **_kwargs: len(posted_at) >= 2,
+                    ),
+                ):
+                    result = _run_follow(args, policy, send, {})
+            finally:
+                writer.join()
+
+            rows = {
+                row["reason"]: row
+                for row in map(
+                    json.loads,
+                    decision_path.read_text(encoding="utf-8").splitlines(),
+                )
+            }
+            second_timing = rows["timing:batch-3"]["timing"]
+            accounted_ms = sum(
+                second_timing[name]
+                for name in ("poll_wait_ms", "read_ms", "total_ms")
+            )
+            wall_interval_ms = (posted_at[1] - posted_at[0]) * 1000
+
+            self.assertEqual(result, 0)
+            self.assertEqual(len(posted_at), 2)
+            self.assertGreaterEqual(second_timing["poll_wait_ms"], 25.0)
+            self.assertTrue(all(
+                second_timing[name] >= 0
+                for name in ("poll_wait_ms", "read_ms", "batch_bytes")
+            ))
+            self.assertEqual(second_timing["batch_bytes"], len(second_line))
+            self.assertLess(abs(wall_interval_ms - accounted_ms), 5.0)
 
 
 class PeriodicDumpTimerTest(unittest.TestCase):
