@@ -3278,10 +3278,8 @@ class HengbotPolicy:
             for entry in entries:
                 survivor = next((
                     current for current in snapshot.inventory
-                    if self._item_signature(current) == entry["signature"]
-                    and re.search(
-                        rf"@{entry['tag']}(?!\d)", current.inscription
-                    )
+                    if self._sale_item_identity(current) == entry["signature"]
+                    and self._item_has_sale_tag(current, str(entry["tag"]))
                 ), None)
                 expected = entry["count"] - entry["quantity"]
                 if survivor is None or survivor.count <= expected:
@@ -18549,8 +18547,8 @@ class HengbotPolicy:
                 def observed_tagged(entry):
                     return next((
                         current for current in snapshot.inventory
-                        if self._item_signature(current) == entry["signature"]
-                        and re.search(rf"@{entry['tag']}(?!\d)", current.inscription)
+                        if self._sale_item_identity(current) == entry["signature"]
+                        and self._item_has_sale_tag(current, str(entry["tag"]))
                     ), None)
                 observed = all(
                     observed_tagged(entry) is not None
@@ -18594,10 +18592,8 @@ class HengbotPolicy:
             for entry in entries:
                 survivor = next((
                     current for current in snapshot.inventory
-                    if self._item_signature(current) == entry["signature"]
-                    and re.search(
-                        rf"@{entry['tag']}(?!\d)", current.inscription
-                    )
+                    if self._sale_item_identity(current) == entry["signature"]
+                    and self._item_has_sale_tag(current, str(entry["tag"]))
                 ), None)
                 expected = entry["count"] - entry["quantity"]
                 if survivor is None or survivor.count <= expected:
@@ -18642,11 +18638,11 @@ class HengbotPolicy:
                 self.last_reason = "shop:sale-inscription-ambiguous-leave"
                 return LEAVE_STORE_KEY
             exact_tag = f"@{digit}"
-            has_exact_tag = re.search(rf"@{digit}(?!\d)", item.inscription) is not None
+            has_exact_tag = self._item_has_sale_tag(item, digit)
             # Other @ inscriptions may be command bindings owned outside sale
             # policy.  Never overwrite them merely to make a batch possible.
             has_numeric_tag = any(
-                re.search(rf"@{value}(?!\d)", item.inscription)
+                self._item_has_sale_tag(item, value)
                 for value in "0123456789"
             )
             if "@" in item.inscription and not has_exact_tag and not has_numeric_tag:
@@ -18658,7 +18654,7 @@ class HengbotPolicy:
                 self._batch_sell_pending = None
                 return ""
             entries.append({
-                "signature": self._item_signature(item),
+                "signature": self._sale_item_identity(item),
                 "tag": digit,
                 **sale,
             })
@@ -18689,11 +18685,11 @@ class HengbotPolicy:
         matches = [
             item for item in snapshot.inventory
             if self._store_accepts_sale(snapshot.store.store_type, item)
-            and re.search(rf"@{tag}(?!\d)", item.inscription)
+            and self._item_has_sale_tag(item, tag)
         ]
         return (
             len(matches) == 1
-            and self._item_signature(matches[0]) == self._item_signature(intended)
+            and self._sale_item_identity(matches[0]) == self._sale_item_identity(intended)
         )
 
     def _unique_sale_tag(
@@ -18702,7 +18698,7 @@ class HengbotPolicy:
         """Reuse an unambiguous numeric tag, or allocate a fresh one."""
         existing = next(
             (digit for digit in "0123456789"
-             if re.search(rf"@{digit}(?!\d)", intended.inscription)),
+             if self._item_has_sale_tag(intended, digit)),
             None,
         )
         if existing is not None and self._sale_tag_is_unique(
@@ -18714,19 +18710,44 @@ class HengbotPolicy:
             for item in snapshot.inventory
             if self._store_accepts_sale(snapshot.store.store_type, item)
             for digit in "0123456789"
-            if re.search(rf"@{digit}(?!\d)", item.inscription)
+            if self._item_has_sale_tag(item, digit)
         }
         return next((digit for digit in "0123456789" if digit not in used), None)
+
+    @staticmethod
+    def _sale_inscription_text(item: InventoryItem) -> str:
+        """Return the inscription even when the emitter only decorates ``name``."""
+        return item.inscription or item.name
+
+    @classmethod
+    def _item_has_sale_tag(cls, item: InventoryItem, tag: str) -> bool:
+        return re.search(
+            rf"@{re.escape(tag)}(?!\d)", cls._sale_inscription_text(item)
+        ) is not None
+
+    @staticmethod
+    def _sale_item_identity(item: InventoryItem) -> tuple[str, int, int]:
+        # Live snapshots currently expose inscription=None while appending the
+        # inscription to the display name.  Inscribing must not change the
+        # identity owned by the pending two-stage sale.
+        name = re.sub(r"\s+\{[^{}]*\}\s*$", "", item.name)
+        return (name, item.tval, item.sval)
 
     def _batch_sale_entry(
         self, snapshot: Snapshot, item: InventoryItem, tag: str
     ) -> dict[str, object] | None:
         """Classify one tagged sale from the snapshot being composed."""
-        signature = self._item_signature(item)
+        signature = self._sale_item_identity(item)
         item = next((
             current for current in snapshot.inventory
-            if self._item_signature(current) == signature
-            and current.inscription == item.inscription
+            if self._sale_item_identity(current) == signature
+            and (
+                current.inscription == item.inscription
+                or (
+                    not current.inscription
+                    and self._item_has_sale_tag(current, tag)
+                )
+            )
         ), None)
         if item is None:
             self.last_reason = "shop:batch-sale-signature-unobserved"

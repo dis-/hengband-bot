@@ -33,6 +33,7 @@ from hengbot.policy import (
     FOOD_MIN_SVAL, OIL_TARGET, HengbotPolicy, LEAVE_STORE_KEY, STORE_GENERAL,
     STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, STORE_STUCK_LIMIT,
 )
+from hengbot.cli import _snapshot_entries_in_order
 from tests.test_policy import grid, hostile, item, player, store_item
 
 
@@ -213,6 +214,31 @@ class ShopOneShotTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(tagged_inside), "d0y\x1b")
         self.assertEqual(policy.last_reason, "shop:one-shot-sell")
+
+    def test_live_capture_name_only_sale_tag_composes_instead_of_reinscribing(self):
+        """The S-3 capture emits @0 in name while inscription is null."""
+        artifact = Path("evidence/evidence-sale-inflight-lines.jsonl")
+        captured = None
+        for line in artifact.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            if row.get("type") == "store" and row.get("turn") == 192393:
+                snapshots = _snapshot_entries_in_order([line])
+                if snapshots and snapshots[-1].store is not None:
+                    captured = snapshots[-1]
+                    break
+        self.assertIsNotNone(captured)
+        sold = next(item for item in captured.inventory if item.slot == "b")
+        self.assertEqual(sold.inscription, "")
+        self.assertRegex(sold.name, r"\{@0\}$")
+
+        policy = HengbotPolicy()
+        key = policy._batch_sell_key(captured, [sold])
+
+        # Every other captured surplus already displays @0, so the shared
+        # allocator must see those collisions and bind this sale to @1.
+        self.assertEqual(key, "{b@1\r")
+        self.assertEqual(policy.last_reason, "shop:batch-inscribe")
+        self.assertEqual(policy._batch_sell_pending["phase"], "await-inscription")
 
     def test_buy_observe_then_driven_one_shot_debits_gold_and_adds_pack(self):
         ware = store_item(
