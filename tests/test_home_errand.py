@@ -62,7 +62,7 @@ class HomeErrandExecutorTest(unittest.TestCase):
         )
         for name in captures:
             with self.subTest(capture=name):
-                path = ROOT / "jsonlog" / name
+                path = ROOT / "evidence" / name
                 records = [json.loads(line) for line in path.read_text(
                     encoding="utf-8", errors="replace"
                 ).splitlines() if line.strip()]

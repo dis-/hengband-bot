@@ -13090,7 +13090,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotIn("equipment-transaction:takeoff", reasons)
 
     def test_frozen_q34_town_damage_replay_steps_away_on_each_hp_drop(self):
-        artifact = Path("jsonlog/evidence-death2-20260814-0300.jsonl")
+        artifact = Path("evidence/evidence-death2-20260814-0300.jsonl")
         records = {
             row["decision_sequence"]: row
             for row in map(json.loads, artifact.read_text(encoding="utf-8").splitlines())
@@ -13241,7 +13241,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def test_frozen_q34_offer_is_stable_across_mapless_store_snapshot(self):
         evidence = Path(
-            "jsonlog/evidence-q34-contract-flicker-20260814.jsonl"
+            "evidence/evidence-q34-contract-flicker-20260814.jsonl"
         )
         with evidence.open(encoding="utf-8") as records:
             decisions = [json.loads(record) for record in records]
@@ -13313,7 +13313,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def _frozen_armed_q34_board(self):
         evidence = Path(
-            "jsonlog/evidence-home-armed-reenter-loop-20260814.jsonl"
+            "evidence/evidence-home-armed-reenter-loop-20260814.jsonl"
         )
         with evidence.open(encoding="utf-8") as records:
             decisions = [json.loads(record) for record in records]
@@ -13391,7 +13391,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 yield from ApprovedQuestStrategyExecutionTest._ninth_strike_monrace_ids(nested)
 
     def _warmed_ninth_strike_replay(self):
-        artifact = Path("jsonlog/evidence-ninth-strike-snapshots.jsonl")
+        artifact = Path("evidence/evidence-ninth-strike-snapshots.jsonl")
         raw_rows = [
             json.loads(line)
             for line in artifact.read_text(encoding="utf-8").splitlines()
@@ -31225,7 +31225,7 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "emergency:teleport")
 
     def test_frozen_cl30_confirmation_damage_replay_reuses_teleport(self):
-        artifact = Path("jsonlog/evidence-death-20260813-1130.jsonl")
+        artifact = Path("evidence/evidence-death-20260813-1130.jsonl")
         records = {
             row["decision_sequence"]: row
             for row in map(json.loads, artifact.read_text(encoding="utf-8").splitlines())
@@ -38644,7 +38644,7 @@ class StoreTravelRetryTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "store:entry-await-observation")
 
     def test_frozen_home_whiff_falls_back_after_two_followup_decisions(self):
-        artifact = Path("jsonlog/evidence-travel-whiff-snapshots.jsonl")
+        artifact = Path("evidence/evidence-travel-whiff-snapshots.jsonl")
         raw = json.loads(artifact.read_text(encoding="utf-8").splitlines()[0])
         snap = parse_snapshot(raw, {})
         goal = Position(45, 123)
@@ -47029,7 +47029,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         records = [
             json.loads(line)
             for line in Path(
-                "jsonlog/evidence-executor-live-gap.jsonl"
+                "evidence/evidence-executor-live-gap.jsonl"
             ).read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
