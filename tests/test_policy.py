@@ -9587,6 +9587,35 @@ class FixedQuestTest(unittest.TestCase):
         self.assertEqual(key, "6q\x1b")
         self.assertEqual(policy.last_reason, "fixedquest:request")
 
+    def test_claim_approach_yields_after_one_postless_frozen_board_selection(self):
+        grids = {
+            Position(26, 96): grid(26, 96),
+            Position(26, 97): grid(26, 97),
+            Position(26, 98): grid(26, 98, building_type=1, building_special=1),
+        }
+        policy = HengbotPolicy(self._town_map())
+        policy._floor_t.update({(26, 96), (26, 97), (26, 98)})
+        frozen = self._town_snapshot(26, 96, grids, QUEST_STATUS_COMPLETED)
+
+        first = policy._fixed_quest_building_key(
+            frozen, self.QUEST_ID, "fixedquest:claim",
+            set_reward_pending=True,
+        )
+        refused_retry = policy._fixed_quest_building_key(
+            frozen, self.QUEST_ID, "fixedquest:claim",
+            set_reward_pending=True,
+        )
+        advanced = replace(
+            frozen,
+            player=replace(frozen.player, position=Position(26, 97)),
+        )
+        after_progress = policy._fixed_quest_building_key(
+            advanced, self.QUEST_ID, "fixedquest:claim",
+            set_reward_pending=True,
+        )
+
+        self.assertEqual((first, refused_retry, after_progress), ("6", None, "6q\x1b"))
+
     def test_ready_unoffered_q14_does_not_shadow_offered_q34(self):
         quests = {
             14: replace(self._quest(QUEST_STATUS_UNTAKEN), id=14, level=5),

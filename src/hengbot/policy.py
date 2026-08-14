@@ -25941,7 +25941,11 @@ class HengbotPolicy:
                 self._fixed_quest_reward_pending = quest_id
             self.last_reason = reason
             return self._step_toward(snapshot, step, tail="q" + LEAVE_STORE_KEY)
-        self.last_reason = f"{reason}:approach"
+        owner = f"{reason}:approach"
+        if not self._owner_may_select(snapshot, owner):
+            return None
+        self.last_reason = owner
+        self._post_owner_expectation(snapshot, owner, "position", "floor")
         return self._step_toward(snapshot, step)
 
     def _fixed_quest_enter_key(self, snapshot: Snapshot, quest_id: int) -> str | None:

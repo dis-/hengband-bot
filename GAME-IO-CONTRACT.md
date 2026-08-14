@@ -81,3 +81,19 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     composed key then land in the verification prompt and desynchronize the command. Therefore read,
     quaff, eat, refill, wield, fire, throw, device, destroy, inscribe, drop, identify, enchant, and
     remove-curse composers must emit the pack label exactly as its lowercase inventory letter.
+
+13. **`~9` leaves two invisible input owners open and must be composed as `~9 ESC ESC`.** The
+    knowledge command reads its menu key directly and dispatches `9` to the Home snapshot and
+    `do_cmd_knowledge_home()` without leaving its loop (`cmd-knowledge.cpp:27-33, 65-74, 111-114,
+    171-174`). Home then enters `FileDisplayer` (`knowledge-self.cpp:189-205, 238-241`). The viewer
+    reads another key at `show-file.cpp:323`; a plain `9` reaches its no-op `default:` at
+    `show-file.cpp:453-455`, and only ESC, `<`, or `q` exits (`show-file.cpp:503-513`). Thus the
+    2026-08-14 bytes `~9` at 13:22:25.424/25.449 armed the viewer, and the claim-approach `9` at
+    13:22:25.945 was consumed there with no turn, message, movement, or prompt in JSON. One ESC
+    returns to the still-open knowledge menu and a second ESC leaves that menu. This is not repeat
+    count: count entry starts only on command-loop `0`, echoes `Count:`, and returns the first
+    non-digit (`input-key-requester.cpp:170-223`). It is not a BOT_PLAY keymap either: keymaps are
+    expanded only by the command requester (`input-key-requester.cpp:71-98`), while the viewer calls
+    `inkey_special()` itself. `do_cmd_walk()` was never reached; only after its direction succeeds
+    does it set energy and execute movement (`cmd-move.cpp:344-371`). The shared sender therefore
+    closes the producer-owned viewer and menu before any later policy key can be interpreted.

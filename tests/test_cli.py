@@ -209,6 +209,45 @@ class PostedCharacterRecordTest(unittest.TestCase):
         self.assertTrue(all(record["decision"] == decision for record in records))
 
 
+class PersistentInputStateClosureTest(unittest.TestCase):
+    @staticmethod
+    def _consume_home_viewer(keys):
+        """Minimal transcription of the two source input loops."""
+        state = "command"
+        movements = []
+        iterator = iter(keys)
+        for key in iterator:
+            if state == "command" and key == "~":
+                state = "knowledge"
+            elif state == "knowledge" and key == "9":
+                state = "home-viewer"
+            elif state == "home-viewer" and key in {"\x1b", "<", "q"}:
+                state = "knowledge"
+            elif state == "knowledge" and key == "\x1b":
+                state = "command"
+            elif state == "command" and key in "12346789":
+                movements.append(key)
+        return state, movements
+
+    def test_actual_home_scan_bytes_arm_viewer_but_producer_closure_releases_it(self):
+        # 13:22:25 posted exactly ``~9`` before the claim owner's first ``9``.
+        self.assertEqual(
+            self._consume_home_viewer("~9" + "9"),
+            ("home-viewer", []),
+        )
+        closed = _transport_key("~9", False)
+        self.assertEqual(closed, "~9\x1b\x1b")
+        self.assertEqual(
+            self._consume_home_viewer(closed + "9"),
+            ("command", ["9"]),
+        )
+
+    def test_normal_movement_and_sweep_pickup_sequences_are_byte_identical(self):
+        for key in ("9", "ga", "gq", "gA"):
+            with self.subTest(key=key):
+                self.assertEqual(_transport_key(key, False), key)
+
+
 class UniversalPostingContractTest(unittest.TestCase):
     """Pins the sender contract extracted from the two 2026-08-10 incidents."""
 

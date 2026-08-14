@@ -244,6 +244,22 @@ INPUT_DELAY_DEFAULTS = {
     "input_tunnel_prompt_delay": TUNNEL_PROMPT_DELAY_SECONDS,
     "input_travel_prompt_delay": TRAVEL_PROMPT_DELAY_SECONDS,
 }
+
+# ``~9`` emits the requested Home catalogue before entering two nested,
+# persistent input loops: the Home file viewer and the enclosing knowledge
+# menu.  Neither loop is represented in the JSON snapshot.  Close both as part
+# of the composed command so the next policy digit cannot become viewer input.
+KNOWLEDGE_HOME_COMMAND = "~9"
+KNOWLEDGE_HOME_CLOSED_COMMAND = KNOWLEDGE_HOME_COMMAND + NUDGE_KEY + NUDGE_KEY
+
+
+def _close_composed_input_state(key: str) -> str:
+    """Return a producer-complete key sequence for persistent game menus."""
+    if key == KNOWLEDGE_HOME_COMMAND:
+        return KNOWLEDGE_HOME_CLOSED_COMMAND
+    return key
+
+
 TRAVEL_MACRO_TRIGGERS = {
     "\x1b`n!.": "\x0b",
     "\x1b`n\".": "\x0c",
@@ -691,6 +707,7 @@ def _bot_play_macros_ready(
 
 
 def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
+    key = _close_composed_input_state(key)
     if tunnel_macros_ready and key in TRAVEL_MACRO_TRIGGERS:
         return TRAVEL_MACRO_TRIGGERS[key]
     if tunnel_macros_ready and len(key) == 2 and key[0] == "T":
