@@ -237,9 +237,21 @@ class PersistentInputStateClosureTest(unittest.TestCase):
             ("home-viewer", []),
         )
         closed = _transport_key("~9", False)
-        self.assertEqual(closed, "~9\x1b\x1b")
+        self.assertEqual(closed, "~9")
+        policy = SimpleNamespace(_home_knowledge_scan_inflight=True)
+        policy.consume_home_knowledge = lambda _items: True
+        closure = []
+        _dispatch_response_lines(
+            [json.dumps({
+                "type": "knowledge",
+                "knowledge": {"category": "home", "menu_key": "9", "items": []},
+            })],
+            policy,
+            closure.append,
+        )
+        self.assertEqual(closure, ["\x1b\x1b"])
         self.assertEqual(
-            self._consume_home_viewer(closed + "9"),
+            self._consume_home_viewer(closed + "".join(closure) + "9"),
             ("command", ["9"]),
         )
 

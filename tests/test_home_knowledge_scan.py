@@ -6,11 +6,13 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from hengbot.cli import (
+    _consume_response_sequence,
     _decision_record,
     _dispatch_response_lines,
     _newest_snapshot,
 )
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog
+from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import (
     GridState, InventoryItem, PlayerState, Position, Snapshot, parse_snapshot,
 )
@@ -155,7 +157,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         )
 
         self.assertEqual(consumed, 1)
-        self.assertEqual(sent, ["\x1b"])
+        self.assertEqual(sent, ["\x1b\x1b"])
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
         self.assertEqual(policy._home_scan_source, "~9")
         self.assertEqual(policy._home_scan_item_count, 2)
@@ -219,7 +221,65 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             [json.dumps(home_response())], policy, send
         )
 
-        send.assert_called_once_with("\x1b")
+        send.assert_called_once_with("\x1b\x1b")
+
+    def test_empty_response_cannot_authorize_a_nonempty_home(self):
+        policy = HengbotPolicy()
+        policy._home_page_size = 52
+        policy._home_errand.file(
+            HomeErrandRequest(("missing", 23, 17), 1, "capture", "weapon"),
+            knowledge_current=False,
+        )
+        policy.confirm_key_posted("~9")
+        response = home_response()
+        response["knowledge"]["items"] = []
+        sent = []
+
+        _dispatch_response_lines([json.dumps(response)], policy, sent.append)
+
+        self.assertEqual(sent, ["\x1b\x1b"])
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertEqual(policy._home_knowledge_valid_before, 0)
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+        self.assertTrue(policy._home_knowledge_invalidated)
+        self.assertEqual(policy._home_errand.state, HomeErrandState.NEED_KNOWLEDGE)
+        policy._home_knowledge_scan_retries_remaining = 0
+        policy.choose_key(town_with_home())
+        self.assertEqual(policy._home_errand.state, HomeErrandState.STOPPED)
+        self.assertEqual(
+            policy._home_errand.reason("ignored"),
+            "home-errand:stopped:knowledge-response-missing",
+        )
+
+    def test_full_sequence_helper_delivers_every_response_and_snapshot_in_order(self):
+        policy = HengbotPolicy()
+        policy._home_knowledge_scan_inflight = True
+        board = {
+            "type": "player_turn",
+            "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20},
+        }
+        store = {
+            "type": "store",
+            "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20},
+            "store": {"store_type": STORE_HOME, "items": [], "stock_num": 0,
+                      "page_top": 0, "page_size": 52},
+        }
+        lines = [json.dumps(row) for row in (
+            board,
+            store,
+            home_response(),
+            {"type": "look", "look": {"grids": []}},
+            {"type": "character", "character": {}},
+        )]
+        sent = []
+
+        _decoded, snapshots = _consume_response_sequence(
+            lines, policy, sent.append
+        )
+
+        self.assertEqual([snapshot.store is not None for snapshot in snapshots], [False, True])
+        self.assertEqual(policy._home_scan_item_count, 2)
+        self.assertEqual(sent, ["\x1b\x1b"])
 
     def test_missing_response_falls_back_to_existing_page_scan(self):
         policy = HengbotPolicy()

@@ -57,6 +57,8 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     `evidence-home-queue-withdraw-loop` incident survived owner expectations because leaving and
     re-entering Home changed store context; owner progress is instead floor, position, gold,
     experience, pack, and equipment.
+    Loop-fix acceptance replays must deliver the full captured JSONL sequence through the live
+    dispatcher; filtering synthetic inputs by snapshot type is forbidden.
 
 11. **Wear/wield input is `w` plus the pack letter, followed by every prompt answer.** Most armour has
     no second prompt. Weapons and digging tools retain their `do_cmd_wield` hand answer (for example
@@ -82,7 +84,7 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     quaff, eat, refill, wield, fire, throw, device, destroy, inscribe, drop, identify, enchant, and
     remove-curse composers must emit the pack label exactly as its lowercase inventory letter.
 
-13. **`~9` leaves two invisible input owners open and must be composed as `~9 ESC ESC`.** The
+13. **`~9` leaves two invisible input owners open and must be closed after its response as `ESC ESC`.** The
     knowledge command reads its menu key directly and dispatches `9` to the Home snapshot and
     `do_cmd_knowledge_home()` without leaving its loop (`cmd-knowledge.cpp:27-33, 65-74, 111-114,
     171-174`). Home then enters `FileDisplayer` (`knowledge-self.cpp:189-205, 238-241`). The viewer
@@ -95,5 +97,7 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     non-digit (`input-key-requester.cpp:170-223`). It is not a BOT_PLAY keymap either: keymaps are
     expanded only by the command requester (`input-key-requester.cpp:71-98`), while the viewer calls
     `inkey_special()` itself. `do_cmd_walk()` was never reached; only after its direction succeeds
-    does it set energy and execute movement (`cmd-move.cpp:344-371`). The shared sender therefore
-    closes the producer-owned viewer and menu before any later policy key can be interpreted.
+    does it set energy and execute movement (`cmd-move.cpp:344-371`). The response dispatcher
+    therefore closes the producer-owned viewer and menu before any later policy key can be
+    interpreted. The existing stalled-command Escape recovery closes the same viewer when no
+    response arrives, so response-timed closure remains bounded by that grace.

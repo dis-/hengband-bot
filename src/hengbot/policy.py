@@ -3908,8 +3908,16 @@ class HengbotPolicy:
             )
             self._calibration_naked_dump_inflight = False
 
-    def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> None:
+    def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> bool:
         """Consume the complete Home list returned by the emitter's ``~9``."""
+        if not items and (
+            (self._home_page_size is not None and self._home_page_size > 0)
+            or (self._home_scan_item_count or 0) > 0
+        ):
+            self._home_knowledge_current = False
+            self._home_knowledge_invalidated = True
+            self._home_errand.observe_knowledge(False)
+            return False
         self._home_knowledge_items = tuple(items)
         self._home_knowledge_valid_before = len(items)
         self._home_knowledge_current = True
@@ -3925,6 +3933,7 @@ class HengbotPolicy:
         self._home_scan_source = "~9"
         self._home_scan_item_count = len(items)
         self._home_errand.observe_knowledge(True)
+        return True
 
     def consume_look(self, data: dict[str, object]) -> None:
         """Record the floor identities returned by the existing look channel."""

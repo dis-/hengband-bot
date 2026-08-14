@@ -247,17 +247,10 @@ INPUT_DELAY_DEFAULTS = {
 
 # ``~9`` emits the requested Home catalogue before entering two nested,
 # persistent input loops: the Home file viewer and the enclosing knowledge
-# menu.  Neither loop is represented in the JSON snapshot.  Close both as part
-# of the composed command so the next policy digit cannot become viewer input.
+# menu.  Neither loop is represented in the JSON snapshot.  The response
+# dispatcher closes both only after observing the catalogue; sending Escape in
+# the request batch races the emitter and can suppress that response.
 KNOWLEDGE_HOME_COMMAND = "~9"
-KNOWLEDGE_HOME_CLOSED_COMMAND = KNOWLEDGE_HOME_COMMAND + NUDGE_KEY + NUDGE_KEY
-
-
-def _close_composed_input_state(key: str) -> str:
-    """Return a producer-complete key sequence for persistent game menus."""
-    if key == KNOWLEDGE_HOME_COMMAND:
-        return KNOWLEDGE_HOME_CLOSED_COMMAND
-    return key
 
 
 TRAVEL_MACRO_TRIGGERS = {
@@ -707,7 +700,6 @@ def _bot_play_macros_ready(
 
 
 def _transport_key(key: str, tunnel_macros_ready: bool) -> str:
-    key = _close_composed_input_state(key)
     if tunnel_macros_ready and key in TRAVEL_MACRO_TRIGGERS:
         return TRAVEL_MACRO_TRIGGERS[key]
     if tunnel_macros_ready and len(key) == 2 and key[0] == "T":
@@ -2246,17 +2238,19 @@ def _run_follow(
                 decision_timing["decode_ms"] = round(
                     (time.perf_counter() - phase_started_at) * 1000, 3
                 )
-                _dispatch_response_lines(
-                    complete_lines, policy, send, decoded_lines=decoded_lines
-                )
                 needs_ordered_snapshots = (
                     home_entry_capture is not None
                     and home_entry_capture.pending is not None
                 )
-                ordered_snapshot_entries = (
-                    _snapshot_entries_in_order(
-                        complete_lines, monrace_knowledge, decoded_lines=decoded_lines
+                decoded_lines, all_ordered_snapshot_entries = (
+                    _consume_response_sequence(
+                        complete_lines, policy, send, monrace_knowledge,
+                        decoded_lines=decoded_lines,
+                        parse_snapshots=needs_ordered_snapshots,
                     )
+                )
+                ordered_snapshot_entries = (
+                    all_ordered_snapshot_entries
                     if needs_ordered_snapshots
                     else []
                 )
@@ -3071,7 +3065,7 @@ def _dispatch_response_lines(
             policy.consume_home_knowledge(
                 tuple(_parse_items(knowledge.get("items", [])))
             )
-            send(NUDGE_KEY)
+            send(NUDGE_KEY + NUDGE_KEY)
         elif response_type == "character":
             character = data.get("character")
             if isinstance(character, dict) and hasattr(
@@ -3086,6 +3080,25 @@ def _dispatch_response_lines(
         elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
             policy.consume_look(data)
     return consumed
+
+
+def _consume_response_sequence(
+    complete_lines, policy, send, monrace_knowledge=None, *, decoded_lines=None,
+    parse_snapshots=True,
+):
+    """Deliver every JSONL record through the live response consumption path."""
+    if decoded_lines is None:
+        decoded_lines = _decode_response_lines(complete_lines)
+    _dispatch_response_lines(
+        complete_lines, policy, send, decoded_lines=decoded_lines
+    )
+    snapshots = (
+        _snapshot_entries_in_order(
+            complete_lines, monrace_knowledge, decoded_lines=decoded_lines
+        )
+        if parse_snapshots else []
+    )
+    return decoded_lines, snapshots
 
 
 def _read_last_line(path: Path) -> Iterable[str]:
