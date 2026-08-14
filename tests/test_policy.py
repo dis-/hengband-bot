@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import hengbot.policy as policy_module
+from hengbot.home_errand import HomeErrandRequest
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
     _dispatch_response_lines,
@@ -13512,7 +13513,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(policy._next_required_store_type(opening), STORE_HOME)
         self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
+        self.assertEqual(policy.last_reason, "home-errand:filed:combat-weapon")
+        self.assertIn(
+            "home-errand:combat-weapon", policy._owner_expectations._pending
+        )
         self.assertNotEqual(policy.last_reason, "home:store-context-exit")
         policy.consume_home_knowledge((home_weapon,))
         policy._home_page_size = 12
@@ -23801,7 +23805,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-combat-weapon-withdraw")
+        self.assertEqual(policy.last_reason, "home-errand:filed:combat-weapon")
 
     def test_pre_recall_check_backstop_dives_when_no_weapon_can_be_found(self):
         # If we own no combat weapon at all, the check must eventually give up and dive on
@@ -27031,7 +27035,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         approach_key = policy.choose_key(outside)
         self.assertTrue(approach_key)
         self.assertEqual(policy.last_reason, "shop:approach")
-        self.assertEqual(policy._home_pending_item, policy._item_signature(stored_source))
+        self.assertEqual(
+            policy._home_errand.request.signature,
+            policy._item_signature(stored_source),
+        )
         entrance = replace(
             outside,
             player=replace(outside.player, position=Position(10, 11)),
@@ -27039,7 +27046,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         withdrawal_key = policy.choose_key(entrance)
         self.assertIn(BUY_KEY + "b", withdrawal_key, policy.last_reason)
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(
+            policy.last_reason, "home-errand:atomic-withdraw:identification"
+        )
         carried_source = item(
             "w", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
             name=stored_source.name, known=True, aware=True,
@@ -27050,11 +27059,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             turn=entrance.turn + 1,
         )
         target_withdrawal = policy.choose_key(withdrawn)
-        self.assertEqual(policy._home_pending_item, signature)
+        self.assertEqual(policy._home_errand.request.signature, signature)
         self.assertIsNotNone(policy._find_identification_source(withdrawn, full=True))
         self.assertFalse(policy._home_candidate_waiting)
         self.assertIn(BUY_KEY + "a", target_withdrawal)
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(
+            policy.last_reason,
+            "home-errand:atomic-withdraw:identification-catalog",
+        )
 
     def test_unavailable_full_identify_keeps_equipped_candidate_blocking(self):
         town = self._ready_home_town(gold=6411)
@@ -44268,7 +44280,10 @@ class TownErrandPlanTest(unittest.TestCase):
         )
 
         self.assertEqual(key, "5pa\x1b")
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(
+            policy.last_reason,
+            "home-errand:atomic-withdraw:identification-catalog",
+        )
         self.assertIn(BUY_KEY, key)
         self.assertFalse(policy._home_candidate_waiting)
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
@@ -46869,8 +46884,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         # evidence-home-yield-loop-20260813.jsonl decision 6 records this
         # queued signature; decision 8 is the matching off-tile board.
-        policy._home_pending_item = policy._item_signature(weapon)
-        policy._home_withdrawal_queued = True
+        policy._home_errand.file(
+            HomeErrandRequest(
+                policy._item_signature(weapon), 1,
+                "captured-home-page", "combat-weapon",
+            ),
+            knowledge_current=False,
+        )
         decisions = [policy.choose_key(approach)]
         reasons = [policy.last_reason]
         self.assertEqual(decisions, ["~9"])

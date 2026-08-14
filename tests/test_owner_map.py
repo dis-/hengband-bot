@@ -44,7 +44,6 @@ class OwnerMapTest(unittest.TestCase):
 
     def test_named_watch_and_queue_facts_have_producers_and_consumers(self):
         expected = {
-            "_home_withdrawal_queued": {"_home_rearm_key", "_shop"},
             "_emergency_consumable_issue_watch": {"_issue_emergency_consumable"},
             "_dungeon_recall_issue_watch": {"_read_dungeon_recall_scroll_key"},
         }

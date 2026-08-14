@@ -59,6 +59,11 @@ from hengbot.navigation import NavigationLedger
 from hengbot.exploration_ledger import ExplorationLedger
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState
+from hengbot.home_errand import (
+    HomeErrandExecutor,
+    HomeErrandRequest,
+    HomeErrandState,
+)
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -2306,6 +2311,7 @@ class HengbotPolicy:
         self._no_teleport_rearm_pending = False
         self._yeek_conquest_processed = False
         self._home_pending_item: tuple[str, int, int] | None = None
+        self._home_errand = HomeErrandExecutor()
         self._home_random_teleport_withdrawal: tuple[str, int, int] | None = None
         self._home_pending_slot: str | None = None
         self._home_pending_quantity: int | None = None
@@ -2892,6 +2898,24 @@ class HengbotPolicy:
             owner, self._owner_progress_core(snapshot)
         )
 
+    def _file_home_errand(
+        self,
+        snapshot: Snapshot,
+        request: HomeErrandRequest,
+        *,
+        knowledge_current: bool,
+    ) -> bool:
+        """File migrated Home work and register its observation expectation."""
+        filed = self._home_errand.file(
+            request, knowledge_current=knowledge_current
+        )
+        if filed:
+            self._post_owner_expectation(
+                snapshot, f"home-errand:{request.purpose}",
+                "inventory", "equipment",
+            )
+        return filed
+
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
         """Refuse a repeated transition after an equivalent-state cycle.
 
@@ -3098,6 +3122,11 @@ class HengbotPolicy:
         if pending_withdrawal is not None and snapshot.store is None:
             signature, before_count, withdrawn, quantity = pending_withdrawal
             after_count = self._inventory_signature_count(snapshot, signature)
+            if (
+                self._home_errand.request is not None
+                and self._home_errand.request.signature == signature
+            ):
+                self._home_errand.observe_outside(after_count)
             self._home_atomic_withdraw_pending = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
@@ -3130,7 +3159,14 @@ class HengbotPolicy:
                     withdrawn.tval == TVAL_SCROLL
                     and withdrawn.sval
                     in {SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY}
-                    and self._home_pending_item == signature
+                    and (
+                        self._home_pending_item == signature
+                        or (
+                            self._home_errand.request is not None
+                            and self._home_errand.request.signature == signature
+                            and self._home_errand.request.purpose == "identification"
+                        )
+                    )
                     and self._identification_need is not None
                 ):
                     # This was the source transaction, not the downstream gear
@@ -3156,7 +3192,14 @@ class HengbotPolicy:
                 if self._home_pending_item == signature:
                     self._home_pending_item = None
                     self._home_pending_slot = None
-                self.last_reason = "home:atomic-withdraw-failed"
+                self.last_reason = (
+                    self._home_errand.reason("withdraw-failed")
+                    if (
+                        self._home_errand.request is not None
+                        and self._home_errand.request.signature == signature
+                    )
+                    else "home:atomic-withdraw-failed"
+                )
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
@@ -3309,12 +3352,15 @@ class HengbotPolicy:
         self.escape_ladder_telemetry = None
         self.town_teleport_refusal = None
         self._fruitless_disengage_spent_this_decision = False
+        if self._home_errand.state == HomeErrandState.STOPPED:
+            self.last_reason = self._home_errand.reason("stopped")
+            return WAIT_KEY
         if (
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
             and (
                 not self._opening_q34_active(snapshot)
-                or self._home_withdrawal_queued
+                or self._home_errand.needs_knowledge
             )
             and (
                 "home-scan-incomplete" in getattr(
@@ -3340,7 +3386,10 @@ class HengbotPolicy:
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
         ):
-            self.last_reason = "home:request-knowledge-scan"
+            if self._home_errand.needs_knowledge:
+                self.last_reason = self._home_errand.reason("request-knowledge")
+            else:
+                self.last_reason = "home:request-knowledge-scan"
             return "~9"
         if self._home_knowledge_scan_inflight:
             # An ordinary board snapshot after the request means the response
@@ -3351,6 +3400,10 @@ class HengbotPolicy:
             if self._home_knowledge_scan_retries_remaining:
                 self._home_knowledge_scan_retries_remaining -= 1
                 self._home_knowledge_scan_requested = False
+            else:
+                self._home_errand.observe_scan_refused(
+                    "knowledge-response-missing"
+                )
         leaving_home = (
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
@@ -3871,6 +3924,7 @@ class HengbotPolicy:
         self._home_knowledge_scan_inflight = False
         self._home_scan_source = "~9"
         self._home_scan_item_count = len(items)
+        self._home_errand.observe_knowledge(True)
 
     def consume_look(self, data: dict[str, object]) -> None:
         """Record the floor identities returned by the existing look channel."""
@@ -12326,6 +12380,7 @@ class HengbotPolicy:
         action = session.current_action if session is not None else None
         withdrawal_requested = bool(
             self._calibration_restore_signatures
+            or self._home_errand.active
             or self._home_pending_item is not None
             or self._home_pending_batch
             or (action is not None and action.kind == "withdraw")
@@ -12333,7 +12388,11 @@ class HengbotPolicy:
         if not withdrawal_requested:
             return None
         if not self._home_knowledge_current:
-            self.last_reason = "home:await-fresh-knowledge"
+            self.last_reason = (
+                self._home_errand.reason("await-fresh-knowledge")
+                if self._home_errand.active
+                else "home:await-fresh-knowledge"
+            )
             return None
         if not self._home_page_size:
             self.last_reason = "home:await-page-size"
@@ -12348,6 +12407,10 @@ class HengbotPolicy:
             if index < self._home_knowledge_valid_before
         )
         observed_signatures = {self._item_signature(item) for _, item in address_slots}
+        if self._home_errand.active and self._home_errand.request is not None:
+            signature = self._home_errand.request.signature
+            quantity = self._home_errand.request.quantity
+            reason = self._home_errand.reason("atomic-withdraw")
         for restore_signature in self._calibration_restore_signatures:
             if restore_signature in observed_signatures:
                 signature = restore_signature
@@ -12376,6 +12439,12 @@ class HengbotPolicy:
             self.last_reason = "home:atomic-withdraw-target-unobserved"
             self._defer_unobserved_home_withdrawal()
             return LEAVE_STORE_KEY
+        if signature not in observed_signatures and self._home_errand.active:
+            self._home_errand.observe_unaddressed_entry(
+                self._town_store_visit_limit(STORE_HOME), "target-unobserved"
+            )
+            self.last_reason = self._home_errand.reason("target-unobserved")
+            return LEAVE_STORE_KEY
         selected = next(
             (
                 (index, item)
@@ -12390,8 +12459,14 @@ class HengbotPolicy:
             None,
         )
         if selected is None:
-            self.last_reason = "home:atomic-withdraw-slot-unobserved"
-            self._defer_unobserved_home_withdrawal(signature)
+            if self._home_errand.active:
+                self._home_errand.observe_unaddressed_entry(
+                    self._town_store_visit_limit(STORE_HOME), "slot-unobserved"
+                )
+                self.last_reason = self._home_errand.reason("slot-unobserved")
+            else:
+                self.last_reason = "home:atomic-withdraw-slot-unobserved"
+                self._defer_unobserved_home_withdrawal(signature)
             return LEAVE_STORE_KEY
         index, item = selected
         page, page_pos = divmod(index, self._home_page_size)
@@ -12403,8 +12478,14 @@ class HengbotPolicy:
         if signature in self._calibration_restore_signatures:
             quantity = item.count
         if not letter or len(letter) != 1:
-            self.last_reason = "home:atomic-withdraw-address-invalid"
-            self._defer_unobserved_home_withdrawal(signature)
+            if self._home_errand.active:
+                self._home_errand.observe_unaddressed_entry(
+                    self._town_store_visit_limit(STORE_HOME), "address-invalid"
+                )
+                self.last_reason = self._home_errand.reason("address-invalid")
+            else:
+                self.last_reason = "home:atomic-withdraw-address-invalid"
+                self._defer_unobserved_home_withdrawal(signature)
             return LEAVE_STORE_KEY
         requested_quantity = (
             quantity
@@ -12451,6 +12532,14 @@ class HengbotPolicy:
             item,
             take_count,
         )
+        if (
+            self._home_errand.active
+            and self._home_errand.request is not None
+            and self._home_errand.request.signature == signature
+        ):
+            self._home_errand.post(
+                self._inventory_signature_count(snapshot, signature)
+            )
         if signature in self._calibration_restore_signatures:
             self._calibration_restore_signatures.remove(signature)
         self._home_pending_quantity = None
@@ -12481,7 +12570,7 @@ class HengbotPolicy:
         """
         if (
             not self._home_candidate_waiting
-            or self._home_pending_item is not None
+            or self._home_errand.active
             or self._home_pending_batch
             or not self._equipment_catalog.home_scan_complete
             or not self._home_knowledge_current
@@ -12509,8 +12598,13 @@ class HengbotPolicy:
             )
             if source is None:
                 continue
-            self._home_pending_item = signature
-            self._home_pending_quantity = 1
+            self._file_home_errand(
+                snapshot,
+                HomeErrandRequest(
+                    signature, 1, "home-catalog", "identification-catalog"
+                ),
+                knowledge_current=self._home_knowledge_current,
+            )
             return
 
     def _defer_unobserved_home_withdrawal(
@@ -12563,6 +12657,7 @@ class HengbotPolicy:
         self._home_knowledge_scan_inflight = False
         self._home_scan_source = None
         self._home_scan_item_count = None
+        self._home_errand.observe_knowledge(False)
 
     def _atomic_home_deposit_key(
         self, snapshot: Snapshot, step: Position
@@ -13361,8 +13456,13 @@ class HengbotPolicy:
         )
         if source is None:
             return False
-        self._home_pending_item = self._item_signature(source)
-        self._home_pending_quantity = 1
+        self._file_home_errand(
+            snapshot,
+            HomeErrandRequest(
+                self._item_signature(source), 1, "home-catalog", "identification"
+            ),
+            knowledge_current=self._home_knowledge_current,
+        )
         self._home_candidate_waiting = True
         return True
 
@@ -18001,25 +18101,16 @@ class HengbotPolicy:
                 None,
             )
             weapon = remembered or max(weapons, key=self._home_rearm_weapon_score)
-            owner = "home:queue-combat-weapon-withdraw"
             signature = self._item_signature(weapon)
-            if (
-                self._home_withdrawal_queued
-                and self._home_pending_item == signature
-                and not self._owner_may_select(snapshot, owner)
-            ):
-                self.last_reason = "home:queued-combat-weapon-withdraw-yield"
-                return LEAVE_STORE_KEY
+            self._file_home_errand(
+                snapshot,
+                HomeErrandRequest(signature, 1, "home-page", "combat-weapon"),
+                knowledge_current=self._home_knowledge_current,
+            )
             self._home_rearm_seen_pages.clear()
-            self._home_pending_item = signature
-            self._home_pending_slot = None
             self._identification_candidate = None
             self._home_candidate_waiting = False
-            self._home_withdrawal_queued = True
-            self.last_reason = owner
-            self._post_owner_expectation(
-                snapshot, owner, "inventory", "equipment"
-            )
+            self.last_reason = self._home_errand.reason("filed")
             return LEAVE_STORE_KEY
 
         page = tuple(
