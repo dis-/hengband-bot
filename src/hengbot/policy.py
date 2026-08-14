@@ -5356,6 +5356,10 @@ class HengbotPolicy:
             # Home address catalog before optimization gets another chance to
             # reject the still-incomplete equipment catalog.
             self._queue_home_identification_source(snapshot)
+            # The identification-withdrawal NeedSpec is only a routing claim;
+            # bind its exact catalogue signature to the Home executor before
+            # town-plan projection is allowed to approach Home.
+            self._bind_catalogued_home_identification_withdrawal(snapshot)
 
         restore_weapon = self._town_restore_weapon_key(snapshot)
         if restore_weapon is not None:
@@ -12438,6 +12442,17 @@ class HengbotPolicy:
         if signature is None:
             self.last_reason = "home:atomic-withdraw-target-unobserved"
             self._defer_unobserved_home_withdrawal()
+            plan = self._town_errand_plan
+            categories = (
+                plan.need_categories.get(STORE_HOME, ())
+                if plan is not None else ()
+            )
+            for category in categories:
+                if category in {"identification-withdrawal", "equipment-work"}:
+                    self._post_owner_expectation(
+                        snapshot, f"home-withdrawal:{category}",
+                        "inventory", "equipment",
+                    )
             return LEAVE_STORE_KEY
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
@@ -12572,15 +12587,16 @@ class HengbotPolicy:
             not self._home_candidate_waiting
             or self._home_errand.active
             or self._home_pending_batch
-            or not self._equipment_catalog.home_scan_complete
-            or not self._home_knowledge_current
         ):
             return
-        observed = {
-            self._item_signature(item)
-            for index, item in enumerate(self._home_knowledge_items)
-            if index < self._home_knowledge_valid_before
-        }
+        observed = (
+            {
+                self._item_signature(item)
+                for index, item in enumerate(self._home_knowledge_items)
+                if index < self._home_knowledge_valid_before
+            }
+            if self._home_knowledge_current else set()
+        )
         for owned in self._equipment_catalog.items:
             if owned.origin != "home" or not owned.identification_incomplete:
                 continue
@@ -12606,6 +12622,17 @@ class HengbotPolicy:
                 knowledge_current=self._home_knowledge_current,
             )
             return
+        if self._identification_candidate is not None:
+            self._file_home_errand(
+                snapshot,
+                HomeErrandRequest(
+                    self._identification_candidate,
+                    1,
+                    "identification-candidate",
+                    "identification",
+                ),
+                knowledge_current=self._home_knowledge_current,
+            )
 
     def _defer_unobserved_home_withdrawal(
         self, signature: tuple[str, int, int] | None = None
@@ -15373,6 +15400,16 @@ class HengbotPolicy:
         This is the sole input to the town-plan projection.
         """
         claims = list(self._enumerate_town_needs(snapshot))
+        # Withdrawal requesters must file an exact executor request before the
+        # router may act.  The legacy terminal posts this same owner expectation,
+        # so an unchanged progress core suppresses the claim instead of rebuilding
+        # the just-failed Home approach.
+        claims = [
+            claim for claim in claims
+            if self._owner_may_select(
+                snapshot, f"home-withdrawal:{claim.category}"
+            )
+        ]
         if self._opening_q34_active(snapshot):
             # Q34's opening owns town until the quest clears.  Candidate
             # generation is not the claim boundary: NeedSpecs can remain true
@@ -15392,6 +15429,7 @@ class HengbotPolicy:
         if (
             self._equipment_work_home_route_available()
             and self._home_owner_goal_pending(snapshot)
+            and self._owner_may_select(snapshot, "home-withdrawal:equipment-work")
             and not any(claim.category == "equipment-work" for claim in claims)
         ):
             claims.append(TownNeed(
@@ -19388,6 +19426,24 @@ class HengbotPolicy:
             store_type = self._next_required_store_type(snapshot)
         if store_type is None:
             self._shop_approach_stuck_count = 0
+            return None
+        plan = self._town_errand_plan
+        home_categories = (
+            set(plan.need_categories.get(STORE_HOME, ()))
+            if plan is not None else set()
+        )
+        if (
+            store_type == STORE_HOME
+            and "identification-withdrawal" in home_categories
+            and home_categories <= {"identification-withdrawal"}
+            and (
+                not self._home_errand.active
+                or self._home_errand.request is None
+            )
+        ):
+            # Keep the staged post-Alchemist stop in the disposable plan, but
+            # do not turn it into movement until its requester has filed the
+            # executor's exact withdrawal request.
             return None
         visit = self._store_visit
         if visit is not None and visit.store_type != store_type:

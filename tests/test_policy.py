@@ -46992,6 +46992,71 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], passes
         )
 
+    def test_unaddressed_equipment_work_claim_yields_on_unchanged_progress_core(self):
+        observed = store_item("a", TVAL_POTION, 402, name="other item")
+        policy = self._catalogued_withdrawal_policy([observed])
+        missing = (
+            ("missing restore one", TVAL_SWORD, 91),
+            ("missing restore two", TVAL_SWORD, 92),
+        )
+        policy._calibration_restore_signatures[:] = missing
+        entrance = self._entrance_snapshot([])
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            stops=[STORE_HOME],
+            need_categories={STORE_HOME: ("equipment-work",)},
+        )
+        policy._shopping_approach_store_type = STORE_HOME
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(
+                entrance, entrance.player.position
+            ),
+            LEAVE_STORE_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-target-unobserved"
+        )
+        self.assertEqual(policy._calibration_restore_signatures, [missing[1]])
+        self.assertNotIn(
+            "equipment-work",
+            {
+                claim.category
+                for claim in policy._enumerate_live_store_claims(entrance)
+            },
+        )
+
+    def test_identification_withdrawal_cannot_route_without_executor_request(self):
+        records = [
+            json.loads(line)
+            for line in Path(
+                "jsonlog/evidence-executor-live-gap.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        reasons = [record.get("reason") for record in records]
+        self.assertEqual(reasons.count("shop:approach"), 38)
+        self.assertEqual(reasons.count("home:store-context-exit"), 22)
+        self.assertEqual(
+            reasons.count("home:atomic-withdraw-target-unobserved"), 6
+        )
+        self.assertFalse(
+            any(str(reason).startswith("home-errand:") for reason in reasons)
+        )
+
+        policy = HengbotPolicy()
+        snapshot = self._entrance_snapshot([])
+        policy._home_candidate_waiting = True
+        policy._equipment_catalog.home_scan_complete = True
+
+        self.assertFalse(policy._home_errand.active)
+        policy._town_errand_plan = policy_module.TownErrandPlan(
+            stops=[STORE_HOME],
+            need_categories={STORE_HOME: ("identification-withdrawal",)},
+        )
+        self.assertIsNone(
+            policy._shopping_approach_step(snapshot, STORE_HOME)
+        )
+
     def test_observed_transaction_withdrawal_still_composes_exact_macro(self):
         target = store_item(
             "a", TVAL_POTION, 404, name="obtainable equipment",
