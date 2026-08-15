@@ -402,3 +402,25 @@ The former FIX-2 in-store `assertNotIn("pa", ...)` claim was removed: an
 in-store page cannot compose the door-prefixed purchase at either historical
 revision. The lagged closed-loop pin now supplies the real no-recomposition
 and one-debit bound.
+
+## Home-withdraw-composition-r2 fix event
+
+time: `2026-08-16T00:13:56+09:00`
+
+Measured: the capture ledger contains a 34-item Home catalogue and, on turn
+1178696, successful restore posts followed by
+`home:atomic-withdraw-target-unobserved`. Restore addresses drifted through
+`5pa11\r`, `5pb7\r`, `5pe22\r`, `5pg40\r`, and `5po`; the same player turn was
+published before the changed inventory observation. The Gate-1 regression
+replays that restore-post/address-prefix shrink and derives the later digger
+claim through the Home shop policy, without injecting `_home_pending_item`.
+
+Inferred from those measured facts and pinned by mutation: the old observer
+treated the same-turn outside page as proof that each restore failed. That
+released ownership while retaining only the shrunken address prefix, allowing
+the next Home decision to select a catalogue digger whose address was no
+longer valid. The posted-turn guard now keeps the restore transaction owned
+until a strictly newer snapshot can confirm success or failure. If an
+unobserved digger and a non-empty restore list do coexist, deferral now assigns
+the failure to the selected digger, so two failures open the bounded General
+Store fallback.

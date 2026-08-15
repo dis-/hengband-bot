@@ -46644,7 +46644,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._shopping_approach_store_type = STORE_HOME
         return policy
 
-    def test_five_unobserved_digger_compositions_open_fallback_and_defer_stock(self):
+    def test_restore_list_does_not_steal_unobserved_digger_failure(self):
         stored = store_item(
             "a", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
         )
@@ -46653,10 +46653,14 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         policy = self._catalogued_withdrawal_policy([stored])
         signature = policy._item_signature(stored)
+        restore_signature = policy._item_signature(
+            store_item("r", TVAL_POTION, 99, name="calibration restore")
+        )
         entrance = self._entrance_snapshot([])
 
-        for attempt in range(5):
+        for attempt in range(2):
             policy._home_pending_item = signature
+            policy._calibration_restore_signatures = [restore_signature]
             policy._home_knowledge_items = (other,)
             policy._home_knowledge_valid_before = 1
             policy._home_knowledge_current = True
@@ -46671,12 +46675,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 policy.last_reason, "home:atomic-withdraw-target-unobserved"
             )
 
-        self.assertEqual(policy._digger_home_withdraw_failures, 5)
+        self.assertEqual(policy._digger_home_withdraw_failures, 2)
         self.assertTrue(policy._digger_buy_fallback_available())
         self.assertEqual(policy._withdrawable_digging_tool_count(entrance), 0)
 
-    def test_captured_001345_queued_digger_preempts_restore(self):
-        """Gate 2 replay: the 34-item ~9 order from 2026-08-16 00:13:45."""
+    def test_gate1_captured_restore_shrink_reproduces_target_unobserved(self):
+        """Gate 1: replay the legacy same-turn failure from captured facts."""
         wares = [
             store_item(str(index), TVAL_POTION, 1000 + index, name=f"home {index}")
             for index in range(34)
@@ -46691,16 +46695,50 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         wares[31] = store_item("31", TVAL_DIGGING, 1, name="second shovel", is_equipment=True)
         wares[32] = store_item("32", TVAL_DIGGING, 1, name="third shovel", is_equipment=True)
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._calibration_restore_signatures = [policy._item_signature(restore)]
-        policy._home_pending_item = policy._item_signature(best_shovel)
-        entrance = self._entrance_snapshot([])
+        restore_signature = policy._item_signature(restore)
+        policy._calibration_restore_signatures = [restore_signature]
+        entrance = self._entrance_snapshot([], turn=1178696)
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            "5pE\x1b",
+            "5pv\x1b",
         )
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
-        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, best_shovel.name)
+        # Model the unfixed observer: it judged the unchanged same-turn outside
+        # post as a failed restore and released the operation.  The resulting
+        # address prefix is an actual consequence of the captured restore post,
+        # not an injected pending-item fact.
+        policy._home_atomic_withdraw_posted_turn = None
+        policy.choose_key(entrance)
+        home_page = replace(
+            self._snapshot([], turn=1178696),
+            store=StoreState(STORE_HOME, wares),
+        )
+        policy._fundraising_mode = "scavenge"
+        self.assertEqual(policy._shop(home_page), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            LEAVE_STORE_KEY,
+        )
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-target-unobserved")
+
+    def test_captured_same_turn_restore_remains_owned_until_fresh_snapshot(self):
+        wares = [
+            store_item(str(index), TVAL_POTION, 1000 + index, name=f"home {index}")
+            for index in range(34)
+        ]
+        restore = store_item("21", 36, 1, name="captured restore")
+        wares[21] = restore
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        entrance = self._entrance_snapshot([], turn=1178696)
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pv\x1b",
+        )
+        policy.choose_key(entrance)
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+        self.assertEqual(policy._digger_home_withdraw_failures, 0)
 
     def test_captured_digger_address_composes_across_twelve_item_pages(self):
         wares = [
@@ -46728,26 +46766,40 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         shovel = store_item(
             "30", TVAL_DIGGING, 1, name="captured best shovel", is_equipment=True,
         )
-        policy = self._catalogued_withdrawal_policy(
-            [
+        wares = [
                 *[
                     store_item(str(index), TVAL_POTION, 1200 + index, name=f"home {index}")
                     for index in range(30)
                 ],
                 shovel,
-            ],
-            page_size=12,
-        )
-        policy._fundraising_mode = "scavenge"
-        policy._home_pending_item = policy._item_signature(shovel)
+            ]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._fundraising_mode = "mine"
+        policy._deepest_level = 1
         entrance = self._entrance_snapshot([detection])
+        home_page = replace(
+            self._snapshot([detection], turn=entrance.turn - 1),
+            store=StoreState(STORE_HOME, wares),
+        )
+        self.assertEqual(policy._shop(home_page), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            "5  pg\x1b",
+            "5pE\x1b",
         )
 
+        carried_shovel = item(
+            "u", TVAL_DIGGING, 1, name=shovel.name, known=True,
+            is_equipment=True,
+        )
+        outside = replace(
+            entrance, turn=entrance.turn + 1,
+            inventory=[detection, carried_shovel],
+        )
+        policy.choose_key(outside)
+
         target = Position(3, 4)
-        mining = Snapshot(
+        mining_pack = Snapshot(
             player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
             {
                 Position(3, 3): grid(3, 3),
@@ -46756,36 +46808,34 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             [],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=[
-                detection,
-                item("u", TVAL_DIGGING, 1, name=shovel.name, known=True),
+                detection, item("f", TVAL_FOOD, 35, count=5), carried_shovel,
+            ],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN,
+                    name="lantern", fuel=5000, is_equipment=True,
+                ),
             ],
         )
-        policy._fundraising_mode = "mine"
-        policy._known_treasure = {target}
-        policy._mining_detection_centers = [Position(3, 3)]
-        self.assertTrue(policy._fundraising_kit_secured(mining))
-        self.assertEqual(policy._mining_closure_key(mining), TUNNEL_KEY + "6")
+        policy._mining_threat_free_streak = MINING_THREAT_FREE_LIMIT
+        policy._observe(mining_pack)
+        wield_key = policy._fundraising_key(mining_pack, [])
+        self.assertIsNotNone(wield_key)
+        self.assertEqual(policy.last_reason, "fundraise:wield-digging-tool")
+        mining = replace(
+            mining_pack,
+            inventory=[detection, item("f", TVAL_FOOD, 35, count=5)],
+            equipment=[*mining_pack.equipment, carried_shovel],
+        )
+        # First policy decision consumes detection; the following observation
+        # enumerates the visible captured vein as a mining claim.
+        policy._observe(mining)
+        detection_key = policy._fundraising_key(mining, [])
+        self.assertTrue(detection_key.startswith("r"), (detection_key, policy.last_reason))
+        after_detection = replace(mining, turn=mining.turn + 1)
+        policy._observe(after_detection)
+        self.assertEqual(policy._fundraising_key(after_detection, []), TUNNEL_KEY + "6")
         self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
-
-    def test_atomic_digger_withdraw_ignores_same_turn_stale_outside_snapshot(self):
-        shovel = store_item(
-            "a", TVAL_DIGGING, 1, name="stored shovel", is_equipment=True,
-        )
-        policy = self._catalogued_withdrawal_policy([shovel], page_size=12)
-        policy._home_pending_item = policy._item_signature(shovel)
-        entrance = self._entrance_snapshot([], turn=1178889)
-        self.assertEqual(
-            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            "5pa\x1b",
-        )
-        # The live emitter repeated turn 1178889 before publishing the changed
-        # inventory.  That page cannot prove failure or consume another claim.
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: confirmation serialization is isolated from the unrelated downstream town decision
-        policy._decide = Mock(return_value=WAIT_KEY)
-        self.assertEqual(policy.choose_key(entrance), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw-await-confirmation")
-        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
-        self.assertEqual(policy._digger_home_withdraw_failures, 0)
 
     def _home_page_snapshot(
         self, inventory, wares, *, turn, stock_num=None, page_top=None,

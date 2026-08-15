@@ -12825,10 +12825,10 @@ class HengbotPolicy:
     ) -> tuple[str, int, int] | None:
         """End an unaddressable claim visibly instead of re-entering Home."""
         if signature is None:
-            if self._calibration_restore_signatures:
-                signature = self._calibration_restore_signatures[0]
-            elif self._home_pending_item is not None:
+            if self._home_pending_item is not None:
                 signature = self._home_pending_item
+            elif self._calibration_restore_signatures:
+                signature = self._calibration_restore_signatures[0]
             elif self._home_pending_batch:
                 signature = self._home_pending_batch[0]
         if self._home_random_teleport_withdrawal == signature:
