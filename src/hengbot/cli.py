@@ -1461,10 +1461,37 @@ class PostingContract:
     def __init__(self) -> None:
         self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
         self._last_posted_owner: str | None = None
+        self._pending_equipment_mutation: tuple[str, tuple] | None = None
         self.last_incident: dict[str, object] | None = None
+
+    @staticmethod
+    def _equipment_signature(snapshot) -> tuple:
+        return tuple(
+            sorted(
+                ((
+                    getattr(item, "slot", None), getattr(item, "tval", None),
+                    getattr(item, "sval", None), getattr(item, "name", None),
+                    getattr(item, "count", None), getattr(item, "is_equipment", None),
+                ) for item in snapshot.equipment),
+                key=repr,
+            )
+        )
 
     def allow(self, snapshot, key: str, owner: str) -> bool:
         self.last_incident = None
+        pending_mutation = self._pending_equipment_mutation
+        if pending_mutation is not None:
+            pending_owner, expected_from = pending_mutation
+            if self._equipment_signature(snapshot) != expected_from:
+                self._pending_equipment_mutation = None
+            elif key.startswith(("w", "t")):
+                self.last_incident = {
+                    "marker": "posting-contract:equipment-mutation-unobserved",
+                    "owner": owner,
+                    "pending_owner": pending_owner,
+                    "key": key,
+                }
+                return False
         prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
         if (
             prompt is not None
@@ -1495,6 +1522,10 @@ class PostingContract:
             key, _posting_effect_signature(snapshot, owner, key)
         )
         self._last_posted_owner = owner
+        if key.startswith(("w", "t")):
+            self._pending_equipment_mutation = (
+                owner, self._equipment_signature(snapshot)
+            )
 
 
 def _write_posting_contract_incident(
@@ -2938,48 +2969,59 @@ def _run_follow(
                     nudge_streak >= TERMINAL_NUDGE_LIMIT
                     and args.send_to_window
                 ):
-                    if snapshot is not None:
-                        probe = NUDGE_KEY + policy._look_probe_key(snapshot)
-                        if _modal_recovery_action(nudge_streak) == "esc-look":
-                            send(probe, in_store=False)
-                            print("<stuck-prompt:esc-look-probe>", flush=True)
-                            time.sleep(args.poll_interval)
-                            continue
+                    if nudge_streak == TERMINAL_NUDGE_LIMIT:
+                        for _ in range(DEATH_EXIT_ROUNDS):
+                            for exit_key in DEATH_EXIT_KEYS:
+                                send(exit_key, decision={
+                                    "sequence": None,
+                                    "turn": getattr(snapshot, "turn", None),
+                                    "reason": "recovery:terminal-resync",
+                                    "key": exit_key,
+                                })
+                                started = time.monotonic()
+                                time.sleep(0.3)
+                                wait_telemetry.record(
+                                    "recovery:terminal-key-gap",
+                                    time.monotonic() - started,
+                                )
+                        started = time.monotonic()
+                        time.sleep(2.0)
+                        wait_telemetry.record(
+                            "recovery:shutdown-grace",
+                            time.monotonic() - started,
+                            force_flush=True,
+                        )
+                        if not _game_process_alive(args.window_pid):
+                            print("<dead>", flush=True)
+                            return incident_stop("player-death", snapshot)
                         print(
-                            "<stuck-prompt:modal-recovery-exhausted> ESC/look "
-                            "probes produced no batch; stopping bot "
-                            "(game left running)",
-                            file=sys.stderr,
+                            "<stuck-prompt> terminal resync exhausted; game "
+                            "process alive",
                             flush=True,
                         )
-                        return incident_stop("stuck-prompt", snapshot)
-                    for _ in range(DEATH_EXIT_ROUNDS):
-                        for exit_key in DEATH_EXIT_KEYS:
-                            send(exit_key)
-                            started = time.monotonic()
-                            time.sleep(0.3)
-                            wait_telemetry.record(
-                                "recovery:terminal-key-gap",
-                                time.monotonic() - started,
-                            )
-                    # Give a genuine close_game -> quit() a moment to finish.
-                    started = time.monotonic()
-                    time.sleep(2.0)
-                    wait_telemetry.record(
-                        "recovery:shutdown-grace",
-                        time.monotonic() - started,
-                        force_flush=True,
-                    )
-                    if not _game_process_alive(args.window_pid):
-                        print("<dead>", flush=True)
-                        return incident_stop("player-death", snapshot)
+                        continue
+                    if _modal_recovery_action(nudge_streak) == "esc-look":
+                        # This recovery must not consume or invalidate policy's
+                        # floor-look state.  A store can interpret `l` as a menu
+                        # command, so only Escape is modal-safe there.
+                        probe = NUDGE_KEY if snapshot is not None and snapshot.store is not None else NUDGE_KEY + "l" + NUDGE_KEY
+                        send(probe, in_store=False, decision={
+                            "sequence": None,
+                            "turn": getattr(snapshot, "turn", None),
+                            "reason": "recovery:stuck-prompt-probe",
+                            "key": probe,
+                        })
+                        print("<stuck-prompt:esc-look-probe>", flush=True)
+                        time.sleep(args.poll_interval)
+                        continue
                     print(
-                        "<stuck-prompt> nudges exhausted but the game process "
-                        "is alive; cleared prompts and resyncing",
+                        "<stuck-prompt:modal-recovery-exhausted> ESC/look "
+                        "probes produced no batch; stopping bot "
+                        "(game left running)",
+                        file=sys.stderr,
                         flush=True,
                     )
-                    nudge_streak = 0
-                    recovery_send_failed = False
+                    return incident_stop("stuck-prompt", snapshot)
 
             time.sleep(args.poll_interval)
 

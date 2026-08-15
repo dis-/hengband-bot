@@ -22937,7 +22937,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._melee_swarm_combat_key(
                 contact, contact.visible_monsters, contact.visible_monsters
             ),
-            "ws",
+            "wsn",
         )
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
 
@@ -23018,7 +23018,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy.choose_key(contact)
             self.assertNotEqual(policy.last_reason, "melee:restore-weapon")
             self.assertEqual(policy._mining_combat_contact_streak, decision)
-        self.assertEqual(policy.choose_key(contact), "ws")
+        self.assertEqual(policy.choose_key(contact), "wsn")
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
 
         choke_grids = dict(room)
@@ -23135,7 +23135,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # weak breeders, but mining combat must still count their real contact.
         self.assertEqual(policy._strategic_hostiles(mining), [])
 
-        self.assertEqual(policy.choose_key(mining), "ws")
+        self.assertEqual(policy.choose_key(mining), "wsa")
         self.assertEqual(policy.last_reason, "melee:restore-weapon")
 
         main_restored = replace(
@@ -23200,7 +23200,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         with patch.object(
             policy, "_finish_mining_floor", return_value="FINISH"
         ) as finish:
-            self.assertEqual(policy._fundraising_key(mining, []), "ws")
+            self.assertEqual(policy._fundraising_key(mining, []), "wsa")
             finish.assert_not_called()
 
             armed = replace(
@@ -23453,7 +23453,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._normal_weapon_name = "sword"
         # n answers the "Dual wielding?" prompt (sub hand free) with "replace
         # the main hand", swapping the digger out instead of dual-wielding.
-        self.assertEqual(policy.choose_key(snap), "ws")
+        self.assertEqual(policy.choose_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_fundraising_descends_from_matching_static_entrance(self):
@@ -23593,7 +23593,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
         policy._normal_weapon_name = None  # unknown after a restart
-        self.assertEqual(policy._town_restore_weapon_key(snap), "ws")
+        self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_town_restore_after_restart_skips_unknown_and_cursed_weapons(self):
@@ -23622,7 +23622,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._normal_weapon_name = None
 
-        self.assertEqual(policy._town_restore_weapon_key(snap), "ws")
+        self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_town_restore_weapon_is_a_noop_without_any_combat_weapon(self):
@@ -35917,7 +35917,7 @@ class StuckEscapeTest(unittest.TestCase):
                 Position(10, 12): grid(10, 12, downstairs=True),
             },
         )
-        self.assertEqual(pol.choose_key(opened), "wa")
+        self.assertEqual(pol.choose_key(opened), "wan")
         self.assertEqual(pol.last_reason, "breakout:restore-combat-weapon")
 
     def test_stuck_recall_escape_without_digging_tool(self):
@@ -41512,9 +41512,8 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
-        keys = [pol._fundraising_key(snap, []) for _ in range(2)]
-        self.assertEqual(keys[0], "ta")
-        self.assertNotEqual(keys[1], "ta")
+        keys = [pol._fundraising_key(snap, []) for _ in range(DIGGER_WIELD_LIMIT)]
+        self.assertTrue(all(k == "ta" for k in keys[:-1]))
         self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
         self.assertIsNone(pol._fundraising_mode)  # mining abandoned
 
@@ -41551,7 +41550,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 item("main_hand", TVAL_DIGGING, 1, is_equipment=True, name="Shovel")
             ],
         )
-        self.assertEqual(pol._wield_digging_tool_key(one_digger, "mine:wield"), "wk")
+        self.assertEqual(pol._wield_digging_tool_key(one_digger, "mine:wield"), "wky")
         self.assertEqual(pol._normal_sub_hand_name, "Shield")
 
     def test_dual_diggers_stay_wielded_and_the_next_detection_read_lands(self):
@@ -41648,7 +41647,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(first, "restore"), "ww"
+            pol._restore_mining_combat_hand_key(first, "restore"), "wwa"
         )
         second = Snapshot(
             first.player,
@@ -41661,7 +41660,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(second, "restore"), "ws"
+            pol._restore_mining_combat_hand_key(second, "restore"), "wsb"
         )
 
     def test_mining_restores_optimizer_single_hand_not_displaced_dual_wield(self):
@@ -41700,7 +41699,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            pol._restore_mining_combat_hand_key(both_diggers, "restore"), "ws"
+            pol._restore_mining_combat_hand_key(both_diggers, "restore"), "wsa"
         )
         main_restored = replace(
             both_diggers,
@@ -41748,7 +41747,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 item("sub_hand", TVAL_DIGGING, 4, is_equipment=True),
             ],
         )
-        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "ws")
+        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wsa")
         self.assertEqual(
             pol._restore_mining_combat_hand_key(
                 replace(
@@ -41761,46 +41760,10 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 ),
                 "restore",
             ),
-            "wd",
+            "wdb",
         )
 
-    def test_wield_tail_waits_for_the_observed_prompt_board(self):
-        pol = HengbotPolicy()
-        weapon = item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)
-        digger = item(
-            "main_hand", TVAL_DIGGING, 1, name="Shovel", is_equipment=True
-        )
-        both = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[weapon],
-            equipment=[digger, replace(digger, slot="sub_hand")],
-        )
-        self.assertEqual(pol._wield_weapon_key(both, weapon), "ws")
-        which_hand = replace(both, messages=("Equip which hand? ",))
-        self.assertEqual(pol._wield_weapon_key(which_hand, weapon), "a")
-
-    def test_pending_wield_prompt_preempts_the_next_policy_owner(self):
-        pol = HengbotPolicy()
-        weapon = item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)
-        digger = item(
-            "main_hand", TVAL_DIGGING, 1, name="Shovel", is_equipment=True
-        )
-        board = Snapshot(
-            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            inventory=[weapon],
-            equipment=[digger, replace(digger, slot="sub_hand")],
-        )
-        pol.last_reason = "town:restore-combat-weapon"
-        self.assertEqual(pol._wield_weapon_key(board, weapon), "ws")
-        prompt = replace(board, messages=("Equip which hand? ",))
-        self.assertEqual(pol.choose_key(prompt), "a")
-        self.assertEqual(pol.last_reason, "town:restore-combat-weapon")
-
-    def test_fundraise_loadout_swap_refuses_exact_owner_core_recurrence(self):
+    def test_second_opposite_town_loadout_swap_needs_non_equipment_progress(self):
         pol = HengbotPolicy()
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -41809,17 +41772,24 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             inventory=[item("j", TVAL_DIGGING, 1, name="Shovel")],
             equipment=[],
         )
+        self.assertTrue(pol._may_swap_town_loadout(
+            snap, "fundraise:wield-digging-tool"
+        ))
+        equipment_changed = replace(
+            snap,
+            inventory=[item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)],
+            equipment=[item("main_hand", TVAL_DIGGING, 1, name="Shovel")],
+        )
+        self.assertEqual(pol._town_restore_weapon_key(equipment_changed), WAIT_KEY)
         self.assertEqual(
-            pol._wield_digging_tool_key(snap, "fundraise:wield-digging-tool"),
-            "wj",
+            pol.last_reason, "town:restore-combat-weapon:alternation-refused"
         )
-        self.assertIsNone(
-            pol._wield_digging_tool_key(snap, "fundraise:wield-digging-tool")
-        )
-        self.assertEqual(
-            pol.last_reason,
-            "fundraise:wield-digging-tool:alternation-refused",
-        )
+        progressed = replace(equipment_changed, player=replace(
+            equipment_changed.player, gold=equipment_changed.player.gold + 1
+        ))
+        self.assertTrue(pol._may_swap_town_loadout(
+            progressed, "town:restore-combat-weapon"
+        ))
 
     def test_mining_restore_without_optimizer_falls_back_to_observed_weapon(self):
         pol = HengbotPolicy()
@@ -41836,7 +41806,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             inventory=[item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)],
             equipment=[item("main_hand", TVAL_DIGGING, 1, is_equipment=True)],
         )
-        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "ws")
+        self.assertEqual(pol._restore_mining_combat_hand_key(digging, "restore"), "wsn")
 
     def test_combat_restore_abandons_when_target_identity_never_appears(self):
         from hengbot.policy import DIGGER_WIELD_LIMIT
@@ -41865,7 +41835,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol._restore_mining_combat_hand_key(stuck, "restore")
             for _ in range(DIGGER_WIELD_LIMIT)
         ]
-        self.assertEqual(keys[:-1], ["ws"] * (DIGGER_WIELD_LIMIT - 1))
+        self.assertEqual(keys[:-1], ["wsb"] * (DIGGER_WIELD_LIMIT - 1))
         self.assertIsNone(keys[-1])
         self.assertEqual(
             pol.last_reason, "restore:abandon-unconfirmed-equip"

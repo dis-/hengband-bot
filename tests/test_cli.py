@@ -324,6 +324,26 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
+    def test_equipment_mutations_serialize_across_owners_until_observed(self):
+        contract = PostingContract()
+        bare = self.snapshot(turn=10)
+        contract.posted(bare, "wfa", "fundraise:wield-digging-tool")
+        self.assertFalse(contract.allow(
+            self.snapshot(turn=11), "wgn", "town:restore-combat-weapon"
+        ))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:equipment-mutation-unobserved",
+        )
+        equipped = self.snapshot(turn=11)
+        equipped.equipment = [SimpleNamespace(
+            slot="main_hand", tval=20, sval=1, name="Shovel", count=1,
+            is_equipment=True,
+        )]
+        self.assertTrue(contract.allow(
+            equipped, "wgn", "town:restore-combat-weapon"
+        ))
+
     def test_preserved_sale_prompt_rejects_foreign_escape_owner(self):
         contract = PostingContract()
         sale = self.snapshot(turn=4020002)
