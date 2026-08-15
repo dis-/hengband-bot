@@ -64,7 +64,8 @@ from hengbot.home_errand import (
     HomeErrandRequest,
     HomeErrandState,
 )
-from hengbot.equipment_mutation import EquipmentMutationExecutor
+from hengbot.equipment_mutation import EquipmentMutationExecutor, EquipmentMutationResult
+from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -1280,7 +1281,7 @@ SHOP_APPROACH_STUCK_LIMIT = 12
 # Backstop only: the digging-tool wield normally takes at once (answering the
 # "Equip which hand?" prompt when both hands are full). If it still keeps not taking
 # this many times, the main weapon is genuinely stuck/cursed — abandon the mining run.
-DIGGER_WIELD_LIMIT = 8
+DIGGER_WIELD_LIMIT = TERMINAL_NUDGE_LIMIT
 # Two adjacent observations distinguish persisted contact from one transient
 # redraw without spending seven rounds fighting with mining tools. No existing
 # 2--3 decision hysteresis constant describes this combat transition.
@@ -1785,6 +1786,7 @@ class HengbotPolicy:
         self._town_hunt_target: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         self._equipment_mutation = EquipmentMutationExecutor()
+        self._equipment_mutation_result = EquipmentMutationResult(None)
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
         self._swarm_distance_floor: tuple[int, int, int] | None = None
@@ -20272,8 +20274,6 @@ class HengbotPolicy:
             )
             if restore is not None:
                 return restore
-            if self.last_reason == "town:restore-combat-weapon:alternation-refused":
-                return WAIT_KEY
         replacing_no_teleport = current is not None and self._blocks_teleport(current)
         if replacing_no_teleport:
             if current.is_cursed:
@@ -21636,6 +21636,7 @@ class HengbotPolicy:
         result = self._equipment_mutation.request_wield(
             snapshot, goal, item, target_slot, EQUIPMENT_SLOT_KEY
         )
+        self._equipment_mutation_result = result
         if result.key is not None:
             self._equipment_mutation.bind_post_snapshot(snapshot)
         elif result.report is not None:
@@ -21646,6 +21647,7 @@ class HengbotPolicy:
         self, snapshot: Snapshot, goal: str, slot_key: str
     ) -> str | None:
         result = self._equipment_mutation.request_takeoff(snapshot, goal, slot_key)
+        self._equipment_mutation_result = result
         if result.key is not None:
             self._equipment_mutation.bind_post_snapshot(snapshot)
         elif result.report is not None:
@@ -21666,6 +21668,7 @@ class HengbotPolicy:
         observed combat hands first, then compose the complete source-derived
         prompt tail from the last observed hand state.
         """
+        self._equipment_mutation_result = EquipmentMutationResult(None)
         main_hand = next(
             (it for it in snapshot.equipment if it.slot == "main_hand"), None
         )
@@ -21732,24 +21735,19 @@ class HengbotPolicy:
             )
             if blocked is not None:
                 return None
-            self._digger_wield_attempts += 1
-            if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
-                self._digger_wield_attempts = 0
-                return None
             key = self._equipment_takeoff(
                 snapshot, "mining-loadout", EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
             )
             if key is not None:
+                self._digger_wield_attempts += 1
                 self.last_reason = reason
+            elif self._equipment_mutation_result.report is not None:
+                self._digger_wield_attempts += 1
             return key
 
         target_slot = "sub_hand" if main_hand is not None else "main_hand"
         tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
         if tool is None:
-            return None
-        self._digger_wield_attempts += 1
-        if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
-            self._digger_wield_attempts = 0
             return None
         if (
             main_hand is not None
@@ -21766,7 +21764,10 @@ class HengbotPolicy:
             self._normal_sub_hand_name = sub_hand.name
         key = self._equipment_wield(snapshot, "mining-loadout", tool, target_slot)
         if key is not None:
+            self._digger_wield_attempts += 1
             self.last_reason = reason
+        elif self._equipment_mutation_result.report is not None:
+            self._digger_wield_attempts += 1
         return key
 
     def _restore_mining_combat_hand_key(
@@ -22694,8 +22695,13 @@ class HengbotPolicy:
                 snapshot, "fundraise:wield-digging-tool"
             )
             if wield is None:
-                if self.last_reason == "fundraise:wield-digging-tool:alternation-refused":
-                    return WAIT_KEY
+                report = self._equipment_mutation_result.report
+                if report is not None:
+                    # Supersession keeps mining on the current loadout.  An
+                    # unobserved post retries this same ladder without taking
+                    # ownership away from unrelated town/floor work.
+                    self.last_reason = report
+                    return None
                 self._fundraising_mode = None
                 return self._leave_fundraising_floor(snapshot)
             return wield
@@ -23419,7 +23425,9 @@ class HengbotPolicy:
             if main_hand is not None and not main_hand.is_digging_tool:
                 self._normal_weapon_name = main_hand.name
             self.last_reason = "quest-strategy:q2-breach-wield"
-            return self._wield_weapon_key(snapshot, strong)
+            return self._equipment_wield(
+                snapshot, "q2-breach-loadout", strong, "main_hand"
+            )
 
         self._q2_breach_attempts += 1
         self.last_reason = "quest-strategy:q2-breach-dig"

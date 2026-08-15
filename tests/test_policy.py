@@ -122,6 +122,7 @@ from hengbot.quest_knowledge import (
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
+from hengbot.equipment_mutation import progress_core
 from hengbot.policy import (
     HengbotPolicy,
     EscapeState,
@@ -41520,10 +41521,55 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
+        posted = pol._fundraising_key(snap, [])
+        self.assertEqual(posted, "ta")
+        self.assertTrue(pol.confirm_key_posted(posted))
         keys = [pol._fundraising_key(snap, []) for _ in range(DIGGER_WIELD_LIMIT)]
-        self.assertTrue(all(k == "ta" for k in keys[:-1]))
-        self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
-        self.assertIsNone(pol._fundraising_mode)  # mining abandoned
+        self.assertEqual(keys, [None] * DIGGER_WIELD_LIMIT)
+        self.assertEqual(
+            pol.last_reason, "posting-contract:equipment-mutation-released"
+        )
+        self.assertEqual(pol._fundraising_mode, "mine")
+
+    def test_refused_flip_continues_mining_with_current_loadout(self):
+        snap = Snapshot(
+            player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
+            {
+                Position(12, 126): grid(12, 126),
+                Position(13, 126): grid(13, 126),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                item("t", TVAL_SCROLL, 9, count=3),
+                item("j", TVAL_DIGGING, 4, name="Shovel"),
+            ],
+            equipment=[
+                item(
+                    "g", TVAL_LITE, SV_LITE_LANTERN,
+                    fuel=5000, is_equipment=True,
+                ),
+                item(
+                    "main_hand", TVAL_SWORD, 1,
+                    name="Sword", is_equipment=True,
+                ),
+                item(
+                    "sub_hand", 34, 2,
+                    name="Shield", is_equipment=True,
+                ),
+            ],
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._mining_scroll_used_floor = snap.floor_key
+        pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
+        pol._equipment_mutation.last_posted_goal = "combat-loadout"
+        pol._equipment_mutation.last_posted_core = progress_core(snap)
+
+        key = pol._fundraising_key(snap, [])
+        self.assertIsNone(key, (key, pol.last_reason))
+        self.assertEqual(pol.last_reason, "goal-already-superseded")
+        self.assertEqual(pol._fundraising_mode, "mine")
 
     def test_mining_wields_two_carried_diggers_in_both_hands(self):
         pol = HengbotPolicy()

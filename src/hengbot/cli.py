@@ -42,6 +42,7 @@ from hengbot.policy import (
     WAIT_KEY,
     required_depth_gates,
 )
+from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.flight_recorder import (
     DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
@@ -111,13 +112,10 @@ COMMAND_RESPONSE_GRACE = 12.0
 # death-info / high-score screens (close_game) and never emits another snapshot;
 # Escape nudges cannot revive it. After this many fruitless nudges in a row we
 # treat it as a terminal screen and drive the shutdown so the game quit()s.
-TERMINAL_NUDGE_LIMIT = 8
 # A live process that remains silent after one complete ESC/look recovery round
-# is parked in an input modal, not recovered. Derive the round count from the
-# established terminal nudge allowance rather than adding another timing.
-# The loop checks at LIMIT, continues, then first probes at LIMIT + 1.  To run
-# one real probe before stopping, the exclusive stop boundary is +1+1.
-MODAL_RECOVERY_ROUNDS = (TERMINAL_NUDGE_LIMIT + 1 + 1) - (TERMINAL_NUDGE_LIMIT + 1)
+# is parked in an input modal, not recovered. Streak 8 runs the terminal blast,
+# streak 9 runs the one ESC/look probe, and streak 10 stops.
+MODAL_RECOVERY_ROUNDS = 1
 
 
 def _modal_recovery_action(recovery_attempts: int) -> str:
@@ -1469,19 +1467,6 @@ class PostingContract:
         self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
         self._last_posted_owner: str | None = None
         self.last_incident: dict[str, object] | None = None
-
-    @staticmethod
-    def _equipment_signature(snapshot) -> tuple:
-        return tuple(
-            sorted(
-                ((
-                    getattr(item, "slot", None), getattr(item, "tval", None),
-                    getattr(item, "sval", None), getattr(item, "name", None),
-                    getattr(item, "count", None), getattr(item, "is_equipment", None),
-                ) for item in snapshot.equipment),
-                key=repr,
-            )
-        )
 
     def allow(self, snapshot, key: str, owner: str) -> bool:
         self.last_incident = None

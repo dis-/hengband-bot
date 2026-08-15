@@ -15,6 +15,7 @@ from hengbot.model import (
     TVAL_SHIELD,
     TVAL_SWORD,
 )
+from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
 
 
 WIELD_KEY = "w"
@@ -97,7 +98,9 @@ class EquipmentMutationExecutor:
         self.observe(snapshot)
         if self.state == EquipmentMutationState.POSTED:
             self.refusals += 1
-            if self.refusals >= 8:
+            # Match the sender's established terminal recovery allowance: one
+            # refusal per fruitless observation, then a loud release at LIMIT.
+            if self.refusals >= TERMINAL_NUDGE_LIMIT:
                 self.state = EquipmentMutationState.IDLE
                 self.goal = None
                 self.expected_signature = None
@@ -151,7 +154,11 @@ class EquipmentMutationExecutor:
         elif tval in {TVAL_SHIELD, TVAL_CAPTURE, TVAL_CARD}:
             main_melee = main is not None and (main.is_melee_weapon or main.is_digging_tool)
             sub_melee = sub is not None and (sub.is_melee_weapon or sub.is_digging_tool)
-            if main_melee and sub_melee:
+            # cmd-equipment.cpp checks the sub-melee-first case before the
+            # capture-device two-hand chooser.
+            if not main_melee and sub_melee:
+                suffix = ""
+            elif main_melee and sub_melee:
                 suffix = slot_keys[target_slot]
             elif main is not None and sub is not None and (
                 tval == TVAL_CAPTURE or not main_melee and not sub_melee
@@ -165,8 +172,9 @@ class EquipmentMutationExecutor:
         if self.state != EquipmentMutationState.PREPARED or key != self.prepared_key:
             return False
         self.state = EquipmentMutationState.POSTED
-        self.last_posted_goal = self.goal
-        self.last_posted_core = self.prepared_core
+        if self.goal in self._OPPOSING:
+            self.last_posted_goal = self.goal
+            self.last_posted_core = self.prepared_core
         self.prepared_key = None
         self.prepared_core = None
         self.refusals = 0

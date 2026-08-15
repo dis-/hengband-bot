@@ -326,62 +326,54 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
-    def test_equipment_mutations_serialize_across_owners_until_observed(self):
-        contract = PostingContract()
-        bare = self.snapshot(turn=10)
-        contract.posted(bare, "wfa", "fundraise:wield-digging-tool")
-        self.assertTrue(contract.allow(
-            self.snapshot(turn=11), "wgn", "town:restore-combat-weapon"
-        ))
-        equipped = self.snapshot(turn=11)
-        equipped.equipment = [SimpleNamespace(
-            slot="main_hand", tval=20, sval=1, name="Shovel", count=1,
-            is_equipment=True,
-        )]
-        self.assertTrue(contract.allow(
-            equipped, "wgn", "town:restore-combat-weapon"
-        ))
-
-    def test_equipment_mutation_serializer_loudly_releases_unchanged_board(self):
-        contract = PostingContract()
-        unchanged = self.snapshot(turn=10)
-        contract.posted(unchanged, "wfa", "fundraise:wield-digging-tool")
-        self.assertTrue(contract.allow(
-            self.snapshot(turn=11), "ta", "town:restore-combat-weapon"
-        ))
-        self.assertIsNone(contract.last_incident)
-
     def test_ledger_120x_wield_restore_read_order_is_serialized(self):
-        """Rows 13406-13631: ta/wg/wgy, restore, then rc (ledger-derived)."""
+        """Posted-ledger rows 94685-94733: policy drives ta/wg/wgy, restore, rc."""
+        policy = HengbotPolicy()
         contract = PostingContract()
         yeek_before = self.snapshot(turn=925281)
-        contract.posted(
-            yeek_before, "ta", "fundraise:wield-digging-tool"
-        )
-        self.assertTrue(contract.allow(
-            self.snapshot(turn=925282), "wsa",
-            "town:restore-combat-weapon",
-        ))
-        yeek_after_takeoff = self.snapshot(turn=925283)
-        yeek_after_takeoff.equipment = [SimpleNamespace(
-            slot="sub_hand", tval=20, sval=1, name="Shovel", count=1,
-            is_equipment=True,
-        )]
-        self.assertTrue(contract.allow(
-            yeek_after_takeoff, "wgy",
-            "fundraise:wield-digging-tool",
-        ))
-        contract.posted(
-            yeek_after_takeoff, "wgy", "fundraise:wield-digging-tool"
-        )
-        town_restored = self.snapshot(turn=927169)
-        town_restored.equipment = [SimpleNamespace(
+        sword = SimpleNamespace(
             slot="main_hand", tval=23, sval=1, name="Sword", count=1,
-            is_equipment=True,
-        )]
-        self.assertTrue(contract.allow(
-            town_restored, "rc", "fundraise:detect-treasure"
-        ))
+            charges=0, inscription="", known=True, fully_known=True,
+            is_equipment=True, is_melee_weapon=True, is_digging_tool=False,
+        )
+        shovel = SimpleNamespace(
+            slot="s", tval=20, sval=1, name="Shovel", count=1,
+            charges=0, inscription="", known=True, fully_known=True,
+            is_equipment=True, is_melee_weapon=False, is_digging_tool=True,
+        )
+        yeek_before.equipment = [sword]
+        yeek_before.inventory = [shovel]
+        takeoff = policy._equipment_takeoff(yeek_before, "mining-loadout", "a")
+        self.assertEqual(takeoff, "ta")
+        self.assertTrue(policy.confirm_key_posted(takeoff))
+
+        # The old interleaving attempted a foreign rc read while the wield
+        # prompt remained open. Prompt ownership rejects that artifact.
+        prompt = self.snapshot(
+            turn=925282,
+            messages=("Which hand? [a/b]", "Really use two weapons? [y/n]"),
+        )
+        contract.posted(prompt, "ta", "fundraise:wield-digging-tool")
+        self.assertFalse(contract.allow(prompt, "rc", "fundraise:detect-treasure"))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:prompt-owner-mismatch",
+        )
+
+        yeek_after_takeoff = self.snapshot(turn=925283)
+        yeek_after_takeoff.inventory = [shovel, sword]
+        wield = policy._equipment_wield(
+            yeek_after_takeoff, "mining-loadout", shovel, "main_hand"
+        )
+        self.assertEqual(wield, "ws")
+        self.assertTrue(policy.confirm_key_posted(wield))
+        refused = policy._equipment_wield(
+            yeek_after_takeoff, "combat-loadout", sword, "main_hand"
+        )
+        self.assertIsNone(refused)
+        self.assertEqual(
+            policy.last_reason, "posting-contract:equipment-mutation-unobserved"
+        )
 
     def test_preserved_sale_prompt_rejects_foreign_escape_owner(self):
         contract = PostingContract()
@@ -2201,19 +2193,49 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertEqual(_modal_recovery_action(0), "nudge")
 
     def test_loop_modal_escalation_prioritizes_dead_and_live_outcomes(self):
-        actions = []
-        attempt = 0
-        while True:
-            action = _modal_recovery_action(attempt)
-            actions.append(action)
-            if action == "stop":
-                break
-            attempt += 1
-        self.assertEqual(actions.count("esc-look"), MODAL_RECOVERY_ROUNDS)
-        with patch("hengbot.cli._game_process_alive", return_value=False):
-            self.assertEqual(_silent_game_incident(123), "player-death")
-        with patch("hengbot.cli._game_process_alive", return_value=True):
-            self.assertEqual(_silent_game_incident(123), "stuck-prompt")
+        for alive, expected in ((False, "player-death"), (True, "stuck-prompt")):
+            with TemporaryDirectory() as directory:
+                root = Path(directory)
+                state = root / "state.jsonl"
+                state.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+                args = _build_argument_parser().parse_args([
+                    "--state-file", str(state),
+                    "--decision-log", str(root / "decisions.jsonl"),
+                    "--poll-interval", "0.001", "--stall-timeout", "0.001",
+                    "--send-to-window", "--window-pid", "123",
+                ])
+                args.wait_telemetry = unittest.mock.Mock()
+                policy = HengbotPolicy()
+                policy.choose_key = unittest.mock.Mock(return_value=None)
+                policy.last_reason = "test:silent"
+                sent = []
+                incidents = []
+
+                clock = iter(float(value) for value in range(10000))
+                with (
+                    patch("hengbot.cli.time.monotonic", side_effect=lambda: next(clock)),
+                    patch("hengbot.cli.time.sleep"),
+                    patch(
+                        "hengbot.cli._game_process_alive",
+                        side_effect=([True, True] if alive else [True, False]),
+                    ),
+                    patch(
+                        "hengbot.cli._freeze_incident_safely",
+                        side_effect=lambda _recorder, kind, *_args: incidents.append(kind),
+                    ),
+                    patch("hengbot.cli._append_capture_ledger"),
+                ):
+                    self.assertEqual(
+                        _run_follow(
+                            args, policy,
+                            lambda key, **_kwargs: sent.append(key) or True,
+                            {},
+                        ),
+                        0,
+                    )
+                probes = [key for key in sent if key == "\x1bl\x1b"]
+                self.assertEqual(len(probes), 1)
+                self.assertEqual(incidents, [expected])
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's

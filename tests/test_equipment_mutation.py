@@ -10,6 +10,7 @@ from hengbot.equipment_mutation import (
     EquipmentMutationState,
     progress_core,
 )
+from hengbot.model import TVAL_CAPTURE
 
 
 def item(slot, name, *, tval=20, count=1, melee=False, digger=False):
@@ -58,6 +59,18 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
                 board(equipment=(main, sub), inventory=(tool,)),
                 "mining-loadout", tool, "sub_hand", SLOTS,
             ).key, "wsb"
+        )
+
+    def test_capture_with_sub_melee_uses_sub_melee_first_branch(self):
+        capture = item("c", "Capture Ball", tval=TVAL_CAPTURE)
+        main = item("main_hand", "Shield", tval=34)
+        sub = item("sub_hand", "Sword", tval=23, melee=True)
+        self.assertEqual(
+            EquipmentMutationExecutor().request_wield(
+                board(equipment=(main, sub), inventory=(capture,)),
+                "transaction-apply", capture, "main_hand", SLOTS,
+            ).key,
+            "wc",
         )
 
     def test_posted_serialization_releases_loudly_at_eight(self):
@@ -121,20 +134,50 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
         ]
         self.assertEqual(keys, ["ta", "ta"])
 
+    def test_non_opposing_post_does_not_erase_flip_memory(self):
+        ex = EquipmentMutationExecutor()
+        snap = board(inventory=(item("s", "Shovel", digger=True),))
+        mining = ex.request_takeoff(snap, "mining-loadout", "a")
+        ex.bind_post_snapshot(snap)
+        ex.confirm_posted(mining.key)
+        ex.observe(board(equipment=(item("main_hand", "Shovel", digger=True),)))
+        light = ex.request_takeoff(snap, "light-loadout", "g")
+        ex.bind_post_snapshot(snap)
+        ex.confirm_posted(light.key)
+        self.assertEqual(ex.last_posted_goal, "mining-loadout")
+
     def test_policy_has_no_direct_wield_or_takeoff_composition(self):
-        path = Path(__file__).parents[1] / "src" / "hengbot" / "policy.py"
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        forbidden = {"WIELD_KEY", "TAKEOFF_KEY"}
-        names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-        self.assertFalse(names & forbidden)
-        direct = [
-            node for node in ast.walk(tree)
-            if isinstance(node, ast.BinOp)
-            and isinstance(node.op, ast.Add)
-            and isinstance(node.left, ast.Constant)
-            and node.left.value in {"w", "t"}
-        ]
-        self.assertEqual(direct, [])
+        root = Path(__file__).parents[1] / "src" / "hengbot"
+        for filename in ("policy.py", "cli.py", "home_errand.py"):
+            tree = ast.parse((root / filename).read_text(encoding="utf-8"))
+            forbidden = {"WIELD_KEY", "TAKEOFF_KEY"}
+            names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+            self.assertFalse(names & forbidden, filename)
+
+            def has_key_literal(node):
+                return any(
+                    isinstance(part, ast.Constant) and part.value in {"w", "t"}
+                    for part in ast.walk(node)
+                )
+
+            composers = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.JoinedStr) and has_key_literal(node):
+                    composers.append(node)
+                elif isinstance(node, ast.AugAssign) and has_key_literal(node.value):
+                    composers.append(node)
+                elif isinstance(node, ast.BinOp) and isinstance(
+                    node.op, (ast.Add, ast.Mod)
+                ) and has_key_literal(node):
+                    composers.append(node)
+                elif (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "join"
+                    and has_key_literal(node.func.value)
+                ):
+                    composers.append(node)
+            self.assertEqual(composers, [], filename)
 
 
 if __name__ == "__main__":
