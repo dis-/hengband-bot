@@ -416,9 +416,14 @@ class DecisionTimingTest(unittest.TestCase):
             initial_line = _snap_line(1, 5, 5)
             decision_line = _snap_line(2, 5, 5)
             stop_line = _snap_line(3, 5, 5)
+            knowledge_items = [
+                {"slot": "a", "name": "Shovel", "count": 1, "tval": 20, "sval": 1},
+                {"slot": "b", "name": "Pick", "count": 1, "tval": 20, "sval": 4},
+                {"slot": "c", "name": "Mattock", "count": 1, "tval": 20, "sval": 7},
+            ]
             knowledge_line = json.dumps({
                 "type": "knowledge", "turn": 2,
-                "knowledge": {"category": "home", "menu_key": "9", "items": []},
+                "knowledge": {"category": "home", "menu_key": "9", "items": knowledge_items},
             }) + "\n"
             state_path.write_text(initial_line, encoding="utf-8")
             args = _build_argument_parser().parse_args([
@@ -435,6 +440,7 @@ class DecisionTimingTest(unittest.TestCase):
                     return ""
                 policy.last_reason = "home:request-knowledge-scan"
                 policy._home_knowledge_scan_requested = True
+                policy._home_page_size = 2
                 policy._decision_sequence += 1
                 return "~9"
 
@@ -509,6 +515,80 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertFalse(batch_rows[1]["decided"])
             self.assertTrue(knowledge_rows[0]["accepted"])
             self.assertTrue(knowledge_rows[0]["inflight_at_arrival"])
+            self.assertEqual(
+                knowledge_rows[0]["items"],
+                [
+                    {"letter": "a", "name": "Shovel", "page": 0},
+                    {"letter": "b", "name": "Pick", "page": 0},
+                    {"letter": "c", "name": "Mattock", "page": 1},
+                ],
+            )
+            self.assertEqual(knowledge_path.parent, root)
+
+    def test_follow_records_atomic_withdraw_observed_home_page(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            ledger_path = root / "capture-ledger" / "knowledge-responses.jsonl"
+            page = json.loads(_snap_line(2, 5, 5))
+            page["store"] = {
+                "store_type": 7, "stock_num": 14, "page_top": 12, "page_size": 12,
+                "items": [
+                    {"letter": "a", "name": "Shovel", "count": 1, "tval": 20, "sval": 1},
+                    {"letter": "b", "name": "Pick", "count": 1, "tval": 20, "sval": 4},
+                ],
+            }
+            initial_page = dict(page)
+            initial_page["turn"] = 1
+            initial = json.dumps(initial_page) + "\n"
+            page_line = _snap_line(2, 5, 5)
+            decision_line = _snap_line(3, 5, 5)
+            stop_line = _snap_line(4, 5, 5)
+            state_path.write_text(initial, encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path), "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+
+            def choose(snapshot):
+                if snapshot.turn == 4:
+                    policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                    return ""
+                policy.last_reason = "home:atomic-withdraw-target-unobserved"
+                return ""
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+
+            def append_snapshots():
+                time.sleep(0.2)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(page_line)
+                    stream.flush()
+                    time.sleep(0.2)
+                    stream.write(decision_line)
+                    stream.flush()
+                    time.sleep(0.2)
+                    stream.write(stop_line)
+                    stream.flush()
+
+            writer = threading.Thread(target=append_snapshots)
+            writer.start()
+            try:
+                with patch("hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH", ledger_path):
+                    self.assertEqual(_run_follow(args, policy, lambda *_a, **_k: True, {}), 0)
+            finally:
+                writer.join()
+
+            rows = [json.loads(line) for line in ledger_path.read_text().splitlines()]
+            self.assertEqual(rows[0]["category"], "home-atomic-withdraw-page")
+            self.assertEqual(rows[0]["page_top"], 12)
+            self.assertEqual(rows[0]["items"], [
+                {"letter": "a", "name": "Shovel", "page": 1},
+                {"letter": "b", "name": "Pick", "page": 1},
+            ])
 
     @patch("hengbot.cli._append_capture_ledger")
     def test_decision_row_shape_is_byte_identical_when_timing_is_removed(self, append):

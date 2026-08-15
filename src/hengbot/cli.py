@@ -11,7 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from hengbot.model import MissingMonraceKnowledgeError, _parse_items, parse_snapshot
+from hengbot.model import (
+    STORE_HOME,
+    MissingMonraceKnowledgeError,
+    _parse_items,
+    parse_snapshot,
+)
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.terrain_knowledge import (
@@ -2143,6 +2148,7 @@ def _run_follow(
         posting_contract = PostingContract()
     batch_seq = 0
     pending_batch_row = None
+    last_observed_home_page = None
 
     def finish_pending_batch() -> None:
         nonlocal pending_batch_row
@@ -2178,6 +2184,11 @@ def _run_follow(
     if initial_snapshot is not None:
         policy.prime(initial_snapshot)
         args.last_snapshot = initial_snapshot
+        if (
+            initial_snapshot.store is not None
+            and initial_snapshot.store.store_type == STORE_HOME
+        ):
+            last_observed_home_page = initial_snapshot.store
     snapshot = initial_snapshot
     economy_ledger = EconomyLedger(args.economy_log)
     economy_ledger.rotate_bytes = args.recorder_log_rotate_bytes
@@ -2358,6 +2369,11 @@ def _run_follow(
                     )
                 if entry is not None:
                     snapshot, snapshot_line = entry
+                    if (
+                        snapshot.store is not None
+                        and snapshot.store.store_type == STORE_HOME
+                    ):
+                        last_observed_home_page = snapshot.store
                     args.last_snapshot = snapshot
                     # A snapshot means the game is alive and awaiting a command.
                     nudge_streak = 0
@@ -2425,6 +2441,9 @@ def _run_follow(
                     )
                     phase_started_at = time.perf_counter()
                     chosen_key = policy.choose_key(snapshot)
+                    _record_atomic_home_page(
+                        policy, snapshot, observed_store=last_observed_home_page
+                    )
                     decision_timing["choose_key_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
@@ -3105,6 +3124,47 @@ def _append_capture_ledger(
         print(f"capture ledger failed to append {path}: {exc}", file=sys.stderr)
 
 
+def _capture_item_rows(items, *, page_size=None, page_top=0, limit=256):
+    """Project a bounded, replay-oriented view of Home item addresses."""
+    size = page_size if isinstance(page_size, int) and page_size > 0 else None
+    top = page_top if isinstance(page_top, int) and page_top >= 0 else 0
+    rows = []
+    for offset, item in enumerate(tuple(items)[:limit]):
+        absolute = top + offset
+        rows.append({
+            "letter": getattr(item, "letter", getattr(item, "slot", None)),
+            "name": getattr(item, "name", None),
+            "page": absolute // size if size is not None else None,
+        })
+    return rows
+
+
+def _record_atomic_home_page(policy, snapshot, *, observed_store=None, path=None):
+    reason = getattr(policy, "last_reason", "")
+    if not reason.startswith("home:atomic-withdraw"):
+        return
+    store = observed_store or getattr(snapshot, "store", None)
+    items = getattr(store, "items", ()) if store is not None else ()
+    _append_capture_ledger(
+        path or KNOWLEDGE_RESPONSE_LEDGER_PATH,
+        {
+            "time": datetime.now().isoformat(),
+            "turn": getattr(snapshot, "turn", None),
+            "category": "home-atomic-withdraw-page",
+            "reason": reason,
+            "page_top": getattr(store, "page_top", None),
+            "page_size": getattr(store, "page_size", None),
+            "items": _capture_item_rows(
+                items,
+                page_size=getattr(store, "page_size", None),
+                page_top=getattr(store, "page_top", 0),
+            ),
+        },
+        getattr(policy, "_recorder_log_rotate_bytes", DEFAULT_LOG_ROTATE_BYTES),
+        getattr(policy, "_recorder_log_generations", DEFAULT_LOG_GENERATIONS),
+    )
+
+
 def _dispatch_response_lines(
     complete_lines, policy, send, *, decoded_lines=None,
     knowledge_ledger_path: Path | None = None,
@@ -3136,6 +3196,7 @@ def _dispatch_response_lines(
         )
         if response_type == "knowledge" and isinstance(knowledge, dict):
             knowledge_items = knowledge.get("items", ())
+            parsed_knowledge_items = tuple(_parse_items(knowledge_items))
             _append_capture_ledger(
                 knowledge_ledger_path or KNOWLEDGE_RESPONSE_LEDGER_PATH,
                 {
@@ -3148,14 +3209,16 @@ def _dispatch_response_lines(
                     ) else 0,
                     "accepted": requested_home_knowledge,
                     "inflight_at_arrival": inflight_at_arrival,
+                    "items": _capture_item_rows(
+                        parsed_knowledge_items,
+                        page_size=getattr(policy, "_home_page_size", None),
+                    ) if knowledge.get("category") == "home" else [],
                 },
                 getattr(policy, "_recorder_log_rotate_bytes", DEFAULT_LOG_ROTATE_BYTES),
                 getattr(policy, "_recorder_log_generations", DEFAULT_LOG_GENERATIONS),
             )
         if requested_home_knowledge:
-            policy.consume_home_knowledge(
-                tuple(_parse_items(knowledge.get("items", [])))
-            )
+            policy.consume_home_knowledge(parsed_knowledge_items)
             send(NUDGE_KEY + NUDGE_KEY)
         elif response_type == "character":
             character = data.get("character")

@@ -2236,6 +2236,11 @@ class HengbotPolicy:
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
         # Store purchases are retained for the rest of the current town visit.
         self._town_visit_purchases: set[tuple[str, int, int]] = set()
+        # A6a: Home remains the preferred source for the two-tool mining kit.
+        # Repeated visible withdrawal failures permit one liveness purchase per
+        # town visit; they never silently turn Home stock into an open buy loop.
+        self._digger_home_withdraw_failures = 0
+        self._digger_fallback_bought_this_visit = False
         # Prices are learned only from shelves actually shown by the emitter.
         # Values are (unit price, units supplied); no guessed/default shopping
         # price is permitted for the cross-town funds gate.
@@ -3223,6 +3228,8 @@ class HengbotPolicy:
                     )
                     else "home:atomic-withdraw-failed"
                 )
+                if withdrawn.is_digging_tool:
+                    self._digger_home_withdraw_failures += 1
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
@@ -6533,6 +6540,8 @@ class HengbotPolicy:
                 self._destroy_fail_streak = 0
                 self._shopping_abandoned = False
                 self._town_store_attempted.clear()
+                self._digger_home_withdraw_failures = 0
+                self._digger_fallback_bought_this_visit = False
                 self._unsellable_items.clear()
                 self._store_sale_refused.clear()
                 self._store_sell_attempt = None
@@ -8938,6 +8947,19 @@ class HengbotPolicy:
     def _digging_tool_count(snapshot: Snapshot) -> int:
         return sum(it.count for it in snapshot.inventory if it.is_digging_tool) + sum(
             1 for it in snapshot.equipment if it.is_digging_tool
+        )
+
+    def _withdrawable_digging_tool_count(self, snapshot: Snapshot) -> int:
+        return self._digging_tool_count(snapshot) + sum(
+            owned.item.count
+            for owned in self._equipment_catalog.items
+            if owned.origin == "home" and owned.item.is_digging_tool
+        )
+
+    def _digger_buy_fallback_available(self) -> bool:
+        return (
+            self._digger_home_withdraw_failures >= 2
+            and not self._digger_fallback_bought_this_visit
         )
 
     def _has_withdrawable_digging_tool(self, snapshot: Snapshot) -> bool:
@@ -15098,7 +15120,13 @@ class HengbotPolicy:
                     )
                 ):
                     add(STORE_HOME, "stored-digger", "home-first")
-                if STORE_GENERAL not in self._town_store_attempted:
+                if (
+                    STORE_GENERAL not in self._town_store_attempted
+                    and (
+                        self._withdrawable_digging_tool_count(snapshot) < 2
+                        or self._digger_buy_fallback_available()
+                    )
+                ):
                     add(STORE_GENERAL, "mining-digger")
             if not self._fundraising_light_ready(snapshot):
                 if STORE_GENERAL not in self._town_store_attempted:
@@ -17895,7 +17923,10 @@ class HengbotPolicy:
                 )
                 if torch is not None:
                     return torch
-            if self._digging_tool_count(snapshot) < 2:
+            if (
+                self._withdrawable_digging_tool_count(snapshot) < 2
+                or self._digger_buy_fallback_available()
+            ):
                 digger = next(
                     (
                         item
@@ -17905,6 +17936,8 @@ class HengbotPolicy:
                     None,
                 )
                 if digger is not None:
+                    if self._digger_buy_fallback_available():
+                        self._digger_fallback_bought_this_visit = True
                     return digger
             return None
 
@@ -19486,7 +19519,11 @@ class HengbotPolicy:
             elif item.is_treasure_detection_scroll:
                 self.last_reason = "shop:buy-treasure-detection"
             elif item.is_digging_tool:
-                self.last_reason = "shop:buy-digging-tool"
+                self.last_reason = (
+                    "shop:buy-digging-tool:home-withdraw-failed-fallback"
+                    if self._digger_fallback_bought_this_visit
+                    else "shop:buy-digging-tool"
+                )
             elif item.is_ammo:
                 self.last_reason = "shop:buy-ammo"
             elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:

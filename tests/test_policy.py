@@ -19676,6 +19676,69 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:leave-with-digging-tool")
         self.assertEqual(policy._digging_tool_count(with_second), 2)
 
+    def test_home_stock_blocks_digger_buy_even_after_home_was_attempted(self):
+        """Fact 4: the old buy gate counted pack+equipment but omitted Home."""
+        held = item("p", TVAL_DIGGING, 1, name="held shovel")
+        stored = store_item(
+            "b", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
+        )
+        general_digger = store_item(
+            "a", TVAL_DIGGING, 1, name="new shovel", price=50,
+            is_equipment=True,
+        )
+        general = Snapshot(
+            player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._strict_supplies(detection=5), held],
+            store=StoreState(STORE_GENERAL, [general_digger]),
+        )
+
+        for attempted in (False, True):
+            policy = HengbotPolicy()
+            policy._fundraising_mode = "prepare"
+            policy.consume_home_knowledge((stored,))
+            if attempted:
+                policy._town_store_attempted[STORE_HOME] = general.turn
+            self.assertEqual(policy._withdrawable_digging_tool_count(general), 2)
+            self.assertIsNone(policy._next_purchase_unreserved(general))
+
+            restarted = HengbotPolicy()
+            restarted._fundraising_mode = "prepare"
+            restarted.consume_home_knowledge((stored,))
+            if attempted:
+                restarted._town_store_attempted[STORE_HOME] = general.turn
+            self.assertIsNone(restarted._next_purchase_unreserved(general))
+
+    def test_two_visible_withdraw_failures_allow_one_recorded_fallback_buy(self):
+        held = item("p", TVAL_DIGGING, 1, name="held shovel")
+        stored = store_item(
+            "b", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
+        )
+        offered = store_item("a", TVAL_DIGGING, 1, name="new shovel", price=50)
+        general = Snapshot(
+            player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._strict_supplies(detection=5), held],
+            store=StoreState(STORE_GENERAL, [offered]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy.consume_home_knowledge((stored,))
+
+        policy._digger_home_withdraw_failures = 1
+        self.assertIsNone(policy._next_purchase_unreserved(general))
+        policy._digger_home_withdraw_failures = 2
+        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertTrue(policy._shop(general).startswith(BUY_KEY))
+        self.assertTrue(policy._digger_fallback_bought_this_visit)
+        self.assertEqual(
+            policy.last_reason,
+            "shop:buy-digging-tool:home-withdraw-failed-fallback",
+        )
+        self.assertIsNone(policy._next_purchase_unreserved(general))
+
     def test_failed_digger_withdrawal_is_not_retried_after_home_ejects_to_town(self):
         digger = store_item(
             "b", TVAL_DIGGING, 1, name="shovel", is_equipment=True
@@ -36517,6 +36580,20 @@ class IdleItemDepositTest(unittest.TestCase):
         self.assertEqual({it.slot for it in surplus}, {"a"})
         self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[1]))
         self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[2]))
+
+    def test_deposit_sweep_keeps_two_carried_diggers(self):
+        pol = HengbotPolicy()
+        diggers = [
+            item("a", TVAL_DIGGING, 1, name="Shovel"),
+            item("b", TVAL_DIGGING, 4, name="Pick"),
+        ]
+        snap = self._town(diggers)
+
+        self.assertEqual(pol._digging_tool_count(snap), 2)
+        self.assertFalse(any(
+            pol._is_surplus_digging_tool(snap, candidate)
+            for candidate in diggers
+        ))
 
     def test_surplus_diggers_keep_dwarven_shovel_over_plain_pick(self):
         pol = HengbotPolicy()
