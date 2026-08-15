@@ -2402,15 +2402,18 @@ def _run_follow(
                     )
                 if entry is not None:
                     snapshot, snapshot_line = entry
-                    if (
-                        snapshot.store is not None
-                        and snapshot.store.store_type == STORE_HOME
-                    ):
-                        last_observed_home_page = (snapshot.store, snapshot.turn)
-                    elif snapshot.store is None:
-                        # Page-relative letters are valid only during the visit
-                        # in which the page was rendered.
-                        last_observed_home_page = None
+                    floor_changed = _floor_transition_needs_prompt_clear(
+                        last_snapshot_floor_key, snapshot.floor_key
+                    )
+                    # A different store or floor proves the retained Home page
+                    # is no longer the applicable context.  Merely leaving Home
+                    # does not: atomic-withdraw composition happens on the next
+                    # town snapshot, and observed_turn exposes the page's age.
+                    last_observed_home_page = _retained_home_page(
+                        last_observed_home_page,
+                        snapshot,
+                        floor_changed=floor_changed,
+                    )
                     args.last_snapshot = snapshot
                     # A snapshot means the game is alive and awaiting a command.
                     nudge_streak = 0
@@ -2435,9 +2438,6 @@ def _run_follow(
                                 look_barrier_started_at = time.monotonic()
                             last_activity = time.monotonic()
                             continue
-                    floor_changed = _floor_transition_needs_prompt_clear(
-                        last_snapshot_floor_key, snapshot.floor_key
-                    )
                     if floor_changed:
                         # Hengband can print a level feeling / arrival message
                         # after emitting the first snapshot on a new floor. With
@@ -3127,6 +3127,17 @@ def _observe_home_entry_capture(home_entry_capture, ordered_snapshots) -> None:
         home_entry_capture.report_failure(
             "observe_snapshot", exc, "next snapshot"
         )
+
+
+def _retained_home_page(previous, snapshot, *, floor_changed: bool):
+    """Retain replay evidence until a transition makes its context unknowable."""
+    if floor_changed:
+        previous = None
+    if snapshot.store is None:
+        return previous
+    if snapshot.store.store_type == STORE_HOME:
+        return snapshot.store, snapshot.turn
+    return None
 
 
 def _newest_snapshot_entry(

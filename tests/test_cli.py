@@ -70,6 +70,7 @@ from hengbot.cli import (
     _newest_snapshot_entry,
     _read_last_line,
     _record_atomic_home_page,
+    _retained_home_page,
     _run_follow,
     _request_due_dump,
     _rewind_if_truncated,
@@ -467,6 +468,33 @@ class DecisionWatchdogTest(unittest.TestCase):
 
 
 class DecisionTimingTest(unittest.TestCase):
+    def test_home_page_retention_has_only_structural_clear_boundaries(self):
+        home_data = json.loads(_snap_line(10, 5, 5))
+        home_data["store"] = {
+            "store_type": 7, "stock_num": 1, "page_top": 0, "page_size": 12,
+            "items": [{"letter": "a", "name": "Pick", "count": 1}],
+        }
+        home = parse_snapshot(home_data, {})
+        retained = _retained_home_page(None, home, floor_changed=False)
+        town = parse_snapshot(json.loads(_snap_line(11, 5, 5)), {})
+
+        self.assertIs(_retained_home_page(
+            retained, town, floor_changed=False
+        ), retained)
+        self.assertIsNone(_retained_home_page(
+            retained, town, floor_changed=True
+        ))
+
+        shop_data = json.loads(_snap_line(12, 5, 5))
+        shop_data["store"] = {
+            "store_type": 1, "stock_num": 0, "page_top": 0,
+            "page_size": 12, "items": [],
+        }
+        shop = parse_snapshot(shop_data, {})
+        self.assertIsNone(_retained_home_page(
+            retained, shop, floor_changed=False
+        ))
+
     def test_follow_records_batch_spans_posted_key_and_inflight_knowledge(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -613,25 +641,27 @@ class DecisionTimingTest(unittest.TestCase):
             ])
             args.wait_telemetry = unittest.mock.Mock()
             policy = HengbotPolicy()
+            turn_decided = {2: threading.Event(), 3: threading.Event()}
 
             def choose(snapshot):
                 if snapshot.turn == 4:
                     policy.last_reason = "equipment-transaction:restore-blocked-terminal"
                     return ""
                 policy.last_reason = "home:atomic-withdraw-target-unobserved"
+                turn_decided[snapshot.turn].set()
                 return ""
 
             policy.choose_key = unittest.mock.Mock(side_effect=choose)
 
             def append_snapshots():
-                time.sleep(0.2)
+                time.sleep(0.5)
                 with state_path.open("a", encoding="utf-8") as stream:
                     stream.write(page_line)
                     stream.flush()
-                    time.sleep(0.2)
+                    self.assertTrue(turn_decided[2].wait(5))
                     stream.write(decision_line)
                     stream.flush()
-                    time.sleep(0.2)
+                    self.assertTrue(turn_decided[3].wait(5))
                     stream.write(stop_line)
                     stream.flush()
 
@@ -645,9 +675,23 @@ class DecisionTimingTest(unittest.TestCase):
 
             rows = [json.loads(line) for line in ledger_path.read_text().splitlines()]
             self.assertTrue(rows)
-            self.assertTrue(all(row["observed_turn"] is None for row in rows))
-            self.assertTrue(all(row["page_top"] is None for row in rows))
-            self.assertTrue(all(row["items"] == [] for row in rows))
+            self.assertTrue(all(row["turn"] in {2, 3} for row in rows))
+            self.assertTrue(all(row["observed_turn"] == 1 for row in rows))
+            self.assertTrue(all(row["page_top"] == 12 for row in rows))
+            self.assertTrue(all(row["page_size"] == 12 for row in rows))
+            self.assertTrue(all(
+                row["items"] == [
+                    {
+                        "letter": "a", "name": "Shovel", "page": 1,
+                        "index": 12, "composer_letter": "a",
+                    },
+                    {
+                        "letter": "b", "name": "Pick", "page": 1,
+                        "index": 13, "composer_letter": "b",
+                    },
+                ]
+                for row in rows
+            ))
 
     def test_decision_row_shape_is_byte_identical_when_capture_writer_runs(self):
         snapshot = parse_snapshot(json.loads(_snap_line(7, 5, 6)), {})
