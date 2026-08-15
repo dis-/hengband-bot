@@ -2334,6 +2334,7 @@ class HengbotPolicy:
         self._home_atomic_withdraw_pending: tuple[
             tuple[str, int, int], int, StoreItem, int
         ] | None = None
+        self._home_atomic_withdraw_posted_turn: int | None = None
         # True only while a charged Identify staff withdrawn from Home is being
         # carried to the Magic shop for sale.  Home used to be a one-way sink:
         # departure readiness counted pack charges only, while useful charged
@@ -3150,7 +3151,14 @@ class HengbotPolicy:
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
         pending_withdrawal = self._home_atomic_withdraw_pending
-        if pending_withdrawal is not None and snapshot.store is None:
+        if (
+            pending_withdrawal is not None
+            and snapshot.store is None
+            and (
+                self._home_atomic_withdraw_posted_turn is None
+                or snapshot.turn > self._home_atomic_withdraw_posted_turn
+            )
+        ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
             after_count = self._inventory_signature_count(snapshot, signature)
             if (
@@ -3159,6 +3167,7 @@ class HengbotPolicy:
             ):
                 self._home_errand.observe_outside(after_count)
             self._home_atomic_withdraw_pending = None
+            self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
                 suppression_withdrawal = (
@@ -3701,15 +3710,20 @@ class HengbotPolicy:
         if (
             key == WAIT_KEY
             and snapshot.store is None
-            and self._equipment_transaction_session is not None
-            and self._equipment_transaction_session.pending_action is not None
-            and self._equipment_transaction_session.pending_action.kind == "withdraw"
-            and self._equipment_transaction_session.index + 1
-            < len(self._equipment_transaction_session.plan.actions)
-            and self._equipment_transaction_session.plan.actions[
-                self._equipment_transaction_session.index + 1
-            ].phase
-            != PHASE_EQUIP
+            and (
+                self._home_atomic_withdraw_pending is not None
+                or (
+                    self._equipment_transaction_session is not None
+                    and self._equipment_transaction_session.pending_action is not None
+                    and self._equipment_transaction_session.pending_action.kind == "withdraw"
+                    and self._equipment_transaction_session.index + 1
+                    < len(self._equipment_transaction_session.plan.actions)
+                    and self._equipment_transaction_session.plan.actions[
+                        self._equipment_transaction_session.index + 1
+                    ].phase
+                    != PHASE_EQUIP
+                )
+            )
         ):
             # The outside half of an atomic Home withdrawal is still owned by
             # the posted one-shot until inventory confirms it.  On the Home
@@ -3722,7 +3736,11 @@ class HengbotPolicy:
             # confirmation behavior.
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.store_number == STORE_HOME:
-                self.last_reason = "equipment-transaction:await-confirmation-on-home"
+                self.last_reason = (
+                    "home:atomic-withdraw-await-confirmation"
+                    if self._home_atomic_withdraw_pending is not None
+                    else "equipment-transaction:await-confirmation-on-home"
+                )
                 key = LEAVE_STORE_KEY
         key = self._forbid_wait_on_town_entrance(snapshot, key)
         key = self._suppress_pending_stair_command(snapshot, key)
@@ -12549,13 +12567,19 @@ class HengbotPolicy:
             signature = self._home_errand.request.signature
             quantity = self._home_errand.request.quantity
             reason = self._home_errand.reason("atomic-withdraw")
-        for restore_signature in self._calibration_restore_signatures:
-            if restore_signature in observed_signatures:
-                signature = restore_signature
-                reason = "calibration:atomic-restore-withdraw"
-                break
+        # A specifically queued Home item is the current town stop's operation.
+        # In particular, the fundraising kit must not sit behind the calibration
+        # restore list: every successful restore invalidates later addresses until
+        # the next ~9 response, so prioritising restore here starved later diggers
+        # forever in the captured 34-item Home.
         if signature is None and self._home_pending_item in observed_signatures:
             signature = self._home_pending_item
+        if signature is None:
+            for restore_signature in self._calibration_restore_signatures:
+                if restore_signature in observed_signatures:
+                    signature = restore_signature
+                    reason = "calibration:atomic-restore-withdraw"
+                    break
         if signature is None and self._home_pending_batch:
             batch_signature = self._home_pending_batch[0]
             if batch_signature in observed_signatures:
@@ -12690,6 +12714,7 @@ class HengbotPolicy:
             item,
             take_count,
         )
+        self._home_atomic_withdraw_posted_turn = snapshot.turn
         if (
             self._home_errand.active
             and self._home_errand.request is not None
@@ -15128,10 +15153,18 @@ class HengbotPolicy:
             add(STORE_GENERAL, "light-sale")
 
         if fundraising_active:
+            if (
+                self._digger_buy_fallback_available()
+                and STORE_GENERAL not in self._town_store_attempted
+            ):
+                add(STORE_GENERAL, "fundraising-digger")
             if not self._fundraising_kit_secured(snapshot):
                 if STORE_HOME not in self._town_store_attempted:
                     add(STORE_HOME, "fundraising-kit", "home-first")
-                if not self._has_withdrawable_digging_tool(snapshot):
+                if (
+                    not self._has_withdrawable_digging_tool(snapshot)
+                    or self._digger_buy_fallback_available()
+                ):
                     if STORE_GENERAL not in self._town_store_attempted:
                         add(STORE_GENERAL, "fundraising-digger")
                 if not self._has_withdrawable_treasure_detection(snapshot):
@@ -17883,7 +17916,10 @@ class HengbotPolicy:
                     return food
             return None
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
-            if not self._has_withdrawable_digging_tool(snapshot):
+            if (
+                not self._has_withdrawable_digging_tool(snapshot)
+                or self._digger_buy_fallback_available()
+            ):
                 digger = next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
                     None,
@@ -17932,7 +17968,10 @@ class HengbotPolicy:
                 )
                 if detection_scroll is not None:
                     return detection_scroll
-            if not self._has_withdrawable_digging_tool(snapshot):
+            if (
+                not self._has_withdrawable_digging_tool(snapshot)
+                or self._digger_buy_fallback_available()
+            ):
                 digger = next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
                     None,

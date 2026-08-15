@@ -19752,6 +19752,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._next_purchase_unreserved(general))
         policy._digger_home_withdraw_failures = 2
         self.assertTrue(policy._digger_buy_fallback_available())
+        policy._fundraising_mode = "scavenge"
+        self.assertIn(
+            TownNeed(STORE_GENERAL, "fundraising-digger", "normal"),
+            policy._enumerate_town_needs(replace(general, store=None)),
+        )
         policy._record_shop_selector_diagnostics(general, LEAVE_STORE_KEY)
         self.assertTrue(policy._digger_buy_fallback_available())
         self.assertTrue(policy._shop(general).startswith(BUY_KEY))
@@ -46573,6 +46578,118 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._digger_home_withdraw_failures, 5)
         self.assertTrue(policy._digger_buy_fallback_available())
         self.assertEqual(policy._withdrawable_digging_tool_count(entrance), 0)
+
+    def test_captured_001345_queued_digger_preempts_restore(self):
+        """Gate 2 replay: the 34-item ~9 order from 2026-08-16 00:13:45."""
+        wares = [
+            store_item(str(index), TVAL_POTION, 1000 + index, name=f"home {index}")
+            for index in range(34)
+        ]
+        restore = store_item("21", 36, 1, name="汚れたボロ服 [1] {上質}")
+        best_shovel = store_item(
+            "30", TVAL_DIGGING, 1,
+            name="シャベル (1d2) (+3,+8) (+1) {+掘}", is_equipment=True,
+        )
+        wares[21] = restore
+        wares[30] = best_shovel
+        wares[31] = store_item("31", TVAL_DIGGING, 1, name="second shovel", is_equipment=True)
+        wares[32] = store_item("32", TVAL_DIGGING, 1, name="third shovel", is_equipment=True)
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_item = policy._item_signature(best_shovel)
+        entrance = self._entrance_snapshot([])
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pE\x1b",
+        )
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, best_shovel.name)
+
+    def test_captured_digger_address_composes_across_twelve_item_pages(self):
+        wares = [
+            store_item(str(index), TVAL_POTION, 1100 + index, name=f"home {index}")
+            for index in range(34)
+        ]
+        shovel = store_item(
+            "30", TVAL_DIGGING, 1, name="captured best shovel", is_equipment=True,
+        )
+        wares[30] = shovel
+        policy = self._catalogued_withdrawal_policy(wares, page_size=12)
+        policy._home_pending_item = policy._item_signature(shovel)
+        entrance = self._entrance_snapshot([])
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5  pg\x1b",
+        )
+
+    def test_captured_zero_digger_chain_reaches_mining_claim(self):
+        detection = item(
+            "t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            count=1, known=True, name="Scroll of Detect Treasure",
+        )
+        shovel = store_item(
+            "30", TVAL_DIGGING, 1, name="captured best shovel", is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy(
+            [
+                *[
+                    store_item(str(index), TVAL_POTION, 1200 + index, name=f"home {index}")
+                    for index in range(30)
+                ],
+                shovel,
+            ],
+            page_size=12,
+        )
+        policy._fundraising_mode = "scavenge"
+        policy._home_pending_item = policy._item_signature(shovel)
+        entrance = self._entrance_snapshot([detection])
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5  pg\x1b",
+        )
+
+        target = Position(3, 4)
+        mining = Snapshot(
+            player(3, 3, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(3, 3): grid(3, 3),
+                target: grid(3, 4, passable=False, gold=True, tunnel=True, marked=True),
+            },
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[
+                detection,
+                item("u", TVAL_DIGGING, 1, name=shovel.name, known=True),
+            ],
+        )
+        policy._fundraising_mode = "mine"
+        policy._known_treasure = {target}
+        policy._mining_detection_centers = [Position(3, 3)]
+        self.assertTrue(policy._fundraising_kit_secured(mining))
+        self.assertEqual(policy._mining_closure_key(mining), TUNNEL_KEY + "6")
+        self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
+
+    def test_atomic_digger_withdraw_ignores_same_turn_stale_outside_snapshot(self):
+        shovel = store_item(
+            "a", TVAL_DIGGING, 1, name="stored shovel", is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([shovel], page_size=12)
+        policy._home_pending_item = policy._item_signature(shovel)
+        entrance = self._entrance_snapshot([], turn=1178889)
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pa\x1b",
+        )
+        # The live emitter repeated turn 1178889 before publishing the changed
+        # inventory.  That page cannot prove failure or consume another claim.
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: confirmation serialization is isolated from the unrelated downstream town decision
+        policy._decide = Mock(return_value=WAIT_KEY)
+        self.assertEqual(policy.choose_key(entrance), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-await-confirmation")
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+        self.assertEqual(policy._digger_home_withdraw_failures, 0)
 
     def _home_page_snapshot(
         self, inventory, wares, *, turn, stock_num=None, page_top=None,
