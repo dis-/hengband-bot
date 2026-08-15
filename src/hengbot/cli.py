@@ -2188,7 +2188,7 @@ def _run_follow(
             initial_snapshot.store is not None
             and initial_snapshot.store.store_type == STORE_HOME
         ):
-            last_observed_home_page = initial_snapshot.store
+            last_observed_home_page = (initial_snapshot.store, initial_snapshot.turn)
     snapshot = initial_snapshot
     economy_ledger = EconomyLedger(args.economy_log)
     economy_ledger.rotate_bytes = args.recorder_log_rotate_bytes
@@ -2373,7 +2373,11 @@ def _run_follow(
                         snapshot.store is not None
                         and snapshot.store.store_type == STORE_HOME
                     ):
-                        last_observed_home_page = snapshot.store
+                        last_observed_home_page = (snapshot.store, snapshot.turn)
+                    elif snapshot.store is None:
+                        # Page-relative letters are valid only during the visit
+                        # in which the page was rendered.
+                        last_observed_home_page = None
                     args.last_snapshot = snapshot
                     # A snapshot means the game is alive and awaiting a command.
                     nudge_streak = 0
@@ -3131,10 +3135,20 @@ def _capture_item_rows(items, *, page_size=None, page_top=0, limit=256):
     rows = []
     for offset, item in enumerate(tuple(items)[:limit]):
         absolute = top + offset
+        page_pos = absolute % size if size is not None else None
+        composer_letter = None
+        if page_pos is not None:
+            composer_letter = (
+                chr(ord("a") + page_pos)
+                if page_pos < 26
+                else chr(ord("A") + page_pos - 26)
+            )
         rows.append({
             "letter": getattr(item, "letter", getattr(item, "slot", None)),
             "name": getattr(item, "name", None),
             "page": absolute // size if size is not None else None,
+            "index": absolute,
+            "composer_letter": composer_letter,
         })
     return rows
 
@@ -3143,13 +3157,20 @@ def _record_atomic_home_page(policy, snapshot, *, observed_store=None, path=None
     reason = getattr(policy, "last_reason", "")
     if not reason.startswith("home:atomic-withdraw"):
         return
-    store = observed_store or getattr(snapshot, "store", None)
+    observed_turn = None
+    if isinstance(observed_store, tuple):
+        store, observed_turn = observed_store
+    else:
+        store = observed_store or getattr(snapshot, "store", None)
+        if store is getattr(snapshot, "store", None) and store is not None:
+            observed_turn = getattr(snapshot, "turn", None)
     items = getattr(store, "items", ()) if store is not None else ()
     _append_capture_ledger(
         path or KNOWLEDGE_RESPONSE_LEDGER_PATH,
         {
             "time": datetime.now().isoformat(),
             "turn": getattr(snapshot, "turn", None),
+            "observed_turn": observed_turn,
             "category": "home-atomic-withdraw-page",
             "reason": reason,
             "page_top": getattr(store, "page_top", None),

@@ -19731,6 +19731,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._next_purchase_unreserved(general))
         policy._digger_home_withdraw_failures = 2
         self.assertTrue(policy._digger_buy_fallback_available())
+        policy._record_shop_selector_diagnostics(general, LEAVE_STORE_KEY)
+        self.assertTrue(policy._digger_buy_fallback_available())
         self.assertTrue(policy._shop(general).startswith(BUY_KEY))
         self.assertTrue(policy._digger_fallback_bought_this_visit)
         self.assertEqual(
@@ -19738,6 +19740,30 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             "shop:buy-digging-tool:home-withdraw-failed-fallback",
         )
         self.assertIsNone(policy._next_purchase_unreserved(general))
+
+        ordinary = HengbotPolicy()
+        ordinary._fundraising_mode = "prepare"
+        self.assertTrue(ordinary._shop(general).startswith(BUY_KEY))
+        self.assertEqual(ordinary.last_reason, "shop:buy-digging-tool")
+
+    def test_restart_without_home_scan_uses_carried_digger_count(self):
+        offered = store_item("a", TVAL_DIGGING, 1, name="new shovel", price=50)
+        held = item("p", TVAL_DIGGING, 1, name="held shovel")
+        general = Snapshot(
+            player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._strict_supplies(detection=5), held, replace(held, slot="q")],
+            store=StoreState(STORE_GENERAL, [offered]),
+        )
+        restarted = HengbotPolicy()
+        restarted._fundraising_mode = "prepare"
+        self.assertIsNone(restarted._next_purchase_unreserved(general))
+        short_restarted = HengbotPolicy()
+        short_restarted._fundraising_mode = "prepare"
+        self.assertIsNotNone(short_restarted._next_purchase_unreserved(
+            replace(general, inventory=[*self._strict_supplies(detection=5), held])
+        ))
 
     def test_failed_digger_withdrawal_is_not_retried_after_home_ejects_to_town(self):
         digger = store_item(
@@ -29419,7 +29445,7 @@ class TownRecallReturnTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_ANGBAND: 1},
         )
         pol._town_store_attempted[STORE_HOME] = snap.turn
-        self.assertIs(pol._find_home_deposit(snap), shovel)
+        self.assertIsNone(pol._find_home_deposit(snap))
         with patch.object(
             pol, "_recall_town_departure_conjuncts",
             return_value={"test_ready": True},
@@ -36582,18 +36608,17 @@ class IdleItemDepositTest(unittest.TestCase):
         self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[2]))
 
     def test_deposit_sweep_keeps_two_carried_diggers(self):
-        pol = HengbotPolicy()
         diggers = [
             item("a", TVAL_DIGGING, 1, name="Shovel"),
             item("b", TVAL_DIGGING, 4, name="Pick"),
         ]
         snap = self._town(diggers)
 
-        self.assertEqual(pol._digging_tool_count(snap), 2)
-        self.assertFalse(any(
-            pol._is_surplus_digging_tool(snap, candidate)
-            for candidate in diggers
-        ))
+        for mode in (None, "dive"):
+            pol = HengbotPolicy()
+            pol._fundraising_mode = mode
+            self.assertEqual(pol._digging_tool_count(snap), 2)
+            self.assertIsNone(pol._find_home_deposit(snap))
 
     def test_surplus_diggers_keep_dwarven_shovel_over_plain_pick(self):
         pol = HengbotPolicy()
@@ -46363,6 +46388,37 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_page_size = page_size
         policy._shopping_approach_store_type = STORE_HOME
         return policy
+
+    def test_five_unobserved_digger_compositions_open_fallback_and_defer_stock(self):
+        stored = store_item(
+            "a", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
+        )
+        other = store_item(
+            "b", TVAL_POTION, 1, name="other home item"
+        )
+        policy = self._catalogued_withdrawal_policy([stored])
+        signature = policy._item_signature(stored)
+        entrance = self._entrance_snapshot([])
+
+        for attempt in range(5):
+            policy._home_pending_item = signature
+            policy._home_knowledge_items = (other,)
+            policy._home_knowledge_valid_before = 1
+            policy._home_knowledge_current = True
+            self.assertEqual(
+                policy._atomic_home_withdraw_key(
+                    replace(entrance, turn=entrance.turn + attempt),
+                    entrance.player.position,
+                ),
+                LEAVE_STORE_KEY,
+            )
+            self.assertEqual(
+                policy.last_reason, "home:atomic-withdraw-target-unobserved"
+            )
+
+        self.assertEqual(policy._digger_home_withdraw_failures, 5)
+        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertEqual(policy._withdrawable_digging_tool_count(entrance), 0)
 
     def _home_page_snapshot(
         self, inventory, wares, *, turn, stock_num=None, page_top=None,

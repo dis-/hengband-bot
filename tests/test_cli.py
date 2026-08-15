@@ -66,6 +66,7 @@ from hengbot.cli import (
     _newest_snapshot,
     _newest_snapshot_entry,
     _read_last_line,
+    _record_atomic_home_page,
     _run_follow,
     _request_due_dump,
     _rewind_if_truncated,
@@ -518,9 +519,9 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertEqual(
                 knowledge_rows[0]["items"],
                 [
-                    {"letter": "a", "name": "Shovel", "page": 0},
-                    {"letter": "b", "name": "Pick", "page": 0},
-                    {"letter": "c", "name": "Mattock", "page": 1},
+                    {"letter": "a", "name": "Shovel", "page": 0, "index": 0, "composer_letter": "a"},
+                    {"letter": "b", "name": "Pick", "page": 0, "index": 1, "composer_letter": "b"},
+                    {"letter": "c", "name": "Mattock", "page": 1, "index": 2, "composer_letter": "a"},
                 ],
             )
             self.assertEqual(knowledge_path.parent, root)
@@ -583,15 +584,12 @@ class DecisionTimingTest(unittest.TestCase):
                 writer.join()
 
             rows = [json.loads(line) for line in ledger_path.read_text().splitlines()]
-            self.assertEqual(rows[0]["category"], "home-atomic-withdraw-page")
-            self.assertEqual(rows[0]["page_top"], 12)
-            self.assertEqual(rows[0]["items"], [
-                {"letter": "a", "name": "Shovel", "page": 1},
-                {"letter": "b", "name": "Pick", "page": 1},
-            ])
+            self.assertTrue(rows)
+            self.assertTrue(all(row["observed_turn"] is None for row in rows))
+            self.assertTrue(all(row["page_top"] is None for row in rows))
+            self.assertTrue(all(row["items"] == [] for row in rows))
 
-    @patch("hengbot.cli._append_capture_ledger")
-    def test_decision_row_shape_is_byte_identical_when_timing_is_removed(self, append):
+    def test_decision_row_shape_is_byte_identical_when_capture_writer_runs(self):
         snapshot = parse_snapshot(json.loads(_snap_line(7, 5, 6)), {})
         timing = {
             "read_ms": 0.01,
@@ -607,12 +605,21 @@ class DecisionTimingTest(unittest.TestCase):
             "nearby_grids": 4,
         }
 
-        original = _decision_record(snapshot, "6", "timing:test")
-        before = _decision_record(
-            snapshot, "6", "timing:test", timing=timing
-        )
-        append(Path("ignored"), {"instrumentation": True})
-        after = _decision_record(snapshot, "6", "timing:test", timing=timing)
+        with patch("hengbot.cli.time.strftime", return_value="fixed-decision-time"):
+            original = _decision_record(snapshot, "6", "timing:test")
+            before = _decision_record(
+                snapshot, "6", "timing:test", timing=timing
+            )
+            with TemporaryDirectory() as directory:
+                capture = Path(directory) / "capture-ledger" / "knowledge-responses.jsonl"
+                policy = HengbotPolicy()
+                policy.last_reason = "home:atomic-withdraw-target-unobserved"
+                before_bytes = json.dumps(before, ensure_ascii=False, separators=(",", ":")).encode()
+                _record_atomic_home_page(policy, snapshot, path=capture)
+                after = _decision_record(snapshot, "6", "timing:test", timing=timing)
+                after_bytes = json.dumps(after, ensure_ascii=False, separators=(",", ":")).encode()
+                self.assertTrue(capture.read_bytes())
+                self.assertEqual(before_bytes, after_bytes)
 
         self.assertEqual(before, after)
         self.assertEqual({key: value for key, value in before.items() if key != "timing"}, original)

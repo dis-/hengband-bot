@@ -8954,7 +8954,19 @@ class HengbotPolicy:
             owned.item.count
             for owned in self._equipment_catalog.items
             if owned.origin == "home" and owned.item.is_digging_tool
+            and self._item_signature(owned.item) not in self._deferred_home_items
         )
+
+    def _record_digger_home_withdraw_failure(
+        self, signature: tuple[str, int, int] | None
+    ) -> None:
+        if signature is not None and any(
+            owned.origin == "home"
+            and owned.item.is_digging_tool
+            and self._item_signature(owned.item) == signature
+            for owned in self._equipment_catalog.items
+        ):
+            self._digger_home_withdraw_failures += 1
 
     def _digger_buy_fallback_available(self) -> bool:
         return (
@@ -12540,7 +12552,8 @@ class HengbotPolicy:
                 reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
             self.last_reason = "home:atomic-withdraw-target-unobserved"
-            self._defer_unobserved_home_withdrawal()
+            deferred = self._defer_unobserved_home_withdrawal()
+            self._record_digger_home_withdraw_failure(deferred)
             plan = self._town_errand_plan
             categories = (
                 plan.need_categories.get(STORE_HOME, ())
@@ -12558,6 +12571,8 @@ class HengbotPolicy:
                 self._town_store_visit_limit(STORE_HOME), "target-unobserved"
             )
             self.last_reason = self._home_errand.reason("target-unobserved")
+            self._record_digger_home_withdraw_failure(signature)
+            self._defer_unobserved_home_withdrawal(signature)
             return LEAVE_STORE_KEY
         selected = next(
             (
@@ -12578,9 +12593,12 @@ class HengbotPolicy:
                     self._town_store_visit_limit(STORE_HOME), "slot-unobserved"
                 )
                 self.last_reason = self._home_errand.reason("slot-unobserved")
+                self._record_digger_home_withdraw_failure(signature)
+                self._defer_unobserved_home_withdrawal(signature)
             else:
                 self.last_reason = "home:atomic-withdraw-slot-unobserved"
-                self._defer_unobserved_home_withdrawal(signature)
+                deferred = self._defer_unobserved_home_withdrawal(signature)
+                self._record_digger_home_withdraw_failure(deferred)
             return LEAVE_STORE_KEY
         index, item = selected
         page, page_pos = divmod(index, self._home_page_size)
@@ -12597,9 +12615,12 @@ class HengbotPolicy:
                     self._town_store_visit_limit(STORE_HOME), "address-invalid"
                 )
                 self.last_reason = self._home_errand.reason("address-invalid")
+                self._record_digger_home_withdraw_failure(signature)
+                self._defer_unobserved_home_withdrawal(signature)
             else:
                 self.last_reason = "home:atomic-withdraw-address-invalid"
-                self._defer_unobserved_home_withdrawal(signature)
+                deferred = self._defer_unobserved_home_withdrawal(signature)
+                self._record_digger_home_withdraw_failure(deferred)
             return LEAVE_STORE_KEY
         requested_quantity = (
             quantity
@@ -12738,7 +12759,7 @@ class HengbotPolicy:
 
     def _defer_unobserved_home_withdrawal(
         self, signature: tuple[str, int, int] | None = None
-    ) -> None:
+    ) -> tuple[str, int, int] | None:
         """End an unaddressable claim visibly instead of re-entering Home."""
         if signature is None:
             if self._calibration_restore_signatures:
@@ -12765,6 +12786,7 @@ class HengbotPolicy:
             self._home_pending_item = None
             self._home_pending_slot = None
         self._home_pending_quantity = None
+        return signature
 
     def _invalidate_home_observation(self) -> None:
         """Discard every page-relative address fact after a Home mutation.
@@ -12940,6 +12962,10 @@ class HengbotPolicy:
             lambda item: (
                 self._home_deposit_candidate(item, snapshot)
                 or self._is_surplus_digging_tool(snapshot, item)
+            )
+            and not (
+                item.is_digging_tool
+                and not self._is_surplus_digging_tool(snapshot, item)
             )
             and not self._is_wanted_jewelry(snapshot, item)
             and self._item_signature(item) not in self._home_rejected_deposits
@@ -17936,8 +17962,6 @@ class HengbotPolicy:
                     None,
                 )
                 if digger is not None:
-                    if self._digger_buy_fallback_available():
-                        self._digger_fallback_bought_this_visit = True
                     return digger
             return None
 
@@ -19519,9 +19543,10 @@ class HengbotPolicy:
             elif item.is_treasure_detection_scroll:
                 self.last_reason = "shop:buy-treasure-detection"
             elif item.is_digging_tool:
+                fallback_purchase = self._digger_buy_fallback_available()
                 self.last_reason = (
                     "shop:buy-digging-tool:home-withdraw-failed-fallback"
-                    if self._digger_fallback_bought_this_visit
+                    if fallback_purchase
                     else "shop:buy-digging-tool"
                 )
             elif item.is_ammo:
@@ -19578,6 +19603,8 @@ class HengbotPolicy:
                 0,
                 self._decision_sequence,
             )
+            if item.is_digging_tool and fallback_purchase:
+                self._digger_fallback_bought_this_visit = True
             return BUY_KEY + item.letter + suffix
 
         self._store_buy_inflight = None
