@@ -15,7 +15,7 @@ from hengbot.model import (
     TVAL_SHIELD,
     TVAL_SWORD,
 )
-from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
+from hengbot.policy_constants import EQUIPMENT_MUTATION_RELEASE_LIMIT
 
 
 WIELD_KEY = "w"
@@ -100,7 +100,7 @@ class EquipmentMutationExecutor:
             self.refusals += 1
             # Match the sender's established terminal recovery allowance: one
             # refusal per fruitless observation, then a loud release at LIMIT.
-            if self.refusals >= TERMINAL_NUDGE_LIMIT:
+            if self.refusals >= EQUIPMENT_MUTATION_RELEASE_LIMIT:
                 self.state = EquipmentMutationState.IDLE
                 self.goal = None
                 self.expected_signature = None

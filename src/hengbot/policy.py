@@ -1286,6 +1286,7 @@ DIGGER_WIELD_LIMIT = TERMINAL_NUDGE_LIMIT
 # redraw without spending seven rounds fighting with mining tools. No existing
 # 2--3 decision hysteresis constant describes this combat transition.
 MINING_COMBAT_CONTACT_LIMIT = 2
+MINING_THREAT_FREE_LIMIT = MINING_COMBAT_CONTACT_LIMIT * 4
 # Consecutive turns spent tunnelling toward a walled-off vein before giving up on it
 # and ascending. Digging holds the player on one tile, so `fundraise:tunnel-to-treasure`
 # is EXEMPT from the harness loop guard (cli.py STATIONARY_EXEMPT_REASONS) — this leash, not the
@@ -1787,6 +1788,7 @@ class HengbotPolicy:
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         self._equipment_mutation = EquipmentMutationExecutor()
         self._equipment_mutation_result = EquipmentMutationResult(None)
+        self._pending_mutation_report: str | None = None
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
         self._swarm_distance_floor: tuple[int, int, int] | None = None
@@ -11155,6 +11157,12 @@ class HengbotPolicy:
         self._equipment_transaction_prepared_catalog_update = None
         return committed or mutation_committed
 
+    def consume_pending_mutation_report(self) -> str | None:
+        """Return the mutation report produced during this decision, once."""
+        report = self._pending_mutation_report
+        self._pending_mutation_report = None
+        return report
+
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
         # The posting contract correctly refuses an identical key/effect pair.
@@ -20331,14 +20339,16 @@ class HengbotPolicy:
             # No combat weapon to restore — the pickaxe is our only weapon. Don't hang
             # the town routine WAITing for one that will never appear; carry on.
             return None
-        self._no_teleport_rearm_pending = False
         reason = (
             "town:replace-no-teleport-weapon"
             if replacing_no_teleport
             else "town:restore-combat-weapon"
         )
         self.last_reason = reason
-        return self._wield_weapon_key(snapshot, weapon)
+        key = self._wield_weapon_key(snapshot, weapon)
+        if key is not None:
+            self._no_teleport_rearm_pending = False
+        return key
 
     @staticmethod
     def _has_cursed_equipment(snapshot: Snapshot) -> bool:
@@ -21641,6 +21651,7 @@ class HengbotPolicy:
             self._equipment_mutation.bind_post_snapshot(snapshot)
         elif result.report is not None:
             self.last_reason = result.report
+            self._pending_mutation_report = result.report
         return result.key
 
     def _equipment_takeoff(
@@ -21652,6 +21663,7 @@ class HengbotPolicy:
             self._equipment_mutation.bind_post_snapshot(snapshot)
         elif result.report is not None:
             self.last_reason = result.report
+            self._pending_mutation_report = result.report
         return result.key
 
     def _wield_weapon_key(self, snapshot: Snapshot, weapon: InventoryItem) -> str | None:
@@ -21877,9 +21889,11 @@ class HengbotPolicy:
         )
         if weapon is None:
             return None
-        self._breakout_dig_floor = None
         self.last_reason = "breakout:restore-combat-weapon"
-        return self._wield_weapon_key(snapshot, weapon)
+        key = self._wield_weapon_key(snapshot, weapon)
+        if key is not None:
+            self._breakout_dig_floor = None
+        return key
 
     def _fundraising_combat_equipment_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -22680,7 +22694,7 @@ class HengbotPolicy:
             # Do not oscillate weapon<->digger around a wandering monster.
             # Re-enter the mining loadout only after the same bounded quiet
             # streak used by the wield transaction has elapsed.
-            if self._mining_threat_free_streak < DIGGER_WIELD_LIMIT:
+            if self._mining_threat_free_streak < MINING_THREAT_FREE_LIMIT:
                 return None
             if not self._has_digging_tool(snapshot):
                 self._town_blocked_reason = "digging-tool-lost"
@@ -22701,6 +22715,15 @@ class HengbotPolicy:
                     # unobserved post retries this same ladder without taking
                     # ownership away from unrelated town/floor work.
                     self.last_reason = report
+                    if (
+                        report != "goal-already-superseded"
+                        and self._digger_wield_attempts >= DIGGER_WIELD_LIMIT
+                    ):
+                        self._digger_wield_attempts = 0
+                        self._fundraising_mode = None
+                        leave = self._leave_fundraising_floor(snapshot)
+                        self.last_reason = "fundraise:abandon-unwieldable-digger"
+                        return leave
                     return None
                 self._fundraising_mode = None
                 return self._leave_fundraising_floor(snapshot)

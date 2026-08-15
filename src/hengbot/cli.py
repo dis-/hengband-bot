@@ -108,10 +108,6 @@ def _arm_decision_watchdog() -> None:
 # quiet seconds made a single stale slot look like a very long deliberate wait.
 COMMAND_RESPONSE_GRACE = 12.0
 
-# When the character dies, the game leaves the command loop for the tombstone /
-# death-info / high-score screens (close_game) and never emits another snapshot;
-# Escape nudges cannot revive it. After this many fruitless nudges in a row we
-# treat it as a terminal screen and drive the shutdown so the game quit()s.
 # A live process that remains silent after one complete ESC/look recovery round
 # is parked in an input modal, not recovered. Streak 8 runs the terminal blast,
 # streak 9 runs the one ESC/look probe, and streak 10 stops.
@@ -791,6 +787,7 @@ def _decision_record(
     town_stall_report: dict | None = None,
     decision_sequence: int | None = None,
     timing: dict | None = None,
+    equipment_mutation_report: str | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -880,6 +877,11 @@ def _decision_record(
         **({"read": read} if read else {}),
         **({"town_stall_report": town_stall_report} if town_stall_report else {}),
         **({"timing": timing} if timing is not None else {}),
+        **(
+            {"equipment_mutation_report": equipment_mutation_report}
+            if equipment_mutation_report is not None
+            else {}
+        ),
     }
 
 
@@ -1367,6 +1369,11 @@ def _write_decision(
                     ),
                     getattr(policy, "_decision_sequence", None),
                     timing,
+                    (
+                        policy.consume_pending_mutation_report()
+                        if policy is not None
+                        else None
+                    ),
                 ),
                 file,
                 ensure_ascii=False,
@@ -1466,13 +1473,26 @@ class PostingContract:
     def __init__(self) -> None:
         self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
         self._last_posted_owner: str | None = None
+        self._last_posted_key: str | None = None
+        self._last_posted_effect: tuple | None = None
         self.last_incident: dict[str, object] | None = None
 
     def allow(self, snapshot, key: str, owner: str) -> bool:
         self.last_incident = None
         prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
+        effect = _posting_effect_signature(snapshot, owner, key)
         if (
-            prompt is not None
+            (
+                prompt is not None
+                or (
+                    self._last_posted_key is not None
+                    and self._last_posted_key.startswith(("w", "t"))
+                    and self._last_posted_effect
+                    == _posting_effect_signature(
+                        snapshot, self._last_posted_owner or "", self._last_posted_key
+                    )
+                )
+            )
             and self._last_posted_owner is not None
             and owner != self._last_posted_owner
         ):
@@ -1485,7 +1505,6 @@ class PostingContract:
             }
             return False
         previous = self._posted_by_owner.get(owner)
-        effect = _posting_effect_signature(snapshot, owner, key)
         if previous is not None and previous == (key, effect):
             self.last_incident = {
                 "marker": "posting-contract:identical-repost-unobserved",
@@ -1496,10 +1515,11 @@ class PostingContract:
         return True
 
     def posted(self, snapshot, key: str, owner: str) -> None:
-        self._posted_by_owner[owner] = (
-            key, _posting_effect_signature(snapshot, owner, key)
-        )
+        effect = _posting_effect_signature(snapshot, owner, key)
+        self._posted_by_owner[owner] = (key, effect)
         self._last_posted_owner = owner
+        self._last_posted_key = key
+        self._last_posted_effect = effect
 
 
 def _write_posting_contract_incident(

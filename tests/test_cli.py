@@ -49,6 +49,7 @@ from hengbot.cli import (
     _intentional_action_wait_category,
     _input_delay_values,
     _decision_record,
+    _write_decision,
     _town_stall_report,
     _town_stall_report_terminates_named_block,
     _duplicate_snapshot_ready,
@@ -94,6 +95,7 @@ from hengbot.policy import (
     HengbotPolicy,
     TOWN_TRAVEL_STALL_LIMIT,
 )
+from hengbot.equipment_mutation import progress_core
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
@@ -327,52 +329,67 @@ class UniversalPostingContractTest(unittest.TestCase):
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
     def test_ledger_120x_wield_restore_read_order_is_serialized(self):
-        """Posted-ledger rows 94685-94733: policy drives ta/wg/wgy, restore, rc."""
+        """Posted-ledger rows 94685-94733, turns 926205-926303: wg/wgy/wfa."""
         policy = HengbotPolicy()
         contract = PostingContract()
-        yeek_before = self.snapshot(turn=925281)
+        yeek_before = self.snapshot(turn=926205)
         sword = SimpleNamespace(
             slot="main_hand", tval=23, sval=1, name="Sword", count=1,
             charges=0, inscription="", known=True, fully_known=True,
             is_equipment=True, is_melee_weapon=True, is_digging_tool=False,
         )
         shovel = SimpleNamespace(
-            slot="s", tval=20, sval=1, name="Shovel", count=1,
+            slot="g", tval=20, sval=1, name="Shovel", count=1,
             charges=0, inscription="", known=True, fully_known=True,
             is_equipment=True, is_melee_weapon=False, is_digging_tool=True,
         )
-        yeek_before.equipment = [sword]
+        yeek_before.equipment = []
         yeek_before.inventory = [shovel]
-        takeoff = policy._equipment_takeoff(yeek_before, "mining-loadout", "a")
-        self.assertEqual(takeoff, "ta")
-        self.assertTrue(policy.confirm_key_posted(takeoff))
-
-        # The old interleaving attempted a foreign rc read while the wield
-        # prompt remained open. Prompt ownership rejects that artifact.
-        prompt = self.snapshot(
-            turn=925282,
-            messages=("Which hand? [a/b]", "Really use two weapons? [y/n]"),
+        wield = policy._equipment_wield(
+            yeek_before, "mining-loadout", shovel, "main_hand"
         )
-        contract.posted(prompt, "ta", "fundraise:wield-digging-tool")
-        self.assertFalse(contract.allow(prompt, "rc", "fundraise:detect-treasure"))
+        self.assertEqual(wield, "wg")
+        self.assertTrue(policy.confirm_key_posted(wield))
+
+        # Production refusal came from posting ownership; wield prompts are not
+        # snapshot messages and therefore must not be fabricated on the board.
+        owned = self.snapshot(turn=926206)
+        contract.posted(owned, "wgy", "fundraise:wield-digging-tool")
+        self.assertFalse(contract.allow(owned, "rc", "fundraise:detect-treasure"))
         self.assertEqual(
             contract.last_incident["marker"],
             "posting-contract:prompt-owner-mismatch",
         )
 
-        yeek_after_takeoff = self.snapshot(turn=925283)
-        yeek_after_takeoff.inventory = [shovel, sword]
+        occupied = self.snapshot(turn=926250)
+        occupied.equipment = [sword]
+        occupied.inventory = [shovel]
+        policy = HengbotPolicy()
         wield = policy._equipment_wield(
-            yeek_after_takeoff, "mining-loadout", shovel, "main_hand"
+            occupied, "mining-loadout", shovel, "sub_hand"
         )
-        self.assertEqual(wield, "ws")
+        self.assertEqual(wield, "wgy")
         self.assertTrue(policy.confirm_key_posted(wield))
         refused = policy._equipment_wield(
-            yeek_after_takeoff, "combat-loadout", sword, "main_hand"
+            occupied, "combat-loadout", sword, "main_hand"
         )
         self.assertIsNone(refused)
         self.assertEqual(
             policy.last_reason, "posting-contract:equipment-mutation-unobserved"
+        )
+
+        final = self.snapshot(turn=926303)
+        final.equipment = [
+            sword,
+            SimpleNamespace(**{**sword.__dict__, "slot": "sub_hand", "name": "Dagger"}),
+        ]
+        final.inventory = [SimpleNamespace(**{**shovel.__dict__, "slot": "f"})]
+        policy = HengbotPolicy()
+        self.assertEqual(
+            policy._equipment_wield(
+                final, "mining-loadout", final.inventory[0], "main_hand"
+            ),
+            "wfa",
         )
 
     def test_preserved_sale_prompt_rejects_foreign_escape_owner(self):
@@ -1598,6 +1615,45 @@ class DecisionRecordTest(unittest.TestCase):
         data = json.loads(_snap_line(123, 5, 7))
         data["floor"] = {"dungeon_id": 0, "level": 0, "in_town": True}
         return parse_snapshot(data, {})
+
+    def test_choose_key_mutation_reports_survive_reason_fallthrough(self):
+        snapshot = self._town_snapshot()
+        cases = (
+            ("posting-contract:equipment-mutation-unobserved", 0, None),
+            ("posting-contract:equipment-mutation-released", TERMINAL_NUDGE_LIMIT - 1, None),
+            ("goal-already-superseded", 0, "combat-loadout"),
+        )
+        for expected, refusals, opposing_goal in cases:
+            with self.subTest(report=expected), TemporaryDirectory() as directory:
+                policy = HengbotPolicy()
+                executor = policy._equipment_mutation
+                if opposing_goal is None:
+                    prepared = executor.request_takeoff(
+                        snapshot, "mining-loadout", "a"
+                    )
+                    executor.bind_post_snapshot(snapshot)
+                    executor.confirm_posted(prepared.key)
+                    executor.refusals = refusals
+                else:
+                    executor.last_posted_goal = opposing_goal
+                    executor.last_posted_core = progress_core(snapshot)
+
+                def fallthrough(_snapshot):
+                    policy._equipment_takeoff(
+                        snapshot, "mining-loadout", "a"
+                    )
+                    policy.last_reason = "explore:fallthrough"
+                    return "5"
+
+                with patch.object(
+                    policy, "_choose_key_with_latch_capture", side_effect=fallthrough
+                ):
+                    key = policy.choose_key(snapshot)
+                path = Path(directory) / "decisions.jsonl"
+                _write_decision(path, snapshot, key, policy.last_reason, policy)
+                row = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(row["reason"], "explore:fallthrough")
+                self.assertEqual(row["equipment_mutation_report"], expected)
 
     @staticmethod
     def _town_stall_policy(passes=24):

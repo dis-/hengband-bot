@@ -32,6 +32,69 @@ SLOTS = {"main_hand": "a", "sub_hand": "b"}
 
 
 class EquipmentMutationExecutorTest(unittest.TestCase):
+    @staticmethod
+    def _direct_key_composers(tree):
+        """Catch the explicit string forms covered by the ownership ratchet.
+
+        This intentionally covers literals, f-strings, +/%, join, += after a
+        literal seed, and str.format.  Dynamically encoding ``w``/``t`` (for
+        example chr(119)) is outside this syntax ratchet.
+        """
+        def exact_key(node):
+            return isinstance(node, ast.Constant) and node.value in {"w", "t"}
+
+        def percent_key(node):
+            return (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and node.value[:2] in {"w%", "t%"}
+            )
+
+        seeded = {
+            target.id
+            for assignment in ast.walk(tree)
+            if isinstance(assignment, (ast.Assign, ast.AnnAssign))
+            for target in (
+                assignment.targets if isinstance(assignment, ast.Assign)
+                else (assignment.target,)
+            )
+            if isinstance(target, ast.Name) and exact_key(assignment.value)
+        }
+        composers = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.JoinedStr) and any(
+                exact_key(part) for part in ast.walk(node)
+            ):
+                composers.append(node)
+            elif (
+                isinstance(node, ast.AugAssign)
+                and isinstance(node.op, ast.Add)
+                and isinstance(node.target, ast.Name)
+                and node.target.id in seeded
+            ):
+                composers.append(node)
+            elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and any(
+                exact_key(part) for part in ast.walk(node)
+            ):
+                composers.append(node)
+            elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod) and percent_key(
+                node.left
+            ):
+                composers.append(node)
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if node.func.attr == "join" and any(
+                    exact_key(part) for arg in node.args for part in ast.walk(arg)
+                ):
+                    composers.append(node)
+                elif (
+                    node.func.attr == "format"
+                    and isinstance(node.func.value, ast.Constant)
+                    and isinstance(node.func.value.value, str)
+                    and any(exact_key(part) for arg in node.args for part in ast.walk(arg))
+                ):
+                    composers.append(node)
+        return composers
+
     def test_observed_hand_tail_table(self):
         tool = item("s", "Shovel", digger=True)
         empty = board(inventory=(tool,))
@@ -154,30 +217,18 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
             names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
             self.assertFalse(names & forbidden, filename)
 
-            def has_key_literal(node):
-                return any(
-                    isinstance(part, ast.Constant) and part.value in {"w", "t"}
-                    for part in ast.walk(node)
-                )
+            self.assertEqual(self._direct_key_composers(tree), [], filename)
 
-            composers = []
-            for node in ast.walk(tree):
-                if isinstance(node, ast.JoinedStr) and has_key_literal(node):
-                    composers.append(node)
-                elif isinstance(node, ast.AugAssign) and has_key_literal(node.value):
-                    composers.append(node)
-                elif isinstance(node, ast.BinOp) and isinstance(
-                    node.op, (ast.Add, ast.Mod)
-                ) and has_key_literal(node):
-                    composers.append(node)
-                elif (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "join"
-                    and has_key_literal(node.func.value)
-                ):
-                    composers.append(node)
-            self.assertEqual(composers, [], filename)
+    def test_composition_ratchet_catches_named_round_three_forms(self):
+        forms = (
+            'def f(slot): return "".join(("w", slot))',
+            'def f(slot):\n key = "w"\n key += slot\n return key',
+            'def f(slot): return "w%s" % slot',
+            'def f(slot): return "{}{}".format("w", slot)',
+        )
+        for source in forms:
+            with self.subTest(source=source):
+                self.assertTrue(self._direct_key_composers(ast.parse(source)))
 
 
 if __name__ == "__main__":

@@ -14017,6 +14017,25 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._q2_breach_key(strong, navigator), "T2")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-breach-dig")
 
+    def test_q2_breach_wield_uses_its_dedicated_goal(self):
+        policy = self._policy()
+        navigator = self._q2_breach_navigator()
+        strong = item(
+            "d", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            is_equipment=True, pval=3,
+        )
+        snap = Snapshot(
+            player(6, 47),
+            {
+                Position(6, 47): grid(6, 47),
+                Position(7, 47): grid(7, 47, passable=False, can_dig=True),
+            },
+            [], floor_key=(0, 1, 2), inventory=[strong],
+        )
+        with patch.object(policy, "_equipment_wield", return_value="wd") as wield:
+            self.assertEqual(policy._q2_breach_key(snap, navigator), "wd")
+        self.assertEqual(wield.call_args.args[1], "q2-breach-loadout")
+
     def test_q2_breach_advances_after_opening_adjacent_wall_before_digging_again(self):
         policy = self._policy()
         navigator = self._q2_breach_navigator()
@@ -23873,6 +23892,19 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(
             restarted_policy.last_reason, "town:replace-no-teleport-weapon"
         )
+
+    def test_no_teleport_rearm_pending_survives_refused_wield(self):
+        safe = item("s", 23, 2, name="safe scimitar", is_equipment=True)
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[safe],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._no_teleport_rearm_pending = True
+        with patch.object(policy, "_wield_weapon_key", return_value=None):
+            self.assertIsNone(policy._town_restore_weapon_key(snap))
+        self.assertTrue(policy._no_teleport_rearm_pending)
 
     def test_home_rearm_skips_no_teleport_weapon_and_withdraws_safe_one(self):
         blocked = item(
@@ -35922,6 +35954,21 @@ class StuckEscapeTest(unittest.TestCase):
         self.assertEqual(pol.choose_key(opened), "wan")
         self.assertEqual(pol.last_reason, "breakout:restore-combat-weapon")
 
+    def test_breakout_restore_pending_survives_refused_wield(self):
+        sword = item("s", 23, 1, name="Broad Sword", is_equipment=True)
+        digger = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True
+        )
+        snap = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            inventory=[sword], equipment=[digger], floor_key=(2, 8, 0),
+        )
+        pol = HengbotPolicy()
+        pol._breakout_dig_floor = snap.floor_key
+        with patch.object(pol, "_wield_weapon_key", return_value=None):
+            self.assertIsNone(pol._breakout_restore_weapon_key(snap))
+        self.assertEqual(pol._breakout_dig_floor, snap.floor_key)
+
     def test_stuck_recall_escape_without_digging_tool(self):
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
         snap = Snapshot(
@@ -41524,12 +41571,14 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         posted = pol._fundraising_key(snap, [])
         self.assertEqual(posted, "ta")
         self.assertTrue(pol.confirm_key_posted(posted))
-        keys = [pol._fundraising_key(snap, []) for _ in range(DIGGER_WIELD_LIMIT)]
-        self.assertEqual(keys, [None] * DIGGER_WIELD_LIMIT)
-        self.assertEqual(
-            pol.last_reason, "posting-contract:equipment-mutation-released"
-        )
-        self.assertEqual(pol._fundraising_mode, "mine")
+        keys = [
+            pol._fundraising_key(snap, [])
+            for _ in range(DIGGER_WIELD_LIMIT - 1)
+        ]
+        self.assertEqual(keys[:-1], [None] * (DIGGER_WIELD_LIMIT - 2))
+        self.assertIsNotNone(keys[-1])
+        self.assertEqual(pol.last_reason, "fundraise:abandon-unwieldable-digger")
+        self.assertIsNone(pol._fundraising_mode)
 
     def test_refused_flip_continues_mining_with_current_loadout(self):
         snap = Snapshot(
