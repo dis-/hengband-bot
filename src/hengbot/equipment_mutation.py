@@ -80,6 +80,7 @@ class EquipmentMutationExecutor:
     last_report: str | None = None
     last_posted_goal: str | None = None
     last_posted_core: tuple | None = None
+    observed_changes: int = 0
 
     _OPPOSING = frozenset({"mining-loadout", "combat-loadout"})
 
@@ -88,6 +89,7 @@ class EquipmentMutationExecutor:
             self.state == EquipmentMutationState.POSTED
             and equipment_signature(snapshot) != self.expected_signature
         ):
+            self.observed_changes += 1
             self.state = EquipmentMutationState.IDLE
             self.goal = None
             self.expected_signature = None

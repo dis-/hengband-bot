@@ -1,5 +1,9 @@
 """Small dependency-free constants shared by policy and its executors."""
 
+# When the character dies, Hengband leaves the command loop for the tombstone,
+# death-info, and high-score shutdown chain and emits no more snapshots. Escape
+# nudges cannot revive it, so eight fruitless observations trigger recovery.
+#
 # The terminal sender owns the measured eight-observation recovery allowance.
 # Derived consumers are enumerated here: equipment-mutation release and the
 # restore/mining wield ladders deliberately mirror that observation bound.

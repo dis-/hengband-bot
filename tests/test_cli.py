@@ -328,8 +328,24 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
+    def test_wield_effect_guard_owns_only_the_same_observed_turn(self):
+        contract = PostingContract()
+        posted = self.snapshot(turn=20)
+        contract.posted(posted, "wg", "fundraise:wield-digging-tool")
+
+        self.assertFalse(contract.allow(posted, "rc", "fundraise:detect-treasure"))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:prompt-owner-mismatch",
+        )
+        self.assertTrue(
+            contract.allow(
+                self.snapshot(turn=21), "rc", "fundraise:detect-treasure"
+            )
+        )
+
     def test_ledger_120x_wield_restore_read_order_is_serialized(self):
-        """Posted-ledger rows 94685-94733, turns 926205-926303: wg/wgy/wfa."""
+        """Posted-ledger rows 94685-94733, turns 926205-926303: ta/wgy/wfa."""
         policy = HengbotPolicy()
         contract = PostingContract()
         yeek_before = self.snapshot(turn=926205)
@@ -343,12 +359,12 @@ class UniversalPostingContractTest(unittest.TestCase):
             charges=0, inscription="", known=True, fully_known=True,
             is_equipment=True, is_melee_weapon=False, is_digging_tool=True,
         )
-        yeek_before.equipment = []
+        yeek_before.equipment = [sword]
         yeek_before.inventory = [shovel]
-        wield = policy._equipment_wield(
-            yeek_before, "mining-loadout", shovel, "main_hand"
+        wield = policy._equipment_takeoff(
+            yeek_before, "mining-loadout", "a"
         )
-        self.assertEqual(wield, "wg")
+        self.assertEqual(wield, "ta")
         self.assertTrue(policy.confirm_key_posted(wield))
 
         # Production refusal came from posting ownership; wield prompts are not
@@ -361,7 +377,7 @@ class UniversalPostingContractTest(unittest.TestCase):
             "posting-contract:prompt-owner-mismatch",
         )
 
-        occupied = self.snapshot(turn=926250)
+        occupied = self.snapshot(turn=926222)
         occupied.equipment = [sword]
         occupied.inventory = [shovel]
         policy = HengbotPolicy()

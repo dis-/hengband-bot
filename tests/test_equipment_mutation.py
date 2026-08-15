@@ -37,7 +37,8 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
         """Catch the explicit string forms covered by the ownership ratchet.
 
         This intentionally covers literals, f-strings, +/%, join, += after a
-        literal seed, and str.format.  Dynamically encoding ``w``/``t`` (for
+        literal string seed (including transitive ``+=``), and str.format.
+        Dynamically encoding ``w``/``t`` (for
         example chr(119)) is outside this syntax ratchet.
         """
         def exact_key(node):
@@ -58,7 +59,9 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
                 assignment.targets if isinstance(assignment, ast.Assign)
                 else (assignment.target,)
             )
-            if isinstance(target, ast.Name) and exact_key(assignment.value)
+            if isinstance(target, ast.Name)
+            and isinstance(assignment.value, ast.Constant)
+            and isinstance(assignment.value.value, str)
         }
         composers = []
         for node in ast.walk(tree):
@@ -225,6 +228,7 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
             'def f(slot):\n key = "w"\n key += slot\n return key',
             'def f(slot): return "w%s" % slot',
             'def f(slot): return "{}{}".format("w", slot)',
+            'def f(slot):\n key = ""\n key += "w"\n key += slot\n return key',
         )
         for source in forms:
             with self.subTest(source=source):

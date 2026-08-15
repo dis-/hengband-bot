@@ -1286,7 +1286,9 @@ DIGGER_WIELD_LIMIT = TERMINAL_NUDGE_LIMIT
 # redraw without spending seven rounds fighting with mining tools. No existing
 # 2--3 decision hysteresis constant describes this combat transition.
 MINING_COMBAT_CONTACT_LIMIT = 2
-MINING_THREAT_FREE_LIMIT = MINING_COMBAT_CONTACT_LIMIT * 4
+# Eight quiet observations cover four complete two-contact combat windows.  This
+# is deliberately a mining readiness window, independent of terminal recovery.
+MINING_THREAT_FREE_LIMIT = 8
 # Consecutive turns spent tunnelling toward a walled-off vein before giving up on it
 # and ascending. Digging holds the player on one tile, so `fundraise:tunnel-to-treasure`
 # is EXEMPT from the harness loop guard (cli.py STATIONARY_EXEMPT_REASONS) — this leash, not the
@@ -1788,6 +1790,8 @@ class HengbotPolicy:
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         self._equipment_mutation = EquipmentMutationExecutor()
         self._equipment_mutation_result = EquipmentMutationResult(None)
+        self._equipment_mutation_observed_changes = 0
+        self._equipment_mutation_post_commit: tuple[str, str] | None = None
         self._pending_mutation_report: str | None = None
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
@@ -11148,6 +11152,17 @@ class HengbotPolicy:
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
         mutation_committed = self._equipment_mutation.confirm_posted(key)
+        pending_mutation_commit = self._equipment_mutation_post_commit
+        if (
+            mutation_committed
+            and pending_mutation_commit is not None
+            and pending_mutation_commit[0] == key
+        ):
+            if pending_mutation_commit[1] == "breakout-restore":
+                self._breakout_dig_floor = None
+            elif pending_mutation_commit[1] == "no-teleport-rearm":
+                self._no_teleport_rearm_pending = False
+            self._equipment_mutation_post_commit = None
         if (
             self._store_entry_wait_owner is not None
             and key == (self._store_entry_wait_key or WAIT_KEY)
@@ -20386,7 +20401,7 @@ class HengbotPolicy:
         self.last_reason = reason
         key = self._wield_weapon_key(snapshot, weapon)
         if key is not None:
-            self._no_teleport_rearm_pending = False
+            self._equipment_mutation_post_commit = (key, "no-teleport-rearm")
         return key
 
     @staticmethod
@@ -21685,6 +21700,16 @@ class HengbotPolicy:
         result = self._equipment_mutation.request_wield(
             snapshot, goal, item, target_slot, EQUIPMENT_SLOT_KEY
         )
+        if (
+            self._equipment_mutation.observed_changes
+            != self._equipment_mutation_observed_changes
+        ):
+            # A changed worn signature proves the preceding operation worked.
+            # Only unchanged release cycles count toward the unwieldable exit.
+            self._digger_wield_attempts = 0
+            self._equipment_mutation_observed_changes = (
+                self._equipment_mutation.observed_changes
+            )
         self._equipment_mutation_result = result
         if result.key is not None:
             self._equipment_mutation.bind_post_snapshot(snapshot)
@@ -21697,6 +21722,14 @@ class HengbotPolicy:
         self, snapshot: Snapshot, goal: str, slot_key: str
     ) -> str | None:
         result = self._equipment_mutation.request_takeoff(snapshot, goal, slot_key)
+        if (
+            self._equipment_mutation.observed_changes
+            != self._equipment_mutation_observed_changes
+        ):
+            self._digger_wield_attempts = 0
+            self._equipment_mutation_observed_changes = (
+                self._equipment_mutation.observed_changes
+            )
         self._equipment_mutation_result = result
         if result.key is not None:
             self._equipment_mutation.bind_post_snapshot(snapshot)
@@ -21931,7 +21964,7 @@ class HengbotPolicy:
         self.last_reason = "breakout:restore-combat-weapon"
         key = self._wield_weapon_key(snapshot, weapon)
         if key is not None:
-            self._breakout_dig_floor = None
+            self._equipment_mutation_post_commit = (key, "breakout-restore")
         return key
 
     def _fundraising_combat_equipment_key(
