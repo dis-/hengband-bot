@@ -1642,7 +1642,9 @@ class HengbotPolicy:
         self._look_floor_object_counts: dict[Position, int] = {}
         self._look_floor_key: tuple[int, int, int] | None = None
         self._look_probe_inflight = False
-        self._town_loadout_swap: tuple[str, OwnerProgressCore] | None = None
+        self._town_loadout_swap: tuple[
+            tuple[str, str], str, tuple[object, ...]
+        ] | None = None
         self._posting_refusal_probe: tuple[str, OwnerProgressCore] | None = None
         self._last_policy_progress_core: OwnerProgressCore | None = None
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
@@ -2827,8 +2829,6 @@ class HengbotPolicy:
             snapshot.inventory, snapshot.equipment
         )
         current_progress_core = self._owner_progress_core(snapshot)
-        if not snapshot.in_town:
-            self._town_loadout_swap = None
         refusal_probe = self._posting_refusal_probe
         if refusal_probe is not None:
             self._posting_refusal_probe = None
@@ -21694,28 +21694,43 @@ class HengbotPolicy:
         assert macro is not None
         return macro
 
-    @staticmethod
-    def _swap_progress_core(core: OwnerProgressCore) -> tuple[object, ...]:
-        """Progress independent of the equipment movement caused by a swap."""
-        return (core.floor, core.position, core.gold, core.experience)
+    def _swap_progress_core(self, snapshot: Snapshot) -> tuple[object, ...]:
+        """Durable progress excluding travel and loadout-only item movement."""
+        pack = tuple(sorted((
+            tuple(getattr(item, name, None) for name in (
+                "tval", "sval", "name", "count", "charges", "inscription",
+                "known", "fully_known",
+            ))
+            for item in (*snapshot.inventory, *snapshot.equipment)
+        ), key=repr))
+        return (
+            getattr(snapshot.player, "gold", 0),
+            getattr(snapshot.player, "exp", 0),
+            pack,
+        )
 
     def _may_swap_town_loadout(
         self, snapshot: Snapshot, owner: str
     ) -> bool:
-        """Allow one loadout direction until non-equipment town progress occurs."""
-        core = self._owner_progress_core(snapshot)
+        """Bound the mining-wield/restore owner pair across floor travel."""
+        pair = (
+            "fundraise:wield-digging-tool",
+            "town:restore-combat-weapon",
+        )
+        if owner not in pair:
+            return True
+        core = self._swap_progress_core(snapshot)
         previous = self._town_loadout_swap
-        if not snapshot.in_town:
-            self._town_loadout_swap = None
-        elif previous is not None:
-            previous_owner, previous_core = previous
+        if previous is not None:
+            previous_pair, previous_owner, previous_core = previous
             if (
+                previous_pair == pair
+                and
                 previous_owner != owner
-                and self._swap_progress_core(previous_core)
-                == self._swap_progress_core(core)
+                and previous_core == core
             ):
                 return False
-        self._town_loadout_swap = (owner, core)
+        self._town_loadout_swap = (pair, owner, core)
         return True
 
     def _wield_digging_tool_key(
@@ -21727,11 +21742,6 @@ class HengbotPolicy:
         observed combat hands first, then compose the complete source-derived
         prompt tail from the last observed hand state.
         """
-        if reason == "fundraise:wield-digging-tool" and not self._may_swap_town_loadout(
-            snapshot, reason
-        ):
-            self.last_reason = f"{reason}:alternation-refused"
-            return None
         main_hand = next(
             (it for it in snapshot.equipment if it.slot == "main_hand"), None
         )
@@ -21802,8 +21812,12 @@ class HengbotPolicy:
             if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
                 self._digger_wield_attempts = 0
                 return None
+            key = TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
+            if reason == "fundraise:wield-digging-tool" and not self._may_swap_town_loadout(snapshot, reason):
+                self.last_reason = f"{reason}:alternation-refused"
+                return None
             self.last_reason = reason
-            return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
+            return key
 
         target_slot = "sub_hand" if main_hand is not None else "main_hand"
         tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
@@ -21826,18 +21840,17 @@ class HengbotPolicy:
             and not self._normal_sub_hand_is_optimal
         ):
             self._normal_sub_hand_name = sub_hand.name
+        key = self._equip_macro(snapshot, tool, target_slot)
+        if reason == "fundraise:wield-digging-tool" and not self._may_swap_town_loadout(snapshot, reason):
+            self.last_reason = f"{reason}:alternation-refused"
+            return None
         self.last_reason = reason
-        return self._equip_macro(snapshot, tool, target_slot)
+        return key
 
     def _restore_mining_combat_hand_key(
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
         """Restore each combat hand displaced by the temporary mining loadout."""
-        if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(
-            snapshot, reason
-        ):
-            self.last_reason = f"{reason}:alternation-refused"
-            return None
         main_hand = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"),
             None,
@@ -21865,8 +21878,12 @@ class HengbotPolicy:
             if target_slot == "sub_hand" and optimal_known and remembered_name is None:
                 if main_hand is not None and not main_hand.is_digging_tool:
                     self._digger_wield_attempts = 0
+                    key = TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
+                    if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(snapshot, reason):
+                        self.last_reason = f"{reason}:alternation-refused"
+                        return None
                     self.last_reason = reason
-                    return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
+                    return key
                 continue
             replacement = self._first_item(
                 snapshot,
@@ -21895,16 +21912,24 @@ class HengbotPolicy:
                     and not main_hand.is_digging_tool
                 ):
                     self._digger_wield_attempts = 0
+                    key = TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
+                    if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(snapshot, reason):
+                        self.last_reason = f"{reason}:alternation-refused"
+                        return None
                     self.last_reason = reason
-                    return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
+                    return key
                 continue
             self._digger_wield_attempts += 1
             if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
                 self._digger_wield_attempts = 0
                 self.last_reason = f"{reason}:abandon-unconfirmed-equip"
                 return None
+            key = self._equip_macro(snapshot, replacement, target_slot)
+            if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(snapshot, reason):
+                self.last_reason = f"{reason}:alternation-refused"
+                return None
             self.last_reason = reason
-            return self._equip_macro(snapshot, replacement, target_slot)
+            return key
         self._digger_wield_attempts = 0
         self._mining_combat_loadout_remembered = False
         return None

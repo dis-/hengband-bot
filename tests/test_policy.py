@@ -41765,31 +41765,57 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
 
     def test_second_opposite_town_loadout_swap_needs_non_equipment_progress(self):
         pol = HengbotPolicy()
-        snap = Snapshot(
+        yeek = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=[item("j", TVAL_DIGGING, 1, name="Shovel")],
-            equipment=[],
+            equipment=[item(
+                "main_hand", TVAL_SWORD, 1, name="Sword", is_equipment=True
+            )],
         )
-        self.assertTrue(pol._may_swap_town_loadout(
-            snap, "fundraise:wield-digging-tool"
-        ))
-        equipment_changed = replace(
-            snap,
+        self.assertEqual(
+            pol._wield_digging_tool_key(
+                yeek, "fundraise:wield-digging-tool"
+            ),
+            "ta",
+        )
+        town_digging = replace(
+            yeek,
+            floor_key=(0, 0, 0),
             inventory=[item("s", TVAL_SWORD, 1, name="Sword", is_equipment=True)],
-            equipment=[item("main_hand", TVAL_DIGGING, 1, name="Shovel")],
+            equipment=[item(
+                "main_hand", TVAL_DIGGING, 1, name="Shovel", is_equipment=True
+            )],
         )
-        self.assertEqual(pol._town_restore_weapon_key(equipment_changed), WAIT_KEY)
+        self.assertIsNone(pol._restore_mining_combat_hand_key(
+            town_digging, "town:restore-combat-weapon"
+        ))
         self.assertEqual(
             pol.last_reason, "town:restore-combat-weapon:alternation-refused"
         )
-        progressed = replace(equipment_changed, player=replace(
-            equipment_changed.player, gold=equipment_changed.player.gold + 1
+        progressed = replace(town_digging, player=replace(
+            town_digging.player, gold=town_digging.player.gold + 1
         ))
-        self.assertTrue(pol._may_swap_town_loadout(
+        self.assertEqual(pol._restore_mining_combat_hand_key(
             progressed, "town:restore-combat-weapon"
+        ), "wsn")
+
+    def test_loadout_swap_is_not_recorded_when_restore_posts_nothing(self):
+        pol = HengbotPolicy()
+        town = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            equipment=[item(
+                "main_hand", TVAL_SWORD, 1, name="Sword", is_equipment=True
+            )],
+        )
+        self.assertIsNone(pol._restore_mining_combat_hand_key(
+            town, "town:restore-combat-weapon"
         ))
+        self.assertIsNone(pol._town_loadout_swap)
 
     def test_mining_restore_without_optimizer_falls_back_to_observed_weapon(self):
         pol = HengbotPolicy()

@@ -42,6 +42,7 @@ from hengbot.cli import (
     _cell_loop_guard_applies,
     _command_response_grace,
     _modal_recovery_action,
+    _silent_game_incident,
     _uses_multiplier_combat_grace,
     _delay_after_macro_key,
     _delay_spec_after_macro_key,
@@ -342,6 +343,58 @@ class UniversalPostingContractTest(unittest.TestCase):
         )]
         self.assertTrue(contract.allow(
             equipped, "wgn", "town:restore-combat-weapon"
+        ))
+
+    def test_equipment_mutation_serializer_loudly_releases_unchanged_board(self):
+        contract = PostingContract()
+        unchanged = self.snapshot(turn=10)
+        contract.posted(unchanged, "wfa", "fundraise:wield-digging-tool")
+        incidents = []
+        for attempt in range(500):
+            allowed = contract.allow(
+                self.snapshot(turn=11 + attempt),
+                "ta", "town:restore-combat-weapon",
+            )
+            if contract.last_incident is not None:
+                incidents.append(contract.last_incident["marker"])
+            if allowed:
+                break
+        self.assertLess(attempt, TERMINAL_NUDGE_LIMIT + 1)
+        self.assertIn(
+            "posting-contract:equipment-mutation-released", incidents
+        )
+        self.assertTrue(allowed)
+
+    def test_ledger_120x_wield_restore_read_order_is_serialized(self):
+        """Rows 13406-13631: ta/wg/wgy, restore, then rc (ledger-derived)."""
+        contract = PostingContract()
+        yeek_before = self.snapshot(turn=925281)
+        contract.posted(
+            yeek_before, "ta", "fundraise:wield-digging-tool"
+        )
+        self.assertFalse(contract.allow(
+            self.snapshot(turn=925282), "wsa",
+            "town:restore-combat-weapon",
+        ))
+        yeek_after_takeoff = self.snapshot(turn=925283)
+        yeek_after_takeoff.equipment = [SimpleNamespace(
+            slot="sub_hand", tval=20, sval=1, name="Shovel", count=1,
+            is_equipment=True,
+        )]
+        self.assertTrue(contract.allow(
+            yeek_after_takeoff, "wgy",
+            "fundraise:wield-digging-tool",
+        ))
+        contract.posted(
+            yeek_after_takeoff, "wgy", "fundraise:wield-digging-tool"
+        )
+        town_restored = self.snapshot(turn=927169)
+        town_restored.equipment = [SimpleNamespace(
+            slot="main_hand", tval=23, sval=1, name="Sword", count=1,
+            is_equipment=True,
+        )]
+        self.assertTrue(contract.allow(
+            town_restored, "rc", "fundraise:detect-treasure"
         ))
 
     def test_preserved_sale_prompt_rejects_foreign_escape_owner(self):
@@ -2117,6 +2170,21 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertEqual(actions.count("esc-look"), MODAL_RECOVERY_ROUNDS)
         self.assertEqual(actions[-1], "stop")
         self.assertEqual(_modal_recovery_action(0), "nudge")
+
+    def test_loop_modal_escalation_prioritizes_dead_and_live_outcomes(self):
+        actions = []
+        attempt = 0
+        while True:
+            action = _modal_recovery_action(attempt)
+            actions.append(action)
+            if action == "stop":
+                break
+            attempt += 1
+        self.assertEqual(actions.count("esc-look"), MODAL_RECOVERY_ROUNDS)
+        with patch("hengbot.cli._game_process_alive", return_value=False):
+            self.assertEqual(_silent_game_incident(123), "player-death")
+        with patch("hengbot.cli._game_process_alive", return_value=True):
+            self.assertEqual(_silent_game_incident(123), "stuck-prompt")
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's

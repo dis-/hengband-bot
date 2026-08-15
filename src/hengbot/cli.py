@@ -115,7 +115,7 @@ TERMINAL_NUDGE_LIMIT = 8
 # A live process that remains silent after one complete ESC/look recovery round
 # is parked in an input modal, not recovered. Derive the round count from the
 # established terminal nudge allowance rather than adding another timing.
-MODAL_RECOVERY_ROUNDS = max(1, TERMINAL_NUDGE_LIMIT // 4)
+MODAL_RECOVERY_ROUNDS = max(1, TERMINAL_NUDGE_LIMIT // TERMINAL_NUDGE_LIMIT)
 
 
 def _modal_recovery_action(recovery_attempts: int) -> str:
@@ -125,6 +125,11 @@ def _modal_recovery_action(recovery_attempts: int) -> str:
     if recovery_attempts < TERMINAL_NUDGE_LIMIT + MODAL_RECOVERY_ROUNDS:
         return "esc-look"
     return "stop"
+
+
+def _silent_game_incident(window_pid) -> str:
+    """Give process death priority when terminal modal recovery is exhausted."""
+    return "stuck-prompt" if _game_process_alive(window_pid) else "player-death"
 # Keys that march through close_game: Escape clears the tombstone and aborts the
 # death-info dump, "n" answers the NO_ESCAPE "stand by for score registration?"
 # prompt, Return confirms anything else. Repeated to cover every screen.
@@ -1462,6 +1467,7 @@ class PostingContract:
         self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
         self._last_posted_owner: str | None = None
         self._pending_equipment_mutation: tuple[str, tuple] | None = None
+        self._pending_equipment_refusals = 0
         self.last_incident: dict[str, object] | None = None
 
     @staticmethod
@@ -1484,7 +1490,19 @@ class PostingContract:
             pending_owner, expected_from = pending_mutation
             if self._equipment_signature(snapshot) != expected_from:
                 self._pending_equipment_mutation = None
+                self._pending_equipment_refusals = 0
             elif key.startswith(("w", "t")):
+                self._pending_equipment_refusals += 1
+                if self._pending_equipment_refusals >= TERMINAL_NUDGE_LIMIT:
+                    self._pending_equipment_mutation = None
+                    self._pending_equipment_refusals = 0
+                    self.last_incident = {
+                        "marker": "posting-contract:equipment-mutation-released",
+                        "owner": owner,
+                        "pending_owner": pending_owner,
+                        "key": key,
+                    }
+                    return False
                 self.last_incident = {
                     "marker": "posting-contract:equipment-mutation-unobserved",
                     "owner": owner,
@@ -1526,6 +1544,7 @@ class PostingContract:
             self._pending_equipment_mutation = (
                 owner, self._equipment_signature(snapshot)
             )
+            self._pending_equipment_refusals = 0
 
 
 def _write_posting_contract_incident(
@@ -2991,7 +3010,7 @@ def _run_follow(
                             time.monotonic() - started,
                             force_flush=True,
                         )
-                        if not _game_process_alive(args.window_pid):
+                        if _silent_game_incident(args.window_pid) == "player-death":
                             print("<dead>", flush=True)
                             return incident_stop("player-death", snapshot)
                         print(
@@ -3021,6 +3040,9 @@ def _run_follow(
                         file=sys.stderr,
                         flush=True,
                     )
+                    if _silent_game_incident(args.window_pid) == "player-death":
+                        print("<dead>", flush=True)
+                        return incident_stop("player-death", snapshot)
                     return incident_stop("stuck-prompt", snapshot)
 
             time.sleep(args.poll_interval)
