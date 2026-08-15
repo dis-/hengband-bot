@@ -112,6 +112,19 @@ COMMAND_RESPONSE_GRACE = 12.0
 # Escape nudges cannot revive it. After this many fruitless nudges in a row we
 # treat it as a terminal screen and drive the shutdown so the game quit()s.
 TERMINAL_NUDGE_LIMIT = 8
+# A live process that remains silent after one complete ESC/look recovery round
+# is parked in an input modal, not recovered. Derive the round count from the
+# established terminal nudge allowance rather than adding another timing.
+MODAL_RECOVERY_ROUNDS = max(1, TERMINAL_NUDGE_LIMIT // 4)
+
+
+def _modal_recovery_action(recovery_attempts: int) -> str:
+    """Return the finite post-nudge recovery phase for a silent live game."""
+    if recovery_attempts < TERMINAL_NUDGE_LIMIT:
+        return "nudge"
+    if recovery_attempts < TERMINAL_NUDGE_LIMIT + MODAL_RECOVERY_ROUNDS:
+        return "esc-look"
+    return "stop"
 # Keys that march through close_game: Escape clears the tombstone and aborts the
 # death-info dump, "n" answers the NO_ESCAPE "stand by for score registration?"
 # prompt, Return confirms anything else. Repeated to cover every screen.
@@ -2925,6 +2938,21 @@ def _run_follow(
                     nudge_streak >= TERMINAL_NUDGE_LIMIT
                     and args.send_to_window
                 ):
+                    if snapshot is not None:
+                        probe = NUDGE_KEY + policy._look_probe_key(snapshot)
+                        if _modal_recovery_action(nudge_streak) == "esc-look":
+                            send(probe, in_store=False)
+                            print("<stuck-prompt:esc-look-probe>", flush=True)
+                            time.sleep(args.poll_interval)
+                            continue
+                        print(
+                            "<stuck-prompt:modal-recovery-exhausted> ESC/look "
+                            "probes produced no batch; stopping bot "
+                            "(game left running)",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        return incident_stop("stuck-prompt", snapshot)
                     for _ in range(DEATH_EXIT_ROUNDS):
                         for exit_key in DEATH_EXIT_KEYS:
                             send(exit_key)

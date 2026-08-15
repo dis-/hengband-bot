@@ -22,6 +22,7 @@ from hengbot.cli import (
     STATIONARY_EXEMPT_REASONS,
     MULTI_KEY_DELAY_SECONDS,
     MULTIPLIER_COMBAT_LOOP_WINDOW,
+    MODAL_RECOVERY_ROUNDS,
     PostingContract,
     REST_STALL_GRACE,
     STORE_ITEM_PROMPT_DELAY_SECONDS,
@@ -40,6 +41,7 @@ from hengbot.cli import (
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
     _command_response_grace,
+    _modal_recovery_action,
     _uses_multiplier_combat_grace,
     _delay_after_macro_key,
     _delay_spec_after_macro_key,
@@ -2086,6 +2088,15 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
             )
             send_failed = not sent
             attempts += 1
+
+    def test_silent_modal_recovery_is_finite_and_restart_bounded(self):
+        actions = [
+            _modal_recovery_action(attempt)
+            for attempt in range(TERMINAL_NUDGE_LIMIT + MODAL_RECOVERY_ROUNDS + 1)
+        ]
+        self.assertEqual(actions.count("esc-look"), MODAL_RECOVERY_ROUNDS)
+        self.assertEqual(actions[-1], "stop")
+        self.assertEqual(_modal_recovery_action(0), "nudge")
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):
         # Live turn 1099751: Esc left Home, but the next stale store decision's

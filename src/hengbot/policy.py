@@ -475,6 +475,16 @@ class OwnerExpectationRegistry:
     def release(self, owner: str) -> None:
         self._pending.pop(owner, None)
 
+    def may_repeat_swap(
+        self, owner: str, progress_core: OwnerProgressCore
+    ) -> bool:
+        """Retain a swap's origin and refuse its exact no-progress recurrence."""
+        pending = self._pending.get(owner)
+        if pending is None:
+            self.post(owner, progress_core, "inventory", "equipment")
+            return True
+        return pending.progress_core != progress_core
+
 
 TOWN_STOP_PASS_LIMIT = 3
 # それならば一旦多少の非効率は許容する。訪問回数の最大値を54回まで緩和することを許可するのでまずは処理を
@@ -1643,6 +1653,7 @@ class HengbotPolicy:
         self._look_floor_object_counts: dict[Position, int] = {}
         self._look_floor_key: tuple[int, int, int] | None = None
         self._look_probe_inflight = False
+        self._wield_prompt_pending: tuple[str, str] | None = None
         self._posting_refusal_probe: tuple[str, OwnerProgressCore] | None = None
         self._last_policy_progress_core: OwnerProgressCore | None = None
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
@@ -2827,6 +2838,16 @@ class HengbotPolicy:
             snapshot.inventory, snapshot.equipment
         )
         current_progress_core = self._owner_progress_core(snapshot)
+        wield_pending = self._wield_prompt_pending
+        if wield_pending is not None:
+            target_slot, owner = wield_pending
+            answer = self._observed_wield_prompt_answer(snapshot, target_slot)
+            if answer is not None:
+                self.last_reason = owner
+                self._last_policy_progress_core = current_progress_core
+                return answer
+            # The command completed without a hand prompt.
+            self._wield_prompt_pending = None
         refusal_probe = self._posting_refusal_probe
         if refusal_probe is not None:
             self._posting_refusal_probe = None
@@ -21680,9 +21701,33 @@ class HengbotPolicy:
 
     def _wield_weapon_key(self, snapshot: Snapshot, weapon: InventoryItem) -> str:
         """Wield a weapon in the main hand, preserving an occupied off hand."""
-        macro = self._equip_macro(snapshot, weapon, "main_hand")
-        assert macro is not None
-        return macro
+        answer = self._observed_wield_prompt_answer(snapshot, "main_hand")
+        if answer is not None:
+            return answer
+        self._wield_prompt_pending = ("main_hand", self.last_reason)
+        return WIELD_KEY + weapon.slot
+
+    @classmethod
+    def _observed_wield_prompt_answer(
+        cls, snapshot: Snapshot, target_slot: str
+    ) -> str | None:
+        """Answer only a wield prompt present on the serialized message board."""
+        prompt = next(
+            (
+                message
+                for message in reversed(snapshot.messages)
+                if "Dual wielding?" in message
+                or "Equip which hand?" in message
+                or "二刀流" in message
+                or "どちらの手" in message
+            ),
+            None,
+        )
+        if prompt is None:
+            return None
+        if "Dual wielding?" in prompt or "二刀流" in prompt:
+            return cls._wield_hand_suffix(snapshot, target_slot)
+        return EQUIPMENT_SLOT_KEY[target_slot]
 
     def _wield_digging_tool_key(
         self, snapshot: Snapshot, reason: str
@@ -21691,9 +21736,16 @@ class HengbotPolicy:
 
         ``do_cmd_wield`` changes its prompt chain with the occupied hands.  Strip
         observed combat hands first, so the subsequent boards have only the two
-        source-derived cases mining needs: no suffix for the first digger, then
-        ``y`` on the dual-wield prompt for the second.
+        source-derived cases mining needs: no prompt for the first digger, then
+        an observed dual-wield board answered on the following decision.
         """
+        if reason == "fundraise:wield-digging-tool" and not (
+            self._owner_expectations.may_repeat_swap(
+                reason, self._owner_progress_core(snapshot)
+            )
+        ):
+            self.last_reason = f"{reason}:alternation-refused"
+            return None
         main_hand = next(
             (it for it in snapshot.equipment if it.slot == "main_hand"), None
         )
@@ -21768,6 +21820,10 @@ class HengbotPolicy:
             return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
 
         target_slot = "sub_hand" if main_hand is not None else "main_hand"
+        answer = self._observed_wield_prompt_answer(snapshot, target_slot)
+        if answer is not None:
+            self.last_reason = reason
+            return answer
         tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
         if tool is None:
             return None
@@ -21789,12 +21845,20 @@ class HengbotPolicy:
         ):
             self._normal_sub_hand_name = sub_hand.name
         self.last_reason = reason
-        return self._equip_macro(snapshot, tool, target_slot)
+        self._wield_prompt_pending = (target_slot, reason)
+        return WIELD_KEY + tool.slot
 
     def _restore_mining_combat_hand_key(
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
         """Restore each combat hand displaced by the temporary mining loadout."""
+        if reason == "town:restore-combat-weapon" and not (
+            self._owner_expectations.may_repeat_swap(
+                reason, self._owner_progress_core(snapshot)
+            )
+        ):
+            self.last_reason = f"{reason}:alternation-refused"
+            return None
         main_hand = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"),
             None,
@@ -21861,7 +21925,11 @@ class HengbotPolicy:
                 self.last_reason = f"{reason}:abandon-unconfirmed-equip"
                 return None
             self.last_reason = reason
-            return self._equip_macro(snapshot, replacement, target_slot)
+            answer = self._observed_wield_prompt_answer(snapshot, target_slot)
+            if answer is not None:
+                return answer
+            self._wield_prompt_pending = (target_slot, reason)
+            return WIELD_KEY + replacement.slot
         self._digger_wield_attempts = 0
         self._mining_combat_loadout_remembered = False
         return None
