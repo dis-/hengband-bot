@@ -9255,27 +9255,10 @@ class HengbotPolicy:
                 self._count_treasure_detection_scrolls(snapshot),
                 detection_target,
             )
-            obtainable_second_digger = (
-                self._digging_tool_count(snapshot) == 1
-                and (
-                    any(
-                        owned.origin == "home" and owned.item.is_digging_tool
-                        for owned in self._equipment_catalog.items
-                    )
-                    or (
-                        snapshot.store is not None
-                        and any(
-                            item.is_digging_tool
-                            and item.price <= snapshot.player.gold
-                            for item in snapshot.store.items
-                        )
-                    )
-                )
-            )
             require(
                 "Digging tool",
                 self._digging_tool_count(snapshot),
-                2 if obtainable_second_digger else 1,
+                2,
             )
 
         if self._identification_need is not None:
@@ -15102,8 +15085,18 @@ class HengbotPolicy:
                     add(STORE_HOME, "stored-detection", "home-first")
                 if STORE_ALCHEMIST not in self._town_store_attempted:
                     add(STORE_ALCHEMIST, "mining-detection")
-            if self._fundraising_mode != "scavenge" and not self._has_digging_tool(snapshot):
-                if STORE_HOME not in self._town_store_attempted:
+            if (
+                self._fundraising_mode != "scavenge"
+                and self._digging_tool_count(snapshot) < 2
+                and self._count_treasure_detection_scrolls(snapshot) > 0
+            ):
+                if (
+                    STORE_HOME not in self._town_store_attempted
+                    and any(
+                        owned.origin == "home" and owned.item.is_digging_tool
+                        for owned in self._equipment_catalog.items
+                    )
+                ):
                     add(STORE_HOME, "stored-digger", "home-first")
                 if STORE_GENERAL not in self._town_store_attempted:
                     add(STORE_GENERAL, "mining-digger")
@@ -21627,29 +21620,22 @@ class HengbotPolicy:
         assert macro is not None
         return macro
 
-    def _cursed_main_stays_wielded(self, snapshot: Snapshot) -> bool:
-        """Return whether a confirmed unremovable non-digger locks the main hand."""
-        main_hand = next(
-            (it for it in snapshot.equipment if it.slot == "main_hand"), None
-        )
-        return (
-            main_hand is not None
-            and not main_hand.is_digging_tool
-            and main_hand.is_cursed
-            and self._curse_unremovable(main_hand)
-        )
-
     def _wield_digging_tool_key(
         self, snapshot: Snapshot, reason: str
     ) -> str | None:
-        """Use the shared, bounded one- or two-hand digger wield transaction."""
+        """Build the mining-only loadout without ever mixing combat gear and diggers.
+
+        ``do_cmd_wield`` changes its prompt chain with the occupied hands.  Strip
+        observed combat hands first, so the subsequent boards have only the two
+        source-derived cases mining needs: no suffix for the first digger, then
+        ``y`` on the dual-wield prompt for the second.
+        """
         main_hand = next(
             (it for it in snapshot.equipment if it.slot == "main_hand"), None
         )
         sub_hand = next(
             (it for it in snapshot.equipment if it.slot == "sub_hand"), None
         )
-        cursed_main_stays_wielded = self._cursed_main_stays_wielded(snapshot)
         if not self._mining_combat_loadout_remembered:
             preparation = self._equipment_optimization_preparation
             result = getattr(preparation, "result", None)
@@ -21675,7 +21661,6 @@ class HengbotPolicy:
             elif (
                 main_hand is not None
                 and not main_hand.is_digging_tool
-                and not cursed_main_stays_wielded
             ):
                 self._normal_weapon_name = main_hand.name
                 self._normal_weapon_identity = equipment_identity(main_hand)
@@ -21695,13 +21680,30 @@ class HengbotPolicy:
                 self._normal_sub_hand_identity = equipment_identity(sub_hand)
                 self._normal_sub_hand_is_optimal = False
             self._mining_combat_loadout_remembered = True
-        target_slot = (
-            "sub_hand"
-            if cursed_main_stays_wielded or (
-                main_hand is not None and main_hand.is_digging_tool
+        combat_hands = [
+            item
+            for item in (main_hand, sub_hand)
+            if item is not None and not item.is_digging_tool
+        ]
+        if combat_hands:
+            blocked = next(
+                (
+                    item
+                    for item in combat_hands
+                    if item.is_cursed and self._curse_unremovable(item)
+                ),
+                None,
             )
-            else "main_hand"
-        )
+            if blocked is not None:
+                return None
+            self._digger_wield_attempts += 1
+            if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
+                self._digger_wield_attempts = 0
+                return None
+            self.last_reason = reason
+            return TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
+
+        target_slot = "sub_hand" if main_hand is not None else "main_hand"
         tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
         if tool is None:
             return None
@@ -21712,7 +21714,6 @@ class HengbotPolicy:
         if (
             main_hand is not None
             and not main_hand.is_digging_tool
-            and not cursed_main_stays_wielded
             and not self._normal_weapon_is_optimal
         ):
             self._normal_weapon_name = main_hand.name
@@ -22614,12 +22615,7 @@ class HengbotPolicy:
                 return self._step_toward(snapshot, step)
             return self._leave_fundraising_floor(snapshot)
 
-        wieldable_diggers = (
-            1 if self._cursed_main_stays_wielded(snapshot) else 2
-        )
-        desired_diggers = min(
-            wieldable_diggers, self._digging_tool_count(snapshot)
-        )
+        desired_diggers = min(2, self._digging_tool_count(snapshot))
         equipped_diggers = sum(
             1 for item in snapshot.equipment if item.is_digging_tool
         )

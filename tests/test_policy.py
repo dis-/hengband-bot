@@ -20192,7 +20192,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
 
         self.assertIsNotNone(pol._find_home_deposit(snap))
-        self.assertIsNone(pol._next_required_store_type(snap))
+        self.assertEqual(pol._next_required_store_type(snap), STORE_GENERAL)
 
     def test_fundraising_searches_all_home_pages_for_digger(self):
         inventory = self._strict_supplies(detection=5)
@@ -20903,7 +20903,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             requirements,
         )
 
-    def test_unobtainable_second_digger_does_not_block_mining_readiness(self):
+    def test_second_digger_remains_a_procurement_goal_but_one_can_mine(self):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
         snap = Snapshot(
@@ -20920,8 +20920,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         requirements = policy.procurement_requirements(snap)
 
-        self.assertNotIn(
-            "Digging tool", [entry["item"] for entry in requirements]
+        self.assertIn(
+            {"item": "Digging tool", "current": 1, "target": 2, "missing": 1},
+            requirements,
         )
         with patch.object(policy, "_fundraising_food_ready", return_value=True):
             self.assertTrue(policy._fundraising_supplies_ready(snap))
@@ -22354,6 +22355,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
+        self.assertEqual(policy._next_required_store_type(snap), STORE_GENERAL)
+        policy._town_store_attempted[STORE_GENERAL] = 0
         self.assertIsNone(policy._next_required_store_type(snap))
         self.assertEqual(policy._fundraising_mode, "mine")
         self.assertEqual(policy._planned_mining_runs, 3)
@@ -22365,6 +22368,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
 
+        self.assertEqual(policy._next_required_store_type(snap), STORE_GENERAL)
+        policy._town_store_attempted[STORE_GENERAL] = 0
         self.assertIsNone(policy._next_required_store_type(snap))
         self.assertEqual(policy._planned_mining_runs, 1)
         self.assertEqual(policy._mining_detection_scroll_target(snap), 1)
@@ -35796,11 +35801,19 @@ class StuckEscapeTest(unittest.TestCase):
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
         pol.last_reason = "search"
 
-        self.assertEqual(pol.choose_key(snap), "wdn")
+        self.assertEqual(pol.choose_key(snap), "ta")
+        self.assertEqual(pol.last_reason, "breakout:wield-digging-tool")
+
+        unarmed = replace(
+            snap,
+            inventory=[recall, digger, replace(sword, slot="a")],
+            equipment=[],
+        )
+        self.assertEqual(pol.choose_key(unarmed), "wd")
         self.assertEqual(pol.last_reason, "breakout:wield-digging-tool")
 
         digging = replace(
-            snap,
+            unarmed,
             inventory=[recall, replace(sword, slot="a")],
             equipment=[replace(digger, slot="main_hand")],
         )
@@ -39410,7 +39423,10 @@ class RangedAttackTest(unittest.TestCase):
             player(10, 10, gold=0, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [], floor_key=(0, 0, 0), town_flag=True,
-            inventory=[*self._strict_supplies_for_ammo()],
+            inventory=[
+                *self._strict_supplies_for_ammo(),
+                item("y", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            ],
             equipment=[self._sling(), self._lantern()],
             store=StoreState(STORE_WEAPON, []),
         )
@@ -41326,11 +41342,10 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
         self.assertEqual(pol._mining_stall_turns, MINING_STALL_LIMIT)
 
-    def test_wields_digger_answering_the_which_hand_prompt_with_a_shield_on(self):
-        # With BOTH hands full (weapon + shield) wielding a digging tool opens an
-        # "Equip which hand?" prompt (cmd-equipment.cpp:190). The bare `w`+slot leaves
-        # that prompt open and loops forever (the loop that stopped the bot at Yeek
-        # Cave). The wield must answer 'a' (main hand) so it actually takes.
+    def test_mining_removes_both_combat_hands_before_wielding_a_digger(self):
+        # do_cmd_wield's both-hands-full branch opens "Equip which hand?"
+        # (cmd-equipment.cpp:189-201).  Mining must never answer that selector by
+        # replacing just one hand: that creates the forbidden combat+digger mix.
         snap = Snapshot(
             player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
             {Position(12, 126): grid(12, 126), Position(13, 126): grid(13, 126)},
@@ -41347,14 +41362,14 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
-        self.assertEqual(pol._fundraising_key(snap, []), "wja")
+        self.assertEqual(pol._fundraising_key(snap, []), "ta")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
         self.assertEqual(pol._normal_weapon_name, "Broad Sword")  # remembered to re-wield
 
-    def test_wields_digger_with_a_dual_wield_answer_when_a_hand_is_free(self):
-        # Only the main hand occupied: wield_slot suggests the free sub hand, so
-        # the game asks "Dual wielding? [y/n]" (not "which hand?"); n replaces
-        # the main-hand weapon with the digger instead of dual-wielding.
+    def test_mining_removes_single_combat_weapon_instead_of_declining_dual_wield(self):
+        # Only the main hand occupied: do_cmd_wield asks "Dual wielding? [y/n]"
+        # (cmd-equipment.cpp:181-188).  A blind `n` caused the live modal leak;
+        # remove the combat weapon first, then wield on the observed empty board.
         snap = Snapshot(
             player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
             {Position(12, 126): grid(12, 126), Position(13, 126): grid(13, 126)},
@@ -41370,7 +41385,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._fundraising_mode = "mine"
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
-        self.assertEqual(pol._fundraising_key(snap, []), "wjn")
+        self.assertEqual(pol._fundraising_key(snap, []), "ta")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
 
     def test_gives_up_mining_when_the_weapon_will_not_swap_for_the_digger(self):
@@ -41396,7 +41411,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._mining_scroll_used_floor = snap.floor_key
         pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
         keys = [pol._fundraising_key(snap, []) for _ in range(DIGGER_WIELD_LIMIT)]
-        self.assertTrue(all(k == "wja" for k in keys[:-1]))  # kept trying, then...
+        self.assertTrue(all(k == "ta" for k in keys[:-1]))  # kept trying, then...
         self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")  # gave up
         self.assertIsNone(pol._fundraising_mode)  # mining abandoned
 
@@ -41415,23 +41430,85 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
             ],
         )
-        self.assertEqual(
-            pol._wield_digging_tool_key(first, "mine:wield"), "wja"
-        )
+        self.assertEqual(pol._wield_digging_tool_key(first, "mine:wield"), "ta")
         second = Snapshot(
             first.player,
             first.grids,
             [],
+            inventory=list(first.inventory),
+            equipment=[item("sub_hand", 34, 2, is_equipment=True, name="Shield")],
+        )
+        self.assertEqual(pol._wield_digging_tool_key(second, "mine:wield"), "tb")
+        empty = replace(second, equipment=[])
+        self.assertEqual(pol._wield_digging_tool_key(empty, "mine:wield"), "wj")
+        one_digger = replace(
+            empty,
             inventory=[item("k", TVAL_DIGGING, 4, name="Pick")],
             equipment=[
-                item("main_hand", TVAL_DIGGING, 1, is_equipment=True, name="Shovel"),
-                item("sub_hand", 34, 2, is_equipment=True, name="Shield"),
+                item("main_hand", TVAL_DIGGING, 1, is_equipment=True, name="Shovel")
             ],
         )
-        self.assertEqual(
-            pol._wield_digging_tool_key(second, "mine:wield"), "wkb"
-        )
+        self.assertEqual(pol._wield_digging_tool_key(one_digger, "mine:wield"), "wky")
         self.assertEqual(pol._normal_sub_hand_name, "Shield")
+
+    def test_dual_diggers_stay_wielded_and_the_next_detection_read_lands(self):
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=2)
+        shovel = item(
+            "main_hand", TVAL_DIGGING, 1, is_equipment=True, name="Shovel"
+        )
+        pick = item(
+            "sub_hand", TVAL_DIGGING, 4, is_equipment=True, name="Pick"
+        )
+        snap = Snapshot(
+            player(
+                12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100
+            ),
+            {Position(12, 126): grid(12, 126)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            inventory=[scroll, item("f", TVAL_FOOD, 35, count=2)],
+            equipment=[
+                shovel,
+                pick,
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    fuel=5000,
+                    is_equipment=True,
+                ),
+            ],
+        )
+        pol = HengbotPolicy()
+        pol._fundraising_mode = "mine"
+        pol._mining_threat_free_streak = DIGGER_WIELD_LIMIT
+
+        self.assertEqual(pol._fundraising_key(snap, []), "rs", pol.last_reason)
+        self.assertEqual(pol.last_reason, "fundraise:detect-treasure")
+
+        detected = replace(
+            snap,
+            inventory=[replace(scroll, count=1), item("f", TVAL_FOOD, 35, count=2)],
+            grids={
+                Position(12, 126): grid(12, 126),
+                Position(12, 127): grid(
+                    12, 127, passable=False, gold=True, can_dig=True
+                ),
+            },
+        )
+        pol._known_treasure = {Position(12, 127)}
+        keys = [pol._fundraising_key(detected, []) for _ in range(2)]
+        self.assertEqual(keys, [TUNNEL_KEY + "6", TUNNEL_KEY + "6"])
+        self.assertTrue(
+            all(
+                sum(item.is_digging_tool for item in board.equipment) == 2
+                and not any(
+                    item.is_melee_weapon and not item.is_digging_tool
+                    for item in board.equipment
+                )
+                for board in (snap, detected)
+            )
+        )
 
     def test_one_digger_is_ready_and_only_targets_main_hand(self):
         snap = Snapshot(
@@ -41448,9 +41525,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         with patch.object(pol, "_fundraising_food_ready", return_value=True), \
              patch.object(pol, "_mining_detection_scroll_target", return_value=0):
             self.assertTrue(pol._fundraising_supplies_ready(snap))
-        self.assertEqual(
-            pol._wield_digging_tool_key(snap, "mine:wield"), "wja"
-        )
+        self.assertEqual(pol._wield_digging_tool_key(snap, "mine:wield"), "ta")
 
     def test_mining_end_restores_both_combat_hands(self):
         pol = HengbotPolicy()
@@ -41507,7 +41582,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 item("sub_hand", 22, 1, is_equipment=True, name="Naginata"),
             ],
         )
-        self.assertEqual(pol._wield_digging_tool_key(observed, "mine:wield"), "wja")
+        self.assertEqual(pol._wield_digging_tool_key(observed, "mine:wield"), "ta")
 
         both_diggers = replace(
             observed,
@@ -41636,7 +41711,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol.last_reason, "restore:abandon-unconfirmed-equip"
         )
 
-    def test_cursed_locked_main_with_offhand_digger_ignores_second_digger(self):
+    def test_cursed_locked_combat_weapon_abandons_instead_of_mixed_loadout(self):
         snap = Snapshot(
             player(12, 126, class_id=PLAYER_CLASS_WARRIOR, food=12000, gold=100),
             {
@@ -41674,48 +41749,10 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._mining_scroll_used_floor = snap.floor_key
         pol._known_treasure = {Position(12, 127)}
 
-        self.assertEqual(
-            pol._wield_digging_tool_key(
-                snap, "fundraise:wield-digging-tool"
-            ),
-            "wjy",
+        self.assertIsNone(
+            pol._wield_digging_tool_key(snap, "fundraise:wield-digging-tool")
         )
-        self.assertIsNone(pol._normal_weapon_name)
-
-        wielded = replace(
-            snap,
-            inventory=[
-                item(
-                    "s",
-                    TVAL_SCROLL,
-                    SV_SCROLL_DETECT_TREASURE,
-                    count=3,
-                ),
-                item(
-                    "k",
-                    TVAL_DIGGING,
-                    4,
-                    name="Pick",
-                ),
-            ],
-            equipment=[
-                *snap.equipment,
-                item(
-                    "sub_hand",
-                    TVAL_DIGGING,
-                    SV_DIGGING_SHOVEL,
-                    is_equipment=True,
-                ),
-            ],
-        )
-        self.assertIsNotNone(pol._equipped_digging_tool(wielded))
-        with patch.object(pol, "_fundraising_food_ready", return_value=True), \
-             patch.object(pol, "_mining_detection_scroll_target", return_value=0):
-            self.assertTrue(pol._fundraising_supplies_ready(wielded))
-        self.assertTrue(pol._combat_weapon_ready(wielded))
-        self.assertEqual(pol._fundraising_key(wielded, []), TUNNEL_KEY + "6")
-        self.assertEqual(pol.last_reason, "fundraise:dig-to-treasure")
-        self.assertNotEqual(pol.last_reason, "fundraise:wield-digging-tool")
+        self.assertEqual(pol._normal_weapon_name, "Cursed Mace")
 
     def test_heavy_cursed_main_offhand_digger_wield_is_bounded(self):
         from hengbot.policy import DIGGER_WIELD_LIMIT
@@ -41743,8 +41780,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             pol._wield_digging_tool_key(snap, "mine:wield")
             for _ in range(DIGGER_WIELD_LIMIT)
         ]
-        self.assertEqual(keys[:-1], ["wjy"] * (DIGGER_WIELD_LIMIT - 1))
-        self.assertIsNone(keys[-1])
+        self.assertEqual(keys, [None] * DIGGER_WIELD_LIMIT)
         self.assertEqual(pol._digger_wield_attempts, 0)
 
 
@@ -41942,6 +41978,27 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertIsNone(policy._find_home_deposit(snap))
         self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
         self.assertEqual(policy._fundraising_mode, "prepare")
+
+    def test_sale_sweep_emits_no_inscription_or_sale_for_kit_detection(self):
+        detection = item(
+            "h",
+            TVAL_SCROLL,
+            SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Treasure Detection",
+            aware=True,
+        )
+        snap = self._town(
+            [detection],
+            store=StoreState(STORE_ALCHEMIST, []),
+            gold=FUNDRAISING_START_GOLD - 1,
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._retention_reservation(snap, detection), 1)
+        self.assertIsNone(policy._find_low_level_sale(snap))
+        self.assertNotIn(detection, policy._current_store_sale_candidates(snap))
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertNotEqual(policy.last_reason, "shop:batch-inscribe")
 
     def test_ten_torches_are_reserved_and_real_surplus_deposits_once(self):
         torches = item(
