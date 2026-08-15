@@ -329,13 +329,9 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract = PostingContract()
         bare = self.snapshot(turn=10)
         contract.posted(bare, "wfa", "fundraise:wield-digging-tool")
-        self.assertFalse(contract.allow(
+        self.assertTrue(contract.allow(
             self.snapshot(turn=11), "wgn", "town:restore-combat-weapon"
         ))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:equipment-mutation-unobserved",
-        )
         equipped = self.snapshot(turn=11)
         equipped.equipment = [SimpleNamespace(
             slot="main_hand", tval=20, sval=1, name="Shovel", count=1,
@@ -349,21 +345,10 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract = PostingContract()
         unchanged = self.snapshot(turn=10)
         contract.posted(unchanged, "wfa", "fundraise:wield-digging-tool")
-        incidents = []
-        for attempt in range(500):
-            allowed = contract.allow(
-                self.snapshot(turn=11 + attempt),
-                "ta", "town:restore-combat-weapon",
-            )
-            if contract.last_incident is not None:
-                incidents.append(contract.last_incident["marker"])
-            if allowed:
-                break
-        self.assertLess(attempt, TERMINAL_NUDGE_LIMIT + 1)
-        self.assertIn(
-            "posting-contract:equipment-mutation-released", incidents
-        )
-        self.assertTrue(allowed)
+        self.assertTrue(contract.allow(
+            self.snapshot(turn=11), "ta", "town:restore-combat-weapon"
+        ))
+        self.assertIsNone(contract.last_incident)
 
     def test_ledger_120x_wield_restore_read_order_is_serialized(self):
         """Rows 13406-13631: ta/wg/wgy, restore, then rc (ledger-derived)."""
@@ -372,7 +357,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract.posted(
             yeek_before, "ta", "fundraise:wield-digging-tool"
         )
-        self.assertFalse(contract.allow(
+        self.assertTrue(contract.allow(
             self.snapshot(turn=925282), "wsa",
             "town:restore-combat-weapon",
         ))
@@ -2165,7 +2150,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
     def test_silent_modal_recovery_is_finite_and_restart_bounded(self):
         actions = [
             _modal_recovery_action(attempt)
-            for attempt in range(TERMINAL_NUDGE_LIMIT + MODAL_RECOVERY_ROUNDS + 1)
+            for attempt in range(TERMINAL_NUDGE_LIMIT + 1 + MODAL_RECOVERY_ROUNDS + 1)
         ]
         self.assertEqual(actions.count("esc-look"), MODAL_RECOVERY_ROUNDS)
         self.assertEqual(actions[-1], "stop")

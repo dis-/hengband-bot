@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import hengbot.policy as policy_module
+import hengbot.equipment_mutation as equipment_mutation_module
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
@@ -36834,29 +36835,36 @@ class WieldHandSuffixTest(unittest.TestCase):
     def _shield(slot):
         return item(slot, 34, 3, is_equipment=True)  # TV_SHIELD
 
+    @staticmethod
+    def _macro(snapshot, wield, target):
+        return equipment_mutation_module.EquipmentMutationExecutor().request_wield(
+            snapshot, "test-loadout", wield, target,
+            policy_module.EQUIPMENT_SLOT_KEY,
+        ).key
+
     def test_both_hands_full_answers_the_which_hand_prompt(self):
         snap = self._snap([self._weapon("main_hand"), self._shield("sub_hand")])
-        self.assertEqual(HengbotPolicy._wield_hand_suffix(snap, "main_hand"), "a")
-        self.assertEqual(HengbotPolicy._wield_hand_suffix(snap, "sub_hand"), "b")
+        new = self._weapon("s")
+        self.assertEqual(self._macro(snap, new, "main_hand"), "wsa")
+        self.assertEqual(self._macro(snap, new, "sub_hand"), "wsb")
 
     def test_occupied_main_with_free_sub_answers_the_dual_wield_prompt(self):
         snap = self._snap([self._weapon("main_hand")])
-        self.assertEqual(HengbotPolicy._wield_hand_suffix(snap, "main_hand"), "n")
-        self.assertEqual(HengbotPolicy._wield_hand_suffix(snap, "sub_hand"), "y")
+        new = self._weapon("s")
+        self.assertEqual(self._macro(snap, new, "main_hand"), "wsn")
+        self.assertEqual(self._macro(snap, new, "sub_hand"), "wsy")
 
     def test_sub_hand_weapon_with_free_main_answers_the_dual_wield_prompt(self):
         snap = self._snap([self._weapon("sub_hand")])
-        self.assertEqual(HengbotPolicy._wield_hand_suffix(snap, "main_hand"), "y")
-        self.assertEqual(HengbotPolicy._wield_hand_suffix(snap, "sub_hand"), "n")
+        new = self._weapon("s")
+        self.assertEqual(self._macro(snap, new, "main_hand"), "wsy")
+        self.assertEqual(self._macro(snap, new, "sub_hand"), "wsn")
 
     def test_free_hands_or_a_lone_shield_raise_no_prompt(self):
-        self.assertEqual(
-            HengbotPolicy._wield_hand_suffix(self._snap([]), "main_hand"), ""
-        )
+        new = self._weapon("s")
+        self.assertEqual(self._macro(self._snap([]), new, "main_hand"), "ws")
         lone_shield = self._snap([self._shield("sub_hand")])
-        self.assertEqual(
-            HengbotPolicy._wield_hand_suffix(lone_shield, "main_hand"), ""
-        )
+        self.assertEqual(self._macro(lone_shield, new, "main_hand"), "ws")
 
     def test_shield_restore_replaces_the_sub_hand_melee_weapon(self):
         shield = item("o", 34, 3, is_equipment=True, name="Shield")
@@ -36873,7 +36881,7 @@ class WieldHandSuffixTest(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            HengbotPolicy._equip_macro(before, shield, "sub_hand"), "wob"
+            self._macro(before, shield, "sub_hand"), "wob"
         )
 
         after = self._snap(
@@ -36898,7 +36906,7 @@ class WieldHandSuffixTest(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            HengbotPolicy._equip_macro(snap, ring, "sub_ring"), "wr)"
+            self._macro(snap, ring, "sub_ring"), "wr)"
         )
 
 
@@ -41775,12 +41783,11 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
                 "main_hand", TVAL_SWORD, 1, name="Sword", is_equipment=True
             )],
         )
-        self.assertEqual(
-            pol._wield_digging_tool_key(
+        posted = pol._wield_digging_tool_key(
                 yeek, "fundraise:wield-digging-tool"
-            ),
-            "ta",
-        )
+            )
+        self.assertEqual(posted, "ta")
+        self.assertTrue(pol.confirm_key_posted(posted))
         town_digging = replace(
             yeek,
             floor_key=(0, 0, 0),
@@ -41792,9 +41799,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertIsNone(pol._restore_mining_combat_hand_key(
             town_digging, "town:restore-combat-weapon"
         ))
-        self.assertEqual(
-            pol.last_reason, "town:restore-combat-weapon:alternation-refused"
-        )
+        self.assertEqual(pol.last_reason, "goal-already-superseded")
         progressed = replace(town_digging, player=replace(
             town_digging.player, gold=town_digging.player.gold + 1
         ))
@@ -41815,7 +41820,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertIsNone(pol._restore_mining_combat_hand_key(
             town, "town:restore-combat-weapon"
         ))
-        self.assertIsNone(pol._town_loadout_swap)
+        self.assertIsNone(pol._equipment_mutation.last_posted_goal)
 
     def test_mining_restore_without_optimizer_falls_back_to_observed_weapon(self):
         pol = HengbotPolicy()
@@ -48355,7 +48360,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             for action in preparation.transaction.actions
         ))
         self.assertNotEqual(state["result_source"], "signature-cache-hit")
-        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertTrue(key.startswith(equipment_mutation_module.WIELD_KEY), key)
         self.assertEqual(policy.last_reason, "equipment-transaction:equip")
 
     def test_selected_loadout_derives_the_deepest_satisfied_band(self):
@@ -50069,7 +50074,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         self.assertEqual(policy._calibration_town_key(dressed), "5")
         takeoff = policy._equipment_transaction_town_key(dressed)
-        self.assertTrue(takeoff.startswith(policy_module.TAKEOFF_KEY), takeoff)
+        self.assertTrue(takeoff.startswith(equipment_mutation_module.TAKEOFF_KEY), takeoff)
         self.assertTrue(policy.confirm_key_posted(takeoff))
 
         naked = self._snapshot(inventory=(replace(sword, slot="a"),))
@@ -50476,7 +50481,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         key = policy.choose_key(snapshot)
         self.assertTrue(policy._calibration_stripped_unrestored)
-        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertTrue(key.startswith(equipment_mutation_module.WIELD_KEY), key)
 
     def test_partial_strip_exhaustion_dresses_under_persistent_threat(self):
         """REVIEW-p1-calibration4 BLOCKER regression: partial strip +
@@ -50554,9 +50559,9 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 break
             snapshot = threatened(inventory, equipment)
             key = policy.choose_key(snapshot)
-            if not key or not key.startswith(policy_module.WIELD_KEY):
+            if not key or not key.startswith(equipment_mutation_module.WIELD_KEY):
                 continue
-            letter = key[len(policy_module.WIELD_KEY)]
+            letter = key[len(equipment_mutation_module.WIELD_KEY)]
             worn_item = next(
                 (entry for entry in inventory if entry.slot == letter), None
             )
@@ -50631,7 +50636,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             (("main_hand", identity), ("sub_hand", identity)),
         )
         # ...and the decision itself is the wear edge for the pack copy.
-        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertTrue(key.startswith(equipment_mutation_module.WIELD_KEY), key)
         self.assertIn("c", key)
         self.assertEqual(policy.last_reason, "calibration:redress")
 
@@ -50699,7 +50704,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             inventory=(sword_in_pack,), equipment=(lantern,)
         )
         key = policy.choose_key(partial_calm)
-        self.assertTrue(key.startswith(policy_module.WIELD_KEY), key)
+        self.assertTrue(key.startswith(equipment_mutation_module.WIELD_KEY), key)
         self.assertEqual(policy.last_reason, "calibration:redress")
 
         # Dressed again: the guard clears (departure conjunct reopens) and
@@ -50776,7 +50781,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             in_pack = replace(sword, slot="c")
             stripped = self._snapshot(inventory=(in_pack,))
             key = fresh.choose_key(stripped)
-            self.assertEqual(key, policy_module.WIELD_KEY + "c")
+            self.assertEqual(key, equipment_mutation_module.WIELD_KEY + "c")
             self.assertEqual(fresh.last_reason, "calibration:redress")
             self.assertTrue(fresh._calibration_stripped_unrestored)
 
@@ -50897,7 +50902,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 )
                 key = policy.choose_key(current)
                 posted.append(key)
-                letter = key[len(policy_module.WIELD_KEY)]
+                letter = key[len(equipment_mutation_module.WIELD_KEY)]
                 worn = next(entry for entry in packed if entry.slot == letter)
                 target_slot = {
                     identity: slot
@@ -50909,8 +50914,8 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._calibration_observe(self._snapshot(equipment=tuple(equipment)))
             self.assertEqual(
                 posted,
-                [policy_module.WIELD_KEY + letter for letter in "abcde"[:-1]]
-                + [policy_module.WIELD_KEY + "e("],
+                [equipment_mutation_module.WIELD_KEY + letter for letter in "abcde"[:-1]]
+                + [equipment_mutation_module.WIELD_KEY + "e("],
             )
             self.assertEqual(
                 {entry.slot for entry in equipment},

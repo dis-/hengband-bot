@@ -115,14 +115,16 @@ TERMINAL_NUDGE_LIMIT = 8
 # A live process that remains silent after one complete ESC/look recovery round
 # is parked in an input modal, not recovered. Derive the round count from the
 # established terminal nudge allowance rather than adding another timing.
-MODAL_RECOVERY_ROUNDS = max(1, TERMINAL_NUDGE_LIMIT // TERMINAL_NUDGE_LIMIT)
+# The loop checks at LIMIT, continues, then first probes at LIMIT + 1.  To run
+# one real probe before stopping, the exclusive stop boundary is +1+1.
+MODAL_RECOVERY_ROUNDS = (TERMINAL_NUDGE_LIMIT + 1 + 1) - (TERMINAL_NUDGE_LIMIT + 1)
 
 
 def _modal_recovery_action(recovery_attempts: int) -> str:
     """Return the finite post-nudge recovery phase for a silent live game."""
-    if recovery_attempts < TERMINAL_NUDGE_LIMIT:
+    if recovery_attempts <= TERMINAL_NUDGE_LIMIT:
         return "nudge"
-    if recovery_attempts < TERMINAL_NUDGE_LIMIT + MODAL_RECOVERY_ROUNDS:
+    if recovery_attempts < TERMINAL_NUDGE_LIMIT + 1 + MODAL_RECOVERY_ROUNDS:
         return "esc-look"
     return "stop"
 
@@ -1466,8 +1468,6 @@ class PostingContract:
     def __init__(self) -> None:
         self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
         self._last_posted_owner: str | None = None
-        self._pending_equipment_mutation: tuple[str, tuple] | None = None
-        self._pending_equipment_refusals = 0
         self.last_incident: dict[str, object] | None = None
 
     @staticmethod
@@ -1485,31 +1485,6 @@ class PostingContract:
 
     def allow(self, snapshot, key: str, owner: str) -> bool:
         self.last_incident = None
-        pending_mutation = self._pending_equipment_mutation
-        if pending_mutation is not None:
-            pending_owner, expected_from = pending_mutation
-            if self._equipment_signature(snapshot) != expected_from:
-                self._pending_equipment_mutation = None
-                self._pending_equipment_refusals = 0
-            elif key.startswith(("w", "t")):
-                self._pending_equipment_refusals += 1
-                if self._pending_equipment_refusals >= TERMINAL_NUDGE_LIMIT:
-                    self._pending_equipment_mutation = None
-                    self._pending_equipment_refusals = 0
-                    self.last_incident = {
-                        "marker": "posting-contract:equipment-mutation-released",
-                        "owner": owner,
-                        "pending_owner": pending_owner,
-                        "key": key,
-                    }
-                    return False
-                self.last_incident = {
-                    "marker": "posting-contract:equipment-mutation-unobserved",
-                    "owner": owner,
-                    "pending_owner": pending_owner,
-                    "key": key,
-                }
-                return False
         prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
         if (
             prompt is not None
@@ -1540,11 +1515,6 @@ class PostingContract:
             key, _posting_effect_signature(snapshot, owner, key)
         )
         self._last_posted_owner = owner
-        if key.startswith(("w", "t")):
-            self._pending_equipment_mutation = (
-                owner, self._equipment_signature(snapshot)
-            )
-            self._pending_equipment_refusals = 0
 
 
 def _write_posting_contract_incident(

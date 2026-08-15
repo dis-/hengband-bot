@@ -64,6 +64,7 @@ from hengbot.home_errand import (
     HomeErrandRequest,
     HomeErrandState,
 )
+from hengbot.equipment_mutation import EquipmentMutationExecutor
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -1171,8 +1172,6 @@ CHEST_DISARM_BUDGET = 2
 CHEST_OPEN_BUDGET = 8
 CHEST_COLLECT_BUDGET = 32
 EAT_KEY = "E"
-WIELD_KEY = "w"  # wield/wear: opens an item prompt, so send "w" + slot as a macro
-TAKEOFF_KEY = "t"
 INSCRIBE_KEY = "{"
 UNINSCRIBE_KEY = "}"
 HEAVY_CURSE_TAG = "HEAVY_CURSE"
@@ -1642,9 +1641,6 @@ class HengbotPolicy:
         self._look_floor_object_counts: dict[Position, int] = {}
         self._look_floor_key: tuple[int, int, int] | None = None
         self._look_probe_inflight = False
-        self._town_loadout_swap: tuple[
-            tuple[str, str], str, tuple[object, ...]
-        ] | None = None
         self._posting_refusal_probe: tuple[str, OwnerProgressCore] | None = None
         self._last_policy_progress_core: OwnerProgressCore | None = None
         self._quest_navigators: dict[int, QuestFloorNavigator] = {}
@@ -1788,6 +1784,7 @@ class HengbotPolicy:
         self._town_travel_fallback: Position | None = None
         self._town_hunt_target: Position | None = None
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
+        self._equipment_mutation = EquipmentMutationExecutor()
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
         self._swarm_distance_floor: tuple[int, int, int] | None = None
@@ -5477,13 +5474,15 @@ class HengbotPolicy:
             restore_lantern = self._empty_lantern_to_restore(snapshot)
             if restore_lantern is not None:
                 self.last_reason = "restore-lantern"
-                return self._equip_macro(
-                    snapshot, restore_lantern, "light"
+                return self._equipment_wield(
+                    snapshot, "light-loadout", restore_lantern, "light"
                 )
             wield = self._light_to_wield(snapshot)
             if wield is not None:
                 self.last_reason = "wield-light"
-                return self._equip_macro(snapshot, wield, "light")
+                return self._equipment_wield(
+                    snapshot, "light-loadout", wield, "light"
+                )
             refill = self._light_refill_item(snapshot)
             if refill is not None:
                 self.last_reason = "refill-light"
@@ -8613,7 +8612,9 @@ class HengbotPolicy:
         torch = self._darkness_torch(snapshot)
         if torch is not None:
             self.last_reason = "wield-light"
-            return self._equip_macro(snapshot, torch, "light")
+            return self._equipment_wield(
+                snapshot, "light-loadout", torch, "light"
+            )
         return None
 
     def _dark_without_recovery(self, snapshot: Snapshot) -> bool:
@@ -9755,7 +9756,9 @@ class HengbotPolicy:
             )
             if target is None:
                 continue
-            macro = self._equip_macro(snapshot, target, slot)
+            macro = self._equipment_wield(
+                snapshot, "calibration-redress", target, slot
+            )
             if macro is None:
                 continue
             self._calibration_redress_attempts[obligation] = (
@@ -11122,6 +11125,7 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        mutation_committed = self._equipment_mutation.confirm_posted(key)
         if (
             self._store_entry_wait_owner is not None
             and key == (self._store_entry_wait_key or WAIT_KEY)
@@ -11138,7 +11142,7 @@ class HengbotPolicy:
             self._calibration_naked_dump_inflight = True
             return True
         if key != self._equipment_transaction_prepared_key:
-            return False
+            return mutation_committed
         session = self._equipment_transaction_session
         committed = session is not None and session.confirm_posted(key)
         if committed and self._equipment_transaction_prepared_catalog_update is not None:
@@ -11147,7 +11151,7 @@ class HengbotPolicy:
                 self._equipment_catalog.record_home_deposit(item, intent=intent)
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
-        return committed
+        return committed or mutation_committed
 
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
@@ -11378,6 +11382,7 @@ class HengbotPolicy:
             "bound": "STORE_STUCK_LIMIT",
             "target_loadout_id": session.target_loadout_id,
         }
+        self._equipment_mutation.release()
         self._abandon_blocked_equipment_transaction(snapshot)
         self.last_reason = "equipment-transaction:confirmation-stall-bound"
         return True
@@ -11546,7 +11551,11 @@ class HengbotPolicy:
                     f"unknown-equipment-slot:{action.target_slot}"
                 )
                 return WAIT_KEY
-            key = TAKEOFF_KEY + slot_key
+            key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
+            if key is None:
+                if not self.last_reason.startswith("posting-contract:"):
+                    self.last_reason = "equipment-mutation:busy"
+                return None
             if not self._prepare_equipment_transaction_command(
                 session,
                 action,
@@ -11577,7 +11586,9 @@ class HengbotPolicy:
                     f"equip-item-missing:{action.item_id}"
                 )
                 return WAIT_KEY
-            macro = self._equip_macro(snapshot, target, action.target_slot)
+            macro = self._equipment_wield(
+                snapshot, "transaction-apply", target, action.target_slot
+            )
             if macro is None:
                 self._block_equipment_transaction(
                     f"unknown-equipment-slot:{action.target_slot}"
@@ -20269,7 +20280,9 @@ class HengbotPolicy:
                 return None
             self._no_teleport_rearm_pending = True
             self.last_reason = "town:remove-no-teleport-weapon"
-            return TAKEOFF_KEY + "a"
+            return self._equipment_takeoff(
+                snapshot, "replace-no-teleport", "a"
+            )
         blocked_weapon_in_pack = any(
             item.is_melee_weapon and self._blocks_teleport(item)
             for item in snapshot.inventory
@@ -20324,11 +20337,6 @@ class HengbotPolicy:
             if replacing_no_teleport
             else "town:restore-combat-weapon"
         )
-        if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(
-            snapshot, reason
-        ):
-            self.last_reason = f"{reason}:alternation-refused"
-            return WAIT_KEY
         self.last_reason = reason
         return self._wield_weapon_key(snapshot, weapon)
 
@@ -21619,119 +21627,35 @@ class HengbotPolicy:
             return True
         return self._weapon_block_streak >= WEAPON_BLOCK_LIMIT
 
-    @staticmethod
-    def _wield_hand_suffix(snapshot: Snapshot, target_slot: str = "main_hand") -> str:
-        """Answer for the prompt `w` raises when wielding a weapon/digger
-        (cmd-equipment.cpp do_cmd_wield):
-        - both hands occupied -> "Equip which hand?" — equipment letter a/b;
-        - only the main hand occupied (by anything) -> "Dual wielding? [y/n]" —
-          y puts the new weapon in the free sub hand, n replaces the main hand;
-        - only the sub hand occupied by a MELEE WEAPON -> the same y/n prompt —
-          y puts it in the free main hand, n replaces the sub-hand weapon;
-        - otherwise (both free, or sub holds a non-weapon such as a shield) the
-          game silently uses the main hand, so no key is needed."""
-        main_hand = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
-        sub_hand = next((it for it in snapshot.equipment if it.slot == "sub_hand"), None)
-        if main_hand is not None and sub_hand is not None:
-            return EQUIPMENT_SLOT_KEY[target_slot]
-        if main_hand is not None:
-            return "y" if target_slot == "sub_hand" else "n"
-        if sub_hand is not None and (
-            sub_hand.is_melee_weapon or sub_hand.is_digging_tool
-        ):
-            return "y" if target_slot == "main_hand" else "n"
-        return ""
-
-    @classmethod
-    def _equip_macro(
-        cls,
-        snapshot: Snapshot,
-        item: InventoryItem,
+    def _equipment_wield(
+        self, snapshot: Snapshot, goal: str, item: InventoryItem,
         target_slot: str | None,
     ) -> str | None:
-        """Build a complete do_cmd_wield input sequence for every item tval."""
-        if target_slot is None or target_slot not in EQUIPMENT_SLOT_KEY:
+        if target_slot is None:
             return None
-        main_hand = next(
-            (it for it in snapshot.equipment if it.slot == "main_hand"), None
+        result = self._equipment_mutation.request_wield(
+            snapshot, goal, item, target_slot, EQUIPMENT_SLOT_KEY
         )
-        sub_hand = next(
-            (it for it in snapshot.equipment if it.slot == "sub_hand"), None
-        )
-        suffix = ""
-        if item.tval in {TVAL_SHIELD, TVAL_CAPTURE, TVAL_CARD}:
-            main_melee = main_hand is not None and (
-                main_hand.is_melee_weapon or main_hand.is_digging_tool
-            )
-            sub_melee = sub_hand is not None and (
-                sub_hand.is_melee_weapon or sub_hand.is_digging_tool
-            )
-            if main_melee and sub_melee:
-                suffix = EQUIPMENT_SLOT_KEY[target_slot]
-            elif sub_melee:
-                # do_cmd_wield silently selects main_hand.
-                suffix = ""
-            elif (
-                main_hand is not None
-                and sub_hand is not None
-                and (
-                    item.tval == TVAL_CAPTURE
-                    or (not main_melee and not sub_melee)
-                )
-            ):
-                suffix = EQUIPMENT_SLOT_KEY[target_slot]
-        elif item.tval in {TVAL_DIGGING, TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD}:
-            suffix = cls._wield_hand_suffix(snapshot, target_slot)
-        elif item.tval == TVAL_RING:
-            # Avoid command-specific tag capture in choose_item: endpoint keys
-            # select the two ring slots even while they are empty.
-            suffix = "(" if target_slot == "main_ring" else ")"
-        return WIELD_KEY + item.slot + suffix
+        if result.key is not None:
+            self._equipment_mutation.bind_post_snapshot(snapshot)
+        elif result.report is not None:
+            self.last_reason = result.report
+        return result.key
 
-    def _wield_weapon_key(self, snapshot: Snapshot, weapon: InventoryItem) -> str:
+    def _equipment_takeoff(
+        self, snapshot: Snapshot, goal: str, slot_key: str
+    ) -> str | None:
+        result = self._equipment_mutation.request_takeoff(snapshot, goal, slot_key)
+        if result.key is not None:
+            self._equipment_mutation.bind_post_snapshot(snapshot)
+        elif result.report is not None:
+            self.last_reason = result.report
+        return result.key
+
+    def _wield_weapon_key(self, snapshot: Snapshot, weapon: InventoryItem) -> str | None:
         """Wield a weapon in the main hand, preserving an occupied off hand."""
-        macro = self._equip_macro(snapshot, weapon, "main_hand")
-        assert macro is not None
+        macro = self._equipment_wield(snapshot, "combat-loadout", weapon, "main_hand")
         return macro
-
-    def _swap_progress_core(self, snapshot: Snapshot) -> tuple[object, ...]:
-        """Durable progress excluding travel and loadout-only item movement."""
-        pack = tuple(sorted((
-            tuple(getattr(item, name, None) for name in (
-                "tval", "sval", "name", "count", "charges", "inscription",
-                "known", "fully_known",
-            ))
-            for item in (*snapshot.inventory, *snapshot.equipment)
-        ), key=repr))
-        return (
-            getattr(snapshot.player, "gold", 0),
-            getattr(snapshot.player, "exp", 0),
-            pack,
-        )
-
-    def _may_swap_town_loadout(
-        self, snapshot: Snapshot, owner: str
-    ) -> bool:
-        """Bound the mining-wield/restore owner pair across floor travel."""
-        pair = (
-            "fundraise:wield-digging-tool",
-            "town:restore-combat-weapon",
-        )
-        if owner not in pair:
-            return True
-        core = self._swap_progress_core(snapshot)
-        previous = self._town_loadout_swap
-        if previous is not None:
-            previous_pair, previous_owner, previous_core = previous
-            if (
-                previous_pair == pair
-                and
-                previous_owner != owner
-                and previous_core == core
-            ):
-                return False
-        self._town_loadout_swap = (pair, owner, core)
-        return True
 
     def _wield_digging_tool_key(
         self, snapshot: Snapshot, reason: str
@@ -21812,11 +21736,11 @@ class HengbotPolicy:
             if self._digger_wield_attempts >= DIGGER_WIELD_LIMIT:
                 self._digger_wield_attempts = 0
                 return None
-            key = TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
-            if reason == "fundraise:wield-digging-tool" and not self._may_swap_town_loadout(snapshot, reason):
-                self.last_reason = f"{reason}:alternation-refused"
-                return None
-            self.last_reason = reason
+            key = self._equipment_takeoff(
+                snapshot, "mining-loadout", EQUIPMENT_SLOT_KEY[combat_hands[0].slot]
+            )
+            if key is not None:
+                self.last_reason = reason
             return key
 
         target_slot = "sub_hand" if main_hand is not None else "main_hand"
@@ -21840,11 +21764,9 @@ class HengbotPolicy:
             and not self._normal_sub_hand_is_optimal
         ):
             self._normal_sub_hand_name = sub_hand.name
-        key = self._equip_macro(snapshot, tool, target_slot)
-        if reason == "fundraise:wield-digging-tool" and not self._may_swap_town_loadout(snapshot, reason):
-            self.last_reason = f"{reason}:alternation-refused"
-            return None
-        self.last_reason = reason
+        key = self._equipment_wield(snapshot, "mining-loadout", tool, target_slot)
+        if key is not None:
+            self.last_reason = reason
         return key
 
     def _restore_mining_combat_hand_key(
@@ -21878,11 +21800,11 @@ class HengbotPolicy:
             if target_slot == "sub_hand" and optimal_known and remembered_name is None:
                 if main_hand is not None and not main_hand.is_digging_tool:
                     self._digger_wield_attempts = 0
-                    key = TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
-                    if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(snapshot, reason):
-                        self.last_reason = f"{reason}:alternation-refused"
-                        return None
-                    self.last_reason = reason
+                    key = self._equipment_takeoff(
+                        snapshot, "combat-loadout", EQUIPMENT_SLOT_KEY[target_slot]
+                    )
+                    if key is not None:
+                        self.last_reason = reason
                     return key
                 continue
             replacement = self._first_item(
@@ -21912,11 +21834,11 @@ class HengbotPolicy:
                     and not main_hand.is_digging_tool
                 ):
                     self._digger_wield_attempts = 0
-                    key = TAKEOFF_KEY + EQUIPMENT_SLOT_KEY[target_slot]
-                    if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(snapshot, reason):
-                        self.last_reason = f"{reason}:alternation-refused"
-                        return None
-                    self.last_reason = reason
+                    key = self._equipment_takeoff(
+                        snapshot, "combat-loadout", EQUIPMENT_SLOT_KEY[target_slot]
+                    )
+                    if key is not None:
+                        self.last_reason = reason
                     return key
                 continue
             self._digger_wield_attempts += 1
@@ -21924,11 +21846,11 @@ class HengbotPolicy:
                 self._digger_wield_attempts = 0
                 self.last_reason = f"{reason}:abandon-unconfirmed-equip"
                 return None
-            key = self._equip_macro(snapshot, replacement, target_slot)
-            if reason == "town:restore-combat-weapon" and not self._may_swap_town_loadout(snapshot, reason):
-                self.last_reason = f"{reason}:alternation-refused"
-                return None
-            self.last_reason = reason
+            key = self._equipment_wield(
+                snapshot, "combat-loadout", replacement, target_slot
+            )
+            if key is not None:
+                self.last_reason = reason
             return key
         self._digger_wield_attempts = 0
         self._mining_combat_loadout_remembered = False
@@ -22642,7 +22564,9 @@ class HengbotPolicy:
             if light is None:
                 return self._leave_fundraising_floor(snapshot)
             self.last_reason = "fundraise:wield-light"
-            return self._equip_macro(snapshot, light, "light")
+            return self._equipment_wield(
+                snapshot, "light-loadout", light, "light"
+            )
 
         if snapshot.player.hungry:
             food = self._find_edible(snapshot)
@@ -24431,8 +24355,8 @@ class HengbotPolicy:
                 )
                 if carried_lantern is not None:
                     self.last_reason = "quest-strategy:equip-opening-lantern"
-                    return self._equip_macro(
-                        snapshot, carried_lantern, "light"
+                    return self._equipment_wield(
+                        snapshot, "quest-launcher", carried_lantern, "light"
                     )
 
                 light_position = Position(*opening_light["position"])
