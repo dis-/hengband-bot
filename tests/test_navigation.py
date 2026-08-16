@@ -378,6 +378,21 @@ class StairRejectionInvalidationTest(unittest.TestCase):
 
         self.assertEqual(delivered, ["l\x1b", ">", "l\x1b", ">"])
 
+    def test_interleaved_refusal_probe_releases_older_stair_watch(self):
+        """The 04:38 capture refused ~9 after accepting the descent key."""
+        snapshot = self._stair_snapshot(downstairs=True, turn=2128312)
+        policy = HengbotPolicy()
+
+        first = policy.choose_key(snapshot)
+        policy.refuse_key_posting("home:request-knowledge-scan", "~9")
+        probe = policy.choose_key(snapshot)
+        recovered = policy.choose_key(snapshot)
+
+        self.assertEqual(first, ">")
+        self.assertEqual(probe, "l\x1b")
+        self.assertEqual(recovered, ">")
+        self.assertNotEqual(policy.last_reason, "stair:await-observation")
+
     def test_two_rejected_descents_expire_phantom_from_routing_only(self):
         snapshot = self._stair_snapshot(downstairs=True)
         policy = HengbotPolicy()

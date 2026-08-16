@@ -36,6 +36,10 @@ PUBLIC_TESTS = frozenset(
         "test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key",
         "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_charges_an_evaporated_route_claim",
         "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart",
+        "test_policy.TownAndFundraisingPolicyTest.test_queued_digger_withdrawal_blocks_departure_without_home_route",
+        "test_policy.TownAndFundraisingPolicyTest.test_failed_digger_withdraw_retries_only_after_fresh_home_observation",
+        "test_policy.TownAndFundraisingPolicyTest.test_second_failed_digger_withdrawal_releases_to_visible_fallback",
+        "test_navigation.StairRejectionInvalidationTest.test_interleaved_refusal_probe_releases_older_stair_watch",
     }
 )
 DEFAULT_TESTS = (
@@ -162,6 +166,58 @@ MUTATIONS = (
             "policy.py",
             "        self._home_knowledge_valid_before = index\n",
             "        self._home_knowledge_current = False  # mutant loses descending batch\n",
+        ),),
+    ),
+    Mutation(
+        "withdraw-gate-depends-on-home-route",
+        True,
+        "Restore the departure race by making the pending take conditional on Home routing.",
+        (replacement(
+            "policy.py",
+            "            \"home_atomic_withdraw_clear\": (\n"
+            "                self._home_atomic_withdraw_pending is None\n"
+            "            ),\n",
+            "            \"home_atomic_withdraw_clear\": (\n"
+            "                not home_required or self._home_atomic_withdraw_pending is None\n"
+            "            ),\n",
+        ),),
+    ),
+    Mutation(
+        "drop-queued-digger-departure-leaf",
+        True,
+        "Remove the state-based queued digger departure premise.",
+        (replacement(
+            "policy.py",
+            "            \"digger_withdrawal_resolved\": (\n"
+            "                not self._home_digger_withdraw_pending\n"
+            "                or self._digger_fallback_bought_this_visit\n"
+            "            ),\n",
+            "",
+        ),),
+    ),
+    Mutation(
+        "keep-stair-watch-across-refusal-probe",
+        True,
+        "Retain the older stair watch across the identity-breaking probe.",
+        (replacement(
+            "policy.py",
+            "                if self._pending_stair_command is not None:\n"
+            "                    self._pending_stair_command = None\n"
+            "                    self._owner_expectations.release(\"stair-command\")\n",
+            "",
+        ),),
+    ),
+    Mutation(
+        "defer-first-failed-digger-address",
+        True,
+        "Consume the first failed take instead of requiring a fresh Home observation.",
+        (replacement(
+            "policy.py",
+            "                retry_digger = (\n"
+            "                    withdrawn.is_digging_tool\n"
+            "                    and self._digger_home_withdraw_failures < 1\n"
+            "                )\n",
+            "                retry_digger = False\n",
         ),),
     ),
 )

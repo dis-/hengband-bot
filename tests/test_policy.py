@@ -19823,6 +19823,160 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(ordinary._shop(general).startswith(BUY_KEY))
         self.assertEqual(ordinary.last_reason, "shop:buy-digging-tool")
 
+    def test_queued_digger_withdrawal_blocks_departure_without_home_route(self):
+        snap = Snapshot(
+            player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=self._strict_supplies(detection=5),
+        )
+        policy = HengbotPolicy()
+        policy._home_digger_withdraw_pending = True
+        policy._home_atomic_withdraw_pending = (
+            ("queued pick", TVAL_DIGGING, SV_DIGGING_PICK),
+            0,
+            store_item(
+                "H", TVAL_DIGGING, SV_DIGGING_PICK,
+                name="queued pick", is_equipment=True,
+            ),
+            1,
+        )
+        policy._home_available = lambda _snapshot: False
+
+        leaves = policy._town_departure_conjuncts(snap)
+
+        self.assertFalse(leaves["digger_withdrawal_resolved"])
+        self.assertFalse(leaves["home_atomic_withdraw_clear"])
+        self.assertFalse(policy._town_departure_ready(snap))
+
+    def test_failed_digger_withdraw_retries_only_after_fresh_home_observation(self):
+        digger = store_item(
+            "H", TVAL_DIGGING, SV_DIGGING_PICK,
+            name="stored pick", is_equipment=True,
+        )
+        outside = Snapshot(
+            player(45, 123, gold=1030, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(45, 123): replace(
+                grid(45, 123), store_number=STORE_HOME
+            )}, [],
+            floor_key=(0, 0, 0), town_flag=True, turn=2127406,
+            inventory=self._strict_supplies(detection=5),
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(digger)
+        policy.consume_home_knowledge((digger,))
+        policy._home_pending_item = signature
+        policy._home_digger_withdraw_pending = True
+        policy._home_atomic_withdraw_pending = (signature, 0, digger, 1)
+        policy._home_atomic_withdraw_posted_turn = 2127396
+        policy._floor_key = outside.floor_key
+
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: isolate the observation transition from unrelated town routing
+        policy._decide = Mock(return_value=WAIT_KEY)
+        policy.choose_key(outside)
+
+        self.assertEqual(policy._home_pending_item, signature)
+        self.assertTrue(policy._home_digger_withdraw_pending)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertTrue(policy._home_knowledge_invalidated)
+        self.assertEqual(policy._digger_home_withdraw_failures, 1)
+        self.assertNotEqual(
+            policy.last_reason, "shop:observed-operation-uncomposable"
+        )
+
+        policy.consume_home_knowledge(tuple(
+            store_item(
+                chr(ord("a") + index) if index < 26 else chr(ord("A") + index - 26),
+                TVAL_FOOD,
+                index,
+                name=f"filler-{index}",
+            )
+            for index in range(33)
+        ) + (digger,))
+        policy._home_page_size = 52
+        policy._shopping_approach_store_type = STORE_HOME
+
+        retry = policy._atomic_home_withdraw_key(
+            outside, outside.player.position
+        )
+
+        self.assertEqual(retry, "5pH\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+
+    def test_second_failed_digger_withdrawal_releases_to_visible_fallback(self):
+        digger = store_item(
+            "H", TVAL_DIGGING, SV_DIGGING_PICK,
+            name="stored pick", is_equipment=True,
+        )
+        outside = Snapshot(
+            player(45, 123, gold=1030, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(45, 123): replace(
+                grid(45, 123), store_number=STORE_HOME
+            )}, [],
+            floor_key=(0, 0, 0), town_flag=True, turn=2127416,
+            inventory=self._strict_supplies(detection=5),
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(digger)
+        policy._digger_home_withdraw_failures = 1
+        policy._home_pending_item = signature
+        policy._home_digger_withdraw_pending = True
+        policy._home_atomic_withdraw_pending = (signature, 0, digger, 1)
+        policy._home_atomic_withdraw_posted_turn = 2127406
+        policy._floor_key = outside.floor_key
+
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: isolate the observation transition from unrelated town routing
+        policy._decide = Mock(return_value=WAIT_KEY)
+        policy.choose_key(outside)
+
+        self.assertIsNone(policy._home_pending_item)
+        self.assertFalse(policy._home_digger_withdraw_pending)
+        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-failed")
+
+    def test_failed_digger_fresh_retry_is_restart_immune(self):
+        digger = store_item(
+            "H", TVAL_DIGGING, SV_DIGGING_PICK,
+            name="stored pick", is_equipment=True,
+        )
+        outside = Snapshot(
+            player(45, 123, gold=1030, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(45, 123): replace(
+                grid(45, 123), store_number=STORE_HOME
+            )}, [],
+            floor_key=(0, 0, 0), town_flag=True, turn=2127406,
+            inventory=self._strict_supplies(detection=5),
+        )
+        delivered = []
+        for _ in range(2):
+            policy = HengbotPolicy()
+            signature = policy._item_signature(digger)
+            policy.consume_home_knowledge((digger,))
+            policy._home_pending_item = signature
+            policy._home_digger_withdraw_pending = True
+            policy._home_atomic_withdraw_pending = (signature, 0, digger, 1)
+            policy._home_atomic_withdraw_posted_turn = 2127396
+            policy._floor_key = outside.floor_key
+            # TEST_FAKERY_LINT_ALLOW: public-path-replaced: isolate the observation transition from unrelated town routing
+            policy._decide = Mock(return_value=WAIT_KEY)
+            policy.choose_key(outside)
+            policy.consume_home_knowledge(tuple(
+                store_item(
+                    chr(ord("a") + index) if index < 26 else chr(ord("A") + index - 26),
+                    TVAL_FOOD,
+                    index,
+                    name=f"filler-{index}",
+                )
+                for index in range(33)
+            ) + (digger,))
+            policy._home_page_size = 52
+            policy._shopping_approach_store_type = STORE_HOME
+            delivered.append(policy._atomic_home_withdraw_key(
+                outside, outside.player.position
+            ))
+
+        self.assertEqual(delivered, ["5pH\x1b", "5pH\x1b"])
+
     def test_restart_without_home_scan_uses_carried_digger_count(self):
         offered = store_item("a", TVAL_DIGGING, 1, name="new shovel", price=50)
         held = item("p", TVAL_DIGGING, 1, name="held shovel")

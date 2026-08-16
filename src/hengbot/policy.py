@@ -2841,6 +2841,18 @@ class HengbotPolicy:
             self._posting_refusal_probe = None
             refusal_owner, refusal_core = refusal_probe
             if current_progress_core == refusal_core:
+                # The probe is the explicit observation barrier after any
+                # sender-side refusal.  A stair watch may belong to an older,
+                # successfully accepted decision (for example when an
+                # interleaved Home scan was refused before the stair result
+                # arrived).  Keeping that watch across the identity-breaking
+                # probe makes the recovered stair key disappear into
+                # stair:await-observation forever.  Release it here: the next
+                # decision either reposts the stair against the new identity or
+                # routes elsewhere visibly.
+                if self._pending_stair_command is not None:
+                    self._pending_stair_command = None
+                    self._owner_expectations.release("stair-command")
                 self._last_policy_progress_core = current_progress_core
                 key = self._look_probe_key(snapshot)
                 self.last_reason = refusal_owner
@@ -3176,6 +3188,11 @@ class HengbotPolicy:
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                if withdrawn.is_digging_tool:
+                    # The queued operation, rather than the standing two-tool
+                    # optimization target, is the departure premise.  Its
+                    # observed inventory gain is confirmed completion.
+                    self._home_digger_withdraw_pending = False
                 suppression_withdrawal = (
                     self._home_random_teleport_withdrawal == signature
                 )
@@ -3232,12 +3249,34 @@ class HengbotPolicy:
             else:
                 if self._home_random_teleport_withdrawal == signature:
                     self._home_random_teleport_withdrawal = None
-                self._deferred_home_items.add(signature)
-                if signature in self._home_pending_batch:
-                    self._home_pending_batch.remove(signature)
-                if self._home_pending_item == signature:
-                    self._home_pending_item = None
-                    self._home_pending_slot = None
+                retry_digger = (
+                    withdrawn.is_digging_tool
+                    and self._digger_home_withdraw_failures < 1
+                )
+                if retry_digger:
+                    # The command failed against a page-relative address.  Do
+                    # not let the generic observed/uncomposable rule consume
+                    # the Home stop: retain the exact queued operation, discard
+                    # the stale address space, and make the next attempt earn a
+                    # fresh ~9 observation.  This is state based; the existing
+                    # visible two-failure fallback is the bound.
+                    self._home_pending_item = signature
+                    self._home_digger_withdraw_pending = True
+                    self._invalidate_home_observation()
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
+                else:
+                    self._deferred_home_items.add(signature)
+                    if signature in self._home_pending_batch:
+                        self._home_pending_batch.remove(signature)
+                    if self._home_pending_item == signature:
+                        self._home_pending_item = None
+                        self._home_pending_slot = None
+                    if withdrawn.is_digging_tool:
+                        # This is the bounded visible abandonment.  The
+                        # standing fallback purchase now owns procurement.
+                        self._home_digger_withdraw_pending = False
                 self.last_reason = (
                     self._home_errand.reason("withdraw-failed")
                     if (
@@ -11796,7 +11835,11 @@ class HengbotPolicy:
                 not home_required or not self._home_batch_review_items
             ),
             "home_atomic_withdraw_clear": (
-                not home_required or self._home_atomic_withdraw_pending is None
+                self._home_atomic_withdraw_pending is None
+            ),
+            "digger_withdrawal_resolved": (
+                not self._home_digger_withdraw_pending
+                or self._digger_fallback_bought_this_visit
             ),
             "identification_need_clear": (
                 not home_required or self._identification_need is None
