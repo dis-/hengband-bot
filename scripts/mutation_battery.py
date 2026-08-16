@@ -39,7 +39,11 @@ PUBLIC_TESTS = frozenset(
         "test_policy.TownAndFundraisingPolicyTest.test_queued_digger_withdrawal_blocks_departure_without_home_route",
         "test_policy.TownAndFundraisingPolicyTest.test_failed_digger_withdraw_retries_only_after_fresh_home_observation",
         "test_policy.TownAndFundraisingPolicyTest.test_second_failed_digger_withdrawal_releases_to_visible_fallback",
+        "test_policy.TownAndFundraisingPolicyTest.test_second_digger_queue_survives_surface_item_processing_until_post",
+        "test_policy.TownAndFundraisingPolicyTest.test_pending_home_digger_is_additional_mining_walk_in_conjunct",
+        "test_policy.TownAndFundraisingPolicyTest.test_scavenge_plan_routes_unaddressed_home_digger_latch_and_clears_queue",
         "test_navigation.StairRejectionInvalidationTest.test_interleaved_refusal_probe_releases_older_stair_watch",
+        "test_navigation.StairRejectionInvalidationTest.test_quiet_same_turn_stair_watch_has_visible_bounded_probe",
     }
 )
 DEFAULT_TESTS = (
@@ -218,6 +222,57 @@ MUTATIONS = (
             "                    and self._digger_home_withdraw_failures < 1\n"
             "                )\n",
             "                retry_digger = False\n",
+        ),),
+    ),
+    Mutation(
+        "drop-standing-digger-prepost-attribution",
+        True,
+        "Clear the queued attribution bit set by standing Home digger selection.",
+        (replacement(
+            "policy.py",
+            "        self._home_withdrawal_queued = True\n"
+            "        self.last_reason = \"home:queue-digging-tool-withdraw\"\n",
+            "        self._home_withdrawal_queued = False\n"
+            "        self.last_reason = \"home:queue-digging-tool-withdraw\"\n",
+        ),),
+    ),
+    Mutation(
+        "move-digger-entry-guard-after-mining-exemption",
+        True,
+        "Restore the mining walk-in early return ahead of the pending withdrawal guard.",
+        (replacement(
+            "policy.py",
+            "        if (\n"
+            "            self._home_digger_withdraw_pending\n"
+            "            and not self._digger_fallback_bought_this_visit\n"
+            "        ):\n"
+            "            self._town_blocked_reason = \"home-digger-withdraw-pending\"\n"
+            "            return False\n",
+            "",
+        ),),
+    ),
+    Mutation(
+        "route-only-addressed-digger-withdrawal",
+        True,
+        "Require the transient Home item address before routing the durable latch.",
+        (replacement(
+            "policy.py",
+            "        if snapshot.in_town and self._home_digger_withdraw_pending:\n",
+            "        if (\n"
+            "            snapshot.in_town\n"
+            "            and self._home_digger_withdraw_pending\n"
+            "            and self._home_pending_item is not None\n"
+            "        ):\n",
+        ),),
+    ),
+    Mutation(
+        "remove-quiet-stair-observation-bound",
+        True,
+        "Keep quiet accepted stair observations in the empty-key wait forever.",
+        (replacement(
+            "policy.py",
+            "            if self._stair_observation_waits >= STAIR_OBSERVATION_WAIT_LIMIT:\n",
+            "            if False and self._stair_observation_waits >= STAIR_OBSERVATION_WAIT_LIMIT:\n",
         ),),
     ),
 )

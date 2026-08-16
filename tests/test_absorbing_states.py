@@ -92,8 +92,8 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
         self.assertEqual(len(SEEDED_STATES), 27)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 26)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 26)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 27)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 27)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):
@@ -345,6 +345,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
         self.assertEqual(
             [result.state for result in passed],
             [
+                "quiet-stair-observation-timeout-probe",
                 "doubled-store-entry-cycle",
                 "lagged-successful-store-entry",
                 "transaction-abandoned-mid-strip",
@@ -354,6 +355,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
         self.assertEqual(
             [result.outcome for result in passed],
             [
+                "drive-ending terminal bounded stair observation probe",
                 "durable progress within decision bound",
                 "durable progress within decision bound",
                 "drive-ending terminal equipment transaction owns ten-item restoration",

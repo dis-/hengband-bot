@@ -19824,13 +19824,24 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(ordinary.last_reason, "shop:buy-digging-tool")
 
     def test_queued_digger_withdrawal_blocks_departure_without_home_route(self):
+        start = Position(10, 10)
+        entrance = Position(10, 30)
         snap = Snapshot(
             player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)}, [],
+            {
+                start: grid(10, 10),
+                entrance: grid(
+                    10, 30, entrance=True,
+                    entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+                ),
+            }, [],
             floor_key=(0, 0, 0), town_flag=True,
             inventory=self._strict_supplies(detection=5),
+            equipment=[self._lantern()],
         )
         policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._target_dungeon_id = DUNGEON_YEEK_CAVE
         policy._home_digger_withdraw_pending = True
         policy._home_atomic_withdraw_pending = (
             ("queued pick", TVAL_DIGGING, SV_DIGGING_PICK),
@@ -19841,13 +19852,84 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             ),
             1,
         )
-        policy._home_available = lambda _snapshot: False
-
         leaves = policy._town_departure_conjuncts(snap)
 
         self.assertFalse(leaves["digger_withdrawal_resolved"])
         self.assertFalse(leaves["home_atomic_withdraw_clear"])
         self.assertFalse(policy._town_departure_ready(snap))
+        policy.last_reason = "seek-downstairs"
+        self.assertIsNone(
+            policy._entrance_travel_key(snap, entrance),
+            "a queued take must not post the incident's entrance-travel key",
+        )
+        policy._home_digger_withdraw_pending = False
+        policy._home_atomic_withdraw_pending = None
+        policy._town_blocked_reason = None
+        policy.last_reason = "seek-downstairs"
+        self.assertEqual(
+            policy._entrance_travel_key(snap, entrance),
+            policy_module.ENTRANCE_TRAVEL_MACRO,
+        )
+
+    def test_evidence_withdraw_departure_race_posts_are_held_on_both_exits(self):
+        evidence = (
+            Path(__file__).parents[1]
+            / "evidence"
+            / "evidence-stairwait-selfstop-20260817-0450.jsonl"
+        )
+        rows = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+        incident = [
+            row for row in rows
+            if 56 <= row.get("decision_sequence", -1) <= 82
+        ]
+        posted = [(row["reason"], row.get("key", "")) for row in incident]
+        self.assertIn(("home:atomic-withdraw", "5pH\x1b"), posted)
+        self.assertIn(("shop:observed-operation-uncomposable", "5"), posted)
+        self.assertIn(
+            ("town:travel-entrance", policy_module.ENTRANCE_TRAVEL_MACRO), posted
+        )
+        self.assertIn(("descend", policy_module.ENTER_DUNGEON_MACRO), posted)
+        self.assertEqual(
+            sum(reason == "stair:await-observation" and key == ""
+                for reason, key in posted),
+            12,
+        )
+        self.assertIn(("loop-detected", ""), posted)
+
+        entrance = Position(10, 10)
+        entrance_snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {entrance: grid(
+                10, 10, entrance=True,
+                entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+            )},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[
+                *self._strict_supplies(detection=5),
+                item("p", TVAL_DIGGING, 1, name="carried shovel"),
+            ],
+            equipment=[self._lantern()],
+        )
+        held = HengbotPolicy()
+        held._fundraising_mode = "mine"
+        held._target_dungeon_id = DUNGEON_YEEK_CAVE
+        held._home_digger_withdraw_pending = True
+        held_key = held.choose_key(entrance_snap)
+        self.assertNotEqual(held_key, policy_module.ENTER_DUNGEON_MACRO)
+        self.assertFalse(held._dungeon_entry_allowed(
+            entrance_snap, via_recall=False, destination_depth=1
+        ))
+        self.assertEqual(held._town_blocked_reason, "home-digger-withdraw-pending")
+
+        released = HengbotPolicy()
+        released._fundraising_mode = "mine"
+        released._target_dungeon_id = DUNGEON_YEEK_CAVE
+        released._char_dump_done_this_visit = True
+        self.assertEqual(
+            released.choose_key(entrance_snap),
+            policy_module.ENTER_DUNGEON_MACRO,
+            released.last_reason,
+        )
 
     def test_failed_digger_withdraw_retries_only_after_fresh_home_observation(self):
         digger = store_item(
@@ -20287,6 +20369,42 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(policy._home_withdrawal_queued)
         self.assertNotIn(queued, policy._deferred_home_items)
 
+        policy.consume_home_knowledge(home_diggers)
+        policy._home_page_size = 52
+        policy._shopping_approach_store_type = STORE_HOME
+        entrance = replace(
+            outside,
+            grids={Position(10, 10): replace(
+                grid(10, 10), store_number=STORE_HOME
+            )},
+        )
+        withdrawal = policy._atomic_home_withdraw_key(
+            entrance, entrance.player.position
+        )
+        self.assertEqual(withdrawal, "5pb\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+
+        gained_pick = item(
+            "k", TVAL_DIGGING, 4, name="home pick"
+        )
+        gained = replace(
+            entrance,
+            inventory=[*self._strict_supplies(detection=5), gained_pick],
+            equipment=[replace(
+                inventory[-1], slot="main_hand", is_equipment=True
+            )],
+            turn=entrance.turn + 1,
+        )
+        policy.choose_key(gained)
+        self.assertEqual(policy._digging_tool_count(gained), 2)
+        self.assertFalse(policy._home_digger_withdraw_pending)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+
+        dual_wield_tail = policy._wield_digging_tool_key(
+            gained, "fundraise:wield-digging-tool"
+        )
+        self.assertEqual(dual_wield_tail, "wky")
+
     def test_pending_home_digger_is_additional_mining_walk_in_conjunct(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -20306,7 +20424,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                     policy._town_blocked_reason, "home-digger-withdraw-pending"
                 )
 
-    def test_scavenge_plan_cannot_drop_addressed_home_digger_take(self):
+    def test_scavenge_plan_routes_unaddressed_home_digger_latch_and_clears_queue(self):
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
@@ -20315,11 +20433,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "scavenge"
         policy._town_errand_plan = TownErrandPlan([STORE_ALCHEMIST, STORE_GENERAL])
-        policy._home_pending_item = ("home pick", TVAL_DIGGING, 4)
+        policy._home_pending_item = None
         policy._home_digger_withdraw_pending = True
         policy._home_withdrawal_queued = True
 
         self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        self.assertFalse(policy._home_withdrawal_queued)
 
     def test_fundraising_leave_with_mining_supplies_latches_home(self):
         snap = Snapshot(

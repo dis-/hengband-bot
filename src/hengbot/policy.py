@@ -16031,11 +16031,15 @@ class HengbotPolicy:
         # fundraising plan (notably scavenge's [Alchemist, General] plan).
         # Keep Home first until the take posts, confirms, or its bounded
         # failure path visibly abandons it to the purchase fallback.
-        if (
-            snapshot.in_town
-            and self._home_digger_withdraw_pending
-            and self._home_pending_item is not None
-        ):
+        if snapshot.in_town and self._home_digger_withdraw_pending:
+            # The departure latch is itself an authoritative Home claim.  A
+            # failed/recovered boundary can lose the page-relative item
+            # address before the next open Home observation recreates it; do
+            # not let that transient absence strand the route behind another
+            # store.  ``queued`` describes a selected address awaiting post,
+            # so it must not survive once that address is gone.
+            if self._home_pending_item is None:
+                self._home_withdrawal_queued = False
             return STORE_HOME
 
         if (
