@@ -31,6 +31,7 @@ from hengbot.policy import (
     FRUITLESS_DISENGAGE_LIMIT,
     NAV_NO_PROGRESS_LIMIT,
     RESUME_DESCENT_BLOCK_DECISIONS,
+    STAIR_OBSERVATION_WAIT_LIMIT,
     WAIT_KEY,
     HengbotPolicy,
 )
@@ -392,6 +393,24 @@ class StairRejectionInvalidationTest(unittest.TestCase):
         self.assertEqual(probe, "l\x1b")
         self.assertEqual(recovered, ">")
         self.assertNotEqual(policy.last_reason, "stair:await-observation")
+
+    def test_quiet_same_turn_stair_watch_has_visible_bounded_probe(self):
+        snapshot = replace(
+            self._stair_snapshot(downstairs=True, turn=2128312),
+            messages=("You enter a maze of down staircases.",),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(snapshot), ">")
+        quiet = replace(snapshot, messages=())
+        delivered = [policy.choose_key(quiet) for _ in range(
+            STAIR_OBSERVATION_WAIT_LIMIT
+        )]
+
+        self.assertTrue(all(key == "" for key in delivered[:-1]))
+        self.assertEqual(delivered[-1], "l\x1b")
+        self.assertEqual(policy.last_reason, "stair:observation-timeout-probe")
+        self.assertIsNone(policy._pending_stair_command)
 
     def test_two_rejected_descents_expire_phantom_from_routing_only(self):
         snapshot = self._stair_snapshot(downstairs=True)

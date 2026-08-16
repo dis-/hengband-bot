@@ -1345,7 +1345,46 @@ def _aborted_shop_one_shot_stall_escape():
     return policy, world
 
 
+def _quiet_stair_observation_timeout_probe():
+    """Accepted '>' plus quiet same-turn boards must visibly leave the watch."""
+    position = Position(10, 10)
+    base = Snapshot(
+        fixture.player(10, 10),
+        {position: replace(fixture.grid(10, 10), has_down_stairs=True)},
+        [], floor_key=(2, 1, 0), town_flag=False, turn=2128312,
+        messages=("You enter a maze of down staircases.",),
+    )
+    policy = HengbotPolicy()
+
+    class QuietStairWorld(TownWorld):
+        expected_terminal_reason = "stair:observation-timeout-probe"
+
+        def __init__(self, snapshot):
+            super().__init__(snapshot)
+            self.quiet = replace(base, messages=())
+
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == "l\x1b"
+
+        def visible_terminal(self, reason):
+            if reason == self.expected_terminal_reason:
+                return "bounded stair observation probe"
+            return super().visible_terminal(reason)
+
+        def snapshot(self, decision):
+            return base if decision == 0 else self.quiet
+
+        def apply(self, key):
+            self.last_key = key
+
+    return policy, QuietStairWorld(base)
+
+
 SEEDED_STATES = (
+    AbsorbingState(
+        "quiet-stair-observation-timeout-probe", 20,
+        _quiet_stair_observation_timeout_probe,
+    ),
     AbsorbingState(
         "all-nonhome-needs-unobtainable-departure-unsatisfiable", 20,
         _all_nonhome_needs_unobtainable,

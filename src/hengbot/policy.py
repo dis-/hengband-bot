@@ -274,6 +274,7 @@ TOWN_TRAVEL_MIN_DISTANCE = 3
 # to BFS walking (an unknown approach makes the game reject the route).
 TOWN_TRAVEL_STALL_LIMIT = 8
 TOWN_TRAVEL_TURN_STALL_LIMIT = 12
+STAIR_OBSERVATION_WAIT_LIMIT = TOWN_TRAVEL_STALL_LIMIT
 HOME_PLAN_OWNED_PROCESSING_REASONS = {
     "home:processing-complete",
 }
@@ -1924,6 +1925,7 @@ class HengbotPolicy:
         self._pending_stair_command: (
             tuple[str, tuple[int, int, int], Position, int, Snapshot] | None
         ) = None
+        self._stair_observation_waits = 0
         self._stair_rejection_strikes: Counter[tuple[str, Position]] = Counter()
         self._unverified_stairs: set[tuple[str, Position]] = set()
         self._known_treasure: set[Position] = set()
@@ -6040,7 +6042,21 @@ class HengbotPolicy:
             # turn every recovery re-post into an unbounded empty command.
             if self._owner_may_select(snapshot, "stair-command"):
                 self._pending_stair_command = None
+                self._stair_observation_waits = 0
                 return key
+            self._stair_observation_waits += 1
+            if self._stair_observation_waits >= STAIR_OBSERVATION_WAIT_LIMIT:
+                # A message-bearing acknowledgement followed by quiet copies
+                # of the same board is not conclusive rejection, but it also
+                # cannot own the executor forever.  Cross the same visible,
+                # identity-breaking observation barrier used after a sender
+                # refusal, then let routing either repost or abandon the stair.
+                self._pending_stair_command = None
+                self._stair_observation_waits = 0
+                self._owner_expectations.release("stair-command")
+                probe = self._look_probe_key(snapshot)
+                self.last_reason = "stair:observation-timeout-probe"
+                return probe
             self.last_reason = "stair:await-observation"
             return ""
         return key
@@ -6060,6 +6076,7 @@ class HengbotPolicy:
             snapshot.turn,
             snapshot if observation is None else observation,
         )
+        self._stair_observation_waits = 0
         self._post_owner_expectation(
             snapshot, "stair-command", "turn", "floor", "position"
         )
@@ -6103,6 +6120,7 @@ class HengbotPolicy:
         ):
             return
         self._pending_stair_command = None
+        self._stair_observation_waits = 0
         if (
             snapshot.floor_key != floor_key
             or snapshot.player.position != position
@@ -8923,6 +8941,16 @@ class HengbotPolicy:
             and self._morivant_full_identify.temporary_deposits
         ):
             return False
+        # This is an additional boundary invariant, including for the absolute
+        # recall-stock mining walk-in exemption below.  A queued Home take owns
+        # both native entrance travel and the final entry command until it is
+        # confirmed or visibly released to the standing shop fallback.
+        if (
+            self._home_digger_withdraw_pending
+            and not self._digger_fallback_bought_this_visit
+        ):
+            self._town_blocked_reason = "home-digger-withdraw-pending"
+            return False
         mining_walk_in = (
             not via_recall
             and destination_depth == 1
@@ -9077,6 +9105,7 @@ class HengbotPolicy:
         self._home_digger_seen_pages.clear()
         self._home_pending_item = self._item_signature(digger)
         self._home_digger_withdraw_pending = True
+        self._home_withdrawal_queued = True
         self.last_reason = "home:queue-digging-tool-withdraw"
         return LEAVE_STORE_KEY
 
@@ -15996,6 +16025,18 @@ class HengbotPolicy:
             and pending_sale.get("phase") in {"await-inscription", "await-sale"}
         ):
             return int(pending_sale["store_type"])
+
+        # The queued take is an address-bearing continuation of the current
+        # Home visit, not a need that may be reprioritized out of a rebuilt
+        # fundraising plan (notably scavenge's [Alchemist, General] plan).
+        # Keep Home first until the take posts, confirms, or its bounded
+        # failure path visibly abandons it to the purchase fallback.
+        if (
+            snapshot.in_town
+            and self._home_digger_withdraw_pending
+            and self._home_pending_item is not None
+        ):
+            return STORE_HOME
 
         if (
             snapshot.in_town

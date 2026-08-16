@@ -790,6 +790,7 @@ class DecisionTimingTest(unittest.TestCase):
             producer.start()
             try:
                 with (
+                    # TEST_FAKERY_LINT_ALLOW: collaborator-wall: capture and persistence are process-bound collaborators; the real follow/retry loop and posting contract remain under test
                     patch("hengbot.cli._capture_decision_facts", side_effect=capture),
                     patch("hengbot.cli._write_decision", side_effect=write),
                     patch("hengbot.cli._append_capture_ledger"),
