@@ -46697,30 +46697,50 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
         restore_signature = policy._item_signature(restore)
         policy._calibration_restore_signatures = [restore_signature]
-        entrance = self._entrance_snapshot([], turn=1178696)
+        entrance = self._entrance_snapshot([], turn=1178879)
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
             "5pv\x1b",
         )
-        # Model the unfixed observer: it judged the unchanged same-turn outside
-        # post as a failed restore and released the operation.  The resulting
-        # address prefix is an actual consequence of the captured restore post,
-        # not an injected pending-item fact.
-        policy._home_atomic_withdraw_posted_turn = None
+        # The captured entrance/posted rows are seq 17672/17673 at turns
+        # 1178879/1178889.  The posted restore remains owned through the stale
+        # outside snapshot; only a fresh snapshot may release it.
         policy.choose_key(entrance)
-        home_page = replace(
-            self._snapshot([], turn=1178696),
-            store=StoreState(STORE_HOME, wares),
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, restore.name)
+
+    def test_captured_queued_digger_preempts_restore_then_restore_follows(self):
+        wares = [
+            store_item(str(index), TVAL_POTION, 1000 + index, name=f"home {index}")
+            for index in range(34)
+        ]
+        restore = store_item("21", 36, 1, name="captured restore")
+        shovel = store_item(
+            "30", TVAL_DIGGING, 1, name="captured best shovel", is_equipment=True,
         )
-        policy._fundraising_mode = "scavenge"
-        self.assertEqual(policy._shop(home_page), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
+        wares[21] = restore
+        wares[30] = shovel
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_item = policy._item_signature(shovel)
+        entrance = self._entrance_snapshot([], turn=1178879)
+
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            LEAVE_STORE_KEY,
+            "5pE\x1b",
         )
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw-target-unobserved")
+        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, shovel.name)
+        policy._home_atomic_withdraw_pending = None
+        policy._home_pending_item = None
+        policy.consume_home_knowledge(tuple(item for item in wares if item is not shovel))
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(
+                replace(entrance, turn=entrance.turn + 1), entrance.player.position
+            ),
+            "5pv\x1b",
+        )
+        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, restore.name)
 
     def test_captured_same_turn_restore_remains_owned_until_fresh_snapshot(self):
         wares = [
@@ -46761,32 +46781,56 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
     def test_captured_zero_digger_chain_reaches_mining_claim(self):
         detection = item(
             "t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
-            count=1, known=True, name="Scroll of Detect Treasure",
+            count=5, known=True, name="Scrolls of Detect Treasure",
+        )
+        food = item("f", TVAL_FOOD, 35, count=10, known=True)
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN,
+            name="lantern", fuel=5000, is_equipment=True,
         )
         shovel = store_item(
             "30", TVAL_DIGGING, 1, name="captured best shovel", is_equipment=True,
         )
+        second_shovel = store_item(
+            "31", TVAL_DIGGING, 1, name="captured second shovel", is_equipment=True,
+        )
+        third_shovel = store_item(
+            "32", TVAL_DIGGING, 1, name="captured third shovel", is_equipment=True,
+        )
+        restore = store_item("21", 36, 1, name="captured restore")
         wares = [
                 *[
                     store_item(str(index), TVAL_POTION, 1200 + index, name=f"home {index}")
                     for index in range(30)
                 ],
-                shovel,
+                shovel, second_shovel, third_shovel,
             ]
+        wares[21] = restore
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._fundraising_mode = "mine"
-        policy._deepest_level = 1
-        entrance = self._entrance_snapshot([detection])
+        entrance = replace(
+            self._entrance_snapshot([detection, food]),
+            player=replace(self._entrance_snapshot([]).player, gold=0),
+            equipment=[lantern],
+        )
+        fundraising_seed = replace(
+            entrance,
+            turn=entrance.turn - 1,
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+            town_flag=False,
+            inventory=[detection, food],
+            player=replace(entrance.player, gold=0),
+        )
+        policy.prime(fundraising_seed)
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+        policy._calibration_restore_signatures = [policy._item_signature(restore)]
         home_page = replace(
-            self._snapshot([detection], turn=entrance.turn - 1),
+            self._snapshot([detection, food], turn=entrance.turn - 1),
             store=StoreState(STORE_HOME, wares),
         )
         self.assertEqual(policy._shop(home_page), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
-        self.assertEqual(
-            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            "5pE\x1b",
-        )
+        self.assertEqual(policy.choose_key(entrance), "5pE\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
         carried_shovel = item(
             "u", TVAL_DIGGING, 1, name=shovel.name, known=True,
@@ -46794,9 +46838,22 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         outside = replace(
             entrance, turn=entrance.turn + 1,
-            inventory=[detection, carried_shovel],
+            inventory=[detection, food, carried_shovel],
         )
-        policy.choose_key(outside)
+        self.assertTrue(policy._fundraising_supplies_ready(outside))
+        town_ready = replace(
+            self._snapshot(
+                [detection, food, carried_shovel], at_home=False,
+                turn=outside.turn + 1,
+            ),
+            player=outside.player,
+            equipment=[lantern],
+        )
+        for town_turn in range(4):
+            policy.choose_key(replace(town_ready, turn=town_ready.turn + town_turn))
+            if policy._fundraising_mode == "mine":
+                break
+        self.assertEqual(policy._fundraising_mode, "mine")
 
         target = Position(3, 4)
         mining_pack = Snapshot(
@@ -46808,33 +46865,34 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             [],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
             inventory=[
-                detection, item("f", TVAL_FOOD, 35, count=5), carried_shovel,
+                detection, food, carried_shovel,
             ],
             equipment=[
-                item(
-                    "light", TVAL_LITE, SV_LITE_LANTERN,
-                    name="lantern", fuel=5000, is_equipment=True,
-                ),
+                lantern,
             ],
         )
-        policy._mining_threat_free_streak = MINING_THREAT_FREE_LIMIT
-        policy._observe(mining_pack)
-        wield_key = policy._fundraising_key(mining_pack, [])
+        wield_key = None
+        for quiet_turn in range(MINING_THREAT_FREE_LIMIT):
+            wield_key = policy.choose_key(
+                replace(mining_pack, turn=entrance.turn + 10 + quiet_turn)
+            )
         self.assertIsNotNone(wield_key)
-        self.assertEqual(policy.last_reason, "fundraise:wield-digging-tool")
+        self.assertEqual(
+            policy.last_reason,
+            "fundraise:wield-digging-tool",
+            (policy._fundraising_mode, policy._returning_to_town),
+        )
         mining = replace(
             mining_pack,
-            inventory=[detection, item("f", TVAL_FOOD, 35, count=5)],
+            inventory=[detection, food],
             equipment=[*mining_pack.equipment, carried_shovel],
         )
         # First policy decision consumes detection; the following observation
         # enumerates the visible captured vein as a mining claim.
-        policy._observe(mining)
-        detection_key = policy._fundraising_key(mining, [])
+        detection_key = policy.choose_key(mining)
         self.assertTrue(detection_key.startswith("r"), (detection_key, policy.last_reason))
         after_detection = replace(mining, turn=mining.turn + 1)
-        policy._observe(after_detection)
-        self.assertEqual(policy._fundraising_key(after_detection, []), TUNNEL_KEY + "6")
+        self.assertEqual(policy.choose_key(after_detection), TUNNEL_KEY + "6")
         self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
 
     def _home_page_snapshot(

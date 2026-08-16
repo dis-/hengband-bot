@@ -80,6 +80,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
         policy._calibration_phase = "restore-supplies"
         policy._calibration_restore_signatures = [policy._item_signature(target)]
         policy._home_candidate_waiting = True
+        policy._home_atomic_withdraw_posted_turn = 3200199
         decision_snapshot = replace(
             harness._entrance_snapshot(harness._real_pack(), turn=3200200),
             equipment=[
@@ -131,6 +132,10 @@ class HomeEntryCaptureTest(unittest.TestCase):
         self.assertEqual(record["key"], key)
         self.assertEqual(record["posted_characters"], list(key))
         self.assertEqual(set(record["scan_entry_state"]), set(STATE_FIELDS))
+        self.assertEqual(
+            record["scan_entry_state"]["_home_atomic_withdraw_posted_turn"],
+            3200199,
+        )
         self.assertIsNone(record["decision_snapshot"]["store"])
         self.assertEqual(
             record["next_snapshot"]["store"],
@@ -154,6 +159,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
         replay = restore_checkpoint(
             type(policy), record["predecision_policy_checkpoint_pickle_b64"]
         )
+        self.assertEqual(replay._home_atomic_withdraw_posted_turn, 3200199)
         replay_snapshot = pickle.loads(
             base64.b64decode(record["decision_snapshot_pickle_b64"])
         )
