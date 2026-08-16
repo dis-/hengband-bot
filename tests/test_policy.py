@@ -46850,6 +46850,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             equipment=[lantern],
         )
         for town_turn in range(4):
+            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: capture-derived entrance, carried-shovel outside, and town-ready rows drive fundraising selection, not locomotion effects
             policy.choose_key(replace(town_ready, turn=town_ready.turn + town_turn))
             if policy._fundraising_mode == "mine":
                 break
@@ -46873,6 +46874,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         wield_key = None
         for quiet_turn in range(MINING_THREAT_FREE_LIMIT):
+            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: capture-derived unwielded-mining and equipped-mining rows drive wield selection and claim enumeration, not locomotion effects
             wield_key = policy.choose_key(
                 replace(mining_pack, turn=entrance.turn + 10 + quiet_turn)
             )
