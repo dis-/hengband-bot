@@ -1223,6 +1223,47 @@ def _depth_safety(snapshot, policy) -> dict:
 _AUTO_TOWN_STALL_REPORT = object()
 
 
+def _capture_decision_facts(snapshot, policy) -> dict:
+    """Evaluate decision-row policy telemetry once, before the writer phase."""
+    if policy is None:
+        return {
+            "requirements": [], "abandoned_quest_carries": {},
+            "over_extension": {}, "depth_safety": {}, "threat_prediction": {},
+            "equipment_optimization": {}, "loot": {}, "mining": {},
+            "fundraising": {}, "town_plan": {}, "fixedquest_readiness": {},
+            "departure_block": {}, "cross_town_shopping": {},
+            "quest_strategy": None,
+        }
+    fixedquest_readiness = policy.fixed_quest_readiness_state()
+    quest_id = snapshot.floor_key[2] or int(fixedquest_readiness.get("quest_id", 0))
+    return {
+        "requirements": policy.procurement_requirements(snapshot),
+        "abandoned_quest_carries": dict(policy._abandoned_quest_carry_requirements),
+        "over_extension": _over_extension_state(policy),
+        "depth_safety": _depth_safety(snapshot, policy),
+        "threat_prediction": policy.threat_prediction(
+            snapshot,
+            [monster for monster in snapshot.visible_monsters if monster.hostile],
+        ),
+        "equipment_optimization": policy.equipment_optimization_state(snapshot),
+        "loot": policy.loot_state(snapshot),
+        "mining": _mining_state(policy),
+        "fundraising": _fundraising_state(snapshot, policy),
+        "town_plan": _town_plan_state(policy),
+        "fixedquest_readiness": fixedquest_readiness,
+        "departure_block": policy.departure_block_state(),
+        "cross_town_shopping": policy.cross_town_shopping_state(),
+        "quest_strategy": (
+            {
+                "quest_id": quest_id,
+                "approved_profile": policy.approved_quest_strategy(quest_id) is not None,
+            }
+            if quest_id > 0
+            else None
+        ),
+    }
+
+
 def _write_decision(
     path: Path | None,
     snapshot,
@@ -1233,6 +1274,7 @@ def _write_decision(
     repeating_reason_count: int = 0,
     town_stall_report: dict | None | object = _AUTO_TOWN_STALL_REPORT,
     timing: dict | None = None,
+    decision_facts: dict | None = None,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -1245,72 +1287,26 @@ def _write_decision(
             getattr(policy, "_recorder_log_generations", DEFAULT_LOG_GENERATIONS),
         )
         with path.open("a", encoding="utf-8") as file:
-            requirements = (
-                policy.procurement_requirements(snapshot) if policy is not None else []
-            )
-            abandoned_quest_carries = (
-                dict(policy._abandoned_quest_carry_requirements)
-                if policy is not None
-                else {}
-            )
-            over_extension = _over_extension_state(policy) if policy is not None else {}
-            depth_safety = _depth_safety(snapshot, policy) if policy is not None else {}
-            threat_prediction = (
-                policy.threat_prediction(
-                    snapshot,
-                    [monster for monster in snapshot.visible_monsters if monster.hostile],
-                )
-                if policy is not None
-                else {}
-            )
-            equipment_optimization = (
-                policy.equipment_optimization_state(snapshot)
-                if policy is not None
-                else {}
-            )
-            loot = policy.loot_state(snapshot) if policy is not None else {}
-            mining = _mining_state(policy) if policy is not None else {}
-            fundraising = (
-                _fundraising_state(snapshot, policy) if policy is not None else {}
-            )
-            town_plan = _town_plan_state(policy) if policy is not None else {}
-            fixedquest_readiness = (
-                getattr(policy, "fixed_quest_readiness_state", lambda: {})()
-                if policy is not None
-                else {}
-            )
-            departure_block = (
-                policy.departure_block_state() if policy is not None else {}
-            )
-            cross_town_shopping = (
-                policy.cross_town_shopping_state() if policy is not None else {}
-            )
-            quest_strategy = None
-            quest_id = snapshot.floor_key[2] or int(fixedquest_readiness.get("quest_id", 0))
-            if policy is not None and quest_id > 0:
-                quest_strategy = {
-                    "quest_id": quest_id,
-                    "approved_profile": policy.approved_quest_strategy(quest_id) is not None,
-                }
+            facts = decision_facts or _capture_decision_facts(snapshot, policy)
             json.dump(
                 _decision_record(
                     snapshot,
                     key,
                     reason,
-                    requirements,
-                    abandoned_quest_carries,
-                    over_extension,
-                    depth_safety,
-                    threat_prediction,
-                    equipment_optimization,
-                    loot,
-                    mining,
-                    fundraising,
-                    town_plan,
-                    fixedquest_readiness,
-                    departure_block,
-                    cross_town_shopping,
-                    quest_strategy,
+                    facts["requirements"],
+                    facts["abandoned_quest_carries"],
+                    facts["over_extension"],
+                    facts["depth_safety"],
+                    facts["threat_prediction"],
+                    facts["equipment_optimization"],
+                    facts["loot"],
+                    facts["mining"],
+                    facts["fundraising"],
+                    facts["town_plan"],
+                    facts["fixedquest_readiness"],
+                    facts["departure_block"],
+                    facts["cross_town_shopping"],
+                    facts["quest_strategy"],
                     (
                         policy.escape_ladder_telemetry
                         if policy is not None
@@ -2114,7 +2110,11 @@ def main(argv: list[str] | None = None) -> int:
             policy.prime(snapshot)
             key = policy.choose_key(snapshot)
             key = policy.validate_read_key(snapshot, key)
-            _write_decision(args.decision_log, snapshot, key, policy.last_reason, policy)
+            decision_facts = _capture_decision_facts(snapshot, policy)
+            _write_decision(
+                args.decision_log, snapshot, key, policy.last_reason, policy,
+                decision_facts=decision_facts,
+            )
             print(key, flush=True)
             decision = {
                 "sequence": policy._decision_sequence,
@@ -2534,6 +2534,7 @@ def _run_follow(
                     )
                     if stopping_town_stall_report is not None:
                         town_stall_report = stopping_town_stall_report
+                    decision_facts = _capture_decision_facts(snapshot, policy)
                     if policy.last_reason == "periodic:game-save":
                         save_archive.before_post(snapshot, policy._decision_sequence)
                     recent_reasons.append(policy.last_reason)
@@ -2563,6 +2564,7 @@ def _run_follow(
                                     3,
                                 ),
                             },
+                            decision_facts=decision_facts,
                         )
                         print(
                             f"<loop-detected> floor={snapshot.floor_key} "
@@ -2590,6 +2592,7 @@ def _run_follow(
                                     3,
                                 ),
                             },
+                            decision_facts=decision_facts,
                         )
                         if policy.last_reason == "wilderness:no-safe-route":
                             print(
@@ -2726,6 +2729,7 @@ def _run_follow(
                         args.decision_log, snapshot, key, policy.last_reason,
                         policy, economy_ledger, repeating_reason_count,
                         town_stall_report, timing=decision_timing,
+                        decision_facts=decision_facts,
                     )
                     if posting_contract.last_incident is not None:
                         incident = posting_contract.last_incident
@@ -2778,6 +2782,7 @@ def _run_follow(
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,
+                            decision_facts=decision_facts,
                         )
                     if sent:
                         policy.confirm_key_posted(key)
@@ -2882,6 +2887,7 @@ def _run_follow(
                                     3,
                                 ),
                             },
+                            decision_facts=decision_facts,
                         )
                         loop_cells = list(recent_cells)[-loop_window:]
                         cells = sorted({(c[1], c[2]) for c in loop_cells})

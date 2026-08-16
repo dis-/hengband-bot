@@ -1843,6 +1843,7 @@ class HengbotPolicy:
         self._town_fact_snapshot: Snapshot | None = None
         # Predicate results are valid only for one merged decision snapshot.
         self._map_predicate_snapshot: Snapshot | None = None
+        self._decision_input_snapshot: Snapshot | None = None
         self._fixed_quest_offers: frozenset[int] = frozenset()
         self._equipment_departure_cache_token: int | None = None
         self._equipment_departure_cache_value = False
@@ -3083,6 +3084,7 @@ class HengbotPolicy:
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
         latest_snapshot = snapshot
+        self._decision_input_snapshot = latest_snapshot
         self._emitted_t = {
             (position.y, position.x)
             for position in getattr(snapshot, "grids", {})
@@ -26375,7 +26377,10 @@ class HengbotPolicy:
         # terrain retained from the preceding player-turn snapshot.  Do not use
         # static quest data here; remembered building specials were emitted to
         # the player and preserve conditional offer chains fairly.
-        if snapshot is self._map_predicate_snapshot:
+        if (
+            snapshot is self._map_predicate_snapshot
+            or snapshot is self._decision_input_snapshot
+        ):
             if self._fixed_quest_offers:
                 return quest_id in self._fixed_quest_offers
             if self._town_map_active(snapshot):

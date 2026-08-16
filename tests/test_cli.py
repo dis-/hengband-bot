@@ -49,6 +49,7 @@ from hengbot.cli import (
     _intentional_action_wait_category,
     _input_delay_values,
     _decision_record,
+    _capture_decision_facts,
     _write_decision,
     _town_stall_report,
     _town_stall_report_terminates_named_block,
@@ -1670,6 +1671,62 @@ class DecisionRecordTest(unittest.TestCase):
                 row = json.loads(path.read_text(encoding="utf-8"))
                 self.assertEqual(row["reason"], "explore:fallthrough")
                 self.assertEqual(row["equipment_mutation_report"], expected)
+
+    def test_captured_facts_keep_town_and_dungeon_rows_identical(self):
+        timing = {"read_ms": 1.0, "choose_key_ms": 2.0, "total_ms": 3.0}
+        snapshots = (
+            self._town_snapshot(),
+            parse_snapshot(json.loads(_snap_line(124, 6, 7)), {}),
+        )
+        for snapshot in snapshots:
+            with self.subTest(floor=snapshot.floor_key), TemporaryDirectory() as directory:
+                policy = HengbotPolicy()
+                policy.prime(snapshot)
+                key = policy.choose_key(snapshot)
+                facts = _capture_decision_facts(snapshot, policy)
+                old_path = Path(directory) / "old.jsonl"
+                new_path = Path(directory) / "new.jsonl"
+                _write_decision(
+                    old_path, snapshot, key, policy.last_reason, policy, timing=timing,
+                )
+                _write_decision(
+                    new_path, snapshot, key, policy.last_reason, policy, timing=timing,
+                    decision_facts=facts,
+                )
+                old = json.loads(old_path.read_text(encoding="utf-8"))
+                new = json.loads(new_path.read_text(encoding="utf-8"))
+                old["time"] = new["time"] = "masked"
+                self.assertEqual(set(old["timing"]), set(new["timing"]))
+                old["timing"] = new["timing"] = "masked"
+                self.assertEqual(old, new)
+
+    def test_captured_writer_does_not_recompute_policy_telemetry(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy.prime(snapshot)
+        key = policy.choose_key(snapshot)
+        facts = _capture_decision_facts(snapshot, policy)
+        expensive = (
+            "procurement_requirements", "threat_prediction",
+            "equipment_optimization_state", "loot_state",
+            "departure_block_state", "cross_town_shopping_state",
+        )
+        with TemporaryDirectory() as directory:
+            patches = [
+                patch.object(policy, name, side_effect=AssertionError(name))
+                for name in expensive
+            ]
+            for mocked in patches:
+                mocked.start()
+            try:
+                _write_decision(
+                    Path(directory) / "decision.jsonl", snapshot, key,
+                    policy.last_reason, policy, decision_facts=facts,
+                )
+            finally:
+                for mocked in reversed(patches):
+                    mocked.stop()
+            self.assertTrue((Path(directory) / "decision.jsonl").is_file())
 
     @staticmethod
     def _town_stall_policy(passes=24):
