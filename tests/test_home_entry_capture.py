@@ -16,6 +16,46 @@ from tests import test_policy
 
 
 class HomeEntryCaptureTest(unittest.TestCase):
+    def test_gate1_substrate_replays_fixed_digger_arming_and_composed_key(self):
+        path = Path(__file__).parents[1] / "jsonlog" / "home-entry-capture.jsonl"
+        if not path.exists():
+            self.skipTest("supervisor Home-entry substrate is not present")
+        record = None
+        with path.open(encoding="utf-8") as stream:
+            for line in stream:
+                candidate = json.loads(line)
+                if (
+                    candidate.get("last_reason") == "home:store-context-exit"
+                    and candidate.get("next_snapshot_pickle_b64")
+                    and candidate.get("decision_snapshot", {})
+                    .get("store", {}).get("item_count", 0) >= 34
+                ):
+                    record = candidate
+                    break
+        self.assertIsNotNone(record)
+        policy = restore_checkpoint(
+            test_policy.HengbotPolicy,
+            record["predecision_policy_checkpoint_pickle_b64"],
+        )
+        inside = pickle.loads(
+            base64.b64decode(record["decision_snapshot_pickle_b64"])
+        )
+        outside = pickle.loads(
+            base64.b64decode(record["next_snapshot_pickle_b64"])
+        )
+
+        self.assertEqual(record["key"], "\x1b")
+        self.assertEqual(record["posted_characters"], ["\x1b"])
+        self.assertGreaterEqual(len(inside.store.items), 34)
+        expected = max(
+            (item for item in inside.store.items if item.is_digging_tool),
+            key=lambda item: item.sval,
+        )
+        self.assertEqual(policy.choose_key(inside), "\x1b")
+        self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
+        self.assertEqual(policy.choose_key(outside), f"5p{expected.letter}\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+
     def test_reports_each_distinct_failure_to_stderr_and_capture_once(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "home-entry-capture.jsonl"

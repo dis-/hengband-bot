@@ -424,3 +424,31 @@ until a strictly newer snapshot can confirm success or failure. If an
 unobserved digger and a non-empty restore list do coexist, deferral now assigns
 the failure to the selected digger, so two failures open the bounded General
 Store fallback.
+
+## Digger-withdraw-arming fix event
+
+time: `2026-08-16T23:55:00+09:00`
+
+Measured: Gate-1 replay of `jsonlog/home-entry-capture.jsonl` decision 10695,
+turn 1842120, restored `scavenge` with zero carried diggers and a 34-item Home
+page containing shovel letters F/G/H. The unfixed policy reproduced
+`home:store-context-exit` with Escape and no pending item. The fixed replay
+queues `home:queue-digging-tool-withdraw`, then composes `5pF<ESC>` on the
+captured outside observation. The current rotating generation is also consumed
+by the regression via the same format-1 checkpoint contract.
+
+Inferred: the `fundraising-kit` claim routed to Home because physical kit was
+not secured, but the recovered open-store boundary never bound a Home item;
+the only selector lived behind the ordinary Home handler. Therefore zero
+withdraw attempts meant zero observed failures, so the two-failure General
+Store fallback could never arm. Digger binding now derives from the standing
+two-digger carry target independently of fundraising mode. An open Home claim
+with no fulfillable operation records an unsatisfied pass, cools Home for the
+town visit, and exposes `home:route-claim-unfulfilled`.
+
+Verification: Town/fundraising policy batch 317 tests and Home-capture plus
+equipment-executor batch 14 tests passed. The eight-entry mutation battery
+passed 8/8 with `repo_tree_untouched: true`; the three Home mutations failed
+2/11, 2/11, and 1/11 public tests while the unmutated 331 focused tests passed. Sale-key
+lint reported zero violations. Changed-file fakery lint reported no new
+undeclared or stale allowances.

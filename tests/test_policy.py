@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 from hengbot.home_errand import HomeErrandRequest
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
     _dispatch_response_lines,
@@ -19376,6 +19377,55 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         pol._town_store_attempted[STORE_GENERAL] = 0
         self.assertIsNone(pol._next_required_store_type(snap))
         self.assertEqual(pol._fundraising_mode, "scavenge")
+
+    def test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart(self):
+        digger = store_item(
+            "F", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="captured shovel", is_equipment=True,
+        )
+        inside = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+            [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=self._strict_supplies(detection=5),
+            store=StoreState(STORE_HOME, [digger], page_size=52),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "scavenge"
+        policy._equipment_catalog.observe_home_page([digger])
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = inside.player.position
+        resumed = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+
+        self.assertEqual(resumed.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(
+            resumed.last_reason, "home:queue-digging-tool-withdraw"
+        )
+        self.assertEqual(resumed._home_pending_item, resumed._item_signature(digger))
+
+        outside = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(resumed.choose_key(outside), "5")
+
+    def test_recovered_home_entry_charges_an_evaporated_route_claim(self):
+        inside = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=self._strict_supplies(detection=5),
+            store=StoreState(STORE_HOME, [], page_size=52),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertEqual(
+            policy._town_store_attempted[STORE_HOME], inside.turn
+        )
 
     def test_stored_digger_is_not_treated_as_carried_fundraising_kit(self):
         snap = Snapshot(

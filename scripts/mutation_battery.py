@@ -33,6 +33,9 @@ PUBLIC_TESTS = frozenset(
         "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_waits_when_page_size_was_never_observed",
         "test_policy.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
         "test_policy.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
+        "test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key",
+        "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_charges_an_evaporated_route_claim",
+        "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart",
     }
 )
 DEFAULT_TESTS = (
@@ -62,6 +65,48 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "rearm-only-in-mine-mode",
+        True,
+        "Restore the circular mode gate that starved Home digger arming.",
+        (replacement(
+            "policy.py",
+            "            store is None\n"
+            "            or store.store_type != STORE_HOME\n"
+            "            or self._digging_tool_count(snapshot) >= 2\n"
+            "        ):\n",
+            "            store is None\n"
+            "            or store.store_type != STORE_HOME\n"
+            "            or self._digging_tool_count(snapshot) >= 2\n"
+            "            or self._fundraising_mode == \"scavenge\"\n"
+            "        ):\n",
+        ),),
+    ),
+    Mutation(
+        "drop-recovered-home-digger-binding",
+        True,
+        "Remove the recovered open-Home production binding.",
+        (replacement(
+            "policy.py",
+            "            elif (standing_digger := self._queue_standing_home_digger(snapshot)) is not None:\n"
+            "                # The open page is authoritative Home-stock evidence even when\n"
+            "                # entry ownership was recovered after a restart or lagged post.\n"
+            "                # Selection is bound here; the outside decision composes it.\n"
+            "                key = standing_digger\n",
+            "",
+        ),),
+    ),
+    Mutation(
+        "drop-evaporated-home-claim-charge",
+        True,
+        "Stop cooling an unfulfilled recovered Home route for the town visit.",
+        (replacement(
+            "policy.py",
+            "                self._town_store_attempted[STORE_HOME] = snapshot.turn\n"
+            "                self.last_reason = \"home:route-claim-unfulfilled\"\n",
+            "                self.last_reason = \"home:route-claim-unfulfilled\"\n",
+        ),),
+    ),
     Mutation(
         "carried-half-only",
         True,
@@ -118,12 +163,15 @@ MUTATIONS = (
 def repo_fingerprint() -> str:
     """Fingerprint checkout state without writing into it."""
     proc = subprocess.run(
-        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        # The supervisor-owned JSONL recorder rotates untracked files while
+        # this read-only battery runs.  Track checkout mutations through Git's
+        # tracked index/worktree state; package bytes are hashed separately.
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=no"],
         cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
     )
     digest = hashlib.sha256(proc.stdout)
     for path in sorted(PACKAGE.rglob("*")):
-        if path.is_file():
+        if path.is_file() and "__pycache__" not in path.parts:
             digest.update(path.relative_to(ROOT).as_posix().encode())
             digest.update(path.read_bytes())
     return digest.hexdigest()

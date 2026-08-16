@@ -3621,6 +3621,11 @@ class HengbotPolicy:
             rearm = self._home_rearm_key(snapshot)
             if rearm is not None:
                 key = rearm
+            elif (standing_digger := self._queue_standing_home_digger(snapshot)) is not None:
+                # The open page is authoritative Home-stock evidence even when
+                # entry ownership was recovered after a restart or lagged post.
+                # Selection is bound here; the outside decision composes it.
+                key = standing_digger
             elif (
                 self._home_knowledge_current
                 and self._home_scan_item_count == 0
@@ -3634,7 +3639,11 @@ class HengbotPolicy:
                 self.last_reason = "town:blocked:home-known-empty-withdrawal"
                 key = LEAVE_STORE_KEY
             else:
-                self.last_reason = "home:store-context-exit"
+                self._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=False
+                )
+                self._town_store_attempted[STORE_HOME] = snapshot.turn
+                self.last_reason = "home:route-claim-unfulfilled"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
                 )
@@ -8987,6 +8996,33 @@ class HengbotPolicy:
             if owned.origin == "home" and owned.item.is_digging_tool
             and self._item_signature(owned.item) not in self._deferred_home_items
         )
+
+    def _queue_standing_home_digger(self, snapshot: Snapshot) -> str | None:
+        """Bind Home stock needed by the standing two-digger carry target."""
+        store = snapshot.store
+        if (
+            store is None
+            or store.store_type != STORE_HOME
+            or self._digging_tool_count(snapshot) >= 2
+        ):
+            return None
+        digger = max(
+            (
+                item
+                for item in store.items
+                if item.is_digging_tool
+                and self._item_signature(item) not in self._deferred_home_items
+            ),
+            key=lambda item: item.sval,
+            default=None,
+        )
+        if digger is None:
+            return None
+        self._home_digger_seen_pages.clear()
+        self._home_pending_item = self._item_signature(digger)
+        self._home_digger_withdraw_pending = True
+        self.last_reason = "home:queue-digging-tool-withdraw"
+        return LEAVE_STORE_KEY
 
     def _record_digger_home_withdraw_failure(
         self, signature: tuple[str, int, int] | None
@@ -19193,6 +19229,10 @@ class HengbotPolicy:
                 self.last_reason = "home:withdraw-failed-deferred"
                 return LEAVE_STORE_KEY
 
+            standing_digger = self._queue_standing_home_digger(snapshot)
+            if standing_digger is not None:
+                return standing_digger
+
             # A partly identified ego/artifact/random-resistance item must not
             # ride into a deep mining floor where theft or inventory damage can
             # erase it before its hidden traits are known. Deposit it before the
@@ -19235,26 +19275,6 @@ class HengbotPolicy:
                     self._home_pending_quantity = quantity
                     self.last_reason = "home:queue-treasure-detection-withdraw"
                     return LEAVE_STORE_KEY
-
-                if self._digging_tool_count(snapshot) < 2:
-                    digger = max(
-                        (
-                            item
-                            for item in store.items
-                            if item.is_digging_tool
-                            and self._item_signature(item)
-                            not in self._deferred_home_items
-                        ),
-                        key=lambda item: item.sval,
-                        default=None,
-                    )
-                    if digger is not None:
-                        self._home_digger_seen_pages.clear()
-                        signature = self._item_signature(digger)
-                        self._home_pending_item = signature
-                        self._home_digger_withdraw_pending = True
-                        self.last_reason = "home:queue-digging-tool-withdraw"
-                        return LEAVE_STORE_KEY
 
                 withdrawable_digger_missing = (
                     self._digging_tool_count(snapshot) < 2
