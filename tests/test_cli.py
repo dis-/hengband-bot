@@ -640,6 +640,177 @@ class DecisionTimingTest(unittest.TestCase):
             )
             self.assertEqual(knowledge_path.parent, root)
 
+    def test_run_follow_passes_captured_facts_to_decision_writer(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            state_path.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path),
+                "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+
+            def choose(snapshot):
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            writer_active = False
+            writer_telemetry_calls = []
+            real_write_decision = _write_decision
+
+            def observe_writer(*write_args, **write_kwargs):
+                nonlocal writer_active
+                writer_active = True
+                try:
+                    return real_write_decision(*write_args, **write_kwargs)
+                finally:
+                    writer_active = False
+
+            def telemetry(name, value):
+                def observe(*_args, **_kwargs):
+                    if writer_active:
+                        writer_telemetry_calls.append(name)
+                    return value
+                return observe
+
+            telemetry_patches = (
+                patch.object(policy, "procurement_requirements", telemetry("procurement_requirements", [])),
+                patch.object(policy, "threat_prediction", telemetry("threat_prediction", {})),
+                patch.object(policy, "equipment_optimization_state", telemetry("equipment_optimization_state", {})),
+                patch.object(policy, "loot_state", telemetry("loot_state", {})),
+                patch.object(policy, "departure_block_state", telemetry("departure_block_state", {})),
+                patch.object(policy, "cross_town_shopping_state", telemetry("cross_town_shopping_state", {})),
+            )
+
+            def append_snapshot():
+                # Let _run_follow seed the recorder and seek the state stream
+                # before making the one decision snapshot visible.
+                time.sleep(0.5)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(2, 5, 5))
+                    stream.flush()
+
+            producer = threading.Thread(target=append_snapshot)
+            producer.start()
+            for mocked in telemetry_patches:
+                mocked.start()
+            try:
+                with (
+                    patch("hengbot.cli._write_decision", side_effect=observe_writer),
+                    patch("hengbot.cli._append_capture_ledger"),
+                    patch("hengbot.cli._freeze_incident_safely"),
+                ):
+                    result = _run_follow(args, policy, lambda *_a, **_k: True, {})
+            finally:
+                for mocked in reversed(telemetry_patches):
+                    mocked.stop()
+                producer.join()
+
+            self.assertEqual(result, 0)
+            self.assertTrue(decision_path.is_file())
+            self.assertEqual(writer_telemetry_calls, [])
+
+    def test_run_follow_recaptures_facts_after_posting_refusal(self):
+        class RefuseFirstPosting:
+            def __init__(self):
+                self.last_incident = None
+                self.calls = 0
+
+            def allow(self, _snapshot, key, owner):
+                self.calls += 1
+                if self.calls == 1:
+                    self.last_incident = {
+                        "marker": "posting-contract:identical-repost-unobserved",
+                        "owner": owner,
+                        "key": key,
+                    }
+                    return False
+                self.last_incident = None
+                return True
+
+            def posted(self, *_args):
+                pass
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            state_path.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path),
+                "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            second_decided = threading.Event()
+            choices = iter((
+                ("first-decision", "5"),
+                ("second-decision", "6"),
+                ("equipment-transaction:restore-blocked-terminal", ""),
+            ))
+
+            def choose(_snapshot):
+                policy.last_reason, key = next(choices)
+                if policy.last_reason == "second-decision":
+                    second_decided.set()
+                return key
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            real_capture = _capture_decision_facts
+            real_write_decision = _write_decision
+            written_fact_reasons = []
+
+            def capture(snapshot, active_policy):
+                facts = real_capture(snapshot, active_policy)
+                facts["captured_reason"] = active_policy.last_reason
+                return facts
+
+            def write(*write_args, **write_kwargs):
+                written_fact_reasons.append(
+                    write_kwargs["decision_facts"]["captured_reason"]
+                )
+                return real_write_decision(*write_args, **write_kwargs)
+
+            def append_snapshot():
+                time.sleep(0.5)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(2, 5, 5))
+                    stream.flush()
+                    self.assertTrue(second_decided.wait(5))
+                    stream.write(_snap_line(3, 5, 6))
+                    stream.flush()
+
+            producer = threading.Thread(target=append_snapshot)
+            producer.start()
+            try:
+                with (
+                    patch("hengbot.cli._capture_decision_facts", side_effect=capture),
+                    patch("hengbot.cli._write_decision", side_effect=write),
+                    patch("hengbot.cli._append_capture_ledger"),
+                    patch("hengbot.cli._freeze_incident_safely"),
+                ):
+                    result = _run_follow(
+                        args, policy, lambda *_a, **_k: True, {},
+                        posting_contract=RefuseFirstPosting(),
+                    )
+            finally:
+                producer.join()
+
+            self.assertEqual(result, 0)
+            self.assertEqual(
+                written_fact_reasons,
+                [
+                    "first-decision", "second-decision",
+                    "equipment-transaction:restore-blocked-terminal",
+                ],
+            )
+
     def test_follow_records_atomic_withdraw_observed_home_page(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1633,6 +1804,20 @@ class DecisionRecordTest(unittest.TestCase):
         data["floor"] = {"dungeon_id": 0, "level": 0, "in_town": True}
         return parse_snapshot(data, {})
 
+    @staticmethod
+    def _q34_town_snapshot():
+        data = json.loads(_snap_line(123, 26, 97))
+        data["floor"] = {"dungeon_id": 0, "level": 0, "in_town": True}
+        data["nearby_grids"] = [{
+            "y": 26,
+            "x": 98,
+            "known": True,
+            "terrain": {"move": True, "building": True},
+            "building_type": 0,
+            "building_special": 34,
+        }]
+        return parse_snapshot(data, {})
+
     def test_choose_key_mutation_reports_survive_reason_fallthrough(self):
         snapshot = self._town_snapshot()
         cases = (
@@ -1675,7 +1860,7 @@ class DecisionRecordTest(unittest.TestCase):
     def test_captured_facts_keep_town_and_dungeon_rows_identical(self):
         timing = {"read_ms": 1.0, "choose_key_ms": 2.0, "total_ms": 3.0}
         snapshots = (
-            self._town_snapshot(),
+            self._q34_town_snapshot(),
             parse_snapshot(json.loads(_snap_line(124, 6, 7)), {}),
         )
         for snapshot in snapshots:
@@ -1683,7 +1868,16 @@ class DecisionRecordTest(unittest.TestCase):
                 policy = HengbotPolicy()
                 policy.prime(snapshot)
                 key = policy.choose_key(snapshot)
+                if snapshot.in_town:
+                    policy._town_errand_plan = SimpleNamespace(
+                        stops=[0, 7], index=0, inserted_this_visit=[7],
+                        skipped_latched=[],
+                    )
                 facts = _capture_decision_facts(snapshot, policy)
+                if snapshot.in_town:
+                    self.assertEqual(
+                        facts["town_plan"]["stops"], ["General Store", "Home"]
+                    )
                 old_path = Path(directory) / "old.jsonl"
                 new_path = Path(directory) / "new.jsonl"
                 _write_decision(
@@ -1727,6 +1921,27 @@ class DecisionRecordTest(unittest.TestCase):
                 for mocked in reversed(patches):
                     mocked.stop()
             self.assertTrue((Path(directory) / "decision.jsonl").is_file())
+
+    def test_writer_treats_only_none_as_missing_decision_facts(self):
+        class FalsyFacts(dict):
+            def __bool__(self):
+                return False
+
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy.prime(snapshot)
+        key = policy.choose_key(snapshot)
+        facts = FalsyFacts(_capture_decision_facts(snapshot, policy))
+        with TemporaryDirectory() as directory, patch(
+            "hengbot.cli._capture_decision_facts",
+            side_effect=AssertionError("falsy facts were recomputed"),
+        ):
+            path = Path(directory) / "decision.jsonl"
+            _write_decision(
+                path, snapshot, key, policy.last_reason, policy,
+                decision_facts=facts,
+            )
+            self.assertTrue(path.is_file())
 
     @staticmethod
     def _town_stall_policy(passes=24):

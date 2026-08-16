@@ -1287,7 +1287,11 @@ def _write_decision(
             getattr(policy, "_recorder_log_generations", DEFAULT_LOG_GENERATIONS),
         )
         with path.open("a", encoding="utf-8") as file:
-            facts = decision_facts or _capture_decision_facts(snapshot, policy)
+            facts = (
+                decision_facts
+                if decision_facts is not None
+                else _capture_decision_facts(snapshot, policy)
+            )
             json.dump(
                 _decision_record(
                     snapshot,
@@ -2779,6 +2783,7 @@ def _run_follow(
                             (time.perf_counter() - decision_started_at) * 1000, 3
                         )
                         poll_wait_started_at = time.perf_counter()
+                        decision_facts = _capture_decision_facts(snapshot, policy)
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,

@@ -121,15 +121,13 @@ class TownLatencyCacheTest(unittest.TestCase):
         offer = Position(2, 4)
         grids = CountingGrids({offer: grid(offer, building_special=34)})
         original = snapshot(grids)
-        enriched = replace(original)
-        policy._decision_sequence = 17
-        policy._decision_input_snapshot = original
-        policy._begin_map_predicate_cache(enriched)
+        policy._choose_key(original)
 
+        self.assertIs(policy._decision_input_snapshot, original)
         policy._fixed_quest_is_offered(original, 34)
         policy._fixed_quest_is_offered(original, 14)
 
-        self.assertEqual(grids.calls, 1)
+        self.assertEqual(grids.calls, 0)
     def test_fixed_quest_offer_scan_runs_once_per_merged_decision(self):
         class CountingGrids(dict):
             def __init__(self, *args, **kwargs):
