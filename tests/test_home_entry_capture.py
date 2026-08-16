@@ -17,22 +17,11 @@ from tests import test_policy
 
 class HomeEntryCaptureTest(unittest.TestCase):
     def test_gate1_substrate_replays_fixed_digger_arming_and_composed_key(self):
-        path = Path(__file__).parents[1] / "jsonlog" / "home-entry-capture.jsonl"
+        path = Path(__file__).parent / "fixtures" / "digger-withdraw-gate1.jsonl"
         if not path.exists():
-            self.skipTest("supervisor Home-entry substrate is not present")
-        record = None
+            self.skipTest("committed Gate-1 fixture is not present")
         with path.open(encoding="utf-8") as stream:
-            for line in stream:
-                candidate = json.loads(line)
-                if (
-                    candidate.get("last_reason") == "home:store-context-exit"
-                    and candidate.get("next_snapshot_pickle_b64")
-                    and candidate.get("decision_snapshot", {})
-                    .get("store", {}).get("item_count", 0) >= 34
-                ):
-                    record = candidate
-                    break
-        self.assertIsNotNone(record)
+            record = json.loads(stream.readline())
         policy = restore_checkpoint(
             test_policy.HengbotPolicy,
             record["predecision_policy_checkpoint_pickle_b64"],

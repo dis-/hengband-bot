@@ -88,7 +88,14 @@ MUTATIONS = (
         "Remove the recovered open-Home production binding.",
         (replacement(
             "policy.py",
-            "            elif (standing_digger := self._queue_standing_home_digger(snapshot)) is not None:\n"
+            "            elif (\n"
+            "                not self._calibration_active()\n"
+            "                and self._home_atomic_deposit_pending is None\n"
+            "                and self._equipment_transaction_session is None\n"
+            "                and (\n"
+            "                    standing_digger := self._queue_standing_home_digger(snapshot)\n"
+            "                ) is not None\n"
+            "            ):\n"
             "                # The open page is authoritative Home-stock evidence even when\n"
             "                # entry ownership was recovered after a restart or lagged post.\n"
             "                # Selection is bound here; the outside decision composes it.\n"

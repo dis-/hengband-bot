@@ -382,7 +382,7 @@ def _home_suppression_one_shot(*, purchases_succeed=True):
             ):
                 return super().visible_terminal(reason)
             if (
-                reason == "home:store-context-exit"
+                reason == "home:route-claim-unfulfilled"
                 or reason.startswith("calibration:")
                 or reason.startswith("equipment-transaction:")
             ):
@@ -395,7 +395,7 @@ def _home_suppression_one_shot(*, purchases_succeed=True):
             if not purchases_succeed and reason == self.expected_terminal_reason:
                 return super().terminal_ends_drive(reason, key)
             if (
-                reason == "home:store-context-exit"
+                reason == "home:route-claim-unfulfilled"
                 or reason.startswith("calibration:")
                 or reason.startswith("equipment-transaction:")
             ):

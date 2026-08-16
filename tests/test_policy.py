@@ -5921,7 +5921,7 @@ class ShoppingTest(unittest.TestCase):
             pol, "_decide", side_effect=["dn\r", LEAVE_STORE_KEY, "dm\r", "dm\r"]
         ):
             self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
-            self.assertEqual(pol.last_reason, "home:store-context-exit")
+            self.assertEqual(pol.last_reason, "home:route-claim-unfulfilled")
             self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.last_reason, "shop:await-leave-confirmation")
@@ -47858,7 +47858,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
         with patch.object(policy, "_decide", return_value=SELL_KEY + "f40\r"):
             self.assertEqual(policy.choose_key(arrival), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:store-context-exit")
+        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
         key = self._post_atomic(policy, entrance, target)
 
         self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
@@ -48132,7 +48132,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         self.assertEqual(policy.choose_key(home), policy_module.LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:store-context-exit")
+        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
 
     def test_real_pack_teleport_and_recall_slots_cannot_be_side_effect_deposits(self):
         policy = HengbotPolicy()

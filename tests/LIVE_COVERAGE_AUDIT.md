@@ -429,13 +429,14 @@ Store fallback.
 
 time: `2026-08-16T23:55:00+09:00`
 
-Measured: Gate-1 replay of `jsonlog/home-entry-capture.jsonl` decision 10695,
-turn 1842120, restored `scavenge` with zero carried diggers and a 34-item Home
+Measured: Gate-1 replay of committed one-line fixture
+`tests/fixtures/digger-withdraw-gate1.jsonl`, captured as decision 2785,
+turn 1942384, restored `scavenge` with zero carried diggers and a 34-item Home
 page containing shovel letters F/G/H. The unfixed policy reproduced
 `home:store-context-exit` with Escape and no pending item. The fixed replay
 queues `home:queue-digging-tool-withdraw`, then composes `5pF<ESC>` on the
-captured outside observation. The current rotating generation is also consumed
-by the regression via the same format-1 checkpoint contract.
+captured outside observation. The regression consumes the stable fixture through
+the same format-1 checkpoint contract and does not depend on the rotating live log.
 
 Inferred: the `fundraising-kit` claim routed to Home because physical kit was
 not secured, but the recovered open-store boundary never bound a Home item;
@@ -446,9 +447,13 @@ two-digger carry target independently of fundraising mode. An open Home claim
 with no fulfillable operation records an unsatisfied pass, cools Home for the
 town visit, and exposes `home:route-claim-unfulfilled`.
 
-Verification: Town/fundraising policy batch 317 tests and Home-capture plus
-equipment-executor batch 14 tests passed. The eight-entry mutation battery
-passed 8/8 with `repo_tree_untouched: true`; the three Home mutations failed
-2/11, 2/11, and 1/11 public tests while the unmutated 331 focused tests passed. Sale-key
-lint reported zero violations. Changed-file fakery lint reported no new
-undeclared or stale allowances.
+Verification: the per-module policy batch included `ShoppingTest`,
+`TownAndFundraisingPolicyTest`, and `HomeOneOperationPerEntryTest`; the separate
+Home-capture and equipment-executor modules also passed: 398 policy tests and
+14 capture/executor tests. The eight-entry mutation battery passed 8/8 with
+`repo_tree_untouched: true`; the three Home mutations failed 2/11, 2/11, and
+1/11 public tests. Removing the calibration ownership guard independently
+reproduced the unchanged calibration pin's `store_visits 2 != 1`, while disabling
+the guarded arming branch failed both Gate-1 pins. Sale-key lint reported
+`sale-key-lint: 0 violation(s)`. Repository-wide fakery lint reported the
+pre-existing `8 violation(s), 101 declared finding(s) in 82 test(s)`.

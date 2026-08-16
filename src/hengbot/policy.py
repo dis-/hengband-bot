@@ -3621,7 +3621,14 @@ class HengbotPolicy:
             rearm = self._home_rearm_key(snapshot)
             if rearm is not None:
                 key = rearm
-            elif (standing_digger := self._queue_standing_home_digger(snapshot)) is not None:
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
+                and (
+                    standing_digger := self._queue_standing_home_digger(snapshot)
+                ) is not None
+            ):
                 # The open page is authoritative Home-stock evidence even when
                 # entry ownership was recovered after a restart or lagged post.
                 # Selection is bound here; the outside decision composes it.
@@ -3638,12 +3645,22 @@ class HengbotPolicy:
                 )
                 self.last_reason = "town:blocked:home-known-empty-withdrawal"
                 key = LEAVE_STORE_KEY
-            else:
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
+            ):
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=False
                 )
                 self._town_store_attempted[STORE_HOME] = snapshot.turn
                 self.last_reason = "home:route-claim-unfulfilled"
+                self._post_owner_expectation(
+                    snapshot, self.last_reason, "store_type"
+                )
+                key = LEAVE_STORE_KEY
+            else:
+                self.last_reason = "home:store-context-exit"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
                 )
