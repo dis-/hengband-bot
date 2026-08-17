@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Run the standing Hengbot mutation experiments without touching the checkout.
 
-The default selection is the five public ``choose_key`` pins plus the two
-optimizer input-key unit pins named in ``DEFAULT_TESTS``.  Pass ``--full-suite``
-to run normal unittest discovery for every mutation.
+The focused regression selection is named in ``DEFAULT_TESTS``. Pass
+``--full-suite`` to run normal unittest discovery for every mutation.
 """
 
 from __future__ import annotations
@@ -56,7 +55,10 @@ PUBLIC_TESTS = frozenset(
         "test_policy.PredictiveEscapeTest.test_sleeping_immobile_adjacent_paralyzer_is_never_meleed",
         "test_policy.PredictiveEscapeTest.test_step_composer_refuses_every_owner_entry_into_paralyzer_ring",
         "test_policy.PredictiveEscapeTest.test_adjacent_paralyzer_flee_uses_composer_to_open_closed_door",
+        "test_policy.PredictiveEscapeTest.test_paralyzer_flee_scores_against_every_physical_adjacent",
+        "test_policy.PredictiveEscapeTest.test_only_paralyzer_retreat_may_cross_a_fully_ringed_veto",
         "test_policy.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
+        "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
     }
 )
@@ -168,6 +170,36 @@ MUTATIONS = (
             "            if (\n"
             "                not monster.asleep\n"
             "                and (knowledge := self._monrace_knowledge.get(monster.race_id))\n",
+        ),),
+    ),
+    Mutation(
+        "score-paralyzer-flee-against-paralyzers-only",
+        True,
+        "Drop other physically adjacent enemies from paralyzer flee scoring.",
+        (replacement(
+            "policy.py",
+            "            step = self._flee_step(snapshot, physical_adjacent)\n",
+            "            step = self._flee_step(snapshot, adjacent)\n",
+        ),),
+    ),
+    Mutation(
+        "drop-paralyzer-ring-flight-recorder-registration",
+        True,
+        "Omit the paralyzer ring from recorded policy state.",
+        (replacement(
+            "flight_recorder.py",
+            '        "_paralyzer_avoid_cells",\n',
+            "",
+        ),),
+    ),
+    Mutation(
+        "disable-fully-ringed-paralyzer-survival-exception",
+        True,
+        "Prevent paralyzer retreat from crossing a fully ringed veto.",
+        (replacement(
+            "policy.py",
+            "            if not (allow_paralyzer_ring_escape and fully_ringed):\n",
+            "            if True:\n",
         ),),
     ),
     Mutation(

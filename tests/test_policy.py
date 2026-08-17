@@ -18751,6 +18751,53 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "o4")
         self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
 
+    def test_paralyzer_flee_scores_against_every_physical_adjacent(self):
+        paralyzer = replace(
+            hostile(1, 10, 11, distance=1, max_melee_damage=0), race_id=6018
+        )
+        orc = hostile(2, 9, 10, distance=1, max_melee_damage=1)
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, blows=(MonsterBlow("TOUCH", "PARALYZE"),),
+        )
+        snapshot = Snapshot(
+            player(10, 10),
+            {Position(y, x): grid(
+                y, x, monster=(y, x) in {(10, 11), (9, 10)}
+            ) for y in range(9, 12) for x in range(9, 12)},
+            [paralyzer, orc], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6018: knowledge})
+
+        self.assertEqual(policy.choose_key(snapshot), "1")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
+
+    def test_only_paralyzer_retreat_may_cross_a_fully_ringed_veto(self):
+        snapshot = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 9): grid(10, 9),
+            },
+            [], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy()
+        policy._observe(snapshot)
+        policy._build_grid_index(snapshot)
+        policy._paralyzer_avoid_cells = {Position(10, 9)}
+
+        self.assertEqual(
+            policy._step_toward(snapshot, Position(10, 9)), WAIT_KEY
+        )
+        self.assertEqual(
+            policy._step_toward(
+                snapshot,
+                Position(10, 9),
+                allow_paralyzer_ring_escape=True,
+            ),
+            "4",
+        )
+
     def test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer(self):
         orc = hostile(1, 10, 11, distance=1, max_melee_damage=1)
         eye = replace(

@@ -56,6 +56,7 @@ class FlightRecorderTest(unittest.TestCase):
             _unseen_wait_intercepted=False,
             _unseen_attack_evidence="何かに殴られた。",
             _engagement_avoid_cells={Position(4, 4)},
+            _paralyzer_avoid_cells={Position(4, 5), Position(5, 4)},
             _probed_frontiers={Position(5, 5)},
             _unenterable_explore_goals={Position(6, 6)},
             _window_edge_goals={Position(7, 7)},
@@ -174,6 +175,9 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertEqual(state["state"]["_unseen_retreat_floor"], [1, 5, 0])
         self.assertEqual(state["state"]["_unseen_choke_position"], [2, 3])
         self.assertEqual(state["state"]["_unseen_wait_remaining"], 42)
+        self.assertEqual(
+            state["state"]["_paralyzer_avoid_cells"], [[4, 5], [5, 4]]
+        )
         self.assertEqual(
             state["modes_and_latches"]["_abandoned_quest_carry_requirements"],
             {"launcher": "all-suppliers-visited-without-affordable-stock"},

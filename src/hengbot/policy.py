@@ -29780,10 +29780,6 @@ class HengbotPolicy:
         ]
         if not adjacent:
             return None
-        ranged = self._ranged_attack_key(snapshot, adjacent, physical_adjacent)
-        if ranged is not None:
-            self.last_reason = "threat:paralyzer-avoid:ranged"
-            return ranged
         shared_avoid = self._engagement_avoid_cells
         self._engagement_avoid_cells = shared_avoid - self._paralyzer_avoid_cells
         try:
