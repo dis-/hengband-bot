@@ -63,6 +63,9 @@ PUBLIC_TESTS = frozenset(
         "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
         "test_home_visit.HomeVisitExecutorTest.test_retention_conflict_is_rejected_at_filing",
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
+        "test_policy.IdleItemDepositTest.test_gate1_sale_retains_the_standing_two_digger_kit",
+        "test_policy.IdleItemDepositTest.test_gate1_five_diggers_compose_sales_for_only_the_three_worst",
+        "test_policy.TownAndFundraisingPolicyTest.test_two_visible_withdraw_failures_do_not_override_total_stock_target",
         "test_home_visit.HomeVisitExecutorTest.test_budget_rejection_has_visible_report_and_no_none_crash",
         "test_home_visit.HomeVisitExecutorTest.test_history_is_visit_scoped_and_same_signature_stacks_are_allowed",
         "test_home_visit.HomeVisitExecutorTest.test_calibration_deposit_restore_is_authorized",
@@ -100,6 +103,26 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "disable-digger-sale-retention",
+        True,
+        "Allow the standing digger kit into the inscription-bound sale path.",
+        (replacement(
+            "policy.py",
+            "        return item.is_digging_tool and not self._is_surplus_digging_tool(snapshot, item)\n",
+            "        return False\n",
+        ),),
+    ),
+    Mutation(
+        "disable-town-sell-rebuy-churn-defect",
+        True,
+        "Allow a sold item class to be bought back in the same town visit.",
+        (replacement(
+            "policy.py",
+            "            if item.tval in self._town_visit_sale_tvals:\n",
+            "            if False and item.tval in self._town_visit_sale_tvals:\n",
+        ),),
+    ),
     Mutation(
         "reset-home-history-on-optimizer-session",
         True,

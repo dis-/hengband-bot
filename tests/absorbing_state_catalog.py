@@ -19,7 +19,9 @@ from types import SimpleNamespace
 
 import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
-from hengbot.model import STORE_ALCHEMIST, STORE_HOME, TVAL_POTION
+from hengbot.model import (
+    STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, TVAL_DIGGING, TVAL_POTION,
+)
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import (
     CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
@@ -1428,10 +1430,43 @@ def _home_semantic_churn_defect():
     return SemanticChurnPolicy(), world
 
 
+def _town_sell_rebuy_churn_defect():
+    """A same-class purchase after an observed sale is visibly terminal."""
+    offered = fixture.store_item(
+        "a", TVAL_DIGGING, 1, name="replacement shovel", price=50,
+        is_equipment=True,
+    )
+    base = Snapshot(
+        fixture.player(10, 10, gold=1000, class_id=0),
+        {Position(10, 10): fixture.grid(10, 10)},
+        [], floor_key=(0, 0, 0), town_flag=True,
+        inventory=fixture.TownAndFundraisingPolicyTest()._strict_supplies(detection=5),
+        store=StoreState(STORE_GENERAL, [offered]),
+    )
+    class ChurnPolicy(HengbotPolicy):
+        def choose_key(self, snapshot):
+            return self._shop(snapshot)
+
+    policy = ChurnPolicy()
+    policy._fundraising_mode = "prepare"
+    policy._town_visit_sale_tvals.add(TVAL_DIGGING)
+    class DefectWorld(TownWorld):
+        def apply(self, key):
+            self.last_key = key
+
+    world = DefectWorld(base, entrance=STORE_GENERAL, stock=[offered])
+    world.expected_terminal_reason = "shop:sell-rebuy-churn-defect"
+    return policy, world
+
+
 SEEDED_STATES = (
     AbsorbingState(
         "home-visit-semantic-churn-defect", 3,
         _home_semantic_churn_defect,
+    ),
+    AbsorbingState(
+        "town-sell-rebuy-churn-defect", 3,
+        _town_sell_rebuy_churn_defect,
     ),
     AbsorbingState(
         "quiet-stair-observation-timeout-probe", 20,

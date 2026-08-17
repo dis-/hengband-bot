@@ -2267,6 +2267,10 @@ class HengbotPolicy:
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
         # Store purchases are retained for the rest of the current town visit.
         self._town_visit_purchases: set[tuple[str, int, int]] = set()
+        # Successful sales are retained for the same town visit. Buying the
+        # same item class back is semantic churn, not shopping progress.
+        self._town_visit_sale_tvals: set[int] = set()
+        self.town_visit_report: str | None = None
         # A6a: Home remains the preferred source for the two-tool mining kit.
         # Repeated visible withdrawal failures permit one liveness purchase per
         # town visit; they never silently turn Home stock into an open buy loop.
@@ -6998,6 +7002,8 @@ class HengbotPolicy:
             self._pending_recall_dungeon_id = None
             self._town_recall_issue_watch = None
             self._town_visit_purchases.clear()
+            self._town_visit_sale_tvals.clear()
+            self.town_visit_report = None
             self._quest_light_attempted.clear()
             self._q2_phase_light_attempted.clear()
             self._q2_phase_visited_goals.clear()
@@ -9390,12 +9396,18 @@ class HengbotPolicy:
         )
 
     def _withdrawable_digging_tool_count(self, snapshot: Snapshot) -> int:
-        return self._digging_tool_count(snapshot) + sum(
+        count = self._digging_tool_count(snapshot) + sum(
             owned.item.count
             for owned in self._equipment_catalog.items
             if owned.origin == "home" and owned.item.is_digging_tool
             and self._item_signature(owned.item) not in self._deferred_home_items
         )
+        if (
+            self._store_buy_inflight is not None
+            and self._store_buy_inflight[1][1] == TVAL_DIGGING
+        ):
+            count += 1
+        return count
 
     def _queue_standing_home_digger(self, snapshot: Snapshot) -> str | None:
         """Bind Home stock needed by the standing two-digger carry target."""
@@ -13620,36 +13632,44 @@ class HengbotPolicy:
         return None
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
-        # Fundraising stacks at most two digging tools across the weapon slots.
-        # weight — the character kept picking diggers up in the dungeon and hauling
-        # Keep the best pair and stash only the third and later tools at Home.
+        """Permit disposal only when two strictly better tools remain available."""
         if not item.is_digging_tool:
             return False
-        equipped_count = sum(
-            1 for equipped in snapshot.equipment if equipped.is_digging_tool
-        )
-        pack_diggers = [it for it in snapshot.inventory if it.is_digging_tool]
-        pack_capacity = max(0, 2 - equipped_count)
-        if len(pack_diggers) <= pack_capacity:
+        if self._withdrawable_digging_tool_count(snapshot) <= 2:
             return False
-        # Digging power is the item's pval, not its subtype number. In particular,
-        # a Dwarven Shovel (sval 3, pval 3) is substantially better than a plain
-        # Pick (sval 4, pval 1). Ranking by sval destroyed the valuable shovel
-        # while retaining the weaker pick. Quality only breaks equal-power ties.
-        keep_slots = {
-            candidate.slot
-            for candidate in sorted(
-                pack_diggers,
-                key=lambda it: (
-                    it.pval,
-                    int(it.is_artifact),
-                    int(it.is_ego),
-                    it.sval,
-                ),
-                reverse=True,
-            )[:pack_capacity]
-        }
-        return item.slot not in keep_slots
+
+        def quality(candidate: InventoryItem) -> tuple[int, int, int, int]:
+            # Existing ordering: digging pval first, then artifact/ego quality,
+            # with subtype only breaking otherwise equal quality.
+            return (
+                candidate.pval,
+                int(candidate.is_artifact),
+                int(candidate.is_ego),
+                candidate.sval,
+            )
+
+        available = [
+            *[it for it in snapshot.inventory if it.is_digging_tool],
+            *[it for it in snapshot.equipment if it.is_digging_tool],
+            *[
+                owned.item
+                for owned in self._equipment_catalog.items
+                if owned.origin == "home"
+                and owned.item.is_digging_tool
+                and self._item_signature(owned.item) not in self._deferred_home_items
+            ],
+        ]
+        better_count = sum(
+            candidate.count
+            for candidate in available
+            if quality(candidate) > quality(item)
+        )
+        return better_count >= 2
+
+    def _sale_retains_digging_tool(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> bool:
+        return item.is_digging_tool and not self._is_surplus_digging_tool(snapshot, item)
 
     def _is_wanted_jewelry(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # Keep a ring / amulet in the pack (do NOT stash it at Home) while it could
@@ -19118,7 +19138,10 @@ class HengbotPolicy:
     def _town_organization_sale_store(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> int | None:
-        if self._item_signature(item) in self._unsellable_items:
+        if (
+            self._item_signature(item) in self._unsellable_items
+            or self._sale_retains_digging_tool(snapshot, item)
+        ):
             return None
         for store_type in (
             STORE_WEAPON,
@@ -19163,6 +19186,10 @@ class HengbotPolicy:
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
         item = current
+        if self._sale_retains_digging_tool(snapshot, item):
+            self._batch_sell_pending = None
+            self.last_reason = "shop:retain-standing-digging-tool"
+            return LEAVE_STORE_KEY
         if store is None or not self._store_accepts_sale(store.store_type, item):
             # 'd' can be rejected before opening an item prompt.  Never attach
             # Return/yes tail keys unless the C++ store tval gate says the prompt
@@ -19322,6 +19349,13 @@ class HengbotPolicy:
                     self._batch_sell_pending = None
                     self.last_reason = "shop:sale-inscription-unobserved-leave"
                     return LEAVE_STORE_KEY
+                if any(
+                    self._sale_retains_digging_tool(snapshot, observed_tagged(entry))
+                    for entry in entries
+                ):
+                    self._batch_sell_pending = None
+                    self.last_reason = "shop:retain-standing-digging-tool"
+                    return LEAVE_STORE_KEY
                 # Inscribing can merge identical pack items.  Compose each
                 # prompt chain from the item in this observed snapshot, not
                 # from the pre-inscription candidate cached in the plan.
@@ -19372,6 +19406,10 @@ class HengbotPolicy:
             if confirmed and self._store_visit is not None:
                 self._store_visit.operation_posted = False
                 self._store_visit.operation_effect_observed = True
+            if confirmed:
+                self._town_visit_sale_tvals.update(
+                    int(entry["signature"][1]) for entry in entries
+                )
             elif not confirmed:
                 self._close_store_visit("one-shot-sale-unconfirmed")
             # A completed batch can compact every following inventory slot.
@@ -19391,6 +19429,9 @@ class HengbotPolicy:
         entries: list[dict[str, object]] = []
         inscribe_parts: list[str] = []
         for item in candidates[:1]:
+            if self._sale_retains_digging_tool(snapshot, item):
+                self.last_reason = "shop:retain-standing-digging-tool"
+                return LEAVE_STORE_KEY
             digit = self._unique_sale_tag(snapshot, item)
             if digit is None:
                 self._unsellable_items.add(self._item_signature(item))
@@ -20126,6 +20167,10 @@ class HengbotPolicy:
 
         item = self._next_purchase(snapshot)
         if item is not None:
+            if item.tval in self._town_visit_sale_tvals:
+                self.town_visit_report = f"town-visit:sell-rebuy-churn:{item.tval}"
+                self.last_reason = "shop:sell-rebuy-churn-defect"
+                return LEAVE_STORE_KEY
             signature = self._item_signature(item)
             # Bail out of a purchase that never takes effect. A registered buy
             # drops our gold (so the signature changes and the counter resets);
