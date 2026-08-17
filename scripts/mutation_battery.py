@@ -65,7 +65,10 @@ PUBLIC_TESTS = frozenset(
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
         "test_policy.IdleItemDepositTest.test_gate1_sale_retains_the_standing_two_digger_kit",
         "test_policy.IdleItemDepositTest.test_gate1_five_diggers_compose_sales_for_only_the_three_worst",
+        "test_policy.IdleItemDepositTest.test_five_equal_diggers_are_surplus_for_deposit_but_retained_from_sale",
         "test_policy.TownAndFundraisingPolicyTest.test_two_visible_withdraw_failures_do_not_override_total_stock_target",
+        "test_policy.TownAndFundraisingPolicyTest.test_gate1_digger_rebuy_window_stops_after_first_fallback_purchase",
+        "test_policy.TownAndFundraisingPolicyTest.test_confirmed_digger_sale_arms_sell_rebuy_churn_defect",
         "test_home_visit.HomeVisitExecutorTest.test_budget_rejection_has_visible_report_and_no_none_crash",
         "test_home_visit.HomeVisitExecutorTest.test_history_is_visit_scoped_and_same_signature_stacks_are_allowed",
         "test_home_visit.HomeVisitExecutorTest.test_calibration_deposit_restore_is_authorized",
@@ -112,7 +115,7 @@ MUTATIONS = (
         "Allow the standing digger kit into the inscription-bound sale path.",
         (replacement(
             "policy.py",
-            "        return item.is_digging_tool and not self._is_surplus_digging_tool(snapshot, item)\n",
+            "        return better_count < 2\n",
             "        return False\n",
         ),),
     ),
@@ -124,6 +127,20 @@ MUTATIONS = (
             "policy.py",
             "            if item.tval in self._town_visit_sale_tvals:\n",
             "            if False and item.tval in self._town_visit_sale_tvals:\n",
+        ),),
+    ),
+    Mutation(
+        "omit-inflight-digger-from-common-stock",
+        True,
+        "Revert the common stock predicate so Gate-1 can post a second fallback buy.",
+        (replacement(
+            "policy.py",
+            "        if (\n"
+            "            self._store_buy_inflight is not None\n"
+            "            and self._store_buy_inflight[1][1] == TVAL_DIGGING\n"
+            "        ):\n"
+            "            count += 1\n",
+            "",
         ),),
     ),
     Mutation(

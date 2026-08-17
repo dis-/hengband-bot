@@ -13667,22 +13667,41 @@ class HengbotPolicy:
         return None
 
     def _is_surplus_digging_tool(self, snapshot: Snapshot, item: InventoryItem) -> bool:
-        """Permit disposal only when two strictly better tools remain available."""
+        """Keep the best two carried tools; permit excess deposit/disposal."""
         if not item.is_digging_tool:
             return False
-        if self._withdrawable_digging_tool_count(snapshot) <= 2:
+        equipped_count = sum(
+            1 for equipped in snapshot.equipment if equipped.is_digging_tool
+        )
+        pack_diggers = [it for it in snapshot.inventory if it.is_digging_tool]
+        pack_capacity = max(0, 2 - equipped_count)
+        if len(pack_diggers) <= pack_capacity:
             return False
+        keep_slots = {
+            candidate.slot
+            for candidate in sorted(
+                pack_diggers,
+                key=self._digging_tool_sale_quality,
+                reverse=True,
+            )[:pack_capacity]
+        }
+        return item.slot not in keep_slots
 
-        def quality(candidate: InventoryItem) -> tuple[int, int, int, int]:
-            # Existing ordering: digging pval first, then artifact/ego quality,
-            # with subtype only breaking otherwise equal quality.
-            return (
-                candidate.pval,
-                int(candidate.is_artifact),
-                int(candidate.is_ego),
-                candidate.sval,
-            )
+    @staticmethod
+    def _digging_tool_sale_quality(item: InventoryItem) -> tuple[int, int, int, int]:
+        return (
+            item.pval,
+            int(item.is_artifact),
+            int(item.is_ego),
+            item.sval,
+        )
 
+    def _sale_retains_digging_tool(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> bool:
+        if not item.is_digging_tool:
+            return False
+        quality = self._digging_tool_sale_quality(item)
         available = [
             *[it for it in snapshot.inventory if it.is_digging_tool],
             *[it for it in snapshot.equipment if it.is_digging_tool],
@@ -13697,14 +13716,9 @@ class HengbotPolicy:
         better_count = sum(
             candidate.count
             for candidate in available
-            if quality(candidate) > quality(item)
+            if self._digging_tool_sale_quality(candidate) > quality
         )
-        return better_count >= 2
-
-    def _sale_retains_digging_tool(
-        self, snapshot: Snapshot, item: InventoryItem
-    ) -> bool:
-        return item.is_digging_tool and not self._is_surplus_digging_tool(snapshot, item)
+        return better_count < 2
 
     def _is_wanted_jewelry(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # Keep a ring / amulet in the pack (do NOT stash it at Home) while it could

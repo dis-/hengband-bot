@@ -8870,10 +8870,8 @@ class OverflowDisposalTest(unittest.TestCase):
         )
 
         policy = HengbotPolicy()
-        # The two equal shovels are not strictly dominated by two kept tools;
-        # the standing-kit rule therefore sheds the first disposable filler.
-        self.assertEqual(policy.choose_key(snap), "01kd")
-        self.assertEqual(policy.last_reason, "town:destroy-overflow")
+        self.assertEqual(policy.choose_key(snap), "01kb")
+        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
 
     def test_town_compacts_ammo_when_no_launcher_is_owned(self):
         ammo = item("a", TVAL_ARROW, 4, name="arrows", count=14)
@@ -20283,13 +20281,51 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertTrue(ordinary._shop(general).startswith(BUY_KEY))
         self.assertEqual(ordinary.last_reason, "shop:buy-digging-tool")
 
-        churn = HengbotPolicy()
-        churn._fundraising_mode = "prepare"
-        churn._town_visit_sale_tvals.add(TVAL_DIGGING)
-        self.assertEqual(churn._shop(general), LEAVE_STORE_KEY)
-        self.assertEqual(churn.last_reason, "shop:sell-rebuy-churn-defect")
+    def test_confirmed_digger_sale_arms_sell_rebuy_churn_defect(self):
+        """The captured 02:49 sale arms the later 02:51 rebuy stop."""
+        sold = replace(
+            item("a", TVAL_DIGGING, 1, name="sold shovel", pval=0),
+            inscription="@0",
+        )
+        better = [
+            item("b", TVAL_DIGGING, 4, name="kept pick", pval=1),
+            item("c", TVAL_DIGGING, 7, name="kept mattock", pval=2),
+        ]
+        sale = Snapshot(
+            player(10, 10, gold=73, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[sold, *better],
+            store=StoreState(STORE_GENERAL, []),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._batch_sell_key(sale, [sold]), "d0y")
+        confirmed = replace(
+            sale,
+            player=replace(sale.player, gold=74),
+            inventory=better,
+        )
+        self.assertEqual(policy._batch_sell_key(confirmed), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:one-shot-sale-observed")
+        self.assertIn(TVAL_DIGGING, policy._town_visit_sale_tvals)
+
+        offered = store_item(
+            "a", TVAL_DIGGING, 1, name="new shovel", price=50,
+            is_equipment=True,
+        )
+        rebuy = Snapshot(
+            player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[*self._strict_supplies(detection=5), better[0]],
+            store=StoreState(STORE_GENERAL, [offered]),
+        )
+        policy._fundraising_mode = "prepare"
+        self.assertEqual(policy._shop(rebuy), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:sell-rebuy-churn-defect")
         self.assertEqual(
-            churn.town_visit_report,
+            policy.town_visit_report,
             f"town-visit:sell-rebuy-churn:{TVAL_DIGGING}",
         )
 
@@ -37686,7 +37722,7 @@ class IdleItemDepositTest(unittest.TestCase):
 
         self.assertEqual(
             {candidate.slot for candidate in diggers
-             if pol._is_surplus_digging_tool(snap, candidate)},
+             if not pol._sale_retains_digging_tool(snap, candidate)},
             {"a", "b", "c"},
         )
         for index in range(3):
@@ -37696,8 +37732,27 @@ class IdleItemDepositTest(unittest.TestCase):
             key = sale_pol._batch_sell_key(view, [remaining[0]])
             self.assertIn(SELL_KEY, key)
             self.assertEqual(sale_pol.last_reason, "shop:one-shot-sale-compose")
-        self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[3]))
-        self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[4]))
+        self.assertTrue(pol._sale_retains_digging_tool(snap, diggers[3]))
+        self.assertTrue(pol._sale_retains_digging_tool(snap, diggers[4]))
+
+    def test_five_equal_diggers_are_surplus_for_deposit_but_retained_from_sale(self):
+        diggers = [
+            item(chr(ord("a") + index), TVAL_DIGGING, 1,
+                 name=f"equal-shovel-{index}", pval=1)
+            for index in range(5)
+        ]
+        snap = self._town(diggers)
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            {candidate.slot for candidate in diggers
+             if policy._is_surplus_digging_tool(snap, candidate)},
+            {"c", "d", "e"},
+        )
+        self.assertTrue(all(
+            policy._sale_retains_digging_tool(snap, candidate)
+            for candidate in diggers
+        ))
 
 
 class ResistanceDepthGateTest(unittest.TestCase):
@@ -49367,6 +49422,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(
             self._post_atomic(policy, entrance, target), "5df84\r\x1b"
         )
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: bounded abandonment is isolated from unrelated downstream town routing
         policy._decide = Mock(return_value=WAIT_KEY)
         for offset in range(1, STORE_STUCK_LIMIT + 1):
             policy.choose_key(self._snapshot(
