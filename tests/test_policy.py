@@ -38118,6 +38118,57 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertIn("attempt-budget-exhausted",
                       policy.consume_pending_home_visit_report())
 
+    def test_prepare_operation_lazily_rebuilds_pre_executor_checkpoint(self):
+        for action in ("take", "put"):
+            with self.subTest(action=action):
+                policy = HengbotPolicy()
+                del policy._home_visit
+                del policy._pending_home_visit_report
+                restored = restore_checkpoint(
+                    HengbotPolicy, checkpoint(policy)
+                )
+                self.assertFalse(restored._prepare_home_visit_operation(
+                    action, ("restart-item", action), ("fresh", 1)
+                ))
+                self.assertIn(
+                    "restart-refile-required",
+                    restored.consume_pending_home_visit_report(),
+                )
+
+    def test_prepare_operation_budget_exhaustion_is_visible(self):
+        policy = HengbotPolicy()
+        policy._home_visit.attempts_used = policy._home_visit.attempt_limit
+        self.assertFalse(policy._prepare_home_visit_operation(
+            "take", ("budgeted-item",), ("fresh", 1)
+        ))
+        self.assertIn(
+            "home-visit:atomic-home-composer:attempt-budget-exhausted",
+            policy.consume_pending_home_visit_report(),
+        )
+
+    def test_home_rearm_is_noop_after_visit_budget_exhaustion(self):
+        policy = HengbotPolicy()
+        policy._home_visit.attempts_used = policy._home_visit.attempt_limit
+        policy._town_store_attempted[STORE_HOME] = 700
+        policy._town_errand_plan = SimpleNamespace(
+            completed_this_visit=[STORE_HOME],
+            blocked_this_visit=[STORE_HOME],
+            skipped_latched=[STORE_HOME],
+        )
+        policy._rearm_town_store_for_new_work(
+            STORE_HOME, release_visit_bound=True
+        )
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], 700)
+        self.assertEqual(
+            policy._town_errand_plan.completed_this_visit, [STORE_HOME]
+        )
+        self.assertEqual(
+            policy._town_errand_plan.blocked_this_visit, [STORE_HOME]
+        )
+        self.assertEqual(
+            policy._town_errand_plan.skipped_latched, [STORE_HOME]
+        )
+
 
 class TownCycleDetectorTest(unittest.TestCase):
     """User directive: auto-detect and repair town repetition loops as a CLASS.

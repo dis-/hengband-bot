@@ -3121,6 +3121,18 @@ class HengbotPolicy:
         self, action: str, identity: tuple, evidence: tuple
     ) -> bool:
         """Authorize exactly one Home operation from fresh address evidence."""
+        rebuilt = getattr(self, "_home_visit", None) is None
+        if rebuilt:
+            # Checkpoint/restored policies created before this structural field
+            # visibly re-file from the current observation.
+            self._home_visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
+        if not hasattr(self, "_pending_home_visit_report"):
+            self._pending_home_visit_report = None
+        if rebuilt:
+            self._pending_home_visit_report = (
+                "home-visit:atomic-home-composer:restart-refile-required"
+            )
+            return False
         visit = self._home_visit
         if visit.state in {HomeVisitState.REPORTED, HomeVisitState.DEFECT}:
             report = visit.consume_report()
@@ -16667,7 +16679,7 @@ class HengbotPolicy:
                     and need.ordering_class == "post-alchemist-home"
                     for need in remaining_needs
                 ):
-                    self._town_store_attempted.pop(STORE_HOME, None)
+                    self._rearm_town_store_for_new_work(STORE_HOME)
                 plan = self._build_town_errand_plan(snapshot, remaining_needs)
                 self._town_errand_plan = plan
                 self._town_plan_projection_telemetry["plan_rebuilt"] = True
@@ -16721,7 +16733,7 @@ class HengbotPolicy:
                     # A plan built up-front can already contain Home twice
                     # (catalog first, withdrawal after Alchemist).  Release the
                     # first visit's latch only for that explicit second phase.
-                    self._town_store_attempted.pop(STORE_HOME, None)
+                    self._rearm_town_store_for_new_work(STORE_HOME)
                     return STORE_HOME
                 plan.skipped_latched.append(store_type)
                 plan.index += 1
@@ -18023,7 +18035,7 @@ class HengbotPolicy:
             return False
         self._processed_home_items.difference_update(signatures)
         self._retried_home_identification_items.update(signatures)
-        self._town_store_attempted.pop(STORE_HOME, None)
+        self._rearm_town_store_for_new_work(STORE_HOME)
         self._town_errand_plan = None
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None

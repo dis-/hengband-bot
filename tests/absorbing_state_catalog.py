@@ -1409,6 +1409,7 @@ def _home_semantic_churn_defect():
     home_visit_report = (
         f"home-visit:{report.request.requester}:{report.defect}"
     )
+    assert executor.semantic_churn_cooldown
 
     class SemanticChurnPolicy:
         last_reason = ""

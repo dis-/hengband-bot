@@ -69,6 +69,8 @@ PUBLIC_TESTS = frozenset(
         "test_home_visit.HomeVisitCaptureAcceptanceTest.test_ast_ratchet_keeps_optimizer_and_composers_under_executor",
         "test_policy.HomeVisitOwnershipTest.test_new_home_transaction_cannot_reset_completed_home_visit_history",
         "test_policy.HomeVisitOwnershipTest.test_rejected_home_visit_budget_stops_the_real_approach",
+        "test_policy.HomeVisitOwnershipTest.test_prepare_operation_budget_exhaustion_is_visible",
+        "test_policy.HomeVisitOwnershipTest.test_home_rearm_is_noop_after_visit_budget_exhaustion",
     }
 )
 DEFAULT_TESTS = (
@@ -137,6 +139,31 @@ MUTATIONS = (
             "policy.py",
             "            if not self._ensure_home_visit_request(snapshot):\n",
             "            if False and not self._ensure_home_visit_request(snapshot):\n",
+        ),),
+    ),
+    Mutation(
+        "ignore-home-operation-budget-rejection",
+        True,
+        "Restore the rejected-budget atomic composer fallthrough.",
+        (replacement(
+            "policy.py",
+            "            if visit.request is None or not visit.begin_approach(\n",
+            "            if False and (visit.request is None or not visit.begin_approach(\n",
+        ), replacement(
+            "policy.py",
+            "                self._decision_sequence\n            ):\n",
+            "                self._decision_sequence\n            )):\n",
+        )),
+    ),
+    Mutation(
+        "rearm-home-after-visit-budget-exhaustion",
+        True,
+        "Permit new Home work to erase the exhausted visit stop.",
+        (replacement(
+            "policy.py",
+            "            and home_visit.attempts_used >= home_visit.attempt_limit\n",
+            "            and False\n"
+            "            and home_visit.attempts_used >= home_visit.attempt_limit\n",
         ),),
     ),
     Mutation(

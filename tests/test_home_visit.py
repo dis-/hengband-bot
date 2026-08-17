@@ -9,6 +9,7 @@ from hengbot.home_visit import (
     HomeVisitRequest,
     HomeVisitState,
 )
+from hengbot.policy import HengbotPolicy
 
 
 def request(kind=HomeVisitKind.WITHDRAW, identity=("shovel", 3, 8), **kwargs):
@@ -69,7 +70,9 @@ class HomeVisitExecutorTest(unittest.TestCase):
         taken = ("shovel", 3, 8)
         put = ("shovel", 1, 5)
         executor = HomeVisitExecutor(3)
-        executor.file(request(HomeVisitKind.WITHDRAW, taken))
+        executor.file(HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "standing-digger", taken
+        ))
         executor.begin_approach(1)
         executor.post_entry(1)
         executor.observe_inside("fresh", 2)
@@ -77,7 +80,9 @@ class HomeVisitExecutorTest(unittest.TestCase):
         executor.post_exit()
         executor.observe_outside(effect_observed=True)
         self.assertEqual(executor.consume_report().outcome, "completed")
-        executor.file(request(HomeVisitKind.DEPOSIT, put))
+        executor.file(HomeVisitRequest(
+            HomeVisitKind.DEPOSIT, "equipment-transaction", put
+        ))
         executor.begin_approach(3)
         executor.post_entry(3)
         executor.observe_inside("fresh-2", 4)
@@ -87,6 +92,36 @@ class HomeVisitExecutorTest(unittest.TestCase):
         report = executor.consume_report()
         self.assertEqual(report.outcome, "defect")
         self.assertIn("zero-net-inventory-delta", report.defect)
+        next_request = HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "standing-digger", taken
+        )
+        self.assertEqual(executor.file(next_request), "rejected")
+        self.assertEqual(
+            executor.consume_report().outcome, "semantic-churn-cooldown"
+        )
+        self.assertLess(executor.attempts_used, 54)
+
+    def test_normal_deposit_then_standing_digger_withdraw_is_not_churn(self):
+        deposited = ("normal-supply", 1)
+        digger = ("shovel", 3, 8)
+        executor = HomeVisitExecutor(3)
+        for generation, visit_request, action, identity in (
+            (1, HomeVisitRequest(HomeVisitKind.DEPOSIT, "normal", deposited),
+             "put", deposited),
+            (3, HomeVisitRequest(HomeVisitKind.WITHDRAW, "standing-digger", digger),
+             "take", digger),
+        ):
+            executor.file(visit_request)
+            executor.begin_approach(generation)
+            executor.post_entry(generation)
+            executor.observe_inside(("fresh", generation), generation + 1)
+            executor.record_operation(action, identity, generation + 1)
+            executor.post_exit()
+            executor.observe_outside(effect_observed=True)
+            report = executor.consume_report()
+            self.assertEqual(report.outcome, "completed")
+            self.assertIsNone(report.defect)
+        self.assertFalse(executor.semantic_churn_cooldown)
 
     def test_history_is_visit_scoped_and_same_signature_stacks_are_allowed(self):
         identity = ("oil-flask", 1)
@@ -203,7 +238,9 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         self.assertGreaterEqual(len(identities), 2)
         taken_identity, put_identity = sorted(identities, key=repr)[:2]
         executor = HomeVisitExecutor(54)
-        executor.file(request(HomeVisitKind.WITHDRAW, taken_identity))
+        executor.file(HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "standing-digger", taken_identity
+        ))
         executor.begin_approach(take["decision_sequence"])
         executor.observe_outside_ready(
             (take["home_scan"]["item_count"], take["turn"]),
@@ -213,7 +250,9 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         executor.post_exit()
         executor.observe_outside(effect_observed=True)
         executor.consume_report()
-        executor.file(request(HomeVisitKind.DEPOSIT, put_identity))
+        executor.file(HomeVisitRequest(
+            HomeVisitKind.DEPOSIT, "equipment-transaction", put_identity
+        ))
         executor.begin_approach(put["decision_sequence"])
         executor.observe_outside_ready(
             (put.get("store_stock_num"), put["turn"]),
@@ -259,8 +298,10 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         executor.begin_approach(r300["decision_sequence"])
         executor.post_entry(r300["decision_sequence"])
         self.assertTrue(executor.entry_pending)
-        self.assertFalse(executor.record_operation(
-            "take", ("shovel", 3, 8), r300["decision_sequence"] + 1
+        policy = HengbotPolicy()
+        policy._home_visit = executor
+        self.assertFalse(policy._prepare_home_visit_operation(
+            "take", ("shovel", 3, 8), ("fresh",)
         ))
 
     def test_ast_ratchet_keeps_optimizer_and_composers_under_executor(self):

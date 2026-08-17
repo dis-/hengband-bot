@@ -84,9 +84,13 @@ class HomeVisitExecutor:
     operation_history: list[tuple[str, Hashable | None]] = field(default_factory=list)
     # The immediately preceding completed inventory mutation survives report
     # consumption.  It is effect evidence, not an authorization blacklist.
-    # This catches cross-identity take/put cancellation without preventing two
-    # legitimate requests for the same signature in an epoch.
-    previous_completed_delta: tuple[int, Hashable | None, HomeVisitKind] | None = None
+    # The requester/direction scope catches the captured standing-digger take
+    # followed by transaction put without classifying normal deposit/withdraw
+    # composition as churn.
+    previous_completed_delta: tuple[
+        int, Hashable | None, HomeVisitKind, str
+    ] | None = None
+    semantic_churn_cooldown: bool = False
     context_token: tuple[str, int] | None = None
 
     @property
@@ -107,6 +111,9 @@ class HomeVisitExecutor:
         if self.active:
             self.queued.append(request)
             return "queued"
+        if self.semantic_churn_cooldown:
+            self._report(request, "semantic-churn-cooldown")
+            return "rejected"
         if self.attempts_used >= self.attempt_limit:
             self._report(request, "attempt-budget-exhausted")
             return "rejected"
@@ -212,18 +219,27 @@ class HomeVisitExecutor:
                 or (previous is not None
                     and previous[2] == HomeVisitKind.CALIBRATION_RESTORE)
             )
+            captured_takeput_pair = (
+                previous is not None
+                and previous[2] == HomeVisitKind.WITHDRAW
+                and previous[3] == "standing-digger"
+                and self.request.kind == HomeVisitKind.DEPOSIT
+                and self.request.requester == "equipment-transaction"
+            )
             if (
                 previous is not None
                 and previous[0] + delta == 0
                 and not calibration_restore
+                and captured_takeput_pair
             ):
+                self.semantic_churn_cooldown = True
                 self._defect(
                     "zero-net-inventory-delta:"
                     f"{previous[1]!r}:{identity!r}"
                 )
                 return
             self.previous_completed_delta = (
-                delta, identity, self.request.kind
+                delta, identity, self.request.kind, self.request.requester
             )
         self._report(self.request, outcome)
 
