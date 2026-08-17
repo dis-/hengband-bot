@@ -31713,10 +31713,6 @@ class HengbotPolicy:
             self._hunt_target_identities.clear()
             self._hunt_cooled_targets.clear()
             self._hunt_cooling_exempt_targets.clear()
-        observed_indexes = {monster.index for monster in snapshot.visible_monsters}
-        for index in tuple(self._hunt_target_identities):
-            if index not in observed_indexes:
-                self._hunt_target_identities.pop(index, None)
         if player.hp_ratio < HUNT_HP_RATIO or not hostiles:
             return None
         if (

@@ -93,6 +93,7 @@ from hengbot.cli import (
 )
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
+    HUNT_RANGE,
     HengbotPolicy,
     TOWN_TRAVEL_STALL_LIMIT,
 )
@@ -1850,6 +1851,21 @@ class DecisionRecordTest(unittest.TestCase):
             with self.subTest(report=expected), TemporaryDirectory() as directory:
                 policy = HengbotPolicy()
                 executor = policy._equipment_mutation
+                hunt_data = json.loads(_snap_line(124, 10, 10))
+                hunt_data["floor"] = {
+                    "dungeon_id": 2, "level": 1, "in_town": False,
+                }
+                hunt_data["nearby_grids"] = [
+                    {"y": 10, "x": x, "known": True,
+                     "monster_index": 7 if x == 14 else 0,
+                     "terrain": {"move": True}}
+                    for x in range(10, 15)
+                ]
+                hunt_data["visible_monsters"] = [{"index": 7, "race_id": 35}]
+                hunt_snapshot = parse_snapshot(
+                    hunt_data, {35: MonraceKnowledge(8, 110, False, False)}
+                )
+                hunt_monster = hunt_snapshot.visible_monsters[0]
                 if opposing_goal is None:
                     prepared = executor.request_takeoff(
                         snapshot, "mining-loadout", "a"
@@ -1862,17 +1878,22 @@ class DecisionRecordTest(unittest.TestCase):
                     executor.last_posted_core = progress_core(snapshot)
 
                 def fallthrough(_snapshot):
-                    policy._equipment_takeoff(
+                    mutation_key = policy._equipment_takeoff(
                         snapshot, "mining-loadout", "a"
                     )
+                    policy._hunt_step(hunt_snapshot, [hunt_monster])
+                    hunt_identity = policy._hunt_target_identities[7]
+                    progress = policy._hunt_progress[hunt_identity]
+                    progress["steps"] = HUNT_RANGE - 1
+                    progress["decision"] -= 1
+                    policy._hunt_step(hunt_snapshot, [hunt_monster])
                     policy.last_reason = "explore:fallthrough"
-                    return "5"
+                    return mutation_key
 
                 with patch.object(
                     policy, "_choose_key_with_latch_capture", side_effect=fallthrough
                 ):
                     key = policy.choose_key(snapshot)
-                policy._pending_hunt_report = "hunt:abandoned-no-damage-no-closure"
                 path = Path(directory) / "decisions.jsonl"
                 _write_decision(path, snapshot, key, policy.last_reason, policy)
                 row = json.loads(path.read_text(encoding="utf-8"))

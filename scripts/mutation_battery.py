@@ -48,6 +48,7 @@ PUBLIC_TESTS = frozenset(
         "test_navigation.StairRejectionInvalidationTest.test_quiet_same_turn_stair_watch_has_visible_bounded_probe",
         "test_cli.UniversalPostingContractTest.test_completed_dual_wield_prompt_history_is_not_an_open_owner",
         "test_policy.CombatTest.test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard",
+        "test_policy.CombatTest.test_hunt_blink_does_not_restore_the_full_progress_budget",
     }
 )
 DEFAULT_TESTS = (
@@ -101,6 +102,20 @@ MUTATIONS = (
             "policy.py",
             "                and progress[\"steps\"] >= HUNT_RANGE\n",
             "                and False and progress[\"steps\"] >= HUNT_RANGE\n",
+        ),),
+    ),
+    Mutation(
+        "forget-hunt-identity-while-absent",
+        True,
+        "Restore the blinking-target full-budget reset.",
+        (replacement(
+            "policy.py",
+            "        if player.hp_ratio < HUNT_HP_RATIO or not hostiles:\n",
+            "        observed_indexes = {monster.index for monster in snapshot.visible_monsters}\n"
+            "        for index in tuple(self._hunt_target_identities):\n"
+            "            if index not in observed_indexes:\n"
+            "                self._hunt_target_identities.pop(index, None)\n"
+            "        if player.hp_ratio < HUNT_HP_RATIO or not hostiles:\n",
         ),),
     ),
     Mutation(

@@ -4503,16 +4503,66 @@ class CombatTest(unittest.TestCase):
     def test_new_hunt_target_gets_its_own_closure_baseline(self):
         policy = HengbotPolicy()
         grids = {Position(10, x): grid(10, x) for x in range(10, 16)}
-        for decision, distance in enumerate((4, 3, 2, 1)):
+        decision = 0
+        for distance in (4, 3, 2, 1):
+            monster = hostile(1, 10, 10 + distance, hp=12, max_hp=12,
+                              distance=distance, race_id=35)
+            snapshot = Snapshot(player(10, 10), grids, [monster], floor_key=(2, 1, 0))
+            policy._decision_sequence = decision
+            policy._hunt_step(snapshot, [monster])
+            decision += 1
+
+        for distance in (4, 3, 2):
             monster = hostile(2, 10, 10 + distance, hp=12, max_hp=12,
                               distance=distance, race_id=36)
             snapshot = Snapshot(player(10, 10), grids, [monster], floor_key=(2, 1, 0))
             policy._decision_sequence = decision
             policy._hunt_step(snapshot, [monster])
+            decision += 1
 
         identity = policy._hunt_target_identities[2]
         self.assertEqual(policy._hunt_progress[identity]["steps"], 0)
         self.assertNotIn(identity, policy._hunt_cooled_targets)
+
+        for _ in range(policy_module.HUNT_RANGE):
+            policy._decision_sequence = decision
+            policy._hunt_step(snapshot, [monster])
+            decision += 1
+        self.assertIn(identity, policy._hunt_cooled_targets)
+
+    def test_hunt_blink_does_not_restore_the_full_progress_budget(self):
+        policy = HengbotPolicy()
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(8, 13) for x in range(10, 16)
+        }
+        positions = (Position(10, 14), Position(11, 14), Position(9, 14))
+        visible = []
+        for position in positions:
+            monster = hostile(
+                7, position.y, position.x, hp=12, max_hp=12,
+                distance=4, race_id=35,
+            )
+            visible.append(Snapshot(
+                player(10, 10), grids, [monster], floor_key=(2, 1, 0)
+            ))
+        hidden = replace(visible[0], visible_monsters=[])
+        hunt_decisions = 0
+
+        for decision in range(60):
+            snapshot = (
+                hidden
+                if decision % 5 == 4
+                else visible[(decision // 5) % len(visible)]
+            )
+            policy.choose_key(snapshot)
+            if policy.last_reason == "hunt":
+                hunt_decisions += 1
+            if policy._hunt_cooled_targets:
+                break
+
+        self.assertLessEqual(hunt_decisions, policy_module.HUNT_RANGE)
+        self.assertTrue(policy._hunt_cooled_targets)
 
     def test_hunt_progress_counts_once_per_decision_not_per_call(self):
         policy = HengbotPolicy()
@@ -4545,7 +4595,7 @@ class CombatTest(unittest.TestCase):
         policy._decision_sequence += 1
         empty = replace(old_snapshot, visible_monsters=[])
         policy._hunt_step(empty, [])
-        new = hostile(8, 10, 13, hp=12, max_hp=12, distance=3, race_id=35)
+        new = hostile(8, 10, 13, hp=12, max_hp=12, distance=3, race_id=36)
         new_snapshot = replace(old_snapshot, visible_monsters=[new])
         policy._decision_sequence += 1
 
