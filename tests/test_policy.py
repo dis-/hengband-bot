@@ -5324,7 +5324,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 floor_key=(1, 5, 0),
             )
         )
-        self.assertIn(key, "12346789")
+        self.assertIn(key, set("12346789"))
         self.assertEqual(pol.last_reason, "unseen:reverse-choke")
         self.assertNotEqual(key, "<")
 
@@ -5924,7 +5924,7 @@ class UnseenAttackerTest(unittest.TestCase):
             )
         )
 
-        self.assertIn(key, "12346789")
+        self.assertIn(key, set("12346789"))
         self.assertEqual(pol.last_reason, "unseen:reverse-choke")
 
     def test_unseen_damage_during_recall_moves_when_no_escape_item(self):
@@ -7199,7 +7199,7 @@ class DescendTest(unittest.TestCase):
             height=30,
         )
         key = policy.choose_key(snapshot)
-        self.assertIn(key, "12346789")
+        self.assertIn(key, set("12346789"))
         self.assertEqual(policy._nav_ledger.descent_target, Position(8, 12))
         self.assertNotEqual(policy.last_reason, "breakout:descent")
 
@@ -48591,7 +48591,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         entrance = self._entrance_snapshot([])
 
-        self.assertIn(policy.choose_key(entrance), "12346789")
+        self.assertIn(policy.choose_key(entrance), set("12346789"))
         self.assertEqual(
             policy.last_reason,
             "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
@@ -48619,6 +48619,83 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(
             policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], passes
         )
+
+    def test_restore_collapse_invalidates_for_transaction_withdraw_owner(self):
+        restore = store_item("0", 36, 1, name="captured restore")
+        target = store_item(
+            "30", TVAL_RING, 77, name="transaction target",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        wares = [restore, *[
+            store_item(str(index), TVAL_POTION, 1800 + index, name=f"home {index}")
+            for index in range(1, 30)
+        ], target]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw", "home:target",
+            item_identity=policy_module.equipment_identity(target),
+        )
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 0)
+        )
+        entrance = self._entrance_snapshot([], turn=2388203)
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pa\x1b",
+        )
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertIs(policy._equipment_transaction_session.current_action, action)
+
+    def test_open_transaction_does_not_filter_calibration_slot_resolution(self):
+        restore = store_item("0", 36, 1, name="captured restore")
+        target = store_item(
+            "1", TVAL_RING, 78, name="different transaction target",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([restore, target], page_size=52)
+        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw", "home:target",
+            item_identity=policy_module.equipment_identity(target),
+        )
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 0)
+        )
+        entrance = self._entrance_snapshot([], turn=2388203)
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pa\x1b",
+        )
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+        self.assertEqual(policy._deferred_home_items, set())
+
+    def test_captured_withdrawn_digger_is_not_transaction_deposited(self):
+        shovel = item(
+            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "deposit", "pack:shovel",
+            item_identity=policy_module.equipment_identity(shovel),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 1)
+        )
+        entrance = self._entrance_snapshot([shovel], turn=2388220)
+        policy._shopping_approach_store_type = STORE_HOME
+
+        self.assertIsNone(
+            policy._atomic_home_deposit_key(entrance, entrance.player.position)
+        )
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:retain-digging-tool"
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
 
     def test_unaddressed_equipment_work_claim_yields_on_unchanged_progress_core(self):
         observed = store_item("a", TVAL_POTION, 402, name="other item")

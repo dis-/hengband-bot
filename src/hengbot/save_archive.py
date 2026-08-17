@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import shutil
 import subprocess
 import threading
@@ -15,6 +14,7 @@ from typing import Callable
 LIVE_SAVE_PATH = Path(r"C:\hengband\BOT_PLAY")
 ARCHIVE_REPOSITORY_PATH = Path(r"C:\hengband-save-archive")
 SAVE_CONFIRMATION_SECONDS = 10.0
+SAVE_TRANSIENT_MISS_LIMIT = 3
 
 
 def _digest(path: Path) -> str:
@@ -110,7 +110,7 @@ class SaveArchiveCoordinator:
         self._deadline: float | None = None
         self._metadata: dict | None = None
         self._transient_misses = 0
-        self._transient_miss_limit = max(2, math.ceil(confirmation_seconds))
+        self._transient_miss_limit = SAVE_TRANSIENT_MISS_LIMIT
 
     def before_post(self, snapshot, decision_sequence: int) -> None:
         self._transient_misses = 0

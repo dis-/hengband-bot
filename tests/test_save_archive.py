@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.save_archive import (
     ArchiveRepository,
+    SAVE_TRANSIENT_MISS_LIMIT,
     SaveArchiveCoordinator,
     SaveIdentity,
 )
@@ -125,8 +126,10 @@ class SaveArchiveTest(unittest.TestCase):
         coordinator._deadline = 10.0
         coordinator._metadata = self._metadata()
 
-        for now in range(4):
+        for now in range(SAVE_TRANSIENT_MISS_LIMIT - 1):
             coordinator.poll(float(now))
+        self.assertIsNotNone(coordinator._deadline)
+        coordinator.poll(float(SAVE_TRANSIENT_MISS_LIMIT - 1))
 
         self.assertIsNone(coordinator._deadline)
         self.assertIsNone(coordinator._metadata)

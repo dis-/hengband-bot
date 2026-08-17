@@ -11651,6 +11651,14 @@ class HengbotPolicy:
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:defer-identification"
                 return None
+            if target.is_digging_tool and not self._is_surplus_digging_tool(
+                snapshot, target
+            ):
+                # A plan computed before the fundraising withdrawal must not
+                # put the newly acquired kit straight back on Home's shelf.
+                self._abandon_blocked_equipment_transaction(snapshot)
+                self.last_reason = "equipment-transaction:retain-digging-tool"
+                return None
             main_hand = next(
                 (item for item in snapshot.equipment if item.slot == "main_hand"),
                 None,
@@ -12739,6 +12747,7 @@ class HengbotPolicy:
             return None
 
         signature: tuple[str, int, int] | None = None
+        transaction_identity: tuple | None = None
         quantity: int | None = None
         reason = "home:atomic-withdraw"
         address_slots = tuple(
@@ -12780,6 +12789,7 @@ class HengbotPolicy:
             )
             if transaction_slot is not None:
                 signature = self._item_signature(transaction_slot[1])
+                transaction_identity = action.item_identity
                 reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
             self.last_reason = "home:atomic-withdraw-target-unobserved"
@@ -12817,9 +12827,8 @@ class HengbotPolicy:
                 for index, item in reversed(address_slots)
                 if self._item_signature(item) == signature
                 and (
-                    action is None
-                    or action.kind != "withdraw"
-                    or equipment_identity(item) == action.item_identity
+                    transaction_identity is None
+                    or equipment_identity(item) == transaction_identity
                 )
             ),
             None,
@@ -12955,6 +12964,17 @@ class HengbotPolicy:
             for owner_index, owner_item in enumerate(self._home_knowledge_items)
             if self._item_signature(owner_item) in owner_signatures
         ]
+        if (
+            action is not None
+            and action.kind == "withdraw"
+            and transaction_identity is None
+        ):
+            owner_indices.extend(
+                owner_index
+                for owner_index, owner_item in enumerate(self._home_knowledge_items)
+                if owner_item.is_equipment
+                and equipment_identity(owner_item) == action.item_identity
+            )
         if owner_indices and index <= min(owner_indices):
             self._invalidate_home_observation()
         self.last_reason = reason
@@ -13108,6 +13128,12 @@ class HengbotPolicy:
             if self._retention_reservation(snapshot, current) > 0:
                 return None
             if self._identification_flow_owns(current):
+                return None
+            if current.is_digging_tool and not self._is_surplus_digging_tool(
+                snapshot, current
+            ):
+                self._abandon_blocked_equipment_transaction(snapshot)
+                self.last_reason = "equipment-transaction:retain-digging-tool"
                 return None
             # The one-shot transaction observation binds both the pack letter
             # and count used by the operation at this owned Home entry.
