@@ -12364,7 +12364,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:ranged-fire")
 
@@ -12397,7 +12397,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             for count in (5, 4, 3, 2)
         ]
 
-        self.assertEqual(attempts[:3], ["\x1bfj*p744444t5\x1b"] * 3)
+        self.assertEqual(attempts[:3], ["fj*p744444t5\x1b"] * 3)
         self.assertIsNone(attempts[3])
 
     def test_q31_cursor_fire_rejects_walkable_los_blocker(self):
@@ -15257,14 +15257,14 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         # A failed/no-op light read is still bounded: do not consume all six.
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
         )
 
         lit_grids = dict(grids)
         lit_grids[target.position] = replace(grids[target.position], lit=True)
         illuminated = replace(snapshot, grids=lit_grids, inventory=[bolts])
         self.assertEqual(
-            policy._approved_quest_strategy_key(illuminated, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(illuminated, [target], []), "fb6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
@@ -15677,7 +15677,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._q2_phase_key(snapshot, self.profiles[2], navigator)
 
-        self.assertEqual(key, "\x1bfq6")
+        self.assertEqual(key, "fq6")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
         self.assertFalse(key in {"7", "9"})
         self.assertIsNotNone(policy._q2_ammo_recovery_floor)
@@ -16095,7 +16095,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
 
         self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, [target], []), "\x1bfb6"
+            policy._approved_quest_strategy_key(snapshot, [target], []), "fb6"
         )
         no_crossbow = replace(
             snapshot,
@@ -16125,7 +16125,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [left, right], [])
 
-        self.assertEqual(key, "\x1bfq*p14t5\x1b")
+        self.assertEqual(key, "fq*p14t5\x1b")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
     def test_q2_deep_puddle_uses_explicit_cursor_instead_of_stalling_target_mode(self):
@@ -16148,7 +16148,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(snapshot, [target], [])
 
-        self.assertTrue(key.startswith("\x1bfn*p"), key)
+        self.assertTrue(key.startswith("fn*p"), key)
         self.assertTrue(key.endswith("t5\x1b"), key)
         self.assertNotIn("*t", key)
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
@@ -16229,7 +16229,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(
                 snapshot, [giant_rat, wererat], []
             ),
-            "\x1bfb2",
+            "fb2",
         )
 
     def test_q2_wererat_lock_hunts_out_of_range_before_next_phase(self):
@@ -40112,7 +40112,7 @@ class RangedAttackTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "fs*p777444444t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-offset")
 
-    def test_ranged_fire_reasons_flush_messages_but_store_purchase_does_not(self):
+    def test_ranged_fire_macros_start_with_f_but_store_purchase_keeps_escape(self):
         cases = (
             (
                 self._snap(

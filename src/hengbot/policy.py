@@ -7939,6 +7939,8 @@ class HengbotPolicy:
         if target is not None:
             self._ranged_target_macro_failures = 0
             self.last_reason = reason
+            # No leading ESC: at 00:31:55 it produced a same-turn pre-action
+            # snapshot that the posting contract consumed as post-action.
             return prefix + slot + self._direction_key(player.position, target.position)
 
         eligible = [
@@ -7992,6 +7994,8 @@ class HengbotPolicy:
             # 'p' resets both interest and free-grid targeting modes to the
             # player, giving the cursor movement a deterministic origin.
             self.last_reason = "ranged:fire-offset"
+            # No leading ESC: at 00:31:55 its same-turn pre-action snapshot was
+            # consumed as the post-action observation.
             return FIRE_KEY + ammo.slot + "*p" + keys + "t5\x1b"
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
@@ -8021,6 +8025,8 @@ class HengbotPolicy:
                 ammo.count,
             )
         self.last_reason = "ranged:fire-target"
+        # No leading ESC: at 00:31:55 its same-turn pre-action snapshot was
+        # consumed as the post-action observation.
         return FIRE_KEY + ammo.slot + "*t5\x1b"
 
     def _offset_fire_aim(
@@ -24104,16 +24110,14 @@ class HengbotPolicy:
                 return None
             self._ranged_target_signatures[target.index] = target.hp
             return (
-                LEAVE_STORE_KEY
-                + FIRE_KEY
+                FIRE_KEY
                 + ammo.slot
                 + "*p"
                 + self._cursor_delta_keys(snapshot.player.position, aim)
                 + "t5\x1b"
             )
         return (
-            LEAVE_STORE_KEY
-            + FIRE_KEY
+            FIRE_KEY
             + ammo.slot
             + self._direction_key(snapshot.player.position, target.position)
         )

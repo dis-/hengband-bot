@@ -121,7 +121,7 @@ class TownWorld:
         if key.startswith("R") and key.endswith("\r") and key[1:-1].isdigit():
             self.turn += EMITTED_TURNS_PER_PLAYER_TURN * int(key[1:-1])
             return
-        if key == "~9":
+        if key.startswith("~9"):
             self.pending_home_knowledge = True
             return
         if self.inside:

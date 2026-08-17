@@ -268,12 +268,10 @@ INPUT_DELAY_DEFAULTS = {
     "input_travel_prompt_delay": TRAVEL_PROMPT_DELAY_SECONDS,
 }
 
-# ``~9`` emits the requested Home catalogue before entering two nested,
-# persistent input loops: the Home file viewer and the enclosing knowledge
-# menu.  Neither loop is represented in the JSON snapshot.  The response
-# dispatcher closes both only after observing the catalogue; sending Escape in
-# the request batch races the emitter and can suppress that response.
-KNOWLEDGE_HOME_COMMAND = "~9"
+# cmd-knowledge.cpp:343-345 emits the Home catalogue before opening the Home
+# viewer, and do_cmd_knowledge's plain inkey() loop (line 70) does not flush
+# input.  The trailing Escapes therefore close both menus after the response;
+# they cannot suppress the catalogue.
 
 
 TRAVEL_MACRO_TRIGGERS = {

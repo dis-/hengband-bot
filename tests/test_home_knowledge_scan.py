@@ -124,7 +124,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         key = policy.choose_key(town_with_home())
 
-        self.assertEqual(key, "~9")
+        self.assertEqual(key, "~9\x1b\x1b")
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         self.assertEqual(policy._home_processing_seen_pages, set())
         self.assertIsNone(policy._home_knowledge_scan_leave_turn)
@@ -147,7 +147,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
         snapshot = town_with_home()
         confirm_outside_after_home_leave(policy, snapshot)
-        self.assertEqual(policy.choose_key(snapshot), "~9")
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         self.assertFalse(policy._home_knowledge_scan_requested)
         self.assertTrue(policy.confirm_key_posted("~9"))
@@ -213,7 +213,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertEqual(owned[0].item.name, "Long Sword")
         self.assertEqual(owned[0].item.damage_dice_num, 2)
 
-    def test_consumption_exits_menu_with_no_additional_key(self):
+    def test_consumption_posts_no_additional_menu_close(self):
         policy = HengbotPolicy()
         policy._home_knowledge_scan_inflight = True
         send = Mock(return_value=True)
@@ -222,7 +222,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             [json.dumps(home_response())], policy, send
         )
 
-        send.assert_called_once_with("\x1b\x1b")
+        send.assert_not_called()
 
     def test_empty_response_is_authoritative_despite_prior_page_size(self):
         policy = HengbotPolicy()
@@ -231,14 +231,14 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             HomeErrandRequest(("missing", 23, 17), 1, "capture", "weapon"),
             knowledge_current=False,
         )
-        policy.confirm_key_posted("~9")
+        policy.confirm_key_posted("~9\x1b\x1b")
         response = home_response()
         response["knowledge"]["items"] = []
         sent = []
 
         _dispatch_response_lines([json.dumps(response)], policy, sent.append)
 
-        self.assertEqual(sent, ["\x1b\x1b"])
+        self.assertEqual(sent, [])
         self.assertTrue(policy._home_knowledge_current)
         self.assertEqual(policy._home_knowledge_valid_before, 0)
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
@@ -273,7 +273,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         self.assertEqual([snapshot.store is not None for snapshot in snapshots], [False, True])
         self.assertEqual(policy._home_scan_item_count, 2)
-        self.assertEqual(sent, ["\x1b\x1b"])
+        self.assertEqual(sent, [])
 
     def test_full_sequence_replay_uses_three_recorded_batches_for_six_lines(self):
         lines = [json.dumps(row) for row in (
@@ -321,8 +321,8 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
         snapshot = town_with_home()
         confirm_outside_after_home_leave(policy, snapshot)
-        self.assertEqual(policy.choose_key(snapshot), "~9")
-        policy.confirm_key_posted("~9")
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
 
         # The next ordinary board is produced after bounded CLI prompt recovery.
         policy.choose_key(snapshot)
@@ -364,8 +364,8 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             turn=snapshot.turn + 1,
             town_flag=True,
         )
-        self.assertEqual(policy.choose_key(snapshot), "~9")
-        self.assertTrue(policy.confirm_key_posted("~9"))
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
+        self.assertTrue(policy.confirm_key_posted("~9\x1b\x1b"))
         self.assertTrue(policy._home_knowledge_scan_inflight)
 
     def test_unposted_or_replaced_request_does_not_consume_latch(self):
@@ -375,10 +375,10 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         snapshot = town_with_home()
         confirm_outside_after_home_leave(policy, snapshot)
 
-        self.assertEqual(policy.choose_key(snapshot), "~9")
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
         self.assertFalse(policy._home_knowledge_scan_requested)
         self.assertFalse(policy._home_knowledge_scan_inflight)
-        self.assertEqual(policy.choose_key(snapshot), "~9")
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
 
     def test_abandonment_allows_exactly_one_rerequest_per_home_visit(self):
         policy = HengbotPolicy()
@@ -387,11 +387,11 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         snapshot = town_with_home()
         confirm_outside_after_home_leave(policy, snapshot)
 
-        self.assertEqual(policy.choose_key(snapshot), "~9")
-        policy.confirm_key_posted("~9")
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
         policy.choose_key(snapshot)  # abandon the first posted request
-        self.assertEqual(policy.choose_key(snapshot), "~9")
-        policy.confirm_key_posted("~9")
+        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
         policy.choose_key(snapshot)  # abandon the one permitted re-request
         self.assertTrue(policy._home_knowledge_scan_requested)
         self.assertNotEqual(policy.choose_key(snapshot), "~9")
@@ -446,7 +446,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         keys = [policy.choose_key(snapshot) for _ in range(4)]
 
-        self.assertEqual(keys, ["~9"] * 4)
+        self.assertEqual(keys, ["~9\x1b\x1b"] * 4)
         self.assertNotIn("5", keys)
 
     def test_scan_source_and_count_are_recorded(self):
