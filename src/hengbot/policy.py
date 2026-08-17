@@ -10618,6 +10618,13 @@ class HengbotPolicy:
             if item.origin == "pack"
             and (
                 self._identification_flow_owns(item.item)
+                # Abandonment quarantines the failed physical action for this
+                # town visit.  Deposits are not target-loadout members, so the
+                # selector's failed-target check cannot suppress a stale
+                # deposit by itself.  Preserve that pack item explicitly or a
+                # fresh plan recreates the same deposit immediately after the
+                # old session releases ownership.
+                or item.id in self._equipment_transaction_failed_items
                 or self._retention_reservation(snapshot, item.item) > 0
                 or (
                     item.item.is_digging_tool

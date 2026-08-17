@@ -53817,6 +53817,134 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual(public_policy.last_reason, "policy:none-store-exit")
         self.assertIsNone(public_policy._equipment_transaction_session)
 
+    def test_exhausted_home_route_abandonment_does_not_replan_failed_deposit(self):
+        """Replay A13's checkpoint: two bounded owners must not alternate."""
+        shovel = item(
+            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy, outside = NoSafeRecallDestinationTest()._fixture()
+        outside = replace(outside, inventory=[shovel])
+        policy.choose_key(outside)
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: replay starts from the captured exhausted transaction checkpoint
+        policy._equipment_catalog = OwnedEquipmentCatalog()
+        policy._equipment_catalog.refresh_carried([shovel], [])
+        policy._equipment_catalog.home_scan_complete = True
+        owned = policy._equipment_catalog.items[0]
+        seed_character_calibration(policy, outside)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            owned.id,
+            item_identity=policy_module.equipment_identity(shovel),
+        )
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=object(), transaction=object(),
+        )
+        policy._set_equipment_transaction_session(
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
+            CALIBRATION_HOME_VISIT_LIMIT
+        )
+        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
+        policy._town_visit_ledger.blocked_store_limits[STORE_HOME] = (
+            CALIBRATION_HOME_VISIT_LIMIT
+        )
+
+        reasons = []
+        for offset in range(8):
+            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: unchanged archived town state is the A13 owner-alternation stimulus
+            policy.choose_key(replace(outside, turn=outside.turn + offset + 1))
+            reasons.append(policy.last_reason)
+
+        self.assertEqual(
+            reasons[:2],
+            [
+                "equipment-transaction:home-route-unavailable",
+                "equipment-transaction:abandon-blocked",
+            ],
+        )
+        self.assertNotIn(
+            "equipment-transaction:home-route-unavailable", reasons[2:]
+        )
+        self.assertNotIn("equipment-transaction:abandon-blocked", reasons[2:])
+        self.assertIsNone(policy._equipment_transaction_session)
+
+    def test_restarted_exhausted_route_quarantines_captured_failed_deposit(self):
+        """A restarted A13 checkpoint exits without relying on prior decisions."""
+        shovel = item(
+            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy, outside = NoSafeRecallDestinationTest()._fixture()
+        outside = replace(outside, inventory=[shovel])
+        policy.choose_key(outside)
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: restart pin reconstructs the captured blocked transaction checkpoint
+        policy._equipment_catalog = OwnedEquipmentCatalog()
+        policy._equipment_catalog.refresh_carried([shovel], [])
+        policy._equipment_catalog.home_scan_complete = True
+        owned = policy._equipment_catalog.items[0]
+        seed_character_calibration(policy, outside)
+        policy._equipment_transaction_failed_items.add(owned.id)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit", owned.id,
+            item_identity=policy_module.equipment_identity(shovel),
+        )
+        blocked = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 1)
+        )
+        blocked.block("home-route-unavailable")
+        policy._equipment_transaction_session = blocked
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=object(), transaction=object(),
+        )
+
+        policy.choose_key(replace(outside, turn=outside.turn + 1))
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:abandon-blocked"
+        )
+        policy.choose_key(replace(outside, turn=outside.turn + 2))
+
+        self.assertNotIn(
+            policy.last_reason,
+            {"equipment-transaction:home-route-unavailable",
+             "equipment-transaction:abandon-blocked"},
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
+
+    def test_abandoned_deposit_is_preserved_from_every_replanned_transaction(self):
+        """The failed A13 action must be absent from the next plan's deposits."""
+        shovel = item(
+            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy, outside = NoSafeRecallDestinationTest()._fixture()
+        outside = replace(outside, inventory=[shovel])
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: planner pin starts from the captured failed-deposit quarantine state
+        policy._equipment_catalog = OwnedEquipmentCatalog()
+        policy._equipment_catalog.refresh_carried([shovel], outside.equipment)
+        seed_character_calibration(policy, outside)
+        owned = next(
+            item for item in policy._equipment_catalog.items
+            if item.origin == "pack"
+        )
+        policy._equipment_transaction_failed_items.add(owned.id)
+        captured = []
+
+        def prepare(*args, **kwargs):
+            captured.append(kwargs["preserve_pack_item_ids"])
+            return SimpleNamespace(ready=False, transaction=None)
+
+        with patch("hengbot.policy.prepare_warrior_optimization", prepare):
+            policy._prepare_equipment_optimization(outside)
+
+        self.assertGreaterEqual(len(captured), 1)
+        self.assertTrue(all(owned.id in preserve for preserve in captured))
+
     def test_public_no_session_latched_restore_dresses_pack_again(self):
         policy, snapshot, inventory = self._stripped_fixture()
         inventory = [replace(item, is_equipment=True) for item in inventory]

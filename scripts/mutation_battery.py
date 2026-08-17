@@ -60,6 +60,7 @@ PUBLIC_TESTS = frozenset(
         "test_policy.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
         "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
+        "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
     }
 )
 DEFAULT_TESTS = (
@@ -432,6 +433,16 @@ MUTATIONS = (
             "            and self._home_digger_withdraw_pending\n"
             "            and self._home_pending_item is not None\n"
             "        ):\n",
+        ),),
+    ),
+    Mutation(
+        "replan-abandoned-pack-deposit",
+        True,
+        "Restore A13 by allowing a failed deposit back into every fresh plan.",
+        (replacement(
+            "policy.py",
+            "                or item.id in self._equipment_transaction_failed_items\n",
+            "",
         ),),
     ),
     Mutation(
