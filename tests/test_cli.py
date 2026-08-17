@@ -345,6 +345,26 @@ class UniversalPostingContractTest(unittest.TestCase):
             )
         )
 
+    def test_completed_dual_wield_prompt_history_is_not_an_open_owner(self):
+        """04:46 capture: win completed before the prompt entered history."""
+        history = (
+            "二刀流で戦いますか？[y/n]",
+            "Sword (i)を装備した。",
+            "Jackal hits you.",
+        )
+        self.assertIsNone(_open_game_prompt(history))
+
+        contract = PostingContract()
+        posted = self.snapshot(turn=2191793)
+        contract.posted(posted, "win", "melee:restore-weapon")
+        completed = self.snapshot(turn=2191803, messages=history)
+        self.assertTrue(contract.allow(completed, "2", "melee"))
+        self.assertIsNone(contract.last_incident)
+
+    def test_newest_serialized_prompt_still_owns_input(self):
+        prompt = "Sell for $17? [Y/n]"
+        self.assertEqual(_open_game_prompt(("older", prompt)), prompt)
+
     def test_ledger_120x_wield_restore_read_order_is_serialized(self):
         """Posted-ledger rows 94685-94733, turns 926205-926303: ta/wgy/wfa."""
         policy = HengbotPolicy()

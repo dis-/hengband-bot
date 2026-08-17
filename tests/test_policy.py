@@ -4447,6 +4447,33 @@ class CombatTest(unittest.TestCase):
         self.assertIsNone(step)
         nearest.assert_not_called()
 
+    def test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard(self):
+        """Capture-derived north/south jackal alternation has a policy bound."""
+        policy = HengbotPolicy()
+        base = Snapshot(
+            player(22, 6, hp=242, max_hp=242, level=12),
+            {Position(22, 6): grid(22, 6)},
+            [],
+            floor_key=(2, 1, 0),
+        )
+        north = hostile(1, 19, 5, hp=12, max_hp=12, distance=3, race_id=35)
+        south = hostile(2, 25, 7, hp=12, max_hp=12, distance=3, race_id=35)
+
+        with patch.object(policy, "_nearest_goal_step", return_value=Position(23, 6)):
+            self.assertEqual(policy._hunt_step(base, [north, south]), Position(23, 6))
+            for _ in range(policy_module.HUNT_RANGE - 1):
+                self.assertEqual(
+                    policy._hunt_step(base, [north, south]), Position(23, 6)
+                )
+            self.assertIsNone(policy._hunt_step(base, [north, south]))
+
+        self.assertEqual(policy._hunt_cooled_targets, {1, 2})
+        self.assertEqual(
+            policy.consume_pending_mutation_report(),
+            "hunt:abandoned-no-damage-no-closure",
+        )
+        self.assertIsNone(policy._hunt_step(base, [north, south]))
+
     def test_hunt_still_rejects_individually_dangerous_target(self):
         monster = hostile(
             1, 10, 13, hp=300, max_hp=300, distance=3, speed=121,

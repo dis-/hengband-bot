@@ -44,6 +44,8 @@ PUBLIC_TESTS = frozenset(
         "test_policy.TownAndFundraisingPolicyTest.test_scavenge_plan_routes_unaddressed_home_digger_latch_and_clears_queue",
         "test_navigation.StairRejectionInvalidationTest.test_interleaved_refusal_probe_releases_older_stair_watch",
         "test_navigation.StairRejectionInvalidationTest.test_quiet_same_turn_stair_watch_has_visible_bounded_probe",
+        "test_cli.UniversalPostingContractTest.test_completed_dual_wield_prompt_history_is_not_an_open_owner",
+        "test_policy.CombatTest.test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard",
     }
 )
 DEFAULT_TESTS = (
@@ -73,6 +75,32 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "scan-prompt-shaped-message-history",
+        True,
+        "Treat a completed dual-wield question in history as an open prompt.",
+        (replacement(
+            "cli.py",
+            "    newest = tuple(messages)[-1] if messages else None\n"
+            "    if newest is not None and any(marker in newest for marker in markers):\n"
+            "        return newest\n"
+            "    return None\n",
+            "    for message in reversed(tuple(messages)):\n"
+            "        if any(marker in message for marker in markers):\n"
+            "            return message\n"
+            "    return None\n",
+        ),),
+    ),
+    Mutation(
+        "disable-hunt-progress-release",
+        True,
+        "Restore the unbounded midpoint hunt claim.",
+        (replacement(
+            "policy.py",
+            "        if self._hunt_progress_steps >= HUNT_RANGE:\n",
+            "        if False and self._hunt_progress_steps >= HUNT_RANGE:\n",
+        ),),
+    ),
     Mutation(
         "rearm-only-in-mine-mode",
         True,

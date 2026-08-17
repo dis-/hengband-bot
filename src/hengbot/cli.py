@@ -1459,11 +1459,17 @@ def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
 
 
 def _open_game_prompt(messages) -> str | None:
-    """Return the newest serialized interactive prompt, if any."""
+    """Return a serialized prompt only when it is the newest message.
+
+    Completed input checks remain in message history.  In particular, the
+    dual-wield question is emitted only after its composed answer has already
+    completed the command, while the which-hand selector is never serialized.
+    Older prompt-shaped history therefore cannot represent an open input owner.
+    """
     markers = ("[Y/n]", "[y/n]", "[Y/N]", "Quantity", "quantity", "個")
-    for message in reversed(tuple(messages)):
-        if any(marker in message for marker in markers):
-            return message
+    newest = tuple(messages)[-1] if messages else None
+    if newest is not None and any(marker in newest for marker in markers):
+        return newest
     return None
 
 
