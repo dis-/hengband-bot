@@ -9087,6 +9087,21 @@ class RestTest(unittest.TestCase):
 
 
 class PickupTest(unittest.TestCase):
+    def test_pickup_declares_seek_loot_prompt_handoff(self):
+        position = Position(10, 10)
+        snapshot = Snapshot(
+            player(10, 10),
+            {position: grid(10, 10, objects=1)},
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 3, 0),
+        )
+        policy = HengbotPolicy()
+        policy._position_changed = True
+
+        self.assertEqual(policy._normal_loot_key(snapshot, []), PICKUP_KEY)
+        self.assertEqual(policy.last_reason, "pickup")
+        self.assertEqual(policy.prompt_owner_handoff, "seek-loot")
+
     def test_mana_food_deficit_prioritizes_device_over_known_downstairs(self):
         grids = {
             Position(10, 10): grid(10, 10, downstairs=True),
@@ -39569,6 +39584,9 @@ class TownCycleDetectorTest(unittest.TestCase):
             self.assertEqual(pol._fundraising_mode, "mine")
 
         self.assertEqual(pol.last_reason, "fundraise:departure-blocked")
+        self.assertEqual(
+            pol.prompt_owner_handoff, "town:blocked:departure-no-light"
+        )
         self.assertEqual(pol._fundraising_mode, "mine")
 
     def test_low_gold_cycle_break_starts_scavenge_and_avoids_immediate_return(self):

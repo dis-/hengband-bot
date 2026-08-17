@@ -789,6 +789,7 @@ def _decision_record(
     equipment_mutation_report: str | None = None,
     home_visit_report: str | None = None,
     hunt_report: str | None = None,
+    prompt_owner_handoff: str | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -812,6 +813,7 @@ def _decision_record(
         "objective": _objective_for_reason(reason),
         "reason": reason,
         "key": key,
+        "prompt_owner_handoff": prompt_owner_handoff,
         # Preserve the player-visible evidence associated with the exact board
         # against which this key was chosen.  In particular, repeat counters in
         # the message line let an incident review distinguish a newly rejected
@@ -1391,6 +1393,11 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
+                    (
+                        policy.prompt_owner_handoff
+                        if policy is not None
+                        else None
+                    ),
                 ),
                 file,
                 ensure_ascii=False,
@@ -1500,7 +1507,14 @@ class PostingContract:
         self._last_posted_effect: tuple | None = None
         self.last_incident: dict[str, object] | None = None
 
-    def allow(self, snapshot, key: str, owner: str) -> bool:
+    def allow(
+        self,
+        snapshot,
+        key: str,
+        owner: str,
+        *,
+        prompt_owner_handoff: str | None = None,
+    ) -> bool:
         self.last_incident = None
         prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
         effect = _posting_effect_signature(snapshot, owner, key)
@@ -1518,6 +1532,7 @@ class PostingContract:
             )
             and self._last_posted_owner is not None
             and owner != self._last_posted_owner
+            and prompt_owner_handoff != self._last_posted_owner
         ):
             self.last_incident = {
                 "marker": "posting-contract:prompt-owner-mismatch",
@@ -1616,10 +1631,20 @@ def _send_new_decision_key(
     if not key:
         return False, posted_line
     owner = str((decision or {}).get("reason", "unknown"))
+    prompt_owner_handoff = (decision or {}).get("prompt_owner_handoff")
     if (
         posting_contract is not None
         and snapshot is not None
-        and not posting_contract.allow(snapshot, key, owner)
+        and not posting_contract.allow(
+            snapshot,
+            key,
+            owner,
+            prompt_owner_handoff=(
+                str(prompt_owner_handoff)
+                if prompt_owner_handoff is not None
+                else None
+            ),
+        )
     ):
         return False, posted_line
     if key in posted_keys:
@@ -2148,8 +2173,14 @@ def main(argv: list[str] | None = None) -> int:
                 "turn": snapshot.turn,
                 "reason": policy.last_reason,
                 "key": key,
+                "prompt_owner_handoff": policy.prompt_owner_handoff,
             }
-            if not posting_contract.allow(snapshot, key, policy.last_reason):
+            if not posting_contract.allow(
+                snapshot,
+                key,
+                policy.last_reason,
+                prompt_owner_handoff=policy.prompt_owner_handoff,
+            ):
                 _write_posting_contract_incident(
                     args.decision_log, snapshot, posting_contract.last_incident
                 )
@@ -2752,6 +2783,7 @@ def _run_follow(
                             "turn": snapshot.turn,
                             "reason": policy.last_reason,
                             "key": key,
+                            "prompt_owner_handoff": policy.prompt_owner_handoff,
                         },
                         snapshot=snapshot,
                         posting_contract=posting_contract,
@@ -2804,6 +2836,7 @@ def _run_follow(
                                 "turn": snapshot.turn,
                                 "reason": policy.last_reason,
                                 "key": key,
+                                "prompt_owner_handoff": policy.prompt_owner_handoff,
                             },
                             snapshot=snapshot,
                             posting_contract=posting_contract,

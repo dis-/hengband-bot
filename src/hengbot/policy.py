@@ -2557,6 +2557,7 @@ class HengbotPolicy:
         self._destroy_watch: tuple[tuple[str, int, int], int, int] | None = None
         self._destroy_fail_streak = 0
         self.last_reason = ""
+        self.prompt_owner_handoff: str | None = None
 
     # ------------------------------------------------------------------ core
     def _with_grid_memory(self, snapshot: Snapshot) -> Snapshot:
@@ -2865,6 +2866,7 @@ class HengbotPolicy:
         # the carried catalogue authoritative here so a freshly observed
         # strip cannot be recorded (or reasoned about) beside the preceding
         # decision's worn set.
+        self.prompt_owner_handoff = None
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -22098,6 +22100,7 @@ class HengbotPolicy:
                         self.last_reason = "fundraise:departure-blocked-step-off"
                         return self._step_toward(snapshot, neighbors[0])
                 self.last_reason = "fundraise:departure-blocked"
+                self.prompt_owner_handoff = "town:blocked:departure-no-light"
                 return WAIT_KEY
             return None
 
@@ -23839,6 +23842,8 @@ class HengbotPolicy:
                 self.last_reason = trigger_reason
                 return self._step_toward(snapshot, step)
         self.last_reason = pickup_reason
+        if pickup_reason == "pickup":
+            self.prompt_owner_handoff = "seek-loot"
         self._pending_loot_pickup = (
             snapshot.floor_key,
             here.position,

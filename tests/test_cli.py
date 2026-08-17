@@ -477,6 +477,64 @@ class UniversalPostingContractTest(unittest.TestCase):
             "posting-contract:prompt-owner-mismatch",
         )
 
+    def test_prompt_owner_handoff_accepts_claimed_pickup_once(self):
+        contract = PostingContract()
+        raised = self.snapshot(turn=3264100)
+        contract.posted(raised, "6", "seek-loot")
+        prompt = self.snapshot(
+            turn=3264100,
+            messages=("59個の 鉄弾 (1d3) (+0,+0)がある。 <x44>",),
+        )
+        posted = []
+
+        sent, _ = _send_new_decision_key(
+            lambda key, **_kwargs: posted.append(key) or True,
+            "pickup-prompt", "g", None, set(), in_store=False,
+            decision={
+                "reason": "pickup",
+                "prompt_owner_handoff": "seek-loot",
+            },
+            snapshot=prompt,
+            posting_contract=contract,
+        )
+
+        self.assertTrue(sent)
+        self.assertEqual(posted, ["g"])
+        self.assertIsNone(contract.last_incident)
+
+    def test_prompt_owner_handoff_must_claim_actual_owner(self):
+        contract = PostingContract()
+        raised = self.snapshot(turn=4020002)
+        contract.posted(raised, "d0y", "shop:batch-sell")
+        prompt = self.snapshot(turn=4020002, messages=("Sell for $17? [Y/n]",))
+
+        self.assertFalse(contract.allow(
+            prompt,
+            "g",
+            "pickup",
+            prompt_owner_handoff="seek-loot",
+        ))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:prompt-owner-mismatch",
+        )
+
+    def test_departure_blocked_handoff_accepts_its_standing_prompt(self):
+        contract = PostingContract()
+        raised = self.snapshot(turn=3264322)
+        contract.posted(raised, "5", "town:blocked:departure-no-light")
+        prompt = self.snapshot(
+            turn=3264322,
+            messages=("59個の 鉄弾 (1d3) (+0,+0)がある。 <x13>",),
+        )
+
+        self.assertTrue(contract.allow(
+            prompt,
+            "5",
+            "fundraise:departure-blocked",
+            prompt_owner_handoff="town:blocked:departure-no-light",
+        ))
+
     def test_both_watchdog_incidents_write_visible_marker_records(self):
         incidents = (
             {"marker": "posting-contract:identical-repost-unobserved"},
@@ -1862,6 +1920,16 @@ class DecisionRecordTest(unittest.TestCase):
             "building_special": 34,
         }]
         return parse_snapshot(data, {})
+
+    def test_prompt_owner_handoff_is_visible_in_decision_record(self):
+        policy = HengbotPolicy()
+        policy.prompt_owner_handoff = "seek-loot"
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            _write_decision(path, self._town_snapshot(), "g", "pickup", policy)
+            row = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(row["prompt_owner_handoff"], "seek-loot")
 
     def test_choose_key_mutation_reports_survive_reason_fallthrough(self):
         snapshot = self._town_snapshot()
