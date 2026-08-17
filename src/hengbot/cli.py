@@ -1447,6 +1447,41 @@ def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
     if "recall" in owner and key.startswith("r"):
         return (recalling,)
 
+    # Volley commands are intentionally repetitive.  Their acknowledgement is
+    # not an unrelated turn/message update but consumption of the exact pack
+    # stack selected by the composed ``f<slot>...`` macro.  The missing-item
+    # state also acknowledges firing the final missile in a stack.
+    if owner in {"ranged:fire", "ranged:fire-target", "ranged:fire-offset"}:
+        fire_index = key.find("f")
+        ammo_slot = key[fire_index + 1 : fire_index + 2]
+        ammo = next(
+            (
+                item for item in snapshot.inventory
+                if getattr(item, "slot", None) == ammo_slot
+            ),
+            None,
+        )
+        if ammo is None:
+            return (ammo_slot, None)
+        return (
+            ammo_slot,
+            getattr(ammo, "tval", None),
+            getattr(ammo, "sval", None),
+            getattr(ammo, "count", None),
+        )
+
+    # Autodestroy walks can legitimately repeat one direction over several
+    # adjacent cells.  Only the resulting movement (including a floor
+    # transition) acknowledges the preceding direction; an unrelated turn or
+    # pack/message update must not mask a swallowed movement key.
+    if "trigger-autodestroy" in owner and key in DIRECTION_KEYS:
+        position = player.position
+        return (
+            getattr(snapshot, "floor_key", None),
+            position.y,
+            position.x,
+        )
+
     def item_state(item):
         return tuple(
             getattr(item, field, None)

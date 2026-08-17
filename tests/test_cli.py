@@ -330,6 +330,68 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
+    def test_volley_repost_requires_selected_ammo_consumption(self):
+        key = "\x1bfa*t5\x1b"
+        owner = "ranged:fire-target"
+        contract = PostingContract()
+        before = self.snapshot(turn=2960000, count=12)
+        before.inventory[0].slot = "a"
+        contract.posted(before, key, owner)
+
+        unrelated = self.snapshot(turn=2960001, count=12, messages=("miss",))
+        unrelated.inventory[0].slot = "a"
+        self.assertFalse(contract.allow(unrelated, key, owner))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:identical-repost-unobserved",
+        )
+
+        consumed = self.snapshot(turn=2960001, count=11)
+        consumed.inventory[0].slot = "a"
+        self.assertTrue(contract.allow(consumed, key, owner))
+        self.assertIsNone(contract.last_incident)
+
+    def test_autodestroy_repost_requires_position_effect(self):
+        owner = "trigger-autodestroy"
+        contract = PostingContract()
+        before = self.snapshot(turn=2963992)
+        contract.posted(before, "8", owner)
+
+        unrelated = self.snapshot(turn=2963993, count=2, messages=("changed",))
+        self.assertFalse(contract.allow(unrelated, "8", owner))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:identical-repost-unobserved",
+        )
+
+        moved = self.snapshot(turn=2963993)
+        moved.player.position.y -= 1
+        self.assertTrue(contract.allow(moved, "8", owner))
+        self.assertIsNone(contract.last_incident)
+
+    def test_unobserved_volley_recovers_through_identity_breaking_probe(self):
+        owner = "ranged:fire"
+        key = "\x1bfa8"
+        contract = PostingContract()
+        unchanged = self.snapshot(turn=2963992, count=12)
+        unchanged.inventory[0].slot = "a"
+        contract.posted(unchanged, key, owner)
+
+        self.assertFalse(contract.allow(unchanged, key, owner))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:identical-repost-unobserved",
+        )
+
+        # The standard A11r2 refusal recovery posts a look/ESC observation
+        # barrier under the refusing owner.  A fresh snapshot can then
+        # recompose the volley without granting a blanket duplicate exemption.
+        probe = "l\x1b"
+        contract.posted(unchanged, probe, owner)
+        fresh = self.snapshot(turn=2963992, count=12)
+        fresh.inventory[0].slot = "a"
+        self.assertTrue(contract.allow(fresh, key, owner))
+
     def test_wield_effect_guard_owns_only_the_same_observed_turn(self):
         contract = PostingContract()
         posted = self.snapshot(turn=20)
