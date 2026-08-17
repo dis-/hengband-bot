@@ -47490,7 +47490,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     replace(entrance, turn=entrance.turn + attempt),
                     entrance.player.position,
                 ),
-                "12346789",
+                set("12346789"),
             )
             self.assertEqual(
                 policy.last_reason,
@@ -48196,7 +48196,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(wares[55])
         self.assertIn(
             policy._atomic_home_withdraw_key(entrance, Position(1, 1)),
-            "12346789",
+            set("12346789"),
         )
 
     def test_derived_withdrawal_waits_when_page_size_was_never_observed(self):
@@ -48716,7 +48716,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(
                 entrance, entrance.player.position
             ),
-            "12346789",
+            set("12346789"),
         )
         self.assertEqual(
             policy.last_reason,
