@@ -9436,10 +9436,19 @@ class HengbotPolicy:
         ):
             self._digger_home_withdraw_failures += 1
 
-    def _digger_buy_fallback_available(self) -> bool:
+    def _digger_buy_fallback_available(self, snapshot: Snapshot) -> bool:
+        """Allow one visible replacement only while total stock is short.
+
+        Two failed Home takes release the bot from retrying an unreachable
+        address; they do not make known Home stock disappear.  A successful
+        fallback buy can itself raise carried + withdrawable Home stock to the
+        two-digger target, so every consumer must recheck that ceiling before
+        routing or selecting another shop purchase.
+        """
         return (
             self._digger_home_withdraw_failures >= 2
             and not self._digger_fallback_bought_this_visit
+            and self._withdrawable_digging_tool_count(snapshot) < 2
         )
 
     def _has_withdrawable_digging_tool(self, snapshot: Snapshot) -> bool:
@@ -15715,7 +15724,7 @@ class HengbotPolicy:
 
         if fundraising_active:
             if (
-                self._digger_buy_fallback_available()
+                self._digger_buy_fallback_available(snapshot)
                 and STORE_GENERAL not in self._town_store_attempted
             ):
                 add(STORE_GENERAL, "fundraising-digger")
@@ -15724,7 +15733,7 @@ class HengbotPolicy:
                     add(STORE_HOME, "fundraising-kit", "home-first")
                 if (
                     not self._has_withdrawable_digging_tool(snapshot)
-                    or self._digger_buy_fallback_available()
+                    or self._digger_buy_fallback_available(snapshot)
                 ):
                     if STORE_GENERAL not in self._town_store_attempted:
                         add(STORE_GENERAL, "fundraising-digger")
@@ -15767,7 +15776,7 @@ class HengbotPolicy:
                     STORE_GENERAL not in self._town_store_attempted
                     and (
                         self._withdrawable_digging_tool_count(snapshot) < 2
-                        or self._digger_buy_fallback_available()
+                        or self._digger_buy_fallback_available(snapshot)
                     )
                 ):
                     add(STORE_GENERAL, "mining-digger")
@@ -18502,7 +18511,7 @@ class HengbotPolicy:
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             if (
                 not self._has_withdrawable_digging_tool(snapshot)
-                or self._digger_buy_fallback_available()
+                or self._digger_buy_fallback_available(snapshot)
             ):
                 digger = next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
@@ -18554,7 +18563,7 @@ class HengbotPolicy:
                     return detection_scroll
             if (
                 not self._has_withdrawable_digging_tool(snapshot)
-                or self._digger_buy_fallback_available()
+                or self._digger_buy_fallback_available(snapshot)
             ):
                 digger = next(
                     (it for it in store.items if it.is_digging_tool and it.price <= gold),
@@ -18597,7 +18606,7 @@ class HengbotPolicy:
                     return torch
             if (
                 self._withdrawable_digging_tool_count(snapshot) < 2
-                or self._digger_buy_fallback_available()
+                or self._digger_buy_fallback_available(snapshot)
             ):
                 digger = next(
                     (
@@ -20173,7 +20182,7 @@ class HengbotPolicy:
             elif item.is_treasure_detection_scroll:
                 self.last_reason = "shop:buy-treasure-detection"
             elif item.is_digging_tool:
-                fallback_purchase = self._digger_buy_fallback_available()
+                fallback_purchase = self._digger_buy_fallback_available(snapshot)
                 self.last_reason = (
                     "shop:buy-digging-tool:home-withdraw-failed-fallback"
                     if fallback_purchase

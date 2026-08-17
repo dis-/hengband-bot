@@ -20241,7 +20241,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 restarted._town_store_attempted[STORE_HOME] = general.turn
             self.assertIsNone(restarted._next_purchase_unreserved(general))
 
-    def test_two_visible_withdraw_failures_allow_one_recorded_fallback_buy(self):
+    def test_two_visible_withdraw_failures_do_not_override_total_stock_target(self):
         held = item("p", TVAL_DIGGING, 1, name="held shovel")
         stored = store_item(
             "b", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
@@ -20261,26 +20261,73 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._digger_home_withdraw_failures = 1
         self.assertIsNone(policy._next_purchase_unreserved(general))
         policy._digger_home_withdraw_failures = 2
-        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertFalse(
+            policy._digger_buy_fallback_available(general),
+            "one carried plus one withdrawable Home digger reaches the target",
+        )
         policy._fundraising_mode = "scavenge"
-        self.assertIn(
+        self.assertNotIn(
             TownNeed(STORE_GENERAL, "fundraising-digger", "normal"),
             policy._enumerate_town_needs(replace(general, store=None)),
         )
         policy._record_shop_selector_diagnostics(general, LEAVE_STORE_KEY)
-        self.assertTrue(policy._digger_buy_fallback_available())
-        self.assertTrue(policy._shop(general).startswith(BUY_KEY))
-        self.assertTrue(policy._digger_fallback_bought_this_visit)
-        self.assertEqual(
-            policy.last_reason,
-            "shop:buy-digging-tool:home-withdraw-failed-fallback",
-        )
+        self.assertFalse(policy._digger_buy_fallback_available(general))
+        self.assertEqual(policy._shop(general), LEAVE_STORE_KEY)
+        self.assertFalse(policy._digger_fallback_bought_this_visit)
         self.assertIsNone(policy._next_purchase_unreserved(general))
 
         ordinary = HengbotPolicy()
         ordinary._fundraising_mode = "prepare"
         self.assertTrue(ordinary._shop(general).startswith(BUY_KEY))
         self.assertEqual(ordinary.last_reason, "shop:buy-digging-tool")
+
+    def test_gate1_digger_rebuy_window_stops_after_first_fallback_purchase(self):
+        """Gate 1: replay the 02:51:21/02:51:36 stock transition.
+
+        The 02:51:08 Home scan contained one shovel.  The raw buy snapshots
+        then contained zero carried diggers before buy one, one afterward, and
+        still one immediately before buy two.  The first fallback is bounded
+        by total stock, even after its in-flight purchase has been confirmed.
+        """
+        stored = store_item(
+            "b", TVAL_DIGGING, 1, name="Home shovel", is_equipment=True
+        )
+        offered = store_item(
+            "m", TVAL_DIGGING, 4, name="general-store pick", price=148,
+            is_equipment=True,
+        )
+        before = Snapshot(
+            player(10, 10, gold=2022, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=self._strict_supplies(detection=10),
+            store=StoreState(STORE_GENERAL, [offered]),
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+        policy.consume_home_knowledge((stored,))
+        policy._digger_home_withdraw_failures = 2
+
+        self.assertEqual(policy._withdrawable_digging_tool_count(before), 1)
+        self.assertTrue(policy._digger_buy_fallback_available(before))
+        self.assertTrue(policy._shop(before).startswith(BUY_KEY))
+
+        carried = item("k", TVAL_DIGGING, 4, name="general-store pick")
+        after = replace(
+            before,
+            player=replace(before.player, gold=1874),
+            inventory=[*before.inventory, carried],
+        )
+        policy._store_buy_inflight = None  # observed pack/gold confirmation
+        policy._digger_fallback_bought_this_visit = False  # strongest reset case
+
+        self.assertEqual(policy._withdrawable_digging_tool_count(after), 2)
+        self.assertFalse(policy._digger_buy_fallback_available(after))
+        self.assertIsNone(policy._next_purchase_unreserved(after))
+        self.assertNotIn(
+            TownNeed(STORE_GENERAL, "fundraising-digger", "normal"),
+            policy._enumerate_town_needs(replace(after, store=None)),
+        )
 
     def test_queued_digger_withdrawal_blocks_departure_without_home_route(self):
         start = Position(10, 10)
@@ -20472,7 +20519,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         self.assertIsNone(policy._home_pending_item)
         self.assertFalse(policy._home_digger_withdraw_pending)
-        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertTrue(policy._digger_buy_fallback_available(outside))
         self.assertEqual(policy.last_reason, "home:atomic-withdraw-failed")
 
     def test_failed_digger_fresh_retry_is_restart_immune(self):
@@ -47593,7 +47640,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             )
 
         self.assertEqual(policy._digger_home_withdraw_failures, 2)
-        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertTrue(policy._digger_buy_fallback_available(entrance))
         self.assertEqual(policy._withdrawable_digging_tool_count(entrance), 0)
 
     def test_gate1_captured_restore_shrink_reproduces_target_unobserved(self):
