@@ -268,8 +268,8 @@ INPUT_DELAY_DEFAULTS = {
     "input_travel_prompt_delay": TRAVEL_PROMPT_DELAY_SECONDS,
 }
 
-# cmd-knowledge.cpp:343-345 emits the Home catalogue before opening the Home
-# viewer, and do_cmd_knowledge's plain inkey() loop (line 70) does not flush
+# cmd-knowledge.cpp:111-113 emits the Home catalogue before opening the Home
+# viewer, and the menu loop's plain inkey() read at line 69 does not flush
 # input.  The trailing Escapes therefore close both menus after the response;
 # they cannot suppress the catalogue.
 

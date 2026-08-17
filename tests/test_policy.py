@@ -40112,7 +40112,7 @@ class RangedAttackTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "fs*p777444444t5\x1b")
         self.assertEqual(policy.last_reason, "ranged:fire-offset")
 
-    def test_ranged_fire_macros_start_with_f_but_store_purchase_keeps_escape(self):
+    def test_ranged_fire_macros_start_with_f_and_store_purchase_posts_no_escape(self):
         cases = (
             (
                 self._snap(
