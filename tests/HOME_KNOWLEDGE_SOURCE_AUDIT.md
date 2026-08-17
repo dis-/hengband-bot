@@ -249,3 +249,30 @@ ratchet of 9 existing violations and 116 declared findings in 93 tests. The
 base and both final runs collected 2,514 tests, so there were zero test-name
 losses. Full suite run 1 passed 2,514 tests in 211.574s with one opt-in skip;
 run 2 passed 2,514 tests in 211.399s with one opt-in skip.
+
+## 2026-08-17 capture-scope-cost fix event
+
+`--capture-home-entry` previously entered `HomeEntryCapture.choose_key` for every
+public policy decision and called `before_decision` unconditionally.  That hook
+serialized the complete policy checkpoint before `record_decision` later
+discarded non-Home decisions, so dungeon and unrelated town decisions paid the
+pickle/base64 cost without producing useful capture rows.
+
+The capture now evaluates only the cheap Home-ownership predicate first.  It
+takes the exact pre-decision policy checkpoint and state projection only while
+an existing Home capture is active or the current decision is already owned by
+a Home approach, entry wait/post, Home store, or Home scan.  The closing Home
+decision remains captured through `active`; unrelated decisions call the policy
+directly and create neither a checkpoint nor a row.  Full format-1 Home rows are
+unchanged, including all three replay substrates required to derive the A6c
+Gate-1 fixtures.
+
+Revert-proof pins cover both directions without timing assertions: a non-Home
+decision patches `checkpoint` to fail if called and asserts that no file exists;
+a Home-owned decision asserts a written full row, restores its policy checkpoint,
+and checks both decision and next-snapshot pickle fields.
+
+Verification: 8 capture tests, 168 CLI tests excluding `DecisionTimingTest`, and
+93 focused policy tests passed. Reverting the cost guard failed the non-Home pin
+1/1; retaining the guard while removing the Home-approach onset discriminator
+failed both approach completeness pins 2/2; restoring both hunks passed 8/8.

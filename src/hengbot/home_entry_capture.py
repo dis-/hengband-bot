@@ -81,6 +81,7 @@ def _home_owned(policy: Any, snapshot: Snapshot) -> bool:
     store = snapshot.store
     return bool(
         (store is not None and store.store_type == STORE_HOME)
+        or getattr(policy, "_home_candidate_waiting", False)
         or getattr(policy, "_shopping_approach_store_type", None) == STORE_HOME
         or getattr(policy, "_store_entry_wait_owner", None) == STORE_HOME
         or getattr(policy, "_store_entry_posted_owner", None) == STORE_HOME
@@ -140,10 +141,12 @@ class HomeEntryCapture:
     def choose_key(self, policy: Any, snapshot: Snapshot) -> str:
         """Capture one call through the policy's public decision boundary."""
         boundary = None
-        try:
-            boundary = self.before_decision(policy, snapshot)
-        except Exception as exc:
-            self.report_failure("before_decision", exc, "policy checkpoint/state")
+        owned_before = _home_owned(policy, snapshot)
+        if self.active or owned_before:
+            try:
+                boundary = self.before_decision(policy, owned_before)
+            except Exception as exc:
+                self.report_failure("before_decision", exc, "policy checkpoint/state")
         key = policy._choose_key_with_latch_capture(snapshot)
         if boundary is not None:
             try:
@@ -207,10 +210,10 @@ class HomeEntryCapture:
             self.pending["posted_characters"].append(character)
 
     def before_decision(
-        self, policy: Any, snapshot: Snapshot
+        self, policy: Any, owned_before: bool
     ) -> tuple[str, dict[str, Any], bool]:
-        """Take an exact checkpoint before public choose_key mutates policy."""
-        return checkpoint(policy), state_projection(policy), _home_owned(policy, snapshot)
+        """Checkpoint a decision already established as Home-owned."""
+        return checkpoint(policy), state_projection(policy), owned_before
 
     def _write(self, record: dict[str, Any]) -> None:
         if self.path is None:

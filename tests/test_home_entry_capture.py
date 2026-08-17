@@ -9,13 +9,89 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.cli import _observe_home_entry_capture
-from hengbot.home_entry_capture import HomeEntryCapture, STATE_FIELDS
+from hengbot.home_entry_capture import HomeEntryCapture, STATE_FIELDS, _home_owned
 from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import STORE_HOME, StoreState
 from tests import test_policy
 
 
 class HomeEntryCaptureTest(unittest.TestCase):
+    def test_non_home_decision_takes_no_checkpoint_and_writes_no_row(self):
+        class NonHomePolicy:
+            _decision_sequence = 0
+            last_reason = ""
+            _home_candidate_waiting = False
+            _shopping_approach_store_type = None
+            _store_entry_wait_owner = None
+            _store_entry_posted_owner = None
+
+            def _choose_key_with_latch_capture(self, snapshot):
+                self._decision_sequence += 1
+                self.last_reason = "explore"
+                return "6"
+
+        harness = test_policy.HomeOneOperationPerEntryTest()
+        snapshot = harness._entrance_snapshot(harness._real_pack(), turn=3200100)
+        policy = NonHomePolicy()
+        self.assertFalse(_home_owned(policy, snapshot))
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "home-entry-capture.jsonl"
+            capture = HomeEntryCapture(path)
+            with patch(
+                "hengbot.home_entry_capture.checkpoint",
+                side_effect=AssertionError("non-Home decision checkpointed"),
+            ) as checkpoint_mock:
+                self.assertEqual(capture.choose_key(policy, snapshot), "6")
+
+            checkpoint_mock.assert_not_called()
+            self.assertIsNone(capture.pending)
+            self.assertFalse(path.exists())
+
+    def test_home_owned_decision_still_takes_full_checkpoint_row(self):
+        harness = test_policy.HomeOneOperationPerEntryTest()
+        policy = test_policy.HengbotPolicy()
+        policy._shopping_approach_store_type = STORE_HOME
+        snapshot = harness._entrance_snapshot(harness._real_pack(), turn=3200100)
+        next_snapshot = replace(snapshot, turn=snapshot.turn + 1)
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "home-entry-capture.jsonl"
+            capture = HomeEntryCapture(path)
+            policy._home_entry_capture = capture
+            policy.choose_key(snapshot)
+            capture.observe_snapshot(next_snapshot)
+            record = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(record["format"], 1)
+        self.assertTrue(record["predecision_policy_checkpoint_pickle_b64"])
+        self.assertTrue(record["decision_snapshot_pickle_b64"])
+        self.assertTrue(record["next_snapshot_pickle_b64"])
+        replay = restore_checkpoint(
+            type(policy), record["predecision_policy_checkpoint_pickle_b64"]
+        )
+        self.assertEqual(replay._shopping_approach_store_type, STORE_HOME)
+
+    def test_home_approach_onset_still_takes_full_checkpoint_row(self):
+        harness = test_policy.HomeOneOperationPerEntryTest()
+        policy = test_policy.HengbotPolicy()
+        policy._home_candidate_waiting = True
+        snapshot = harness._entrance_snapshot(harness._real_pack(), turn=3200100)
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "home-entry-capture.jsonl"
+            capture = HomeEntryCapture(path)
+            policy._home_entry_capture = capture
+            policy.choose_key(snapshot)
+            capture.observe_snapshot(replace(snapshot, turn=snapshot.turn + 1))
+            record = json.loads(path.read_text(encoding="utf-8"))
+
+        replay = restore_checkpoint(
+            type(policy), record["predecision_policy_checkpoint_pickle_b64"]
+        )
+        self.assertTrue(replay._home_candidate_waiting)
+        self.assertEqual(record["last_reason"], "shop:travel:await-entry")
+
     def test_gate1_substrate_replays_fixed_digger_arming_and_composed_key(self):
         path = Path(__file__).parent / "fixtures" / "digger-withdraw-gate1.jsonl"
         if not path.exists():
