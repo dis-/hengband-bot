@@ -53744,6 +53744,48 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertNotIn(item, policy._current_store_sale_candidates(shop))
         self.assertFalse(policy._entire_stack_is_surplus(snapshot, item))
 
+    def test_restarted_inside_home_retained_digger_yields_then_exits(self):
+        """The live 21:18:51 restart must pass a released owner's None onward."""
+        shovel = item(
+            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            "pack:shovel",
+            item_identity=policy_module.equipment_identity(shovel),
+        )
+
+        def restarted_inside_home():
+            policy = HengbotPolicy()
+            policy._equipment_transaction_session = (
+                policy_module.EquipmentTransactionSession(
+                    policy_module.EquipmentTransactionPlan((action,), (), 1)
+                )
+            )
+            policy._prepare_equipment_optimization = Mock()
+            _, outside = NoSafeRecallDestinationTest()._fixture()
+            return policy, replace(
+                outside,
+                turn=2409461,
+                inventory=[shovel],
+                store=StoreState(store_type=STORE_HOME, items=[]),
+            )
+
+        owner_policy, inside = restarted_inside_home()
+        self.assertIsNone(owner_policy._equipment_transaction_home_key(inside))
+        self.assertEqual(
+            owner_policy.last_reason,
+            "equipment-transaction:retain-digging-tool",
+        )
+        self.assertIsNone(owner_policy._equipment_transaction_session)
+
+        public_policy, inside = restarted_inside_home()
+        self.assertEqual(public_policy.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(public_policy.last_reason, "policy:none-store-exit")
+        self.assertIsNone(public_policy._equipment_transaction_session)
+
     def test_public_no_session_latched_restore_dresses_pack_again(self):
         policy, snapshot, inventory = self._stripped_fixture()
         inventory = [replace(item, is_equipment=True) for item in inventory]

@@ -3722,6 +3722,10 @@ class HengbotPolicy:
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and not self._home_entry_operation_posted
+            # Released owners return None so the common fallback below can
+            # choose the safe context-specific action.  The sell guard only
+            # classifies concrete commands; it does not own that sentinel.
+            and key is not None
             and key.startswith(SELL_KEY)
         ):
             # A resumed process may first observe an already-open Home.  An
