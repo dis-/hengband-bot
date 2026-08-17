@@ -61,6 +61,10 @@ PUBLIC_TESTS = frozenset(
         "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
         "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
+        "test_home_visit.HomeVisitExecutorTest.test_retention_conflict_is_rejected_at_filing",
+        "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
+        "test_home_visit.HomeVisitCaptureAcceptanceTest.test_ast_ratchet_keeps_optimizer_and_composers_under_executor",
+        "test_policy.HomeVisitOwnershipTest.test_new_home_transaction_cannot_reset_completed_home_visit_history",
     }
 )
 DEFAULT_TESTS = (
@@ -90,6 +94,37 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "reset-home-history-on-optimizer-session",
+        True,
+        "Restore the A6c cooldown reset on every replacement session.",
+        (replacement(
+            "policy.py",
+            "        # _derived_home_visit_request snapshots this session on the next\n",
+            "        self._town_store_attempted.pop(STORE_HOME, None)\n"
+            "        # _derived_home_visit_request snapshots this session on the next\n",
+        ),),
+    ),
+    Mutation(
+        "allow-retained-home-deposit-request",
+        True,
+        "Permit shelving to override the immutable retention snapshot.",
+        (replacement(
+            "home_visit.py",
+            "            and self.item_identity in self.keep_set\n",
+            "            and False and self.item_identity in self.keep_set\n",
+        ),),
+    ),
+    Mutation(
+        "disable-home-semantic-churn-defect",
+        True,
+        "Allow a visit to put the exact identity it already took.",
+        (replacement(
+            "home_visit.py",
+            "        if inverse is not None and (inverse, identity) in self.operation_history:\n",
+            "        if False and inverse is not None and (inverse, identity) in self.operation_history:\n",
+        ),),
+    ),
     Mutation(
         "keep-current-home-observation-after-prefix-collapse",
         True,

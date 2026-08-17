@@ -38086,7 +38086,7 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "home:leave-with-dominated")
         self.assertEqual(key, LEAVE_STORE_KEY)
 
-    def test_new_home_transaction_reopens_a_completed_home_errand(self):
+    def test_new_home_transaction_cannot_reset_completed_home_visit_history(self):
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_HOME] = 512000
         policy._town_errand_plan = SimpleNamespace(stops=[STORE_HOME], index=1)
@@ -38098,8 +38098,8 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         policy._set_equipment_transaction_session(session)
 
         self.assertIs(policy._equipment_transaction_session, session)
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
-        self.assertIsNone(policy._town_errand_plan)
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], 512000)
+        self.assertEqual(policy._town_errand_plan.index, 1)
 
 
 class TownCycleDetectorTest(unittest.TestCase):

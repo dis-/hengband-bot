@@ -64,6 +64,12 @@ from hengbot.home_errand import (
     HomeErrandRequest,
     HomeErrandState,
 )
+from hengbot.home_visit import (
+    HomeVisitExecutor,
+    HomeVisitKind,
+    HomeVisitRequest as PhysicalHomeVisitRequest,
+    HomeVisitState,
+)
 from hengbot.equipment_mutation import EquipmentMutationExecutor, EquipmentMutationResult
 from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
 from hengbot.quest_knowledge import (
@@ -2002,6 +2008,11 @@ class HengbotPolicy:
         self._town_progress_marker: tuple | None = None
         self._town_no_progress_count = 0
         self._town_visit_ledger = TownVisitLedger()
+        # The maximum existing Home bound is installed once per town epoch.
+        # Ordinary route bounds may stop earlier; no optimizer/session rebuild
+        # can replenish this physical-visit budget.
+        self._home_visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
+        self._pending_home_visit_report: str | None = None
         self._town_was_in_town = False
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
@@ -2967,6 +2978,204 @@ class HengbotPolicy:
             )
         return filed
 
+    def _home_visit_keep_set(self, snapshot: Snapshot) -> frozenset[tuple]:
+        """Snapshot retention inputs before a visit is allowed to approach."""
+        return frozenset(
+            self._item_signature(item)
+            for item in snapshot.inventory
+            if self._retention_reservation(snapshot, item) > 0
+        )
+
+    def _derived_home_visit_request(
+        self, snapshot: Snapshot
+    ) -> PhysicalHomeVisitRequest | None:
+        """Translate every legacy Home producer into one immutable request."""
+        keep_set = self._home_visit_keep_set(snapshot)
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if action is not None and action.kind == "deposit":
+            current = next((
+                item for item in snapshot.inventory
+                if item.is_equipment
+                and equipment_identity(item) == action.item_identity
+            ), None)
+            if current is not None:
+                identity = self._item_signature(current)
+                if identity in keep_set:
+                    return None
+                return PhysicalHomeVisitRequest(
+                    HomeVisitKind.EQUIPMENT_MUTATION,
+                    "equipment-transaction",
+                    identity,
+                    keep_set=keep_set,
+                    shelving_plan=(identity,),
+                )
+        if action is not None and action.kind == "withdraw":
+            identity = next((
+                self._item_signature(item)
+                for item in self._home_knowledge_items
+                if item.is_equipment
+                and equipment_identity(item) == action.item_identity
+            ), ("equipment-id", action.item_id, 0))
+            return PhysicalHomeVisitRequest(
+                HomeVisitKind.EQUIPMENT_MUTATION,
+                "equipment-transaction",
+                action.item_identity,
+                address=identity,
+                keep_set=keep_set,
+                shelving_plan=tuple(
+                    getattr(candidate, "item_identity", None)
+                    for candidate in session.plan.actions
+                ),
+            )
+        identity = self._home_pending_item or (
+            self._home_pending_batch[0] if self._home_pending_batch else None
+        )
+        if identity is not None:
+            return PhysicalHomeVisitRequest(
+                HomeVisitKind.WITHDRAW,
+                "legacy-withdrawal",
+                identity,
+                address=identity,
+                quantity=self._home_pending_quantity or 1,
+                keep_set=keep_set,
+                batch=tuple(self._home_pending_batch),
+            )
+        if self._calibration_restore_signatures:
+            identity = self._calibration_restore_signatures[0]
+            return PhysicalHomeVisitRequest(
+                HomeVisitKind.CALIBRATION_RESTORE,
+                "calibration-restore",
+                identity,
+                batch=tuple(self._calibration_restore_signatures),
+                keep_set=keep_set,
+            )
+        if self._home_errand.active and self._home_errand.request is not None:
+            errand = self._home_errand.request
+            return PhysicalHomeVisitRequest(
+                HomeVisitKind.WITHDRAW,
+                f"home-errand:{errand.purpose}",
+                errand.signature,
+                address=errand.signature,
+                quantity=errand.quantity,
+                keep_set=keep_set,
+            )
+        if self._calibration_phase == "deposit":
+            deposit = self._find_home_deposit(snapshot)
+            if deposit is not None:
+                identity = self._item_signature(deposit)
+                return PhysicalHomeVisitRequest(
+                    HomeVisitKind.CALIBRATION_RESTORE,
+                    "calibration-deposit",
+                    identity,
+                    quantity=deposit.count,
+                    keep_set=keep_set,
+                    shelving_plan=(identity,),
+                    batch=tuple(self._calibration_restore_signatures),
+                )
+        deposit = self._find_home_deposit(snapshot)
+        if deposit is not None:
+            identity = self._item_signature(deposit)
+            if identity not in keep_set:
+                return PhysicalHomeVisitRequest(
+                    HomeVisitKind.DEPOSIT,
+                    "home-deposit",
+                    identity,
+                    quantity=max(1, self._retention_surplus(snapshot, deposit)),
+                    keep_set=keep_set,
+                    shelving_plan=(identity,),
+                )
+        if not self._home_knowledge_current:
+            return PhysicalHomeVisitRequest(HomeVisitKind.SCAN, "home-scan")
+        return PhysicalHomeVisitRequest(HomeVisitKind.RECOVERY, "home-recovery")
+
+    def _ensure_home_visit_request(self, snapshot: Snapshot) -> bool:
+        """File before approach; reports are consumed explicitly, never waited."""
+        if getattr(self, "_home_visit", None) is None:
+            # Checkpoint/restored policies created before this structural field
+            # visibly re-file from the current observation.
+            self._home_visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
+        if not hasattr(self, "_pending_home_visit_report"):
+            self._pending_home_visit_report = None
+        report = self._home_visit.consume_report()
+        if report is not None:
+            marker = report.defect or report.outcome
+            self._pending_home_visit_report = (
+                f"home-visit:{report.request.requester}:{marker}"
+            )
+        request = self._derived_home_visit_request(snapshot)
+        if request is None:
+            return False
+        self._home_visit.file(request)
+        return self._home_visit.begin_approach(self._decision_sequence)
+
+    def _prepare_home_visit_operation(
+        self, action: str, identity: tuple, evidence: tuple
+    ) -> bool:
+        """Authorize exactly one Home operation from fresh address evidence."""
+        visit = self._home_visit
+        if visit.state in {HomeVisitState.REPORTED, HomeVisitState.DEFECT}:
+            report = visit.consume_report()
+            if report is not None:
+                marker = report.defect or report.outcome
+                self._pending_home_visit_report = (
+                    f"home-visit:{report.request.requester}:{marker}"
+                )
+        if (
+            visit.state == HomeVisitState.EXIT_PENDING
+            and self._home_atomic_withdraw_pending is None
+            and self._home_atomic_deposit_pending is None
+        ):
+            # Compatibility for direct composer callers: production consumes
+            # the outside delta in _choose_key before reaching this method.
+            visit.observe_outside(effect_observed=True)
+            report = visit.consume_report()
+            if report is not None:
+                self._pending_home_visit_report = (
+                    f"home-visit:{report.request.requester}:{report.outcome}"
+                )
+        request = visit.request
+        if visit.entry_pending:
+            return False
+        if (
+            request is not None
+            and request.item_identity != identity
+            and visit.report_unoperated("superseded-before-operation")
+        ):
+            report = visit.consume_report()
+            if report is not None:
+                self._pending_home_visit_report = (
+                    f"home-visit:{report.request.requester}:{report.outcome}"
+                )
+            request = None
+        if request is None:
+            kind = (
+                HomeVisitKind.WITHDRAW if action == "take"
+                else HomeVisitKind.DEPOSIT
+            )
+            try:
+                visit.file(PhysicalHomeVisitRequest(
+                    kind,
+                    "atomic-home-composer",
+                    identity,
+                    address=identity if action == "take" else None,
+                ))
+            except ValueError:
+                return False
+            visit.begin_approach(self._decision_sequence)
+            request = visit.request
+        expected = request.item_identity
+        compatible = expected == identity or (
+            request.kind == HomeVisitKind.EQUIPMENT_MUTATION
+            and str(expected).startswith("equipment")
+        )
+        if not compatible:
+            return False
+        visit.observe_outside_ready(evidence, self._decision_sequence)
+        if not visit.record_operation(action, identity, self._decision_sequence):
+            return False
+        return visit.post_exit()
+
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
         """Refuse a repeated transition after an equivalent-state cycle.
 
@@ -3098,6 +3307,23 @@ class HengbotPolicy:
             and snapshot.store.page_size > 0
         ):
             self._home_page_size = snapshot.store.page_size
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and getattr(self, "_home_visit", None) is not None
+            and self._home_visit.entry_pending
+        ):
+            self._home_visit.observe_inside(
+                (
+                    snapshot.store.page_top,
+                    snapshot.store.page_size,
+                    tuple(
+                        self._item_signature(item)
+                        for item in snapshot.store.items
+                    ),
+                ),
+                self._decision_sequence,
+            )
         decision_floor = getattr(snapshot, "floor_key", None)
         if self._unviable_quest_floor != decision_floor:
             self._unviable_quest_floor = None
@@ -3191,6 +3417,10 @@ class HengbotPolicy:
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
             after_count = self._inventory_signature_count(snapshot, signature)
+            if getattr(self, "_home_visit", None) is not None:
+                self._home_visit.observe_outside(
+                    effect_observed=after_count >= before_count + quantity
+                )
             if (
                 self._home_errand.request is not None
                 and self._home_errand.request.signature == signature
@@ -3506,6 +3736,13 @@ class HengbotPolicy:
             and self._store_leave_inflight[2] == STORE_HOME
         )
         if snapshot.store is None and leaving_home:
+            if getattr(self, "_home_visit", None) is not None:
+                self._home_visit.observe_outside(
+                    effect_observed=bool(
+                        self._store_visit is not None
+                        and self._store_visit.operation_effect_observed
+                    )
+                )
             self._home_entry_operation_posted = False
             self._home_atomic_deposit_pending = None
         elif (
@@ -3513,7 +3750,12 @@ class HengbotPolicy:
             and self._home_atomic_deposit_pending is not None
         ):
             signature, count_before = self._home_atomic_deposit_pending
-            if self._inventory_signature_count(snapshot, signature) < count_before:
+            deposit_observed = (
+                self._inventory_signature_count(snapshot, signature) < count_before
+            )
+            if getattr(self, "_home_visit", None) is not None:
+                self._home_visit.observe_outside(effect_observed=deposit_observed)
+            if deposit_observed:
                 self._home_entry_operation_posted = False
                 self._home_atomic_deposit_pending = None
         pending_home_transaction = (
@@ -6206,6 +6448,11 @@ class HengbotPolicy:
                 self._emergency_recall_sanctioned = False
         if snapshot.in_town and not self._town_was_in_town:
             self._town_visit_ledger = TownVisitLedger()
+            if (
+                getattr(self, "_home_visit", None) is not None
+                and not self._home_visit.active
+            ):
+                self._home_visit.reset_epoch()
             self._unknown_lantern_departure_refilled = False
             self._abandoned_quest_carry_requirements.clear()
             self._calibration_aborts_this_visit = 0
@@ -10993,7 +11240,7 @@ class HengbotPolicy:
     def _set_equipment_transaction_session(
         self, session: EquipmentTransactionSession | None
     ) -> None:
-        """Install a plan and reopen Home when the plan creates new Home work."""
+        """Install a plan; the plan may request but never re-arm a Home visit."""
         previous = self._equipment_transaction_session
         self._equipment_transaction_session = session
         if (
@@ -11003,13 +11250,10 @@ class HengbotPolicy:
             or session.required_context != "home"
         ):
             return
-        # Home may already have been completed earlier in this town visit.  A
-        # later optimizer pass can discover a new loadout only after the other
-        # shopping/supply work is done (the live 20F fallback did exactly this).
-        # The visit latch and completed errand plan must not make that newly
-        # created withdrawal look unreachable.
-        self._town_store_attempted.pop(STORE_HOME, None)
-        self._town_errand_plan = None
+        # _derived_home_visit_request snapshots this session on the next
+        # outside observation.  In particular, do not pop STORE_HOME or rebuild
+        # the route: those are visit history and a replacement optimizer
+        # session has no authority to reset them.
         if (
             self._town_blocked_reason is not None
             and self._town_blocked_reason.startswith("equipment-")
@@ -11364,6 +11608,12 @@ class HengbotPolicy:
         """Return the mutation report produced during this decision, once."""
         report = self._pending_mutation_report
         self._pending_mutation_report = None
+        return report
+
+    def consume_pending_home_visit_report(self) -> str | None:
+        """Return the terminal Home visit report for this decision, once."""
+        report = self._pending_home_visit_report
+        self._pending_home_visit_report = None
         return report
 
     def consume_pending_hunt_report(self) -> str | None:
@@ -12918,6 +13168,18 @@ class HengbotPolicy:
             ):
                 self.last_reason = "equipment-transaction:atomic-withdraw-refused"
                 return LEAVE_STORE_KEY
+        visit_identity = transaction_identity or signature
+        if not self._prepare_home_visit_operation(
+            "take",
+            visit_identity,
+            (
+                tuple(self._item_signature(candidate) for candidate in self._home_knowledge_items),
+                self._home_knowledge_valid_before,
+                self._home_page_size,
+            ),
+        ):
+            self.last_reason = "home-visit:withdraw-not-authorized"
+            return None
         self._home_atomic_withdraw_pending = (
             signature,
             self._inventory_signature_count(snapshot, signature),
@@ -13146,6 +13408,13 @@ class HengbotPolicy:
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:retain-digging-tool"
                 return None
+            if not self._prepare_home_visit_operation(
+                "put",
+                self._item_signature(current),
+                (self._item_signature(current), current.slot, snapshot.turn),
+            ):
+                self.last_reason = "home-visit:deposit-not-authorized"
+                return None
             # The one-shot transaction observation binds both the pack letter
             # and count used by the operation at this owned Home entry.
             quantity = f"{current.count}\r" if current.count > 1 else ""
@@ -13219,6 +13488,13 @@ class HengbotPolicy:
             return None
         operation = self._home_deposit_key(snapshot, current)
         if operation == LEAVE_STORE_KEY:
+            return None
+        if not self._prepare_home_visit_operation(
+            "put",
+            self._item_signature(current),
+            (self._item_signature(current), current.slot, snapshot.turn),
+        ):
+            self.last_reason = "home-visit:deposit-not-authorized"
             return None
         self._home_entry_operation_posted = True
         self._invalidate_home_observation()
@@ -19999,6 +20275,8 @@ class HengbotPolicy:
             # do not turn it into movement until its requester has filed the
             # executor's exact withdrawal request.
             return None
+        if store_type == STORE_HOME:
+            self._ensure_home_visit_request(snapshot)
         visit = self._store_visit
         if visit is not None and visit.store_type != store_type:
             # The visit that opened first is authoritative.  A newly-derived

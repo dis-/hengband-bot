@@ -25,6 +25,9 @@ from hengbot.policy import (
     CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
 )
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _stall_recovery_action
+from hengbot.home_visit import (
+    HomeVisitExecutor, HomeVisitKind, HomeVisitRequest,
+)
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
@@ -1380,7 +1383,40 @@ def _quiet_stair_observation_timeout_probe():
     return policy, QuietStairWorld(base)
 
 
+def _home_semantic_churn_defect():
+    """The take/put identity cancellation is a named absorbing terminal."""
+    identity = ("captured-shovel", 20, 1)
+    executor = HomeVisitExecutor(3)
+    executor.operation_history.append(("take", identity))
+    executor.file(HomeVisitRequest(
+        HomeVisitKind.DEPOSIT, "absorbing-catalogue", identity
+    ))
+    executor.begin_approach(1)
+    executor.observe_outside_ready("fresh-address", 1)
+    executor.record_operation("put", identity, 1)
+    defect = executor.consume_report().defect
+
+    class SemanticChurnPolicy:
+        last_reason = ""
+
+        def choose_key(self, _snapshot):
+            self.last_reason = f"home-visit:defect:{defect}"
+            return ""
+
+    base = fixture.HomeOneOperationPerEntryTest()._entrance_snapshot([])
+
+    world = TownWorld(base)
+    world.expected_terminal_reason = (
+        f"home-visit:defect:semantic-churn:{identity!r}"
+    )
+    return SemanticChurnPolicy(), world
+
+
 SEEDED_STATES = (
+    AbsorbingState(
+        "home-visit-semantic-churn-defect", 3,
+        _home_semantic_churn_defect,
+    ),
     AbsorbingState(
         "quiet-stair-observation-timeout-probe", 20,
         _quiet_stair_observation_timeout_probe,
