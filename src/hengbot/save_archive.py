@@ -148,6 +148,12 @@ class SaveArchiveCoordinator:
                     self._clear()
                 return
             current = identify_save(self.live_save)
+        except (FileNotFoundError, PermissionError):
+            # Hengband replaces the save through a short rename window, and
+            # virus scanners may briefly deny the freshly replaced file.  Both
+            # are transient observations: retain the baseline/deadline and
+            # inspect the next poll instead of killing the coordinator owner.
+            return
         except Exception as exc:
             self.log(f"game save observation failed: {type(exc).__name__}: {exc}")
             self._clear()

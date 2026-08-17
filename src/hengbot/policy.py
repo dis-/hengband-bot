@@ -12766,7 +12766,26 @@ class HengbotPolicy:
                 reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
             self.last_reason = "home:atomic-withdraw-target-unobserved"
-            deferred = self._defer_unobserved_home_withdrawal()
+            # A successful Home mutation invalidates every address at or after
+            # its slot.  The captured restore-at-slot-zero case consequently
+            # left an empty valid prefix while the standing digger take still
+            # owned the visit.  Charge that visible failure to the digger (so
+            # the bounded purchase fallback can open), rather than consuming
+            # unrelated calibration restores one ESC at a time.
+            deferred = None
+            if self._home_digger_withdraw_pending:
+                deferred = next(
+                    (
+                        self._item_signature(owned.item)
+                        for owned in self._equipment_catalog.items
+                        if owned.origin == "home"
+                        and owned.item.is_digging_tool
+                        and self._item_signature(owned.item)
+                        not in self._deferred_home_items
+                    ),
+                    None,
+                )
+            deferred = self._defer_unobserved_home_withdrawal(deferred)
             self._record_digger_home_withdraw_failure(deferred)
             plan = self._town_errand_plan
             categories = (
@@ -12779,7 +12798,30 @@ class HengbotPolicy:
                         snapshot, f"home-withdrawal:{category}",
                         "inventory", "equipment",
                     )
-            return LEAVE_STORE_KEY
+            # We are already outside on the Home entrance.  Escape is a no-op
+            # there and identical repost recovery only turns it into ESC/look
+            # churn.  Make the failed visit observable by stepping off; normal
+            # routing may then re-enter once, or use the two-failure fallback.
+            neighbors = [
+                neighbor
+                for neighbor in self._walkable_neighbors(
+                    snapshot, snapshot.player.position
+                )
+                if neighbor != snapshot.player.position
+            ]
+            if not neighbors:
+                neighbors = [
+                    position
+                    for position, grid in snapshot.grids.items()
+                    if position != snapshot.player.position
+                    and position.distance_to(snapshot.player.position) == 1
+                    and not grid.is_store
+                ]
+            return (
+                self._step_toward(snapshot, neighbors[0])
+                if neighbors
+                else WAIT_KEY
+            )
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
                 self._town_store_visit_limit(STORE_HOME), "target-unobserved"

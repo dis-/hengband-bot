@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot.save_archive import ArchiveRepository
+from hengbot.save_archive import (
+    ArchiveRepository,
+    SaveArchiveCoordinator,
+    SaveIdentity,
+)
 
 
 class SaveArchiveTest(unittest.TestCase):
@@ -84,6 +88,29 @@ class SaveArchiveTest(unittest.TestCase):
 
             self.assertFalse(repository.archive(live, self._metadata()))
             self.assertIn("save archive failed", logs[-1])
+
+    def test_poll_retries_transient_save_absence_and_access_denial(self):
+        class TransientPath:
+            def __init__(self):
+                self.failures = [FileNotFoundError("rename"), PermissionError("scan")]
+
+            def stat(self):
+                if self.failures:
+                    raise self.failures.pop(0)
+                return type("Stat", (), {"st_size": 4, "st_mtime_ns": 2})()
+
+        live = TransientPath()
+        coordinator = SaveArchiveCoordinator(live_save=live)
+        coordinator._baseline = SaveIdentity(4, 1, "old")
+        coordinator._deadline = 10.0
+        coordinator._metadata = self._metadata()
+
+        coordinator.poll(1.0)
+        coordinator.poll(2.0)
+
+        self.assertEqual(coordinator._baseline, SaveIdentity(4, 1, "old"))
+        self.assertEqual(coordinator._deadline, 10.0)
+        self.assertEqual(live.failures, [])
 
 
 if __name__ == "__main__":

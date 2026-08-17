@@ -47303,12 +47303,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._home_knowledge_items = (other,)
             policy._home_knowledge_valid_before = 1
             policy._home_knowledge_current = True
-            self.assertEqual(
+            self.assertIn(
                 policy._atomic_home_withdraw_key(
                     replace(entrance, turn=entrance.turn + attempt),
                     entrance.player.position,
                 ),
-                LEAVE_STORE_KEY,
+                "12346789",
             )
             self.assertEqual(
                 policy.last_reason, "home:atomic-withdraw-target-unobserved"
@@ -47398,6 +47398,66 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy.choose_key(entrance)
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
         self.assertEqual(policy._digger_home_withdraw_failures, 0)
+
+    def test_captured_restore_prefix_collapse_steps_off_and_charges_digger(self):
+        """Gate 1: the 16:37 restore-at-zero shape has a bounded visible exit."""
+        wares = [
+            store_item(str(index), TVAL_POTION, 1200 + index, name=f"home {index}")
+            for index in range(35)
+        ]
+        restore = store_item("0", 36, 1, count=5, name="captured restore")
+        shovel = store_item(
+            "30", TVAL_DIGGING, 1, name="captured shovel", is_equipment=True,
+        )
+        second_shovel = store_item(
+            "31", TVAL_DIGGING, 1, name="captured second shovel",
+            is_equipment=True,
+        )
+        wares[0] = restore
+        wares[30] = shovel
+        wares[31] = second_shovel
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        policy._calibration_restore_signatures = [
+            policy._item_signature(restore),
+            policy._item_signature(wares[1]),
+        ]
+        policy._home_digger_withdraw_pending = True
+        entrance = self._entrance_snapshot([], turn=2320394)
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pa5\r\x1b",
+        )
+        policy._home_atomic_withdraw_pending = None
+        policy._home_atomic_withdraw_posted_turn = None
+        policy._home_knowledge_valid_before = 0
+        fresh = replace(entrance, turn=2320404)
+
+        key = policy._atomic_home_withdraw_key(fresh, fresh.player.position)
+
+        self.assertIn(key, "12346789")
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-target-unobserved"
+        )
+        self.assertEqual(policy._digger_home_withdraw_failures, 1)
+        self.assertIn(
+            policy._item_signature(shovel), policy._deferred_home_items
+        )
+        self.assertEqual(len(policy._calibration_restore_signatures), 1)
+
+        policy._home_digger_withdraw_pending = True
+        policy._home_knowledge_current = True
+        policy._home_knowledge_valid_before = 0
+        second_key = policy._atomic_home_withdraw_key(
+            replace(fresh, turn=fresh.turn + 1), fresh.player.position
+        )
+
+        self.assertIn(second_key, "12346789")
+        self.assertEqual(policy._digger_home_withdraw_failures, 2)
+        self.assertTrue(policy._digger_buy_fallback_available())
+        self.assertIn(
+            policy._item_signature(second_shovel), policy._deferred_home_items
+        )
 
     def test_captured_digger_address_composes_across_twelve_item_pages(self):
         wares = [
@@ -47919,9 +47979,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_atomic_withdraw_pending = None
         policy._home_entry_operation_posted = False
         policy._home_pending_item = policy._item_signature(wares[55])
-        self.assertEqual(
+        self.assertIn(
             policy._atomic_home_withdraw_key(entrance, Position(1, 1)),
-            LEAVE_STORE_KEY,
+            "12346789",
         )
 
     def test_derived_withdrawal_waits_when_page_size_was_never_observed(self):
@@ -48316,14 +48376,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         entrance = self._entrance_snapshot([])
 
-        self.assertEqual(policy.choose_key(entrance), LEAVE_STORE_KEY)
+        self.assertIn(policy.choose_key(entrance), "12346789")
         self.assertEqual(
             policy.last_reason, "home:atomic-withdraw-target-unobserved"
         )
 
         passes = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
-        step_off = replace(entrance, turn=entrance.turn + 1)
-        self.assertEqual(policy.choose_key(step_off), "4")
         outside = replace(
             entrance,
             player=replace(entrance.player, position=Position(45, 122)),
@@ -48361,11 +48419,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         policy._shopping_approach_store_type = STORE_HOME
 
-        self.assertEqual(
+        self.assertIn(
             policy._atomic_home_withdraw_key(
                 entrance, entrance.player.position
             ),
-            LEAVE_STORE_KEY,
+            "12346789",
         )
         self.assertEqual(
             policy.last_reason, "home:atomic-withdraw-target-unobserved"
