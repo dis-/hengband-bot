@@ -374,6 +374,7 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 POLICY_FINAL_STOP_REASONS = frozenset(
     {
         "equipment-transaction:restore-blocked-terminal",
+        "town:blocked:departure-unsatisfiable",
         "town:blocked:home-known-empty-withdrawal",
         "wilderness:no-safe-route",
     }
@@ -2628,6 +2629,18 @@ def _run_follow(
                                 "town is unavailable; stopping the bot for "
                                 "investigation",
                                 flush=True,
+                            )
+                        elif policy.last_reason == (
+                            "town:blocked:departure-unsatisfiable"
+                        ):
+                            print(
+                                "<departure-unsatisfiable> no state-changing "
+                                "owner can satisfy the remaining departure "
+                                "conjunct; stopping the bot for investigation",
+                                flush=True,
+                            )
+                            return incident_stop(
+                                "departure-unsatisfiable", snapshot
                             )
                         else:
                             print(

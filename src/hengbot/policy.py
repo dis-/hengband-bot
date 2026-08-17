@@ -2482,6 +2482,7 @@ class HengbotPolicy:
         self._calibration_stripped_unrestored = False
         self._calibration_redress_loaded = False
         self._calibration_redress_attempts: dict[tuple[str, str], int] = {}
+        self._calibration_redress_abandonment: str | None = None
         # Mutation observation (sorted ids) from `C` character snapshots: the
         # calibration phase's naked dump records it at capture, and the
         # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
@@ -10254,6 +10255,11 @@ class HengbotPolicy:
         """
         if not snapshot.in_town or snapshot.store is not None:
             return None
+        abandonment = getattr(self, "_calibration_redress_abandonment", None)
+        if abandonment is not None:
+            self.last_reason = abandonment
+            self._calibration_redress_abandonment = None
+            return WAIT_KEY
         for slot, identity in self._calibration_redress_items(snapshot):
             obligation = (slot, identity)
             if self._calibration_redress_attempts.get(obligation, 0) >= STORE_STUCK_LIMIT:
@@ -10305,6 +10311,49 @@ class HengbotPolicy:
         satisfied, outstanding, lost = self._calibration_redress_accounting(
             snapshot
         )
+        if lost and self._equipment_catalog.home_scan_complete:
+            home_by_identity = {
+                equipment_identity(item): self._item_signature(item)
+                for item in self._home_knowledge_items
+                if item.is_equipment
+            }
+            restore = [
+                home_by_identity[identity]
+                for _slot, identity in lost
+                if identity in home_by_identity
+                and home_by_identity[identity]
+                not in self._calibration_restore_signatures
+            ]
+            if restore:
+                # Durable redress debt outranks a newly planned optimizer
+                # transaction.  Otherwise that session owns Home first and a
+                # bounded HomeVisitExecutor can spend its entire epoch before
+                # the calibration item is ever filed.
+                if not self._calibration_session_owned():
+                    self._equipment_transaction_session = None
+                self._calibration_restore_signatures.extend(restore)
+                self._calibration_phase = "restore-supplies"
+                self._rearm_town_store_for_new_work(
+                    STORE_HOME, release_visit_bound=True
+                )
+                self.last_reason = "calibration:redress-home-restore-filed"
+                return
+            # A complete Home catalogue plus pack/equipment accounting is a
+            # closed world for the recorded identity.  Keeping an impossible
+            # debt can never dress the character; release it explicitly.
+            lost_set = set(lost)
+            self._calibration_worn_before = tuple(
+                obligation
+                for obligation in self._calibration_worn_before
+                if obligation not in lost_set
+            )
+            self._calibration_redress_abandonment = (
+                "calibration:redress-abandoned:item-unavailable"
+            )
+            self._persist_calibration_redress_obligation()
+            satisfied, outstanding, lost = self._calibration_redress_accounting(
+                snapshot
+            )
         pending = set(outstanding) | set(lost)
         self._calibration_redress_attempts = {
             obligation: attempts
@@ -10539,6 +10588,21 @@ class HengbotPolicy:
                         STORE_HOME, release_visit_bound=True
                     )
                 else:
+                    # The physical Home owner has spent its bounded contract.
+                    # Release only identities that are still absent from pack
+                    # and equipment; carried redress work remains actionable.
+                    _, _, lost = self._calibration_redress_accounting(snapshot)
+                    if lost:
+                        lost_set = set(lost)
+                        self._calibration_worn_before = tuple(
+                            obligation
+                            for obligation in self._calibration_worn_before
+                            if obligation not in lost_set
+                        )
+                        self._calibration_redress_abandonment = (
+                            "calibration:redress-abandoned:home-visit-exhausted"
+                        )
+                        self._persist_calibration_redress_obligation()
                     self._calibration_restore_signatures.clear()
                     self._calibration_phase = None
                     self._calibration_home_rearm_eligible = False

@@ -52454,6 +52454,64 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(policy._calibration_phase)
         self.assertFalse(policy._calibration_stripped_unrestored)
 
+    def test_checkpoint_redress_debt_files_home_restore_ahead_of_optimizer(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(sword)
+        home_sword = replace(sword, slot="a")
+        policy._calibration_worn_before = (("main_hand", identity),)
+        policy._calibration_stripped_unrestored = True
+        policy._home_knowledge_items = [home_sword]
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((), (), 0)
+            )
+        )
+
+        policy._calibration_redress_observe(self._snapshot())
+
+        self.assertEqual(policy._calibration_phase, "restore-supplies")
+        self.assertEqual(
+            policy._calibration_restore_signatures,
+            [policy._item_signature(home_sword)],
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
+        request = policy._derived_home_visit_request(self._snapshot())
+        self.assertEqual(request.kind, policy_module.HomeVisitKind.CALIBRATION_RESTORE)
+        self.assertEqual(request.requester, "calibration-restore")
+
+    def test_unavailable_checkpoint_redress_debt_releases_visibly_once(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="lost sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        policy._calibration_worn_before = (
+            ("main_hand", policy_module.equipment_identity(sword)),
+        )
+        policy._calibration_stripped_unrestored = True
+        snapshot = self._snapshot()
+
+        policy._calibration_redress_observe(snapshot)
+        key = policy._calibration_redress_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "calibration:redress-abandoned:item-unavailable",
+        )
+        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertEqual(policy._calibration_worn_before, ())
+        self.assertIsNone(policy._calibration_redress_key(snapshot))
+
+    def test_departure_unsatisfiable_is_an_immediate_cli_final_stop(self):
+        self.assertIn(
+            "town:blocked:departure-unsatisfiable", POLICY_FINAL_STOP_REASONS
+        )
+
     def test_redress_obligation_survives_restart_and_posts_recorded_wear(self):
         sword = item(
             "main_hand", 23, 4, name="long sword", known=True,
