@@ -54,6 +54,7 @@ PUBLIC_TESTS = frozenset(
         "test_policy.PredictiveEscapeTest.test_paralyzer_ring_invalidates_cached_explore_path_through_choose_key",
         "test_policy.PredictiveEscapeTest.test_awake_mobile_adjacent_paralyzer_walks_away_first",
         "test_policy.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
+        "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
     }
 )
 DEFAULT_TESTS = (
@@ -83,6 +84,18 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "keep-current-home-observation-after-prefix-collapse",
+        True,
+        "Restore the captured ESC loop by suppressing the fresh ~9 request.",
+        (replacement(
+            "policy.py",
+            "        if owner_indices and index <= min(owner_indices):\n"
+            "            self._invalidate_home_observation()\n",
+            "        if False and owner_indices and index <= min(owner_indices):\n"
+            "            self._invalidate_home_observation()\n",
+        ),),
+    ),
     Mutation(
         "disable-paralyzer-adjacency-veto",
         True,

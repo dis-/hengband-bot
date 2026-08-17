@@ -4016,6 +4016,12 @@ class HengbotPolicy:
         if not (on_disclosed_entrance or on_remembered_entrance):
             return key
 
+        return self._town_entrance_step_off_key(snapshot, self.last_reason)
+
+    def _town_entrance_step_off_key(
+        self, snapshot: Snapshot, prior_reason: str | None
+    ) -> str:
+        """Select the established safe, least-visited exit from an entrance."""
         origin = snapshot.player.position
         candidates: list[Position] = []
         for dy, dx in NEIGHBOR_OFFSETS:
@@ -4042,7 +4048,6 @@ class HengbotPolicy:
             self.last_reason = "livelock:exhausted"
             return WAIT_KEY
         step = min(candidates, key=lambda position: self._visit_counts[position])
-        prior_reason = self.last_reason
         key = self._step_toward(snapshot, step)
         if not (prior_reason or "").startswith("town:blocked:"):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
@@ -12778,26 +12783,7 @@ class HengbotPolicy:
                 reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
             self.last_reason = "home:atomic-withdraw-target-unobserved"
-            # A successful Home mutation invalidates every address at or after
-            # its slot.  The captured restore-at-slot-zero case consequently
-            # left an empty valid prefix while the standing digger take still
-            # owned the visit.  Charge that visible failure to the digger (so
-            # the bounded purchase fallback can open), rather than consuming
-            # unrelated calibration restores one ESC at a time.
-            deferred = None
-            if self._home_digger_withdraw_pending:
-                deferred = next(
-                    (
-                        self._item_signature(owned.item)
-                        for owned in self._equipment_catalog.items
-                        if owned.origin == "home"
-                        and owned.item.is_digging_tool
-                        and self._item_signature(owned.item)
-                        not in self._deferred_home_items
-                    ),
-                    None,
-                )
-            deferred = self._defer_unobserved_home_withdrawal(deferred)
+            deferred = self._defer_unobserved_home_withdrawal()
             self._record_digger_home_withdraw_failure(deferred)
             plan = self._town_errand_plan
             categories = (
@@ -12814,25 +12800,8 @@ class HengbotPolicy:
             # there and identical repost recovery only turns it into ESC/look
             # churn.  Make the failed visit observable by stepping off; normal
             # routing may then re-enter once, or use the two-failure fallback.
-            neighbors = [
-                neighbor
-                for neighbor in self._walkable_neighbors(
-                    snapshot, snapshot.player.position
-                )
-                if neighbor != snapshot.player.position
-            ]
-            if not neighbors:
-                neighbors = [
-                    position
-                    for position, grid in snapshot.grids.items()
-                    if position != snapshot.player.position
-                    and position.distance_to(snapshot.player.position) == 1
-                    and not grid.is_store
-                ]
-            return (
-                self._step_toward(snapshot, neighbors[0])
-                if neighbors
-                else WAIT_KEY
+            return self._town_entrance_step_off_key(
+                snapshot, "home:atomic-withdraw-target-unobserved"
             )
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
@@ -12956,9 +12925,38 @@ class HengbotPolicy:
             len(snapshot.inventory),
             self._inventory_signature_count(snapshot, signature),
         )
-        # Removing index i shifts only later slots.  All earlier indices remain
-        # valid, permitting a whole strictly-descending batch from one ~9 read.
+        # Removing index i shifts only later slots.  Earlier indices remain
+        # valid, but if every remaining owner is at or beyond the shortened
+        # prefix then the captured catalogue can no longer address any work.
+        # Mark that observation stale so the owner-preserving next visit asks
+        # for a fresh ~9 instead of burning owners through ESC retries.
         self._home_knowledge_valid_before = index
+        owner_signatures = {
+            candidate
+            for candidate in (
+                self._home_pending_item,
+                *self._calibration_restore_signatures,
+                *self._home_pending_batch,
+                (
+                    self._home_errand.request.signature
+                    if self._home_errand.active
+                    and self._home_errand.request is not None
+                    else None
+                ),
+            )
+            if candidate is not None
+        }
+        # The just-posted owner is represented by
+        # _home_atomic_withdraw_pending until confirmation; it is not queued
+        # work that needs a new address.
+        owner_signatures.discard(signature)
+        owner_indices = [
+            owner_index
+            for owner_index, owner_item in enumerate(self._home_knowledge_items)
+            if self._item_signature(owner_item) in owner_signatures
+        ]
+        if owner_indices and index <= min(owner_indices):
+            self._invalidate_home_observation()
         self.last_reason = reason
         return key
 

@@ -47386,7 +47386,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 "12346789",
             )
             self.assertEqual(
-                policy.last_reason, "home:atomic-withdraw-target-unobserved"
+                policy.last_reason,
+                "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
             )
 
         self.assertEqual(policy._digger_home_withdraw_failures, 2)
@@ -47474,8 +47475,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
         self.assertEqual(policy._digger_home_withdraw_failures, 0)
 
-    def test_captured_restore_prefix_collapse_steps_off_and_charges_digger(self):
-        """Gate 1: the 16:37 restore-at-zero shape has a bounded visible exit."""
+    def test_captured_restore_prefix_collapse_rerequests_scan_without_discard(self):
+        """Gate 1: the measured pending-false capture reacquires its addresses."""
         wares = [
             store_item(str(index), TVAL_POTION, 1200 + index, name=f"home {index}")
             for index in range(35)
@@ -47496,42 +47497,74 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._item_signature(restore),
             policy._item_signature(wares[1]),
         ]
-        policy._home_digger_withdraw_pending = True
         entrance = self._entrance_snapshot([], turn=2320394)
+        owners_before = tuple(policy._calibration_restore_signatures)
+        deferred_before = set(policy._deferred_home_items)
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
             "5pa5\r\x1b",
         )
+        self.assertFalse(policy._home_digger_withdraw_pending)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertEqual(
+            policy._calibration_restore_signatures, [owners_before[1]]
+        )
+        self.assertEqual(policy._deferred_home_items, deferred_before)
+
+        # Confirmation row 1479 leaves the player outside on the Home door.
+        # The existing selector first moves to a safe non-entrance square; the
+        # invalid observation then makes the next decision re-request ~9.
         policy._home_atomic_withdraw_pending = None
         policy._home_atomic_withdraw_posted_turn = None
-        policy._home_knowledge_valid_before = 0
         fresh = replace(entrance, turn=2320404)
-
-        key = policy._atomic_home_withdraw_key(fresh, fresh.player.position)
-
-        self.assertIn(key, "12346789")
+        step = policy._town_entrance_step_off_key(
+            fresh, "home:atomic-withdraw-target-unobserved"
+        )
+        self.assertIn(step, set("12346789"))
         self.assertEqual(
-            policy.last_reason, "home:atomic-withdraw-target-unobserved"
+            policy.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
         )
-        self.assertEqual(policy._digger_home_withdraw_failures, 1)
-        self.assertIn(
-            policy._item_signature(shovel), policy._deferred_home_items
+        off_door = replace(
+            fresh,
+            turn=fresh.turn + 1,
+            player=replace(fresh.player, position=Position(45, 122)),
         )
-        self.assertEqual(len(policy._calibration_restore_signatures), 1)
+        self.assertEqual(policy.choose_key(off_door), "~9")
 
-        policy._home_digger_withdraw_pending = True
-        policy._home_knowledge_current = True
-        policy._home_knowledge_valid_before = 0
-        second_key = policy._atomic_home_withdraw_key(
-            replace(fresh, turn=fresh.turn + 1), fresh.player.position
+        rescanned = tuple(wares[1:])
+        policy.consume_home_knowledge(rescanned)
+        policy._shopping_approach_store_type = STORE_HOME
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(
+                replace(entrance, turn=fresh.turn + 2), entrance.player.position
+            ),
+            "5pa\x1b",
+        )
+        self.assertFalse(policy._home_digger_withdraw_pending)
+        self.assertEqual(policy._digger_home_withdraw_failures, 0)
+        self.assertEqual(policy._deferred_home_items, deferred_before)
+
+    def test_target_unobserved_step_off_uses_safe_least_visited_selector(self):
+        policy = HengbotPolicy()
+        entrance = self._entrance_snapshot([])
+        origin = entrance.player.position
+        safe = Position(origin.y, origin.x - 1)
+        warning = Position(origin.y - 1, origin.x)
+        policy._warning_refused_cells.add(warning)
+        policy._visit_counts[safe] = 1
+        policy._visit_counts[Position(origin.y + 1, origin.x)] = 9
+
+        key = policy._town_entrance_step_off_key(
+            entrance, "home:atomic-withdraw-target-unobserved"
         )
 
-        self.assertIn(second_key, "12346789")
-        self.assertEqual(policy._digger_home_withdraw_failures, 2)
-        self.assertTrue(policy._digger_buy_fallback_available())
-        self.assertIn(
-            policy._item_signature(second_shovel), policy._deferred_home_items
+        self.assertIn(key, set("12346789"))
+        self.assertEqual(key, "4")
+        self.assertEqual(
+            policy.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
         )
 
     def test_captured_digger_address_composes_across_twelve_item_pages(self):
@@ -48453,7 +48486,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertIn(policy.choose_key(entrance), "12346789")
         self.assertEqual(
-            policy.last_reason, "home:atomic-withdraw-target-unobserved"
+            policy.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
         )
 
         passes = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
@@ -48501,7 +48535,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "12346789",
         )
         self.assertEqual(
-            policy.last_reason, "home:atomic-withdraw-target-unobserved"
+            policy.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
         )
         self.assertEqual(policy._calibration_restore_signatures, [missing[1]])
         self.assertNotIn(

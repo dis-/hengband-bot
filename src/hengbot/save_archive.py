@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import shutil
 import subprocess
 import threading
@@ -108,8 +109,11 @@ class SaveArchiveCoordinator:
         self._baseline: SaveIdentity | None = None
         self._deadline: float | None = None
         self._metadata: dict | None = None
+        self._transient_misses = 0
+        self._transient_miss_limit = max(2, math.ceil(confirmation_seconds))
 
     def before_post(self, snapshot, decision_sequence: int) -> None:
+        self._transient_misses = 0
         try:
             self._baseline = identify_save(self.live_save)
             self._metadata = {
@@ -148,11 +152,19 @@ class SaveArchiveCoordinator:
                     self._clear()
                 return
             current = identify_save(self.live_save)
-        except (FileNotFoundError, PermissionError):
+            self._transient_misses = 0
+        except (FileNotFoundError, PermissionError) as exc:
             # Hengband replaces the save through a short rename window, and
             # virus scanners may briefly deny the freshly replaced file.  Both
             # are transient observations: retain the baseline/deadline and
             # inspect the next poll instead of killing the coordinator owner.
+            self._transient_misses += 1
+            if self._transient_misses >= self._transient_miss_limit:
+                self.log(
+                    "game save remained unavailable within confirmation bound: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                self._clear()
             return
         except Exception as exc:
             self.log(f"game save observation failed: {type(exc).__name__}: {exc}")
@@ -174,6 +186,7 @@ class SaveArchiveCoordinator:
         self._baseline = None
         self._deadline = None
         self._metadata = None
+        self._transient_misses = 0
 
     @staticmethod
     def _bot_commit() -> str:

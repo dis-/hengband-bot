@@ -112,6 +112,26 @@ class SaveArchiveTest(unittest.TestCase):
         self.assertEqual(coordinator._deadline, 10.0)
         self.assertEqual(live.failures, [])
 
+    def test_poll_surfaces_permanent_save_absence_at_derived_bound(self):
+        class MissingPath:
+            def stat(self):
+                raise FileNotFoundError("save remains absent")
+
+        logs: list[str] = []
+        coordinator = SaveArchiveCoordinator(
+            live_save=MissingPath(), confirmation_seconds=3.2, log=logs.append
+        )
+        coordinator._baseline = SaveIdentity(4, 1, "old")
+        coordinator._deadline = 10.0
+        coordinator._metadata = self._metadata()
+
+        for now in range(4):
+            coordinator.poll(float(now))
+
+        self.assertIsNone(coordinator._deadline)
+        self.assertIsNone(coordinator._metadata)
+        self.assertIn("remained unavailable", logs[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

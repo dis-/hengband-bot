@@ -81,6 +81,8 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_observe", "ExplorationPathOutcome.INVALIDATE"),
+                ("_refresh_paralyzer_avoidance", "ExplorationPathOutcome.INVALIDATE"),
+                ("_paralyzer_prevention_key", "ExplorationPathOutcome.INVALIDATE"),
                 # Warning-grid avoidance: a committed path may not replay a
                 # step into a grid a TR_WARNING prompt refused, so both the
                 # refusal record and the per-decision avoidance refresh drop
