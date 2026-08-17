@@ -38101,6 +38101,23 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertEqual(policy._town_store_attempted[STORE_HOME], 512000)
         self.assertEqual(policy._town_errand_plan.index, 1)
 
+    def test_rejected_home_visit_budget_stops_the_real_approach(self):
+        policy = HengbotPolicy()
+        policy._home_visit.attempts_used = policy._home_visit.attempt_limit
+        outside = Snapshot(
+            player(45, 122),
+            {Position(45, 122): replace(
+                grid(45, 122), store_number=STORE_HOME
+            )},
+            [], floor_key=(0, 0, 0), inventory=[], equipment=[], turn=700,
+        )
+        key = policy._shopping_approach_step(outside, STORE_HOME)
+        self.assertIsNone(key)
+        self.assertIsNone(policy._shopping_approach_store_type)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertIn("attempt-budget-exhausted",
+                      policy.consume_pending_home_visit_report())
+
 
 class TownCycleDetectorTest(unittest.TestCase):
     """User directive: auto-detect and repair town repetition loops as a CLASS.

@@ -63,8 +63,12 @@ PUBLIC_TESTS = frozenset(
         "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
         "test_home_visit.HomeVisitExecutorTest.test_retention_conflict_is_rejected_at_filing",
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
+        "test_home_visit.HomeVisitExecutorTest.test_budget_rejection_has_visible_report_and_no_none_crash",
+        "test_home_visit.HomeVisitExecutorTest.test_history_is_visit_scoped_and_same_signature_stacks_are_allowed",
+        "test_home_visit.HomeVisitExecutorTest.test_calibration_deposit_restore_is_authorized",
         "test_home_visit.HomeVisitCaptureAcceptanceTest.test_ast_ratchet_keeps_optimizer_and_composers_under_executor",
         "test_policy.HomeVisitOwnershipTest.test_new_home_transaction_cannot_reset_completed_home_visit_history",
+        "test_policy.HomeVisitOwnershipTest.test_rejected_home_visit_budget_stops_the_real_approach",
     }
 )
 DEFAULT_TESTS = (
@@ -118,11 +122,21 @@ MUTATIONS = (
     Mutation(
         "disable-home-semantic-churn-defect",
         True,
-        "Allow a visit to put the exact identity it already took.",
+        "Allow consecutive completed take/put effects to cancel inventory.",
         (replacement(
             "home_visit.py",
-            "        if inverse is not None and (inverse, identity) in self.operation_history:\n",
-            "        if False and inverse is not None and (inverse, identity) in self.operation_history:\n",
+            "                and previous[0] + delta == 0\n",
+            "                and False and previous[0] + delta == 0\n",
+        ),),
+    ),
+    Mutation(
+        "ignore-home-visit-approach-authorization",
+        True,
+        "Restore the rejected-budget approach fallthrough.",
+        (replacement(
+            "policy.py",
+            "            if not self._ensure_home_visit_request(snapshot):\n",
+            "            if False and not self._ensure_home_visit_request(snapshot):\n",
         ),),
     ),
     Mutation(

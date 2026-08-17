@@ -82,6 +82,11 @@ class HomeVisitExecutor:
     fresh_evidence: Hashable | None = None
     operation: tuple[str, Hashable | None] | None = None
     operation_history: list[tuple[str, Hashable | None]] = field(default_factory=list)
+    # The immediately preceding completed inventory mutation survives report
+    # consumption.  It is effect evidence, not an authorization blacklist.
+    # This catches cross-identity take/put cancellation without preventing two
+    # legitimate requests for the same signature in an epoch.
+    previous_completed_delta: tuple[int, Hashable | None, HomeVisitKind] | None = None
     context_token: tuple[str, int] | None = None
 
     @property
@@ -177,13 +182,6 @@ class HomeVisitExecutor:
     ) -> bool:
         if not self.may_post_inside(generation):
             return False
-        inverse = "put" if action == "take" else "take" if action == "put" else None
-        if inverse is not None and (inverse, identity) in self.operation_history:
-            self._defect(f"semantic-churn:{identity!r}")
-            return False
-        if (action, identity) in self.operation_history:
-            self._defect(f"duplicate-operation:{action}:{identity!r}")
-            return False
         self.operation = (action, identity)
         self.operation_history.append(self.operation)
         self.state = HomeVisitState.OPERATING
@@ -199,7 +197,34 @@ class HomeVisitExecutor:
     def observe_outside(self, *, effect_observed: bool) -> None:
         if self.state != HomeVisitState.EXIT_PENDING or self.request is None:
             return
-        outcome = "completed" if effect_observed or self.operation is None else "unfulfilled"
+        empty_ok = self.request.kind in {
+            HomeVisitKind.SCAN, HomeVisitKind.RECOVERY
+        }
+        outcome = "completed" if (
+            effect_observed or (self.operation is None and empty_ok)
+        ) else "unfulfilled"
+        if effect_observed and self.operation is not None:
+            action, identity = self.operation
+            delta = self.request.quantity * (1 if action == "take" else -1)
+            previous = self.previous_completed_delta
+            calibration_restore = (
+                self.request.kind == HomeVisitKind.CALIBRATION_RESTORE
+                or (previous is not None
+                    and previous[2] == HomeVisitKind.CALIBRATION_RESTORE)
+            )
+            if (
+                previous is not None
+                and previous[0] + delta == 0
+                and not calibration_restore
+            ):
+                self._defect(
+                    "zero-net-inventory-delta:"
+                    f"{previous[1]!r}:{identity!r}"
+                )
+                return
+            self.previous_completed_delta = (
+                delta, identity, self.request.kind
+            )
         self._report(self.request, outcome)
 
     def consume_report(self) -> HomeVisitReport | None:
@@ -210,6 +235,7 @@ class HomeVisitExecutor:
         self.request = None
         self.fresh_evidence = None
         self.operation = None
+        self.operation_history.clear()
         self.context_token = None
         self.state = HomeVisitState.IDLE
         if self.queued:
@@ -232,6 +258,7 @@ class HomeVisitExecutor:
             raise RuntimeError("cannot reset an active Home visit")
         self.attempts_used = 0
         self.operation_history.clear()
+        self.previous_completed_delta = None
 
     def _report(self, request: HomeVisitRequest, outcome: str) -> None:
         self.report = HomeVisitReport(

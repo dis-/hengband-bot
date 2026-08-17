@@ -1384,30 +1384,45 @@ def _quiet_stair_observation_timeout_probe():
 
 
 def _home_semantic_churn_defect():
-    """The take/put identity cancellation is a named absorbing terminal."""
-    identity = ("captured-shovel", 20, 1)
+    """The captured cross-identity zero-delta pair is a real terminal report."""
+    taken = ("captured-shovel", 3, 8)
+    put = ("captured-shovel", 1, 5)
     executor = HomeVisitExecutor(3)
-    executor.operation_history.append(("take", identity))
     executor.file(HomeVisitRequest(
-        HomeVisitKind.DEPOSIT, "absorbing-catalogue", identity
+        HomeVisitKind.WITHDRAW, "standing-digger", taken
     ))
     executor.begin_approach(1)
-    executor.observe_outside_ready("fresh-address", 1)
-    executor.record_operation("put", identity, 1)
-    defect = executor.consume_report().defect
+    executor.observe_outside_ready("fresh-take-address", 1)
+    executor.record_operation("take", taken, 1)
+    executor.post_exit()
+    executor.observe_outside(effect_observed=True)
+    executor.consume_report()
+    executor.file(HomeVisitRequest(
+        HomeVisitKind.DEPOSIT, "equipment-transaction", put
+    ))
+    executor.begin_approach(2)
+    executor.observe_outside_ready("fresh-put-address", 2)
+    executor.record_operation("put", put, 2)
+    executor.post_exit()
+    executor.observe_outside(effect_observed=True)
+    report = executor.consume_report()
+    home_visit_report = (
+        f"home-visit:{report.request.requester}:{report.defect}"
+    )
 
     class SemanticChurnPolicy:
         last_reason = ""
 
         def choose_key(self, _snapshot):
-            self.last_reason = f"home-visit:defect:{defect}"
+            self.last_reason = "home-visit:deposit-not-authorized"
+            self.home_visit_report = home_visit_report
             return ""
 
     base = fixture.HomeOneOperationPerEntryTest()._entrance_snapshot([])
 
     world = TownWorld(base)
     world.expected_terminal_reason = (
-        f"home-visit:defect:semantic-churn:{identity!r}"
+        "home-visit:deposit-not-authorized"
     )
     return SemanticChurnPolicy(), world
 

@@ -3106,7 +3106,15 @@ class HengbotPolicy:
         request = self._derived_home_visit_request(snapshot)
         if request is None:
             return False
-        self._home_visit.file(request)
+        filing = self._home_visit.file(request)
+        if filing == "rejected" or self._home_visit.request is None:
+            report = self._home_visit.consume_report()
+            if report is not None:
+                marker = report.defect or report.outcome
+                self._pending_home_visit_report = (
+                    f"home-visit:{report.request.requester}:{marker}"
+                )
+            return False
         return self._home_visit.begin_approach(self._decision_sequence)
 
     def _prepare_home_visit_operation(
@@ -3162,7 +3170,16 @@ class HengbotPolicy:
                 ))
             except ValueError:
                 return False
-            visit.begin_approach(self._decision_sequence)
+            if visit.request is None or not visit.begin_approach(
+                self._decision_sequence
+            ):
+                report = visit.consume_report()
+                if report is not None:
+                    marker = report.defect or report.outcome
+                    self._pending_home_visit_report = (
+                        f"home-visit:{report.request.requester}:{marker}"
+                    )
+                return False
             request = visit.request
         expected = request.item_identity
         compatible = expected == identity or (
@@ -16949,6 +16966,13 @@ class HengbotPolicy:
         self, store_type: int, *, release_visit_bound: bool = False
     ) -> None:
         """Release a completed stop when the current stop creates new work there."""
+        home_visit = getattr(self, "_home_visit", None)
+        if (
+            store_type == STORE_HOME
+            and home_visit is not None
+            and home_visit.attempts_used >= home_visit.attempt_limit
+        ):
+            return
         self._town_store_attempted.pop(store_type, None)
         if release_visit_bound:
             self._town_visit_ledger.blocked_stores.discard(store_type)
@@ -20276,7 +20300,11 @@ class HengbotPolicy:
             # executor's exact withdrawal request.
             return None
         if store_type == STORE_HOME:
-            self._ensure_home_visit_request(snapshot)
+            if not self._ensure_home_visit_request(snapshot):
+                self._town_store_attempted[STORE_HOME] = snapshot.turn
+                self._shopping_approach_store_type = None
+                self._shopping_approach_goal = None
+                return None
         visit = self._store_visit
         if visit is not None and visit.store_type != store_type:
             # The visit that opened first is authoritative.  A newly-derived
