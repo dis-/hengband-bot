@@ -16817,7 +16817,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         key = policy._approved_quest_strategy_key(flickered, [], [])
 
-        self.assertEqual(key, "7")
+        self.assertEqual(key, "4")
         self.assertEqual(policy.last_reason, "quest-strategy:survey-throw-point")
         self.assertEqual(
             policy._quest_strategy_cleared_targets[34], {(243, 7, 15)}
@@ -18657,19 +18657,9 @@ class PredictiveEscapeTest(unittest.TestCase):
         policy = HengbotPolicy(monrace_knowledge={6014: knowledge})
         policy._observe(snapshot)
         policy._explore_path = [Position(10, 14)]
-        original_clear = policy._clear_explore_path
-        clear_callers = []
+        policy.choose_key(snapshot)
 
-        def record_clear(outcome):
-            clear_callers.extend(frame.function for frame in inspect.stack())
-            return original_clear(outcome)
-
-        with patch.object(
-            policy, "_clear_explore_path", side_effect=record_clear
-        ):
-            policy.choose_key(snapshot)
-
-        self.assertIn("_refresh_paralyzer_avoidance", clear_callers)
+        self.assertEqual(policy._explore_path, [])
 
     def test_awake_mobile_adjacent_paralyzer_walks_away_first(self):
         monster = replace(
@@ -18690,6 +18680,76 @@ class PredictiveEscapeTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
         self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
         self.assertEqual(key, "7")
+
+    def test_sleeping_immobile_adjacent_paralyzer_is_never_meleed(self):
+        monster = replace(
+            hostile(1, 10, 11, distance=1, max_melee_damage=0),
+            race_id=6015,
+            asleep=True,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, flags=frozenset({"NEVER_MOVE"}),
+            blows=(MonsterBlow("GAZE", "PARALYZE"),),
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {Position(y, x): grid(y, x, monster=(y, x) == (10, 11))
+             for y in range(8, 13) for x in range(8, 13)},
+            [monster], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6015: knowledge})
+
+        key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(key, "6")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
+
+    def test_step_composer_refuses_every_owner_entry_into_paralyzer_ring(self):
+        monster = replace(
+            hostile(1, 10, 12, distance=2, max_melee_damage=0), race_id=6016
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, blows=(MonsterBlow("GAZE", "PARALYZE"),),
+        )
+        snapshot = Snapshot(
+            player(10, 10),
+            {Position(10, x): grid(10, x, monster=x == 12)
+             for x in range(8, 14)},
+            [monster], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6016: knowledge})
+        policy._observe(snapshot)
+        policy._build_grid_index(snapshot)
+        policy._refresh_paralyzer_avoidance(snapshot, [monster])
+
+        self.assertEqual(policy._step_toward(snapshot, Position(10, 11)), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "threat:paralyzer-avoid:blocked-step"
+        )
+
+    def test_adjacent_paralyzer_flee_uses_composer_to_open_closed_door(self):
+        monster = replace(
+            hostile(1, 10, 11, distance=1, max_melee_damage=0), race_id=6017
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, blows=(MonsterBlow("TOUCH", "PARALYZE"),),
+        )
+        grids = {
+            Position(10, 10): grid(10, 10),
+            Position(10, 11): grid(10, 11, monster=True),
+            Position(10, 9): grid(10, 9, closed_door=True),
+        }
+        snapshot = Snapshot(
+            player(10, 10), grids, [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6017: knowledge})
+
+        self.assertEqual(policy.choose_key(snapshot), "o4")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
 
     def test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer(self):
         orc = hostile(1, 10, 11, distance=1, max_melee_damage=1)

@@ -29713,8 +29713,7 @@ class HengbotPolicy:
             monster
             for monster in hostiles
             if (
-                not monster.asleep
-                and (knowledge := self._monrace_knowledge.get(monster.race_id))
+                (knowledge := self._monrace_knowledge.get(monster.race_id))
                 is not None
                 and any(blow.effect == "PARALYZE" for blow in knowledge.blows)
             )
@@ -29768,12 +29767,16 @@ class HengbotPolicy:
         threats: list[MonsterState],
         physical_adjacent: list[MonsterState],
     ) -> str | None:
-        """Walk away only when an awake, mobile paralyzer reaches adjacency."""
+        """Refuse melee and walk away whenever a paralyzer is adjacent."""
         adjacent = [
             monster
             for monster in threats
             if monster.distance <= 1
-            and "NEVER_MOVE" not in self._monrace_knowledge[monster.race_id].flags
+            and (
+                monster.asleep
+                or "NEVER_MOVE"
+                not in self._monrace_knowledge[monster.race_id].flags
+            )
         ]
         if not adjacent:
             return None
@@ -29791,11 +29794,9 @@ class HengbotPolicy:
             return None
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
-        offset = (
-            step.y - snapshot.player.position.y,
-            step.x - snapshot.player.position.x,
+        return self._step_toward(
+            snapshot, step, allow_paralyzer_ring_escape=True
         )
-        return DIRECTION_KEYS[offset]
 
     def _ranged_scroll_lock_threats(
         self,
@@ -33366,7 +33367,12 @@ class HengbotPolicy:
         return DIRECTION_KEYS[(dy, dx)]
 
     def _step_toward(
-        self, snapshot: Snapshot, step: Position, *, tail: str = ""
+        self,
+        snapshot: Snapshot,
+        step: Position,
+        *,
+        tail: str = "",
+        allow_paralyzer_ring_escape: bool = False,
     ) -> str:
         """Direction key toward an adjacent tile, but if it is a CLOSED door,
         open it (``o`` + direction) instead of walking — a closed door is a
@@ -33391,6 +33397,17 @@ class HengbotPolicy:
         if step == snapshot.player.position:
             self.last_reason = "nav:step-self"
             return WAIT_KEY + tail
+        if step in self._paralyzer_avoid_cells:
+            walkable = self._walkable_neighbors(
+                snapshot, snapshot.player.position
+            )
+            fully_ringed = bool(walkable) and all(
+                candidate in self._paralyzer_avoid_cells
+                for candidate in walkable
+            )
+            if not (allow_paralyzer_ring_escape and fully_ringed):
+                self.last_reason = "threat:paralyzer-avoid:blocked-step"
+                return WAIT_KEY
         key = self._direction_key(snapshot.player.position, step)
         grid = snapshot.grids.get(step)
         if grid is not None and grid.trap:

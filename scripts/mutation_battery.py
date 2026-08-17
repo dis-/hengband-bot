@@ -53,6 +53,9 @@ PUBLIC_TESTS = frozenset(
         "test_policy.PredictiveEscapeTest.test_distant_sleeping_immobile_paralyzer_does_not_preempt_hunt",
         "test_policy.PredictiveEscapeTest.test_paralyzer_ring_invalidates_cached_explore_path_through_choose_key",
         "test_policy.PredictiveEscapeTest.test_awake_mobile_adjacent_paralyzer_walks_away_first",
+        "test_policy.PredictiveEscapeTest.test_sleeping_immobile_adjacent_paralyzer_is_never_meleed",
+        "test_policy.PredictiveEscapeTest.test_step_composer_refuses_every_owner_entry_into_paralyzer_ring",
+        "test_policy.PredictiveEscapeTest.test_adjacent_paralyzer_flee_uses_composer_to_open_closed_door",
         "test_policy.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
     }
@@ -142,6 +145,29 @@ MUTATIONS = (
             "            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)\n",
             "        if False and any(step in cells for step in self._explore_path):\n"
             "            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)\n",
+        ),),
+    ),
+    Mutation(
+        "allow-composed-step-into-paralyzer-ring",
+        True,
+        "Restore owner movement through the no-adjacency ring.",
+        (replacement(
+            "policy.py",
+            "        if step in self._paralyzer_avoid_cells:\n",
+            "        if False and step in self._paralyzer_avoid_cells:\n",
+        ),),
+    ),
+    Mutation(
+        "exclude-sleeping-paralyzer-from-prevention",
+        True,
+        "Restore melee against an adjacent sleeping paralysis attacker.",
+        (replacement(
+            "policy.py",
+            "            if (\n"
+            "                (knowledge := self._monrace_knowledge.get(monster.race_id))\n",
+            "            if (\n"
+            "                not monster.asleep\n"
+            "                and (knowledge := self._monrace_knowledge.get(monster.race_id))\n",
         ),),
     ),
     Mutation(
