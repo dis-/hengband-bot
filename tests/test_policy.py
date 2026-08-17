@@ -24,6 +24,7 @@ from hengbot.cli import (
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.wilderness_map import WildernessMap
 from hengbot.model import (
+    AbilitySources,
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
     DUNGEON_YEEK_CAVE,
@@ -18532,11 +18533,109 @@ class PredictiveEscapeTest(unittest.TestCase):
 
         protected = replace(
             snap,
-            player=replace(snap.player, abilities=frozenset({"free_action"})),
+            player=replace(
+                snap.player,
+                abilities=frozenset({"free_action"}),
+                ability_sources=AbilitySources(
+                    {"free_action": frozenset({"equipment"})}
+                ),
+            ),
         )
         protected_policy = HengbotPolicy(monrace_knowledge={6002: knowledge})
         self.assertEqual(protected_policy.choose_key(protected), "6")
         self.assertEqual(protected_policy.last_reason, "melee")
+
+    def test_paralyzer_hunt_closure_is_vetoed_through_choose_key_after_restart(self):
+        monster = replace(
+            hostile(1, 10, 12, distance=2, max_melee_damage=0),
+            race_id=6010,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            blows=(MonsterBlow("GAZE", "PARALYZE"),),
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(y, x): grid(
+                    y, x, monster=(y == 10 and x == 12)
+                )
+                for y in range(8, 13)
+                for x in range(8, 14)
+            },
+            [monster],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+
+        for policy in (
+            HengbotPolicy(monrace_knowledge={6010: knowledge}),
+            HengbotPolicy(monrace_knowledge={6010: knowledge}),
+        ):
+            key = policy.choose_key(snapshot)
+            self.assertNotEqual(key, "6")
+            self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
+            self.assertIn(Position(10, 11), policy._paralyzer_avoid_cells)
+
+        ambiguous = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                abilities=frozenset({"free_action"}),
+                ability_sources=AbilitySources(),
+            ),
+        )
+        fail_closed = HengbotPolicy(monrace_knowledge={6010: knowledge})
+        self.assertNotEqual(fail_closed.choose_key(ambiguous), "6")
+        self.assertEqual(fail_closed.last_reason, "threat:paralyzer-avoid")
+
+    def test_paralyzer_prevention_prefers_ranged_and_free_action_restores_hunt(self):
+        monster = replace(
+            hostile(1, 10, 12, distance=2, max_melee_damage=0),
+            race_id=6011,
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20,
+            average_hp=20,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            blows=(MonsterBlow("GAZE", "PARALYZE"),),
+        )
+        snapshot = self._line_snapshot(
+            monster,
+            hp=100,
+            inventory=[item("a", TVAL_ARROW, 1, count=10)],
+        )
+        snapshot = replace(
+            snapshot,
+            equipment=[
+                item("bow", TVAL_BOW, SV_BOW_SHORT, is_equipment=True)
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge={6011: knowledge})
+
+        self.assertTrue(policy.choose_key(snapshot).startswith("\x1bf"))
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid:ranged")
+
+        protected = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                abilities=frozenset({"free_action"}),
+                ability_sources=AbilitySources(
+                    {"free_action": frozenset({"equipment"})}
+                ),
+            ),
+            inventory=[],
+            equipment=[],
+        )
+        protected_policy = HengbotPolicy(monrace_knowledge={6011: knowledge})
+        self.assertEqual(protected_policy.choose_key(protected), "6")
+        self.assertEqual(protected_policy.last_reason, "hunt")
 
     def test_suppressed_weak_breeder_paralysis_remains_a_status_threat(self):
         monster = replace(
@@ -18600,7 +18699,7 @@ class PredictiveEscapeTest(unittest.TestCase):
 
         policy.choose_key(danger)
 
-        self.assertEqual(policy.last_reason, "status-threat:retreat")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
         self.assertIn(Position(10, 10), policy._engagement_avoid_cells)
         self.assertEqual(policy._explore_path, [])
 
@@ -18674,7 +18773,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         policy._mining_scroll_used_floor = danger.floor_key
 
         self.assertEqual(policy.choose_key(danger), "1")
-        self.assertEqual(policy.last_reason, "status-threat:retreat")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
         self.assertIn(Position(5, 48), policy._engagement_avoid_cells)
 
         retreated = replace(
@@ -18684,8 +18783,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         )
         policy.choose_key(retreated)
 
-        self.assertEqual(policy.last_reason, "fundraise:seek-loot")
-        self.assertEqual(policy._loot_target, Position(8, 50))
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
 
         # The phase-1 mining sweep uses _nearest_goal_and_step rather than the
         # ordinary exploration planner. It must share the same persistent veto,

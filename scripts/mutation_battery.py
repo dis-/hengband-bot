@@ -49,6 +49,8 @@ PUBLIC_TESTS = frozenset(
         "test_cli.UniversalPostingContractTest.test_completed_dual_wield_prompt_history_is_not_an_open_owner",
         "test_policy.CombatTest.test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard",
         "test_policy.CombatTest.test_hunt_blink_does_not_restore_the_full_progress_budget",
+        "test_policy.PredictiveEscapeTest.test_paralyzer_hunt_closure_is_vetoed_through_choose_key_after_restart",
+        "test_policy.PredictiveEscapeTest.test_paralyzer_prevention_prefers_ranged_and_free_action_restores_hunt",
     }
 )
 DEFAULT_TESTS = (
@@ -78,6 +80,28 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "disable-paralyzer-adjacency-veto",
+        True,
+        "Restore ordinary hunt closure toward paralysis attackers.",
+        (replacement(
+            "policy.py",
+            "        paralyzers = self._refresh_paralyzer_avoidance(\n"
+            "            snapshot, physical_hostiles\n"
+            "        )\n",
+            "        paralyzers = []\n",
+        ),),
+    ),
+    Mutation(
+        "trust-flat-free-action-without-source",
+        True,
+        "Stop failing closed when free-action source state is absent.",
+        (replacement(
+            "policy.py",
+            "        return bool(snapshot.player.ability_sources.get(\"free_action\", ()))\n",
+            "        return \"free_action\" in snapshot.player.abilities\n",
+        ),),
+    ),
     Mutation(
         "scan-prompt-shaped-message-history",
         True,

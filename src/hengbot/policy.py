@@ -1888,6 +1888,10 @@ class HengbotPolicy:
         # another owner's claim (see _refresh_warning_avoidance).
         self._engagement_avoid_cells: set[Position] = set()
         self._engagement_owned_avoid_cells: set[Position] = set()
+        # Per-snapshot prevention owner for monsters whose blows can paralyze.
+        # Unlike retreat claims, these cells follow the currently visible
+        # monsters and are withdrawn when the source moves or disappears.
+        self._paralyzer_avoid_cells: set[Position] = set()
         # Grids whose entry a TR_WARNING prompt refused (this floor).  Injected
         # into _engagement_avoid_cells every decision — the same hard weight as
         # a lethal-danger cell — until the supply ledger is entirely exhausted,
@@ -4777,6 +4781,9 @@ class HengbotPolicy:
         strategic_adjacent = self._strategic_adjacent_hostiles(snapshot)
         physical_hostiles = self._physical_hostiles(snapshot)
         physical_adjacent = self._physical_adjacent_hostiles(snapshot)
+        paralyzers = self._refresh_paralyzer_avoidance(
+            snapshot, physical_hostiles
+        )
         # The global map is a distinct command space.  Town/store owners can
         # retain durable work while crossing it, but their travel, shopping,
         # repetition, and fundraising commands are not valid here.  Route or
@@ -4820,6 +4827,12 @@ class HengbotPolicy:
             # The emergency ladder is exempt from sibling hysteresis: the
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
+
+        paralyzer_prevention = self._paralyzer_prevention_key(
+            snapshot, paralyzers
+        )
+        if paralyzer_prevention is not None:
+            return paralyzer_prevention
 
         unseen_intercept = self._unseen_retreat_intercept_key(
             snapshot, physical_hostiles, physical_adjacent
@@ -29600,7 +29613,7 @@ class HengbotPolicy:
         present.  Reachability mirrors the melee portion of threat_prediction.
         """
         missing_confusion_resistance = "resist_conf" not in snapshot.player.abilities
-        missing_free_action = "free_action" not in snapshot.player.abilities
+        missing_free_action = not self._has_state_based_free_action(snapshot)
         if not missing_confusion_resistance and not missing_free_action:
             return []
 
@@ -29634,6 +29647,67 @@ class HengbotPolicy:
             if attacks > 0:
                 threats.append(monster)
         return threats
+
+    def _has_state_based_free_action(self, snapshot: Snapshot) -> bool:
+        """Trust only an explicitly active per-source free-action grant."""
+        return bool(snapshot.player.ability_sources.get("free_action", ()))
+
+    def _paralyzing_monsters(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> list[MonsterState]:
+        if self._has_state_based_free_action(snapshot):
+            return []
+        return [
+            monster
+            for monster in hostiles
+            if (
+                (knowledge := self._monrace_knowledge.get(monster.race_id))
+                is not None
+                and any(blow.effect == "PARALYZE" for blow in knowledge.blows)
+            )
+        ]
+
+    def _refresh_paralyzer_avoidance(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> list[MonsterState]:
+        """Put every visible paralyzer's melee ring in the shared route veto."""
+        previous_cells = getattr(self, "_paralyzer_avoid_cells", set())
+        self._engagement_avoid_cells -= (
+            previous_cells
+            - self._engagement_owned_avoid_cells
+            - self._warning_refused_cells
+        )
+        threats = self._paralyzing_monsters(snapshot, hostiles)
+        cells = {
+            grid.position
+            for threat in threats
+            for grid in snapshot.grids.values()
+            if grid.position.distance_to(threat.position) <= 1
+        }
+        self._paralyzer_avoid_cells = cells
+        self._engagement_avoid_cells |= cells
+        if any(step in cells for step in self._explore_path):
+            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        return threats
+
+    def _paralyzer_prevention_key(
+        self, snapshot: Snapshot, threats: list[MonsterState]
+    ) -> str | None:
+        """Prefer a ranged kill, then walk away; escalation remains downstream."""
+        if not threats:
+            return None
+        adjacent = [monster for monster in threats if monster.distance <= 1]
+        if not adjacent:
+            ranged = self._ranged_attack_key(snapshot, threats, [])
+            if ranged is not None:
+                self.last_reason = "threat:paralyzer-avoid:ranged"
+                return ranged
+        step = self._flee_step(snapshot, adjacent or threats)
+        if step is None:
+            return None
+        self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        self.last_reason = "threat:paralyzer-avoid"
+        return self._step_toward(snapshot, step)
 
     def _ranged_scroll_lock_threats(
         self,
