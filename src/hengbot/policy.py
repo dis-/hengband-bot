@@ -3756,7 +3756,7 @@ class HengbotPolicy:
                 self.last_reason = self._home_errand.reason("request-knowledge")
             else:
                 self.last_reason = "home:request-knowledge-scan"
-            return "~9"
+            return "~9\x1b\x1b"
         if self._home_knowledge_scan_inflight:
             # An ordinary board snapshot after the request means the response
             # did not arrive (the CLI's bounded prompt recovery has returned to
@@ -7898,7 +7898,7 @@ class HengbotPolicy:
             snapshot, lambda it: it.is_torch and not it.is_equipment
         )
         if ammo is not None:
-            prefix, slot, reason = LEAVE_STORE_KEY + FIRE_KEY, ammo.slot, "ranged:fire"
+            prefix, slot, reason = FIRE_KEY, ammo.slot, "ranged:fire"
         elif (
             torch is not None
             and 1 <= snapshot.dungeon_level <= TORCH_THROW_MAX_DEPTH
@@ -7992,7 +7992,7 @@ class HengbotPolicy:
             # 'p' resets both interest and free-grid targeting modes to the
             # player, giving the cursor movement a deterministic origin.
             self.last_reason = "ranged:fire-offset"
-            return LEAVE_STORE_KEY + FIRE_KEY + ammo.slot + "*p" + keys + "t5\x1b"
+            return FIRE_KEY + ammo.slot + "*p" + keys + "t5\x1b"
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
@@ -8021,7 +8021,7 @@ class HengbotPolicy:
                 ammo.count,
             )
         self.last_reason = "ranged:fire-target"
-        return LEAVE_STORE_KEY + FIRE_KEY + ammo.slot + "*t5\x1b"
+        return FIRE_KEY + ammo.slot + "*t5\x1b"
 
     def _offset_fire_aim(
         self,
@@ -11729,7 +11729,7 @@ class HengbotPolicy:
         ):
             self._store_entry_posted_owner = self._store_entry_wait_owner
             return True
-        if key == "~9":
+        if key == "~9\x1b\x1b":
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
             return True

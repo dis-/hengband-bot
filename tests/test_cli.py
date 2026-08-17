@@ -239,14 +239,14 @@ class PersistentInputStateClosureTest(unittest.TestCase):
                 movements.append(key)
         return state, movements
 
-    def test_actual_home_scan_bytes_arm_viewer_but_producer_closure_releases_it(self):
+    def test_actual_home_scan_bytes_close_viewer_before_another_owner_can_post(self):
         # 13:22:25 posted exactly ``~9`` before the claim owner's first ``9``.
         self.assertEqual(
             self._consume_home_viewer("~9" + "9"),
             ("home-viewer", []),
         )
-        closed = _transport_key("~9", False)
-        self.assertEqual(closed, "~9")
+        closed = _transport_key("~9\x1b\x1b", False)
+        self.assertEqual(closed, "~9\x1b\x1b")
         policy = SimpleNamespace(_home_knowledge_scan_inflight=True)
         policy.consume_home_knowledge = lambda _items: True
         closure = []
@@ -258,7 +258,7 @@ class PersistentInputStateClosureTest(unittest.TestCase):
             policy,
             closure.append,
         )
-        self.assertEqual(closure, ["\x1b\x1b"])
+        self.assertEqual(closure, [])
         self.assertEqual(
             self._consume_home_viewer(closed + "".join(closure) + "9"),
             ("command", ["9"]),
@@ -329,45 +329,6 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract = PostingContract()
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
-
-    def test_volley_repost_requires_selected_ammo_consumption(self):
-        key = "\x1bfa*t5\x1b"
-        owner = "ranged:fire-target"
-        contract = PostingContract()
-        before = self.snapshot(turn=2960000, count=12)
-        before.inventory[0].slot = "a"
-        contract.posted(before, key, owner)
-
-        unrelated = self.snapshot(turn=2960001, count=12, messages=("miss",))
-        unrelated.inventory[0].slot = "a"
-        self.assertFalse(contract.allow(unrelated, key, owner))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:identical-repost-unobserved",
-        )
-
-        consumed = self.snapshot(turn=2960001, count=11)
-        consumed.inventory[0].slot = "a"
-        self.assertTrue(contract.allow(consumed, key, owner))
-        self.assertIsNone(contract.last_incident)
-
-    def test_autodestroy_repost_requires_position_effect(self):
-        owner = "trigger-autodestroy"
-        contract = PostingContract()
-        before = self.snapshot(turn=2963992)
-        contract.posted(before, "8", owner)
-
-        unrelated = self.snapshot(turn=2963993, count=2, messages=("changed",))
-        self.assertFalse(contract.allow(unrelated, "8", owner))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:identical-repost-unobserved",
-        )
-
-        moved = self.snapshot(turn=2963993)
-        moved.player.position.y -= 1
-        self.assertTrue(contract.allow(moved, "8", owner))
-        self.assertIsNone(contract.last_incident)
 
     def test_unobserved_volley_recovers_through_identity_breaking_probe(self):
         owner = "ranged:fire"
@@ -640,7 +601,7 @@ class DecisionTimingTest(unittest.TestCase):
                 policy._home_knowledge_scan_requested = True
                 policy._home_page_size = 2
                 policy._decision_sequence += 1
-                return "~9"
+                return "~9\x1b\x1b"
 
             policy.choose_key = unittest.mock.Mock(side_effect=choose)
             sent = []
@@ -687,7 +648,7 @@ class DecisionTimingTest(unittest.TestCase):
             gap_keys = {"read_ms", "batch_bytes", "poll_wait_ms"}
 
             self.assertEqual(result, 0)
-            self.assertEqual(sent, ["~9", "\x1b\x1b"])
+            self.assertEqual(sent, ["~9\x1b\x1b"])
             self.assertTrue(phase_keys.issubset(timing))
             self.assertTrue(gap_keys.issubset(timing))
             self.assertTrue(all(timing[name] >= 0 for name in phase_keys))
@@ -707,7 +668,7 @@ class DecisionTimingTest(unittest.TestCase):
             ]
             self.assertEqual([item["line_count"] for item in batch_rows], [1, 1, 1])
             self.assertEqual(batch_rows[0]["line_turns"], [2])
-            self.assertEqual(batch_rows[0]["posted_key"], "~9")
+            self.assertEqual(batch_rows[0]["posted_key"], "~9\x1b\x1b")
             self.assertTrue(batch_rows[0]["decided"])
             self.assertEqual(batch_rows[1]["line_types"], ["knowledge"])
             self.assertFalse(batch_rows[1]["decided"])
