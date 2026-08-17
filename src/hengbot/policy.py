@@ -2086,7 +2086,12 @@ class HengbotPolicy:
         # as one stay/deposit/exit string.  This identifies that special visit
         # until the next outside observation; withdrawals and transaction
         # commands retain their existing in-store prepare/post/observe path.
-        self._home_atomic_deposit_pending: tuple[tuple[str, int, int], int] | None = None
+        # (identity, count before posting, posting turn, newer unchanged pages).
+        # A same-turn surface record is part of the composed entry/deposit/exit
+        # command, not a negative observation of its effect.
+        self._home_atomic_deposit_pending: tuple[
+            tuple[str, int, int], int, int, int
+        ] | None = None
         # Same target and shortage after a registered, money-spending buy is a
         # distinct defect from a transport failure at unchanged gold.
         self._last_buy_progress_sig: tuple[str, int, int] | None = None
@@ -3768,7 +3773,48 @@ class HengbotPolicy:
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
         )
-        if snapshot.store is None and leaving_home:
+        pending_deposit = self._home_atomic_deposit_pending
+        if snapshot.store is None and pending_deposit is not None:
+            signature, count_before, posted_turn, unchanged_pages = pending_deposit
+            if snapshot.turn > posted_turn:
+                deposit_observed = (
+                    self._inventory_signature_count(snapshot, signature)
+                    < count_before
+                )
+                if deposit_observed:
+                    if getattr(self, "_home_visit", None) is not None:
+                        self._home_visit.observe_outside(effect_observed=True)
+                    self._home_entry_operation_posted = False
+                    self._home_atomic_deposit_pending = None
+                    self._invalidate_home_observation()
+                elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
+                    # A11r2 discipline: never recompose against the page that
+                    # failed to show the mutation.  Terminate this visit
+                    # visibly and reject that identity for this visit.  It may
+                    # become eligible only in a later visit epoch, whose normal
+                    # Home scan supplies a new address space.
+                    if getattr(self, "_home_visit", None) is not None:
+                        self._home_visit.observe_outside(effect_observed=False)
+                        report = self._home_visit.consume_report()
+                        if report is not None:
+                            marker = report.defect or report.outcome
+                            self._pending_home_visit_report = (
+                                f"home-visit:{report.request.requester}:{marker}"
+                            )
+                    self._home_entry_operation_posted = False
+                    self._home_atomic_deposit_pending = None
+                    self._home_rejected_deposits.add(signature)
+                    self.last_reason = "home:deposit-unobserved-rescan"
+                else:
+                    self._home_atomic_deposit_pending = (
+                        signature, count_before, posted_turn, unchanged_pages + 1
+                    )
+        if (
+            snapshot.store is None
+            and leaving_home
+            and self._home_atomic_deposit_pending is None
+            and pending_deposit is None
+        ):
             if getattr(self, "_home_visit", None) is not None:
                 self._home_visit.observe_outside(
                     effect_observed=bool(
@@ -3777,20 +3823,6 @@ class HengbotPolicy:
                     )
                 )
             self._home_entry_operation_posted = False
-            self._home_atomic_deposit_pending = None
-        elif (
-            snapshot.store is None
-            and self._home_atomic_deposit_pending is not None
-        ):
-            signature, count_before = self._home_atomic_deposit_pending
-            deposit_observed = (
-                self._inventory_signature_count(snapshot, signature) < count_before
-            )
-            if getattr(self, "_home_visit", None) is not None:
-                self._home_visit.observe_outside(effect_observed=deposit_observed)
-            if deposit_observed:
-                self._home_entry_operation_posted = False
-                self._home_atomic_deposit_pending = None
         pending_home_transaction = (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -13427,6 +13459,7 @@ class HengbotPolicy:
         if (
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
+            or self._home_atomic_deposit_pending is not None
         ):
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
@@ -13498,12 +13531,13 @@ class HengbotPolicy:
                 ),
             )
             self._home_entry_operation_posted = True
-            self._invalidate_home_observation()
             self._home_atomic_deposit_pending = (
                 self._item_signature(current),
                 self._inventory_signature_count(
                     snapshot, self._item_signature(current)
                 ),
+                snapshot.turn,
+                0,
             )
             self.last_reason = "equipment-transaction:atomic-deposit"
             return key
@@ -13547,10 +13581,11 @@ class HengbotPolicy:
             self.last_reason = "home-visit:deposit-not-authorized"
             return None
         self._home_entry_operation_posted = True
-        self._invalidate_home_observation()
         self._home_atomic_deposit_pending = (
             self._item_signature(current),
             self._inventory_signature_count(snapshot, self._item_signature(current)),
+            snapshot.turn,
+            0,
         )
         self._equipment_catalog.record_home_deposit(
             current,

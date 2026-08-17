@@ -265,6 +265,27 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
             "zero-net-inventory-delta", executor.consume_report().defect
         )
 
+    def test_executor_era_deposit_repost_is_same_turn_unobserved_refile(self):
+        rows = self._rows(
+            "evidence/evidence-executor-era-stops-20260818-03.jsonl",
+            {"home:atomic-deposit",
+             "posting-contract:identical-repost-unobserved"},
+        )
+        incident_index = next(
+            index for index, row in enumerate(rows)
+            if row["reason"] == "posting-contract:identical-repost-unobserved"
+            and row["contract_incident"].get("owner")
+            == "home:atomic-deposit"
+        )
+        before = rows[incident_index - 2:incident_index]
+        self.assertEqual(len(before), 2)
+        self.assertEqual(before[0]["key"], before[1]["key"])
+        self.assertEqual(before[0]["turn"], before[1]["turn"])
+        self.assertEqual(
+            before[1].get("home_visit_report"),
+            "home-visit:calibration-deposit:unfulfilled",
+        )
+
     def test_door_bounce_capture_collapses_to_report_and_durable_budget(self):
         rows = self._rows(
             "incident-captures/20260818-001502-loop-detected/decision-tail.jsonl",
@@ -318,6 +339,11 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         for name in ("_atomic_home_withdraw_key", "_atomic_home_deposit_key"):
             body = ast.unparse(functions[name])
             self.assertIn("_prepare_home_visit_operation", body)
+        deposit = ast.unparse(functions["_atomic_home_deposit_key"])
+        self.assertIn("_home_atomic_deposit_pending is not None", deposit)
+        self.assertNotIn(
+            "False and self._home_atomic_deposit_pending is not None", deposit
+        )
 
     def test_whole_file_home_approach_ratchet_and_evasion_controls(self):
         source = (self.ROOT / "src/hengbot/policy.py").read_text(encoding="utf-8")

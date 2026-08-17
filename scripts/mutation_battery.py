@@ -74,6 +74,9 @@ PUBLIC_TESTS = frozenset(
         "test_policy.HomeVisitOwnershipTest.test_rejected_home_visit_budget_stops_the_real_approach",
         "test_policy.HomeVisitOwnershipTest.test_prepare_operation_budget_exhaustion_is_visible",
         "test_policy.HomeVisitOwnershipTest.test_home_rearm_is_noop_after_visit_budget_exhaustion",
+        "test_policy.HomeOneOperationPerEntryTest.test_same_turn_home_leave_does_not_refile_atomic_deposit",
+        "test_policy.HomeOneOperationPerEntryTest.test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound",
+        "test_home_visit.HomeVisitCaptureAcceptanceTest.test_executor_era_deposit_repost_is_same_turn_unobserved_refile",
     }
 )
 DEFAULT_TESTS = (
@@ -199,6 +202,16 @@ MUTATIONS = (
             "            self._invalidate_home_observation()\n",
             "        if False and owner_indices and index <= min(owner_indices):\n"
             "            self._invalidate_home_observation()\n",
+        ),),
+    ),
+    Mutation(
+        "close-home-deposit-on-same-turn-page",
+        True,
+        "Restore the executor-era stale-page report/refile cycle.",
+        (replacement(
+            "policy.py",
+            "            if snapshot.turn > posted_turn:\n",
+            "            if snapshot.turn >= posted_turn:\n",
         ),),
     ),
     Mutation(

@@ -49323,7 +49323,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy.choose_key(unchanged)
 
         self.assertTrue(policy._home_entry_operation_posted)
-        self.assertEqual(policy._home_atomic_deposit_pending, pending)
+        self.assertEqual(policy._home_atomic_deposit_pending[:3], pending[:3])
+        self.assertEqual(policy._home_atomic_deposit_pending[3], 1)
 
         confirmed = replace(
             unchanged,
@@ -49334,12 +49335,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertFalse(policy._home_entry_operation_posted)
         self.assertIsNone(policy._home_atomic_deposit_pending)
 
-    def test_atomic_latch_clears_when_home_leave_is_observed(self):
+    def test_same_turn_home_leave_does_not_refile_atomic_deposit(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")
         entrance = self._entrance_snapshot(self._real_pack(target))
         unchanged = self._snapshot(
-            self._real_pack(target), at_home=False, turn=entrance.turn + 1
+            self._real_pack(target), at_home=False, turn=entrance.turn
         )
 
         self._post_atomic(policy, entrance, target)
@@ -49353,8 +49354,33 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._decide = Mock(return_value=WAIT_KEY)
         policy.choose_key(unchanged)
 
+        self.assertIsNotNone(policy._home_atomic_deposit_pending)
+        self.assertEqual(policy._home_atomic_deposit_pending[3], 0)
+        self.assertIsNone(policy.consume_pending_home_visit_report())
+
+    def test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=84, name="surplus arrows")
+        entrance = self._entrance_snapshot(self._real_pack(target), turn=500)
+        knowledge_before = policy._home_knowledge_current
+
+        self.assertEqual(
+            self._post_atomic(policy, entrance, target), "5df84\r\x1b"
+        )
+        policy._decide = Mock(return_value=WAIT_KEY)
+        for offset in range(1, STORE_STUCK_LIMIT + 1):
+            policy.choose_key(self._snapshot(
+                self._real_pack(target), at_home=False, turn=500 + offset
+            ))
+
         self.assertFalse(policy._home_entry_operation_posted)
         self.assertIsNone(policy._home_atomic_deposit_pending)
+        self.assertEqual(policy._home_knowledge_current, knowledge_before)
+        self.assertIn(
+            policy._item_signature(target), policy._home_rejected_deposits
+        )
+        report = policy.consume_pending_home_visit_report()
+        self.assertIn("unfulfilled", report)
 
     def test_real_capture_three_progress_leaves_keep_home_stop_available(self):
         policy = HengbotPolicy()
@@ -53509,9 +53535,8 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertIn(
             (WAIT_KEY, "equipment-transaction:abandon-blocked"), decisions
         )
-        self.assertIn(
-            ("4", "town:blocked:repetition"), decisions
-        )
+        self.assertIn((WAIT_KEY, "town:cycle-break"), decisions)
+        self.assertNotIn(("4", "town:blocked:repetition"), decisions)
 
     def test_town_recall_wait_steps_off_building_entrance_publicly(self):
         policy, snapshot = self._fixture()
