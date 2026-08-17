@@ -788,6 +788,7 @@ def _decision_record(
     decision_sequence: int | None = None,
     timing: dict | None = None,
     equipment_mutation_report: str | None = None,
+    hunt_report: str | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -882,6 +883,7 @@ def _decision_record(
             if equipment_mutation_report is not None
             else {}
         ),
+        **({"hunt_report": hunt_report} if hunt_report is not None else {}),
     }
 
 
@@ -1371,6 +1373,11 @@ def _write_decision(
                     timing,
                     (
                         policy.consume_pending_mutation_report()
+                        if policy is not None
+                        else None
+                    ),
+                    (
+                        policy.consume_pending_hunt_report()
                         if policy is not None
                         else None
                     ),

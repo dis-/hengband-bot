@@ -1872,11 +1872,15 @@ class DecisionRecordTest(unittest.TestCase):
                     policy, "_choose_key_with_latch_capture", side_effect=fallthrough
                 ):
                     key = policy.choose_key(snapshot)
+                policy._pending_hunt_report = "hunt:abandoned-no-damage-no-closure"
                 path = Path(directory) / "decisions.jsonl"
                 _write_decision(path, snapshot, key, policy.last_reason, policy)
                 row = json.loads(path.read_text(encoding="utf-8"))
                 self.assertEqual(row["reason"], "explore:fallthrough")
                 self.assertEqual(row["equipment_mutation_report"], expected)
+                self.assertEqual(
+                    row["hunt_report"], "hunt:abandoned-no-damage-no-closure"
+                )
 
     def test_captured_facts_keep_town_and_dungeon_rows_identical(self):
         timing = {"read_ms": 1.0, "choose_key_ms": 2.0, "total_ms": 3.0}

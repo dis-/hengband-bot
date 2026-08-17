@@ -1795,12 +1795,11 @@ class HengbotPolicy:
         self._equipment_mutation_post_commit: tuple[str, str] | None = None
         self._pending_mutation_report: str | None = None
         self._hunt_progress_floor: tuple[int, int, int] | None = None
-        self._hunt_progress_steps = 0
-        self._hunt_progress_best_distance: int | None = None
-        self._hunt_progress_exp = 0
-        self._hunt_progress_hp: dict[int, int] = {}
-        self._hunt_claim_targets: set[int] = set()
-        self._hunt_cooled_targets: set[int] = set()
+        self._hunt_progress: dict[tuple[int, int, Position], dict[str, int]] = {}
+        self._hunt_target_identities: dict[int, tuple[int, int, Position]] = {}
+        self._hunt_cooled_targets: set[tuple[int, int, Position]] = set()
+        self._hunt_cooling_exempt_targets: set[tuple[int, int, Position]] = set()
+        self._pending_hunt_report: str | None = None
         self._mining_combat_contact_streak = 0
         self._mining_threat_free_streak = 0
         self._swarm_distance_floor: tuple[int, int, int] | None = None
@@ -5288,7 +5287,7 @@ class HengbotPolicy:
             return WAIT_KEY
 
         if quest_targets:
-            step = self._hunt_step(snapshot, quest_targets)
+            step = self._hunt_step(snapshot, quest_targets, allow_cooling=False)
             if step is not None:
                 self.last_reason = "hunt:quest-target"
                 return self._step_toward(snapshot, step)
@@ -11324,6 +11323,12 @@ class HengbotPolicy:
         """Return the mutation report produced during this decision, once."""
         report = self._pending_mutation_report
         self._pending_mutation_report = None
+        return report
+
+    def consume_pending_hunt_report(self) -> str | None:
+        """Return the hunt-abandonment report produced this decision, once."""
+        report = self._pending_hunt_report
+        self._pending_hunt_report = None
         return report
 
     def refuse_key_posting(self, owner: str, key: str) -> None:
@@ -31694,16 +31699,24 @@ class HengbotPolicy:
             return min(candidates, key=lambda candidate: candidate[:3])[3]
         return self._flee_step(snapshot, hostiles)
 
-    def _hunt_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
+    def _hunt_step(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        *,
+        allow_cooling: bool = True,
+    ) -> Position | None:
         player = snapshot.player
         if self._hunt_progress_floor != snapshot.floor_key:
             self._hunt_progress_floor = snapshot.floor_key
-            self._hunt_progress_steps = 0
-            self._hunt_progress_best_distance = None
-            self._hunt_progress_exp = player.exp
-            self._hunt_progress_hp.clear()
-            self._hunt_claim_targets.clear()
+            self._hunt_progress.clear()
+            self._hunt_target_identities.clear()
             self._hunt_cooled_targets.clear()
+            self._hunt_cooling_exempt_targets.clear()
+        observed_indexes = {monster.index for monster in snapshot.visible_monsters}
+        for index in tuple(self._hunt_target_identities):
+            if index not in observed_indexes:
+                self._hunt_target_identities.pop(index, None)
         if player.hp_ratio < HUNT_HP_RATIO or not hostiles:
             return None
         if (
@@ -31731,40 +31744,64 @@ class HengbotPolicy:
                 return False
             return m.max_hp <= max(player.max_hp, 1)
 
+        identities: dict[int, tuple[int, int, Position]] = {}
+        for monster in hostiles:
+            identity = self._hunt_target_identities.get(monster.index)
+            if identity is None or identity[1] != monster.race_id:
+                identity = (monster.index, monster.race_id, monster.position)
+                self._hunt_target_identities[monster.index] = identity
+            identities[monster.index] = identity
+        if not allow_cooling:
+            self._hunt_cooling_exempt_targets.update(identities.values())
+
         targets = [
             m for m in hostiles
-            if easy(m) and m.index not in self._hunt_cooled_targets
+            if easy(m) and identities[m.index] not in self._hunt_cooled_targets
         ]
         if not targets:
             return None
-        current_hp = {monster.index: monster.hp for monster in targets}
-        damage_dealt = any(
-            current_hp[index] < old_hp
-            for index, old_hp in self._hunt_progress_hp.items()
-            if index in current_hp
-        )
-        nearest_distance = min(monster.distance for monster in targets)
-        distance_closed = (
-            self._hunt_progress_best_distance is None
-            or nearest_distance < self._hunt_progress_best_distance
-        )
-        durable_progress = damage_dealt or player.exp > self._hunt_progress_exp
-        if durable_progress or distance_closed:
-            self._hunt_progress_steps = 0
-            self._hunt_progress_best_distance = nearest_distance
-            self._hunt_progress_exp = player.exp
-        else:
-            self._hunt_progress_steps += 1
-        self._hunt_progress_hp.update(current_hp)
-        self._hunt_claim_targets.update(current_hp)
-        if self._hunt_progress_steps >= HUNT_RANGE:
-            self._hunt_cooled_targets.update(self._hunt_claim_targets)
-            self._hunt_progress_steps = 0
-            self._hunt_progress_best_distance = None
-            self._hunt_progress_hp.clear()
-            self._hunt_claim_targets.clear()
-            self._pending_mutation_report = "hunt:abandoned-no-damage-no-closure"
-            return None
+        cooled_now = False
+        for monster in targets:
+            identity = identities[monster.index]
+            progress = self._hunt_progress.get(identity)
+            if progress is None:
+                progress = {
+                    "steps": 0,
+                    "best_distance": monster.distance,
+                    "exp": player.exp,
+                    "hp": monster.hp,
+                    "decision": self._decision_sequence,
+                }
+                self._hunt_progress[identity] = progress
+            elif progress["decision"] != self._decision_sequence:
+                made_progress = (
+                    monster.hp < progress["hp"]
+                    or player.exp > progress["exp"]
+                    or monster.distance < progress["best_distance"]
+                )
+                progress["steps"] = 0 if made_progress else progress["steps"] + 1
+                progress["best_distance"] = min(
+                    progress["best_distance"], monster.distance
+                )
+                progress["exp"] = player.exp
+                progress["hp"] = monster.hp
+                progress["decision"] = self._decision_sequence
+            if (
+                allow_cooling
+                and identity not in self._hunt_cooling_exempt_targets
+                and progress["steps"] >= HUNT_RANGE
+            ):
+                self._hunt_cooled_targets.add(identity)
+                self._hunt_progress.pop(identity, None)
+                cooled_now = True
+        if cooled_now:
+            self._pending_hunt_report = "hunt:abandoned-no-damage-no-closure"
+            targets = [
+                monster for monster in targets
+                if identities[monster.index] not in self._hunt_cooled_targets
+            ]
+            if not targets:
+                return None
         target = min(targets, key=lambda m: m.distance)
         step = self._nearest_goal_step(
             snapshot, lambda g: g.position.distance_to(target.position) <= 1

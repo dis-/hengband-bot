@@ -21,6 +21,8 @@ import sys
 import tempfile
 from typing import Callable
 
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "hengbot"
@@ -97,8 +99,8 @@ MUTATIONS = (
         "Restore the unbounded midpoint hunt claim.",
         (replacement(
             "policy.py",
-            "        if self._hunt_progress_steps >= HUNT_RANGE:\n",
-            "        if False and self._hunt_progress_steps >= HUNT_RANGE:\n",
+            "                and progress[\"steps\"] >= HUNT_RANGE\n",
+            "                and False and progress[\"steps\"] >= HUNT_RANGE\n",
         ),),
     ),
     Mutation(
@@ -431,6 +433,9 @@ def print_table(results: list[dict]) -> None:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", choices=[item.name for item in MUTATIONS])
     parser.add_argument("--full-suite", action="store_true")
