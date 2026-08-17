@@ -1,0 +1,17 @@
+{"decision_sequence":56,"reason":"home:atomic-withdraw","key":"5pH\u001b"}
+{"decision_sequence":57,"reason":"shop:observed-operation-uncomposable","key":"5"}
+{"decision_sequence":58,"reason":"town:travel-entrance","key":"\u001b`n>."}
+{"decision_sequence":59,"reason":"descend","key":">\ry"}
+{"decision_sequence":60,"reason":"stair:await-observation","key":""}
+{"decision_sequence":61,"reason":"stair:await-observation","key":""}
+{"decision_sequence":62,"reason":"stair:await-observation","key":""}
+{"decision_sequence":63,"reason":"stair:await-observation","key":""}
+{"decision_sequence":64,"reason":"stair:await-observation","key":""}
+{"decision_sequence":65,"reason":"stair:await-observation","key":""}
+{"decision_sequence":66,"reason":"stair:await-observation","key":""}
+{"decision_sequence":67,"reason":"stair:await-observation","key":""}
+{"decision_sequence":68,"reason":"stair:await-observation","key":""}
+{"decision_sequence":69,"reason":"stair:await-observation","key":""}
+{"decision_sequence":70,"reason":"stair:await-observation","key":""}
+{"decision_sequence":71,"reason":"stair:await-observation","key":""}
+{"decision_sequence":72,"reason":"loop-detected","key":""}

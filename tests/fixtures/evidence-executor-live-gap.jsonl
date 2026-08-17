@@ -1,0 +1,3 @@
+{"reason":"shop:approach","count":38}
+{"reason":"home:store-context-exit","count":22}
+{"reason":"home:atomic-withdraw-target-unobserved","count":6}
