@@ -50,7 +50,10 @@ PUBLIC_TESTS = frozenset(
         "test_policy.CombatTest.test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard",
         "test_policy.CombatTest.test_hunt_blink_does_not_restore_the_full_progress_budget",
         "test_policy.PredictiveEscapeTest.test_paralyzer_hunt_closure_is_vetoed_through_choose_key_after_restart",
-        "test_policy.PredictiveEscapeTest.test_paralyzer_prevention_prefers_ranged_and_free_action_restores_hunt",
+        "test_policy.PredictiveEscapeTest.test_distant_sleeping_immobile_paralyzer_does_not_preempt_hunt",
+        "test_policy.PredictiveEscapeTest.test_paralyzer_ring_invalidates_cached_explore_path_through_choose_key",
+        "test_policy.PredictiveEscapeTest.test_awake_mobile_adjacent_paralyzer_walks_away_first",
+        "test_policy.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
     }
 )
 DEFAULT_TESTS = (
@@ -100,6 +103,32 @@ MUTATIONS = (
             "policy.py",
             "        return bool(snapshot.player.ability_sources.get(\"free_action\", ()))\n",
             "        return \"free_action\" in snapshot.player.abilities\n",
+        ),),
+    ),
+    Mutation(
+        "retain-stale-paralyzer-ring",
+        True,
+        "Leave the previous snapshot's paralyzer cells in the shared veto.",
+        (replacement(
+            "policy.py",
+            "        self._engagement_avoid_cells -= (\n"
+            "            previous_cells\n"
+            "            - self._engagement_owned_avoid_cells\n"
+            "            - self._warning_refused_cells\n"
+            "        )\n",
+            "        self._engagement_avoid_cells -= set()\n",
+        ),),
+    ),
+    Mutation(
+        "keep-explore-path-through-paralyzer-ring",
+        True,
+        "Keep a cached exploration path after its next step enters the ring.",
+        (replacement(
+            "policy.py",
+            "        if any(step in cells for step in self._explore_path):\n"
+            "            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)\n",
+            "        if False and any(step in cells for step in self._explore_path):\n"
+            "            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)\n",
         ),),
     ),
     Mutation(

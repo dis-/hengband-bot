@@ -4829,7 +4829,7 @@ class HengbotPolicy:
             self._escape_state.release()
 
         paralyzer_prevention = self._paralyzer_prevention_key(
-            snapshot, paralyzers
+            snapshot, paralyzers, physical_adjacent
         )
         if paralyzer_prevention is not None:
             return paralyzer_prevention
@@ -5084,6 +5084,18 @@ class HengbotPolicy:
         status_threats = self._unresisted_melee_status_threats(
             snapshot, physical_hostiles
         )
+        if physical_adjacent and not any(
+            monster.distance <= 1 for monster in status_threats
+        ) and status_threats and all(
+            any(
+                blow.effect == "PARALYZE"
+                for blow in self._monrace_knowledge[monster.race_id].blows
+            )
+            for monster in status_threats
+        ):
+            # Finish the fight already in contact; a merely approaching status
+            # monster must not pull us away from a different adjacent enemy.
+            status_threats = []
         if status_threats:
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
@@ -29703,7 +29715,8 @@ class HengbotPolicy:
             monster
             for monster in hostiles
             if (
-                (knowledge := self._monrace_knowledge.get(monster.race_id))
+                not monster.asleep
+                and (knowledge := self._monrace_knowledge.get(monster.race_id))
                 is not None
                 and any(blow.effect == "PARALYZE" for blow in knowledge.blows)
             )
@@ -29719,12 +29732,31 @@ class HengbotPolicy:
             - self._engagement_owned_avoid_cells
             - self._warning_refused_cells
         )
+        # Sleeping paralyzers do not actively trigger prevention, but their
+        # adjacency ring still has to veto a hunt step that would wake them in
+        # melee range.  The active list below deliberately excludes sleepers.
+        ring_threats = (
+            []
+            if self._has_state_based_free_action(snapshot)
+            else [
+                monster
+                for monster in hostiles
+                if (
+                    (knowledge := self._monrace_knowledge.get(monster.race_id))
+                    is not None
+                    and any(
+                        blow.effect == "PARALYZE" for blow in knowledge.blows
+                    )
+                )
+            ]
+        )
         threats = self._paralyzing_monsters(snapshot, hostiles)
         cells = {
-            grid.position
-            for threat in threats
-            for grid in snapshot.grids.values()
-            if grid.position.distance_to(threat.position) <= 1
+            position
+            for threat in ring_threats
+            for dy, dx in NEIGHBOR_OFFSETS + ((0, 0),)
+            if (position := Position(threat.position.y + dy, threat.position.x + dx))
+            in snapshot.grids
         }
         self._paralyzer_avoid_cells = cells
         self._engagement_avoid_cells |= cells
@@ -29733,23 +29765,39 @@ class HengbotPolicy:
         return threats
 
     def _paralyzer_prevention_key(
-        self, snapshot: Snapshot, threats: list[MonsterState]
+        self,
+        snapshot: Snapshot,
+        threats: list[MonsterState],
+        physical_adjacent: list[MonsterState],
     ) -> str | None:
-        """Prefer a ranged kill, then walk away; escalation remains downstream."""
-        if not threats:
-            return None
-        adjacent = [monster for monster in threats if monster.distance <= 1]
+        """Walk away only when an awake, mobile paralyzer reaches adjacency."""
+        adjacent = [
+            monster
+            for monster in threats
+            if monster.distance <= 1
+            and "NEVER_MOVE" not in self._monrace_knowledge[monster.race_id].flags
+        ]
         if not adjacent:
-            ranged = self._ranged_attack_key(snapshot, threats, [])
-            if ranged is not None:
-                self.last_reason = "threat:paralyzer-avoid:ranged"
-                return ranged
-        step = self._flee_step(snapshot, adjacent or threats)
+            return None
+        ranged = self._ranged_attack_key(snapshot, adjacent, physical_adjacent)
+        if ranged is not None:
+            self.last_reason = "threat:paralyzer-avoid:ranged"
+            return ranged
+        shared_avoid = self._engagement_avoid_cells
+        self._engagement_avoid_cells = shared_avoid - self._paralyzer_avoid_cells
+        try:
+            step = self._flee_step(snapshot, physical_adjacent)
+        finally:
+            self._engagement_avoid_cells = shared_avoid
         if step is None:
             return None
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
-        return self._step_toward(snapshot, step)
+        offset = (
+            step.y - snapshot.player.position.y,
+            step.x - snapshot.player.position.x,
+        )
+        return DIRECTION_KEYS[offset]
 
     def _ranged_scroll_lock_threats(
         self,

@@ -137,6 +137,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_unseen_wait_intercepted",
         "_unseen_attack_evidence",
         "_engagement_avoid_cells",
+        "_paralyzer_avoid_cells",
         "_probed_frontiers",
         "_unenterable_explore_goals",
         "_window_edge_goals",
