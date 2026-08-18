@@ -18122,6 +18122,137 @@ class DescentBlockCooldownTest(unittest.TestCase):
 
 
 class HiddenInfoFallbackTest(unittest.TestCase):
+    def _mana_starvation_snapshot(
+        self, *, store=None, inventory=None, food=400, gold=170
+    ):
+        return Snapshot(
+            player(
+                10, 10, food=food, gold=gold,
+                food_type=FOOD_TYPE_MANA,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory or [],
+            store=store,
+        )
+
+    def test_a21_gate1_magic_page_has_no_affordable_device_and_stops(self):
+        # Recorded 2026-08-18 10:30 page: the cheapest charged device was the
+        # 443g Magic Missile wand, while the fainting Zombie had only 170g.
+        page = StoreState(
+            STORE_MAGIC,
+            [
+                store_item("a", 96, 0, price=160, name="Arcane book"),
+                store_item(
+                    "g", TVAL_WAND, 15, price=443, pval=13,
+                    name="Magic Missile wand (13 charges)",
+                ),
+                store_item(
+                    "m", TVAL_STAFF, 10, price=471, pval=18,
+                    name="Treasure Location staff (18 charges)",
+                ),
+            ],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._shop(self._mana_starvation_snapshot(store=page)), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:survival-mana-no-charges"
+        )
+        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+    def test_a21_affordable_magic_device_uses_buy_then_absorb(self):
+        wand = store_item(
+            "b", TVAL_WAND, 1, price=80, pval=15,
+            name="Slow Monster wand (15 charges)",
+        )
+        policy = HengbotPolicy()
+        in_store = self._mana_starvation_snapshot(
+            store=StoreState(STORE_MAGIC, [wand])
+        )
+
+        self.assertEqual(policy._shop(in_store), "pb\r")
+        self.assertEqual(policy.last_reason, "survival:buy-food")
+
+        acquired = item("d", TVAL_WAND, 1, charges=15, name="wand")
+        outside = self._mana_starvation_snapshot(inventory=[acquired])
+        self.assertEqual(policy._mana_food_survival_override_key(outside), "Ed")
+        self.assertEqual(policy.last_reason, "survival:mana-absorb")
+
+    def test_a21_home_device_files_executor_withdrawal_before_waits(self):
+        stored = item("h", TVAL_STAFF, 8, charges=12, name="Light staff")
+        snap = self._mana_starvation_snapshot()
+        snap = replace(
+            snap,
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_MAGIC] = snap.turn
+        policy._home_knowledge_items = [stored]
+        policy._home_knowledge_current = True
+        policy._home_available = lambda _snapshot: True
+        policy._build_grid_index(snap)
+
+        self.assertEqual(policy._mana_food_survival_override_key(snap), "6")
+        self.assertEqual(policy.last_reason, "survival:mana-home-approach")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(stored))
+        request = policy._derived_home_visit_request(snap)
+        self.assertEqual(request.kind, policy_module.HomeVisitKind.WITHDRAW)
+        self.assertEqual(request.item_identity, policy._item_signature(stored))
+        self.assertEqual(policy._home_visit.request, request)
+
+    def test_a21_floor_device_pickup_preempts_terminal_wait(self):
+        snap = self._mana_starvation_snapshot()
+        snap = replace(
+            snap,
+            grids={
+                Position(10, 10): grid(
+                    10, 10, objects=1, object_tvals=(TVAL_WAND,)
+                )
+            },
+        )
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_MAGIC] = snap.turn
+
+        self.assertEqual(policy._mana_food_survival_override_key(snap), PICKUP_KEY)
+        self.assertEqual(policy.last_reason, "mana-food:pickup-device")
+
+    def test_a21_override_is_state_and_food_type_gated(self):
+        policy = HengbotPolicy()
+        adequate = self._mana_starvation_snapshot(food=12000)
+        ration_race = replace(
+            self._mana_starvation_snapshot(),
+            player=player(10, 10, food=400, food_type=0),
+        )
+
+        self.assertIsNone(policy._mana_food_survival_override_key(adequate))
+        self.assertIsNone(policy._mana_food_survival_override_key(ration_race))
+
+    def test_non_ration_non_mana_race_never_composes_tval_food_purchase(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        for food_type in (1, 2, 3, 5):
+            snap = self._mana_starvation_snapshot(
+                store=StoreState(STORE_GENERAL, [ration])
+            )
+            snap = replace(
+                snap,
+                player=replace(snap.player, food_type=food_type),
+            )
+            policy = HengbotPolicy()
+            policy._fundraising_mode = "prepare"
+
+            self.assertIsNone(policy._next_purchase_unreserved(snap))
+            self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+            self.assertNotIn("pa", policy._shop(snap))
+
     def test_mana_race_eats_an_unidentified_wand(self):
         # The emitter hides charges until identified; the game lets MANA races
         # eat any wand/staff, so an unknown one must still be tried.
@@ -18351,7 +18482,7 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "6")
-        self.assertEqual(policy.last_reason, "survival:shop-approach")
+        self.assertEqual(policy.last_reason, "survival:mana-shop-approach")
 
     def test_normal_race_food_restock_contract_is_unchanged(self):
         ration = item("a", TVAL_FOOD, 35)

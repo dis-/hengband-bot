@@ -1337,6 +1337,7 @@ EMERGENCY_RETURN_COUNT = 2
 # PlayerRaceFoodType::MANA — undead/construct races (Zombie, ...) restore hunger
 # by eating wand/staff CHARGES rather than food. bot-test (a Zombie) starved to
 # death next to a 20-charge staff it could have eaten.
+FOOD_TYPE_RATION = 0
 FOOD_TYPE_MANA = 4
 
 # Return to town before supplies become fatal, or as soon as every normal pack
@@ -5146,6 +5147,10 @@ class HengbotPolicy:
             # The emergency ladder is exempt from sibling hysteresis: the
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
+
+        mana_survival = self._mana_food_survival_override_key(snapshot)
+        if mana_survival is not None:
+            return mana_survival
 
         paralyzer_prevention = self._paralyzer_prevention_key(
             snapshot, paralyzers, physical_adjacent
@@ -18633,7 +18638,7 @@ class HengbotPolicy:
                 if oil is not None:
                     return oil
             if (
-                snapshot.player.food_type != FOOD_TYPE_MANA
+                snapshot.player.food_type == FOOD_TYPE_RATION
                 and self._needs_food_restock(snapshot)
             ):
                 food = next(
@@ -18672,9 +18677,10 @@ class HengbotPolicy:
                 if detection is not None:
                     return detection
             if not self._food_ready(snapshot):
+                food = None
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
                     food = self._mana_food_purchase(snapshot)
-                else:
+                elif snapshot.player.food_type == FOOD_TYPE_RATION:
                     food = next(
                         (
                             it
@@ -18829,7 +18835,7 @@ class HengbotPolicy:
             if device is not None:
                 return device
         if (
-            snapshot.player.food_type != FOOD_TYPE_MANA
+            snapshot.player.food_type == FOOD_TYPE_RATION
             and self._needs_food_restock(snapshot)
         ):
             food = next(
@@ -19719,7 +19725,7 @@ class HengbotPolicy:
                 return LEAVE_STORE_KEY
             if snapshot.player.food_type == FOOD_TYPE_MANA:
                 food_item = self._mana_food_purchase(snapshot)
-            else:
+            elif snapshot.player.food_type == FOOD_TYPE_RATION:
                 food_item = next(
                     (
                         it for it in store.items
@@ -19729,6 +19735,8 @@ class HengbotPolicy:
                     ),
                     None,
                 )
+            else:
+                food_item = None
             if food_item is not None:
                 quantity = self._purchase_quantity(snapshot, food_item)
                 suffix = (
@@ -19739,6 +19747,12 @@ class HengbotPolicy:
                 self.last_reason = "survival:buy-food"
                 return BUY_KEY + food_item.letter + suffix
             self._town_store_attempted[store.store_type] = snapshot.turn
+            if snapshot.player.food_type == FOOD_TYPE_MANA:
+                if self._home_mana_food_candidate() is not None:
+                    self.last_reason = "survival:mana-try-home"
+                    return LEAVE_STORE_KEY
+                self.last_reason = "town:blocked:survival-mana-no-charges"
+                return WAIT_KEY
             self.last_reason = "survival:no-affordable-food"
             return LEAVE_STORE_KEY
 
@@ -28020,6 +28034,120 @@ class HengbotPolicy:
             self.last_reason = "survival:seek-exit"
             return self._step_toward(snapshot, step)
         return None
+
+    def _home_mana_food_candidate(self) -> InventoryItem | None:
+        """Cheapest known charged Home device, if the catalogue has one."""
+        if not self._home_knowledge_current:
+            return None
+        candidates = [
+            item
+            for item in self._home_knowledge_items
+            if item.is_wand_staff and item.known and item.charges > 0
+        ]
+        if not candidates:
+            return None
+        return min(
+            candidates,
+            key=lambda item: (
+                self._is_useful_device(item),
+                self._stack_charges(item),
+                self._item_signature(item),
+            ),
+        )
+
+    def _mana_food_survival_override_key(self, snapshot: Snapshot) -> str | None:
+        """Hard weak/fainting MANA-food acquisition and absorption owner.
+
+        This owner sits above every ordinary town/dungeon wait producer.  A
+        MANA race receives no nutrition from TVAL_FOOD: only a wand/staff
+        charge is an eligible route.  Store purchase retains the established
+        observe/re-enter one-shot contract by delegating an open Magic-shop
+        page to ``_shop``.
+        """
+        if (
+            snapshot.player.food_type != FOOD_TYPE_MANA
+            or snapshot.player.food_state not in {"weak", "fainting"}
+        ):
+            return None
+
+        edible = self._find_edible(snapshot)
+        if edible is not None:
+            self.last_reason = "survival:mana-absorb"
+            return EAT_KEY + edible.slot
+
+        if snapshot.store is not None:
+            if snapshot.store.store_type == STORE_MAGIC:
+                # _shop owns the observed one-shot purchase or the proven
+                # no-affordable-device handoff below.
+                return None
+            self.last_reason = "survival:mana-leave-wrong-store"
+            return LEAVE_STORE_KEY
+
+        if STORE_MAGIC not in self._town_store_attempted:
+            step = self._shopping_approach_step(snapshot, STORE_MAGIC)
+            if step is not None:
+                self.last_reason = "survival:mana-shop-approach"
+                return self._shopping_approach_key(
+                    snapshot, step, "survival:mana-shop-travel"
+                )
+
+        home_device = self._home_mana_food_candidate()
+        if home_device is not None and self._home_available(snapshot):
+            identity = self._item_signature(home_device)
+            self._home_pending_item = identity
+            self._home_pending_quantity = 1
+            self._rearm_town_store_for_new_work(
+                STORE_HOME, release_visit_bound=True
+            )
+            request = self._derived_home_visit_request(snapshot)
+            if request is not None:
+                visit = self._home_visit
+                if visit.active and visit.request != request:
+                    # Starvation may replace lower-priority Home routing, but
+                    # must not replenish the physical visit budget.
+                    attempts_used = visit.attempts_used
+                    visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
+                    visit.attempts_used = attempts_used
+                    self._home_visit = visit
+                visit.file(request)
+            step = self._shopping_approach_step(snapshot, STORE_HOME)
+            if step is not None:
+                self.last_reason = "survival:mana-home-approach"
+                return self._shopping_approach_key(
+                    snapshot, step, "survival:mana-home-travel"
+                )
+
+        floor_key = self._mana_food_floor_pickup_key(snapshot)
+        if floor_key is not None:
+            return floor_key
+
+        self.last_reason = "town:blocked:survival-mana-no-charges"
+        return WAIT_KEY
+
+    def _mana_food_floor_pickup_key(self, snapshot: Snapshot) -> str | None:
+        """Use the existing mana-food pickup owner without dungeon-only gates."""
+        candidates = {
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.object_count > 0
+            and grid.passable
+            and (
+                not grid.object_tvals
+                or any(tval in {TVAL_WAND, TVAL_STAFF} for tval in grid.object_tvals)
+            )
+        }
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.position in candidates:
+            return self._current_floor_item_key(
+                snapshot,
+                pickup_reason="mana-food:pickup-device",
+                trigger_reason="mana-food:trigger-autodestroy",
+            )
+        step = self._nearest_position_step(snapshot, candidates)
+        if step is None:
+            return None
+        self.last_reason = "mana-food:seek-device"
+        return self._step_toward(snapshot, step)
 
     def _should_start_town_return(self, snapshot: Snapshot) -> bool:
         # Records WHICH condition ends the run in self._last_return_trigger, so the

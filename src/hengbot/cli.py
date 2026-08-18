@@ -375,6 +375,7 @@ POLICY_FINAL_STOP_REASONS = frozenset(
         "equipment-transaction:restore-blocked-terminal",
         "town:blocked:departure-unsatisfiable",
         "town:blocked:home-known-empty-withdrawal",
+        "town:blocked:survival-mana-no-charges",
         "wilderness:no-safe-route",
     }
 )
