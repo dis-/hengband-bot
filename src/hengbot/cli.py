@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import faulthandler
 import json
 import os
@@ -176,6 +177,9 @@ def _advance_starving_streak(
 # Bound how long the desynchronization look barrier waits when its response is
 # lost. The value is unchanged from the former duplicate retry.
 LOOK_BARRIER_TIMEOUT_SECONDS = 2.0
+# Shadow observation shares one tenth of the established snapshot-wait bound;
+# it is diagnostic only and must not materially delay the decision loop.
+TCP_SHADOW_BUDGET_SECONDS = LOOK_BARRIER_TIMEOUT_SECONDS / 10
 # Snapshots can advance their turn/message state before a posted movement key is
 # consumed.  Sending the next route correction then leaves one direction queued;
 # live failures overshot a Q34 chest and orbited six cells around fundraising loot.
@@ -1829,6 +1833,12 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
     parser.add_argument(
+        "--control-port",
+        type=int,
+        default=os.environ.get("HENGBOT_CONTROL_PORT") or None,
+        help="enable read-only TCP shadow comparison (default: off)",
+    )
+    parser.add_argument(
         "--decision-log",
         type=Path,
         help="append structured policy decisions for an external live viewer",
@@ -1922,6 +1932,20 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _record_tcp_shadow(args, jsonl_state: Mapping[str, object], sequence: int) -> None:
+    """Run the downstream-only observation hook when explicitly enabled."""
+    if getattr(args, "shadow_client", None) is None:
+        return
+    from hengbot.control_client import append_shadow_diff
+
+    append_shadow_diff(
+        args.shadow_client,
+        jsonl_state,
+        decision_sequence=sequence,
+        path=Path("jsonlog/tcp-shadow-diff.jsonl"),
+    )
+
+
 def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     if args.decision_log is None:
         return None
@@ -1956,6 +1980,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_argument_parser()
     args = parser.parse_args(argv)
     input_delays = _input_delay_values(args)
+    shadow_client = None
+    if args.control_port is not None:
+        from hengbot.control_client import ControlClient
+
+        def log_shadow_failure(message: str) -> None:
+            print(message, file=sys.stderr, flush=True)
+            if args.decision_log is not None:
+                with args.decision_log.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps({"event": "tcp-shadow-adapter", "message": message}) + "\n")
+
+        shadow_client = ControlClient(
+            args.control_port,
+            request_budget=TCP_SHADOW_BUDGET_SECONDS,
+            log=log_shadow_failure,
+        )
+        atexit.register(shadow_client.close)
+    args.shadow_client = shadow_client
 
     if args.economy_log is None and args.decision_log is not None:
         args.economy_log = args.decision_log.with_name("bot-economy.jsonl")
@@ -2177,6 +2218,9 @@ def main(argv: list[str] | None = None) -> int:
             policy.prime(snapshot)
             key = policy.choose_key(snapshot)
             key = policy.validate_read_key(snapshot, key)
+            _record_tcp_shadow(
+                args, json.loads(line), policy._decision_sequence
+            )
             decision_facts = _capture_decision_facts(snapshot, policy)
             _write_decision(
                 args.decision_log, snapshot, key, policy.last_reason, policy,
@@ -2563,6 +2607,11 @@ def _run_follow(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
                     key = policy.validate_read_key(snapshot, chosen_key)
+                    # JSONL has already supplied the policy input and chosen
+                    # command. TCP observations remain structurally downstream.
+                    _record_tcp_shadow(
+                        args, json.loads(snapshot_line), policy._decision_sequence
+                    )
                     pending_batch_row["decided"] = True
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
