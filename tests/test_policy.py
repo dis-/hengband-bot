@@ -13538,6 +13538,57 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             ["dps", "speed_potions", "heal_potions"],
         )
 
+    def test_rich_q34_readiness_deficits_still_use_live_shop_route(self):
+        policy = self._policy()
+        opening = replace(
+            self._measured_q34_opening(),
+            player=replace(self._measured_q34_opening().player, gold=5000),
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=2500)],
+        )
+        goal = Position(31, 119)
+
+        with (
+            patch.object(policy, "_shopping_approach_step", return_value=goal),
+            patch.object(
+                policy, "_shopping_approach_key", return_value="RICH-SHOP"
+            ) as approach,
+        ):
+            key = policy._opening_q34_town_key(opening, [])
+
+        self.assertEqual(key, "RICH-SHOP")
+        approach.assert_called_once_with(opening, goal, "shop:travel")
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertIsNone(policy._fundraising_mode)
+
+    def test_q34_terminal_ignores_readiness_not_evaluated_this_decision(self):
+        opening = replace(
+            self._measured_q34_opening(),
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=2500)],
+        )
+
+        for blocker in ("adjacent", "overweight"):
+            with self.subTest(blocker=blocker):
+                policy = self._policy()
+                policy._fixed_quest_readiness = {
+                    "strategy_force": {"failed": ["stale-deficit"]}
+                }
+                adjacent = blocker == "adjacent"
+                overweight = blocker == "overweight"
+                with (
+                    patch.object(
+                        policy,
+                        "_physical_adjacent_hostiles",
+                        return_value=[hostile(1, 10, 11)] if adjacent else [],
+                    ),
+                    patch.object(
+                        policy, "_inventory_overweight", return_value=overweight
+                    ),
+                ):
+                    key = policy._opening_q34_town_key(opening, [])
+
+                self.assertEqual(key, WAIT_KEY)
+                self.assertEqual(policy.last_reason, "opening-q34:wait")
+
     def test_finished_q34_other_quest_keeps_calibration_entry_refusal(self):
         policy, board = self._warmed_current_q34_entrance_replay()
         control = replace(

@@ -7563,6 +7563,7 @@ class HengbotPolicy:
                 self.last_reason = "shop:approach"
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
 
+        readiness_before = self._fixed_quest_readiness
         fixed_quest = self._fixed_quest_key(snapshot, hostiles)
         if fixed_quest is not None:
             return fixed_quest
@@ -7572,19 +7573,26 @@ class HengbotPolicy:
         ):
             self.last_reason = self._restock_wait_reason(snapshot)
             return WAIT_KEY
-        # A false readiness verdict is work, not an idle state.  Poor openings
-        # hand the deficit to the existing fundraising/mining owner; once the
-        # bounded shop/fundraising routes have no remaining action, expose the
-        # existing CLI-visible terminal with the failed list retained in
-        # fixedquest_readiness telemetry.
-        failed = self._fixed_quest_readiness.get("strategy_force", {}).get(
-            "failed", ()
+        # A false readiness verdict evaluated by this decision is work, not an
+        # idle state.  The opening remains the sole owner: try its bounded shop
+        # route regardless of whether the fundraising latch can start, then
+        # expose the CLI-visible terminal only when neither route can advance.
+        readiness = (
+            self._fixed_quest_readiness
+            if self._fixed_quest_readiness is not readiness_before
+            else {}
         )
-        if failed and self._start_fundraising(snapshot):
+        failed = readiness.get("strategy_force", {}).get("failed", ())
+        if failed:
             step = self._shopping_approach_step(snapshot)
             if step is not None:
                 self.last_reason = "shop:approach"
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
+            if self._start_fundraising(snapshot):
+                step = self._shopping_approach_step(snapshot)
+                if step is not None:
+                    self.last_reason = "shop:approach"
+                    return self._shopping_approach_key(snapshot, step, "shop:travel")
             self.last_reason = "livelock:exhausted"
             return WAIT_KEY
         self.last_reason = "livelock:exhausted" if failed else "opening-q34:wait"
