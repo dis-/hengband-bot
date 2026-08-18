@@ -93,6 +93,13 @@ Types:
    locally (imperative English message explaining root cause), log "fix",
    then `resume`.
 3a. ANTI-ENBUG RULES (2026-07-17, after fixes themselves caused incidents):
+   - GENERATED VERIFICATION GATES (2026-08-18): every fix MUST run
+     `scripts/verify_scope.py` and `scripts/hunk_guard.py` before committing.
+     Paste `verify_scope.py`'s generated JSON verification block verbatim into
+     the fix event; hand-written verification claims are not acceptable. A
+     derived scope with any non-allowlisted failure/error, or any behavioral
+     hunk reported `UNPROTECTED`, may not be committed. Reviewers re-run both
+     tools and compare their generated results with the pasted block.
    - REVERT PROOF: before committing, temporarily revert the fix hunk and
      confirm the new regression test FAILS, then restore. A test that stays
      green without the fix proves nothing (a gate bug shipped because the
