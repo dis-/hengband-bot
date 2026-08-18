@@ -178,18 +178,16 @@ class IncidentConverterTest(unittest.TestCase):
         self.assertIsNone(row["scan_entry_state"]["_store_entry_wait_owner"])
         self.assertTrue(pair[0].startswith("fixedquest:request"), pair)
 
-    def test_q34_throwpoint_incident_has_no_unbounded_owner_alternation(self):
+    def test_q34_throwpoint_absent_progress_fact_does_not_self_block_escape(self):
         measured = json.loads(
             (self.FIXTURES / "q34-throwpoint-r2.json").read_text(encoding="utf-8")
         )["measured"]
         helper = fixture.ApprovedQuestStrategyExecutionTest()
         policy = helper._policy()
         plans = policy.approved_quest_strategy(34).engagement_plan["throwing_points"]
-        target_keys = {
-            (int(plan["race_id"]), int(plan["target"][0]), int(plan["target"][1]))
-            for plan in plans
-        }
-        policy._quest_strategy_cleared_targets[34] = target_keys
+        # This is the incident premise: restart lost all durable progress.
+        # Never inject the cleared-target fact whose absence caused the loop.
+        policy._quest_strategy_cleared_targets[34] = set()
         policy._quest_strategy_pending_recovery[34] = plans[-1]
         player_position = Position(*measured["player"])
         chest_position = Position(*measured["chest"]["position"])
@@ -229,11 +227,9 @@ class IncidentConverterTest(unittest.TestCase):
         )
         key = policy._approved_quest_strategy_key(snapshot, [], [])
 
+        self.assertEqual(route, Position(*measured["restored_route_first_step"]))
         self.assertEqual(key, fixture.WAIT_KEY)
         self.assertEqual(policy.last_reason, "quest-strategy:recovery-complete")
-        self.assertEqual(route, Position(*measured["restored_route_first_step"]))
-        self.assertGreater(measured["recovery_cycle_decisions"], 3)
-        self.assertGreater(measured["self_block_decisions"], 3)
 
     def test_prefixed_q34_checkpoint_seeds_recovery_observation_attributes(self):
         policy = HengbotPolicy()

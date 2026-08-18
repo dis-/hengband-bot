@@ -1684,9 +1684,17 @@ class HengbotPolicy:
         self._quest_strategy_recovery_pickup_prepared: tuple[
             int, Position, tuple[int, tuple[int, ...]]
         ] | None = None
+        self._quest_strategy_recovery_pickup_prepared_key: str | None = None
         self._quest_strategy_recovery_pickup_posted: tuple[
             int, Position, tuple[int, tuple[int, ...]]
         ] | None = None
+        self._q2_blue_recovery_pickup_prepared: tuple[
+            Position, tuple[int, tuple[int, ...]]
+        ] | None = None
+        self._q2_blue_recovery_pickup_posted: tuple[
+            Position, tuple[int, tuple[int, ...]]
+        ] | None = None
+        self._q2_blue_recovery_witnessed = False
         self._quest_strategy_initial_hold_turns: dict[int, int] = {}
         self._quest_strategy_surveyed_placements: dict[int, set[Position]] = {}
         self._quest_strategy_sweep_rounds: dict[int, int] = {}
@@ -6594,6 +6602,7 @@ class HengbotPolicy:
             self._quest_strategy_pending_recovery.clear()
             self._quest_strategy_recovery_claims.clear()
             self._quest_strategy_recovery_pickup_prepared = None
+            self._quest_strategy_recovery_pickup_prepared_key = None
             self._quest_strategy_recovery_pickup_posted = None
             self._quest_strategy_initial_hold_turns.clear()
             self._quest_strategy_surveyed_placements.clear()
@@ -7091,6 +7100,9 @@ class HengbotPolicy:
             self._q2_breach_attempts = 0
             self._q2_breach_complete = False
             self._q2_blue_recovery_complete = False
+            self._q2_blue_recovery_pickup_prepared = None
+            self._q2_blue_recovery_pickup_posted = None
+            self._q2_blue_recovery_witnessed = False
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
             self._visit_counts.clear()
@@ -11782,11 +11794,24 @@ class HengbotPolicy:
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
-        if key.startswith(PICKUP_KEY) and self._quest_strategy_recovery_pickup_prepared:
+        if (
+            self._quest_strategy_recovery_pickup_prepared
+            and key == getattr(
+                self, "_quest_strategy_recovery_pickup_prepared_key", None
+            )
+        ):
             self._quest_strategy_recovery_pickup_posted = (
                 self._quest_strategy_recovery_pickup_prepared
             )
             self._quest_strategy_recovery_pickup_prepared = None
+            self._quest_strategy_recovery_pickup_prepared_key = None
+        if key == PICKUP_KEY and getattr(
+            self, "_q2_blue_recovery_pickup_prepared", None
+        ):
+            self._q2_blue_recovery_pickup_posted = (
+                self._q2_blue_recovery_pickup_prepared
+            )
+            self._q2_blue_recovery_pickup_prepared = None
         mutation_committed = self._equipment_mutation.confirm_posted(key)
         pending_mutation_commit = self._equipment_mutation_post_commit
         if (
@@ -25069,19 +25094,35 @@ class HengbotPolicy:
             252 in self._q2_cleared_races
             and not self._q2_blue_recovery_complete
         ):
+            posted = getattr(self, "_q2_blue_recovery_pickup_posted", None)
+            if posted is not None:
+                position, before = posted
+                observed = snapshot.grid_at(position)
+                after = (
+                    (observed.object_count, observed.object_tvals)
+                    if observed is not None else (0, ())
+                )
+                if after != before:
+                    self._q2_blue_recovery_witnessed = True
+                self._q2_blue_recovery_pickup_posted = None
+            recovery_region = {
+                position: grid
+                for position, grid in snapshot.grids.items()
+                if 7 <= position.y <= 13 and 45 <= position.x <= 49
+            }
             recovery_cells = {
                 position
-                for position, grid in snapshot.grids.items()
+                for position, grid in recovery_region.items()
                 if grid.object_count > 0
-                and 7 <= position.y <= 13
-                and 45 <= position.x <= 49
-                and (
-                    not grid.object_tvals
-                    or TVAL_BOLT in grid.object_tvals
-                )
+                and TVAL_BOLT in grid.object_tvals
             }
             if snapshot.player.position in recovery_cells:
                 self.last_reason = "quest-strategy:q2-blue-recover-bolts"
+                here = snapshot.grid_at(snapshot.player.position)
+                self._q2_blue_recovery_pickup_prepared = (
+                    snapshot.player.position,
+                    (here.object_count, here.object_tvals),
+                )
                 return PICKUP_KEY
             if recovery_cells:
                 step = navigator.route_to_static_goals(
@@ -25092,6 +25133,15 @@ class HengbotPolicy:
                     return WAIT_KEY
                 self.last_reason = "quest-strategy:q2-blue-recover-bolts"
                 return self._step_toward(snapshot, step)
+            if any(
+                grid.object_count > 0 and not grid.object_tvals
+                for grid in recovery_region.values()
+            ):
+                self.last_reason = "quest:blocked:q2-blue-recovery-unidentified-pile"
+                return WAIT_KEY
+            if not getattr(self, "_q2_blue_recovery_witnessed", False):
+                self.last_reason = "quest:blocked:q2-blue-recovery-unwitnessed"
+                return WAIT_KEY
             self._q2_blue_recovery_complete = True
             self.last_reason = "quest-strategy:q2-blue-recovery-complete"
             return WAIT_KEY
@@ -25743,6 +25793,13 @@ class HengbotPolicy:
                 if ammo_tval is not None
             }
         )
+        if (
+            profile.quest_id == 31
+            and profile.quest_id in self._quest_strategy_pending_recovery
+            and not recoverable_tvals
+        ):
+            self.last_reason = "quest:blocked:q31-recovery-no-launcher-ammo"
+            return WAIT_KEY
 
         def recovery_substrate(cell_grid: GridState | None) -> bool:
             return bool(
@@ -25769,6 +25826,16 @@ class HengbotPolicy:
             else:
                 claims.discard(claim)
             self._quest_strategy_recovery_pickup_posted = None
+        claims = self._quest_strategy_recovery_claims.setdefault(
+            profile.quest_id, set()
+        )
+        for claim in tuple(claims):
+            y, x, claimed_state = claim
+            observed = snapshot.grid_at(Position(y, x))
+            if observed is not None and (
+                observed.object_count, observed.object_tvals
+            ) != claimed_state:
+                claims.discard(claim)
         if profile.quest_id == 34:
             # Q34 progress must survive an external bot restart. Reaching one
             # of an ordered target's recovery cells with its entire recovery
@@ -25882,8 +25949,11 @@ class HengbotPolicy:
                     (here.object_count, here.object_tvals),
                 )
                 if here.object_count > 1:
-                    return PICKUP_KEY + ("a" * here.object_count)
-                return PICKUP_KEY
+                    key = PICKUP_KEY + ("a" * here.object_count)
+                else:
+                    key = PICKUP_KEY
+                self._quest_strategy_recovery_pickup_prepared_key = key
+                return key
             recovery_goals = sorted(
                 (
                     candidate.position
@@ -25913,8 +25983,17 @@ class HengbotPolicy:
                         "quest-strategy:recover-defeated-target-torches"
                     )
                     return self._step_toward(snapshot, pickup_step)
+            remaining_piles = any(
+                candidate.position in recovery_cells
+                and recovery_substrate(candidate)
+                for candidate in snapshot.grids.values()
+            )
             self._quest_strategy_pending_recovery.pop(profile.quest_id, None)
-            self.last_reason = "quest-strategy:recovery-complete"
+            self.last_reason = (
+                "quest:blocked:q34-recovery-no-progress"
+                if profile.quest_id == 34 and remaining_piles
+                else "quest-strategy:recovery-complete"
+            )
             return WAIT_KEY
 
         immediate_targets = self._immediate_quest_targets(profile, hostiles)
