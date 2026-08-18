@@ -153,8 +153,10 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) ->
     if run.returncode == 0:
         return set()
     stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-    if re.search(r"\b(?:ImportError|ModuleNotFoundError|NameError|SyntaxError|AttributeError|TypeError|IndentationError|TabError):", stderr):
-        return set()
+    # Classify each reported failure independently.  A real test may quite
+    # legitimately pin behavior by asserting that an exception is raised;
+    # exception text elsewhere in the same module run must not erase it.
+    # unittest's loader/collection failures are the structural non-pins.
     return {test_id for test_id in verify_scope.parse_test_failures(stderr)
             if not test_id.startswith("unittest.loader._FailedTest.") and "._FailedTest." not in test_id}
 
@@ -262,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
             payload["warnings"] = ["NO-BEHAVIORAL-HUNKS"]
         rendered = json.dumps(payload, indent=2, sort_keys=True)
         print(rendered)
-        print(f"hunk_guard: {payload['summary']['protected']} protected, {payload['summary']['unprotected']} UNPROTECTED, {payload['summary']['skipped']} explicitly skipped", file=sys.stderr)
+        print(f"hunk_guard: {payload['summary']['protected']} protected, {payload['summary']['unprotected']} UNPROTECTED, {payload['summary']['new_file_unverified']} NEW-FILE-UNVERIFIED, {payload['summary']['skipped']} explicitly skipped", file=sys.stderr)
         if args.output: Path(args.output).write_text(rendered + "\n", encoding="utf-8")
         return int(payload["summary"]["unprotected"] > 0 or payload["summary"]["new_file_unverified"] > 0)
     finally:

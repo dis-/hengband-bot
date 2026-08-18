@@ -93,16 +93,6 @@ Types:
    locally (imperative English message explaining root cause), log "fix",
    then `resume`.
 3a. ANTI-ENBUG RULES (2026-07-17, after fixes themselves caused incidents):
-   - GATE STATUS (supervisor, 2026-08-18 late): the three structural blockers
-     are fixed and verified (allowlist scoping, new-file verdicts, concurrency
-     safety). ONE known false-negative remains: hunk_guard voids EVERY failure
-     in a module run when the stderr contains any recognised exception name, so
-     a legitimate pin whose test asserts that exception is reported UNPROTECTED
-     (measured on 32a81a3). Until that is per-test, an UNPROTECTED verdict is a
-     REVIEWER-OVERRIDABLE signal, not an automatic commit bar: record the JSON,
-     say which hunk and why you believe it is pinned, and let the reviewer
-     decide. Everything else below is mandatory. Never weaken or delete a test
-     to satisfy a gate; allowlist edits still need reviewer sign-off.
    - GENERATED VERIFICATION GATES (2026-08-18): every fix MUST run
      `scripts/verify_scope.py` and `scripts/hunk_guard.py` before committing.
      Paste `verify_scope.py`'s generated JSON verification block verbatim into

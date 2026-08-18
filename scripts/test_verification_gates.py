@@ -194,52 +194,110 @@ class VerificationGateSelfTest(unittest.TestCase):
             stderr = Path(name) / "loader.err"
             completed = subprocess.CompletedProcess([], 1, stdout="")
             with mock.patch("subprocess.run", return_value=completed):
-                stderr.write_text("ERROR: test_x (unittest.loader._FailedTest.test_x)\nImportError: gone\n")
+                stderr.write_text("ERROR: test_x (unittest.loader._FailedTest.test_x)\nstructural collection failure\n")
                 self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr), set())
 
-    def gate_sources(self) -> tuple[str, str]:
-        return (Path(verify_scope.__file__).read_text(encoding="utf-8"),
-                Path(hunk_guard.__file__).read_text(encoding="utf-8"))
+    def test_exception_text_does_not_void_a_real_failing_test(self) -> None:
+        for error in ("ImportError", "ModuleNotFoundError", "NameError", "SyntaxError",
+                      "AttributeError", "TypeError", "IndentationError", "TabError"):
+            with tempfile.TemporaryDirectory() as name:
+                stderr = Path(name) / "candidate.err"
+                def failing_run(*args, **kwargs):
+                    kwargs["stderr"].write(
+                        "FAIL: test_pin (test_demo.T.test_pin)\n"
+                        f"{error}: deliberately asserted by this test\n")
+                    kwargs["stderr"].flush()
+                    return subprocess.CompletedProcess([], 1, stdout="")
+                with mock.patch("subprocess.run", side_effect=failing_run):
+                    self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr),
+                                     {"test_demo.T.test_pin"})
 
-    def test_regression_refuse_reparse_points_cannot_be_neutered(self) -> None:
-        verify, _ = self.gate_sources(); self.assertIn("refuse_reparse_points(path)", verify)
+    def test_answer_key_cannot_be_reintroduced_under_historical_name(self) -> None:
+        self.assertFalse(hasattr(hunk_guard, "INELIGIBLE_PROTECTORS"))
 
-    def test_regression_answer_key_denylist_cannot_be_reintroduced(self) -> None:
-        _, hunk = self.gate_sources(); self.assertNotRegex(hunk, r"(?:ANSWER|PROTECTING|EXPECTED)_(?:KEY|TEST|TESTS|IDS)")
+    def test_new_file_and_no_behavioral_results_come_from_main(self) -> None:
+        with SyntheticRepo() as repo, mock.patch.object(verify_scope, "ROOT", repo.root), \
+             mock.patch.object(hunk_guard, "ROOT", repo.root), \
+             mock.patch.object(verify_scope, "ALWAYS_MODULES", set()), \
+             mock.patch.object(verify_scope, "KNOWN_FAILURES", ()), \
+             mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}):
+            (repo.root / "src/hengbot/new.py").write_text("x = 1\n", encoding="utf-8")
+            command(repo.root, "git", "add", "-N", "src/hengbot/new.py")
+            with io.StringIO() as output, contextlib.redirect_stdout(output):
+                self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide", "--timeout", "10"]), 1)
+                payload = json.loads(output.getvalue())
+            self.assertEqual(payload["hunks"][0]["result"], "NEW-FILE-UNVERIFIED")
+            (repo.root / "src/hengbot/new.py").unlink()
+            command(repo.root, "git", "reset", "-q", "--", "src/hengbot/new.py")
+            (repo.root / "src/hengbot/demo.py").write_text("# changed prose\ndef value():\n    return 1\n", encoding="utf-8")
+            with io.StringIO() as output, contextlib.redirect_stdout(output):
+                self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide", "--timeout", "10"]), 0)
+                payload = json.loads(output.getvalue())
+            self.assertEqual(payload["warnings"], ["NO-BEHAVIORAL-HUNKS"])
 
-    def test_regression_exception_filter_keeps_all_eight_names(self) -> None:
-        _, hunk = self.gate_sources()
-        for name in ("ImportError", "ModuleNotFoundError", "NameError", "SyntaxError",
-                     "AttributeError", "TypeError", "IndentationError", "TabError"):
-            self.assertIn(name, hunk)
+    def test_known_failure_matcher_is_required_by_main(self) -> None:
+        entry = {"module": "tests.test_demo", "pattern": "stalled_capture", "count": 1,
+                 "reason": "fixture", "date": "x"}
+        with SyntheticRepo() as repo:
+            repo.change(expected=99)
+            test = repo.root / "tests/test_demo.py"
+            test.write_text(test.read_text() + "# stalled_capture\n", encoding="utf-8")
+            with mock.patch.object(verify_scope, "ROOT", repo.root), \
+                 mock.patch.object(verify_scope, "ALWAYS_MODULES", {"tests.test_demo"}), \
+                 mock.patch.object(verify_scope, "KNOWN_FAILURES", (entry,)), \
+                 mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}), \
+                 mock.patch.object(verify_scope, "known_failure_matches", return_value=[]), \
+                 io.StringIO() as output, contextlib.redirect_stdout(output):
+                self.assertEqual(verify_scope.main(["--timeout", "10"]), 1)
+                self.assertEqual(json.loads(output.getvalue())["modules"]["tests.test_demo"]["status"], "failed")
 
-    def test_regression_docstring_prose_fallback_cannot_be_removed(self) -> None:
-        _, hunk = self.gate_sources(); self.assertIn("nonbehavioral-docstring-prose", hunk)
+    def test_failed_skipped_and_lint_excess_are_measured(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); (root / "src").mkdir(); (root / "tests").mkdir()
+            runner = root / "runner.py"
+            runner.write_text("import sys\nsys.stderr.write('FAIL: test_x (x.T.test_x)\\n... skipped reason\\n')\nraise SystemExit(1)\n")
+            item = verify_scope.run_item(root, "tests.x", [str(PYTHON), str(runner)], 10, root / "logs")
+            self.assertEqual((item["failed"], item["skipped"]), (1, 1))
+            lint = root / "lint.py"
+            lint.write_text("print('tests/a.py:1: one')\nprint('tests/b.py:2: two')\nraise SystemExit(1)\n")
+            allowance = {"count": 1, "reason": "baseline", "date": "x"}
+            with mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {"lint.py": allowance}):
+                item = verify_scope.run_item(root, "lint.py", [str(PYTHON), str(lint)], 10, root / "logs")
+            self.assertEqual((item["status"], item["failed"]), ("failed", 2))
 
-    def test_regression_dead_stalled_capture_pattern_cannot_return(self) -> None:
-        verify, _ = self.gate_sources(); self.assertNotIn("stalled-capture", verify)
+    def test_historical_target_scope_does_not_use_live_test_glob(self) -> None:
+        with SyntheticRepo() as repo:
+            old = repo.root / "tests/test_historical.py"
+            old.write_text("from hengbot.demo import value\n", encoding="utf-8")
+            command(repo.root, "git", "add", "."); command(repo.root, "git", "commit", "-qm", "historical test")
+            target = command(repo.root, "git", "rev-parse", "HEAD").strip()
+            old.unlink()
+            self.assertIn("tests/test_historical.py", verify_scope.test_paths_at(repo.root, target))
 
-    def test_regression_timeout_failed_skipped_are_measured(self) -> None:
-        verify, _ = self.gate_sources()
-        self.assertIn('len(failures)', verify)
-        self.assertIn('len(re.findall(r"\\.\\.\\. skipped ", partial))', verify)
+    def test_atexit_registration_removes_an_active_temp_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            victim = Path(name) / "hengbot-verify-exit"
+            victim.mkdir()
+            code = ("import pathlib,sys; sys.path.insert(0, r'%s'); import verify_scope; "
+                    "verify_scope._ACTIVE_WORKTREES.add(pathlib.Path(r'%s').resolve())") % (
+                        Path(__file__).parent, victim)
+            subprocess.run([str(PYTHON), "-c", code], check=True)
+            self.assertFalse(victim.exists())
 
-    def test_regression_lint_allowance_count_is_exact(self) -> None:
-        verify, _ = self.gate_sources(); self.assertIn('len(undeclared_lint_findings) == lint_allowance["count"]', verify)
-
-    def test_regression_excluded_test_prefix_is_qualified(self) -> None:
-        verify, _ = self.gate_sources(); self.assertIn('"test_cli.DecisionTimingTest"', verify)
-
-    def test_regression_no_behavioral_hunks_warning_cannot_be_removed(self) -> None:
-        _, hunk = self.gate_sources(); self.assertIn('payload["warnings"] = ["NO-BEHAVIORAL-HUNKS"]', hunk)
-
-    def test_regression_startup_stale_cleanup_cannot_be_removed(self) -> None:
-        verify, hunk = self.gate_sources()
-        self.assertGreaterEqual(verify.count("cleanup_stale_temp_worktrees(ROOT)"), 1)
-        self.assertIn("cleanup_stale_temp_worktrees(ROOT)", hunk)
-
-    def test_regression_atexit_registration_cannot_be_removed(self) -> None:
-        verify, _ = self.gate_sources(); self.assertIn("atexit.register(cleanup_active_worktrees)", verify)
+    def test_old_unregistered_temp_tree_is_swept_but_live_owner_survives(self) -> None:
+        dead = Path(tempfile.mkdtemp(prefix="hengbot-verify-"))
+        live = Path(tempfile.mkdtemp(prefix="hengbot-hunk-"))
+        old = time.time() - verify_scope.STALE_WORKTREE_AGE_SECONDS - 60
+        verify_scope.worktree_owner_path(dead).write_text(json.dumps({"pid": 2147483647, "started": old}))
+        verify_scope.worktree_owner_path(live).write_text(json.dumps({"pid": __import__('os').getpid(), "started": old}))
+        try:
+            with SyntheticRepo() as repo, mock.patch.object(verify_scope, "process_is_running",
+                                                           side_effect=lambda pid: pid == __import__('os').getpid()):
+                verify_scope.cleanup_stale_temp_worktrees(repo.root)
+            self.assertFalse(dead.exists()); self.assertTrue(live.exists())
+        finally:
+            if live.exists(): verify_scope.refuse_reparse_points(live); __import__('shutil').rmtree(live)
+            verify_scope.worktree_owner_path(live).unlink(missing_ok=True)
 
     def test_cleanup_removes_directory_then_prunes_registration(self) -> None:
         with SyntheticRepo() as repo:

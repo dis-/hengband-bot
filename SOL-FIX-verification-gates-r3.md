@@ -29,7 +29,7 @@ failures are rejected as protection.
 | `dbce3b4` | PROTECTED (1/1) | 108.13 s wide run; naturally derived protection. |
 | `fb22255` | 6 PROTECTED, 7 UNPROTECTED | 315.35 s; adjacent grouping applied. Seven isolated changes produced no new eligible failure and remain honestly red. |
 | `00c57c2` | docstring SKIPPED, retry guard PROTECTED, backoff group UNPROTECTED in final run | 218.83 s; the producer/consumer hunks are grouped. The earlier 22.36 s grouped run found `test_absent_server_backoff_is_capped_by_request_budget`; the final environment timed out and, correctly, timeout did not count as protection. |
-| `32a81a3` | PROTECTED (1/1 cross-file group) | 60.32 s; the new adapter and all CLI consumers were reverted together, and the 189-line new test module protected the unit. |
+| `32a81a3` | SUPERSEDED: 4 PROTECTED, 3 UNPROTECTED, 1 NEW-FILE-UNVERIFIED | Round 5's per-failing-test classifier and separate new-file rule replace the incorrect cross-file result; see `SOL-FIX-verification-gates-r5.md`. |
 
 Generated JSON is in `jsonlog/hunk-guard-r3-<target>.json` (operator evidence,
 not committed by this scripts/docs-only change).
