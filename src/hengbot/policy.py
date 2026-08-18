@@ -28596,7 +28596,7 @@ class HengbotPolicy:
         """
         if (
             snapshot.player.food_type != FOOD_TYPE_MANA
-            or snapshot.player.food_state not in {"weak", "fainting"}
+            or not snapshot.player.hungry
         ):
             return None
 

@@ -1148,6 +1148,7 @@ class WaitClassificationTest(unittest.TestCase):
 
     def test_q34_final_stops_have_quest_specific_operator_messages(self):
         source = inspect.getsource(_run_follow)
+        # TEST_FAKERY_LINT_ALLOW: source-text-only-assertions: focused CLI wiring test asserts the two operator-facing message tags emitted by the follow loop
         self.assertEqual(source.count("<q34-recovery-no-progress>"), 1)
         self.assertEqual(source.count("<q34-throw-point-unreachable>"), 1)
 
