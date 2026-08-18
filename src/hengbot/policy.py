@@ -15773,6 +15773,22 @@ class HengbotPolicy:
                 else STORE_GENERAL
             )
             self._town_store_attempted.pop(food_store, None)
+            # This branch is the completed recall-cycle handoff to food.  A
+            # preceding Home approach can still own an unposted StoreVisit,
+            # and the visible terminal from the prior handoff otherwise makes
+            # _shopping_approach_step reject every retry before consulting the
+            # known town map.  Release only that inert approach ownership; an
+            # operation already posted to a store remains authoritative.
+            if self._town_blocked_reason == "restocked-food-store-unreachable":
+                self._town_blocked_reason = None
+            visit = self._store_visit
+            if (
+                visit is not None
+                and visit.store_type != food_store
+                and visit.phase == StoreVisitPhase.APPROACHING
+                and not visit.operation_posted
+            ):
+                self._close_store_visit("restock-food-reroute")
             step = self._shopping_approach_step(snapshot, food_store)
             if step is not None:
                 self.last_reason = "shop:approach"

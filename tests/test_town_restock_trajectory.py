@@ -21,10 +21,31 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
                 "town:blocked:restocked-recall-store-unreachable",
                 "town:wait-restock:temple",
             },
-            required_reason_prefix="town:blocked:restocked-food-",
+            required_reason_prefix="town:blocked:survival-mana-no-charges",
         )
         self.assertEqual(len(transcript), 2)
         self.assertTrue(all(key == "5" for _reason, key in transcript))
+
+    def test_mana_device_reserve_releases_stale_home_route(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "food-store-unreachable-checkpoints.jsonl.gz"
+        )
+        transcript = replay_checkpoint_trajectory(
+            HengbotPolicy,
+            fixture,
+            (220, 221, 223, 242),
+            forbidden_reasons={
+                "town:blocked:restocked-food-store-unreachable",
+            },
+            required_reason_prefix="shop:",
+        )
+        self.assertEqual(len(transcript), 4)
+        self.assertTrue(all(
+            reason == "shop:travel" and key == "\x1b`n&."
+            for reason, key in transcript
+        ))
 
 
 if __name__ == "__main__":
