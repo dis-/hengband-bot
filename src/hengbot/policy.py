@@ -25833,6 +25833,7 @@ class HengbotPolicy:
             profile.quest_id == 31
             and profile.quest_id in self._quest_strategy_pending_recovery
             and not recoverable_tvals
+            and initial_hold_complete
         ):
             self.last_reason = "quest:blocked:q31-recovery-no-launcher-ammo"
             return WAIT_KEY

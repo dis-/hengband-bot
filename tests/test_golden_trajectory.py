@@ -15,6 +15,7 @@ from hengbot.latch_onset_capture import checkpoint
 import test_policy as fixture
 from absorbing_state_catalog import TownWorld
 from trajectory_harness import (
+    checkpoint_row,
     checkpoint_rows,
     decision_window,
     drive_trajectory,
@@ -140,6 +141,11 @@ class GoldenOpeningTrajectoryTest(unittest.TestCase):
 class IncidentConverterTest(unittest.TestCase):
     FIXTURES = Path(__file__).parent / "fixtures"
 
+    @classmethod
+    def setUpClass(cls):
+        if not hasattr(fixture.ApprovedQuestStrategyExecutionTest, "profiles"):
+            fixture.ApprovedQuestStrategyExecutionTest.setUpClass()
+
     def test_missing_fixture_fails_loudly(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(FileNotFoundError) as caught:
@@ -230,6 +236,33 @@ class IncidentConverterTest(unittest.TestCase):
         self.assertEqual(route, Position(*measured["restored_route_first_step"]))
         self.assertEqual(key, fixture.WAIT_KEY)
         self.assertEqual(policy.last_reason, "quest-strategy:recovery-complete")
+
+    def test_q34_throwpoint_real_checkpoints_escape_recorded_decisions(self):
+        path = self.FIXTURES / "q34-throwpoint-checkpoints.jsonl.gz"
+        expected = {
+            39: ("quest-strategy:throw-point-unreachable", fixture.WAIT_KEY),
+            150: ("quest-strategy:recover-defeated-target-torches", "g"),
+            160: ("quest-strategy:recover-defeated-target-torches", "8"),
+            170: ("quest-strategy:recover-defeated-target-torches", "2"),
+        }
+        for decision_index, recorded_pair in expected.items():
+            with self.subTest(decision_index=decision_index):
+                row, pair = replay_checkpoint_decision(
+                    HengbotPolicy, path, decision_index,
+                    forbidden_pair=recorded_pair,
+                )
+                self.assertNotIn("time", row)
+                self.assertEqual(
+                    (row["last_reason"], row["key"]), recorded_pair
+                )
+                self.assertNotEqual(pair, recorded_pair)
+
+        row, policy_blob, snapshot_blob = checkpoint_row(path, 39)
+        policy, _ = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        self.assertEqual(row["decision_snapshot"]["player_position"], [11, 9])
+        self.assertEqual(policy._quest_strategy_cleared_targets.get(34), set())
 
     def test_prefixed_q34_checkpoint_seeds_recovery_observation_attributes(self):
         policy = HengbotPolicy()

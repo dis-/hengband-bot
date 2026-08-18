@@ -15133,6 +15133,100 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertTrue(policy._q2_blue_recovery_complete)
 
+    def test_q2_blue_recovery_ignores_bolts_outside_the_recovery_region(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        confirmation = Snapshot(
+            player(13, 47), {Position(13, 47): grid(13, 47)}, [],
+            floor_key=(0, 15, 2),
+        )
+        policy._q2_phase_key(confirmation, self.profiles[2], navigator)
+        policy._q2_blue_recovery_witnessed = True
+        snapshot = Snapshot(
+            player(13, 47),
+            {
+                Position(13, 47): grid(13, 47),
+                Position(14, 47): grid(14, 47, objects=1,
+                                       object_tvals=(TVAL_BOLT,)),
+            }, [], floor_key=(0, 15, 2),
+        )
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
+        )
+
+    def test_q2_blue_recovery_does_not_pick_up_identified_non_bolts(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        confirmation = Snapshot(
+            player(13, 47), {Position(13, 47): grid(13, 47)}, [],
+            floor_key=(0, 15, 2),
+        )
+        policy._q2_phase_key(confirmation, self.profiles[2], navigator)
+        policy._q2_blue_recovery_witnessed = True
+        snapshot = Snapshot(
+            player(12, 47),
+            {Position(12, 47): grid(12, 47, objects=1,
+                                    object_tvals=(TVAL_LITE,))},
+            [], floor_key=(0, 15, 2),
+        )
+
+        self.assertEqual(
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
+        )
+
+    def test_q2_blue_recovery_requires_identification_and_pickup_witness(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        confirmation = Snapshot(
+            player(13, 47), {Position(13, 47): grid(13, 47)}, [],
+            floor_key=(0, 15, 2),
+        )
+        policy._q2_phase_key(confirmation, self.profiles[2], navigator)
+        unknown = Snapshot(
+            player(13, 47),
+            {Position(12, 47): grid(12, 47, objects=1, object_tvals=())},
+            [], floor_key=(0, 15, 2),
+        )
+
+        self.assertEqual(
+            policy._q2_phase_key(unknown, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest:blocked:q2-blue-recovery-unidentified-pile",
+        )
+        empty = replace(
+            unknown, grids={Position(13, 47): grid(13, 47)}
+        )
+        self.assertEqual(
+            policy._q2_phase_key(empty, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason, "quest:blocked:q2-blue-recovery-unwitnessed"
+        )
+
     def test_q2_observation_route_does_not_reverse_at_worm_corner(self):
         definitions = REAL_QUEST_DEFINITIONS
         if definitions is None:
@@ -17201,6 +17295,40 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(policy._quest_strategy_recovery_claims, {})
 
+    def test_quest_recovery_observation_state_is_cleared_on_floor_change(self):
+        policy = self._policy()
+        first = Snapshot(player(1, 1), {Position(1, 1): grid(1, 1)}, [],
+                         floor_key=(0, 5, 34))
+        policy.choose_key(first)
+        policy._quest_strategy_recovery_pickup_prepared = (
+            34, Position(1, 1), (1, (TVAL_LITE,))
+        )
+        policy._quest_strategy_recovery_pickup_prepared_key = PICKUP_KEY
+        policy._quest_strategy_recovery_pickup_posted = (
+            34, Position(1, 1), (1, (TVAL_LITE,))
+        )
+
+        policy.choose_key(replace(first, floor_key=(0, 6, 0)))
+
+        self.assertIsNone(policy._quest_strategy_recovery_pickup_prepared)
+        self.assertIsNone(policy._quest_strategy_recovery_pickup_prepared_key)
+        self.assertIsNone(policy._quest_strategy_recovery_pickup_posted)
+
+    def test_q2_recovery_observation_state_is_cleared_on_floor_change(self):
+        policy = self._policy()
+        first = Snapshot(player(1, 1), {Position(1, 1): grid(1, 1)}, [],
+                         floor_key=(0, 5, 2))
+        policy.choose_key(first)
+        policy._q2_blue_recovery_pickup_prepared = (Position(1, 1), (1, ()))
+        policy._q2_blue_recovery_pickup_posted = (Position(1, 1), (1, ()))
+        policy._q2_blue_recovery_witnessed = True
+
+        policy.choose_key(replace(first, floor_key=(0, 6, 0)))
+
+        self.assertIsNone(policy._q2_blue_recovery_pickup_prepared)
+        self.assertIsNone(policy._q2_blue_recovery_pickup_posted)
+        self.assertFalse(policy._q2_blue_recovery_witnessed)
+
     def test_planned_throw_unreachable_reason_is_explicitly_q34_gated(self):
         policy = self._policy()
         target = replace(hostile(1, 7, 15, distance=2), race_id=243)
@@ -17218,6 +17346,50 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 policy._approved_quest_strategy_key(snapshot, [target], []), WAIT_KEY
             )
         self.assertTrue(policy.last_reason.startswith("quest:blocked:q34-"))
+
+    def test_q31_planned_throw_unreachable_reason_is_not_labeled_q34(self):
+        policy = self._policy()
+        plan = policy.approved_quest_strategy(31).engagement_plan["throwing_points"][0]
+        target = replace(
+            hostile(1, *plan["target"], distance=2), race_id=plan["race_id"]
+        )
+        snapshot = Snapshot(
+            player(18, 2),
+            {
+                Position(18, 2): grid(18, 2),
+                Position(*plan["target"]): grid(*plan["target"], monster=True),
+            }, [target],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
+            floor_key=(0, 5, 31),
+        )
+        policy._quest_strategy_initial_hold_turns[31] = 60
+        policy._build_grid_index(snapshot)
+
+        with patch.object(policy, "_quest_strategy_route_step", return_value=None):
+            self.assertEqual(
+                policy._approved_quest_strategy_key(snapshot, [target], []), WAIT_KEY
+            )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:throw-point-unreachable"
+        )
+
+    def test_q31_survey_unreachable_reason_is_not_labeled_q34(self):
+        policy = self._policy()
+        snapshot = Snapshot(
+            player(18, 2), {Position(18, 2): grid(18, 2)}, [],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
+            floor_key=(0, 5, 31),
+        )
+        policy._quest_strategy_initial_hold_turns[31] = 60
+        policy._build_grid_index(snapshot)
+
+        with patch.object(policy, "_quest_strategy_route_step", return_value=None):
+            self.assertEqual(
+                policy._approved_quest_strategy_key(snapshot, [], []), WAIT_KEY
+            )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:throw-point-unreachable"
+        )
 
     def test_q34_pickup_confirmation_is_bound_to_exact_prepared_key(self):
         policy = self._policy()
@@ -17255,6 +17427,51 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotIn(
             (7, 14, (1, (TVAL_LITE,))),
             policy._quest_strategy_recovery_claims[34],
+        )
+
+    def test_q34_pickup_arms_observation_with_the_composed_multi_key(self):
+        policy = self._policy()
+        plan = policy.approved_quest_strategy(34).engagement_plan["throwing_points"][0]
+        policy._quest_strategy_cleared_targets[34] = {(243, 7, 15)}
+        policy._quest_strategy_pending_recovery[34] = plan
+        snapshot = Snapshot(
+            player(7, 14),
+            {Position(7, 14): replace(grid(7, 14, objects=2),
+                                      object_tvals=(TVAL_LITE, TVAL_LITE))},
+            [], floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), PICKUP_KEY + "aa"
+        )
+        self.assertEqual(
+            policy._quest_strategy_recovery_pickup_prepared,
+            (34, Position(7, 14), (2, (TVAL_LITE, TVAL_LITE))),
+        )
+        self.assertEqual(
+            policy._quest_strategy_recovery_pickup_prepared_key, PICKUP_KEY + "aa"
+        )
+
+    def test_q34_legacy_recovery_signature_does_not_suppress_real_pickup(self):
+        policy = self._policy()
+        plan = policy.approved_quest_strategy(34).engagement_plan["throwing_points"][0]
+        policy._quest_strategy_cleared_targets[34] = {(243, 7, 15)}
+        policy._quest_strategy_pending_recovery[34] = plan
+        snapshot = Snapshot(
+            player(7, 14),
+            {Position(7, 14): replace(grid(7, 14, objects=1),
+                                      object_tvals=(TVAL_LITE,))},
+            [], floor_key=(0, 5, 34),
+        )
+        legacy_signature = (
+            243, (7, 15), (((7, 14), 1, (TVAL_LITE,)),)
+        )
+        policy._quest_strategy_recovery_claims[34] = {legacy_signature}
+        policy._build_grid_index(snapshot)
+
+        self.assertEqual(
+            policy._approved_quest_strategy_key(snapshot, [], []), PICKUP_KEY
         )
 
     def test_q34_first_sword_uses_static_safe_route_without_diagonal_shortcut(self):
@@ -17936,6 +18153,28 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._approved_quest_strategy_key(hungry, [], []), "Ef")
         self.assertEqual(policy.last_reason, "survival:eat")
 
+    def test_q34_generic_supply_recovery_ignores_a_chest(self):
+        policy = self._policy()
+        policy._fixed_quest_speed_attempted = True
+        policy._quest_strategy_cleared_targets[34] = {
+            (243, 7, 15), (107, 9, 11), (107, 11, 9)
+        }
+        snapshot = Snapshot(
+            player(10, 20),
+            {
+                Position(10, 20): replace(
+                    grid(10, 20, objects=1), object_tvals=(TVAL_CHEST,)
+                ),
+                Position(11, 2): grid(11, 2),
+            }, [], floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        key = policy._approved_quest_strategy_key(snapshot, [], [])
+
+        self.assertNotEqual(key, PICKUP_KEY)
+        self.assertNotEqual(policy.last_reason, "quest-strategy:recover-torch")
+
     def test_approved_quest_uses_profile_heal_threshold(self):
         policy = self._policy()
         threat = replace(hostile(1, 10, 21, distance=1), race_id=174)
@@ -17978,6 +18217,23 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._approved_quest_strategy_key(displaced, [], []), "6"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:recover-torch")
+
+    def test_q1_does_not_treat_a_chest_as_a_recoverable_torch(self):
+        policy = self._policy()
+        grids = {
+            Position(8, 3): grid(8, 3),
+            Position(8, 4): grid(8, 4),
+            Position(8, 5): replace(
+                grid(8, 5, objects=1), object_tvals=(TVAL_CHEST,)
+            ),
+        }
+        displaced = Snapshot(player(8, 4), grids, [], floor_key=(0, 5, 1))
+        policy._build_grid_index(displaced)
+
+        key = policy._approved_quest_strategy_key(displaced, [], [])
+
+        self.assertNotEqual(key, "6")
+        self.assertNotEqual(policy.last_reason, "quest-strategy:recover-torch")
 
     def test_q1_holds_position_between_visible_waves(self):
         policy = self._policy()
