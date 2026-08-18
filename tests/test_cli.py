@@ -2045,6 +2045,29 @@ class DecisionRecordTest(unittest.TestCase):
                 old["timing"] = new["timing"] = "masked"
                 self.assertEqual(old, new)
 
+    def test_home_procurement_fallthrough_is_consumed_after_one_row(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy._home_procurement_fallthrough = "fresh-catalogue-absence"
+        policy._home_procurement_fallthrough_equivalence = (
+            "ammo:exact-tval-any-sval"
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            _write_decision(path, snapshot, "p", "shop:buy", policy)
+            _write_decision(path, snapshot, "6", "explore", policy)
+            rows = [json.loads(line) for line in path.read_text().splitlines()]
+
+        self.assertEqual(
+            rows[0]["home_procurement_fallthrough"],
+            {
+                "case": "fresh-catalogue-absence",
+                "classification": "legal-fresh-catalogue-absence",
+                "need_equivalence": "ammo:exact-tval-any-sval",
+            },
+        )
+        self.assertNotIn("home_procurement_fallthrough", rows[1])
+
     def test_captured_writer_does_not_recompute_policy_telemetry(self):
         snapshot = self._town_snapshot()
         policy = HengbotPolicy()

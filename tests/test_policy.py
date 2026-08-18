@@ -18238,9 +18238,64 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "town:blocked:procurement-home-unroutable"
         )
-        self.assertEqual(
-            policy._home_procurement_fallthrough, "home-visit-rejected"
+        self.assertIsNone(policy._home_procurement_fallthrough)
+        self.assertIsNone(
+            policy.consume_pending_home_procurement_fallthrough_report()
         )
+
+    def test_stale_blocked_reason_cannot_turn_home_stock_into_wait(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        stored = item("h", TVAL_FOOD, 35, count=20, name="Home rations")
+        snap = replace(
+            self._mana_starvation_snapshot(
+                store=StoreState(STORE_GENERAL, [ration]), gold=500
+            ),
+            player=replace(self._mana_starvation_snapshot().player, food_type=0),
+        )
+        policy = HengbotPolicy()
+        policy.last_reason = "town:blocked:repetition"
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [stored]
+
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "survival:ration-home-before-purchase")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(stored))
+
+    def test_procurement_consumer_classes_cover_ammo_and_remove_curse(self):
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        shot = item("h", TVAL_SHOT, 2, count=20, name="Iron Shot")
+        star = item(
+            "i", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+            name="*Remove Curse*",
+        )
+        policy._home_knowledge_items = [shot, star]
+
+        self.assertIs(
+            policy._home_procurement_candidate((TVAL_SHOT, 5)), shot
+        )
+        self.assertEqual(
+            policy._procurement_equivalence((TVAL_SHOT, 5)),
+            "ammo:exact-tval-any-sval",
+        )
+        self.assertIs(
+            policy._home_procurement_candidate(
+                (TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+            ),
+            star,
+        )
+        self.assertEqual(
+            policy._procurement_equivalence(
+                (TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+            ),
+            "remove-curse:normal-or-star",
+        )
+
+    def test_unknown_town_fails_closed_as_home_bearing(self):
+        snap = replace(self._mana_starvation_snapshot(), town_id=999)
+        policy = HengbotPolicy()
+
+        self.assertTrue(policy._current_town_has_home(snap))
 
     def test_food_home_lookup_uses_consumer_need_class(self):
         ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
@@ -18354,7 +18409,17 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         self.assertEqual(policy._mana_food_survival_override_key(snap), WAIT_KEY)
         self.assertEqual(policy.last_reason, "town:blocked:survival-mana-no-charges")
         self.assertIsNone(policy._home_procurement_probe)
-        self.assertEqual(policy._home_procurement_fallthrough, "home-routing-defect")
+        self.assertIsNone(policy._home_procurement_fallthrough)
+
+    def test_procurement_route_failures_are_immediate_final_stops(self):
+        self.assertIn(
+            "town:blocked:procurement-home-unroutable",
+            POLICY_FINAL_STOP_REASONS,
+        )
+        self.assertIn(
+            "town:blocked:procurement-home-unavailable",
+            POLICY_FINAL_STOP_REASONS,
+        )
 
     def test_a21_unroutable_home_blocks_before_magic_entry(self):
         policy = HengbotPolicy()

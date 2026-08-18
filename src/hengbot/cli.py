@@ -375,6 +375,8 @@ POLICY_FINAL_STOP_REASONS = frozenset(
         "equipment-transaction:restore-blocked-terminal",
         "town:blocked:departure-unsatisfiable",
         "town:blocked:home-known-empty-withdrawal",
+        "town:blocked:procurement-home-unavailable",
+        "town:blocked:procurement-home-unroutable",
         "town:blocked:survival-mana-no-charges",
         "wilderness:no-safe-route",
     }
@@ -1407,26 +1409,8 @@ def _write_decision(
                         else None
                     ),
                     (
-                        {
-                            "case": getattr(policy, "_home_procurement_fallthrough", None),
-                            "classification": (
-                                "legal-static-no-home"
-                                if getattr(policy, "_home_procurement_fallthrough", None)
-                                == "town-without-home"
-                                else "legal-fresh-catalogue-absence"
-                                if getattr(policy, "_home_procurement_fallthrough", None)
-                                == "fresh-catalogue-absence"
-                                else "blocked-home-failure"
-                            ),
-                            "need_equivalence": getattr(
-                                policy,
-                                "_home_procurement_fallthrough_equivalence",
-                                None,
-                            ),
-                        }
+                        policy.consume_pending_home_procurement_fallthrough_report()
                         if policy is not None
-                        and getattr(policy, "_home_procurement_fallthrough", None)
-                        is not None
                         else None
                     ),
                 ),
