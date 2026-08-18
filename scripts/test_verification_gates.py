@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import ast
 import io
 import json
 from pathlib import Path
@@ -67,7 +68,8 @@ class VerificationGateSelfTest(unittest.TestCase):
             command(repo.root, "git", "worktree", "add", "--detach", str(worktree), "HEAD")
             verify_scope.copy_runtime_artifacts(live, worktree)
             verify_scope._ACTIVE_WORKTREES.add(worktree.resolve())
-            verify_scope.cleanup_active_worktrees()
+            with mock.patch.object(verify_scope, "ROOT", repo.root):
+                verify_scope.cleanup_active_worktrees()
             self.assertEqual(marker.read_bytes(), b"live")
             self.assertFalse(worktree.exists())
 
@@ -306,12 +308,29 @@ class VerificationGateSelfTest(unittest.TestCase):
                 self.assertEqual(verify_scope.main(["--timeout", "10"]), 1)
                 self.assertEqual(json.loads(output.getvalue())["modules"]["tests.test_demo"]["status"], "failed")
 
-    def test_stalled_capture_allowance_matches_real_hyphenated_artifact(self) -> None:
+    def test_stalled_capture_allowance_matches_real_failure_text(self) -> None:
         entry = next(item for item in verify_scope.KNOWN_FAILURES
                      if item["module"] == "tests.test_home_knowledge_scan")
         failure = ["test_home_knowledge_scan.T.test_capture"]
         self.assertEqual(verify_scope.known_failure_matches(
-            entry["module"], "missing evidence/stalled-capture.jsonl", failure), [entry])
+            entry["module"],
+            "FAIL: test_stalled_capture_requests_home_knowledge_and_completes "
+            "(test_home_knowledge_scan.HomeKnowledgeScanTest."
+            "test_stalled_capture_requests_home_knowledge_and_completes)\n"
+            "AssertionError: False is not true",
+            failure), [entry])
+
+    def test_inline_literal_answer_key_cannot_filter_new_failures(self) -> None:
+        tree = ast.parse(Path(hunk_guard.__file__).read_text(encoding="utf-8"))
+        offenders = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Sub):
+                continue
+            left_names = {item.id for item in ast.walk(node.left) if isinstance(item, ast.Name)}
+            if left_names & {"failures", "new_failures"} and isinstance(
+                    node.right, (ast.Set, ast.List, ast.Tuple, ast.Dict)):
+                offenders.append(node.lineno)
+        self.assertEqual(offenders, [])
 
     def test_failed_skipped_and_lint_excess_are_measured(self) -> None:
         with tempfile.TemporaryDirectory() as name:
@@ -369,7 +388,7 @@ class VerificationGateSelfTest(unittest.TestCase):
             self.assertFalse(worktree.exists())
             self.assertNotIn(str(worktree), command(repo.root, "git", "worktree", "list", "--porcelain"))
 
-    def test_cleanup_unregisters_before_fallback_directory_removal(self) -> None:
+    def test_cleanup_removes_inspected_directory_before_unregistering(self) -> None:
         with tempfile.TemporaryDirectory() as parent:
             path = Path(parent) / "hengbot-verify-order"; path.mkdir()
             events = []
@@ -383,7 +402,7 @@ class VerificationGateSelfTest(unittest.TestCase):
             with mock.patch.object(verify_scope, "git", side_effect=fake_git), \
                  mock.patch.object(verify_scope.shutil, "rmtree", side_effect=fake_rmtree):
                 verify_scope.cleanup_worktree(path, Path(parent))
-            self.assertEqual(events[:2], ["unregister", "remove-directory"])
+            self.assertEqual(events[:2], ["remove-directory", "unregister"])
 
     def test_windows_invalid_parameter_pid_is_dead_and_access_denied_is_live(self) -> None:
         if __import__("os").name == "nt":

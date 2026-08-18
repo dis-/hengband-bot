@@ -38,7 +38,7 @@ KNOWN_FAILURES = (
     },
     {
         "module": "tests.test_home_knowledge_scan",
-        "pattern": "stalled-capture",
+        "pattern": "stalled_capture",
         "count": 1,
         "reason": "pre-existing missing artifact",
         "date": "2026-08-18",
@@ -191,11 +191,11 @@ def cleanup_worktree(path: Path, root: Path = ROOT) -> None:
     path = path.resolve()
     if path.exists():
         refuse_reparse_points(path)
-    # Unregister before deleting: a kill between these operations leaves an
-    # unregistered directory that the startup sweep can safely reclaim.
-    git(root, "worktree", "remove", "--force", str(path), check=False)
-    if path.exists():
+        # Remove the inspected directory ourselves before asking git to
+        # unregister it.  Git's recursive remover must never traverse the
+        # copied runtime-evidence corpus.
         shutil.rmtree(path)
+    git(root, "worktree", "remove", "--force", str(path), check=False)
     worktree_owner_path(path).unlink(missing_ok=True)
     prune_worktrees(root)
     _ACTIVE_WORKTREES.discard(path)

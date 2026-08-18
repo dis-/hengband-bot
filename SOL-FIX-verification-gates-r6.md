@@ -48,3 +48,13 @@ reported 0 / 1 / 0 / 0. During three historical runs, the independent
 final live-tree concurrency assertion raised; the isolated worktrees were
 nevertheless cleaned and the JSON verdicts had already been written. No
 `src/` or `tests/` file was touched by this round, and no push was performed.
+
+## Round-7 correction
+
+This round-6 record omitted `verify_scope.py` results entirely and therefore
+did not support the operator brief's generated-gate requirement. Round 7
+reran the historical baseline: `--target ce62506` returned rc=0 in 69.572 s
+after restoring the real `stalled_capture` output discriminator. The
+`KNOWN_FAILURES` edit made by round 6 was unsigned and had no reviewer
+sign-off, contrary to `SOL-OPERATOR-BRIEF.md`; round 7 records that process
+violation rather than treating the round-6 claim as approval.

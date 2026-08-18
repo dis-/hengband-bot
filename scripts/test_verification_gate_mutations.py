@@ -22,17 +22,21 @@ MUTATIONS = {
         "    sections = _failure_sections(stderr)\n",
         "    if any(name in stderr for name in (\"NameError\", \"AttributeError\", \"ImportError\")):\n        return set()\n    sections = _failure_sections(stderr)\n",
     ),
+    "inline-literal-answer-key": (
+        "                        new_failures = failures - baseline[module]\n",
+        "                        new_failures = failures - {'test_demo.T.test_pin'}\n",
+    ),
     "docstring-prose-fallback-removed": (
         "            return \"nonbehavioral-docstring-prose\"\n",
         "            return \"behavioral\"\n",
     ),
     "dead-stalled-capture-pattern": (
-        '        "pattern": "stalled-capture",\n',
         '        "pattern": "stalled_capture",\n',
+        '        "pattern": "stalled-capture",\n',
     ),
-    "cleanup-directory-before-unregister": (
-        '    git(root, "worktree", "remove", "--force", str(path), check=False)\n    if path.exists():\n        shutil.rmtree(path)\n',
-        '    if path.exists():\n        shutil.rmtree(path)\n    git(root, "worktree", "remove", "--force", str(path), check=False)\n',
+    "git-remover-before-inspected-removal": (
+        '        shutil.rmtree(path)\n    git(root, "worktree", "remove", "--force", str(path), check=False)\n',
+        '        git(root, "worktree", "remove", "--force", str(path), check=False)\n        shutil.rmtree(path)\n',
     ),
     "lint-allowance-count-disabled": (
         '        if lint_allowance and len(undeclared_lint_findings) == lint_allowance["count"]:\n',
@@ -51,12 +55,13 @@ MUTATIONS = {
 PINS = {
     "failed-test-filter-deleted": "test_failed_loader_is_never_a_protector_even_for_structural_changes",
     "inline-answer-key-denylist": "test_inline_blanket_exception_denylist_cannot_void_assertion_pin",
+    "inline-literal-answer-key": "test_inline_literal_answer_key_cannot_filter_new_failures",
     "docstring-prose-fallback-removed": "test_zero_context_docstring_prose_fallback_is_nonbehavioral",
-    "dead-stalled-capture-pattern": "test_stalled_capture_allowance_matches_real_hyphenated_artifact",
-    "cleanup-directory-before-unregister": "test_cleanup_unregisters_before_fallback_directory_removal",
+    "dead-stalled-capture-pattern": "test_stalled_capture_allowance_matches_real_failure_text",
+    "git-remover-before-inspected-removal": "test_cleanup_removes_inspected_directory_before_unregistering",
     "lint-allowance-count-disabled": "test_failed_skipped_and_lint_excess_are_measured",
     "excluded-test-prefix-wrong": "test_excluded_test_prefix_is_exact",
-    "known-failure-matcher-disabled": "test_stalled_capture_allowance_matches_real_hyphenated_artifact",
+    "known-failure-matcher-disabled": "test_stalled_capture_allowance_matches_real_failure_text",
 }
 
 
