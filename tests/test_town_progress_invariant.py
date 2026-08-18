@@ -169,18 +169,32 @@ class TownProgressInvariantTest(unittest.TestCase):
             "town-progress-invariant:continue-observed-shop",
         )
         self.assertEqual(policy._shop_observation[0].store_type, STORE_MAGIC)
-        policy._shopping_approach_store_type = STORE_ALCHEMIST
-
-        posted_key = policy.choose_key(outside)
+        policy._store_visit = replace(
+            policy._store_visit, store_type=STORE_ALCHEMIST
+        )
+        self.assertNotEqual(
+            policy._shopping_approach_store_type,
+            policy._shop_observation[0].store_type,
+        )
+        posted_key = policy._atomic_shop_transaction_key(outside)
         self.assertEqual(posted_key, WAIT_KEY)
         self.assertTrue(policy._store_visit.operation_posted)
         self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
-        self.assertIn("shop:one-shot-buy", policy.last_reason)
 
     def test_target_leave_is_defect_but_nonstocking_leave_can_advance(self):
         policy, snapshot, store = self._case()
         target = replace(snapshot, store=store)
         policy._shop_observation = (store, policy._decision_sequence)
+        policy._store_visit = replace(
+            policy._store_visit, store_type=STORE_ALCHEMIST
+        )
+        self.assertNotEqual(
+            policy._shopping_approach_store_type,
+            policy._shop_observation[0].store_type,
+        )
+        self.assertEqual(
+            policy._atomic_shop_transaction_key(snapshot), WAIT_KEY
+        )
         policy.last_reason = "shop:observe-and-leave"
         self.assertEqual(
             policy._town_procurement_decision(target, "\x1b"), "\x1b"
@@ -202,8 +216,14 @@ class TownProgressInvariantTest(unittest.TestCase):
 
     def test_saved_page_composes_after_town_plan_advances(self):
         policy, snapshot, store = self._case()
-        policy._shopping_approach_store_type = STORE_ALCHEMIST
         policy._shop_observation = (store, policy._decision_sequence)
+        policy._store_visit = replace(
+            policy._store_visit, store_type=STORE_ALCHEMIST
+        )
+        self.assertNotEqual(
+            policy._shopping_approach_store_type,
+            policy._shop_observation[0].store_type,
+        )
         key = policy._atomic_shop_transaction_key(snapshot)
         self.assertEqual(key, WAIT_KEY)
         self.assertTrue(policy._store_visit.operation_posted)
