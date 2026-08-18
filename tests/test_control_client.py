@@ -148,12 +148,11 @@ class ControlClientTest(unittest.TestCase):
             ))
         self.assertEqual(len(messages), 1)
 
-    def test_keys_and_quit_are_refused_before_composition(self):
+    def test_non_phase_one_operations_are_refused_before_composition(self):
         client = self.client()
-        with self.assertRaises(ValueError):
-            client.request("keys", keys="j")
-        with self.assertRaises(ValueError):
-            client.request("quit")
+        for operation in ("screen", "messages", "keys", "quit"):
+            with self.subTest(operation=operation), self.assertRaises(ValueError):
+                client.request(operation, keys="j" if operation == "keys" else None)
         self.assertEqual(self.server.requests, [])
 
     def test_shadow_record_shape_and_normalization(self):
@@ -202,6 +201,48 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
+    def test_once_records_tcp_shadow_after_successful_send(self):
+        from hengbot import cli
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state.jsonl"
+            definitions = root / "MonraceDefinitions.jsonc"
+            state.write_text(_snapshot_line(1), encoding="utf-8")
+            definitions.write_text("{}", encoding="utf-8")
+            policy = unittest.mock.Mock()
+            policy._decision_sequence = 1
+            policy.last_reason = "test:once-shadow"
+            policy.prompt_owner_handoff = None
+            policy.choose_key.return_value = "5"
+            policy.validate_read_key.return_value = "5"
+
+            with (
+                patch("hengbot.cli.find_monrace_definitions", return_value=definitions),
+                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
+                patch("hengbot.cli.find_terrain_definitions", return_value=None),
+                patch("hengbot.cli.find_outpost_map", return_value=None),
+                patch("hengbot.cli.find_town_map", return_value=None),
+                patch("hengbot.cli.find_wilderness_definition", return_value=None),
+                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_strategies", return_value=None),
+                patch("hengbot.cli._bot_play_macros_ready", return_value=False),
+                patch("hengbot.cli.ConservativePolicy", return_value=policy),
+                patch("hengbot.cli._configure_policy_output_paths", return_value=None),
+                patch("hengbot.cli._capture_decision_facts", return_value={}),
+                patch("hengbot.cli._write_decision"),
+                patch("hengbot.cli._record_tcp_shadow") as shadow,
+            ):
+                result = cli.main([
+                    "--state-file", str(state), "--once", "--control-port", "1",
+                ])
+
+            self.assertEqual(result, 0)
+            shadow.assert_called_once()
+            self.assertEqual(shadow.call_args.args[1]["turn"], 1)
+            self.assertEqual(shadow.call_args.args[2], 1)
+
     def test_disabled_real_follow_cycle_has_no_shadow_side_effect_or_extra_decode(self):
         from hengbot import cli
 
@@ -220,14 +261,14 @@ class DisabledCliPinTest(unittest.TestCase):
             parsed.wait_telemetry = unittest.mock.Mock()
             from hengbot.policy import HengbotPolicy
             policy = HengbotPolicy()
-            policy.choose_key = unittest.mock.Mock(
-                side_effect=lambda snapshot: (
-                    setattr(
-                        policy, "last_reason",
-                        "equipment-transaction:restore-blocked-terminal",
-                    ) or ""
-                )
-            )
+            def choose(snapshot):
+                policy._decision_sequence += 1
+                if snapshot.turn == 2:
+                    policy.last_reason = "test:disabled-shadow-post-send"
+                    return "5"
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
             original_loads = cli.json.loads
             decodes = []
             following = threading.Event()
@@ -235,6 +276,9 @@ class DisabledCliPinTest(unittest.TestCase):
                 following.wait()
                 with state.open("a", encoding="utf-8") as stream:
                     stream.write(_snapshot_line(2))
+                    stream.flush()
+                    time.sleep(0.05)
+                    stream.write(_snapshot_line(3))
 
             writer = threading.Thread(target=append_snapshot)
             with patch.dict(sys.modules):

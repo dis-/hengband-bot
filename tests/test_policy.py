@@ -13301,7 +13301,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             player=replace(opening.player, position=entrance),
         )
         policy._shopping_approach_store_type = STORE_GENERAL
-        policy._store_entry_wait_owner = STORE_GENERAL
+        # Artifact decision 110 was in LEAVING, with no entry command in flight.
+        self.assertIsNone(policy._store_entry_wait_owner)
         policy.last_reason = "opening-q34:wait"
 
         key = policy._forbid_wait_on_town_entrance(opening, WAIT_KEY)
@@ -13310,6 +13311,45 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "town:entrance-step-off:opening-q34:wait"
         )
+
+    def test_genuine_store_entry_in_flight_keeps_entry_wait(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+        entrance = Position(10, 10)
+        opening = replace(opening, player=replace(opening.player, position=entrance))
+        policy._shopping_approach_store_type = STORE_GENERAL
+
+        self.assertEqual(
+            policy._shopping_approach_key(opening, entrance, "shop:travel"),
+            WAIT_KEY,
+        )
+        self.assertEqual(policy._store_entry_wait_owner, STORE_GENERAL)
+        policy.last_reason = "opening-q34:wait"
+
+        self.assertEqual(
+            policy._forbid_wait_on_town_entrance(opening, WAIT_KEY), WAIT_KEY
+        )
+
+    def test_q34_restock_wait_publishes_supplier_reason(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
+        policy._home_knowledge_scan_requested = True
+        policy._town_restock_waiting_for = (STORE_GENERAL,)
+        policy._town_restock_wait_until = opening.turn + STORE_RESTOCK_WAIT_TURNS
+
+        with (
+            patch.object(policy, "_town_claims_active", return_value=False),
+            patch.object(policy, "_town_terminal_transitions"),
+            patch.object(policy, "_town_restore_weapon_key", return_value=None),
+            patch.object(policy, "_fixed_quest_key", return_value=None),
+        ):
+            key = policy._opening_q34_town_key(opening, [])
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "town:wait-restock:general")
 
     def test_frozen_q34_town_damage_replay_steps_away_on_each_hp_drop(self):
         self.skipTest(

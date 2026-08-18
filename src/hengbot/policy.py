@@ -4324,8 +4324,7 @@ class HengbotPolicy:
             return key
         here = snapshot.grid_at(snapshot.player.position)
         if (
-            reason != "opening-q34:wait"
-            and self._store_entry_wait_owner is not None
+            self._store_entry_wait_owner is not None
             and here is not None
             and here.store_number == self._store_entry_wait_owner
         ):
@@ -7567,6 +7566,12 @@ class HengbotPolicy:
         fixed_quest = self._fixed_quest_key(snapshot, hostiles)
         if fixed_quest is not None:
             return fixed_quest
+        if (
+            self._town_restock_wait_until is not None
+            and snapshot.turn < self._town_restock_wait_until
+        ):
+            self.last_reason = self._restock_wait_reason(snapshot)
+            return WAIT_KEY
         self.last_reason = "opening-q34:wait"
         return WAIT_KEY
 
