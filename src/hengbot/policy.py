@@ -6048,16 +6048,7 @@ class HengbotPolicy:
                 )
                 if fundraising is not None:
                     return fundraising
-            recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
-            released_store = self._retry_after_store_restock(
-                snapshot, recall_stores
-            )
-            if released_store is not None:
-                return self._released_restock_store_key(
-                    snapshot, recall_stores
-                )
-            self.last_reason = self._restock_wait_reason(snapshot)
-            return RESTOCK_WAIT_MACRO
+            return self._recall_restock_key(snapshot)
 
         here = snapshot.grid_at(player.position)
         # 4. Recover between fights: with nothing hostile in sight and HP down
@@ -15771,6 +15762,23 @@ class HengbotPolicy:
         self, snapshot: Snapshot, store_types: tuple[int, ...]
     ) -> str:
         """Route to a supplier made eligible by completed stock turnover."""
+        # A completed recall-stock cycle is progress evidence, not permission
+        # to starve behind the same owner.  Home has already had its normal
+        # first pass before terminal restock handling.  If food is still a
+        # departure shortage, release its supplier before retrying recall.
+        if not self._food_ready(snapshot):
+            food_store = (
+                STORE_MAGIC
+                if snapshot.player.food_type == FOOD_TYPE_MANA
+                else STORE_GENERAL
+            )
+            self._town_store_attempted.pop(food_store, None)
+            step = self._shopping_approach_step(snapshot, food_store)
+            if step is not None:
+                self.last_reason = "shop:approach"
+                return self._shopping_approach_key(snapshot, step, "shop:travel")
+            self._town_blocked_reason = "restocked-food-store-unreachable"
+            return self._town_blocked_key(snapshot)
         step = self._shopping_approach_step(snapshot)
         if step is not None and self._shopping_approach_store_type in store_types:
             self.last_reason = "shop:approach"
@@ -15789,6 +15797,23 @@ class HengbotPolicy:
         # or silently arming the same wait again.
         self._town_blocked_reason = "restocked-recall-store-unreachable"
         return self._town_blocked_key(snapshot)
+
+    def _recall_restock_key(self, snapshot: Snapshot) -> str:
+        """Bound recall waiting to one observed stock-turnover cycle."""
+        recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
+        if (
+            self._town_restock_wait_until is None
+            and all(store in self._town_restock_rechecked for store in recall_stores)
+        ):
+            if not self._food_ready(snapshot):
+                return self._released_restock_store_key(snapshot, recall_stores)
+            self._town_blocked_reason = "restocked-recall-unavailable"
+            return self._town_blocked_key(snapshot)
+        released_store = self._retry_after_store_restock(snapshot, recall_stores)
+        if released_store is not None:
+            return self._released_restock_store_key(snapshot, recall_stores)
+        self.last_reason = self._restock_wait_reason(snapshot)
+        return RESTOCK_WAIT_MACRO
 
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
@@ -18147,6 +18172,25 @@ class HengbotPolicy:
         recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
         if (not self._recall_ready(snapshot) or not self._recall_departure_ready(snapshot)) and all(store in self._town_store_attempted for store in recall_stores):
             if recall.count == 0:
+                if (
+                    self._town_restock_wait_until is None
+                    and all(
+                        store in self._town_restock_rechecked
+                        for store in recall_stores
+                    )
+                ):
+                    if not self._food_ready(snapshot):
+                        food_store = (
+                            STORE_MAGIC
+                            if snapshot.player.food_type == FOOD_TYPE_MANA
+                            else STORE_GENERAL
+                        )
+                        self._town_store_attempted.pop(food_store, None)
+                    else:
+                        self._town_blocked_reason = (
+                            "restocked-recall-unavailable"
+                        )
+                    return
                 self._retry_after_store_restock(snapshot, recall_stores)
                 return
             if not self._recall_departure_ready(snapshot):
@@ -22577,15 +22621,7 @@ class HengbotPolicy:
             # Suppliers may both be latched after genuine stock failure;
             # wait for turnover instead of falling through to dungeon-style
             # town exploration while carrying an unreachable objective.
-            released_store = self._retry_after_store_restock(
-                snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
-            )
-            if released_store is not None:
-                return self._released_restock_store_key(
-                    snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
-                )
-            self.last_reason = self._restock_wait_reason(snapshot)
-            return RESTOCK_WAIT_MACRO
+            return self._recall_restock_key(snapshot)
         if recall_dest is not None and departure_ok:
             self._cross_town_shopping = None
             recall_count = sum(

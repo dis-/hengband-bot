@@ -186,3 +186,35 @@ def replay_checkpoint_decision(policy_type, path: Path, decision_index: int,
             f"captured defect recurred at decision {decision_index}: {pair!r}"
         )
     return row, pair
+
+
+def replay_checkpoint_trajectory(policy_type, path: Path, decision_indices,
+                                 *, forbidden_reasons, required_reason_prefix):
+    """Replay frozen points from one no-progress trajectory.
+
+    Each checkpoint is an independently captured pre-decision state.  This is
+    deliberately stricter than inventing store or movement effects between
+    them: every recorded owner in the incident must leave the forbidden cycle,
+    and at least one replacement decision must visibly pursue the required
+    higher-priority owner.
+    """
+    transcript = []
+    for decision_index in decision_indices:
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, decision_index)
+        policy, snapshot = restore_incident_checkpoint(
+            policy_type, policy_blob, snapshot_blob
+        )
+        key = policy.choose_key(snapshot)
+        pair = (policy.last_reason, key)
+        transcript.append(pair)
+        if policy.last_reason in forbidden_reasons:
+            raise AssertionError(
+                f"captured owner cycle recurred at {decision_index}: {pair!r}"
+            )
+    if not any(
+        reason.startswith(required_reason_prefix) for reason, _key in transcript
+    ):
+        raise AssertionError(
+            f"trajectory never pursued {required_reason_prefix!r}: {transcript!r}"
+        )
+    return tuple(transcript)
