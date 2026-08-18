@@ -189,14 +189,17 @@ def replay_checkpoint_decision(policy_type, path: Path, decision_index: int,
 
 
 def replay_checkpoint_trajectory(policy_type, path: Path, decision_indices,
-                                 *, forbidden_reasons, required_reason_prefix):
+                                 *, forbidden_reasons, required_reason_prefix,
+                                 seed_policy=None):
     """Replay frozen points from one no-progress trajectory.
 
-    Each checkpoint is an independently captured pre-decision state.  This is
-    deliberately stricter than inventing store or movement effects between
-    them: every recorded owner in the incident must leave the forbidden cycle,
-    and at least one replacement decision must visibly pursue the required
-    higher-priority owner.
+    Each checkpoint is an independently captured pre-decision state.  A test
+    may seed explicitly labelled CAN-only preconditions after restoration;
+    the fixture itself must still contain a real captured policy and Snapshot.
+    This remains stricter than inventing store or movement effects between
+    checkpoints: every recorded owner in the incident must leave the forbidden
+    cycle, and at least one replacement decision must visibly pursue the
+    required higher-priority owner.
     """
     transcript = []
     for decision_index in decision_indices:
@@ -204,6 +207,8 @@ def replay_checkpoint_trajectory(policy_type, path: Path, decision_indices,
         policy, snapshot = restore_incident_checkpoint(
             policy_type, policy_blob, snapshot_blob
         )
+        if seed_policy is not None:
+            seed_policy(policy)
         key = policy.choose_key(snapshot)
         pair = (policy.last_reason, key)
         transcript.append(pair)

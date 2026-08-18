@@ -12,6 +12,16 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         / "town-restock-stall-hungry-checkpoints.jsonl.gz"
     )
 
+    @staticmethod
+    def _seed_recall_variant(policy):
+        policy._food_ready = lambda _snapshot: True
+        policy._town_restock_wait_until = 0
+        policy._town_restock_waiting_for = (3, 4)
+        policy._town_restock_rechecked = set()
+        policy._town_blocked_reason_value = (
+            "restocked-recall-store-unreachable"
+        )
+
     def test_hungry_character_escapes_recall_restock_owner_alternation(self):
         transcript = replay_checkpoint_trajectory(
             HengbotPolicy,
@@ -61,6 +71,12 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
                 "town:blocked:restocked-recall-store-unreachable",
             },
             required_reason_prefix="shop:",
+            # This reviewer variant CAN occur through the released-restock
+            # path, but was not naturally captured.  Preserve the real
+            # pre-decision policy and seed only food readiness and the released
+            # recall-restock terminal state; the inert Home visit is part of
+            # the real checkpoint.
+            seed_policy=self._seed_recall_variant,
         )
         self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
 
