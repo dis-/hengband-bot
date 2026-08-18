@@ -12727,7 +12727,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.profiles = load_quest_strategies(Path("strategy/quests"))
+        cls.profiles = load_quest_strategies(
+            Path(__file__).parent.parent / "strategy" / "quests"
+        )
         q1_terrain = {
             (y, x): ("wall" if y in {4, 9} or x in {0, 14} else "floor")
             for y in range(4, 10) for x in range(15)

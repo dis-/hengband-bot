@@ -9,7 +9,7 @@ from hengbot.model import Position
 from hengbot.policy import HengbotPolicy, QUEST_STATUS_TAKEN
 
 import test_policy as fixture
-from absorbing_state_catalog import MOVES, TownWorld
+from absorbing_state_catalog import TownWorld
 from trajectory_harness import (
     checkpoint_rows,
     decision_window,
@@ -133,12 +133,14 @@ class GoldenOpeningTrajectoryTest(unittest.TestCase):
 
 
 class IncidentConverterTest(unittest.TestCase):
-    def test_missing_artifact_skips_honestly(self):
+    FIXTURES = Path(__file__).parent / "fixtures"
+
+    def test_missing_fixture_fails_loudly(self):
         with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaises(unittest.SkipTest) as caught:
-                replay_incident(HengbotPolicy, Path(directory),
+            with self.assertRaises(FileNotFoundError) as caught:
+                replay_incident(HengbotPolicy, Path(directory) / "missing.jsonl",
                                 forbidden_pair=("opening-q34:wait", "5"))
-        self.assertIn("no replayable pre-decision checkpoint", str(caught.exception))
+        self.assertIn("required frozen incident fixture", str(caught.exception))
 
     def test_malformed_window_is_not_a_silent_pass(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -147,8 +149,9 @@ class IncidentConverterTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid JSON"):
                 list(checkpoint_rows(path))
 
-    def test_today_opening_stall_capture(self):
-        path = Path("jsonlog/bot-decisions.jsonl")
+    def test_today_opening_stall_telemetry_is_pinned(self):
+        """Pin the measured incident window; the golden test supplies replay."""
+        path = self.FIXTURES / "golden-trajectory-opening-stall.jsonl"
         rows = decision_window(
             path,
             start="2026-08-18T18:14:00", end="2026-08-18T18:20:59",
@@ -159,24 +162,10 @@ class IncidentConverterTest(unittest.TestCase):
         self.assertEqual(measured["dps"]["measured"], 0.0)
         self.assertEqual(measured["failed"], ["dps", "speed_potions", "heal_potions"])
 
-        # Replay the opening that produced those measured readiness rows.  A
-        # high-damage wielded weapon makes the historical dps=0 verdict
-        # impossible; the old evaluator remains in opening-q34:wait instead
-        # of reaching the quest request milestone.
-        policy, world = GoldenOpeningTrajectoryTest().build()
-        result = drive_trajectory(
-            policy, world, decisions=16,
-            milestones=((
-                "readiness releases quest request", 12,
-                lambda p, w, reason, key: reason.startswith("fixedquest:request"),
-            ),),
-            owner_bound=8, pair_bound=6,
-        )
-        self.assertTrue(result.milestones)
-
     def test_today_decision_110_checkpoint(self):
         row, pair = replay_checkpoint_decision(
-            HengbotPolicy, Path("jsonlog/home-entry-capture.jsonl"), 110,
+            HengbotPolicy,
+            self.FIXTURES / "golden-trajectory-decision-110.jsonl.gz", 110,
             forbidden_pair=("opening-q34:wait", "5"),
         )
         self.assertEqual(row["decision_index"], 110)

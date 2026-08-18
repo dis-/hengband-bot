@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import pickle
-import unittest
+import gzip
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +16,12 @@ class TrajectoryResult:
     transcript: tuple[tuple[str, str], ...]
     milestones: tuple[tuple[str, int], ...]
     longest_owner_stall: int
+
+
+def _open_jsonl(path: Path):
+    if path.suffix == ".gz":
+        return gzip.open(path, mode="rt", encoding="utf-8-sig")
+    return path.open(encoding="utf-8-sig")
 
 
 def drive_trajectory(policy, world, *, decisions, milestones, owner_bound=20,
@@ -70,16 +76,19 @@ def drive_trajectory(policy, world, *, decisions, milestones, owner_bound=20,
         if next_milestone == len(milestones):
             return TrajectoryResult(tuple(transcript), tuple(reached), longest)
     missing = [name for name, _bound, _predicate in milestones[next_milestone:]]
-    raise AssertionError(f"trajectory exhausted after {decisions}; missing {missing}; tail={transcript[-8:]}")
+    raise AssertionError(
+        f"trajectory exhausted after {decisions}; first unsatisfied milestone "
+        f"{missing[0]!r}; missing {missing}; tail={transcript[-8:]}"
+    )
 
 
 def checkpoint_rows(path: Path):
     """Yield replayable pre-decision checkpoints from a capture or JSONL."""
     if not path.exists():
-        return
+        raise FileNotFoundError(f"required frozen incident fixture is absent: {path}")
     files = sorted(path.rglob("*.jsonl")) if path.is_dir() else [path]
     for source in files:
-        with source.open(encoding="utf-8-sig") as rows:
+        with _open_jsonl(source) as rows:
             for number, line in enumerate(rows, 1):
                 try:
                     row = json.loads(line)
@@ -97,8 +106,8 @@ def checkpoint_rows(path: Path):
 def checkpoint_row(path: Path, decision_index: int):
     """Return one named pre-decision checkpoint without loading a huge capture."""
     if not path.exists():
-        raise unittest.SkipTest(f"incident checkpoint substrate is absent: {path}")
-    with path.open(encoding="utf-8-sig") as rows:
+        raise FileNotFoundError(f"required frozen incident fixture is absent: {path}")
+    with _open_jsonl(path) as rows:
         for number, line in enumerate(rows, 1):
             try:
                 row = json.loads(line)
@@ -112,13 +121,13 @@ def checkpoint_row(path: Path, decision_index: int):
                         f"{path}:{number}: decision {decision_index} has no pre-decision checkpoint"
                     )
                 return row, policy_blob, snapshot_blob
-    raise unittest.SkipTest(f"decision {decision_index} is absent from {path}")
+    raise AssertionError(f"decision {decision_index} is absent from required fixture {path}")
 
 
 def decision_window(path: Path, *, start: str, end: str, reason: str):
     """Load the measured rows in a bounded decision-log time window."""
     if not path.exists():
-        raise unittest.SkipTest(f"incident decision-window substrate is absent: {path}")
+        raise FileNotFoundError(f"required frozen incident fixture is absent: {path}")
     matched = []
     with path.open(encoding="utf-8-sig") as rows:
         for number, line in enumerate(rows, 1):
@@ -130,7 +139,7 @@ def decision_window(path: Path, *, start: str, end: str, reason: str):
             if start <= timestamp <= end and row.get("reason") == reason:
                 matched.append(row)
     if not matched:
-        raise unittest.SkipTest(
+        raise AssertionError(
             f"no {reason!r} decisions in {start}..{end} at {path}"
         )
     return matched
@@ -148,7 +157,7 @@ def replay_incident(policy_type, path: Path, *, forbidden_pair, limit=40):
     """Convert a capture into a bounded regression against the recorded defect."""
     rows = list(checkpoint_rows(path))
     if not rows:
-        raise unittest.SkipTest(f"no replayable pre-decision checkpoint in {path}")
+        raise AssertionError(f"no replayable pre-decision checkpoint in required fixture {path}")
     policy, snapshot = restore_incident_checkpoint(policy_type, rows[-1][2], rows[-1][3])
     seen = Counter()
     for _ in range(limit):
