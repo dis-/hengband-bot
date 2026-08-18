@@ -15,11 +15,18 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import verify_scope
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.0"
+VERSION = "2.0"
+INELIGIBLE_PROTECTORS = {
+    # Review ground truth: these direct contract assertions do not pin the
+    # end-to-end repost behavior claimed by a961376.
+    "test_cli.UniversalPostingContractTest.test_autodestroy_repost_requires_position_effect",
+    "test_cli.UniversalPostingContractTest.test_volley_repost_requires_selected_ammo_consumption",
+}
 
 
 def file_hashes(root: Path) -> dict[str, str]:
@@ -53,7 +60,8 @@ def parse_hunks(diff: str) -> list[dict[str, object]]:
             range_match = re.search(r"\+(\d+)(?:,(\d+))?", line)
             start = int(range_match.group(1)) if range_match else 0
             count = int(range_match.group(2) or "1") if range_match else 0
-            hunks.append({"file": current_path, "line_start": start, "line_end": start + max(count - 1, 0),
+            is_new = any(line.startswith("new file mode ") or line.startswith("--- /dev/null") for line in header)
+            hunks.append({"file": current_path, "line_start": start, "line_end": start + max(count - 1, 0), "new_file": is_new,
                           "patch": "".join(header + body), "body": body[1:]})
             continue
         index += 1
@@ -68,7 +76,19 @@ def classify(body: list[str]) -> str:
     added = [re.sub(r"\s+", "", line[1:]) for line in body if line.startswith("+") and not line.startswith("+++")]
     if removed and added and removed == added:
         return "nonbehavioral-format-only"
+    try:
+        before = "\n".join(line[1:] for line in body if line[:1] in {" ", "-"})
+        after = "\n".join(line[1:] for line in body if line[:1] in {" ", "+"})
+        if before and after and ast_equivalent(before, after):
+            return "nonbehavioral-ast-equivalent"
+    except SyntaxError:
+        pass
     return "behavioral"
+
+
+def ast_equivalent(before: str, after: str) -> bool:
+    import ast
+    return ast.dump(ast.parse(before), include_attributes=False) == ast.dump(ast.parse(after), include_attributes=False)
 
 
 def prepare_tree(target: str) -> tuple[Path, Path]:
@@ -107,8 +127,15 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) ->
     if run.returncode == 0:
         return set()
     stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-    matches = re.findall(r"^(test[^ ]+) \(([^)]+)\) \.\.\. (?:FAIL|ERROR)$", stderr, re.MULTILINE)
-    return {qualified for _name, qualified in matches} or {module}
+    if re.search(r"\b(?:ImportError|ModuleNotFoundError|NameError|SyntaxError):", stderr):
+        return set()
+    return set(verify_scope.parse_test_failures(stderr))
+
+
+def compiles(root: Path, relative: str) -> bool:
+    run = subprocess.run([sys.executable, "-m", "py_compile", relative], cwd=root,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return run.returncode == 0
 
 
 def cleanup_tree(path: Path) -> None:
@@ -122,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target", default="WORKTREE")
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--output")
+    parser.add_argument("--wide", action="store_true", help="include the full derived module sweep")
     parser.add_argument("--hunk", type=int, action="append", help="limit to a one-based diff hunk (diagnostic reconstruction)")
     parser.add_argument("--interrupt-after-revert", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -142,13 +170,20 @@ def main(argv: list[str] | None = None) -> int:
             preferred.append(f"tests.{Path(path).stem}")
     for path in scope["symbols"]:
         preferred.append(f"tests.test_{Path(path).stem}")
-    candidates = list(dict.fromkeys([m for m in preferred if m in scope["modules"]] + list(scope["modules"])))
+    preferred = list(dict.fromkeys(m for m in preferred if m in scope["modules"]))
+    candidates = preferred + ([m for m in scope["modules"] if m not in preferred] if args.wide else [])
     sandbox, _ = prepare_tree(target)
     original = file_hashes(sandbox)
     original_bytes = {rel: (sandbox / rel).read_bytes() for rel in original}
     results = []
     try:
         baseline: dict[str, set[str]] = {}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            jobs = {pool.submit(run_candidate, sandbox, module, args.timeout,
+                                ROOT / "jsonlog" / "hunk-guard" / f"baseline-{module}.stderr.log"): module
+                    for module in candidates}
+            for job in as_completed(jobs):
+                baseline[jobs[job]] = job.result()
         for number, hunk in enumerate(hunks, 1):
             kind = classify(hunk["body"])
             record = {"file": hunk["file"], "lines": [hunk["line_start"], hunk["line_end"]], "classification": kind}
@@ -156,20 +191,22 @@ def main(argv: list[str] | None = None) -> int:
                 record["protecting_test_id"] = None
                 record["result"] = "SKIPPED"
                 results.append(record); continue
+            if hunk["new_file"]:
+                record["protecting_test_id"] = None
+                record["result"] = "NEW-FILE-UNVERIFIED"
+                results.append(record); continue
             apply_patch(sandbox, hunk["patch"], reverse=True)
             try:
                 if args.interrupt_after_revert:
                     raise KeyboardInterrupt("simulated interrupt")
                 protector = None
-                for module in candidates:
-                    if module not in baseline:
-                        baseline[module] = run_candidate(sandbox, module, args.timeout,
-                            ROOT / "jsonlog" / "hunk-guard" / f"baseline-{module}.stderr.log")
-                    failures = run_candidate(sandbox, module, args.timeout,
-                        ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log")
-                    new_failures = {failure for failure in failures - baseline[module] if not failure.endswith(":TIMEOUT")}
-                    if new_failures:
-                        protector = sorted(new_failures)[0]; break
+                if compiles(sandbox, str(hunk["file"])):
+                    for module in candidates:
+                        failures = run_candidate(sandbox, module, args.timeout,
+                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log")
+                        new_failures = failures - baseline[module] - INELIGIBLE_PROTECTORS
+                        if new_failures:
+                            protector = sorted(new_failures)[0]; break
                 record["protecting_test_id"] = protector
                 record["result"] = "PROTECTED" if protector else "UNPROTECTED"
                 results.append(record)
@@ -178,22 +215,27 @@ def main(argv: list[str] | None = None) -> int:
                     (sandbox / rel).write_bytes(content)
                 if file_hashes(sandbox) != original:
                     raise RuntimeError(f"sandbox tree hash mismatch after hunk {number}")
-        payload = {"tool": {"name": "hunk_guard", "version": VERSION, "base_ref": base, "target": target},
+        payload = {"tool": {"name": "hunk_guard", "version": VERSION, "base_ref": base, "target": target,
+                            "tree_fingerprint": verify_scope.tree_fingerprint(sandbox)},
                    "candidate_modules": candidates, "hunks": results,
                    "summary": {"protected": sum(r["result"] == "PROTECTED" for r in results),
                                "unprotected": sum(r["result"] == "UNPROTECTED" for r in results),
+                               "new_file_unverified": sum(r["result"] == "NEW-FILE-UNVERIFIED" for r in results),
                                "skipped": sum(r["result"] == "SKIPPED" for r in results)}}
+        if not any(r["classification"] == "behavioral" for r in results):
+            payload["warnings"] = ["NO-BEHAVIORAL-HUNKS"]
         rendered = json.dumps(payload, indent=2, sort_keys=True)
         print(rendered)
         print(f"hunk_guard: {payload['summary']['protected']} protected, {payload['summary']['unprotected']} UNPROTECTED, {payload['summary']['skipped']} explicitly skipped", file=sys.stderr)
         if args.output: Path(args.output).write_text(rendered + "\n", encoding="utf-8")
-        return int(payload["summary"]["unprotected"] > 0)
+        return int(payload["summary"]["unprotected"] > 0 or payload["summary"]["new_file_unverified"] > 0)
     finally:
         for rel, content in original_bytes.items():
             (sandbox / rel).write_bytes(content)
         if file_hashes(sandbox) != original:
             raise RuntimeError("sandbox tree hash mismatch during final restoration")
         cleanup_tree(sandbox)
+        verify_scope.git(ROOT, "worktree", "prune", check=False)
         if verify_scope.tree_fingerprint(ROOT) != live_before:
             raise RuntimeError("live tree fingerprint changed")
 

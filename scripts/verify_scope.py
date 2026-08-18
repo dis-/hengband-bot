@@ -16,13 +16,14 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "1.0"
 ALWAYS_MODULES = {"tests.test_policy", "tests.test_cli", "tests.test_absorbing_states"}
 LINTS = ("scripts/sale_key_lint.py", "scripts/test_fakery_lint.py")
 EXCLUDED_TESTS = {
-    "tests.test_cli.DecisionTimingTest": "known hang; exclusion required by SOL-TASK-verification-gates.md",
+    "test_cli.DecisionTimingTest": "known hang; exclusion required by SOL-TASK-verification-gates.md",
 }
 KNOWN_FAILURES = (
     {
@@ -33,11 +34,18 @@ KNOWN_FAILURES = (
     },
     {
         "module": "tests.test_home_knowledge_scan",
-        "pattern": "stalled-capture",
+        "pattern": "stalled_capture",
         "reason": "pre-existing missing artifact",
         "date": "2026-08-18",
     },
 )
+KNOWN_LINT_FAILURES = {
+    "scripts/test_fakery_lint.py": {
+        "count": 9,
+        "reason": "pre-existing undeclared test-fakery findings; additions remain blocking",
+        "date": "2026-08-18",
+    },
+}
 
 
 def git(root: Path, *args: str, check: bool = True) -> str:
@@ -148,12 +156,23 @@ def filtered(suite):
     for test in suite:
         if isinstance(test, unittest.TestSuite):
             result.addTests(filtered(test))
-        elif not test.id().startswith('test_cli.DecisionTimingTest.'):
+        elif not any(test.id().startswith(prefix + '.') for prefix in {tuple(EXCLUDED_TESTS)!r}):
             result.addTest(test)
     return result
 x = unittest.TextTestRunner(verbosity=2).run(filtered(s))
 sys.exit(not x.wasSuccessful())
 """
+
+
+def parse_test_failures(stderr: str) -> list[str]:
+    """Return unittest ids, including verbose failures followed by docstrings."""
+    pattern = r"^(test\S+) \(([^)]+)\)(?:\n[^\n]+)?\n? \.\.\. (?:FAIL|ERROR)$"
+    return [qualified for _name, qualified in re.findall(pattern, stderr, re.MULTILINE)]
+
+
+def known_failure_matches(key: str, stderr: str, failure_ids: list[str]) -> list[dict[str, str]]:
+    matches = [entry for entry in KNOWN_FAILURES if entry["module"] == key and entry["pattern"] in stderr]
+    return matches if len(failure_ids) == 1 and len(matches) == 1 else []
 
 
 def run_item(root: Path, key: str, command: list[str], timeout: float, stderr_dir: Path) -> dict[str, object]:
@@ -171,13 +190,17 @@ def run_item(root: Path, key: str, command: list[str], timeout: float, stderr_di
             run = subprocess.run(command, cwd=root, env=env, text=True, encoding="utf-8",
                                  errors="replace", stdout=subprocess.PIPE, stderr=err, timeout=timeout)
         stderr = stderr_path.read_text(encoding="utf-8")
-        reported_failures = re.findall(r"^test[^ ]+ \([^)]+\) \.\.\. (?:FAIL|ERROR)$", stderr, re.MULTILINE)
-        known = [entry for entry in KNOWN_FAILURES if entry["module"] == key and entry["pattern"] in stderr]
-        if len(reported_failures) != 1:
-            known = []
+        output = stderr + "\n" + run.stdout
+        reported_failures = parse_test_failures(output)
+        known = known_failure_matches(key, output, reported_failures)
+        lint_allowance = KNOWN_LINT_FAILURES.get(key)
+        lint_findings = [line for line in output.splitlines() if re.match(r"^tests/.+?:\d+: ", line)]
+        undeclared_lint_findings = [line for line in lint_findings if "[DECLARED:" not in line]
+        if lint_allowance and len(undeclared_lint_findings) == lint_allowance["count"]:
+            known = [lint_allowance]
         status = "ran" if run.returncode == 0 else ("failed_known" if known else "failed")
-        return {"status": status, "failed": 0 if run.returncode == 0 else 1, "skipped": 0,
-                "errors": [], "duration": round(time.monotonic() - started, 3),
+        return {"status": status, "failed": len(reported_failures) or len(lint_findings), "skipped": stderr.count(" ... skipped "),
+                "failing_test_ids": reported_failures, "errors": [], "duration": round(time.monotonic() - started, 3),
                 "stderr_path": stderr_label,
                 "known_failures": known}
     except subprocess.TimeoutExpired:
@@ -186,12 +209,41 @@ def run_item(root: Path, key: str, command: list[str], timeout: float, stderr_di
 
 
 def run_scope(root: Path, scope: dict[str, object], timeout: float, stderr_dir: Path) -> dict[str, dict[str, object]]:
+    work = [(module, [sys.executable, "-c", _test_code(module)]) for module in scope["modules"]]
+    work += [(lint, [sys.executable, lint]) for lint in scope["lints"]]
     results = {}
-    for module in scope["modules"]:
-        results[module] = run_item(root, module, [sys.executable, "-c", _test_code(module)], timeout, stderr_dir)
-    for lint in scope["lints"]:
-        results[lint] = run_item(root, lint, [sys.executable, lint], timeout, stderr_dir)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(run_item, root, key, command, timeout, stderr_dir): key for key, command in work}
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
     return results
+
+
+def copy_runtime_artifacts(source: Path, destination: Path) -> dict[str, bool]:
+    """Link ignored evidence into commit worktrees so both modes see identical bytes."""
+    present = {}
+    for name in ("incident-captures", "evidence"):
+        src, dst = source / name, destination / name
+        present[name] = src.is_dir()
+        if src.is_dir():
+            try:
+                os.symlink(src, dst, target_is_directory=True)
+            except OSError:
+                # Windows directory junctions do not require symlink privilege.
+                run = subprocess.run(["cmd", "/c", "mklink", "/J", str(dst), str(src)],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if run.returncode:
+                    raise RuntimeError(f"cannot expose runtime artifact {name}: {run.stderr.strip()}")
+    return present
+
+
+def artifact_inventory(root: Path) -> dict[str, list[str]]:
+    return {
+        name: sorted(str(path.relative_to(root / name)).replace("\\", "/")
+                     for path in (root / name).rglob("*") if path.is_file())
+        if (root / name).is_dir() else []
+        for name in ("incident-captures", "evidence")
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -208,13 +260,17 @@ def main(argv: list[str] | None = None) -> int:
     scope = derive_scope(ROOT, base, target)
     run_root = ROOT
     temp = None
+    artifacts = artifact_inventory(ROOT)
     try:
         if target != "WORKTREE":
             temp = Path(tempfile.mkdtemp(prefix="hengbot-verify-"))
             git(ROOT, "worktree", "add", "--detach", str(temp), target)
             run_root = temp
+            copy_runtime_artifacts(ROOT, temp)
         results = {} if args.derive_only else run_scope(run_root, scope, args.timeout, ROOT / "jsonlog" / "verify-scope")
-        evidence = {"tool": {"name": "verify_scope", "version": VERSION, "base_ref": base, "target": target},
+        evidence = {"tool": {"name": "verify_scope", "version": VERSION, "base_ref": base, "target": target,
+                             "tree_fingerprint": tree_fingerprint(run_root)},
+                    "runtime_artifacts": artifacts,
                     "derived": scope, "known_untested_paths": EXCLUDED_TESTS, "known_failure_list": KNOWN_FAILURES,
                     "modules": results}
         rendered = json.dumps(evidence, indent=2, sort_keys=True)
@@ -226,6 +282,7 @@ def main(argv: list[str] | None = None) -> int:
         if temp:
             git(ROOT, "worktree", "remove", "--force", str(temp), check=False)
             shutil.rmtree(temp, ignore_errors=True)
+            git(ROOT, "worktree", "prune", check=False)
         after = tree_fingerprint(ROOT)
         if before != after:
             raise RuntimeError(f"live tree fingerprint changed: {before} != {after}")

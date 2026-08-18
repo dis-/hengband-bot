@@ -100,6 +100,15 @@ Types:
      derived scope with any non-allowlisted failure/error, or any behavioral
      hunk reported `UNPROTECTED`, may not be committed. Reviewers re-run both
      tools and compare their generated results with the pasted block.
+     If a gate is red solely for a pre-existing reason, do not weaken the
+     gate or claim success: record the generated JSON and exact failing test
+     ids/artifact inventory in the fix event, leave the bot stopped, and ask
+     the reviewer to disposition the baseline. Any edit to `KNOWN_FAILURES`
+     requires explicit reviewer sign-off; it is not a fixer's escape hatch.
+     Reviewer/commit mode links the live ignored `incident-captures/` and
+     `evidence/` directories into its detached worktree and records their
+     complete file inventory, so missing evidence is visible and the two
+     modes are directly comparable.
    - REVERT PROOF: before committing, temporarily revert the fix hunk and
      confirm the new regression test FAILS, then restore. A test that stays
      green without the fix proves nothing (a gate bug shipped because the
