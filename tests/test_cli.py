@@ -1,4 +1,5 @@
 import json
+import inspect
 import os
 import argparse
 import threading
@@ -38,6 +39,7 @@ from hengbot.cli import (
     _add_input_delay_arguments,
     _advance_town_blocked_iteration,
     _advance_repeating_reason_iteration,
+    _run_follow,
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
@@ -1143,6 +1145,11 @@ class WaitClassificationTest(unittest.TestCase):
             "quest:blocked:q34-recovery-no-progress",
             POLICY_FINAL_STOP_REASONS,
         )
+
+    def test_q34_final_stops_have_quest_specific_operator_messages(self):
+        source = inspect.getsource(_run_follow)
+        self.assertEqual(source.count("<q34-recovery-no-progress>"), 1)
+        self.assertEqual(source.count("<q34-throw-point-unreachable>"), 1)
 
     def test_cli_override_changes_generic_delay_without_changing_default(self):
         parser = argparse.ArgumentParser()

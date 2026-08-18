@@ -1,0 +1,15 @@
+{
+  "source_incidents": [
+    "incident-captures/20260818-215619-loop-detected",
+    "incident-captures/20260818-215756-loop-detected"
+  ],
+  "measured": {
+    "recovery_cycle_decisions": 31,
+    "self_block_decisions": 41,
+    "player": [11, 9],
+    "chest": {"position": [10, 9], "object_count": 1, "object_tvals": [7]},
+    "recovered_torches": {"pack_before": 13, "pack_after": 15},
+    "restored_route_goal": [9, 9],
+    "restored_route_first_step": [10, 9]
+  }
+}

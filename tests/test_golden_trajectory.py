@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import json
+import pickle
 import tempfile
 import unittest
 from dataclasses import replace
@@ -7,6 +10,7 @@ from pathlib import Path
 
 from hengbot.model import Position
 from hengbot.policy import HengbotPolicy, QUEST_STATUS_TAKEN
+from hengbot.latch_onset_capture import checkpoint
 
 import test_policy as fixture
 from absorbing_state_catalog import TownWorld
@@ -16,6 +20,7 @@ from trajectory_harness import (
     drive_trajectory,
     replay_checkpoint_decision,
     replay_incident,
+    restore_incident_checkpoint,
 )
 
 
@@ -172,6 +177,85 @@ class IncidentConverterTest(unittest.TestCase):
         self.assertEqual(row["decision_snapshot"]["player_position"], [32, 119])
         self.assertIsNone(row["scan_entry_state"]["_store_entry_wait_owner"])
         self.assertTrue(pair[0].startswith("fixedquest:request"), pair)
+
+    def test_q34_throwpoint_incident_has_no_unbounded_owner_alternation(self):
+        measured = json.loads(
+            (self.FIXTURES / "q34-throwpoint-r2.json").read_text(encoding="utf-8")
+        )["measured"]
+        helper = fixture.ApprovedQuestStrategyExecutionTest()
+        policy = helper._policy()
+        plans = policy.approved_quest_strategy(34).engagement_plan["throwing_points"]
+        target_keys = {
+            (int(plan["race_id"]), int(plan["target"][0]), int(plan["target"][1]))
+            for plan in plans
+        }
+        policy._quest_strategy_cleared_targets[34] = target_keys
+        policy._quest_strategy_pending_recovery[34] = plans[-1]
+        player_position = Position(*measured["player"])
+        chest_position = Position(*measured["chest"]["position"])
+        snapshot = fixture.Snapshot(
+            fixture.player(player_position.y, player_position.x),
+            {
+                player_position: fixture.grid(
+                    player_position.y, player_position.x, in_view=True
+                ),
+                chest_position: replace(
+                    fixture.grid(
+                        chest_position.y, chest_position.x,
+                        objects=measured["chest"]["object_count"], in_view=True,
+                    ),
+                    object_tvals=tuple(measured["chest"]["object_tvals"]),
+                ),
+                Position(*measured["restored_route_goal"]): fixture.grid(
+                    *measured["restored_route_goal"]
+                ),
+            },
+            [],
+            inventory=[fixture.item(
+                "t", fixture.TVAL_LITE, fixture.SV_LITE_TORCH,
+                count=measured["recovered_torches"]["pack_after"], fuel=5000,
+            )],
+            equipment=[fixture.item(
+                "light", fixture.TVAL_LITE, fixture.SV_LITE_LANTERN,
+                is_equipment=True,
+            )],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        route = policy._quest_strategy_route_step(
+            snapshot, policy.approved_quest_strategy(34),
+            Position(*measured["restored_route_goal"]),
+        )
+        key = policy._approved_quest_strategy_key(snapshot, [], [])
+
+        self.assertEqual(key, fixture.WAIT_KEY)
+        self.assertEqual(policy.last_reason, "quest-strategy:recovery-complete")
+        self.assertEqual(route, Position(*measured["restored_route_first_step"]))
+        self.assertGreater(measured["recovery_cycle_decisions"], 3)
+        self.assertGreater(measured["self_block_decisions"], 3)
+
+    def test_prefixed_q34_checkpoint_seeds_recovery_observation_attributes(self):
+        policy = HengbotPolicy()
+        del policy._quest_strategy_recovery_pickup_prepared
+        del policy._quest_strategy_recovery_pickup_posted
+        encoded_snapshot = base64.b64encode(
+            pickle.dumps(
+                fixture.Snapshot(
+                    fixture.player(1, 1),
+                    {Position(1, 1): fixture.grid(1, 1)},
+                    [],
+                ),
+                protocol=5,
+            )
+        ).decode("ascii")
+
+        restored, _ = restore_incident_checkpoint(
+            HengbotPolicy, checkpoint(policy), encoded_snapshot
+        )
+
+        self.assertIsNone(restored._quest_strategy_recovery_pickup_prepared)
+        self.assertIsNone(restored._quest_strategy_recovery_pickup_posted)
 
 
 if __name__ == "__main__":

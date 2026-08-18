@@ -53,6 +53,12 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored._latch_capture_assignment = None
     restored._latch_capture_remaining = 0
     restored._home_entry_capture = None
+    # Checkpoints created before recovery pickup observation existed must be
+    # upgraded explicitly; trajectory replay is evidence and may not hide a
+    # missing attribute behind a broad exception.
+    restored.__dict__.setdefault("_quest_strategy_recovery_claims", {})
+    restored.__dict__.setdefault("_quest_strategy_recovery_pickup_prepared", None)
+    restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     return restored
 
 

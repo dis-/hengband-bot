@@ -2748,6 +2748,24 @@ def _run_follow(
                             return incident_stop(
                                 "departure-unsatisfiable", snapshot
                             )
+                        elif policy.last_reason == (
+                            "quest:blocked:q34-recovery-no-progress"
+                        ):
+                            print(
+                                "<q34-recovery-no-progress> a posted recovery "
+                                "pickup left the recoverable floor items unchanged; "
+                                "stopping the bot for investigation",
+                                flush=True,
+                            )
+                        elif policy.last_reason == (
+                            "quest:blocked:q34-throw-point-unreachable"
+                        ):
+                            print(
+                                "<q34-throw-point-unreachable> the approved Q34 "
+                                "throwing point has no route; stopping the bot for "
+                                "investigation",
+                                flush=True,
+                            )
                         else:
                             print(
                                 "<equipment-transaction:restore-blocked-terminal> "

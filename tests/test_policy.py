@@ -16883,7 +16883,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             volley,
             grids={
                 **grids,
-                Position(7, 15): grid(7, 15, objects=1, in_view=True),
+                Position(7, 15): replace(
+                    grid(7, 15, objects=1, in_view=True),
+                    object_tvals=(TVAL_LITE,),
+                ),
             },
             visible_monsters=[sword],
         )
@@ -16906,7 +16909,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             on_torch,
             grids={
                 **on_torch.grids,
-                Position(7, 15): grid(7, 15, objects=2, in_view=True),
+                Position(7, 15): replace(
+                    grid(7, 15, objects=2, in_view=True),
+                    object_tvals=(TVAL_LITE, TVAL_LITE),
+                ),
             },
         )
         self.assertEqual(
@@ -17096,9 +17102,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy = self._policy()
         plan = policy.approved_quest_strategy(34).engagement_plan["throwing_points"][0]
         target_key = (243, 7, 15)
-        recovery_signature = (243, (7, 15), (((7, 14), 1, (TVAL_LITE,)),))
-        policy._quest_strategy_recovery_claims[34] = {recovery_signature}
+        policy._quest_strategy_recovery_pickup_posted = (
+            34, Position(7, 14), (1, (TVAL_LITE,))
+        )
         policy._quest_strategy_visible_targets[34] = {target_key}
+        policy._quest_strategy_cleared_targets[34] = {target_key}
+        policy._quest_strategy_pending_recovery[34] = plan
         snapshot = Snapshot(
             player(7, 13),
             {
@@ -17120,8 +17129,75 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         key = policy._approved_quest_strategy_key(snapshot, [], [])
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "quest:blocked:q34-recovery-no-progress")
+        self.assertEqual(policy.last_reason, "quest-strategy:recovery-complete")
         self.assertNotIn(34, policy._quest_strategy_pending_recovery)
+        self.assertIn(
+            (7, 14, (1, (TVAL_LITE,))),
+            policy._quest_strategy_recovery_claims[34],
+        )
+
+    def test_q34_chest_is_not_recovery_substrate_or_durable_lane_blocker(self):
+        policy = self._policy()
+        plans = policy.approved_quest_strategy(34).engagement_plan["throwing_points"]
+        policy._quest_strategy_pending_recovery[34] = plans[2]
+        policy._quest_strategy_cleared_targets[34] = {(243, 7, 15), (107, 9, 11), (107, 11, 9)}
+        snapshot = Snapshot(
+            player(11, 9),
+            {
+                Position(11, 9): grid(11, 9, in_view=True),
+                Position(10, 9): replace(
+                    grid(10, 9, objects=1, in_view=True),
+                    object_tvals=(TVAL_CHEST,),
+                ),
+            },
+            [],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=15, fuel=5000)],
+            equipment=[item("light", TVAL_LITE, SV_LITE_LANTERN, is_equipment=True)],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        key = policy._approved_quest_strategy_key(snapshot, [], [])
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "quest-strategy:recovery-complete")
+        self.assertNotIn(34, policy._quest_strategy_pending_recovery)
+
+    def test_q34_restart_target_halo_preserves_source_and_escape_route(self):
+        policy = self._policy()
+        profile = policy.approved_quest_strategy(34)
+        snapshot = Snapshot(
+            player(11, 9),
+            {
+                Position(11, 9): grid(11, 9),
+                Position(10, 9): replace(
+                    grid(10, 9, objects=1), object_tvals=(TVAL_CHEST,)
+                ),
+                Position(9, 9): grid(9, 9),
+            },
+            [],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        step = policy._quest_strategy_route_step(snapshot, profile, Position(9, 9))
+
+        self.assertEqual(step, Position(10, 9))
+
+    def test_quest_recovery_claims_are_cleared_on_floor_change(self):
+        source = inspect.getsource(HengbotPolicy._observe)
+        self.assertEqual(
+            source.count("self._quest_strategy_recovery_claims.clear()"), 1
+        )
+
+    def test_planned_throw_unreachable_reason_is_explicitly_q34_gated(self):
+        source = inspect.getsource(HengbotPolicy._quest_execute_key)
+        self.assertEqual(
+            source.count('"quest:blocked:q34-throw-point-unreachable"'), 2
+        )
+        self.assertEqual(
+            source.count('else "quest-strategy:throw-point-unreachable"'), 2
+        )
 
     def test_q34_first_sword_uses_static_safe_route_without_diagonal_shortcut(self):
         policy = self._q34_source_policy()
@@ -17833,7 +17909,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         grids = {
             Position(8, 3): grid(8, 3),
             Position(8, 4): grid(8, 4),
-            Position(8, 5): grid(8, 5, objects=1),
+            Position(8, 5): replace(
+                grid(8, 5, objects=1), object_tvals=(TVAL_LITE,)
+            ),
         }
         displaced = Snapshot(player(8, 4), grids, [], floor_key=(0, 5, 1))
         policy._build_grid_index(displaced)
