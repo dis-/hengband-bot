@@ -792,6 +792,7 @@ def _decision_record(
     home_visit_report: str | None = None,
     hunt_report: str | None = None,
     prompt_owner_handoff: str | None = None,
+    home_procurement_fallthrough: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -893,6 +894,11 @@ def _decision_record(
             else {}
         ),
         **({"hunt_report": hunt_report} if hunt_report is not None else {}),
+        **(
+            {"home_procurement_fallthrough": home_procurement_fallthrough}
+            if home_procurement_fallthrough is not None
+            else {}
+        ),
     }
 
 
@@ -1398,6 +1404,29 @@ def _write_decision(
                     (
                         policy.prompt_owner_handoff
                         if policy is not None
+                        else None
+                    ),
+                    (
+                        {
+                            "case": getattr(policy, "_home_procurement_fallthrough", None),
+                            "classification": (
+                                "legal-static-no-home"
+                                if getattr(policy, "_home_procurement_fallthrough", None)
+                                == "town-without-home"
+                                else "legal-fresh-catalogue-absence"
+                                if getattr(policy, "_home_procurement_fallthrough", None)
+                                == "fresh-catalogue-absence"
+                                else "blocked-home-failure"
+                            ),
+                            "need_equivalence": getattr(
+                                policy,
+                                "_home_procurement_fallthrough_equivalence",
+                                None,
+                            ),
+                        }
+                        if policy is not None
+                        and getattr(policy, "_home_procurement_fallthrough", None)
+                        is not None
                         else None
                     ),
                 ),

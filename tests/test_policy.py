@@ -13245,6 +13245,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(routing_policy.last_reason, "shop:approach")
         self.assertEqual(policy._next_required_store_type(opening), STORE_GENERAL)
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
         self.assertEqual(_public_shop_inner(self, policy, opening), "pa20\r\r")
         self.assertNotEqual(policy.last_reason, "home:atomic-deposit")
         self.assertFalse(policy.last_reason.startswith("calibration:"))
@@ -18209,6 +18211,7 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         snap = self._mana_starvation_snapshot(
             store=StoreState(STORE_MAGIC, [wand]), gold=500
         )
+        snap = replace(snap, town_id=policy_module.ZUL_TOWN_ID)
         policy = HengbotPolicy()
 
         self.assertEqual(policy._shop(snap), "pb\r")
@@ -18217,6 +18220,59 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         policy._home_knowledge_items = []
         self.assertEqual(policy._shop(snap), "pb\r")
         self.assertEqual(policy._shop(snap), "pb\r")
+
+    def test_home_bearing_executor_rejection_is_visible_stop(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        snap = replace(
+            self._mana_starvation_snapshot(
+                store=StoreState(STORE_GENERAL, [ration]), gold=500
+            ),
+            town_id=0,
+            player=replace(self._mana_starvation_snapshot().player, food_type=0),
+        )
+        policy = HengbotPolicy()
+        policy._home_available = lambda _snapshot: True
+        policy._ensure_home_visit_request = lambda _snapshot: False
+
+        self.assertEqual(policy._shop(snap), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:procurement-home-unroutable"
+        )
+        self.assertEqual(
+            policy._home_procurement_fallthrough, "home-visit-rejected"
+        )
+
+    def test_food_home_lookup_uses_consumer_need_class(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        biscuit = item("h", TVAL_FOOD, 32, count=30, name="Hard Biscuit")
+        snap = replace(
+            self._mana_starvation_snapshot(
+                store=StoreState(STORE_GENERAL, [ration]), gold=500
+            ),
+            town_id=0,
+            player=replace(self._mana_starvation_snapshot().player, food_type=0),
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [biscuit]
+
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy._home_pending_item, policy._item_signature(biscuit))
+        self.assertIsNone(policy._home_procurement_fallthrough)
+
+    def test_home_procurement_probe_clears_when_need_is_satisfied(self):
+        ration = item("a", TVAL_FOOD, 35, count=20, name="ration")
+        snap = replace(
+            self._mana_starvation_snapshot(inventory=[ration]),
+            player=replace(self._mana_starvation_snapshot().player, food_type=0),
+        )
+        policy = HengbotPolicy()
+        policy._home_procurement_probe = (TVAL_FOOD, 35)
+
+        needs = policy._town_need_candidates(snap)
+
+        self.assertIsNone(policy._home_procurement_probe)
+        self.assertNotIn("procurement-home-first", {need.category for need in needs})
 
     def test_shortage_purchase_is_home_first_too(self):
         oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, price=3, name="oil")

@@ -2416,6 +2416,7 @@ class HengbotPolicy:
         # scan/withdrawal owns routing before an ordinary store may compose p.
         self._home_procurement_probe: tuple[int, int] | None = None
         self._home_procurement_fallthrough: str | None = None
+        self._home_procurement_fallthrough_equivalence: str | None = None
         self._mana_survival_device_price: int | None = None
         self._home_knowledge_invalidated = False
         self._home_page_size: int | None = None
@@ -15851,8 +15852,26 @@ class HengbotPolicy:
             and self._find_home_deposit(snapshot) is not None
         ):
             add(STORE_HOME, "deposit", "home-first")
+        procurement_probe = getattr(self, "_home_procurement_probe", None)
+        if procurement_probe is not None and (
+            (
+                procurement_probe[0] == TVAL_FOOD
+                and procurement_probe[1] >= FOOD_MIN_SVAL
+                and self._food_ready(snapshot)
+            )
+            or (
+                procurement_probe[0] in {TVAL_WAND, TVAL_STAFF}
+                and self._count_mana_food_devices(snapshot) > 0
+            )
+            or any(
+                self._procurement_class_matches(item, procurement_probe)
+                for item in snapshot.inventory
+            )
+        ):
+            self._home_procurement_probe = None
+            procurement_probe = None
         if (
-            getattr(self, "_home_procurement_probe", None) is not None
+            procurement_probe is not None
             and self._home_available(snapshot)
             and STORE_HOME not in self._town_store_attempted
         ):
@@ -18324,8 +18343,29 @@ class HengbotPolicy:
 
     @staticmethod
     def _procurement_class(item: StoreItem | InventoryItem) -> tuple[int, int]:
-        """Stable Home/store equivalence class for a requested ware."""
+        """Stable requested ware marker; matching follows consumer equivalence."""
         return (item.tval, item.sval)
+
+    @staticmethod
+    def _procurement_class_matches(
+        item: StoreItem | InventoryItem, item_class: tuple[int, int]
+    ) -> bool:
+        """Match the same need category used by the eventual consumer."""
+        tval, sval = item_class
+        if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL:
+            return item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+        if tval in {TVAL_WAND, TVAL_STAFF}:
+            return item.is_wand_staff
+        return (item.tval, item.sval) == item_class
+
+    @staticmethod
+    def _procurement_equivalence(item_class: tuple[int, int]) -> str:
+        tval, sval = item_class
+        if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL:
+            return "food:tval-food+sval-gte-min"
+        if tval in {TVAL_WAND, TVAL_STAFF}:
+            return "device:is-wand-staff"
+        return "item:exact-tval-sval"
 
     def _home_procurement_candidate(
         self, item_class: tuple[int, int]
@@ -18335,7 +18375,7 @@ class HengbotPolicy:
         return next(
             (
                 item for item in self._home_knowledge_items
-                if self._procurement_class(item) == item_class and item.count > 0
+                if self._procurement_class_matches(item, item_class) and item.count > 0
             ),
             None,
         )
@@ -18343,18 +18383,33 @@ class HengbotPolicy:
     def _purchase_has_fresh_home_absence(
         self, snapshot: Snapshot, item: StoreItem
     ) -> bool:
-        """Attempt Home first; release the buy when that attempt is impossible."""
+        """Release a buy only for fresh absence or a statically Home-less town."""
         item_class = self._procurement_class(item)
+        self._home_procurement_fallthrough_equivalence = (
+            self._procurement_equivalence(item_class)
+        )
         if not self._home_knowledge_current:
             self._home_procurement_probe = item_class
-            if (
-                not self._home_available(snapshot)
-                or not self._ensure_home_visit_request(snapshot)
-                or self._shopping_approach_step(snapshot, STORE_HOME) is None
-            ):
+            if not self._current_town_has_home(snapshot):
                 self._home_procurement_probe = None
                 self._home_procurement_fallthrough = "town-without-home"
                 return True
+            if not self._home_available(snapshot):
+                self._home_procurement_probe = None
+                self._home_procurement_fallthrough = "home-routing-defect"
+                self.last_reason = "town:blocked:procurement-home-unavailable"
+                return False
+            filed = self._ensure_home_visit_request(snapshot)
+            approach = (
+                self._shopping_approach_step(snapshot, STORE_HOME) if filed else None
+            )
+            if not filed or approach is None:
+                self._home_procurement_probe = None
+                self._home_procurement_fallthrough = (
+                    "home-unroutable" if filed else "home-visit-rejected"
+                )
+                self.last_reason = "town:blocked:procurement-home-unroutable"
+                return False
             return False
         candidate = self._home_procurement_candidate(item_class)
         if candidate is not None:
@@ -19836,6 +19891,9 @@ class HengbotPolicy:
                 self.last_reason = "survival:leave-wrong-store"
                 return LEAVE_STORE_KEY
             if snapshot.player.food_type == FOOD_TYPE_MANA:
+                self._home_procurement_fallthrough_equivalence = (
+                    "device:is-wand-staff"
+                )
                 if not self._home_knowledge_current:
                     self._home_procurement_probe = (-1, -1)
                     if not self._current_town_has_home(snapshot):
@@ -19875,6 +19933,8 @@ class HengbotPolicy:
                     food_item is not None
                     and not self._purchase_has_fresh_home_absence(snapshot, food_item)
                 ):
+                    if self.last_reason.startswith("town:blocked:"):
+                        return WAIT_KEY
                     self._rearm_town_store_for_new_work(
                         STORE_HOME, release_visit_bound=True
                     )
@@ -20460,6 +20520,8 @@ class HengbotPolicy:
                 self.last_reason = "shop:sell-rebuy-churn-defect"
                 return LEAVE_STORE_KEY
             if not self._purchase_has_fresh_home_absence(snapshot, item):
+                if self.last_reason.startswith("town:blocked:"):
+                    return WAIT_KEY
                 self._rearm_town_store_for_new_work(
                     STORE_HOME, release_visit_bound=True
                 )
@@ -28238,6 +28300,7 @@ class HengbotPolicy:
         # Home is the universal first supplier.  Stale knowledge means "scan",
         # never absence; only a current complete catalogue may release a buy.
         home_device = self._home_mana_food_candidate()
+        self._home_procurement_fallthrough_equivalence = "device:is-wand-staff"
         home_needed = not self._home_knowledge_current or home_device is not None
         if not home_needed:
             self._home_procurement_probe = None
