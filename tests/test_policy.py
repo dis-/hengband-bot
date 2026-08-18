@@ -18157,6 +18157,7 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             ],
         )
         policy = HengbotPolicy()
+        policy._home_knowledge_current = True
 
         self.assertEqual(policy._shop(self._mana_starvation_snapshot(store=page)), WAIT_KEY)
         self.assertEqual(
@@ -18170,6 +18171,7 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             name="Slow Monster wand (15 charges)",
         )
         policy = HengbotPolicy()
+        policy._home_knowledge_current = True
         in_store = self._mana_starvation_snapshot(
             store=StoreState(STORE_MAGIC, [wand])
         )
@@ -18181,6 +18183,87 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         outside = self._mana_starvation_snapshot(inventory=[acquired])
         self.assertEqual(policy._mana_food_survival_override_key(outside), "Ed")
         self.assertEqual(policy.last_reason, "survival:mana-absorb")
+
+    def test_a21_home_device_prevents_affordable_purchase(self):
+        wand = store_item(
+            "b", TVAL_WAND, 1, price=80, pval=15, name="shop wand"
+        )
+        stored = item("h", TVAL_STAFF, 8, charges=12, name="Home staff")
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [stored]
+
+        self.assertEqual(
+            policy._shop(self._mana_starvation_snapshot(
+                store=StoreState(STORE_MAGIC, [wand]), gold=500
+            )),
+            LEAVE_STORE_KEY,
+        )
+        self.assertEqual(policy.last_reason, "survival:mana-home-before-purchase")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(stored))
+
+    def test_a21_fresh_home_absence_falls_through_once(self):
+        wand = store_item(
+            "b", TVAL_WAND, 1, price=80, pval=15, name="shop wand"
+        )
+        snap = self._mana_starvation_snapshot(
+            store=StoreState(STORE_MAGIC, [wand]), gold=500
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "survival:mana-home-scan-before-purchase"
+        )
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
+        self.assertEqual(policy._shop(snap), "pb\r")
+        self.assertEqual(policy._shop(snap), "pb\r")
+
+    def test_shortage_purchase_is_home_first_too(self):
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, price=3, name="oil")
+        stored = item("h", TVAL_FLASK, SV_FLASK_OIL, count=3, name="Home oil")
+        snap = Snapshot(
+            player(10, 10, food=12000, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            equipment=[
+                item("L", TVAL_LITE, SV_LITE_LANTERN, fuel=1000, known=True)
+            ],
+            store=StoreState(STORE_GENERAL, [oil]),
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [stored]
+
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:home-first-before-purchase")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(stored))
+
+    def test_a21_unaffordable_device_composes_surplus_sale_before_stop(self):
+        shots = item("s", TVAL_SHOT, 1, count=40, name="shots")
+        snap = self._mana_starvation_snapshot(
+            store=StoreState(STORE_WEAPON, []),
+            inventory=[shots],
+            gold=170,
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._mana_survival_device_price = 443
+
+        key = policy._shop(snap)
+
+        self.assertNotIn(key, {WAIT_KEY, LEAVE_STORE_KEY})
+        self.assertIn(
+            policy.last_reason,
+            {
+                "shop:batch-inscribe",
+                "shop:sale-inscribe",
+                "shop:one-shot-sale-compose",
+            },
+        )
 
     def test_a21_home_device_files_executor_withdrawal_before_waits(self):
         stored = item("h", TVAL_STAFF, 8, charges=12, name="Light staff")
@@ -18307,6 +18390,7 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         wand = store_item("b", TVAL_WAND, 1, price=80, name="wand", pval=15)
         policy = HengbotPolicy()
         policy._fundraising_mode = "prepare"
+        policy._home_knowledge_current = True
         general = Snapshot(
             player(
                 10,

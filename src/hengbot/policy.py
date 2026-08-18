@@ -2406,6 +2406,12 @@ class HengbotPolicy:
         self._home_knowledge_items: tuple[InventoryItem, ...] = ()
         self._home_knowledge_valid_before = 0
         self._home_knowledge_current = False
+        # A purchase is legal only after the current Home catalogue has been
+        # evaluated for the same item class.  This latch names the class whose
+        # scan/withdrawal owns routing before an ordinary store may compose p.
+        self._home_procurement_probe: tuple[int, int] | None = None
+        self._home_procurement_absent: set[tuple[int, int]] = set()
+        self._mana_survival_device_price: int | None = None
         self._home_knowledge_invalidated = False
         self._home_page_size: int | None = None
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
@@ -15829,6 +15835,12 @@ class HengbotPolicy:
             and self._find_home_deposit(snapshot) is not None
         ):
             add(STORE_HOME, "deposit", "home-first")
+        if (
+            getattr(self, "_home_procurement_probe", None) is not None
+            and self._home_available(snapshot)
+            and STORE_HOME not in self._town_store_attempted
+        ):
+            add(STORE_HOME, "procurement-home-first", "home-first")
         if self._needs_stat_restore(snapshot) and STORE_ALCHEMIST not in self._town_store_attempted:
             add(STORE_ALCHEMIST, "stat-restore")
         low_level_sale = self._find_low_level_sale(snapshot)
@@ -18294,6 +18306,62 @@ class HengbotPolicy:
             ),
         )
 
+    @staticmethod
+    def _procurement_class(item: StoreItem | InventoryItem) -> tuple[int, int]:
+        """Stable Home/store equivalence class for a requested ware."""
+        return (item.tval, item.sval)
+
+    def _home_procurement_candidate(
+        self, item_class: tuple[int, int]
+    ) -> InventoryItem | None:
+        if not self._home_knowledge_current:
+            return None
+        return next(
+            (
+                item for item in self._home_knowledge_items
+                if self._procurement_class(item) == item_class and item.count > 0
+            ),
+            None,
+        )
+
+    def _purchase_has_fresh_home_absence(self, item: StoreItem) -> bool:
+        """Queue Home work and reject purchase until fresh absence is measured."""
+        item_class = self._procurement_class(item)
+        if not self._home_knowledge_current:
+            self._home_procurement_probe = item_class
+            self._home_procurement_absent.discard(item_class)
+            return False
+        candidate = self._home_procurement_candidate(item_class)
+        if candidate is not None:
+            identity = self._item_signature(candidate)
+            self._home_procurement_probe = item_class
+            self._home_pending_item = identity
+            self._home_pending_quantity = 1
+            return False
+        self._home_procurement_probe = None
+        self._home_procurement_absent.add(item_class)
+        return True
+
+    def _mana_survival_sale_candidate(
+        self, snapshot: Snapshot, store_type: int
+    ) -> InventoryItem | None:
+        """Use only existing retention-safe, inscription-safe sale contracts."""
+        if store_type == STORE_ALCHEMIST:
+            return self._first_item(
+                snapshot,
+                lambda item: item.is_scroll
+                and self._retention_surplus(snapshot, item) > 0
+                and self._item_signature(item) not in self._unsellable_items,
+            )
+        if store_type == STORE_WEAPON:
+            return self._first_item(
+                snapshot,
+                lambda item: item.is_ammo
+                and self._retention_surplus(snapshot, item) > 0
+                and self._item_signature(item) not in self._unsellable_items,
+            )
+        return None
+
     def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
         item = self._next_purchase_unreserved(snapshot)
@@ -19715,6 +19783,25 @@ class HengbotPolicy:
         # A hungry character with no edible pack item has exactly one town job.
         # Do not sell gear or buy optional supplies while starvation advances.
         if snapshot.player.hungry and self._find_edible(snapshot) is None:
+            if (
+                snapshot.player.food_type == FOOD_TYPE_MANA
+                and self._mana_survival_device_price is not None
+                and snapshot.player.gold >= self._mana_survival_device_price
+            ):
+                self._town_store_attempted.pop(STORE_MAGIC, None)
+            if (
+                snapshot.player.food_type == FOOD_TYPE_MANA
+                and self._mana_survival_device_price is not None
+                and snapshot.player.gold < self._mana_survival_device_price
+                and store.store_type in {STORE_ALCHEMIST, STORE_WEAPON}
+            ):
+                sale = self._mana_survival_sale_candidate(
+                    snapshot, store.store_type
+                )
+                if sale is not None:
+                    return self._store_sell_key(
+                        snapshot, sale, "survival:mana-sell-to-afford"
+                    )
             food_store = (
                 STORE_MAGIC
                 if snapshot.player.food_type == FOOD_TYPE_MANA
@@ -19724,6 +19811,17 @@ class HengbotPolicy:
                 self.last_reason = "survival:leave-wrong-store"
                 return LEAVE_STORE_KEY
             if snapshot.player.food_type == FOOD_TYPE_MANA:
+                if not self._home_knowledge_current:
+                    self._home_procurement_probe = (-1, -1)
+                    self.last_reason = "survival:mana-home-scan-before-purchase"
+                    return LEAVE_STORE_KEY
+                home_food = self._home_mana_food_candidate()
+                if home_food is not None:
+                    self._home_pending_item = self._item_signature(home_food)
+                    self._home_pending_quantity = 1
+                    self._home_procurement_probe = (-1, -1)
+                    self.last_reason = "survival:mana-home-before-purchase"
+                    return LEAVE_STORE_KEY
                 food_item = self._mana_food_purchase(snapshot)
             elif snapshot.player.food_type == FOOD_TYPE_RATION:
                 food_item = next(
@@ -19748,9 +19846,17 @@ class HengbotPolicy:
                 return BUY_KEY + food_item.letter + suffix
             self._town_store_attempted[store.store_type] = snapshot.turn
             if snapshot.player.food_type == FOOD_TYPE_MANA:
-                if self._home_mana_food_candidate() is not None:
-                    self.last_reason = "survival:mana-try-home"
-                    return LEAVE_STORE_KEY
+                prices = [
+                    item.price for item in store.items
+                    if item.tval in {TVAL_WAND, TVAL_STAFF}
+                ]
+                self._mana_survival_device_price = min(prices) if prices else None
+                if self._mana_survival_device_price is not None:
+                    for sale_store in (STORE_ALCHEMIST, STORE_WEAPON):
+                        if self._mana_survival_sale_candidate(snapshot, sale_store):
+                            self._town_store_attempted.pop(sale_store, None)
+                            self.last_reason = "survival:mana-sell-to-afford"
+                            return LEAVE_STORE_KEY
                 self.last_reason = "town:blocked:survival-mana-no-charges"
                 return WAIT_KEY
             self.last_reason = "survival:no-affordable-food"
@@ -20305,6 +20411,12 @@ class HengbotPolicy:
             if item.tval in self._town_visit_sale_tvals:
                 self.town_visit_report = f"town-visit:sell-rebuy-churn:{item.tval}"
                 self.last_reason = "shop:sell-rebuy-churn-defect"
+                return LEAVE_STORE_KEY
+            if not self._purchase_has_fresh_home_absence(item):
+                self._rearm_town_store_for_new_work(
+                    STORE_HOME, release_visit_bound=True
+                )
+                self.last_reason = "shop:home-first-before-purchase"
                 return LEAVE_STORE_KEY
             signature = self._item_signature(item)
             # Bail out of a purchase that never takes effect. A registered buy
@@ -28075,27 +28187,16 @@ class HengbotPolicy:
             self.last_reason = "survival:mana-absorb"
             return EAT_KEY + edible.slot
 
-        if snapshot.store is not None:
-            if snapshot.store.store_type == STORE_MAGIC:
-                # _shop owns the observed one-shot purchase or the proven
-                # no-affordable-device handoff below.
-                return None
-            self.last_reason = "survival:mana-leave-wrong-store"
-            return LEAVE_STORE_KEY
-
-        if STORE_MAGIC not in self._town_store_attempted:
-            step = self._shopping_approach_step(snapshot, STORE_MAGIC)
-            if step is not None:
-                self.last_reason = "survival:mana-shop-approach"
-                return self._shopping_approach_key(
-                    snapshot, step, "survival:mana-shop-travel"
-                )
-
+        # Home is the universal first supplier.  Stale knowledge means "scan",
+        # never absence; only a current complete catalogue may release a buy.
         home_device = self._home_mana_food_candidate()
-        if home_device is not None and self._home_available(snapshot):
-            identity = self._item_signature(home_device)
-            self._home_pending_item = identity
-            self._home_pending_quantity = 1
+        home_needed = not self._home_knowledge_current or home_device is not None
+        if home_needed and self._home_available(snapshot):
+            self._home_procurement_probe = (-1, -1)
+            if home_device is not None:
+                identity = self._item_signature(home_device)
+                self._home_pending_item = identity
+                self._home_pending_quantity = 1
             self._rearm_town_store_for_new_work(
                 STORE_HOME, release_visit_bound=True
             )
@@ -28115,6 +28216,36 @@ class HengbotPolicy:
                 self.last_reason = "survival:mana-home-approach"
                 return self._shopping_approach_key(
                     snapshot, step, "survival:mana-home-travel"
+                )
+
+        if snapshot.store is not None:
+            if snapshot.store.store_type in {
+                STORE_MAGIC, STORE_ALCHEMIST, STORE_WEAPON
+            }:
+                return None
+            self.last_reason = "survival:mana-leave-wrong-store"
+            return LEAVE_STORE_KEY
+
+        if (
+            self._mana_survival_device_price is not None
+            and snapshot.player.gold < self._mana_survival_device_price
+        ):
+            for sale_store in (STORE_ALCHEMIST, STORE_WEAPON):
+                if self._mana_survival_sale_candidate(snapshot, sale_store) is None:
+                    continue
+                step = self._shopping_approach_step(snapshot, sale_store)
+                if step is not None:
+                    self.last_reason = "survival:mana-sale-approach"
+                    return self._shopping_approach_key(
+                        snapshot, step, "survival:mana-sale-travel"
+                    )
+
+        if STORE_MAGIC not in self._town_store_attempted:
+            step = self._shopping_approach_step(snapshot, STORE_MAGIC)
+            if step is not None:
+                self.last_reason = "survival:mana-shop-approach"
+                return self._shopping_approach_key(
+                    snapshot, step, "survival:mana-shop-travel"
                 )
 
         floor_key = self._mana_food_floor_pickup_key(snapshot)
