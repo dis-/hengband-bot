@@ -47,6 +47,23 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             for reason, key in transcript
         ))
 
+    def test_recall_supplier_releases_stale_home_route(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "recall-store-unreachable-checkpoints.jsonl.gz"
+        )
+        transcript = replay_checkpoint_trajectory(
+            HengbotPolicy,
+            fixture,
+            (220,),
+            forbidden_reasons={
+                "town:blocked:restocked-recall-store-unreachable",
+            },
+            required_reason_prefix="shop:",
+        )
+        self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+
 
 if __name__ == "__main__":
     unittest.main()

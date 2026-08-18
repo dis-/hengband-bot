@@ -15762,33 +15762,38 @@ class HengbotPolicy:
         self, snapshot: Snapshot, store_types: tuple[int, ...]
     ) -> str:
         """Route to a supplier made eligible by completed stock turnover."""
+        food_store = (
+            STORE_MAGIC
+            if snapshot.player.food_type == FOOD_TYPE_MANA
+            else STORE_GENERAL
+        )
+        released_store_types = (
+            (food_store,) if not self._food_ready(snapshot) else store_types
+        )
+        # Every released restock supplier must get a fresh route decision.  A
+        # prior terminal otherwise short-circuits _shopping_approach_step, and
+        # an inert approach to another store can retain visit ownership before
+        # the known town map is consulted.  Posted operations remain
+        # authoritative and are deliberately not released here.
+        if self._town_blocked_reason in {
+            "restocked-food-store-unreachable",
+            "restocked-recall-store-unreachable",
+        }:
+            self._town_blocked_reason = None
+        visit = self._store_visit
+        if (
+            visit is not None
+            and visit.store_type not in released_store_types
+            and visit.phase == StoreVisitPhase.APPROACHING
+            and not visit.operation_posted
+        ):
+            self._close_store_visit("restock-reroute")
         # A completed recall-stock cycle is progress evidence, not permission
         # to starve behind the same owner.  Home has already had its normal
         # first pass before terminal restock handling.  If food is still a
         # departure shortage, release its supplier before retrying recall.
         if not self._food_ready(snapshot):
-            food_store = (
-                STORE_MAGIC
-                if snapshot.player.food_type == FOOD_TYPE_MANA
-                else STORE_GENERAL
-            )
             self._town_store_attempted.pop(food_store, None)
-            # This branch is the completed recall-cycle handoff to food.  A
-            # preceding Home approach can still own an unposted StoreVisit,
-            # and the visible terminal from the prior handoff otherwise makes
-            # _shopping_approach_step reject every retry before consulting the
-            # known town map.  Release only that inert approach ownership; an
-            # operation already posted to a store remains authoritative.
-            if self._town_blocked_reason == "restocked-food-store-unreachable":
-                self._town_blocked_reason = None
-            visit = self._store_visit
-            if (
-                visit is not None
-                and visit.store_type != food_store
-                and visit.phase == StoreVisitPhase.APPROACHING
-                and not visit.operation_posted
-            ):
-                self._close_store_visit("restock-food-reroute")
             step = self._shopping_approach_step(snapshot, food_store)
             if step is not None:
                 self.last_reason = "shop:approach"
