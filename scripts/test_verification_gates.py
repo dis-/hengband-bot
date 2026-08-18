@@ -117,9 +117,50 @@ class VerificationGateSelfTest(unittest.TestCase):
                     stderr.write_text(f"{error}: broken\n")
                     self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr), set())
 
+    def test_incoherent_revert_error_is_rejected_but_assertion_pin_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            source = root / "src/hengbot/demo.py"
+            source.parent.mkdir(parents=True); source.write_text("value = 7\n")
+            stderr = root / "candidate.err"
+            def failing_run(*args, **kwargs):
+                kwargs["stderr"].write(
+                    "ERROR: test_compute (test_foo.ComputeTest.test_compute)\n"
+                    "Traceback (most recent call last):\n"
+                    f'  File "{source}", line 17, in compute\n'
+                    "    return helper()\nNameError: name 'helper' is not defined\n\n"
+                    "FAIL: test_pin (test_foo.ComputeTest.test_pin)\n"
+                    "Traceback (most recent call last):\n"
+                    "AssertionError: 0 != 7\n")
+                return subprocess.CompletedProcess([], 1, stdout="")
+            with mock.patch("subprocess.run", side_effect=failing_run):
+                self.assertEqual(hunk_guard.run_candidate(
+                    root, "tests.x", 1, stderr, "src/hengbot/demo.py", {"helper"}),
+                    {"test_foo.ComputeTest.test_pin"})
+
+    def test_deepest_frame_and_introduced_symbol_both_bind_discriminator(self) -> None:
+        root = Path.cwd(); source = root / "src/hengbot/demo.py"
+        base = ("ERROR: test_x (test_demo.T.test_x)\nTraceback (most recent call last):\n"
+                f'  File "{source}", line 1, in value\n    helper()\n'
+                "NameError: name 'helper' is not defined\n")
+        self.assertTrue(hunk_guard._is_incoherent_revert(base, root, "src/hengbot/demo.py", {"helper"}))
+        self.assertFalse(hunk_guard._is_incoherent_revert(base, root, "src/hengbot/demo.py", {"other"}))
+        test_deepest = base.replace("NameError:", f'  File "{Path(__file__)}", line 1, in test_x\nNameError:')
+        self.assertFalse(hunk_guard._is_incoherent_revert(test_deepest, root, "src/hengbot/demo.py", {"helper"}))
+
+    def test_introduced_symbols_covers_definition_assignment_and_import(self) -> None:
+        body = ["+def helper():\n", "+    pass\n", "+answer = 7\n", "+self.retry_after = 1\n",
+                "+from pkg import backoff\n"]
+        self.assertEqual(hunk_guard.introduced_symbols(body),
+                         {"helper", "answer", "retry_after", "backoff"})
+
     def test_indented_docstring_only_hunk_is_nonbehavioral(self) -> None:
         body = ["-    \"\"\"old prose\"\"\"\n", "+    \"\"\"new prose\"\"\"\n"]
         self.assertNotEqual(hunk_guard.classify(body), "behavioral")
+
+    def test_zero_context_docstring_prose_fallback_is_nonbehavioral(self) -> None:
+        self.assertEqual(hunk_guard.classify(["-    old prose only\n", "+    new prose only\n"]),
+                         "nonbehavioral-docstring-prose")
 
     def test_file_grouping_keeps_interdependent_hunks_together(self) -> None:
         hunks = [{"file": "src/hengbot/x.py", "line_start": 1, "line_end": 2},
@@ -192,9 +233,12 @@ class VerificationGateSelfTest(unittest.TestCase):
     def test_failed_loader_is_never_a_protector_even_for_structural_changes(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             stderr = Path(name) / "loader.err"
-            completed = subprocess.CompletedProcess([], 1, stdout="")
-            with mock.patch("subprocess.run", return_value=completed):
-                stderr.write_text("ERROR: test_x (unittest.loader._FailedTest.test_x)\nstructural collection failure\n")
+            def loader_failure(*args, **kwargs):
+                kwargs["stderr"].write(
+                    "ERROR: test_x (unittest.loader._FailedTest.test_x)\n"
+                    "structural collection failure\n")
+                return subprocess.CompletedProcess([], 1, stdout="")
+            with mock.patch("subprocess.run", side_effect=loader_failure):
                 self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr), set())
 
     def test_exception_text_does_not_void_a_real_failing_test(self) -> None:
@@ -214,6 +258,17 @@ class VerificationGateSelfTest(unittest.TestCase):
 
     def test_answer_key_cannot_be_reintroduced_under_historical_name(self) -> None:
         self.assertFalse(hasattr(hunk_guard, "INELIGIBLE_PROTECTORS"))
+
+    def test_inline_blanket_exception_denylist_cannot_void_assertion_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            stderr = Path(name) / "candidate.err"
+            def failing_run(*args, **kwargs):
+                kwargs["stderr"].write(
+                    "FAIL: test_pin (test_demo.T.test_pin)\nAssertionError: NameError ImportError AttributeError\n")
+                return subprocess.CompletedProcess([], 1, stdout="")
+            with mock.patch("subprocess.run", side_effect=failing_run):
+                self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr),
+                                 {"test_demo.T.test_pin"})
 
     def test_new_file_and_no_behavioral_results_come_from_main(self) -> None:
         with SyntheticRepo() as repo, mock.patch.object(verify_scope, "ROOT", repo.root), \
@@ -250,6 +305,13 @@ class VerificationGateSelfTest(unittest.TestCase):
                  io.StringIO() as output, contextlib.redirect_stdout(output):
                 self.assertEqual(verify_scope.main(["--timeout", "10"]), 1)
                 self.assertEqual(json.loads(output.getvalue())["modules"]["tests.test_demo"]["status"], "failed")
+
+    def test_stalled_capture_allowance_matches_real_hyphenated_artifact(self) -> None:
+        entry = next(item for item in verify_scope.KNOWN_FAILURES
+                     if item["module"] == "tests.test_home_knowledge_scan")
+        failure = ["test_home_knowledge_scan.T.test_capture"]
+        self.assertEqual(verify_scope.known_failure_matches(
+            entry["module"], "missing evidence/stalled-capture.jsonl", failure), [entry])
 
     def test_failed_skipped_and_lint_excess_are_measured(self) -> None:
         with tempfile.TemporaryDirectory() as name:
@@ -306,6 +368,43 @@ class VerificationGateSelfTest(unittest.TestCase):
             verify_scope.cleanup_worktree(worktree, repo.root)
             self.assertFalse(worktree.exists())
             self.assertNotIn(str(worktree), command(repo.root, "git", "worktree", "list", "--porcelain"))
+
+    def test_cleanup_unregisters_before_fallback_directory_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as parent:
+            path = Path(parent) / "hengbot-verify-order"; path.mkdir()
+            events = []
+            def fake_git(*args, **kwargs):
+                if args[1:3] == ("worktree", "remove"):
+                    events.append("unregister")
+                return ""
+            def fake_rmtree(victim):
+                events.append("remove-directory")
+                victim.rmdir()
+            with mock.patch.object(verify_scope, "git", side_effect=fake_git), \
+                 mock.patch.object(verify_scope.shutil, "rmtree", side_effect=fake_rmtree):
+                verify_scope.cleanup_worktree(path, Path(parent))
+            self.assertEqual(events[:2], ["unregister", "remove-directory"])
+
+    def test_windows_invalid_parameter_pid_is_dead_and_access_denied_is_live(self) -> None:
+        if __import__("os").name == "nt":
+            import ctypes
+            class Kernel:
+                def __init__(self, error): self.error = error
+                def OpenProcess(self, *_): ctypes.set_last_error(self.error); return 0
+                def GetExitCodeProcess(self, *_): raise AssertionError("no handle")
+                def CloseHandle(self, *_): raise AssertionError("no handle")
+            with mock.patch.object(ctypes, "WinDLL", return_value=Kernel(87)):
+                self.assertFalse(verify_scope.process_is_running(999999))
+            with mock.patch.object(ctypes, "WinDLL", return_value=Kernel(5)):
+                self.assertTrue(verify_scope.process_is_running(1))
+        else:
+            with mock.patch.object(verify_scope.os, "kill", side_effect=ProcessLookupError()):
+                self.assertFalse(verify_scope.process_is_running(999999))
+
+    def test_excluded_test_prefix_is_exact(self) -> None:
+        code = verify_scope._test_code("tests.test_cli")
+        self.assertIn("test.id().startswith(prefix + '.')", code)
+        self.assertIn("test_cli.DecisionTimingTest", code)
 
 
 if __name__ == "__main__":

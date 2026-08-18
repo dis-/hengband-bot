@@ -38,22 +38,30 @@ they do not merely search source text.
 | M8b atexit unregistered | subprocess exit removes an active unregistered temp tree | 1/1 |
 | R4 live-tests glob | historical target returns a test absent from the live tree | 1/1 |
 
-The startup sweep also removed an old unregistered directory with a dead PID
-sidecar while preserving an equally old directory owned by a live PID. The
-mechanism that made one concurrent pair leak complete unregistered worktrees
-while an identical pair leaked none is still unknown.
+The startup sweep's synthetic check removed an old unregistered directory with
+a dead PID sidecar while preserving an equally old directory owned by a live
+PID. That did not prove Windows hard-kill recovery: round 6 found that the
+Windows PID probe treated dead owners as live, so neither registered nor
+unregistered killed-run directories could be reclaimed until that probe was
+fixed.
 
 ## Historical hunk verdicts
 
-All runs used `--wide --timeout 120`, one gate process at a time.
+The table below records `--wide --timeout 120` runs, one gate process at a
+time. These must not be compared with default-mode timings.
 
 | Target | Round 5 verdict | Delta from superseded record | Runtime |
 | --- | --- | --- | --- |
-| `32a81a3` | 4 protected, 3 unprotected, 1 new-file-unverified | r4: 0/7 plus new file; four true CLI pins restored | 629.165 s |
+| `32a81a3` | 4 protected, 3 unprotected, 1 new-file-unverified | r4: 0/7 plus new file; four true CLI pins restored; **wide only** | 629.165 s |
 | `a961376` | 1 protected, 0 unprotected | unchanged | 25.154 s |
 | `dbce3b4` | 3 protected, 0 unprotected | r3 recorded 1/1; two additional true grouped verdicts visible | 121.599 s |
 | `00c57c2` | 2 protected, 0 unprotected, 1 skipped | r3 final had 1 protected/1 unprotected/1 skipped | 42.214 s |
 | `fb22255` | 8 protected, 5 unprotected | r3 had 6 protected/7 unprotected | 763.742 s |
+
+Like-for-like default-mode reviewer measurements were approximately 64 s for
+`32a81a3` and 164 s for `fb22255`, so the default path got faster. The default
+`32a81a3` verdict was 2 protected, 5 unprotected, and 1 new-file-unverified,
+not the wide-only 4/3/1 verdict.
 
 The required `32a81a3` hunk at lines 1935-1948 is protected by
 `test_control_client.DisabledCliPinTest.test_disabled_parser_does_not_import_or_connect_or_write`.

@@ -139,7 +139,79 @@ def apply_patch(root: Path, patch: str, reverse: bool) -> None:
         raise RuntimeError(f"git apply failed: {run.stderr.strip()}")
 
 
-def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) -> set[str]:
+def introduced_symbols(body: list[str]) -> set[str]:
+    """Return identifiers defined or imported by the added side of a hunk."""
+    import ast
+    added = textwrap.dedent("\n".join(
+        line[1:].rstrip("\r\n") for line in body
+        if line.startswith("+") and not line.startswith("+++")))
+    if not added.strip():
+        return set()
+    try:
+        tree = ast.parse(added)
+    except SyntaxError:
+        # A zero-context hunk is often only part of a suite/function.  These
+        # forms cover the names whose absence produces the structural errors
+        # this discriminator is intended to reject.
+        patterns = (
+            r"^\s*(?:async\s+def|def|class)\s+([A-Za-z_]\w*)",
+            r"^\s*([A-Za-z_]\w*)\s*(?::[^=]+)?=",
+            r"^\s*import\s+([A-Za-z_]\w*)",
+            r"^\s*from\s+\S+\s+import\s+([A-Za-z_]\w*)",
+        )
+        return {match.group(1) for line in added.splitlines()
+                for pattern in patterns if (match := re.search(pattern, line))}
+    names: set[str] = set()
+    def assigned_names(target: ast.expr) -> set[str]:
+        if isinstance(target, ast.Name):
+            return {target.id}
+        if isinstance(target, ast.Attribute):
+            return {target.attr}
+        if isinstance(target, (ast.Tuple, ast.List)):
+            return set().union(*(assigned_names(item) for item in target.elts))
+        return set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            names.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names.update(name for target in targets for name in assigned_names(target))
+    return names
+
+
+def _failure_sections(stderr: str) -> dict[str, str]:
+    headers = list(re.finditer(r"^(?:FAIL|ERROR): test\S+ \(([^)]+)\)$", stderr, re.MULTILINE))
+    return {match.group(1): stderr[match.start():(headers[index + 1].start() if index + 1 < len(headers) else len(stderr))]
+            for index, match in enumerate(headers)}
+
+
+def _is_incoherent_revert(section: str, root: Path, reverted_file: str,
+                          symbols: set[str]) -> bool:
+    if not symbols or not section.startswith("ERROR:"):
+        return False
+    frames = re.findall(r'^\s*File "([^"]+)", line \d+', section, re.MULTILINE)
+    if not frames:
+        return False
+    deepest = Path(frames[-1])
+    expected = (root / reverted_file).resolve()
+    try:
+        if deepest.resolve() != expected:
+            return False
+    except OSError:
+        return False
+    messages = (
+        re.search(r"(?:NameError|UnboundLocalError): name '([^']+)'", section),
+        re.search(r"AttributeError: .* has no attribute '([^']+)'", section),
+        re.search(r"(?:ImportError|ModuleNotFoundError): .*?(?:name |module named )['\"]?([A-Za-z_]\w*)", section),
+    )
+    return any(match and match.group(1) in symbols for match in messages)
+
+
+def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path,
+                  reverted_file: str | None = None,
+                  symbols: set[str] | None = None) -> set[str]:
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join((str(root / "src"), str(root / "tests")))
@@ -157,8 +229,12 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) ->
     # legitimately pin behavior by asserting that an exception is raised;
     # exception text elsewhere in the same module run must not erase it.
     # unittest's loader/collection failures are the structural non-pins.
+    sections = _failure_sections(stderr)
     return {test_id for test_id in verify_scope.parse_test_failures(stderr)
-            if not test_id.startswith("unittest.loader._FailedTest.") and "._FailedTest." not in test_id}
+            if not test_id.startswith("unittest.loader._FailedTest.")
+            and "._FailedTest." not in test_id
+            and not (reverted_file and _is_incoherent_revert(
+                sections.get(test_id, ""), root, reverted_file, symbols or set()))}
 
 
 def compiles(root: Path, relative: str) -> bool:
@@ -238,9 +314,11 @@ def main(argv: list[str] | None = None) -> int:
                     raise KeyboardInterrupt("simulated interrupt")
                 protector = None
                 if not new_file and all(compiles(sandbox, path) for path in files):
+                    symbols = set().union(*(introduced_symbols(hunk["body"]) for hunk in behavioral))
                     for module in candidates:
                         failures = run_candidate(sandbox, module, args.timeout,
-                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log")
+                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log",
+                            files[0] if len(files) == 1 else None, symbols)
                         new_failures = failures - baseline[module]
                         if new_failures:
                             protector = sorted(new_failures)[0]; break

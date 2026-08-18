@@ -38,7 +38,7 @@ KNOWN_FAILURES = (
     },
     {
         "module": "tests.test_home_knowledge_scan",
-        "pattern": "stalled_capture",
+        "pattern": "stalled-capture",
         "count": 1,
         "reason": "pre-existing missing artifact",
         "date": "2026-08-18",
@@ -153,12 +153,28 @@ def read_worktree_owner(path: Path) -> dict[str, object] | None:
 def process_is_running(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        import ctypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if handle:
+            exit_code = ctypes.c_ulong()
+            queried = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            kernel32.CloseHandle(handle)
+            return bool(queried and exit_code.value == 259)  # STILL_ACTIVE
+        # ERROR_INVALID_PARAMETER means there is no process with this PID.
+        # Access denied is deliberately treated as live.
+        return ctypes.get_last_error() != 87
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    except (PermissionError, OSError):
+    except PermissionError:
         return True
+    except OSError as error:
+        # Windows reports ERROR_INVALID_PARAMETER for a PID that does not
+        # exist; it is the os.kill(pid, 0) equivalent of ESRCH.
+        return getattr(error, "winerror", None) != 87
     return True
 
 
@@ -175,10 +191,11 @@ def cleanup_worktree(path: Path, root: Path = ROOT) -> None:
     path = path.resolve()
     if path.exists():
         refuse_reparse_points(path)
-        # Remove the directory first.  This prevents git's recursive remover
-        # from ever traversing content we have not inspected.
-        shutil.rmtree(path)
+    # Unregister before deleting: a kill between these operations leaves an
+    # unregistered directory that the startup sweep can safely reclaim.
     git(root, "worktree", "remove", "--force", str(path), check=False)
+    if path.exists():
+        shutil.rmtree(path)
     worktree_owner_path(path).unlink(missing_ok=True)
     prune_worktrees(root)
     _ACTIVE_WORKTREES.discard(path)
