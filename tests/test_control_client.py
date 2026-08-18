@@ -1,5 +1,6 @@
 import json
 import socketserver
+import sys
 import threading
 import time
 import unittest
@@ -86,7 +87,7 @@ class ControlClientTest(unittest.TestCase):
         self.assertIsNone(client.request("state", map=False))
         self.assertEqual(len(messages), 1)
 
-    def test_absent_server_backoff_grows_with_consecutive_failures(self):
+    def test_absent_server_backoff_is_capped_by_request_budget(self):
         client = ControlClient(
             1, request_budget=1, retries=0, backoff=1,
             socket_factory=unittest.mock.Mock(side_effect=ConnectionRefusedError()),
@@ -94,8 +95,37 @@ class ControlClientTest(unittest.TestCase):
         with patch("hengbot.control_client.time.monotonic", return_value=10):
             self.assertIsNone(client.request("state", map=False))
             self.assertEqual(client._retry_after, 11)
+            client._retry_after = 0
             self.assertIsNone(client.request("state", map=False))
-            self.assertEqual(client._retry_after, 12)
+            self.assertEqual(client._retry_after, 11)
+
+    def test_backoff_skip_does_not_count_as_a_network_failure(self):
+        factory = unittest.mock.Mock(side_effect=ConnectionRefusedError())
+        client = ControlClient(
+            1, request_budget=1, retries=0, backoff=1, socket_factory=factory,
+        )
+        with patch("hengbot.control_client.time.monotonic", return_value=10):
+            self.assertIsNone(client.request("state", map=False))
+            self.assertEqual(client._consecutive_failures, 1)
+            self.assertIsNone(client.request("state", map=False))
+            self.assertEqual(client._consecutive_failures, 1)
+        self.assertEqual(factory.call_count, 1)
+
+    def test_network_recovery_is_attempted_after_the_capped_window(self):
+        connection = unittest.mock.Mock()
+        connection.recv.return_value = b'{"id":1,"ok":true,"result":{"turn":7}}\n'
+        factory = unittest.mock.Mock(
+            side_effect=[ConnectionRefusedError(), connection]
+        )
+        client = ControlClient(
+            1, request_budget=1, retries=0, backoff=100, socket_factory=factory,
+        )
+        with patch("hengbot.control_client.time.monotonic", return_value=10):
+            self.assertIsNone(client.request("state", map=False))
+            self.assertEqual(client._retry_after, 11)
+        with patch("hengbot.control_client.time.monotonic", return_value=11):
+            self.assertEqual(client.request("state", map=False), {"turn": 7})
+        self.assertEqual(client._consecutive_failures, 0)
 
     def test_shadow_uses_state_history_without_redundant_messages_request(self):
         self.server.actions[:] = [{"turn": 1, "messages": ["old", "same"]}]
@@ -185,28 +215,54 @@ class DisabledCliPinTest(unittest.TestCase):
             state.write_text(_snapshot_line(1), encoding="utf-8")
             parsed = cli._build_argument_parser().parse_args(["--state-file", str(state)])
             self.assertIsNone(parsed.control_port)
+            parsed.decision_log = decisions
+            parsed.poll_interval = 0.001
+            parsed.wait_telemetry = unittest.mock.Mock()
+            from hengbot.policy import HengbotPolicy
+            policy = HengbotPolicy()
+            policy.choose_key = unittest.mock.Mock(
+                side_effect=lambda snapshot: (
+                    setattr(
+                        policy, "last_reason",
+                        "equipment-transaction:restore-blocked-terminal",
+                    ) or ""
+                )
+            )
             original_loads = cli.json.loads
             decodes = []
-            with (
-                patch("hengbot.cli.find_monrace_definitions", return_value=root / "MonraceDefinitions.jsonc"),
-                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
-                patch("hengbot.cli.find_terrain_definitions", return_value=None),
-                patch("hengbot.cli.find_wilderness_definition", return_value=None),
-                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
-                patch("hengbot.cli.find_quest_definitions", return_value=None),
-                patch("hengbot.cli.find_quest_strategies", return_value=None),
-                patch("hengbot.cli.find_outpost_map", return_value=None),
-                patch("hengbot.cli.find_town_map", return_value=None),
-                patch("hengbot.cli.json.loads", side_effect=lambda value, *a, **k: (
-                    decodes.append(value) or original_loads(value, *a, **k)
-                )),
-                patch("socket.create_connection", side_effect=AssertionError("connected")),
-            ):
-                self.assertEqual(cli.main([
-                    "--state-file", str(state), "--decision-log", str(decisions), "--once",
-                ]), 0)
+            following = threading.Event()
+            def append_snapshot():
+                following.wait()
+                with state.open("a", encoding="utf-8") as stream:
+                    stream.write(_snapshot_line(2))
 
-            self.assertEqual(decodes.count(_snapshot_line(1).rstrip("\n")), 1)
+            writer = threading.Thread(target=append_snapshot)
+            with patch.dict(sys.modules):
+                sys.modules.pop("hengbot.control_client", None)
+                writer.start()
+                with (
+                    patch(
+                        "hengbot.cli._arm_decision_watchdog",
+                        side_effect=following.set,
+                    ),
+                    patch("hengbot.cli.json.loads", side_effect=lambda value, *a, **k: (
+                        decodes.append(value) or original_loads(value, *a, **k)
+                    )),
+                    patch(
+                        "socket.create_connection",
+                        side_effect=AssertionError("connected"),
+                    ),
+                ):
+                    self.assertEqual(
+                        cli._run_follow(
+                            parsed, policy, lambda *_a, **_k: True, {}
+                        ),
+                        0,
+                    )
+                writer.join()
+                self.assertNotIn("hengbot.control_client", sys.modules)
+
+            self.assertEqual(decodes.count(_snapshot_line(2)), 1)
             self.assertFalse(shadow.exists())
 
     def test_shadow_dispatch_is_after_real_send_and_tcp_never_reaches_policy(self):
@@ -218,29 +274,66 @@ class DisabledCliPinTest(unittest.TestCase):
             state.write_text(_snapshot_line(1), encoding="utf-8")
             events = []
             fake_client = unittest.mock.Mock()
+            args = cli._build_argument_parser().parse_args([
+                "--state-file", str(state),
+                "--decision-log", str(root / "decisions.jsonl"),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            args.shadow_client = fake_client
+            from hengbot.policy import HengbotPolicy
+            policy = HengbotPolicy()
+            def choose(snapshot):
+                policy._decision_sequence += 1
+                policy.last_reason = (
+                    "equipment-transaction:restore-blocked-terminal"
+                    if snapshot.turn == 3 else "test:send"
+                )
+                return "" if snapshot.turn == 3 else "5"
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
 
             def shadow(_client, jsonl_state, **_kwargs):
                 events.append(("shadow", jsonl_state["turn"]))
 
-            with (
-                patch("hengbot.cli.find_monrace_definitions", return_value=root / "MonraceDefinitions.jsonc"),
-                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
-                patch("hengbot.cli.find_terrain_definitions", return_value=None),
-                patch("hengbot.cli.find_wilderness_definition", return_value=None),
-                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
-                patch("hengbot.cli.find_quest_definitions", return_value=None),
-                patch("hengbot.cli.find_quest_strategies", return_value=None),
-                patch("hengbot.cli.find_outpost_map", return_value=None),
-                patch("hengbot.cli.find_town_map", return_value=None),
-                patch("hengbot.control_client.ControlClient", return_value=fake_client),
-                patch("hengbot.control_client.append_shadow_diff", side_effect=shadow),
-                patch("hengbot.input_windows.send_key_to_window", side_effect=lambda *_a, **_k: events.append(("send", 1))),
-            ):
-                self.assertEqual(cli.main([
-                    "--state-file", str(state), "--decision-log", str(root / "decisions.jsonl"),
-                    "--once", "--control-port", "1234", "--send-to-window",
-                ]), 0)
-            self.assertEqual(events, [("send", 1), ("shadow", 1)])
+            def append_snapshots():
+                following.wait()
+                with state.open("a", encoding="utf-8") as stream:
+                    stream.write(_snapshot_line(2))
+                    stream.flush()
+                    time.sleep(0.05)
+                    stream.write(_snapshot_line(3))
+
+            following = threading.Event()
+            writer = threading.Thread(target=append_snapshots)
+            writer.start()
+            try:
+                with (
+                    patch(
+                        "hengbot.cli._arm_decision_watchdog",
+                        side_effect=following.set,
+                    ),
+                    patch(
+                        "hengbot.control_client.append_shadow_diff",
+                        side_effect=shadow,
+                    ),
+                ):
+                    self.assertEqual(cli._run_follow(
+                        args, policy,
+                        lambda *_a, **_k: events.append(("send", 1)) or True, {},
+                    ), 0)
+            finally:
+                writer.join()
+            self.assertEqual(events, [("send", 1), ("shadow", 2)])
+            self.assertEqual(
+                [call.args[0].turn for call in policy.choose_key.call_args_list],
+                [2, 3],
+            )
+            rows = [
+                json.loads(line)
+                for line in args.decision_log.read_text().splitlines()
+            ]
+            sent_row = next(row for row in rows if row.get("reason") == "test:send")
+            self.assertIn("shadow_ms", sent_row["timing"])
 
     def test_invalid_environment_port_is_an_argparse_error(self):
         from hengbot import cli

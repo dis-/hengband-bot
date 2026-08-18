@@ -1,8 +1,9 @@
 """Bounded read-only client for Hengband's game-control shadow protocol.
 
-Phase 1 deliberately exposes only observations.  ``keys`` and ``quit`` are
-rejected before a request can be composed, so this module cannot control or
-terminate the game.
+Phase 1 deliberately exposes only ``info`` and ``state`` observations.  All
+other operations, including ``screen``, ``messages``, ``keys``, and ``quit``,
+are rejected before a request can be composed, so this module cannot control
+or terminate the game.
 """
 
 from __future__ import annotations
@@ -131,6 +132,8 @@ class ControlClient:
         deadline = (
             time.monotonic() + self.request_budget if deadline is None else deadline
         )
+        if self._socket is None and time.monotonic() < self._retry_after:
+            return None
         last_error: BaseException | None = None
         for _attempt in range(self.retries + 1):
             try:
@@ -148,9 +151,11 @@ class ControlClient:
                     break
         assert last_error is not None
         self._consecutive_failures += 1
-        self._retry_after = (
-            time.monotonic() + self.backoff * self._consecutive_failures
+        backoff = min(
+            self.backoff * self._consecutive_failures,
+            self.request_budget * (self.retries + 1),
         )
+        self._retry_after = time.monotonic() + backoff
         self._report_failure_once(last_error)
         return None
 
