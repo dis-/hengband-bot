@@ -5047,6 +5047,20 @@ class HengbotPolicy:
             self.last_reason = "shop:one-shot-in-flight"
             return ""
 
+        # An observed-page transaction that is already composable is progress,
+        # so it outranks the repetition terminal that its posted effect will
+        # clear.  Keep this immediately above the generic blocked-store rung:
+        # the ordinary shopping router is below it and therefore unreachable
+        # from the outside store-door context once repetition is latched.
+        if (
+            self._town_blocked_reason == "repetition"
+            and snapshot.store is None
+            and self._shop_observation is not None
+        ):
+            transaction = self._atomic_shop_transaction_key(snapshot)
+            if transaction is not None:
+                return transaction
+
         # A town-block latch owns the store exit before ordinary Home/shop page
         # processing. WAIT_KEY is not a valid store command.
         if (
