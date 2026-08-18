@@ -93,6 +93,18 @@ Types:
    locally (imperative English message explaining root cause), log "fix",
    then `resume`.
 3a. ANTI-ENBUG RULES (2026-07-17, after fixes themselves caused incidents):
+   - GATE STATUS (supervisor, 2026-08-19): a PROTECTED verdict is NOT
+     trustworthy right now. hunk_guard's per-test classification was
+     implemented by deleting the discriminator, so a test that merely CRASHES
+     because an isolated revert left the module incoherent (NameError /
+     AttributeError / ImportError on a symbol the hunk introduced) is counted
+     as a pin — reproduced on 00c57c2 hunk 3 and on a synthetic producer/
+     consumer pair. Until that is fixed: treat PROTECTED as unproven, keep
+     doing the manual per-hunk revert-proof and state those counts in the fix
+     event; UNPROTECTED remains a reviewer-overridable signal. Also: worktree
+     reclamation is currently disabled on Windows (process_is_running treats
+     every PID as alive), so clean up %TEMP% gate dirs by hand if a run is
+     killed. Never weaken or delete a test to satisfy a gate.
    - GENERATED VERIFICATION GATES (2026-08-18): every fix MUST run
      `scripts/verify_scope.py` and `scripts/hunk_guard.py` before committing.
      Paste `verify_scope.py`'s generated JSON verification block verbatim into
