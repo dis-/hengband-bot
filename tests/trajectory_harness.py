@@ -94,6 +94,48 @@ def checkpoint_rows(path: Path):
                     yield source, number, policy_blob, snapshot_blob
 
 
+def checkpoint_row(path: Path, decision_index: int):
+    """Return one named pre-decision checkpoint without loading a huge capture."""
+    if not path.exists():
+        raise unittest.SkipTest(f"incident checkpoint substrate is absent: {path}")
+    with path.open(encoding="utf-8-sig") as rows:
+        for number, line in enumerate(rows, 1):
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"{path}:{number}: invalid JSON") from error
+            if row.get("decision_index") == decision_index:
+                policy_blob = row.get("predecision_policy_checkpoint_pickle_b64")
+                snapshot_blob = row.get("decision_snapshot_pickle_b64")
+                if not policy_blob or not snapshot_blob:
+                    raise ValueError(
+                        f"{path}:{number}: decision {decision_index} has no pre-decision checkpoint"
+                    )
+                return row, policy_blob, snapshot_blob
+    raise unittest.SkipTest(f"decision {decision_index} is absent from {path}")
+
+
+def decision_window(path: Path, *, start: str, end: str, reason: str):
+    """Load the measured rows in a bounded decision-log time window."""
+    if not path.exists():
+        raise unittest.SkipTest(f"incident decision-window substrate is absent: {path}")
+    matched = []
+    with path.open(encoding="utf-8-sig") as rows:
+        for number, line in enumerate(rows, 1):
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"{path}:{number}: invalid JSON") from error
+            timestamp = row.get("time", "")
+            if start <= timestamp <= end and row.get("reason") == reason:
+                matched.append(row)
+    if not matched:
+        raise unittest.SkipTest(
+            f"no {reason!r} decisions in {start}..{end} at {path}"
+        )
+    return matched
+
+
 def restore_incident_checkpoint(policy_type, policy_blob, snapshot_blob):
     """Restore the exact policy and Snapshot recorded before a decision."""
     from hengbot.latch_onset_capture import restore_checkpoint
@@ -121,3 +163,17 @@ def replay_incident(policy_type, path: Path, *, forbidden_pair, limit=40):
         if pair != forbidden_pair:
             return pair
     raise AssertionError(f"checkpoint did not escape within {limit} decisions")
+
+
+def replay_checkpoint_decision(policy_type, path: Path, decision_index: int,
+                               *, forbidden_pair):
+    """Replay the exact first decision from a selected capture checkpoint."""
+    row, policy_blob, snapshot_blob = checkpoint_row(path, decision_index)
+    policy, snapshot = restore_incident_checkpoint(policy_type, policy_blob, snapshot_blob)
+    key = policy.choose_key(snapshot)
+    pair = (policy.last_reason, key)
+    if pair == forbidden_pair:
+        raise AssertionError(
+            f"captured defect recurred at decision {decision_index}: {pair!r}"
+        )
+    return row, pair

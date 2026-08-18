@@ -10,7 +10,13 @@ from hengbot.policy import HengbotPolicy, QUEST_STATUS_TAKEN
 
 import test_policy as fixture
 from absorbing_state_catalog import MOVES, TownWorld
-from trajectory_harness import checkpoint_rows, drive_trajectory, replay_incident
+from trajectory_harness import (
+    checkpoint_rows,
+    decision_window,
+    drive_trajectory,
+    replay_checkpoint_decision,
+    replay_incident,
+)
 
 
 class GoldenOpeningWorld(TownWorld):
@@ -73,8 +79,16 @@ class GoldenOpeningTrajectoryTest(unittest.TestCase):
         fixture.ApprovedQuestStrategyExecutionTest.setUpClass()
 
     def build(self):
+        if not hasattr(fixture.ApprovedQuestStrategyExecutionTest, "profiles"):
+            fixture.ApprovedQuestStrategyExecutionTest.setUpClass()
         helper = fixture.ApprovedQuestStrategyExecutionTest()
-        policy = helper._q34_source_policy()
+        policy = helper._policy()
+        # The real Q34 roster is tiny and stable.  Pin it here so the fresh-birth
+        # trajectory never depends on a source checkout or generated data file.
+        policy._quest_knowledge[34] = replace(
+            policy._quest_knowledge[34],
+            placed_monsters=((107, 2), (174, 1), (243, 1)),
+        )
         opening = helper._measured_q34_opening()
         weapon = replace(opening.equipment[0], damage_dice_num=6, damage_dice_sides=6)
         supplies = [
@@ -134,14 +148,41 @@ class IncidentConverterTest(unittest.TestCase):
                 list(checkpoint_rows(path))
 
     def test_today_opening_stall_capture(self):
-        path = Path("incident-captures/20260818-1814-opening-stall")
-        replay_incident(HengbotPolicy, path,
-                        forbidden_pair=("opening-q34:wait", "5"))
+        path = Path("jsonlog/bot-decisions.jsonl")
+        rows = decision_window(
+            path,
+            start="2026-08-18T18:14:00", end="2026-08-18T18:20:59",
+            reason="opening-q34:wait",
+        )
+        self.assertGreaterEqual(len(rows), 100)
+        measured = rows[0]["fixedquest_readiness"]["strategy_force"]
+        self.assertEqual(measured["dps"]["measured"], 0.0)
+        self.assertEqual(measured["failed"], ["dps", "speed_potions", "heal_potions"])
+
+        # Replay the opening that produced those measured readiness rows.  A
+        # high-damage wielded weapon makes the historical dps=0 verdict
+        # impossible; the old evaluator remains in opening-q34:wait instead
+        # of reaching the quest request milestone.
+        policy, world = GoldenOpeningTrajectoryTest().build()
+        result = drive_trajectory(
+            policy, world, decisions=16,
+            milestones=((
+                "readiness releases quest request", 12,
+                lambda p, w, reason, key: reason.startswith("fixedquest:request"),
+            ),),
+            owner_bound=8, pair_bound=6,
+        )
+        self.assertTrue(result.milestones)
 
     def test_today_decision_110_checkpoint(self):
-        path = Path("incident-captures/20260818-decision-110")
-        replay_incident(HengbotPolicy, path,
-                        forbidden_pair=("opening-q34:wait", "5"))
+        row, pair = replay_checkpoint_decision(
+            HengbotPolicy, Path("jsonlog/home-entry-capture.jsonl"), 110,
+            forbidden_pair=("opening-q34:wait", "5"),
+        )
+        self.assertEqual(row["decision_index"], 110)
+        self.assertEqual(row["decision_snapshot"]["player_position"], [32, 119])
+        self.assertIsNone(row["scan_entry_state"]["_store_entry_wait_owner"])
+        self.assertTrue(pair[0].startswith("fixedquest:request"), pair)
 
 
 if __name__ == "__main__":
