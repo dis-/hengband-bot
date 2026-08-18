@@ -13240,6 +13240,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         routing_policy = self._policy()
+        routing_policy._equipment_catalog.home_scan_complete = True
+        routing_policy._home_knowledge_current = True
+        routing_policy._home_knowledge_items = []
         self.assertEqual(
             routing_policy.choose_key(replace(opening, store=None)), "6",
         )
@@ -13254,6 +13257,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def test_q34_opening_sequence_never_reaches_calibration_or_takeoff(self):
         policy = self._policy()
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
         opening = self._measured_q34_opening()
 
         keys = [policy.choose_key(replace(opening, turn=0))]
@@ -13270,6 +13276,40 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotIn("home:atomic-deposit", reasons)
         self.assertFalse(any(reason.startswith("calibration:") for reason in reasons))
         self.assertNotIn("equipment-transaction:takeoff", reasons)
+
+    def test_fresh_q34_opening_scans_home_before_initial_purchase(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+
+        self.assertEqual(policy.choose_key(opening), "~9\x1b\x1b")
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertTrue(policy._opening_q34_active(opening))
+
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
+        policy._home_knowledge_scan_requested = True
+        self.assertEqual(policy.choose_key(replace(opening, turn=1)), "6")
+        self.assertEqual(policy.last_reason, "shop:approach")
+
+    def test_q34_wait_on_store_entrance_steps_off_instead_of_staying(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+        entrance = Position(10, 10)
+        opening = replace(
+            opening,
+            player=replace(opening.player, position=entrance),
+        )
+        policy._shopping_approach_store_type = STORE_GENERAL
+        policy._store_entry_wait_owner = STORE_GENERAL
+        policy.last_reason = "opening-q34:wait"
+
+        key = policy._forbid_wait_on_town_entrance(opening, WAIT_KEY)
+
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town:entrance-step-off:opening-q34:wait"
+        )
 
     def test_frozen_q34_town_damage_replay_steps_away_on_each_hp_drop(self):
         self.skipTest(
@@ -13745,6 +13785,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def test_q34_opening_releases_stale_withdraw_terminal(self):
         policy = self._policy()
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
         opening = self._measured_q34_opening()
         policy._town_blocked_reason = (
             "equipment-transaction:withdraw-item-unobserved:home:stale:0"
@@ -49234,12 +49277,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "main_hand", TVAL_SWORD, 2, name="safe scimitar",
             known=True, fully_known=True, is_equipment=True,
         )
-        self.assertNotEqual(
+        self.assertEqual(
             no_errand.choose_key(
                 replace(approach, equipment=[equipped_weapon, light])
             ),
             "~9\x1b\x1b",
         )
+        self.assertEqual(no_errand.last_reason, "home:request-knowledge-scan")
 
         # evidence-home-yield-loop-20260813.jsonl decision 6 records this
         # queued signature; decision 8 is the matching off-tile board.

@@ -3748,10 +3748,6 @@ class HengbotPolicy:
             snapshot.store is None
             and getattr(snapshot, "in_town", False)
             and (
-                not self._opening_q34_active(snapshot)
-                or self._home_errand.needs_knowledge
-            )
-            and (
                 "home-scan-incomplete" in getattr(
                     self._equipment_optimization_preparation, "blockers", ()
                 )
@@ -4303,6 +4299,7 @@ class HengbotPolicy:
         idle_wait_owner = (
             reason == "rest"
             or reason == "town:recover"
+            or reason == "opening-q34:wait"
             or reason == "calibration:await-capture"
             or reason.startswith("town:wait-restock:")
             or reason in {
@@ -4327,7 +4324,8 @@ class HengbotPolicy:
             return key
         here = snapshot.grid_at(snapshot.player.position)
         if (
-            self._store_entry_wait_owner is not None
+            reason != "opening-q34:wait"
+            and self._store_entry_wait_owner is not None
             and here is not None
             and here.store_number == self._store_entry_wait_owner
         ):
