@@ -353,16 +353,13 @@ class UniversalPostingContractTest(unittest.TestCase):
         fresh.inventory[0].slot = "a"
         self.assertTrue(contract.allow(fresh, key, owner))
 
-    def test_wield_effect_guard_owns_only_the_same_observed_turn(self):
+    def test_unchanged_wield_effect_without_prompt_does_not_own_input(self):
         contract = PostingContract()
         posted = self.snapshot(turn=20)
         contract.posted(posted, "wg", "fundraise:wield-digging-tool")
 
-        self.assertFalse(contract.allow(posted, "rc", "fundraise:detect-treasure"))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:prompt-owner-mismatch",
-        )
+        self.assertTrue(contract.allow(posted, "rc", "fundraise:detect-treasure"))
+        self.assertIsNone(contract.last_incident)
         self.assertTrue(
             contract.allow(
                 self.snapshot(turn=21), "rc", "fundraise:detect-treasure"
@@ -389,6 +386,14 @@ class UniversalPostingContractTest(unittest.TestCase):
         prompt = "Sell for $17? [Y/n]"
         self.assertEqual(_open_game_prompt(("older", prompt)), prompt)
 
+    def test_repeated_informational_message_is_not_an_open_prompt(self):
+        message = "59個の 鉄弾 (1d3) (+0,+0)がある。 <x44>"
+        self.assertIsNone(_open_game_prompt((message,)))
+
+    def test_default_quantity_prompt_is_open_input(self):
+        prompt = "いくつですか (1-59): "
+        self.assertEqual(_open_game_prompt((prompt,)), prompt)
+
     def test_ledger_120x_wield_restore_read_order_is_serialized(self):
         """Posted-ledger rows 94685-94733, turns 926205-926303: ta/wgy/wfa."""
         policy = HengbotPolicy()
@@ -412,15 +417,12 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertEqual(wield, "ta")
         self.assertTrue(policy.confirm_key_posted(wield))
 
-        # Production refusal came from posting ownership; wield prompts are not
-        # snapshot messages and therefore must not be fabricated on the board.
+        # Wield prompts are not snapshot messages and therefore cannot establish
+        # open input ownership without a recognized serialized prompt.
         owned = self.snapshot(turn=926206)
         contract.posted(owned, "wgy", "fundraise:wield-digging-tool")
-        self.assertFalse(contract.allow(owned, "rc", "fundraise:detect-treasure"))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:prompt-owner-mismatch",
-        )
+        self.assertTrue(contract.allow(owned, "rc", "fundraise:detect-treasure"))
+        self.assertIsNone(contract.last_incident)
 
         occupied = self.snapshot(turn=926222)
         occupied.equipment = [sword]
@@ -483,7 +485,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract.posted(raised, "6", "seek-loot")
         prompt = self.snapshot(
             turn=3264100,
-            messages=("59個の 鉄弾 (1d3) (+0,+0)がある。 <x44>",),
+            messages=("トラベルを続けますか？[y/n]",),
         )
         posted = []
 
@@ -501,6 +503,15 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertTrue(sent)
         self.assertEqual(posted, ["g"])
         self.assertIsNone(contract.last_incident)
+
+        sent_again, _ = _send_new_decision_key(
+            lambda key, **_kwargs: posted.append(key) or True,
+            "pickup-prompt", "g", "pickup-prompt", {"g"}, in_store=False,
+            decision={"reason": "pickup"},
+            snapshot=prompt, posting_contract=contract,
+        )
+        self.assertFalse(sent_again)
+        self.assertEqual(posted, ["g"])
 
     def test_prompt_owner_handoff_must_claim_actual_owner(self):
         contract = PostingContract()
@@ -525,7 +536,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract.posted(raised, "5", "town:blocked:departure-no-light")
         prompt = self.snapshot(
             turn=3264322,
-            messages=("59個の 鉄弾 (1d3) (+0,+0)がある。 <x13>",),
+            messages=("トラベルを続けますか？[y/n]",),
         )
 
         self.assertTrue(contract.allow(

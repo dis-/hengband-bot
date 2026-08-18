@@ -4,6 +4,7 @@ import argparse
 import faulthandler
 import json
 import os
+import re
 import sys
 import time
 from collections import deque
@@ -1490,9 +1491,19 @@ def _open_game_prompt(messages) -> str | None:
     completed the command, while the which-hand selector is never serialized.
     Older prompt-shaped history therefore cannot represent an open input owner.
     """
-    markers = ("[Y/n]", "[y/n]", "[Y/N]", "Quantity", "quantity", "個")
     newest = tuple(messages)[-1] if messages else None
-    if newest is not None and any(marker in newest for marker in markers):
+    if newest is None:
+        return None
+    # asking-player.cpp:225-247 serializes only input_check_strict prompts,
+    # with one of these exact suffixes.  Its default input_quantity prompt at
+    # :341-349 is rendered directly rather than added to message history, but
+    # recognize that input surface when an emitter supplies it.  A trailing
+    # <xN> is a repeat count on a completed history message, never open input.
+    check_suffixes = ("[Y/n]", "[y/n]", "[(O)k/(C)ancel]")
+    quantity_prompt = re.search(
+        r"(?:いくつですか|Quantity) \(1-\d+\):\s*$", newest
+    )
+    if newest.endswith(check_suffixes) or quantity_prompt is not None:
         return newest
     return None
 
@@ -1519,17 +1530,7 @@ class PostingContract:
         prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
         effect = _posting_effect_signature(snapshot, owner, key)
         if (
-            (
-                prompt is not None
-                or (
-                    self._last_posted_key is not None
-                    and self._last_posted_key.startswith(("w", "t"))
-                    and self._last_posted_effect
-                    == _posting_effect_signature(
-                        snapshot, self._last_posted_owner or "", self._last_posted_key
-                    )
-                )
-            )
+            prompt is not None
             and self._last_posted_owner is not None
             and owner != self._last_posted_owner
             and prompt_owner_handoff != self._last_posted_owner
