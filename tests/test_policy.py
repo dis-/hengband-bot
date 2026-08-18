@@ -13477,6 +13477,67 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy._fixed_quest_readiness["reason"], "strategy-force")
         self.assertEqual(policy.last_reason, "quest:readiness:strategy-force")
 
+    def test_q34_readiness_measures_wielded_weapon_without_calibration(self):
+        policy = self._policy()
+        opening = self._measured_q34_opening()
+        weapon = replace(
+            opening.equipment[0],
+            damage_dice_num=2,
+            damage_dice_sides=5,
+        )
+        opening = replace(
+            opening,
+            player=replace(
+                opening.player,
+                main_hand_blows=1,
+                main_hand_to_h=0,
+                main_hand_to_d=0,
+                melee_skill=60,
+            ),
+            equipment=[weapon],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=2500)],
+        )
+
+        self.assertFalse(policy._approved_strategy_force_ready(opening, self.profiles[34]))
+        measured = policy.fixed_quest_readiness_state()["strategy_force"]
+        self.assertGreater(measured["dps"]["measured"], 0.0)
+        self.assertEqual(measured["dps"]["required"], 8.0)
+
+    def test_q34_readiness_deficits_start_existing_fundraising_owner(self):
+        policy = self._policy()
+        opening = replace(
+            self._measured_q34_opening(),
+            player=replace(self._measured_q34_opening().player, gold=61),
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=2500)],
+        )
+
+        policy._approved_strategy_force_ready(opening, self.profiles[34])
+        self.assertIsNotNone(policy._next_required_store_type(opening))
+        self.assertEqual(policy._fundraising_mode, "prepare")
+
+    def test_q34_unreachable_readiness_deficits_stop_visibly(self):
+        policy = self._policy()
+        opening = replace(
+            self._measured_q34_opening(),
+            player=replace(self._measured_q34_opening().player, gold=3000),
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=20, fuel=2500)],
+        )
+        for store_type in (STORE_TEMPLE, STORE_BLACK):
+            policy._town_store_attempted[store_type] = opening.turn
+            policy._town_visit_ledger.nonhome_attempted_without_effect[store_type] = (
+                policy._town_observable_effect_state(opening)
+            )
+
+        with patch.object(policy, "_shopping_approach_step", return_value=None):
+            key = policy._opening_q34_town_key(opening, [])
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
+        self.assertEqual(
+            policy.fixed_quest_readiness_state()["strategy_force"]["failed"],
+            ["dps", "speed_potions", "heal_potions"],
+        )
+
     def test_finished_q34_other_quest_keeps_calibration_entry_refusal(self):
         policy, board = self._warmed_current_q34_entrance_replay()
         control = replace(

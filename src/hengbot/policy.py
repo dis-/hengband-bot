@@ -7572,7 +7572,22 @@ class HengbotPolicy:
         ):
             self.last_reason = self._restock_wait_reason(snapshot)
             return WAIT_KEY
-        self.last_reason = "opening-q34:wait"
+        # A false readiness verdict is work, not an idle state.  Poor openings
+        # hand the deficit to the existing fundraising/mining owner; once the
+        # bounded shop/fundraising routes have no remaining action, expose the
+        # existing CLI-visible terminal with the failed list retained in
+        # fixedquest_readiness telemetry.
+        failed = self._fixed_quest_readiness.get("strategy_force", {}).get(
+            "failed", ()
+        )
+        if failed and self._start_fundraising(snapshot):
+            step = self._shopping_approach_step(snapshot)
+            if step is not None:
+                self.last_reason = "shop:approach"
+                return self._shopping_approach_key(snapshot, step, "shop:travel")
+            self.last_reason = "livelock:exhausted"
+            return WAIT_KEY
+        self.last_reason = "livelock:exhausted" if failed else "opening-q34:wait"
         return WAIT_KEY
 
     def _opening_q34_torch_shortage(self, snapshot: Snapshot) -> int:
@@ -16715,7 +16730,8 @@ class HengbotPolicy:
                 else food_store
             )
         opening_q34 = self._opening_q34_active(snapshot)
-        if opening_q34 and self._fundraising_mode in {
+        opening_torch_shortage = self._opening_q34_torch_shortage(snapshot)
+        if opening_q34 and opening_torch_shortage > 0 and self._fundraising_mode in {
             "prepare", "mine", "scavenge"
         }:
             # prime() can reconstruct fundraising from the scrolls left by an
@@ -16730,7 +16746,11 @@ class HengbotPolicy:
         if self._town_restock_suppressed:
             self._town_errand_plan = None
             return None
-        if opening_q34 and STORE_GENERAL in self._town_store_attempted:
+        if (
+            opening_q34
+            and opening_torch_shortage > 0
+            and STORE_GENERAL in self._town_store_attempted
+        ):
             self._town_restock_rechecked.discard(STORE_GENERAL)
             return self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
         if (
@@ -16746,7 +16766,7 @@ class HengbotPolicy:
             and snapshot.player.class_id >= 0
             and snapshot.player.gold < FUNDRAISING_START_GOLD
             and self._fundraising_mode is None
-            and not opening_q34
+            and (not opening_q34 or opening_torch_shortage == 0)
         ):
             self._start_fundraising(snapshot)
         self._refresh_nonhome_effect_refusals(snapshot)
@@ -16978,7 +16998,7 @@ class HengbotPolicy:
                 continue
             return store_type
 
-        if opening_q34:
+        if opening_q34 and opening_torch_shortage > 0:
             # The fresh-character route has exactly one owner until all Q34
             # throwing torches are carried.  If the General Store did not have
             # enough stock, wait for its next turnover and retry that same shop;
@@ -18128,7 +18148,10 @@ class HengbotPolicy:
     def _start_fundraising(self, snapshot: Snapshot) -> bool:
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return True
-        if self._opening_q34_active(snapshot):
+        if (
+            self._opening_q34_active(snapshot)
+            and self._opening_q34_torch_shortage(snapshot) > 0
+        ):
             return False
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False
@@ -26406,8 +26429,26 @@ class HengbotPolicy:
             )
             if weapon is not None else 0.0
         )
-        # A missing calibration scores 0.0 and keeps the readiness check
-        # conservative (fail closed) until the constants are observed.
+        # Readiness evaluates the weapon that is already wielded.  Unlike a
+        # hypothetical loadout comparison, that score does not require us to
+        # reconstruct natural stats: the emitter exposes the resulting blows
+        # and hand bonuses directly.  Fresh CL1 characters have not completed
+        # the naked calibration yet, so use those observed combat results as a
+        # conservative unbranded score instead of calling a real weapon 0 DPS.
+        if dps is None and weapon is not None:
+            blows = max(0, snapshot.player.main_hand_blows)
+            hand_to_h = snapshot.player.main_hand_to_h - weapon.to_h
+            chance = melee_hit_chance(
+                snapshot.player.melee_skill,
+                hand_to_h,
+                weapon.to_h,
+                reference_ac,
+            )
+            average_dice = (
+                weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2.0
+            )
+            damage = max(0.0, average_dice + snapshot.player.main_hand_to_d)
+            dps = blows * chance * damage
         dps = float(dps or 0.0)
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
