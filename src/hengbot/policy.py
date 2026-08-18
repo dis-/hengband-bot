@@ -1966,6 +1966,11 @@ class HengbotPolicy:
         # Diagnostic only: evidence from the latest in-store selector pass.
         # Gameplay never reads this field.
         self._shop_selector_diagnostics: dict[str, object] = {}
+        # Result-level town procurement invariant.  This is diagnostic state,
+        # but unlike the older in-store selector record it is written at the
+        # public decision seam and therefore also covers approach/entry pages.
+        self._town_progress_invariant_defect: dict[str, object] = {}
+        self._town_supplier_stock: dict[int, StoreState] = {}
         # A stair command is verified by the following snapshot. Hengband rejects
         # a stair key without spending a turn, which gives stronger evidence than
         # ordinary navigation stalls that remembered terrain is a phantom.
@@ -2905,6 +2910,9 @@ class HengbotPolicy:
         # strip cannot be recorded (or reasoned about) beside the preceding
         # decision's worn set.
         self.prompt_owner_handoff = None
+        self._town_progress_invariant_defect = {}
+        if not hasattr(self, "_town_supplier_stock"):
+            self._town_supplier_stock = {}
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -2953,7 +2961,179 @@ class HengbotPolicy:
                 "position",
             )
         key = self._refuse_no_progress_cycle(snapshot, key)
+        key = self._town_procurement_decision(snapshot, key)
         return self._forbid_wait_while_damaged(snapshot, key)
+
+    # Closed list: additions are policy changes and require a dedicated pin.
+    TOWN_PROGRESS_ALLOW_SET = frozenset({
+        "emergency-lethal-danger",
+        "weak-fainting-survival-absorb",
+        "recall-entry-invariant",
+        "nearby-threat-defer",
+        "reserve-already-satisfied",
+    })
+
+    @staticmethod
+    def _town_no_progress_terminal(reason: str, key: str) -> bool:
+        """Whether the proposed result is one of the town terminal family."""
+        if reason.startswith("town-progress-invariant:"):
+            return False
+        return (
+            reason.startswith("town:blocked:")
+            or reason.startswith("town:wait-restock:")
+            or reason.startswith("restocked-")
+            or reason.startswith("livelock:")
+            or reason in {
+                "shop:observe-and-leave",
+                "survival:shop-approach",
+                "town:cycle-break",
+            }
+            or "unreachable" in reason
+            or ("repetition" in reason and key in {WAIT_KEY, LEAVE_STORE_KEY})
+        )
+
+    def _town_progress_allow_members(self, snapshot: Snapshot) -> frozenset[str]:
+        """Return only members of the reviewed procurement preemptor set."""
+        reason = self.last_reason or ""
+        allowed: set[str] = set()
+        if reason.startswith(("emergency:", "unseen-recall:", "guardian:")):
+            allowed.add("emergency-lethal-danger")
+        if reason in {
+            "survival:mana-absorb", "town:eat-before-travel", "survival:eat"
+        } and snapshot.player.food_state in {"weak", "fainting"}:
+            allowed.add("weak-fainting-survival-absorb")
+        if reason.startswith(("town:repetition-depart", "recall-entry:")):
+            allowed.add("recall-entry-invariant")
+        if any(
+            monster.distance <= 4
+            for monster in getattr(snapshot, "visible_monsters", ())
+        ):
+            allowed.add("nearby-threat-defer")
+
+        observation = self._shop_observation
+        if observation is not None:
+            observed = replace(snapshot, store=observation[0])
+            wanted = self._next_purchase_unreserved(observed)
+            if wanted is not None:
+                quantity = self._purchase_quantity(observed, wanted)
+                reserve = self._fundraising_kit_reserve(observed)
+                if (
+                    reserve > 0
+                    and snapshot.player.gold - wanted.price * quantity < reserve
+                ):
+                    allowed.add("reserve-already-satisfied")
+        assert allowed <= self.TOWN_PROGRESS_ALLOW_SET
+        return frozenset(allowed)
+
+    def _town_procurement_progress_key(
+        self, snapshot: Snapshot
+    ) -> tuple[str, str] | None:
+        """Compose the next step of an available approach->enter->buy route."""
+        # An observed ordinary-shop shelf is paired with current gold at this
+        # boundary.  It is the strongest counterfactual and composes first.
+        transaction = self._atomic_shop_transaction_key(snapshot)
+        if transaction is not None:
+            return transaction, self.last_reason
+
+        # A21 remains Home-first.  Calling its established producer here makes
+        # the A26 generic-food route unable to preempt a MANA acquisition.
+        if snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry:
+            mana = self._mana_food_survival_override_key(snapshot)
+            if mana is not None and not self._town_no_progress_terminal(
+                self.last_reason or "", mana
+            ):
+                return mana, self.last_reason
+
+        # A27 bookkeeping belongs to candidate availability: stale terminal
+        # ownership and an inert visit cannot make a released supplier appear
+        # unreachable.  Posted operations remain authoritative.
+        if self._town_blocked_reason in {
+            "restocked-food-store-unreachable",
+            "restocked-recall-store-unreachable",
+        }:
+            self._town_blocked_reason = None
+            visit = self._store_visit
+            if visit is not None and not visit.operation_posted:
+                self._close_store_visit("town-progress-invariant-reroute")
+
+        required_store = self._next_required_store_type(snapshot)
+        # Ordinary Home errands have their own executor and are not shop
+        # purchases.  Only the explicit MANA Home-first arm above may turn
+        # them into a procurement candidate.
+        if required_store in {None, STORE_HOME}:
+            return None
+        known_stock = getattr(self, "_town_supplier_stock", {}).get(required_store)
+        if known_stock is None:
+            return None
+        stock_snapshot = replace(snapshot, store=known_stock)
+        wanted = self._next_purchase_unreserved(stock_snapshot)
+        if wanted is None:
+            return None
+        quantity = self._purchase_quantity(stock_snapshot, wanted)
+        reserve = self._fundraising_kit_reserve(stock_snapshot)
+        if snapshot.player.gold - wanted.price * quantity < reserve:
+            return None
+        step = self._shopping_approach_step(snapshot)
+        if step is None:
+            return None
+        reason = "town-progress-invariant:approach"
+        key = self._shopping_approach_key(snapshot, step, reason)
+        return key, self.last_reason or reason
+
+    def _town_procurement_decision(self, snapshot: Snapshot, key: str) -> str:
+        """Enforce composable progress at the one downstream town-result seam."""
+        proposed_reason = self.last_reason or ""
+        if (
+            not snapshot.in_town
+            or not self._town_no_progress_terminal(proposed_reason, key)
+        ):
+            return key
+        if proposed_reason.startswith((
+            "town:blocked:equipment-transaction:",
+            "town:blocked:equipment-work-",
+            "town:blocked:depth-gate:",
+            "town:blocked:departure-unsatisfiable",
+        )):
+            return key
+        allow_members = self._town_progress_allow_members(snapshot)
+        if allow_members:
+            return key
+
+        # Observing a wanted shelf is the entry phase of the existing atomic
+        # contract.  Leaving is required to bind the operation outside, so make
+        # that continuation visible as progress rather than a silent terminal.
+        if proposed_reason == "shop:observe-and-leave":
+            wanted = self._next_purchase_unreserved(snapshot)
+            if wanted is None:
+                return key
+            self.last_reason = "town-progress-invariant:continue-observed-shop"
+            self._town_progress_invariant_defect = {
+                "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+                "winning_rung": proposed_reason,
+                "progress_action": self.last_reason,
+                "gold": snapshot.player.gold,
+                "allow_set": (),
+            }
+            self._record_shop_selector_diagnostics(snapshot, key)
+            return key
+
+        progress = self._town_procurement_progress_key(snapshot)
+        if progress is None:
+            self.last_reason = proposed_reason
+            return key
+        progress_key, progress_reason = progress
+        self._town_progress_invariant_defect = {
+            "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+            "winning_rung": proposed_reason,
+            "progress_action": progress_reason,
+            "gold": snapshot.player.gold,
+            "allow_set": (),
+        }
+        self.last_reason = (
+            f"town-progress-invariant:defect:{proposed_reason}=>{progress_reason}"
+        )
+        self._record_shop_selector_diagnostics(snapshot, progress_key)
+        return progress_key
 
     @staticmethod
     def _emission_item_state(item: object) -> tuple[object, ...]:
@@ -5047,20 +5227,6 @@ class HengbotPolicy:
             self.last_reason = "shop:one-shot-in-flight"
             return ""
 
-        # An observed-page transaction that is already composable is progress,
-        # so it outranks the repetition terminal that its posted effect will
-        # clear.  Keep this immediately above the generic blocked-store rung:
-        # the ordinary shopping router is below it and therefore unreachable
-        # from the outside store-door context once repetition is latched.
-        if (
-            self._town_blocked_reason == "repetition"
-            and snapshot.store is None
-            and self._shop_observation is not None
-        ):
-            transaction = self._atomic_shop_transaction_key(snapshot)
-            if transaction is not None:
-                return transaction
-
         # A town-block latch owns the store exit before ordinary Home/shop page
         # processing. WAIT_KEY is not a valid store command.
         if (
@@ -5080,6 +5246,8 @@ class HengbotPolicy:
 
         # In a store the town map and monsters are irrelevant — only buy/leave.
         if snapshot.store is not None:
+            if snapshot.store.store_type != STORE_HOME:
+                self._town_supplier_stock[snapshot.store.store_type] = snapshot.store
             visit = self._store_visit
             if (
                 visit is not None
@@ -18733,10 +18901,15 @@ class HengbotPolicy:
     ) -> None:
         """Capture selector evidence after the action; gameplay never consumes it."""
         store = snapshot.store
-        if store is None:
-            return
+        diagnostic_snapshot = snapshot
+        if store is None and self._shop_observation is not None:
+            store = self._shop_observation[0]
+            diagnostic_snapshot = replace(snapshot, store=store)
 
-        wanted_item = self._next_purchase_unreserved(snapshot)
+        wanted_item = (
+            self._next_purchase_unreserved(diagnostic_snapshot)
+            if store is not None else None
+        )
         wanted = None
         if wanted_item is not None:
             wanted = self._shop_candidate_diagnostics(
@@ -18745,7 +18918,8 @@ class HengbotPolicy:
 
         selected_item = None
         if (
-            store.store_type != STORE_HOME
+            store is not None
+            and store.store_type != STORE_HOME
             and key.startswith(BUY_KEY)
             and len(key) > 1
         ):
@@ -18764,8 +18938,8 @@ class HengbotPolicy:
             if selected_item is not None:
                 rejection_reason = "selected"
             elif wanted_item is not None:
-                reserve = self._fundraising_kit_reserve(snapshot)
-                quantity = self._purchase_quantity(snapshot, wanted_item)
+                reserve = self._fundraising_kit_reserve(diagnostic_snapshot)
+                quantity = self._purchase_quantity(diagnostic_snapshot, wanted_item)
                 reserved = (
                     not wanted_item.is_digging_tool
                     and not wanted_item.is_treasure_detection_scroll
@@ -18788,6 +18962,13 @@ class HengbotPolicy:
             "considered_candidate": considered,
             "rejection_reason": rejection_reason,
         }
+        invariant_defect = getattr(
+            self, "_town_progress_invariant_defect", {}
+        )
+        if invariant_defect:
+            self._shop_selector_diagnostics["town_progress_invariant"] = dict(
+                invariant_defect
+            )
 
     @staticmethod
     def _quest_launcher_quality(

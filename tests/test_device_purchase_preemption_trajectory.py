@@ -65,10 +65,18 @@ class DevicePurchasePreemptionTrajectoryTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertEqual(
+            policy.last_reason,
+            "town-progress-invariant:defect:town:blocked:repetition"
+            "=>shop:one-shot-buy",
+        )
         self.assertEqual(key, WAIT_KEY)
         self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
         self.assertTrue(policy._store_visit.operation_posted)
+        self.assertEqual(
+            policy._town_progress_invariant_defect["marker"],
+            "TOWN_PROGRESS_INVARIANT_DEFECT",
+        )
 
     def test_unaffordable_device_still_reaches_repetition_terminal(self):
         policy, snapshot = self._restore()
