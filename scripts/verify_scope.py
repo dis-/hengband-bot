@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import ast
 import datetime as dt
 import hashlib
@@ -46,6 +47,70 @@ KNOWN_LINT_FAILURES = {
         "date": "2026-08-18",
     },
 }
+
+_ACTIVE_WORKTREES: set[Path] = set()
+
+
+def is_reparse_point(path: Path) -> bool:
+    """Return true for symlinks and Windows junctions without following them."""
+    if path.is_symlink():
+        return True
+    try:
+        return bool(path.lstat().st_file_attributes & 0x400)
+    except (AttributeError, FileNotFoundError, OSError):
+        return False
+
+
+def refuse_reparse_points(root: Path) -> None:
+    """Fail before recursive cleanup if any entry could escape *root*."""
+    if not root.exists():
+        return
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        if current != root and is_reparse_point(current):
+            raise RuntimeError(f"refusing recursive cleanup through reparse point: {current}")
+        if current.is_dir():
+            pending.extend(current.iterdir())
+
+
+def prune_worktrees(root: Path = ROOT) -> None:
+    git(root, "worktree", "prune", check=False)
+
+
+def cleanup_stale_temp_worktrees(root: Path = ROOT) -> None:
+    """Recover registered gate worktrees left behind by an uncatchable kill."""
+    listing = git(root, "worktree", "list", "--porcelain", check=False)
+    for value in re.findall(r"^worktree (.+)$", listing, re.MULTILINE):
+        path = Path(value)
+        if path.name.startswith(("hengbot-verify-", "hengbot-hunk-")) and path != root:
+            cleanup_worktree(path, root)
+    prune_worktrees(root)
+
+
+def cleanup_worktree(path: Path, root: Path = ROOT) -> None:
+    """Remove a detached worktree only after proving it contains no links."""
+    path = path.resolve()
+    if path.exists():
+        refuse_reparse_points(path)
+        # Remove the directory first.  This prevents git's recursive remover
+        # from ever traversing content we have not inspected.
+        shutil.rmtree(path)
+    git(root, "worktree", "remove", "--force", str(path), check=False)
+    prune_worktrees(root)
+    _ACTIVE_WORKTREES.discard(path)
+
+
+def cleanup_active_worktrees() -> None:
+    for path in list(_ACTIVE_WORKTREES):
+        try:
+            cleanup_worktree(path)
+        except Exception:
+            # Never turn interpreter shutdown into an unsafe recursive retry.
+            pass
+
+
+atexit.register(cleanup_active_worktrees)
 
 
 def git(root: Path, *args: str, check: bool = True) -> str:
@@ -166,8 +231,12 @@ sys.exit(not x.wasSuccessful())
 
 def parse_test_failures(stderr: str) -> list[str]:
     """Return unittest ids, including verbose failures followed by docstrings."""
-    pattern = r"^(test\S+) \(([^)]+)\)(?:\n[^\n]+)?\n? \.\.\. (?:FAIL|ERROR)$"
-    return [qualified for _name, qualified in re.findall(pattern, stderr, re.MULTILINE)]
+    verbose = re.findall(
+        r"^(test\S+) \(([^)]+)\)(?:\n(?![-=]{5})[^\n]+)?\n? \.\.\. (?:FAIL|ERROR)$",
+        stderr, re.MULTILINE,
+    )
+    headers = re.findall(r"^(?:FAIL|ERROR): (test\S+) \(([^)]+)\)$", stderr, re.MULTILINE)
+    return list(dict.fromkeys(qualified for _name, qualified in verbose + headers))
 
 
 def known_failure_matches(key: str, stderr: str, failure_ids: list[str]) -> list[dict[str, str]]:
@@ -199,8 +268,10 @@ def run_item(root: Path, key: str, command: list[str], timeout: float, stderr_di
         if lint_allowance and len(undeclared_lint_findings) == lint_allowance["count"]:
             known = [lint_allowance]
         status = "ran" if run.returncode == 0 else ("failed_known" if known else "failed")
-        return {"status": status, "failed": len(reported_failures) or len(lint_findings), "skipped": stderr.count(" ... skipped "),
-                "failing_test_ids": reported_failures, "errors": [], "duration": round(time.monotonic() - started, 3),
+        error_lines = re.findall(r"^(?:ERROR|FAILED) \([^\n]+\)$", output, re.MULTILINE)
+        failed_count = len(undeclared_lint_findings) if lint_allowance else (len(reported_failures) or len(lint_findings))
+        return {"status": status, "failed": failed_count, "skipped": len(re.findall(r"\.\.\. skipped ", output)),
+                "failing_test_ids": reported_failures, "errors": error_lines, "duration": round(time.monotonic() - started, 3),
                 "stderr_path": stderr_label,
                 "known_failures": known}
     except subprocess.TimeoutExpired:
@@ -220,21 +291,29 @@ def run_scope(root: Path, scope: dict[str, object], timeout: float, stderr_dir: 
 
 
 def copy_runtime_artifacts(source: Path, destination: Path) -> dict[str, bool]:
-    """Link ignored evidence into commit worktrees so both modes see identical bytes."""
+    """Copy ignored evidence into a worktree; never link, move, or touch source."""
     present = {}
     for name in ("incident-captures", "evidence"):
         src, dst = source / name, destination / name
         present[name] = src.is_dir()
         if src.is_dir():
-            try:
-                os.symlink(src, dst, target_is_directory=True)
-            except OSError:
-                # Windows directory junctions do not require symlink privilege.
-                run = subprocess.run(["cmd", "/c", "mklink", "/J", str(dst), str(src)],
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if run.returncode:
-                    raise RuntimeError(f"cannot expose runtime artifact {name}: {run.stderr.strip()}")
+            before = artifact_inventory(source)[name]
+            shutil.copytree(src, dst, copy_function=shutil.copy2)
+            if is_reparse_point(dst) or artifact_inventory(source)[name] != before:
+                raise RuntimeError(f"unsafe or source-mutating artifact copy: {name}")
     return present
+
+
+def allowlist_coverage(results: dict[str, dict[str, object]]) -> dict[str, list[dict[str, object]]]:
+    failure_entries = []
+    for entry in KNOWN_FAILURES:
+        matched = any(entry in item.get("known_failures", []) for item in results.values())
+        failure_entries.append({**entry, "matched": matched})
+    lint_entries = []
+    for module, entry in KNOWN_LINT_FAILURES.items():
+        matched = entry in results.get(module, {}).get("known_failures", [])
+        lint_entries.append({"module": module, **entry, "matched": matched})
+    return {"known_failures": failure_entries, "known_lint_failures": lint_entries}
 
 
 def artifact_inventory(root: Path) -> dict[str, list[str]]:
@@ -254,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output")
     parser.add_argument("--derive-only", action="store_true")
     args = parser.parse_args(argv)
+    cleanup_stale_temp_worktrees(ROOT)
     before = tree_fingerprint(ROOT)
     base = resolve_base(ROOT, args.base, args.target)
     target = args.target if args.target == "WORKTREE" else git(ROOT, "rev-parse", args.target).strip()
@@ -265,24 +345,28 @@ def main(argv: list[str] | None = None) -> int:
         if target != "WORKTREE":
             temp = Path(tempfile.mkdtemp(prefix="hengbot-verify-"))
             git(ROOT, "worktree", "add", "--detach", str(temp), target)
+            _ACTIVE_WORKTREES.add(temp.resolve())
             run_root = temp
+            # Gate implementations are always the reviewed live scripts; the
+            # selected commit supplies only the product and its tests.
+            shutil.copytree(ROOT / "scripts", temp / "scripts", dirs_exist_ok=True)
             copy_runtime_artifacts(ROOT, temp)
         results = {} if args.derive_only else run_scope(run_root, scope, args.timeout, ROOT / "jsonlog" / "verify-scope")
+        coverage = allowlist_coverage(results)
+        dead_allowances = [entry for values in coverage.values() for entry in values if not entry["matched"]]
         evidence = {"tool": {"name": "verify_scope", "version": VERSION, "base_ref": base, "target": target,
                              "tree_fingerprint": tree_fingerprint(run_root)},
                     "runtime_artifacts": artifacts,
                     "derived": scope, "known_untested_paths": EXCLUDED_TESTS, "known_failure_list": KNOWN_FAILURES,
-                    "modules": results}
+                    "allowlist_coverage": coverage, "modules": results}
         rendered = json.dumps(evidence, indent=2, sort_keys=True)
         print(rendered)
         if args.output:
             Path(args.output).write_text(rendered + "\n", encoding="utf-8")
-        return int(any(item["status"] in {"failed", "error"} for item in results.values()))
+        return int(bool(dead_allowances) or any(item["status"] in {"failed", "error"} for item in results.values()))
     finally:
         if temp:
-            git(ROOT, "worktree", "remove", "--force", str(temp), check=False)
-            shutil.rmtree(temp, ignore_errors=True)
-            git(ROOT, "worktree", "prune", check=False)
+            cleanup_worktree(temp, ROOT)
         after = tree_fingerprint(ROOT)
         if before != after:
             raise RuntimeError(f"live tree fingerprint changed: {before} != {after}")

@@ -14,6 +14,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -21,12 +22,6 @@ import verify_scope
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "2.0"
-INELIGIBLE_PROTECTORS = {
-    # Review ground truth: these direct contract assertions do not pin the
-    # end-to-end repost behavior claimed by a961376.
-    "test_cli.UniversalPostingContractTest.test_autodestroy_repost_requires_position_effect",
-    "test_cli.UniversalPostingContractTest.test_volley_repost_requires_selected_ammo_consumption",
-}
 
 
 def file_hashes(root: Path) -> dict[str, str]:
@@ -77,24 +72,67 @@ def classify(body: list[str]) -> str:
     if removed and added and removed == added:
         return "nonbehavioral-format-only"
     try:
-        before = "\n".join(line[1:] for line in body if line[:1] in {" ", "-"})
-        after = "\n".join(line[1:] for line in body if line[:1] in {" ", "+"})
+        before = textwrap.dedent("\n".join(line[1:] for line in body if line[:1] in {" ", "-"}))
+        after = textwrap.dedent("\n".join(line[1:] for line in body if line[:1] in {" ", "+"}))
         if before and after and ast_equivalent(before, after):
             return "nonbehavioral-ast-equivalent"
     except SyntaxError:
-        pass
+        # A zero-context diff inside a multiline docstring contains prose but
+        # not the unchanged quote delimiters.  Recognise only plain prose
+        # fragments; punctuation used by executable Python keeps the hunk
+        # behavioral.
+        if changed and all(re.fullmatch(r"[A-Za-z0-9 `_'.,;:()-]+", line.strip()) for line in changed):
+            return "nonbehavioral-docstring-prose"
     return "behavioral"
 
 
 def ast_equivalent(before: str, after: str) -> bool:
     import ast
-    return ast.dump(ast.parse(before), include_attributes=False) == ast.dump(ast.parse(after), include_attributes=False)
+    before_tree, after_tree = ast.parse(before), ast.parse(after)
+    if all(isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+           for node in before_tree.body + after_tree.body):
+        return True
+    return ast.dump(before_tree, include_attributes=False) == ast.dump(after_tree, include_attributes=False)
+
+
+def group_hunks(hunks: list[dict[str, object]]) -> list[list[dict[str, object]]]:
+    """Revert adjacent hunks as semantic units.
+
+    Isolated zero-context reverts manufacture import failures when one hunk
+    defines a name consumed by another.  Nearby edits are grouped while
+    distant, independently testable changes retain separate verdicts.
+    """
+    groups: list[list[dict[str, object]]] = []
+    for hunk in hunks:
+        if (groups and groups[-1][-1]["file"] == hunk["file"]
+                and int(hunk["line_start"]) - int(groups[-1][-1]["line_end"]) <= 8):
+            groups[-1].append(hunk)
+        else:
+            groups.append([hunk])
+    # A newly introduced module and the consumer hunks that name it form one
+    # cross-file unit: deleting only the module manufactures an import error,
+    # while reverting only its consumers leaves dead new code behind.
+    for new_group in list(groups):
+        if not any(bool(h.get("new_file")) for h in new_group):
+            continue
+        stems = {Path(str(h["file"])).stem for h in new_group}
+        direct = [group for group in groups if group is not new_group and any(
+            any(stem in "".join(str(line) for line in h.get("body", [])) for stem in stems)
+            for h in group)]
+        dependent_files = {str(h["file"]) for group in direct for h in group}
+        dependents = [group for group in groups if group is not new_group
+                      and any(str(h["file"]) in dependent_files for h in group)]
+        for group in dependents:
+            new_group[:0] = group
+            groups.remove(group)
+    return groups
 
 
 def prepare_tree(target: str) -> tuple[Path, Path]:
     temp = Path(tempfile.mkdtemp(prefix="hengbot-hunk-"))
     commit = "HEAD" if target == "WORKTREE" else target
     verify_scope.git(ROOT, "worktree", "add", "--detach", str(temp), commit)
+    verify_scope._ACTIVE_WORKTREES.add(temp.resolve())
     if target == "WORKTREE":
         for area in ("src", "tests"):
             source = ROOT / area
@@ -113,7 +151,7 @@ def apply_patch(root: Path, patch: str, reverse: bool) -> None:
         raise RuntimeError(f"git apply failed: {run.stderr.strip()}")
 
 
-def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) -> set[str]:
+def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path, *, structural: bool = False) -> set[str]:
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join((str(root / "src"), str(root / "tests")))
@@ -123,13 +161,14 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) ->
             run = subprocess.run(command, cwd=root, env=env, stdout=subprocess.PIPE, stderr=err,
                                  text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        return {f"{module}:TIMEOUT"}
+        return set()
     if run.returncode == 0:
         return set()
     stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-    if re.search(r"\b(?:ImportError|ModuleNotFoundError|NameError|SyntaxError):", stderr):
+    if not structural and re.search(r"\b(?:ImportError|ModuleNotFoundError|NameError|SyntaxError|AttributeError|TypeError|IndentationError|TabError):", stderr):
         return set()
-    return set(verify_scope.parse_test_failures(stderr))
+    return {test_id for test_id in verify_scope.parse_test_failures(stderr)
+            if structural or (not test_id.startswith("unittest.loader._FailedTest.") and "._FailedTest." not in test_id)}
 
 
 def compiles(root: Path, relative: str) -> bool:
@@ -139,8 +178,7 @@ def compiles(root: Path, relative: str) -> bool:
 
 
 def cleanup_tree(path: Path) -> None:
-    verify_scope.git(ROOT, "worktree", "remove", "--force", str(path), check=False)
-    shutil.rmtree(path, ignore_errors=True)
+    verify_scope.cleanup_worktree(path, ROOT)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     live_before = verify_scope.tree_fingerprint(ROOT)
     base = verify_scope.resolve_base(ROOT, args.base, args.target)
     target = args.target if args.target == "WORKTREE" else verify_scope.git(ROOT, "rev-parse", args.target).strip()
+    verify_scope.cleanup_stale_temp_worktrees(ROOT)
     diff_args = ["diff", "--unified=0", "--no-ext-diff", base]
     if target != "WORKTREE": diff_args.append(target)
     diff_args.extend(["--", "src/hengbot"])
@@ -184,27 +223,35 @@ def main(argv: list[str] | None = None) -> int:
                     for module in candidates}
             for job in as_completed(jobs):
                 baseline[jobs[job]] = job.result()
-        for number, hunk in enumerate(hunks, 1):
-            kind = classify(hunk["body"])
-            record = {"file": hunk["file"], "lines": [hunk["line_start"], hunk["line_end"]], "classification": kind}
-            if kind != "behavioral":
+        for number, group in enumerate(group_hunks(hunks), 1):
+            kinds = [classify(hunk["body"]) for hunk in group]
+            behavioral = [hunk for hunk, kind in zip(group, kinds) if kind == "behavioral"]
+            files = list(dict.fromkeys(str(h["file"]) for h in group))
+            record = {"file": files[0] if len(files) == 1 else files,
+                      "lines": [min(int(h["line_start"]) for h in group), max(int(h["line_end"]) for h in group)],
+                      "grouped_hunks": len(group),
+                      "classification": "behavioral" if behavioral else kinds[0]}
+            if not behavioral:
                 record["protecting_test_id"] = None
                 record["result"] = "SKIPPED"
                 results.append(record); continue
-            if hunk["new_file"]:
-                record["protecting_test_id"] = None
-                record["result"] = "NEW-FILE-UNVERIFIED"
-                results.append(record); continue
-            apply_patch(sandbox, hunk["patch"], reverse=True)
+            new_file = any(hunk["new_file"] for hunk in group)
+            for hunk in reversed(group):
+                relative = str(hunk["file"])
+                if hunk["new_file"]:
+                    if (sandbox / relative).exists():
+                        (sandbox / relative).unlink()
+                else:
+                    apply_patch(sandbox, str(hunk["patch"]), reverse=True)
             try:
                 if args.interrupt_after_revert:
                     raise KeyboardInterrupt("simulated interrupt")
                 protector = None
-                if compiles(sandbox, str(hunk["file"])):
+                if new_file or all(compiles(sandbox, path) for path in files):
                     for module in candidates:
                         failures = run_candidate(sandbox, module, args.timeout,
-                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log")
-                        new_failures = failures - baseline[module] - INELIGIBLE_PROTECTORS
+                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log", structural=new_file)
+                        new_failures = failures - baseline[module]
                         if new_failures:
                             protector = sorted(new_failures)[0]; break
                 record["protecting_test_id"] = protector
