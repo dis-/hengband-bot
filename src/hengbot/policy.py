@@ -1678,6 +1678,9 @@ class HengbotPolicy:
             int, set[tuple[int, int, int]]
         ] = {}
         self._quest_strategy_pending_recovery: dict[int, dict[str, object]] = {}
+        self._quest_strategy_recovery_claims: dict[
+            int, set[tuple[object, ...]]
+        ] = {}
         self._quest_strategy_initial_hold_turns: dict[int, int] = {}
         self._quest_strategy_surveyed_placements: dict[int, set[Position]] = {}
         self._quest_strategy_sweep_rounds: dict[int, int] = {}
@@ -6583,6 +6586,7 @@ class HengbotPolicy:
             self._quest_strategy_visible_targets.clear()
             self._quest_strategy_cleared_targets.clear()
             self._quest_strategy_pending_recovery.clear()
+            self._quest_strategy_recovery_claims.clear()
             self._quest_strategy_initial_hold_turns.clear()
             self._quest_strategy_surveyed_placements.clear()
             self._quest_strategy_sweep_rounds.clear()
@@ -25754,6 +25758,30 @@ class HengbotPolicy:
                 None,
             )
             if recovery_plan is not None:
+                recovery_signature = (
+                    int(recovery_plan.get("race_id", 0)),
+                    tuple(recovery_plan["target"]),
+                    tuple(
+                        sorted(
+                            (
+                                tuple(raw),
+                                grid.object_count,
+                                grid.object_tvals,
+                            )
+                            for raw in recovery_plan.get("recovery_cells", ())
+                            if (grid := snapshot.grid_at(Position(*raw))) is not None
+                            and grid.object_count > 0
+                        )
+                    ),
+                )
+                if profile.quest_id == 34:
+                    claims = self._quest_strategy_recovery_claims.setdefault(
+                        profile.quest_id, set()
+                    )
+                    if recovery_signature in claims:
+                        self.last_reason = "quest:blocked:q34-recovery-no-progress"
+                        return WAIT_KEY
+                    claims.add(recovery_signature)
                 self._quest_strategy_pending_recovery[profile.quest_id] = recovery_plan
         info = self._quest_knowledge.get(profile.quest_id)
         battlefield = info.battlefield if info is not None else None
@@ -25970,7 +25998,7 @@ class HengbotPolicy:
                         snapshot, profile, stand
                     )
                     if step is None:
-                        self.last_reason = "quest-strategy:throw-point-unreachable"
+                        self.last_reason = "quest:blocked:q34-throw-point-unreachable"
                         return WAIT_KEY
                     self.last_reason = "quest-strategy:approach-throw-point"
                     return self._step_toward(snapshot, step)
@@ -26054,7 +26082,7 @@ class HengbotPolicy:
                     if step is not None:
                         self.last_reason = "quest-strategy:survey-throw-point"
                         return self._step_toward(snapshot, step)
-                    self.last_reason = "quest-strategy:throw-point-unreachable"
+                    self.last_reason = "quest:blocked:q34-throw-point-unreachable"
                     return WAIT_KEY
                 else:
                     target_key = (

@@ -379,6 +379,8 @@ POLICY_FINAL_STOP_REASONS = frozenset(
         "town:blocked:procurement-home-unavailable",
         "town:blocked:procurement-home-unroutable",
         "town:blocked:survival-mana-no-charges",
+        "quest:blocked:q34-recovery-no-progress",
+        "quest:blocked:q34-throw-point-unreachable",
         "wilderness:no-safe-route",
     }
 )

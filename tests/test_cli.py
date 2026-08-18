@@ -24,6 +24,7 @@ from hengbot.cli import (
     MULTIPLIER_COMBAT_LOOP_WINDOW,
     MODAL_RECOVERY_ROUNDS,
     PostingContract,
+    POLICY_FINAL_STOP_REASONS,
     REST_STALL_GRACE,
     STORE_ITEM_PROMPT_DELAY_SECONDS,
     STORE_QUANTITY_DIGIT_DELAY_SECONDS,
@@ -1133,6 +1134,16 @@ class PeriodicDumpTimerTest(unittest.TestCase):
 
 
 class WaitClassificationTest(unittest.TestCase):
+    def test_q34_convergence_failures_are_visible_final_stops(self):
+        self.assertIn(
+            "quest:blocked:q34-throw-point-unreachable",
+            POLICY_FINAL_STOP_REASONS,
+        )
+        self.assertIn(
+            "quest:blocked:q34-recovery-no-progress",
+            POLICY_FINAL_STOP_REASONS,
+        )
+
     def test_cli_override_changes_generic_delay_without_changing_default(self):
         parser = argparse.ArgumentParser()
         _add_input_delay_arguments(parser)

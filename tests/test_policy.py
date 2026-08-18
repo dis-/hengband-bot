@@ -17092,6 +17092,37 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(Position(10, 12).distance_to(death_position), 1)
 
+    def test_q34_same_recovery_substrate_cannot_rearm_survey(self):
+        policy = self._policy()
+        plan = policy.approved_quest_strategy(34).engagement_plan["throwing_points"][0]
+        target_key = (243, 7, 15)
+        recovery_signature = (243, (7, 15), (((7, 14), 1, (TVAL_LITE,)),))
+        policy._quest_strategy_recovery_claims[34] = {recovery_signature}
+        policy._quest_strategy_visible_targets[34] = {target_key}
+        snapshot = Snapshot(
+            player(7, 13),
+            {
+                Position(7, 13): grid(7, 13),
+                Position(7, 14): replace(
+                    grid(7, 14, objects=1), object_tvals=(TVAL_LITE,)
+                ),
+                Position(7, 15): grid(7, 15, in_view=True),
+            },
+            [],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, count=19, fuel=5000)],
+            equipment=[
+                item("light", TVAL_LITE, SV_LITE_LANTERN, is_equipment=True)
+            ],
+            floor_key=(0, 5, 34),
+        )
+        policy._build_grid_index(snapshot)
+
+        key = policy._approved_quest_strategy_key(snapshot, [], [])
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "quest:blocked:q34-recovery-no-progress")
+        self.assertNotIn(34, policy._quest_strategy_pending_recovery)
+
     def test_q34_first_sword_uses_static_safe_route_without_diagonal_shortcut(self):
         policy = self._q34_source_policy()
         policy._quest_strategy_cleared_targets[34] = {(243, 7, 15)}
@@ -17727,7 +17758,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertEqual(policy._approved_quest_strategy_key(snap, [], []), "5")
         self.assertEqual(
-            policy.last_reason, "quest-strategy:throw-point-unreachable"
+            policy.last_reason, "quest:blocked:q34-throw-point-unreachable"
         )
 
     def test_never_move_races_come_from_monrace_flags_not_quest_ids(self):
