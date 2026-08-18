@@ -177,9 +177,6 @@ def _advance_starving_streak(
 # Bound how long the desynchronization look barrier waits when its response is
 # lost. The value is unchanged from the former duplicate retry.
 LOOK_BARRIER_TIMEOUT_SECONDS = 2.0
-# Shadow observation shares one tenth of the established snapshot-wait bound;
-# it is diagnostic only and must not materially delay the decision loop.
-TCP_SHADOW_BUDGET_SECONDS = LOOK_BARRIER_TIMEOUT_SECONDS / 10
 # Snapshots can advance their turn/message state before a posted movement key is
 # consumed.  Sending the next route correction then leaves one direction queued;
 # live failures overshot a Q34 chest and orbited six cells around fundraising loot.
@@ -1942,7 +1939,13 @@ def _record_tcp_shadow(args, jsonl_state: Mapping[str, object], sequence: int) -
         args.shadow_client,
         jsonl_state,
         decision_sequence=sequence,
-        path=Path("jsonlog/tcp-shadow-diff.jsonl"),
+        path=(
+            args.decision_log.with_name("tcp-shadow-diff.jsonl")
+            if args.decision_log is not None
+            else Path("jsonlog/tcp-shadow-diff.jsonl")
+        ),
+        rotate_bytes=args.recorder_log_rotate_bytes,
+        generations=args.recorder_log_generations,
     )
 
 
@@ -1987,12 +1990,21 @@ def main(argv: list[str] | None = None) -> int:
         def log_shadow_failure(message: str) -> None:
             print(message, file=sys.stderr, flush=True)
             if args.decision_log is not None:
-                with args.decision_log.open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps({"event": "tcp-shadow-adapter", "message": message}) + "\n")
+                _append_capture_ledger(
+                    args.decision_log,
+                    {
+                        "event": "tcp-shadow-adapter",
+                        "message": message,
+                        "turn": getattr(args, "shadow_turn", None),
+                        "sequence": getattr(args, "shadow_sequence", None),
+                    },
+                    args.recorder_log_rotate_bytes,
+                    args.recorder_log_generations,
+                )
 
         shadow_client = ControlClient(
             args.control_port,
-            request_budget=TCP_SHADOW_BUDGET_SECONDS,
+            request_budget=args.stall_timeout,
             log=log_shadow_failure,
         )
         atexit.register(shadow_client.close)
@@ -2211,16 +2223,14 @@ def main(argv: list[str] | None = None) -> int:
             if not line.strip():
                 continue
             try:
-                snapshot = parse_snapshot(json.loads(line), monrace_knowledge)
+                jsonl_state = json.loads(line)
+                snapshot = parse_snapshot(jsonl_state, monrace_knowledge)
             except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 print(f"invalid snapshot: {exc}", file=sys.stderr)
                 return 2
             policy.prime(snapshot)
             key = policy.choose_key(snapshot)
             key = policy.validate_read_key(snapshot, key)
-            _record_tcp_shadow(
-                args, json.loads(line), policy._decision_sequence
-            )
             decision_facts = _capture_decision_facts(snapshot, policy)
             _write_decision(
                 args.decision_log, snapshot, key, policy.last_reason, policy,
@@ -2250,6 +2260,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 3
             posting_contract.posted(snapshot, key, policy.last_reason)
             policy.confirm_key_posted(key)
+            args.shadow_turn = snapshot.turn
+            args.shadow_sequence = policy._decision_sequence
+            _record_tcp_shadow(args, jsonl_state, policy._decision_sequence)
             return 0
         return 1
 
@@ -2422,6 +2435,7 @@ def _run_follow(
                     "parse_snapshot_ms": 0.0,
                     "choose_key_ms": 0.0,
                     "send_ms": 0.0,
+                    "shadow_ms": 0.0,
                 }
                 poll_wait_started_at = None
                 last_activity = _last_activity_after_read(
@@ -2609,9 +2623,6 @@ def _run_follow(
                     key = policy.validate_read_key(snapshot, chosen_key)
                     # JSONL has already supplied the policy input and chosen
                     # command. TCP observations remain structurally downstream.
-                    _record_tcp_shadow(
-                        args, json.loads(snapshot_line), policy._decision_sequence
-                    )
                     pending_batch_row["decided"] = True
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
@@ -2854,6 +2865,16 @@ def _run_follow(
                     )
                     pending_batch_row["posted_key"] = key if sent else None
                     decision_timing["send_ms"] = round(
+                        (time.perf_counter() - phase_started_at) * 1000, 3
+                    )
+                    phase_started_at = time.perf_counter()
+                    args.shadow_turn = snapshot.turn
+                    args.shadow_sequence = policy._decision_sequence
+                    _record_tcp_shadow(
+                        args, decoded_lines[complete_lines.index(snapshot_line)],
+                        policy._decision_sequence,
+                    )
+                    decision_timing["shadow_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
                     decision_timing["total_ms"] = round(

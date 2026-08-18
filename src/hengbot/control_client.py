@@ -13,6 +13,12 @@ import time
 from pathlib import Path
 from typing import Callable, Mapping
 
+from hengbot.flight_recorder import (
+    DEFAULT_LOG_GENERATIONS,
+    DEFAULT_LOG_ROTATE_BYTES,
+    rotate_log,
+)
+
 
 class ControlClientError(RuntimeError):
     """The control server did not produce a valid response in budget."""
@@ -21,7 +27,7 @@ class ControlClientError(RuntimeError):
 class ControlClient:
     """Persistent newline-JSON connection with bounded reconnect attempts."""
 
-    _READ_ONLY_OPS = frozenset({"info", "screen", "state", "messages"})
+    _READ_ONLY_OPS = frozenset({"info", "state"})
 
     def __init__(
         self,
@@ -43,6 +49,7 @@ class ControlClient:
         self._buffer = bytearray()
         self._next_id = 1
         self._retry_after = 0.0
+        self._consecutive_failures = 0
         self._failure_visible = False
 
     @property
@@ -112,6 +119,7 @@ class ControlClient:
         if not isinstance(result, dict):
             raise ControlClientError("control response result is not an object")
         self._failure_visible = False
+        self._consecutive_failures = 0
         return result
 
     def request(
@@ -139,23 +147,21 @@ class ControlClient:
                 if time.monotonic() >= deadline:
                     break
         assert last_error is not None
-        self._retry_after = time.monotonic() + self.backoff
+        self._consecutive_failures += 1
+        self._retry_after = (
+            time.monotonic() + self.backoff * self._consecutive_failures
+        )
         self._report_failure_once(last_error)
         return None
 
 
 def _normalized(value: object) -> object:
-    """Remove fields that cannot identify equivalent game state.
-
-    ``timestamp`` is emitter/transport wall time, ``cursor`` is terminal UI
-    presentation rather than game state, and ``nearby_grids`` is intentionally
-    absent from the TCP ``state(map:false)`` observation.
-    """
+    """Remove the map payload intentionally omitted by ``state(map:false)``."""
     if isinstance(value, dict):
         return {
             key: _normalized(child)
             for key, child in value.items()
-            if key not in {"timestamp", "cursor", "nearby_grids"}
+            if key != "nearby_grids"
         }
     if isinstance(value, list):
         return [_normalized(child) for child in value]
@@ -168,6 +174,8 @@ def append_shadow_diff(
     *,
     decision_sequence: int,
     path: Path,
+    rotate_bytes: int = DEFAULT_LOG_ROTATE_BYTES,
+    generations: int = DEFAULT_LOG_GENERATIONS,
 ) -> dict | None:
     """Observe TCP state without returning either observation to policy."""
     started = time.perf_counter()
@@ -175,16 +183,23 @@ def append_shadow_diff(
     tcp_state = client.request("state", deadline=deadline, map=False)
     if tcp_state is None:
         return None
-    tcp_messages = client.request("messages", deadline=deadline)
-    if tcp_messages is None:
-        return None
     tcp = dict(tcp_state)
-    tcp["messages"] = tcp_messages.get("messages", [])
     left = _normalized(dict(jsonl_state))
     right = _normalized(tcp)
     if not isinstance(left, dict) or not isinstance(right, dict):
         client._report_failure_once(ControlClientError("shadow state is not an object"))
         return None
+    # JSONL emits RECENT_DIFF while TCP state carries the 32-entry HISTORY
+    # (bot-json-output.cpp:428-455,943-953,1669,1676).  Compare the delta with
+    # the equally-sized history tail instead of pretending the windows match.
+    left_messages = left.get("messages")
+    right_messages = right.get("messages")
+    if isinstance(left_messages, list) and isinstance(right_messages, list):
+        right["messages"] = right_messages[-len(left_messages):] if left_messages else []
+    # Store JSONL snapshots identify their emission site as ``store``; TCP state
+    # uses the command-loop snapshot type ``player_turn`` for the same state.
+    if left.get("type") == "store" and right.get("type") == "player_turn":
+        left["type"] = "player_turn"
     diff_keys = sorted(
         key for key in left.keys() | right.keys() if left.get(key) != right.get(key)
     )
@@ -197,6 +212,7 @@ def append_shadow_diff(
         "latency_ms": round((time.perf_counter() - started) * 1000, 3),
     }
     try:
+        rotate_log(path, rotate_bytes, generations)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as stream:
             stream.write(

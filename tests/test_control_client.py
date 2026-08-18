@@ -1,6 +1,5 @@
 import json
 import socketserver
-import sys
 import threading
 import time
 import unittest
@@ -9,6 +8,14 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.control_client import ControlClient, append_shadow_diff
+
+
+def _snapshot_line(turn):
+    return json.dumps({
+        "turn": turn,
+        "player": {"y": 5, "x": 5, "hp": 10, "max_hp": 10},
+        "floor": {"dungeon_id": 0, "level": 1},
+    }) + "\n"
 
 
 class _Handler(socketserver.StreamRequestHandler):
@@ -60,7 +67,7 @@ class ControlClientTest(unittest.TestCase):
     def test_newline_framing_persistent_connection_and_ids(self):
         client = self.client()
         self.assertEqual(client.request("state", map=False), {"op": "state"})
-        self.assertEqual(client.request("messages"), {"op": "messages"})
+        self.assertEqual(client.request("info"), {"op": "info"})
         self.assertEqual([row["id"] for row in self.server.requests], [1, 2])
         self.assertFalse(self.server.requests[0]["map"])
 
@@ -79,18 +86,29 @@ class ControlClientTest(unittest.TestCase):
         self.assertIsNone(client.request("state", map=False))
         self.assertEqual(len(messages), 1)
 
-    def test_two_request_shadow_shares_one_budget(self):
-        self.server.actions[:] = [{"turn": 1}, "timeout"]
-        client = self.client()
-        started = time.monotonic()
-        self.assertIsNone(append_shadow_diff(
-            client, {"turn": 1, "messages": []}, decision_sequence=1,
-            path=Path("unused.jsonl"),
-        ))
-        self.assertLess(time.monotonic() - started, 0.13)
+    def test_absent_server_backoff_grows_with_consecutive_failures(self):
+        client = ControlClient(
+            1, request_budget=1, retries=0, backoff=1,
+            socket_factory=unittest.mock.Mock(side_effect=ConnectionRefusedError()),
+        )
+        with patch("hengbot.control_client.time.monotonic", return_value=10):
+            self.assertIsNone(client.request("state", map=False))
+            self.assertEqual(client._retry_after, 11)
+            self.assertIsNone(client.request("state", map=False))
+            self.assertEqual(client._retry_after, 12)
+
+    def test_shadow_uses_state_history_without_redundant_messages_request(self):
+        self.server.actions[:] = [{"turn": 1, "messages": ["old", "same"]}]
+        with TemporaryDirectory() as directory:
+            row = append_shadow_diff(
+                self.client(), {"turn": 1, "messages": ["same"]},
+                decision_sequence=1, path=Path(directory) / "shadow.jsonl",
+            )
+        self.assertTrue(row["equal"])
+        self.assertEqual([request["op"] for request in self.server.requests], ["state"])
 
     def test_shadow_write_failure_is_diagnostic_only(self):
-        self.server.actions[:] = [{"turn": 1}, {"messages": []}]
+        self.server.actions[:] = [{"turn": 1, "messages": []}]
         messages = []
         client = self.client(log=messages.append)
         with patch("pathlib.Path.open", side_effect=OSError("disk full")):
@@ -110,8 +128,8 @@ class ControlClientTest(unittest.TestCase):
 
     def test_shadow_record_shape_and_normalization(self):
         self.server.actions[:] = [
-            {"turn": 9, "player": {"hp": 3}, "cursor": {"x": 1}},
-            {"messages": ["same"]},
+            {"turn": 9, "type": "player_turn", "player": {"hp": 3},
+             "messages": ["old", "same"]},
         ]
         with TemporaryDirectory() as directory:
             path = Path(directory) / "shadow.jsonl"
@@ -120,8 +138,7 @@ class ControlClientTest(unittest.TestCase):
                 {
                     "turn": 9,
                     "player": {"hp": 3},
-                    "messages": ["same"],
-                    "timestamp": "volatile",
+                    "type": "store", "messages": ["same"],
                     "nearby_grids": [1],
                 },
                 decision_sequence=12,
@@ -138,7 +155,7 @@ class ControlClientTest(unittest.TestCase):
     def test_policy_finishes_before_shadow_and_never_receives_tcp(self):
         events = []
         jsonl = {"turn": 1, "player": {"hp": 1}, "messages": []}
-        self.server.actions[:] = [jsonl, {"messages": []}]
+        self.server.actions[:] = [jsonl]
 
         def policy(snapshot):
             events.append(("policy", snapshot))
@@ -155,25 +172,75 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
-    def test_disabled_parser_does_not_import_or_connect_or_write(self):
+    def test_disabled_real_follow_cycle_has_no_shadow_side_effect_or_extra_decode(self):
         from hengbot import cli
 
         with TemporaryDirectory() as directory, patch.dict(
             "os.environ", {"HENGBOT_CONTROL_PORT": ""}, clear=False
         ):
-            shadow = Path(directory) / "tcp-shadow-diff.jsonl"
-            sys.modules.pop("hengbot.control_client", None)
-            args = cli._build_argument_parser().parse_args(
-                ["--state-file", str(Path(directory) / "state.jsonl")]
-            )
-            self.assertIsNone(args.control_port)
-            args.shadow_client = None
-            snapshot = {"turn": 1}
-            chosen_key = (lambda authoritative: "5")(snapshot)
-            cli._record_tcp_shadow(args, snapshot, 1)
-            self.assertEqual(chosen_key, "5")
-            self.assertNotIn("hengbot.control_client", sys.modules)
+            root = Path(directory)
+            state = root / "state.jsonl"
+            decisions = root / "bot-decisions.jsonl"
+            shadow = root / "tcp-shadow-diff.jsonl"
+            state.write_text(_snapshot_line(1), encoding="utf-8")
+            parsed = cli._build_argument_parser().parse_args(["--state-file", str(state)])
+            self.assertIsNone(parsed.control_port)
+            original_loads = cli.json.loads
+            decodes = []
+            with (
+                patch("hengbot.cli.find_monrace_definitions", return_value=root / "MonraceDefinitions.jsonc"),
+                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
+                patch("hengbot.cli.find_terrain_definitions", return_value=None),
+                patch("hengbot.cli.find_wilderness_definition", return_value=None),
+                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_strategies", return_value=None),
+                patch("hengbot.cli.find_outpost_map", return_value=None),
+                patch("hengbot.cli.find_town_map", return_value=None),
+                patch("hengbot.cli.json.loads", side_effect=lambda value, *a, **k: (
+                    decodes.append(value) or original_loads(value, *a, **k)
+                )),
+                patch("socket.create_connection", side_effect=AssertionError("connected")),
+            ):
+                self.assertEqual(cli.main([
+                    "--state-file", str(state), "--decision-log", str(decisions), "--once",
+                ]), 0)
+
+            self.assertEqual(decodes.count(_snapshot_line(1).rstrip("\n")), 1)
             self.assertFalse(shadow.exists())
+
+    def test_shadow_dispatch_is_after_real_send_and_tcp_never_reaches_policy(self):
+        from hengbot import cli
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state.jsonl"
+            state.write_text(_snapshot_line(1), encoding="utf-8")
+            events = []
+            fake_client = unittest.mock.Mock()
+
+            def shadow(_client, jsonl_state, **_kwargs):
+                events.append(("shadow", jsonl_state["turn"]))
+
+            with (
+                patch("hengbot.cli.find_monrace_definitions", return_value=root / "MonraceDefinitions.jsonc"),
+                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
+                patch("hengbot.cli.find_terrain_definitions", return_value=None),
+                patch("hengbot.cli.find_wilderness_definition", return_value=None),
+                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_strategies", return_value=None),
+                patch("hengbot.cli.find_outpost_map", return_value=None),
+                patch("hengbot.cli.find_town_map", return_value=None),
+                patch("hengbot.control_client.ControlClient", return_value=fake_client),
+                patch("hengbot.control_client.append_shadow_diff", side_effect=shadow),
+                patch("hengbot.input_windows.send_key_to_window", side_effect=lambda *_a, **_k: events.append(("send", 1))),
+            ):
+                self.assertEqual(cli.main([
+                    "--state-file", str(state), "--decision-log", str(root / "decisions.jsonl"),
+                    "--once", "--control-port", "1234", "--send-to-window",
+                ]), 0)
+            self.assertEqual(events, [("send", 1), ("shadow", 1)])
 
     def test_invalid_environment_port_is_an_argparse_error(self):
         from hengbot import cli
