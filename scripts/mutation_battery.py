@@ -123,8 +123,8 @@ MUTATIONS = (
         "Remove the universal fresh-Home evidence gate from purchase composition.",
         (replacement(
             "policy.py",
-            "            if not self._purchase_has_fresh_home_absence(snapshot, item):\n",
-            "            if False and not self._purchase_has_fresh_home_absence(snapshot, item):\n",
+            "            home_gate = self._purchase_has_fresh_home_absence(snapshot, item)\n",
+            "            home_gate = ProcurementHomeGate.ALLOW_PURCHASE\n",
         ),),
     ),
     Mutation(
@@ -155,8 +155,10 @@ MUTATIONS = (
         "Bypass the universal Home-first check for survival ration purchases.",
         (replacement(
             "policy.py",
-            "                    and not self._purchase_has_fresh_home_absence(snapshot, food_item)\n",
-            "                    and False and not self._purchase_has_fresh_home_absence(snapshot, food_item)\n",
+            "                    home_gate = self._purchase_has_fresh_home_absence(\n"
+            "                        snapshot, food_item\n"
+            "                    )\n",
+            "                    home_gate = ProcurementHomeGate.ALLOW_PURCHASE\n",
         ),),
     ),
     Mutation(

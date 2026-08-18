@@ -18391,10 +18391,9 @@ class HengbotPolicy:
             return item.is_wand_staff
         if tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}:
             return item.tval == tval
-        if tval == TVAL_SCROLL and sval in {
-            SV_SCROLL_REMOVE_CURSE,
-            SV_SCROLL_STAR_REMOVE_CURSE,
-        }:
+        if tval == TVAL_DIGGING:
+            return item.tval == TVAL_DIGGING
+        if tval == TVAL_SCROLL and sval == SV_SCROLL_REMOVE_CURSE:
             return item.tval == TVAL_SCROLL and item.sval in {
                 SV_SCROLL_REMOVE_CURSE,
                 SV_SCROLL_STAR_REMOVE_CURSE,
@@ -18410,10 +18409,9 @@ class HengbotPolicy:
             return "device:is-wand-staff"
         if tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}:
             return "ammo:exact-tval-any-sval"
-        if tval == TVAL_SCROLL and sval in {
-            SV_SCROLL_REMOVE_CURSE,
-            SV_SCROLL_STAR_REMOVE_CURSE,
-        }:
+        if tval == TVAL_DIGGING:
+            return "digger:exact-tval-any-sval"
+        if tval == TVAL_SCROLL and sval == SV_SCROLL_REMOVE_CURSE:
             return "remove-curse:normal-or-star"
         return "item:exact-tval-sval"
 
@@ -18438,6 +18436,11 @@ class HengbotPolicy:
         self._home_procurement_fallthrough_equivalence = (
             self._procurement_equivalence(item_class)
         )
+        if item.is_digging_tool and self._digger_buy_fallback_available(snapshot):
+            # Two observed Home-withdrawal failures authorize the existing
+            # one-per-visit fallback purchase even though Home still records a
+            # consumer-equivalent digger.
+            return ProcurementHomeGate.ALLOW_PURCHASE
         if not self._home_knowledge_current:
             self._home_procurement_probe = item_class
             if not self._current_town_has_home(snapshot):

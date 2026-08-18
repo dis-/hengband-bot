@@ -18291,6 +18291,73 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             "remove-curse:normal-or-star",
         )
 
+    def test_remove_curse_procurement_equivalence_is_directional(self):
+        normal = item(
+            "h", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, name="Remove Curse"
+        )
+        star = item(
+            "i", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE,
+            name="*Remove Curse*",
+        )
+        shop_star = store_item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE, price=500
+        )
+        snap = self._mana_starvation_snapshot(
+            store=StoreState(STORE_TEMPLE, [shop_star]), gold=1000
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [normal]
+
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snap, shop_star),
+            policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+        )
+        self.assertEqual(
+            policy._home_procurement_fallthrough, "fresh-catalogue-absence"
+        )
+        self.assertEqual(
+            policy._home_procurement_fallthrough_equivalence,
+            "item:exact-tval-sval",
+        )
+
+        policy._home_knowledge_items = [star]
+        shop_normal = store_item(
+            "y", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100
+        )
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snap, shop_normal),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        self.assertEqual(policy._home_pending_item, policy._item_signature(star))
+
+    def test_digger_procurement_matches_every_consumer_usable_sval(self):
+        dwarven_pick = item(
+            "h", TVAL_DIGGING, 6, name="Dwarven Pick", is_equipment=True
+        )
+        shovel = store_item(
+            "a", TVAL_DIGGING, SV_DIGGING_SHOVEL, price=100,
+            name="Shovel", is_equipment=True,
+        )
+        snap = self._mana_starvation_snapshot(
+            store=StoreState(STORE_GENERAL, [shovel]), gold=500
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [dwarven_pick]
+
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snap, shovel),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(dwarven_pick)
+        )
+        self.assertEqual(
+            policy._home_procurement_fallthrough_equivalence,
+            "digger:exact-tval-any-sval",
+        )
+
     def test_unknown_town_fails_closed_as_home_bearing(self):
         snap = replace(self._mana_starvation_snapshot(), town_id=999)
         policy = HengbotPolicy()
