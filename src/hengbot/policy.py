@@ -711,6 +711,11 @@ FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})
 # Morivant, and Angwil are building 4.  Zul's tavern does not offer town
 # teleportation, so it is intentionally absent.
 TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
+# The static town maps 01-04 each contain exactly one Home (`8`).  Zul's
+# 05_Zul map contains none.  A negative runtime route is not evidence that a
+# Home-bearing town lacks a Home; it is a visible bot defect instead.
+TOWN_IDS_WITH_HOME = frozenset({0, 1, 2, 3})
+ZUL_TOWN_ID = 4
 # lib/edit/towns/03_Morivant.txt advertises building action 1 for 1300 gold;
 # every eligible Inn advertises action 42 for 500.  Building service prices are
 # not present in bot JSON, so these factual data-file values cannot be learned
@@ -2410,7 +2415,7 @@ class HengbotPolicy:
         # evaluated for the same item class.  This latch names the class whose
         # scan/withdrawal owns routing before an ordinary store may compose p.
         self._home_procurement_probe: tuple[int, int] | None = None
-        self._home_procurement_absent: set[tuple[int, int]] = set()
+        self._home_procurement_fallthrough: str | None = None
         self._mana_survival_device_price: int | None = None
         self._home_knowledge_invalidated = False
         self._home_page_size: int | None = None
@@ -12609,6 +12614,17 @@ class HengbotPolicy:
         self._refresh_town_facts(snapshot)
         return bool(self._town_store_positions.get(STORE_HOME))
 
+    def _current_town_has_home(self, snapshot: Snapshot) -> bool:
+        """Static Home classification, with map evidence for test fixtures."""
+        if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            return True
+        if snapshot.town_id in TOWN_IDS_WITH_HOME:
+            return True
+        if snapshot.town_id == ZUL_TOWN_ID:
+            return False
+        self._refresh_town_facts(snapshot)
+        return bool(self._town_store_positions.get(STORE_HOME))
+
     def _home_catalog_routable(self, snapshot: Snapshot) -> bool:
         """Whether this visit can still advance the Home catalog."""
         return (
@@ -18324,12 +18340,21 @@ class HengbotPolicy:
             None,
         )
 
-    def _purchase_has_fresh_home_absence(self, item: StoreItem) -> bool:
-        """Queue Home work and reject purchase until fresh absence is measured."""
+    def _purchase_has_fresh_home_absence(
+        self, snapshot: Snapshot, item: StoreItem
+    ) -> bool:
+        """Attempt Home first; release the buy when that attempt is impossible."""
         item_class = self._procurement_class(item)
         if not self._home_knowledge_current:
             self._home_procurement_probe = item_class
-            self._home_procurement_absent.discard(item_class)
+            if (
+                not self._home_available(snapshot)
+                or not self._ensure_home_visit_request(snapshot)
+                or self._shopping_approach_step(snapshot, STORE_HOME) is None
+            ):
+                self._home_procurement_probe = None
+                self._home_procurement_fallthrough = "town-without-home"
+                return True
             return False
         candidate = self._home_procurement_candidate(item_class)
         if candidate is not None:
@@ -18339,7 +18364,7 @@ class HengbotPolicy:
             self._home_pending_quantity = 1
             return False
         self._home_procurement_probe = None
-        self._home_procurement_absent.add(item_class)
+        self._home_procurement_fallthrough = "fresh-catalogue-absence"
         return True
 
     def _mana_survival_sale_candidate(
@@ -19813,8 +19838,21 @@ class HengbotPolicy:
             if snapshot.player.food_type == FOOD_TYPE_MANA:
                 if not self._home_knowledge_current:
                     self._home_procurement_probe = (-1, -1)
-                    self.last_reason = "survival:mana-home-scan-before-purchase"
-                    return LEAVE_STORE_KEY
+                    if not self._current_town_has_home(snapshot):
+                        self._home_procurement_probe = None
+                        self._home_procurement_fallthrough = "town-without-home"
+                    elif (
+                        not self._home_available(snapshot)
+                        or not self._ensure_home_visit_request(snapshot)
+                        or self._shopping_approach_step(snapshot, STORE_HOME) is None
+                    ):
+                        self._home_procurement_probe = None
+                        self._home_procurement_fallthrough = "home-routing-defect"
+                        self.last_reason = "survival:mana-home-route-defect"
+                        return LEAVE_STORE_KEY
+                    else:
+                        self.last_reason = "survival:mana-home-scan-before-purchase"
+                        return LEAVE_STORE_KEY
                 home_food = self._home_mana_food_candidate()
                 if home_food is not None:
                     self._home_pending_item = self._item_signature(home_food)
@@ -19833,6 +19871,15 @@ class HengbotPolicy:
                     ),
                     None,
                 )
+                if (
+                    food_item is not None
+                    and not self._purchase_has_fresh_home_absence(snapshot, food_item)
+                ):
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
+                    self.last_reason = "survival:ration-home-before-purchase"
+                    return LEAVE_STORE_KEY
             else:
                 food_item = None
             if food_item is not None:
@@ -20412,7 +20459,7 @@ class HengbotPolicy:
                 self.town_visit_report = f"town-visit:sell-rebuy-churn:{item.tval}"
                 self.last_reason = "shop:sell-rebuy-churn-defect"
                 return LEAVE_STORE_KEY
-            if not self._purchase_has_fresh_home_absence(item):
+            if not self._purchase_has_fresh_home_absence(snapshot, item):
                 self._rearm_town_store_for_new_work(
                     STORE_HOME, release_visit_bound=True
                 )
@@ -28148,13 +28195,13 @@ class HengbotPolicy:
         return None
 
     def _home_mana_food_candidate(self) -> InventoryItem | None:
-        """Cheapest known charged Home device, if the catalogue has one."""
+        """Cheapest edible Home device, including unidentified devices."""
         if not self._home_knowledge_current:
             return None
         candidates = [
             item
             for item in self._home_knowledge_items
-            if item.is_wand_staff and item.known and item.charges > 0
+            if item.is_wand_staff and (not item.known or item.charges > 0)
         ]
         if not candidates:
             return None
@@ -28184,6 +28231,7 @@ class HengbotPolicy:
 
         edible = self._find_edible(snapshot)
         if edible is not None:
+            self._home_procurement_probe = None
             self.last_reason = "survival:mana-absorb"
             return EAT_KEY + edible.slot
 
@@ -28191,7 +28239,11 @@ class HengbotPolicy:
         # never absence; only a current complete catalogue may release a buy.
         home_device = self._home_mana_food_candidate()
         home_needed = not self._home_knowledge_current or home_device is not None
-        if home_needed and self._home_available(snapshot):
+        if not home_needed:
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "fresh-catalogue-absence"
+        home_bearing_town = self._current_town_has_home(snapshot)
+        if home_needed and home_bearing_town and self._home_available(snapshot):
             self._home_procurement_probe = (-1, -1)
             if home_device is not None:
                 identity = self._item_signature(home_device)
@@ -28200,23 +28252,30 @@ class HengbotPolicy:
             self._rearm_town_store_for_new_work(
                 STORE_HOME, release_visit_bound=True
             )
-            request = self._derived_home_visit_request(snapshot)
-            if request is not None:
-                visit = self._home_visit
-                if visit.active and visit.request != request:
-                    # Starvation may replace lower-priority Home routing, but
-                    # must not replenish the physical visit budget.
-                    attempts_used = visit.attempts_used
-                    visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
-                    visit.attempts_used = attempts_used
-                    self._home_visit = visit
-                visit.file(request)
-            step = self._shopping_approach_step(snapshot, STORE_HOME)
-            if step is not None:
+            filed = self._ensure_home_visit_request(snapshot)
+            step = (
+                self._shopping_approach_step(snapshot, STORE_HOME)
+                if filed else None
+            )
+            if filed and step is not None:
                 self.last_reason = "survival:mana-home-approach"
                 return self._shopping_approach_key(
                     snapshot, step, "survival:mana-home-travel"
                 )
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = (
+                "home-unroutable" if filed else "home-visit-rejected"
+            )
+            self.last_reason = "town:blocked:survival-mana-no-charges"
+            return WAIT_KEY
+        elif home_needed and home_bearing_town:
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "home-routing-defect"
+            self.last_reason = "town:blocked:survival-mana-no-charges"
+            return WAIT_KEY
+        elif home_needed:
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "town-without-home"
 
         if snapshot.store is not None:
             if snapshot.store.store_type in {

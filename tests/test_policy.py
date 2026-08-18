@@ -18211,10 +18211,8 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
-        self.assertEqual(
-            policy.last_reason, "survival:mana-home-scan-before-purchase"
-        )
+        self.assertEqual(policy._shop(snap), "pb\r")
+        self.assertEqual(policy._home_procurement_fallthrough, "town-without-home")
         policy._home_knowledge_current = True
         policy._home_knowledge_items = []
         self.assertEqual(policy._shop(snap), "pb\r")
@@ -18291,6 +18289,62 @@ class HiddenInfoFallbackTest(unittest.TestCase):
         self.assertEqual(request.kind, policy_module.HomeVisitKind.WITHDRAW)
         self.assertEqual(request.item_identity, policy._item_signature(stored))
         self.assertEqual(policy._home_visit.request, request)
+
+    def test_a21_unroutable_home_never_rearms_magic_entry_loop(self):
+        policy = HengbotPolicy()
+        snap = replace(self._mana_starvation_snapshot(), town_id=0)
+        policy._town_store_attempted[STORE_MAGIC] = snap.turn
+
+        self.assertEqual(policy._mana_food_survival_override_key(snap), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "town:blocked:survival-mana-no-charges")
+        self.assertIsNone(policy._home_procurement_probe)
+        self.assertEqual(policy._home_procurement_fallthrough, "home-routing-defect")
+
+    def test_a21_unroutable_home_blocks_before_magic_entry(self):
+        policy = HengbotPolicy()
+        outside = replace(
+            self._mana_starvation_snapshot(),
+            town_id=0,
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_MAGIC
+                ),
+            },
+        )
+        policy._build_grid_index(outside)
+
+        self.assertEqual(policy._mana_food_survival_override_key(outside), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "town:blocked:survival-mana-no-charges")
+        self.assertNotIn(STORE_MAGIC, policy._town_store_attempted)
+
+    def test_starving_ration_race_with_home_stock_withdraws_before_buying(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        stored = item("h", TVAL_FOOD, 35, count=20, name="Home rations")
+        snap = replace(
+            self._mana_starvation_snapshot(
+                store=StoreState(STORE_GENERAL, [ration]), gold=500
+            ),
+            player=replace(
+                self._mana_starvation_snapshot().player,
+                food_type=0,
+            ),
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [stored]
+
+        self.assertEqual(policy._shop(snap), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "survival:ration-home-before-purchase")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(stored))
+
+    def test_unknown_home_device_is_a_mana_food_withdrawal_candidate(self):
+        unknown = item("h", TVAL_WAND, 1, aware=False, charges=0, name="unknown wand")
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [unknown]
+
+        self.assertIs(policy._home_mana_food_candidate(), unknown)
 
     def test_a21_floor_device_pickup_preempts_terminal_wait(self):
         snap = self._mana_starvation_snapshot()

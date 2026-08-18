@@ -65,6 +65,14 @@ PUBLIC_TESTS = frozenset(
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
         "test_policy.IdleItemDepositTest.test_gate1_sale_retains_the_standing_two_digger_kit",
         "test_policy.IdleItemDepositTest.test_gate1_five_diggers_compose_sales_for_only_the_three_worst",
+        "test_policy.HiddenInfoFallbackTest.test_a21_home_device_prevents_affordable_purchase",
+        "test_policy.HiddenInfoFallbackTest.test_a21_fresh_home_absence_falls_through_once",
+        "test_policy.HiddenInfoFallbackTest.test_shortage_purchase_is_home_first_too",
+        "test_policy.HiddenInfoFallbackTest.test_a21_unaffordable_device_composes_surplus_sale_before_stop",
+        "test_policy.HiddenInfoFallbackTest.test_a21_unroutable_home_never_rearms_magic_entry_loop",
+        "test_policy.HiddenInfoFallbackTest.test_a21_unroutable_home_blocks_before_magic_entry",
+        "test_policy.HiddenInfoFallbackTest.test_starving_ration_race_with_home_stock_withdraws_before_buying",
+        "test_policy.HiddenInfoFallbackTest.test_unknown_home_device_is_a_mana_food_withdrawal_candidate",
         "test_policy.IdleItemDepositTest.test_five_equal_diggers_are_surplus_for_deposit_but_retained_from_sale",
         "test_policy.TownAndFundraisingPolicyTest.test_two_visible_withdraw_failures_do_not_override_total_stock_target",
         "test_policy.TownAndFundraisingPolicyTest.test_gate1_digger_rebuy_window_stops_after_first_fallback_purchase",
@@ -109,6 +117,58 @@ def replacement(path: str, old: str, new: str) -> Replacement:
 
 
 MUTATIONS = (
+    Mutation(
+        "allow-purchase-without-fresh-home-absence",
+        True,
+        "Remove the universal fresh-Home evidence gate from purchase composition.",
+        (replacement(
+            "policy.py",
+            "            if not self._purchase_has_fresh_home_absence(snapshot, item):\n",
+            "            if False and not self._purchase_has_fresh_home_absence(snapshot, item):\n",
+        ),),
+    ),
+    Mutation(
+        "restore-mana-survival-shop-first",
+        True,
+        "Let the MANA emergency enter the Magic shop before evaluating Home.",
+        (replacement(
+            "policy.py",
+            "        home_needed = not self._home_knowledge_current or home_device is not None\n",
+            "        home_needed = home_device is not None and STORE_MAGIC in self._town_store_attempted\n",
+        ),),
+    ),
+    Mutation(
+        "disable-mana-emergency-sales",
+        True,
+        "Remove retention-safe sales as the affordability fallback.",
+        (replacement(
+            "policy.py",
+            "                sale = self._mana_survival_sale_candidate(\n"
+            "                    snapshot, store.store_type\n"
+            "                )\n",
+            "                sale = None\n",
+        ),),
+    ),
+    Mutation(
+        "restore-ration-shop-first",
+        True,
+        "Bypass the universal Home-first check for survival ration purchases.",
+        (replacement(
+            "policy.py",
+            "                    and not self._purchase_has_fresh_home_absence(snapshot, food_item)\n",
+            "                    and False and not self._purchase_has_fresh_home_absence(snapshot, food_item)\n",
+        ),),
+    ),
+    Mutation(
+        "reject-unknown-home-mana-device",
+        True,
+        "Restore the false-absence filter for unidentified Home devices.",
+        (replacement(
+            "policy.py",
+            "            if item.is_wand_staff and (not item.known or item.charges > 0)\n",
+            "            if item.is_wand_staff and item.known and item.charges > 0\n",
+        ),),
+    ),
     Mutation(
         "disable-digger-sale-retention",
         True,
