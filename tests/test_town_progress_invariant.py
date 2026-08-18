@@ -6,6 +6,7 @@ import unittest
 
 from hengbot.model import STORE_MAGIC, TVAL_WAND, StoreItem, StoreState
 from hengbot.policy import (
+    FOOD_TYPE_MANA,
     HengbotPolicy,
     ProcurementHomeGate,
     StoreVisit,
@@ -21,7 +22,7 @@ class TownProgressInvariantTest(unittest.TestCase):
         / "device-purchase-preempted-checkpoint.jsonl.gz"
     )
 
-    def _case(self, price=1083):
+    def _case(self, price=1083, *, on_door=True, food_type=None):
         _row, policy_blob, snapshot_blob = checkpoint_row(self.FIXTURE, 253)
         policy, snapshot = restore_incident_checkpoint(
             HengbotPolicy, policy_blob, snapshot_blob
@@ -32,15 +33,33 @@ class TownProgressInvariantTest(unittest.TestCase):
         )
         store = StoreState(STORE_MAGIC, [wand], page_top=0)
         position = snapshot.player.position
+        player = snapshot.player
+        if food_type is not None:
+            player = replace(player, food_type=food_type, food_state="normal")
         snapshot = replace(
-            snapshot,
+            snapshot, player=player,
             grids={
                 **snapshot.grids,
-                position: replace(
-                    snapshot.grids[position], store_number=STORE_MAGIC
-                ),
+                position: replace(snapshot.grids[position], store_number=(
+                    STORE_MAGIC if on_door else -1
+                )),
             },
         )
+        if not on_door:
+            entrance = min(
+                (
+                    grid for grid in snapshot.grids.values()
+                    if grid.position.distance_to(position) >= 3
+                    and grid.passable
+                ),
+                key=lambda grid: grid.position.distance_to(position),
+            )
+            snapshot = replace(snapshot, grids={
+                **snapshot.grids,
+                entrance.position: replace(
+                    entrance, store_number=STORE_MAGIC
+                ),
+            })
         policy._purchase_has_fresh_home_absence = (
             lambda _snapshot, _item: ProcurementHomeGate.ALLOW_PURCHASE
         )
@@ -145,22 +164,40 @@ class TownProgressInvariantTest(unittest.TestCase):
             },
         )
 
-    def test_derived_randomized_terminal_never_beats_affordable_shelf(self):
+    def test_derived_randomized_result_invariant_generalized_sweep(self):
         rng = Random(5488)
-        for _ in range(32):
+        reasons = (
+            "town:blocked:injected-owner", "town:idle-wait",
+            "procurement:defer", "town:hold", "await-restock",
+        )
+        for index in range(40):
             price = rng.randint(1, 20000)
-            policy, snapshot, _store = self._case(price)
+            far_away = bool(index % 2)
+            food_type = FOOD_TYPE_MANA if index % 3 == 0 else 0
+            policy, snapshot, store = self._case(
+                price, on_door=not far_away, food_type=food_type,
+            )
+            policy._town_supplier_stock = {STORE_MAGIC: store}
+            if far_away:
+                policy._shop_observation = None
             reserve = policy._fundraising_kit_reserve(snapshot)
             affordable = price <= snapshot.player.gold - reserve
+            wanted = policy._next_purchase_unreserved(
+                replace(snapshot, store=store)
+            )
+            composable = affordable and wanted is not None
+            reason = reasons[index % len(reasons)]
             def injected_terminal(_snapshot):
-                policy.last_reason = "town:blocked:injected-owner"
+                policy.last_reason = reason
                 return WAIT_KEY
             policy._choose_key_with_latch_capture = injected_terminal
             key = policy.choose_key(snapshot)
-            if affordable:
-                self.assertTrue(policy._store_visit.operation_posted)
-                self.assertFalse(
-                    policy._town_no_progress_terminal(policy.last_reason, key)
+            if composable:
+                self.assertTrue(
+                    policy._store_visit.operation_posted
+                    or policy._town_result_makes_progress(snapshot, key),
+                    (index, reason, far_away, food_type, key,
+                     policy.last_reason, policy._town_progress_invariant_defect),
                 )
                 self.assertEqual(
                     policy._town_progress_invariant_defect["marker"],
@@ -168,9 +205,44 @@ class TownProgressInvariantTest(unittest.TestCase):
                 )
             else:
                 self.assertFalse(policy._store_visit.operation_posted)
+                self.assertEqual(policy.last_reason, reason)
+
+    def test_emit_only_phase_is_silent_for_legitimate_results(self):
+        policy, snapshot, store = self._case(
+            price=999999, on_door=False
+        )
+        policy._town_supplier_stock = {STORE_MAGIC: store}
+        for reason, key in (
+            ("town:idle-wait", WAIT_KEY),
+            ("procurement:defer", WAIT_KEY),
+            ("ordinary-action", "6"),
+        ):
+            with self.subTest(reason=reason):
+                policy._town_progress_invariant_defect = {}
+                policy.last_reason = reason
                 self.assertEqual(
-                    policy.last_reason, "town:blocked:injected-owner"
+                    policy._town_procurement_decision(
+                        snapshot, key, enforce=False
+                    ),
+                    key,
                 )
+                self.assertEqual(policy._town_progress_invariant_defect, {})
+
+    def test_emit_only_phase_reports_without_overriding(self):
+        policy, snapshot, store = self._case(on_door=False)
+        policy._town_supplier_stock = {STORE_MAGIC: store}
+        policy._shop_observation = None
+        policy.last_reason = "town:idle-wait"
+        self.assertEqual(
+            policy._town_procurement_decision(
+                snapshot, WAIT_KEY, enforce=False
+            ),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy._town_progress_invariant_defect["marker"],
+            "TOWN_PROGRESS_INVARIANT_DEFECT",
+        )
 
 
 if __name__ == "__main__":

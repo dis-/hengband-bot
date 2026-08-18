@@ -2973,24 +2973,37 @@ class HengbotPolicy:
         "reserve-already-satisfied",
     })
 
-    @staticmethod
-    def _town_no_progress_terminal(reason: str, key: str) -> bool:
-        """Whether the proposed result is one of the town terminal family."""
-        if reason.startswith("town-progress-invariant:"):
+    def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
+        """Positively classify a town result by its effect, never its label."""
+        if (
+            key == LEAVE_STORE_KEY
+            and snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and self._home_entry_operation_posted
+        ):
+            return True
+        if key in {"", WAIT_KEY, LEAVE_STORE_KEY}:
             return False
-        return (
-            reason.startswith("town:blocked:")
-            or reason.startswith("town:wait-restock:")
-            or reason.startswith("restocked-")
-            or reason.startswith("livelock:")
-            or reason in {
-                "shop:observe-and-leave",
-                "survival:shop-approach",
-                "town:cycle-break",
-            }
-            or "unreachable" in reason
-            or ("repetition" in reason and key in {WAIT_KEY, LEAVE_STORE_KEY})
+        if self._store_visit is not None and self._store_visit.operation_posted:
+            return True
+        direction = next(
+            (delta for delta, direction_key in DIRECTION_KEYS.items()
+             if direction_key == key),
+            None,
         )
+        goal = self._shopping_approach_goal
+        if direction is not None and goal is None:
+            return False
+        if direction is not None:
+            before = snapshot.player.position.distance_to(goal)
+            after = Position(
+                snapshot.player.position.y + direction[0],
+                snapshot.player.position.x + direction[1],
+            ).distance_to(goal)
+            return after < before
+        # Non-wait command macros are action producers: their contracts change
+        # gold/inventory/food/exp/depth or initiate travel to the selected goal.
+        return True
 
     def _town_progress_allow_members(self, snapshot: Snapshot) -> frozenset[str]:
         """Return only members of the reviewed procurement preemptor set."""
@@ -3039,9 +3052,7 @@ class HengbotPolicy:
         # the A26 generic-food route unable to preempt a MANA acquisition.
         if snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry:
             mana = self._mana_food_survival_override_key(snapshot)
-            if mana is not None and not self._town_no_progress_terminal(
-                self.last_reason or "", mana
-            ):
+            if mana is not None and self._town_result_makes_progress(snapshot, mana):
                 return mana, self.last_reason
 
         # A27 bookkeeping belongs to candidate availability: stale terminal
@@ -3056,44 +3067,36 @@ class HengbotPolicy:
             if visit is not None and not visit.operation_posted:
                 self._close_store_visit("town-progress-invariant-reroute")
 
-        required_store = self._next_required_store_type(snapshot)
-        # Ordinary Home errands have their own executor and are not shop
-        # purchases.  Only the explicit MANA Home-first arm above may turn
-        # them into a procurement candidate.
-        if required_store in {None, STORE_HOME}:
+        supplier = None
+        for store_type, known_stock in getattr(
+            self, "_town_supplier_stock", {}
+        ).items():
+            if store_type == STORE_HOME:
+                continue
+            stock_snapshot = replace(snapshot, store=known_stock)
+            wanted = self._next_purchase_unreserved(stock_snapshot)
+            if wanted is None:
+                continue
+            quantity = self._purchase_quantity(stock_snapshot, wanted)
+            reserve = self._fundraising_kit_reserve(stock_snapshot)
+            if snapshot.player.gold - wanted.price * quantity >= reserve:
+                supplier = store_type
+                break
+        if supplier is None:
             return None
-        known_stock = getattr(self, "_town_supplier_stock", {}).get(required_store)
-        if known_stock is None:
-            return None
-        stock_snapshot = replace(snapshot, store=known_stock)
-        wanted = self._next_purchase_unreserved(stock_snapshot)
-        if wanted is None:
-            return None
-        quantity = self._purchase_quantity(stock_snapshot, wanted)
-        reserve = self._fundraising_kit_reserve(stock_snapshot)
-        if snapshot.player.gold - wanted.price * quantity < reserve:
-            return None
-        step = self._shopping_approach_step(snapshot)
+        step = self._shopping_approach_step(snapshot, supplier)
         if step is None:
             return None
         reason = "town-progress-invariant:approach"
         key = self._shopping_approach_key(snapshot, step, reason)
         return key, self.last_reason or reason
 
-    def _town_procurement_decision(self, snapshot: Snapshot, key: str) -> str:
+    def _town_procurement_decision(
+        self, snapshot: Snapshot, key: str, *, enforce: bool = True
+    ) -> str:
         """Enforce composable progress at the one downstream town-result seam."""
         proposed_reason = self.last_reason or ""
-        if (
-            not snapshot.in_town
-            or not self._town_no_progress_terminal(proposed_reason, key)
-        ):
-            return key
-        if proposed_reason.startswith((
-            "town:blocked:equipment-transaction:",
-            "town:blocked:equipment-work-",
-            "town:blocked:depth-gate:",
-            "town:blocked:departure-unsatisfiable",
-        )):
+        if not snapshot.in_town or self._town_result_makes_progress(snapshot, key):
             return key
         allow_members = self._town_progress_allow_members(snapshot)
         if allow_members:
@@ -3117,6 +3120,23 @@ class HengbotPolicy:
             self._record_shop_selector_diagnostics(snapshot, key)
             return key
 
+        visit = self._store_visit
+        if visit is not None and visit.operation_posted:
+            progress_reason = "shop:one-shot-buy"
+            self._town_progress_invariant_defect = {
+                "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+                "winning_rung": proposed_reason,
+                "progress_action": progress_reason,
+                "gold": snapshot.player.gold,
+                "allow_set": (),
+            }
+            if enforce:
+                self.last_reason = (
+                    "town-progress-invariant:defect:"
+                    f"{proposed_reason}=>{progress_reason}"
+                )
+            return key
+
         progress = self._town_procurement_progress_key(snapshot)
         if progress is None:
             self.last_reason = proposed_reason
@@ -3129,6 +3149,9 @@ class HengbotPolicy:
             "gold": snapshot.player.gold,
             "allow_set": (),
         }
+        if not enforce:
+            self.last_reason = proposed_reason
+            return key
         self.last_reason = (
             f"town-progress-invariant:defect:{proposed_reason}=>{progress_reason}"
         )
