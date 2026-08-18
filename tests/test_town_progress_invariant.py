@@ -137,6 +137,78 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
         self.assertIn("=>shop:one-shot-buy", policy.last_reason)
 
+    def test_live_shaped_magic_observe_then_compose_ignores_advanced_plan(self):
+        policy, snapshot, store = self._case()
+        # The live 08:04:52 page was Magic at the real captured entrance
+        # (38, 106).  Seed only that measured position/page onto the restored
+        # decision-253 checkpoint and preserve the observation naturally.
+        entrance = replace(snapshot.player.position, y=38, x=106)
+        outside = replace(
+            snapshot,
+            player=replace(snapshot.player, position=entrance),
+            grids={
+                **snapshot.grids,
+                entrance: replace(
+                    snapshot.grids[entrance], store_number=STORE_MAGIC
+                ),
+            },
+            store=None,
+        )
+        inside = replace(outside, store=store)
+        policy._shop_observation = None
+        policy._shopping_approach_store_type = STORE_MAGIC
+        policy._town_blocked_reason = None
+        policy._town_cycle_pending = False
+
+        # Drive the real store handler: observe first, then leave.  The town
+        # plan advancing to another store must not invalidate this Magic page.
+        observed_key = policy.choose_key(inside)
+        self.assertEqual(observed_key, "\x1b")
+        self.assertEqual(
+            policy.last_reason,
+            "town-progress-invariant:continue-observed-shop",
+        )
+        self.assertEqual(policy._shop_observation[0].store_type, STORE_MAGIC)
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+
+        posted_key = policy.choose_key(outside)
+        self.assertEqual(posted_key, WAIT_KEY)
+        self.assertTrue(policy._store_visit.operation_posted)
+        self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
+        self.assertIn("shop:one-shot-buy", policy.last_reason)
+
+    def test_target_leave_is_defect_but_nonstocking_leave_can_advance(self):
+        policy, snapshot, store = self._case()
+        target = replace(snapshot, store=store)
+        policy._shop_observation = (store, policy._decision_sequence)
+        policy.last_reason = "shop:observe-and-leave"
+        self.assertEqual(
+            policy._town_procurement_decision(target, "\x1b"), "\x1b"
+        )
+        self.assertEqual(
+            policy._town_progress_invariant_defect["winning_rung"],
+            "shop:observe-and-leave",
+        )
+
+        empty = replace(store, items=[])
+        nonstocking = replace(snapshot, store=empty)
+        policy._town_progress_invariant_defect = {}
+        policy.last_reason = "shop:observe-and-leave"
+        self.assertEqual(
+            policy._town_procurement_decision(nonstocking, "\x1b"), "\x1b"
+        )
+        self.assertEqual(policy.last_reason, "shop:observe-and-leave")
+        self.assertEqual(policy._town_progress_invariant_defect, {})
+
+    def test_saved_page_composes_after_town_plan_advances(self):
+        policy, snapshot, store = self._case()
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+        policy._shop_observation = (store, policy._decision_sequence)
+        key = policy._atomic_shop_transaction_key(snapshot)
+        self.assertEqual(key, WAIT_KEY)
+        self.assertTrue(policy._store_visit.operation_posted)
+        self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
+
     def test_closed_allow_set_members_are_individually_pinned(self):
         policy, snapshot, _store = self._case()
         cases = (

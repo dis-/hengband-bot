@@ -3106,6 +3106,17 @@ class HengbotPolicy:
         key = self._shopping_approach_key(snapshot, step, reason)
         return key, self.last_reason or reason
 
+    def _town_observed_purchase_is_composable(self, snapshot: Snapshot) -> bool:
+        """Whether this ordinary-store page can fund a wanted purchase now."""
+        if snapshot.store is None or snapshot.store.store_type == STORE_HOME:
+            return False
+        wanted = self._next_purchase_unreserved(snapshot)
+        if wanted is None:
+            return False
+        quantity = self._purchase_quantity(snapshot, wanted)
+        reserve = self._fundraising_kit_reserve(snapshot)
+        return snapshot.player.gold - wanted.price * quantity >= reserve
+
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str:
@@ -3117,12 +3128,13 @@ class HengbotPolicy:
         if allow_members:
             return key
 
-        # Observing a wanted shelf is the entry phase of the existing atomic
-        # contract.  Leaving is required to bind the operation outside, so make
-        # that continuation visible as progress rather than a silent terminal.
+        # Observing a wanted, affordable shelf is the entry phase of the
+        # existing atomic contract.  Leaving is only its transport step: it is
+        # a defect until the saved page is composed on the adjacent outside
+        # snapshot.  A non-supplier store may still be left normally so the
+        # router can advance toward another supplier.
         if proposed_reason == "shop:observe-and-leave":
-            wanted = self._next_purchase_unreserved(snapshot)
-            if wanted is None:
+            if not self._town_observed_purchase_is_composable(snapshot):
                 return key
             self.last_reason = "town-progress-invariant:continue-observed-shop"
             self._town_progress_invariant_defect = {
@@ -21423,14 +21435,18 @@ class HengbotPolicy:
     def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
         """Compose one transaction from the latest observed page, outside."""
         observation = self._shop_observation
-        store_type = self._shopping_approach_store_type
         if (
             observation is None
             or snapshot.store is not None
-            or store_type in {None, STORE_HOME}
-            or observation[0].store_type != store_type
+            or observation[0].store_type == STORE_HOME
         ):
             return None
+        # Bind the one-shot to the page that was actually observed, not the
+        # mutable town-plan cursor.  The ordinary shop handler advances that
+        # cursor while producing the observe-and-leave result; using it here
+        # made the adjacent outside handoff reject the target store and travel
+        # to the following stop without composing the purchase.
+        store_type = observation[0].store_type
         here = snapshot.grid_at(snapshot.player.position)
         if here is None or here.store_number != store_type:
             return None
