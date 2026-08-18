@@ -479,39 +479,42 @@ class UniversalPostingContractTest(unittest.TestCase):
             "posting-contract:prompt-owner-mismatch",
         )
 
-    def test_prompt_owner_handoff_accepts_claimed_pickup_once(self):
+    def test_prompt_owner_handoff_clears_before_the_next_decision(self):
         contract = PostingContract()
         raised = self.snapshot(turn=3264100)
         contract.posted(raised, "6", "seek-loot")
         prompt = self.snapshot(
             turn=3264100,
-            messages=("トラベルを続けますか？[y/n]",),
+            messages=("トラベルを継続しますか？[y/n]",),
         )
-        posted = []
-
-        sent, _ = _send_new_decision_key(
-            lambda key, **_kwargs: posted.append(key) or True,
-            "pickup-prompt", "g", None, set(), in_store=False,
-            decision={
-                "reason": "pickup",
-                "prompt_owner_handoff": "seek-loot",
-            },
-            snapshot=prompt,
-            posting_contract=contract,
-        )
-
-        self.assertTrue(sent)
-        self.assertEqual(posted, ["g"])
+        policy = HengbotPolicy()
+        policy.prompt_owner_handoff = "seek-loot"
+        self.assertTrue(contract.allow(
+            prompt,
+            "g",
+            "pickup",
+            prompt_owner_handoff=policy.prompt_owner_handoff,
+        ))
         self.assertIsNone(contract.last_incident)
 
-        sent_again, _ = _send_new_decision_key(
-            lambda key, **_kwargs: posted.append(key) or True,
-            "pickup-prompt", "g", "pickup-prompt", {"g"}, in_store=False,
-            decision={"reason": "pickup"},
-            snapshot=prompt, posting_contract=contract,
+        next_snapshot_data = json.loads(_snap_line(3264101, 5, 7))
+        next_snapshot_data["floor"] = {
+            "dungeon_id": 0,
+            "level": 0,
+            "in_town": True,
+        }
+        policy.choose_key(parse_snapshot(next_snapshot_data, {}))
+
+        self.assertFalse(contract.allow(
+            prompt,
+            ".",
+            "wait",
+            prompt_owner_handoff=policy.prompt_owner_handoff,
+        ))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:prompt-owner-mismatch",
         )
-        self.assertFalse(sent_again)
-        self.assertEqual(posted, ["g"])
 
     def test_prompt_owner_handoff_must_claim_actual_owner(self):
         contract = PostingContract()
@@ -536,7 +539,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract.posted(raised, "5", "town:blocked:departure-no-light")
         prompt = self.snapshot(
             turn=3264322,
-            messages=("トラベルを続けますか？[y/n]",),
+            messages=("トラベルを継続しますか？[y/n]",),
         )
 
         self.assertTrue(contract.allow(
