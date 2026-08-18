@@ -93,20 +93,6 @@ Types:
    locally (imperative English message explaining root cause), log "fix",
    then `resume`.
 3a. ANTI-ENBUG RULES (2026-07-17, after fixes themselves caused incidents):
-   - GATE STATUS (supervisor, 2026-08-18 evening): the gates are ADVISORY
-     until their open blockers land. Reviewer-measured, still broken:
-     (a) verify_scope exits non-zero whenever an allowlisted module is merely
-     out of the derived scope, so almost every commit is red for no reason;
-     (b) a commit that ADDS A FILE is auto-reported PROTECTED off an import
-     error, and its hunks collapse into one whole-commit verdict;
-     (c) running two gate invocations concurrently DESTROYS the first one's
-     sandbox (stale-worktree cleanup deletes by name prefix). So: run at most
-     ONE gate process at a time, treat their output as information, do NOT
-     gate a commit on them, do NOT edit any allowlist to go green, and above
-     all NEVER weaken or delete a test to make a hunk look protected. Verify
-     the normal way (per-module batches + manual revert-proof with counts)
-     and state those counts in the fix event. This paragraph is removed when
-     the blockers land.
    - GENERATED VERIFICATION GATES (2026-08-18, TARGET STATE): every fix MUST run
      `scripts/verify_scope.py` and `scripts/hunk_guard.py` before committing.
      Paste `verify_scope.py`'s generated JSON verification block verbatim into

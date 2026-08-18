@@ -21,6 +21,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "1.0"
+WORKTREE_OWNER_FILE = ".hengbot-gate-owner.json"
+STALE_WORKTREE_AGE_SECONDS = 24 * 60 * 60
 ALWAYS_MODULES = {"tests.test_policy", "tests.test_cli", "tests.test_absorbing_states"}
 LINTS = ("scripts/sale_key_lint.py", "scripts/test_fakery_lint.py")
 EXCLUDED_TESTS = {
@@ -84,8 +86,48 @@ def cleanup_stale_temp_worktrees(root: Path = ROOT) -> None:
     for value in re.findall(r"^worktree (.+)$", listing, re.MULTILINE):
         path = Path(value)
         if path.name.startswith(("hengbot-verify-", "hengbot-hunk-")) and path != root:
-            cleanup_worktree(path, root)
+            owner = read_worktree_owner(path)
+            if owner is None or not owner_is_live(owner):
+                cleanup_worktree(path, root)
     prune_worktrees(root)
+
+
+def record_worktree_owner(path: Path) -> None:
+    worktree_owner_path(path).write_text(json.dumps({
+        "pid": os.getpid(), "started": time.time(),
+    }), encoding="utf-8")
+
+
+def worktree_owner_path(path: Path) -> Path:
+    return path.with_name(path.name + WORKTREE_OWNER_FILE)
+
+
+def read_worktree_owner(path: Path) -> dict[str, object] | None:
+    try:
+        return json.loads(worktree_owner_path(path).read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        return None
+
+
+def process_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError):
+        return True
+    return True
+
+
+def owner_is_live(owner: dict[str, object], now: float | None = None) -> bool:
+    try:
+        pid, started = int(owner["pid"]), float(owner["started"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    age = (time.time() if now is None else now) - started
+    return age <= STALE_WORKTREE_AGE_SECONDS and process_is_running(pid)
 
 
 def cleanup_worktree(path: Path, root: Path = ROOT) -> None:
@@ -97,6 +139,7 @@ def cleanup_worktree(path: Path, root: Path = ROOT) -> None:
         # from ever traversing content we have not inspected.
         shutil.rmtree(path)
     git(root, "worktree", "remove", "--force", str(path), check=False)
+    worktree_owner_path(path).unlink(missing_ok=True)
     prune_worktrees(root)
     _ACTIVE_WORKTREES.discard(path)
 
@@ -176,23 +219,33 @@ def changed_symbols(root: Path, base: str, target: str, paths: list[str]) -> dic
     return result
 
 
-def test_modules_referencing(root: Path, symbols: dict[str, list[str]]) -> set[str]:
+def test_paths_at(root: Path, target: str) -> list[str]:
+    if target == "WORKTREE":
+        return [str(path.relative_to(root)).replace("\\", "/")
+                for path in sorted((root / "tests").glob("test_*.py"))]
+    return [path for path in git(root, "ls-tree", "-r", "--name-only", target, "tests").splitlines()
+            if re.fullmatch(r"tests/test_[^/]+\.py", path)]
+
+
+def test_modules_referencing(root: Path, target: str, symbols: dict[str, list[str]]) -> set[str]:
     names = {name for values in symbols.values() for name in values if name != "<module>"}
     modules: set[str] = set()
-    for path in sorted((root / "tests").glob("test_*.py")):
-        text = path.read_text(encoding="utf-8")
+    for relative in test_paths_at(root, target):
+        text = source_at(root, target, relative)
         if any(re.search(rf"\b{re.escape(name)}\b", text) for name in names):
-            modules.add(f"tests.{path.stem}")
+            modules.add(f"tests.{Path(relative).stem}")
     return modules
 
 
 def derive_scope(root: Path, base: str, target: str) -> dict[str, object]:
     paths = changed_paths(root, base, target)
     symbols = changed_symbols(root, base, target, paths)
-    modules = test_modules_referencing(root, symbols) | ALWAYS_MODULES
+    modules = test_modules_referencing(root, target, symbols) | ALWAYS_MODULES
+    target_tests = set(test_paths_at(root, target))
     for path in symbols:
         owner = root / "tests" / f"test_{Path(path).stem}.py"
-        if owner.exists():
+        relative = str(owner.relative_to(root)).replace("\\", "/")
+        if relative in target_tests:
             modules.add(f"tests.{owner.stem}")
     for path in paths:
         if re.fullmatch(r"tests/test_[^/]+\.py", path):
@@ -239,6 +292,11 @@ def parse_test_failures(stderr: str) -> list[str]:
     return list(dict.fromkeys(qualified for _name, qualified in verbose + headers))
 
 
+def parse_test_errors(stderr: str) -> list[str]:
+    return list(dict.fromkeys(qualified for _name, qualified in re.findall(
+        r"^ERROR: (test\S+) \(([^)]+)\)$", stderr, re.MULTILINE)))
+
+
 def known_failure_matches(key: str, stderr: str, failure_ids: list[str]) -> list[dict[str, str]]:
     matches = [entry for entry in KNOWN_FAILURES if entry["module"] == key and entry["pattern"] in stderr]
     return matches if len(failure_ids) == 1 and len(matches) == 1 else []
@@ -268,14 +326,18 @@ def run_item(root: Path, key: str, command: list[str], timeout: float, stderr_di
         if lint_allowance and len(undeclared_lint_findings) == lint_allowance["count"]:
             known = [lint_allowance]
         status = "ran" if run.returncode == 0 else ("failed_known" if known else "failed")
-        error_lines = re.findall(r"^(?:ERROR|FAILED) \([^\n]+\)$", output, re.MULTILINE)
+        error_ids = parse_test_errors(output)
         failed_count = len(undeclared_lint_findings) if lint_allowance else (len(reported_failures) or len(lint_findings))
         return {"status": status, "failed": failed_count, "skipped": len(re.findall(r"\.\.\. skipped ", output)),
-                "failing_test_ids": reported_failures, "errors": error_lines, "duration": round(time.monotonic() - started, 3),
+                "failing_test_ids": reported_failures, "errors": error_ids, "duration": round(time.monotonic() - started, 3),
                 "stderr_path": stderr_label,
                 "known_failures": known}
     except subprocess.TimeoutExpired:
-        return {"status": "error", "failed": 0, "skipped": 0, "errors": [f"timeout after {timeout}s"],
+        partial = stderr_path.read_text(encoding="utf-8", errors="replace") if stderr_path.exists() else ""
+        failures = parse_test_failures(partial)
+        return {"status": "error", "failed": len(failures),
+                "skipped": len(re.findall(r"\.\.\. skipped ", partial)),
+                "failing_test_ids": failures, "errors": [f"timeout after {timeout}s", *parse_test_errors(partial)],
                 "duration": round(time.monotonic() - started, 3), "stderr_path": stderr_label}
 
 
@@ -307,12 +369,14 @@ def copy_runtime_artifacts(source: Path, destination: Path) -> dict[str, bool]:
 def allowlist_coverage(results: dict[str, dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     failure_entries = []
     for entry in KNOWN_FAILURES:
-        matched = any(entry in item.get("known_failures", []) for item in results.values())
-        failure_entries.append({**entry, "matched": matched})
+        if entry["module"] in results:
+            matched = entry in results[entry["module"]].get("known_failures", [])
+            failure_entries.append({**entry, "matched": matched})
     lint_entries = []
     for module, entry in KNOWN_LINT_FAILURES.items():
-        matched = entry in results.get(module, {}).get("known_failures", [])
-        lint_entries.append({"module": module, **entry, "matched": matched})
+        if module in results:
+            matched = entry in results[module].get("known_failures", [])
+            lint_entries.append({"module": module, **entry, "matched": matched})
     return {"known_failures": failure_entries, "known_lint_failures": lint_entries}
 
 
@@ -344,6 +408,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if target != "WORKTREE":
             temp = Path(tempfile.mkdtemp(prefix="hengbot-verify-"))
+            record_worktree_owner(temp)
             git(ROOT, "worktree", "add", "--detach", str(temp), target)
             _ACTIVE_WORKTREES.add(temp.resolve())
             run_root = temp

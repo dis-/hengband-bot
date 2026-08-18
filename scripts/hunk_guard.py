@@ -22,6 +22,9 @@ import verify_scope
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "2.0"
+# Python's unified-diff generator joins edits separated by at most this many
+# unchanged lines at the default context width (3 + 3 + two boundary lines).
+ADJACENT_HUNK_GAP = 8
 
 
 def file_hashes(root: Path) -> dict[str, str]:
@@ -105,32 +108,17 @@ def group_hunks(hunks: list[dict[str, object]]) -> list[list[dict[str, object]]]
     groups: list[list[dict[str, object]]] = []
     for hunk in hunks:
         if (groups and groups[-1][-1]["file"] == hunk["file"]
-                and int(hunk["line_start"]) - int(groups[-1][-1]["line_end"]) <= 8):
+                and int(hunk["line_start"]) - int(groups[-1][-1]["line_end"]) <= ADJACENT_HUNK_GAP):
             groups[-1].append(hunk)
         else:
             groups.append([hunk])
-    # A newly introduced module and the consumer hunks that name it form one
-    # cross-file unit: deleting only the module manufactures an import error,
-    # while reverting only its consumers leaves dead new code behind.
-    for new_group in list(groups):
-        if not any(bool(h.get("new_file")) for h in new_group):
-            continue
-        stems = {Path(str(h["file"])).stem for h in new_group}
-        direct = [group for group in groups if group is not new_group and any(
-            any(stem in "".join(str(line) for line in h.get("body", [])) for stem in stems)
-            for h in group)]
-        dependent_files = {str(h["file"]) for group in direct for h in group}
-        dependents = [group for group in groups if group is not new_group
-                      and any(str(h["file"]) in dependent_files for h in group)]
-        for group in dependents:
-            new_group[:0] = group
-            groups.remove(group)
     return groups
 
 
 def prepare_tree(target: str) -> tuple[Path, Path]:
     temp = Path(tempfile.mkdtemp(prefix="hengbot-hunk-"))
     commit = "HEAD" if target == "WORKTREE" else target
+    verify_scope.record_worktree_owner(temp)
     verify_scope.git(ROOT, "worktree", "add", "--detach", str(temp), commit)
     verify_scope._ACTIVE_WORKTREES.add(temp.resolve())
     if target == "WORKTREE":
@@ -151,7 +139,7 @@ def apply_patch(root: Path, patch: str, reverse: bool) -> None:
         raise RuntimeError(f"git apply failed: {run.stderr.strip()}")
 
 
-def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path, *, structural: bool = False) -> set[str]:
+def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path) -> set[str]:
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join((str(root / "src"), str(root / "tests")))
@@ -165,10 +153,10 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path, *,
     if run.returncode == 0:
         return set()
     stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-    if not structural and re.search(r"\b(?:ImportError|ModuleNotFoundError|NameError|SyntaxError|AttributeError|TypeError|IndentationError|TabError):", stderr):
+    if re.search(r"\b(?:ImportError|ModuleNotFoundError|NameError|SyntaxError|AttributeError|TypeError|IndentationError|TabError):", stderr):
         return set()
     return {test_id for test_id in verify_scope.parse_test_failures(stderr)
-            if structural or (not test_id.startswith("unittest.loader._FailedTest.") and "._FailedTest." not in test_id)}
+            if not test_id.startswith("unittest.loader._FailedTest.") and "._FailedTest." not in test_id}
 
 
 def compiles(root: Path, relative: str) -> bool:
@@ -247,15 +235,16 @@ def main(argv: list[str] | None = None) -> int:
                 if args.interrupt_after_revert:
                     raise KeyboardInterrupt("simulated interrupt")
                 protector = None
-                if new_file or all(compiles(sandbox, path) for path in files):
+                if not new_file and all(compiles(sandbox, path) for path in files):
                     for module in candidates:
                         failures = run_candidate(sandbox, module, args.timeout,
-                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log", structural=new_file)
+                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log")
                         new_failures = failures - baseline[module]
                         if new_failures:
                             protector = sorted(new_failures)[0]; break
                 record["protecting_test_id"] = protector
-                record["result"] = "PROTECTED" if protector else "UNPROTECTED"
+                record["result"] = ("NEW-FILE-UNVERIFIED" if new_file else
+                                    ("PROTECTED" if protector else "UNPROTECTED"))
                 results.append(record)
             finally:
                 for rel, content in original_bytes.items():
