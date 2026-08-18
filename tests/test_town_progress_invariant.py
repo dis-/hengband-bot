@@ -4,11 +4,19 @@ from random import Random
 from types import SimpleNamespace
 import unittest
 
-from hengbot.model import STORE_MAGIC, TVAL_WAND, StoreItem, StoreState
+from hengbot.model import (
+    STORE_ALCHEMIST,
+    STORE_MAGIC,
+    TVAL_WAND,
+    StoreItem,
+    StoreState,
+)
 from hengbot.policy import (
     FOOD_TYPE_MANA,
+    DIRECTION_KEYS,
     HengbotPolicy,
     ProcurementHomeGate,
+    RESTOCK_WAIT_MACRO,
     StoreVisit,
     WAIT_KEY,
 )
@@ -75,22 +83,43 @@ class TownProgressInvariantTest(unittest.TestCase):
 
     def test_whole_approach_enter_compose_sequence_uses_one_seam(self):
         policy, snapshot, store = self._case()
-        step = snapshot.player.position
+        # The searched live A28 geometry no longer survives in the capture
+        # generations.  Restore the real decision-253 checkpoint and seed only
+        # its measured incident preconditions: open-town position, remembered
+        # Magic shelf, and the selected supplier.  The captured board already
+        # contains the real Magic entrance at (38, 106).
+        incident_position = replace(snapshot.player.position, y=36, x=104)
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, position=incident_position),
+        )
         policy._shop_observation = None
         policy._town_supplier_stock = {STORE_MAGIC: store}
-        policy._next_required_store_type = lambda _snapshot: STORE_MAGIC
-        policy._shopping_approach_step = (
-            lambda _snapshot, _store_type=None: step
-        )
-        policy._shopping_approach_key = (
-            lambda _snapshot, _step, _reason: "6"
-        )
+        policy._shopping_approach_store_type = STORE_MAGIC
 
         policy.last_reason = "town:blocked:repetition"
-        self.assertEqual(
-            policy._town_procurement_decision(snapshot, WAIT_KEY), "6"
-        )
+        approach_key = policy._town_procurement_decision(snapshot, WAIT_KEY)
+        self.assertTrue(policy._town_result_makes_progress(snapshot, approach_key))
         self.assertIn("town-progress-invariant:defect", policy.last_reason)
+
+        # Consume ordinary one-tile approach results until the real captured
+        # Magic entrance is reached; no approach producer is replaced.
+        while snapshot.player.position != policy._shopping_approach_goal:
+            delta = next(
+                delta for delta, key in DIRECTION_KEYS.items()
+                if key == approach_key
+            )
+            position = snapshot.player.position
+            snapshot = replace(snapshot, player=replace(
+                snapshot.player,
+                position=replace(
+                    position,
+                    y=position.y + delta[0],
+                    x=position.x + delta[1],
+                ),
+            ))
+            policy.last_reason = "town:blocked:repetition"
+            approach_key = policy._town_procurement_decision(snapshot, WAIT_KEY)
 
         inside = replace(snapshot, store=store)
         policy._shop_observation = (store, policy._decision_sequence)
@@ -101,17 +130,11 @@ class TownProgressInvariantTest(unittest.TestCase):
             "town-progress-invariant:continue-observed-shop",
         )
 
-        policy._shopping_approach_step = HengbotPolicy._shopping_approach_step.__get__(
-            policy, HengbotPolicy
-        )
-        policy._shopping_approach_key = HengbotPolicy._shopping_approach_key.__get__(
-            policy, HengbotPolicy
-        )
         policy.last_reason = "town:blocked:repetition"
-        self.assertEqual(
-            policy._town_procurement_decision(snapshot, WAIT_KEY), WAIT_KEY
-        )
+        posted_key = policy._town_procurement_decision(snapshot, WAIT_KEY)
         self.assertTrue(policy._store_visit.operation_posted)
+        self.assertEqual(posted_key, WAIT_KEY)
+        self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
         self.assertIn("=>shop:one-shot-buy", policy.last_reason)
 
     def test_closed_allow_set_members_are_individually_pinned(self):
@@ -170,6 +193,8 @@ class TownProgressInvariantTest(unittest.TestCase):
             "town:blocked:injected-owner", "town:idle-wait",
             "procurement:defer", "town:hold", "await-restock",
         )
+        terminal_keys = (WAIT_KEY, RESTOCK_WAIT_MACRO, "l", "s", "\x1b\x1b")
+        store_types = (STORE_MAGIC, STORE_ALCHEMIST)
         for index in range(40):
             price = rng.randint(1, 20000)
             far_away = bool(index % 2)
@@ -177,7 +202,10 @@ class TownProgressInvariantTest(unittest.TestCase):
             policy, snapshot, store = self._case(
                 price, on_door=not far_away, food_type=food_type,
             )
-            policy._town_supplier_stock = {STORE_MAGIC: store}
+            store_type = store_types[index % len(store_types)]
+            store = replace(store, store_type=store_type)
+            policy._town_supplier_stock = {store_type: store}
+            policy._shopping_approach_store_type = store_type
             if far_away:
                 policy._shop_observation = None
             reserve = policy._fundraising_kit_reserve(snapshot)
@@ -187,16 +215,17 @@ class TownProgressInvariantTest(unittest.TestCase):
             )
             composable = affordable and wanted is not None
             reason = reasons[index % len(reasons)]
+            terminal_key = terminal_keys[index % len(terminal_keys)]
             def injected_terminal(_snapshot):
                 policy.last_reason = reason
-                return WAIT_KEY
+                return terminal_key
             policy._choose_key_with_latch_capture = injected_terminal
             key = policy.choose_key(snapshot)
             if composable:
                 self.assertTrue(
                     policy._store_visit.operation_posted
                     or policy._town_result_makes_progress(snapshot, key),
-                    (index, reason, far_away, food_type, key,
+                    (index, reason, terminal_key, store_type, far_away, food_type, key,
                      policy.last_reason, policy._town_progress_invariant_defect),
                 )
                 self.assertEqual(
@@ -206,6 +235,24 @@ class TownProgressInvariantTest(unittest.TestCase):
             else:
                 self.assertFalse(policy._store_visit.operation_posted)
                 self.assertEqual(policy.last_reason, reason)
+
+    def test_closed_key_axis_rejects_known_and_novel_noop_macros(self):
+        for terminal_key in (RESTOCK_WAIT_MACRO, "l", "s", "\x1b\x1b"):
+            with self.subTest(key=repr(terminal_key)):
+                policy, snapshot, store = self._case(on_door=False)
+                policy._town_supplier_stock = {STORE_MAGIC: store}
+                policy._shop_observation = None
+                def injected_terminal(_snapshot):
+                    policy.last_reason = "town:wait-restock:magic"
+                    return terminal_key
+                policy._choose_key_with_latch_capture = injected_terminal
+                key = policy.choose_key(snapshot)
+                self.assertNotEqual(key, terminal_key)
+                self.assertTrue(policy._town_result_makes_progress(snapshot, key))
+                self.assertEqual(
+                    policy._town_progress_invariant_defect["marker"],
+                    "TOWN_PROGRESS_INVARIANT_DEFECT",
+                )
 
     def test_emit_only_phase_is_silent_for_legitimate_results(self):
         policy, snapshot, store = self._case(

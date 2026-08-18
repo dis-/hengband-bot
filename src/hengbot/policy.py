@@ -2986,6 +2986,10 @@ class HengbotPolicy:
             return False
         if self._store_visit is not None and self._store_visit.operation_posted:
             return True
+        if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
+            # Store purchase/sale and inscription producers have closed command
+            # prefixes and directly mutate gold or inventory.
+            return True
         direction = next(
             (delta for delta, direction_key in DIRECTION_KEYS.items()
              if direction_key == key),
@@ -3001,9 +3005,20 @@ class HengbotPolicy:
                 snapshot.player.position.x + direction[1],
             ).distance_to(goal)
             return after < before
-        # Non-wait command macros are action producers: their contracts change
-        # gold/inventory/food/exp/depth or initiate travel to the selected goal.
-        return True
+        # Keep this positive and closed.  Native store travel and dungeon entry
+        # have explicit contracts that advance position/depth; an unknown macro
+        # is not progress merely because it contains command characters.
+        store_type = self._shopping_approach_store_type
+        if (
+            goal is not None
+            and store_type is not None
+            and 0 <= store_type < len(TOWN_TRAVEL_STORE_SYMBOLS)
+            and key == f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}."
+        ):
+            return True
+        if key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
+            return True
+        return False
 
     def _town_progress_allow_members(self, snapshot: Snapshot) -> frozenset[str]:
         """Return only members of the reviewed procurement preemptor set."""
