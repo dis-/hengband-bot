@@ -1124,6 +1124,11 @@ MOVE_REASONS = frozenset(
         "shop:approach",
     }
 )
+TOWN_CLAIM_ADVANCING_MOVE_REASONS = frozenset(
+    reason
+    for reason in MOVE_REASONS
+    if reason != "stuck:wander" and not reason.startswith("breakout")
+)
 
 # Consumable use (item command + inventory letter, sent as a macro).
 QUAFF_KEY = "q"
@@ -2920,6 +2925,8 @@ class HengbotPolicy:
         # decision's worn set.
         self.prompt_owner_handoff = None
         self._town_progress_invariant_defect = {}
+        self._town_liveness_invariant_defect = {}
+        self._town_liveness_claim_retired = False
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
         self._equipment_catalog.refresh_carried(
@@ -2987,6 +2994,11 @@ class HengbotPolicy:
         """Positively classify a town result by its effect, never its label."""
         if (
             key == LEAVE_STORE_KEY
+            and (self.last_reason or "").startswith("home-errand:filed:")
+        ):
+            return True
+        if (
+            key == LEAVE_STORE_KEY
             and snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and self._home_entry_operation_posted
@@ -3012,6 +3024,10 @@ class HengbotPolicy:
             # Store purchase/sale and inscription producers have closed command
             # prefixes and directly mutate gold or inventory.
             return True
+        if key.startswith("~") and (self.last_reason or "").startswith(
+            "home:request-knowledge-scan"
+        ):
+            return True
         direction = next(
             (delta for delta, direction_key in DIRECTION_KEYS.items()
              if direction_key == key),
@@ -3019,11 +3035,6 @@ class HengbotPolicy:
         )
         if direction is not None and (self.last_reason or "").endswith("home:scan-step-off") and not self._equipment_catalog.home_scan_complete:
             return True
-        fingerprint = self._town_progress_fingerprint(snapshot)
-        if direction is not None and fingerprint in self._town_progress_history():
-            # A direction key can still be one leg of an approach/observe/leave
-            # cycle.  Revisiting the same measured state is net-zero progress.
-            return False
         goal = self._shopping_approach_goal
         if direction is not None:
             if goal is not None:
@@ -3034,11 +3045,24 @@ class HengbotPolicy:
                 ).distance_to(goal)
                 if after < before:
                     return True
-            # MOVE_REASONS is the existing closed contract for owners that
-            # produced a walk toward an active loot, stair, exploration, quest,
-            # or other navigation goal.  The fingerprint check above prevents
-            # that contract from blessing a net-zero town cycle.
-            return (self.last_reason or "") in MOVE_REASONS
+            fingerprint = self._town_progress_fingerprint(snapshot)
+            if fingerprint in self._town_progress_history():
+                # Movement without a closer claim goal revisits the same town
+                # goal state even when it reaches a fresh map position.
+                return False
+            # Town movement is not goal progress.  Only an approach with a
+            # measured supplier/landmark goal or an established reachable
+            # movement owner can advance a live claim.  Wander and breakout
+            # labels are deliberately absent from this town-only contract.
+            reason = self.last_reason or ""
+            return (
+                reason in TOWN_CLAIM_ADVANCING_MOVE_REASONS
+                or "step-off" in reason
+                or reason.startswith("shop:")
+                or reason.startswith(
+                    "town-progress-invariant:boxed-breakout-travel"
+                )
+            )
         # Keep this positive and closed.  Native store travel and dungeon entry
         # have explicit contracts that advance position/depth; an unknown macro
         # is not progress merely because it contains command characters.
@@ -3052,13 +3076,17 @@ class HengbotPolicy:
             return True
         if key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
             return True
+        if key not in {RESTOCK_WAIT_MACRO, "l", "s", "\x1b\x1b"}:
+            # At this point direction, WAIT, leave, and the closed noop-macro
+            # axis have all been rejected.  Remaining policy command macros
+            # are inventory/equipment/Home actions that mutate goal state.
+            return True
         return False
 
     def _town_progress_fingerprint(self, snapshot: Snapshot) -> tuple[object, ...]:
         """Measured town progress fields used by the result arbitration seam."""
         return (
             snapshot.floor_key,
-            snapshot.player.position,
             snapshot.player.gold,
             snapshot.player.food_state,
             snapshot.player.food_type,
@@ -3068,6 +3096,21 @@ class HengbotPolicy:
                 (self._emission_item_state(item) for item in snapshot.inventory),
                 key=repr,
             )),
+            tuple(sorted(
+                (self._emission_item_state(item) for item in snapshot.equipment),
+                key=repr,
+            )),
+            tuple(getattr(self._town_errand_plan, "completed_this_visit", ()) or ()),
+            tuple(getattr(self._town_errand_plan, "blocked_this_visit", ()) or ()),
+            self._equipment_catalog.home_scan_complete,
+            self._home_knowledge_current,
+            self._home_pending_item,
+            tuple(self._home_pending_batch),
+            self._home_atomic_withdraw_pending,
+            self._home_atomic_deposit_pending,
+            tuple(getattr(self._equipment_optimization_preparation, "blockers", ())),
+            self._equipment_transaction_session is not None,
+            tuple(sorted(self._equipment_transaction_failed_items)),
         )
 
     def _town_progress_history(self) -> deque[tuple[object, ...]]:
@@ -3220,6 +3263,8 @@ class HengbotPolicy:
         result_makes_progress = self._town_result_makes_progress(snapshot, key)
         if not snapshot.in_town or result_makes_progress:
             return key
+        claims_active = self._town_claims_active(snapshot)
+        movement_key = key in DIRECTION_KEYS.values()
         allow_members = self._town_progress_allow_members(snapshot)
         if allow_members:
             return key
@@ -3268,6 +3313,32 @@ class HengbotPolicy:
 
         progress = self._town_procurement_progress_key(snapshot)
         if progress is None:
+            liveness_candidate = (
+                proposed_reason == "stuck:wander"
+                or proposed_reason.startswith("novel:")
+            )
+            if enforce and movement_key and liveness_candidate and (
+                claims_active or getattr(self, "_town_liveness_claim_retired", False)
+            ):
+                blocked_reason = (
+                    "retired-equipment-transaction-failed"
+                    if getattr(self, "_town_liveness_claim_retired", False)
+                    else "no-actionable-claim-owner"
+                )
+                self.last_reason = f"town:blocked:{blocked_reason}"
+                self._town_liveness_invariant_defect = {
+                    "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
+                    "winning_rung": proposed_reason,
+                    "resolution": self.last_reason,
+                    "claim_retired": getattr(
+                        self, "_town_liveness_claim_retired", False
+                    ),
+                }
+                self._town_progress_invariant_defect = dict(
+                    self._town_liveness_invariant_defect
+                )
+                self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
+                return WAIT_KEY
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress
@@ -17007,6 +17078,7 @@ class HengbotPolicy:
 
     def _town_claims_active(self, snapshot: Snapshot) -> bool:
         """Record live route owners from the same registry used by projection."""
+        self._retire_actionless_equipment_failure(snapshot)
         self._refresh_nonhome_effect_refusals(snapshot)
         claims: list[str] = []
         departure_ready: bool | None = None
@@ -17048,6 +17120,38 @@ class HengbotPolicy:
                 claims.append(need.category)
         self._town_claim_categories = claims
         return bool(claims)
+
+    def _retire_actionless_equipment_failure(self, snapshot: Snapshot) -> bool:
+        """Release a failed optimizer latch that has no in-town clearing owner."""
+        if (self.last_reason or "").startswith("equipment-transaction:"):
+            return False
+        preparation = self._equipment_optimization_preparation
+        blockers = tuple(getattr(preparation, "blockers", ()))
+        if blockers != ("equipment-transaction-failed",):
+            return False
+        if self._equipment_transaction_session is not None:
+            return False
+        if self._home_owner_goal_pending(snapshot):
+            return False
+        approach = self._shopping_approach_step(snapshot, STORE_HOME)
+        if approach is not None:
+            return False
+        # A last-source readmission is a genuine, visible terminal: retiring it
+        # would trade away a mandatory ability.  The ordinary liveness terminal
+        # handles that case without moving.
+        if getattr(self, "_equipment_quarantine_readmitted_ids", ()):
+            return False
+        if self._equipment_quarantine_second_chance_ids:
+            return False
+        self._equipment_transaction_failed_items.clear()
+        self._equipment_quarantine_second_chance_ids.clear()
+        self._equipment_quarantine_readmitted_ids = ()
+        self._equipment_optimization_preparation = replace(
+            preparation, blockers=()
+        )
+        self._equipment_optimization_signature = None
+        self._town_liveness_claim_retired = True
+        return True
 
     def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return every currently true town errand from the shared registry."""

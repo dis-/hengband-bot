@@ -2,6 +2,8 @@ from dataclasses import replace
 from pathlib import Path
 from random import Random
 from types import SimpleNamespace
+from unittest.mock import patch
+import json
 import unittest
 
 from hengbot.model import (
@@ -21,6 +23,7 @@ from hengbot.policy import (
     RESTOCK_WAIT_MACRO,
     StoreVisit,
     WAIT_KEY,
+    MOVE_REASONS,
 )
 from trajectory_harness import checkpoint_row, restore_incident_checkpoint
 
@@ -487,6 +490,112 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertIn("home:scan-step-off", reason)
         self.assertTrue(policy._town_result_makes_progress(snapshot, key))
         self.assertNotIn("town-progress-invariant:approach", policy.last_reason)
+
+    def test_captured_town_wander_retires_phantom_equipment_failure(self):
+        incident = (
+            Path(__file__).resolve().parent.parent
+            / "jsonlog"
+            / "incident-town-wander-20260819.jsonl"
+        )
+        captured = json.loads(incident.read_text(encoding="utf-8").splitlines()[-1])
+        equipment = captured["equipment_optimization"]
+        route = equipment["home_route_projection"]
+        self.assertEqual(
+            equipment["blockers"],
+            ["equipment-transaction-failed"],
+        )
+        self.assertFalse(route["equipment_work_need_present"])
+        self.assertFalse(route["home_owner_goal_pending"])
+        self.assertTrue(equipment["home_procurement"]["home_approach_step_is_none"])
+
+        policy, snapshot, _store = self._case(price=999999, on_door=False)
+        policy._equipment_optimization_preparation = replace(
+            policy._equipment_optimization_preparation,
+            transaction=None,
+            blockers=("equipment-transaction-failed",),
+        )
+        policy._equipment_transaction_session = None
+        policy._equipment_transaction_failed_items = set(
+            equipment["failed_transaction_item_ids"]
+        )
+        policy._equipment_quarantine_readmitted_ids = ()
+        policy._home_pending_item = None
+        policy._home_pending_batch = []
+        policy._home_atomic_withdraw_pending = None
+        policy._home_atomic_deposit_pending = None
+        policy._calibration_restore_signatures = []
+        policy._home_knowledge_current = True
+        policy._home_scan_item_count = 0
+        policy._town_supplier_stock = {}
+
+        def captured_wander(_snapshot):
+            policy.last_reason = "stuck:wander"
+            return next(iter(DIRECTION_KEYS.values()))
+
+        policy._choose_key_with_latch_capture = captured_wander
+        with patch.object(policy, "_shopping_approach_step", return_value=None):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertNotEqual(policy.last_reason, "stuck:wander")
+        self.assertTrue(policy.last_reason.startswith("town:blocked:"))
+        self.assertEqual(policy._equipment_transaction_failed_items, set())
+        self.assertNotIn(
+            "equipment-transaction-failed",
+            policy._equipment_optimization_preparation.blockers,
+        )
+        self.assertEqual(
+            policy._town_liveness_invariant_defect["marker"],
+            "TOWN_LIVENESS_INVARIANT_DEFECT",
+        )
+
+    def test_randomized_active_claim_non_goal_moves_are_rejected(self):
+        rng = Random(20260819)
+        reasons = (
+            "stuck:wander",
+        ) + tuple(f"novel:{reason}" for reason in MOVE_REASONS) + tuple(
+            f"novel:wander-macro:{rng.randrange(1_000_000)}" for _ in range(20)
+        )
+        for reason in reasons:
+            with self.subTest(reason=reason):
+                policy, snapshot, _store = self._case(price=999999, on_door=False)
+                policy._shopping_approach_goal = None
+                policy._town_supplier_stock = {}
+                movement = rng.choice(tuple(DIRECTION_KEYS.values()))
+                policy.last_reason = reason
+                with (
+                    patch.object(policy, "_town_claims_active", return_value=True),
+                    patch.object(policy, "_town_procurement_progress_key", return_value=None),
+                ):
+                    key = policy._town_procurement_decision(snapshot, movement)
+                self.assertNotIn(key, DIRECTION_KEYS.values())
+                self.assertEqual(key, WAIT_KEY)
+                self.assertEqual(
+                    policy._town_liveness_invariant_defect["marker"],
+                    "TOWN_LIVENESS_INVARIANT_DEFECT",
+                )
+
+    def test_active_claim_allows_needed_supplier_and_boxed_landmark_travel(self):
+        policy, snapshot, _store = self._case(price=999999, on_door=False)
+        direction, key = next(iter(DIRECTION_KEYS.items()))
+        policy._shopping_approach_goal = replace(
+            snapshot.player.position,
+            y=snapshot.player.position.y + direction[0],
+            x=snapshot.player.position.x + direction[1],
+        )
+        for reason in (
+            "shop:travel",
+            "town-progress-invariant:boxed-breakout-travel",
+        ):
+            with self.subTest(reason=reason):
+                policy.last_reason = reason
+                with patch.object(policy, "_town_claims_active", return_value=True):
+                    self.assertEqual(
+                        policy._town_procurement_decision(snapshot, key), key
+                    )
+                self.assertEqual(
+                    getattr(policy, "_town_liveness_invariant_defect", {}), {}
+                )
 
 
 if __name__ == "__main__":
