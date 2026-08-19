@@ -6,6 +6,7 @@ import unittest
 
 from hengbot.model import (
     STORE_ALCHEMIST,
+    STORE_HOME,
     STORE_MAGIC,
     TVAL_WAND,
     StoreItem,
@@ -453,6 +454,39 @@ class TownProgressInvariantTest(unittest.TestCase):
             policy._town_progress_invariant_defect["marker"],
             "TOWN_PROGRESS_INVARIANT_DEFECT",
         )
+
+    def test_incomplete_home_scan_steps_off_before_shop_approach(self):
+        policy, snapshot, store = self._case(food_type=FOOD_TYPE_MANA)
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, food_state="hungry"),
+        )
+        policy._equipment_catalog.home_scan_complete = False
+        policy._home_knowledge_current = False
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",)
+        )
+        home_grid = next(
+            grid for grid in snapshot.grids.values()
+            if grid.position != snapshot.player.position and grid.passable
+        )
+        snapshot = replace(snapshot, grids={
+            **snapshot.grids,
+            home_grid.position: replace(home_grid, store_number=STORE_HOME),
+        })
+        policy._town_fact_snapshot = snapshot
+        policy._town_store_positions[STORE_HOME] = {home_grid.position}
+        policy._town_supplier_stock = {STORE_MAGIC: store}
+        policy.last_reason = "town:idle-wait"
+
+        progress = policy._town_procurement_progress_key(snapshot)
+        self.assertIsNotNone(progress)
+        key, reason = progress
+
+        self.assertIn(key, DIRECTION_KEYS.values())
+        self.assertIn("home:scan-step-off", reason)
+        self.assertTrue(policy._town_result_makes_progress(snapshot, key))
+        self.assertNotIn("town-progress-invariant:approach", policy.last_reason)
 
 
 if __name__ == "__main__":

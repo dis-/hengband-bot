@@ -66,6 +66,7 @@ from hengbot.cli import (
     _chest_movement_response_pending,
     _movement_command_needs_ack,
     _open_game_prompt,
+    _policy_final_stop_banner,
     _posting_effect_signature,
     _fundraising_state,
     _floor_transition_needs_prompt_clear,
@@ -104,6 +105,17 @@ from hengbot.equipment_mutation import progress_core
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
+
+
+class PolicyFinalStopBannerTest(unittest.TestCase):
+    def test_every_final_reason_has_its_own_truthful_banner(self):
+        restore = "equipment-transaction:restore-blocked-terminal"
+        for reason in POLICY_FINAL_STOP_REASONS:
+            with self.subTest(reason=reason):
+                banner = _policy_final_stop_banner(reason)
+                self.assertIn(f"<{reason}>", banner)
+                if reason != restore:
+                    self.assertNotIn(f"<{restore}>", banner)
 
 
 class CaptureAndPollDefaultsTest(unittest.TestCase):

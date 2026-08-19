@@ -6081,7 +6081,7 @@ class ShoppingTest(unittest.TestCase):
             pol, "_decide", side_effect=["dn\r", LEAVE_STORE_KEY, "dm\r", "dm\r"]
         ):
             self.assertEqual(pol.choose_key(home), LEAVE_STORE_KEY)
-            self.assertEqual(pol.last_reason, "home:route-claim-unfulfilled")
+            self.assertEqual(pol.last_reason, "home:scan-complete-from-open-page")
             self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.choose_key(home), "\r")
             self.assertEqual(pol.last_reason, "shop:await-leave-confirmation")
@@ -20974,9 +20974,21 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_source, "observed-home-page")
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+
+        completed = HengbotPolicy()
+        stored = store_item("a", TVAL_POTION, 999, name="stored")
+        completed.consume_home_knowledge((stored,))
+        completed_inside = replace(
+            inside, store=StoreState(STORE_HOME, [stored], page_size=52)
+        )
+        self.assertEqual(completed.choose_key(completed_inside), LEAVE_STORE_KEY)
+        self.assertEqual(completed.last_reason, "home:route-claim-unfulfilled")
         self.assertEqual(
-            policy._town_store_attempted[STORE_HOME], inside.turn
+            completed._town_store_attempted[STORE_HOME], completed_inside.turn
         )
 
     def test_stored_digger_is_not_treated_as_carried_fundraising_kit(self):
@@ -28514,7 +28526,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy.last_reason = "home:withdraw-processing-item"
         policy.choose_key(home)
 
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
 
     def test_home_batch_keeps_three_pack_slots_free(self):
         filler = [
@@ -39634,9 +39646,8 @@ class TownCycleDetectorTest(unittest.TestCase):
         keys.append(pol._town_special_key(outside))
 
         self.assertEqual(keys[0], LEAVE_STORE_KEY)
-        self.assertNotIn(keys[1], {LEAVE_STORE_KEY, WAIT_KEY})
-        self.assertEqual(keys[2], WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:repetition")
+        self.assertEqual(keys[1], WAIT_KEY)
+        self.assertIsNone(keys[2])
 
     def test_blocked_latch_outside_store_owns_departure_route(self):
         pol = HengbotPolicy()
@@ -49789,8 +49800,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             )
         )
 
-        self.assertFalse(policy._home_knowledge_current)
-        self.assertIsNone(policy._home_scan_item_count)
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_item_count, 1)
 
     def test_in_store_stock_count_invalidates_stale_nonempty_knowledge(self):
         stale = store_item("a", TVAL_POTION, 362, name="stale")
@@ -49804,8 +49815,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             )
         )
 
-        self.assertFalse(policy._home_knowledge_current)
-        self.assertIsNone(policy._home_scan_item_count)
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_item_count, 0)
 
     def test_known_empty_home_completes_withdrawal_only_owner(self):
         pending = ("phantom", TVAL_SWORD, 99)
@@ -50211,7 +50222,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
         with patch.object(policy, "_decide", return_value=SELL_KEY + "f40\r"):
             self.assertEqual(policy.choose_key(arrival), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertEqual(policy.last_reason, "home:scan-complete-from-open-page")
         key = self._post_atomic(policy, entrance, target)
 
         self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
@@ -50485,7 +50496,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         self.assertEqual(policy.choose_key(home), policy_module.LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertEqual(policy.last_reason, "home:scan-complete-from-open-page")
 
     def test_real_pack_teleport_and_recall_slots_cannot_be_side_effect_deposits(self):
         policy = HengbotPolicy()

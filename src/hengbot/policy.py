@@ -3017,6 +3017,8 @@ class HengbotPolicy:
              if direction_key == key),
             None,
         )
+        if direction is not None and (self.last_reason or "").endswith("home:scan-step-off") and not self._equipment_catalog.home_scan_complete:
+            return True
         fingerprint = self._town_progress_fingerprint(snapshot)
         if direction is not None and fingerprint in self._town_progress_history():
             # A direction key can still be one leg of an approach/observe/leave
@@ -3125,6 +3127,30 @@ class HengbotPolicy:
         self, snapshot: Snapshot
     ) -> tuple[str, str] | None:
         """Compose the next step of an available approach->enter->buy route."""
+        home_scan_pending = (
+            not self._equipment_catalog.home_scan_complete
+            and self._home_available(snapshot)
+            and (
+                "home-scan-incomplete" in getattr(
+                    self._equipment_optimization_preparation, "blockers", ()
+                )
+                or (snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry)
+            )
+        )
+        here = snapshot.grid_at(snapshot.player.position)
+        if (
+            home_scan_pending
+            and snapshot.store is None
+            and here is not None
+            and here.store_number >= 0
+            and self._store_leave_inflight is None
+            and self._store_entry_posted_owner is None
+            and self._store_entry_wait_owner is None
+        ):
+            reason = "home:scan-step-off"
+            key = self._town_entrance_step_off_key(snapshot, reason)
+            return key, self.last_reason or reason
+
         # An observed ordinary-shop shelf is paired with current gold at this
         # boundary.  It is the strongest counterfactual and composes first.
         transaction = self._atomic_shop_transaction_key(snapshot)
@@ -4365,6 +4391,20 @@ class HengbotPolicy:
                     snapshot, STORE_HOME, goal_satisfied=True,
                 )
                 self.last_reason = "town:blocked:home-known-empty-withdrawal"
+                key = LEAVE_STORE_KEY
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
+                and (
+                    not self._equipment_catalog.home_scan_complete
+                    or not self._home_knowledge_current
+                    or self._home_knowledge_invalidated
+                )
+            ):
+                self.consume_home_knowledge(tuple(snapshot.store.items))
+                self._home_scan_source = "observed-home-page"
+                self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
             elif (
                 not self._calibration_active()
@@ -12014,6 +12054,7 @@ class HengbotPolicy:
             "quarantine_burned_item_ids": sorted(
                 self._equipment_quarantine_burned_ids
             ),
+            "home_procurement": dict(getattr(self, "_home_procurement_approach_state", {})),
             "home_route_projection": {
                 "home_owner_goal_pending": (
                     self._home_owner_goal_pending(snapshot)
@@ -29109,6 +29150,11 @@ class HengbotPolicy:
                 self._shopping_approach_step(snapshot, STORE_HOME)
                 if filed else None
             )
+            self._home_procurement_approach_state = {
+                "home_available": True,
+                "home_visit_filed": filed,
+                "home_approach_step_is_none": step is None,
+            }
             if filed and step is not None:
                 self.last_reason = "survival:mana-home-approach"
                 return self._shopping_approach_key(
@@ -29118,6 +29164,11 @@ class HengbotPolicy:
             self.last_reason = "town:blocked:survival-mana-no-charges"
             return WAIT_KEY
         elif home_needed and home_bearing_town:
+            self._home_procurement_approach_state = {
+                "home_available": False,
+                "home_visit_filed": False,
+                "home_approach_step_is_none": True,
+            }
             self._home_procurement_probe = None
             self.last_reason = "town:blocked:survival-mana-no-charges"
             return WAIT_KEY

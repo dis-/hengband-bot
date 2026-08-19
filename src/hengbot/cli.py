@@ -384,6 +384,21 @@ POLICY_FINAL_STOP_REASONS = frozenset(
         "wilderness:no-safe-route",
     }
 )
+
+
+def _policy_final_stop_banner(reason: str) -> str:
+    messages = {
+        "equipment-transaction:restore-blocked-terminal": "recoverable gear restored; missing owned items remain",
+        "town:blocked:departure-unsatisfiable": "no state-changing owner can satisfy the remaining departure conjunct",
+        "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
+        "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
+        "town:blocked:procurement-home-unroutable": "required Home procurement has no route",
+        "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
+        "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
+        "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
+        "wilderness:no-safe-route": "global-map route to town is unavailable",
+    }
+    return f"<{reason}> {messages[reason]}; stopping the bot for investigation"
 # Relocated from the travel-guard block: assert against the real constant so
 # a retuned residence net cannot silently invert the guard ordering.
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
@@ -2729,49 +2744,15 @@ def _run_follow(
                             },
                             decision_facts=decision_facts,
                         )
-                        if policy.last_reason == "wilderness:no-safe-route":
-                            print(
-                                "<wilderness:no-safe-route> global-map route to "
-                                "town is unavailable; stopping the bot for "
-                                "investigation",
-                                flush=True,
-                            )
-                        elif policy.last_reason == (
+                        print(
+                            _policy_final_stop_banner(policy.last_reason),
+                            flush=True,
+                        )
+                        if policy.last_reason == (
                             "town:blocked:departure-unsatisfiable"
                         ):
-                            print(
-                                "<departure-unsatisfiable> no state-changing "
-                                "owner can satisfy the remaining departure "
-                                "conjunct; stopping the bot for investigation",
-                                flush=True,
-                            )
                             return incident_stop(
                                 "departure-unsatisfiable", snapshot
-                            )
-                        elif policy.last_reason == (
-                            "quest:blocked:q34-recovery-no-progress"
-                        ):
-                            print(
-                                "<q34-recovery-no-progress> a posted recovery "
-                                "pickup left the recoverable floor items unchanged; "
-                                "stopping the bot for investigation",
-                                flush=True,
-                            )
-                        elif policy.last_reason == (
-                            "quest:blocked:q34-throw-point-unreachable"
-                        ):
-                            print(
-                                "<q34-throw-point-unreachable> the approved Q34 "
-                                "throwing point has no route; stopping the bot for "
-                                "investigation",
-                                flush=True,
-                            )
-                        else:
-                            print(
-                                "<equipment-transaction:restore-blocked-terminal> "
-                                "recoverable gear restored; missing owned items "
-                                "remain; stopping the bot for investigation",
-                                flush=True,
                             )
                         return incident_stop(policy.last_reason, snapshot)
                     recorder.after_decision(policy, snapshot)
