@@ -7,7 +7,10 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 from hengbot.equipment_optimizer import (
+    EvaluatedLoadout,
     Loadout,
+    LoadoutMetrics,
+    OptimizationResult,
     OwnedEquipment,
     SLOT_MAIN_RING,
     current_loadout,
@@ -186,6 +189,16 @@ def seed_calibration(snapshot, items=()):
 
 
 class WarriorOptimizationTest(unittest.TestCase):
+    @staticmethod
+    def _result_for(loadout):
+        evaluated = EvaluatedLoadout(
+            loadout, LoadoutMetrics(1.0, 1.0, 1.0)
+        )
+        return OptimizationResult(
+            evaluated, (), (), frozenset(), 1, 1, 0, 0.0, False,
+            frozenset(),
+        )
+
     def test_reference_ac_dual_wield_brand_dps_crosses_q1_gate(self):
         main = gear(
             "main", "equipped", slot="main_hand", to_h=3, to_d=2,
@@ -984,6 +997,88 @@ class WarriorOptimizationTest(unittest.TestCase):
         )
         policy._prepare_equipment_optimization = lambda _snapshot: prepared
         self.assertTrue(policy._equipment_departure_ready(snapshot))
+
+    def test_failed_uncomposable_transaction_opens_equipment_departure_conjunct(self):
+        policy = HengbotPolicy()
+        worn = gear("worn", "equipped", slot="main_hand")
+        failed = gear("failed", "pack", slot="b")
+        snapshot = SimpleNamespace(
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+            inventory=(failed.item,), equipment=(worn.item,),
+        )
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        current = current_loadout(policy._equipment_catalog.items)
+        target = Loadout((("main_hand", failed),), "one_handed")
+        preparation = WarriorOptimizationPreparation(
+            current,
+            self._result_for(target),
+            None,
+            ("equipment-transaction-failed",),
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: preparation
+        policy._equipment_optimizer_input_key = "a" * 64
+        policy._confirmed_loadout = ConfirmedLoadoutRecord(
+            current.item_ids, policy._equipment_optimizer_input_key
+        )
+        policy._confirmed_loadout_loaded = True
+        policy._home_owner_goal_pending = lambda _snapshot: False
+        policy._shopping_approach_step = lambda _snapshot, _store: None
+
+        conjuncts = {
+            "equipment_departure_ready": policy._equipment_departure_ready(snapshot)
+        }
+
+        self.assertTrue(conjuncts["equipment_departure_ready"])
+
+    def test_retired_failure_freezes_worn_target_across_optimizer_rebuild(self):
+        policy = HengbotPolicy()
+        worn = gear("worn", "equipped", slot="main_hand")
+        failed = gear("failed", "pack", slot="b")
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR, race_id=1, personality_id=1,
+            level=10, stat_cur=(18, 10, 10, 18),
+            stat_use=(18, 10, 10, 18), abilities=frozenset(), ac=0,
+            speed=110, melee_skill=50, shooting_skill=40, saving_skill=20,
+            shield_skill=0, two_weapon_skill=0, max_hp=100, max_mp=0,
+        )
+        snapshot = SimpleNamespace(
+            player=player, inventory=(failed.item,), equipment=(worn.item,),
+            in_town=True,
+        )
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        current = current_loadout(policy._equipment_catalog.items)
+        target = Loadout((("main_hand", failed),), "one_handed")
+        policy._equipment_optimization_preparation = WarriorOptimizationPreparation(
+            current,
+            self._result_for(target),
+            None,
+            ("equipment-transaction-failed",),
+        )
+        policy._equipment_transaction_failed_items.add(failed.id)
+        policy._equipment_optimizer_input_key = "a" * 64
+        policy._confirmed_loadout = ConfirmedLoadoutRecord(
+            current.item_ids, policy._equipment_optimizer_input_key
+        )
+        policy._confirmed_loadout_loaded = True
+        policy._character_calibration = seed_calibration(
+            snapshot, policy._equipment_catalog.items
+        )
+        policy._character_calibration_loaded = True
+        policy._home_owner_goal_pending = lambda _snapshot: False
+        policy._shopping_approach_step = lambda _snapshot, _store: None
+
+        self.assertTrue(policy._retire_actionless_equipment_failure(snapshot))
+        rebuilt = policy._prepare_equipment_optimization(snapshot)
+
+        self.assertEqual(rebuilt.result.best.loadout.item_ids, current.item_ids)
+        self.assertEqual(rebuilt.transaction.actions, ())
+        self.assertFalse(policy._outstanding_equipment_work())
+        self.assertTrue(policy._equipment_departure_ready(snapshot))
+        self.assertFalse(policy._outstanding_equipment_work())
 
     def test_timeout_keeps_confirmed_loadout_but_requires_its_premise(self):
         policy = HengbotPolicy()

@@ -2573,6 +2573,11 @@ class HengbotPolicy:
         self._equipment_transaction_restore_terminal: str | None = None
         self._equipment_transaction_restore_remainder: tuple[str, ...] = ()
         self._equipment_transaction_failed_items: set[str] = set()
+        # A structurally actionless failed transaction may retire for the
+        # remainder of this town visit.  Pin the confirmed worn identities as
+        # the optimizer target as well as clearing the blocker: otherwise the
+        # next rebuild can select the same failed item and recreate work.
+        self._equipment_retired_worn_item_ids: frozenset[str] = frozenset()
         self._priority_body_rearm_attempted_ids: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_prepared_key: str | None = None
@@ -7489,6 +7494,7 @@ class HengbotPolicy:
             self._home_identify_staff_sold_this_magic_visit = False
             self._home_digger_withdraw_pending = False
             self._equipment_transaction_failed_items.clear()
+            self._equipment_retired_worn_item_ids = frozenset()
             getattr(self, "_priority_body_rearm_attempted_ids", set()).clear()
             self._equipment_quarantine_second_chance_ids.clear()
             self._equipment_quarantine_burned_ids.clear()
@@ -11476,6 +11482,31 @@ class HengbotPolicy:
             self._equipment_optimization_signature = None
             self._equipment_optimization_preparation = preparation
             return preparation
+        live_current = current_loadout(self._equipment_catalog.items)
+        retired_worn_item_ids = getattr(
+            self, "_equipment_retired_worn_item_ids", frozenset()
+        )
+        if (
+            retired_worn_item_ids
+            and live_current.item_ids == retired_worn_item_ids
+        ):
+            prior = self._equipment_optimization_preparation
+            result = getattr(prior, "result", None)
+            best = getattr(result, "best", None)
+            if best is not None and isinstance(
+                getattr(best, "loadout", None), Loadout
+            ):
+                result = replace(result, best=replace(best, loadout=live_current))
+                preparation = WarriorOptimizationPreparation(
+                    live_current,
+                    result,
+                    EquipmentTransactionPlan((), (), 0),
+                    (),
+                )
+                self._equipment_optimization_preparation = preparation
+                self._equipment_optimization_signature = None
+                self._set_equipment_transaction_session(None)
+                return preparation
         optimization_depth = depth_override
         operational_catalog = tuple(
             item
@@ -13199,6 +13230,10 @@ class HengbotPolicy:
                     )
                     for owned in incomplete
                 )
+            elif self._equipment_failure_unexecutable_this_visit(
+                snapshot, preparation
+            ):
+                ready = True
         if cacheable:
             self._equipment_departure_cache_token = self._decision_sequence
             self._equipment_departure_cache_value = ready
@@ -17126,23 +17161,15 @@ class HengbotPolicy:
         if (self.last_reason or "").startswith("equipment-transaction:"):
             return False
         preparation = self._equipment_optimization_preparation
-        blockers = tuple(getattr(preparation, "blockers", ()))
-        if blockers != ("equipment-transaction-failed",):
+        if not self._equipment_failure_unexecutable_this_visit(
+            snapshot, preparation, require_confirmed=False
+        ):
             return False
-        if self._equipment_transaction_session is not None:
-            return False
-        if self._home_owner_goal_pending(snapshot):
-            return False
-        approach = self._shopping_approach_step(snapshot, STORE_HOME)
-        if approach is not None:
-            return False
-        # A last-source readmission is a genuine, visible terminal: retiring it
-        # would trade away a mandatory ability.  The ordinary liveness terminal
-        # handles that case without moving.
-        if getattr(self, "_equipment_quarantine_readmitted_ids", ()):
-            return False
-        if self._equipment_quarantine_second_chance_ids:
-            return False
+        live_carried = OwnedEquipmentCatalog()
+        live_carried.refresh_carried(snapshot.inventory, snapshot.equipment)
+        self._equipment_retired_worn_item_ids = current_loadout(
+            live_carried.items
+        ).item_ids
         self._equipment_transaction_failed_items.clear()
         self._equipment_quarantine_second_chance_ids.clear()
         self._equipment_quarantine_readmitted_ids = ()
@@ -17151,6 +17178,37 @@ class HengbotPolicy:
         )
         self._equipment_optimization_signature = None
         self._town_liveness_claim_retired = True
+        return True
+
+    def _equipment_failure_unexecutable_this_visit(
+        self,
+        snapshot: Snapshot,
+        preparation: object | None,
+        *,
+        require_confirmed: bool = True,
+    ) -> bool:
+        """Prove a failed target has no owner or composable action this visit."""
+        if tuple(getattr(preparation, "blockers", ())) != (
+            "equipment-transaction-failed",
+        ):
+            return False
+        if self._equipment_transaction_session is not None:
+            return False
+        if (
+            require_confirmed
+            and not self._current_worn_loadout_confirmed(snapshot, preparation)
+        ):
+            return False
+        if self._home_owner_goal_pending(snapshot):
+            return False
+        if self._shopping_approach_step(snapshot, STORE_HOME) is not None:
+            return False
+        # A last-source readmission is real required work, not a retireable
+        # phantom.  Its visible terminal must remain closed to departure.
+        if getattr(self, "_equipment_quarantine_readmitted_ids", ()):
+            return False
+        if self._equipment_quarantine_second_chance_ids:
+            return False
         return True
 
     def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
