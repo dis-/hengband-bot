@@ -91,6 +91,7 @@ from hengbot.model import (
     TVAL_RING,
     TVAL_ROD,
     TVAL_SCROLL,
+    TVAL_SOFT_ARMOR,
     TVAL_STAFF,
     TVAL_SWORD,
     TVAL_WAND,
@@ -30042,6 +30043,32 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertIsNone(policy._next_purchase_unreserved(stocked_shop))
 
+    def test_mana_reserve_counts_withdrawable_home_device_charges(self):
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR,
+                   food_type=FOOD_TYPE_MANA),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[],
+            town_flag=True,
+        )
+        home_wand = item(
+            "a", TVAL_WAND, 6, count=2, charges=9,
+            known=True, name="Home food wand",
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((home_wand,))
+
+        self.assertEqual(policy._count_mana_food_uses(snap), 18)
+        self.assertEqual(policy._count_mana_food_devices(snap), 2)
+        self.assertTrue(policy._food_ready(snap))
+
+        ware = store_item("e", TVAL_WAND, 7, price=1083, charges=31)
+        stocked = replace(
+            snap, store=StoreState(store_type=STORE_MAGIC, items=[ware])
+        )
+        self.assertIsNone(policy._next_purchase_unreserved(stocked))
+
     def test_mana_race_sells_identify_staff_when_both_reserves_survive(self):
         devices = [
             item("a", TVAL_WAND, 1, count=2, charges=30, name="food wand"),
@@ -48913,6 +48940,36 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "5pv\x1b",
         )
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, restore.name)
+
+    def test_calibration_restore_matches_fresh_home_equipment_identity(self):
+        deposited = store_item(
+            "a", TVAL_SOFT_ARMOR, 2,
+            name="Leather Scale Mail [11,+0] {worn rendering}",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([deposited])
+        stale_pack_signature = (
+            "Leather Scale Mail [11,+0] {pack rendering}",
+            TVAL_SOFT_ARMOR,
+            2,
+        )
+        policy._calibration_restore_signatures = [stale_pack_signature]
+        policy._calibration_worn_before = (
+            ("body", policy_module.equipment_identity(deposited)),
+        )
+        entrance = self._entrance_snapshot([])
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(
+                entrance, entrance.player.position
+            ),
+            "5pa\x1b",
+        )
+        self.assertEqual(
+            policy.last_reason, "calibration:atomic-restore-withdraw"
+        )
+        self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertEqual(policy._home_atomic_withdraw_pending[2], deposited)
 
     def test_captured_same_turn_restore_remains_owned_until_fresh_snapshot(self):
         wares = [

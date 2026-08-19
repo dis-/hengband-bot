@@ -2989,10 +2989,22 @@ class HengbotPolicy:
             and self._home_entry_operation_posted
         ):
             return True
+        if (
+            self._home_entry_operation_posted
+            and key not in {"", WAIT_KEY, LEAVE_STORE_KEY}
+        ):
+            return True
+        if (
+            self._store_visit is not None
+            and self._store_visit.operation_posted
+            and (self.last_reason or "").startswith("shop:one-shot-")
+        ):
+            # Outside composition intentionally returns WAIT while the bound
+            # purchase tail waits for the re-entered store page.  The posted
+            # operation, not the transport key, is the progress effect.
+            return True
         if key in {"", WAIT_KEY, LEAVE_STORE_KEY}:
             return False
-        if self._store_visit is not None and self._store_visit.operation_posted:
-            return True
         if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
             # Store purchase/sale and inscription producers have closed command
             # prefixes and directly mutate gold or inventory.
@@ -9909,11 +9921,21 @@ class HengbotPolicy:
         return needed
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
-        known_charges = sum(
+        carried_charges = sum(
             self._stack_charges(it)
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
         )
+        home_charges = sum(
+            self._stack_charges(it)
+            for it in self._home_knowledge_items
+            if self._home_knowledge_current
+            and it.known
+            and it.is_wand_staff
+            and it.charges > 0
+            and self._item_signature(it) not in self._deferred_home_items
+        )
+        known_charges = carried_charges + home_charges
         if snapshot.player.food_state in {"weak", "fainting"}:
             return known_charges
         identify_charges = sum(
@@ -9932,11 +9954,21 @@ class HengbotPolicy:
         return max(0, item.charges) * max(1, item.count)
 
     def _count_mana_food_devices(self, snapshot: Snapshot) -> int:
-        return sum(
+        carried = sum(
             it.count
             for it in snapshot.inventory
             if it.known and it.is_wand_staff and it.charges > 0
         )
+        home = sum(
+            it.count
+            for it in self._home_knowledge_items
+            if self._home_knowledge_current
+            and it.known
+            and it.is_wand_staff
+            and it.charges > 0
+            and self._item_signature(it) not in self._deferred_home_items
+        )
+        return carried + home
 
     def _food_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["food"]
@@ -13569,6 +13601,7 @@ class HengbotPolicy:
             return None
 
         signature: tuple[str, int, int] | None = None
+        restore_owner_signature: tuple[str, int, int] | None = None
         transaction_identity: tuple | None = None
         quantity: int | None = None
         reason = "home:atomic-withdraw"
@@ -13589,10 +13622,31 @@ class HengbotPolicy:
         # forever in the captured 34-item Home.
         if signature is None and self._home_pending_item in observed_signatures:
             signature = self._home_pending_item
+        if signature is None and self._calibration_worn_before:
+            redress_identities = {
+                identity for _slot, identity in self._calibration_worn_before
+            }
+            redress_matches = [
+                item for _, item in address_slots
+                if item.is_equipment
+                and equipment_identity(item) in redress_identities
+            ]
+            if len(redress_matches) == 1:
+                signature = self._item_signature(redress_matches[0])
+                restore_owner_signature = next(
+                    (
+                        owner for owner in self._calibration_restore_signatures
+                        if owner == signature
+                        or owner[1:] == signature[1:]
+                    ),
+                    None,
+                )
+                reason = "calibration:atomic-restore-withdraw"
         if signature is None:
             for restore_signature in self._calibration_restore_signatures:
                 if restore_signature in observed_signatures:
                     signature = restore_signature
+                    restore_owner_signature = restore_signature
                     reason = "calibration:atomic-restore-withdraw"
                     break
         if signature is None and self._home_pending_batch:
@@ -13675,7 +13729,7 @@ class HengbotPolicy:
             if page_pos < 26
             else chr(ord("A") + page_pos - 26)
         )
-        if signature in self._calibration_restore_signatures:
+        if restore_owner_signature is not None:
             quantity = item.count
         if not letter or len(letter) != 1:
             if self._home_errand.active:
@@ -13756,8 +13810,8 @@ class HengbotPolicy:
             self._home_errand.post(
                 self._inventory_signature_count(snapshot, signature)
             )
-        if signature in self._calibration_restore_signatures:
-            self._calibration_restore_signatures.remove(signature)
+        if restore_owner_signature is not None:
+            self._calibration_restore_signatures.remove(restore_owner_signature)
         self._home_pending_quantity = None
         self._home_candidate_waiting = False
         self._home_withdrawal_queued = False

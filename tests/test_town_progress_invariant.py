@@ -72,6 +72,13 @@ class TownProgressInvariantTest(unittest.TestCase):
         policy._purchase_has_fresh_home_absence = (
             lambda _snapshot, _item: ProcurementHomeGate.ALLOW_PURCHASE
         )
+        # H3 makes the captured Home devices satisfy this MANA reserve.  These
+        # R1-R7 purchase-arbitration cases intentionally exercise the distinct
+        # H2 premise: Home is empty of consumer-equivalent devices.
+        policy.consume_home_knowledge(tuple(
+            item for item in policy._home_knowledge_items
+            if item.tval != TVAL_WAND and not item.is_wand_staff
+        ))
         policy._shopping_approach_store_type = STORE_MAGIC
         policy._shop_observation = (store, policy._decision_sequence)
         policy._store_visit = StoreVisit(

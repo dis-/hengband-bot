@@ -90,6 +90,19 @@ class DevicePurchasePreemptionTrajectoryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "town:blocked:repetition")
         self.assertFalse(policy._store_visit.operation_posted)
 
+    def test_affordable_device_composes_on_adjacent_outside_page(self):
+        policy, snapshot = self._restore()
+        snapshot = self._incident_page(policy, snapshot, price=1083)
+        policy._town_blocked_reason = None
+        policy._town_cycle_pending = False
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
+        self.assertTrue(policy._store_visit.operation_posted)
+
 
 if __name__ == "__main__":
     unittest.main()
