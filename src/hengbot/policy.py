@@ -26,6 +26,7 @@ from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS,
     FIXED_SLOTS,
+    SLOT_BODY,
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
     SLOT_SUB_HAND,
@@ -2567,6 +2568,7 @@ class HengbotPolicy:
         self._equipment_transaction_restore_terminal: str | None = None
         self._equipment_transaction_restore_remainder: tuple[str, ...] = ()
         self._equipment_transaction_failed_items: set[str] = set()
+        self._priority_body_rearm_attempted_ids: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_prepared_key: str | None = None
         self._equipment_transaction_prepared_catalog_update: tuple[
@@ -2923,6 +2925,7 @@ class HengbotPolicy:
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
+        self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
         refusal_probe = self._posting_refusal_probe
         if refusal_probe is not None:
@@ -3195,6 +3198,12 @@ class HengbotPolicy:
         if allow_members:
             return key
 
+        if proposed_reason == "breakout:least-visited":
+            breakout = self._boxed_town_breakout_key(snapshot)
+            if breakout is not None:
+                self.last_reason = "town-progress-invariant:boxed-breakout-travel"
+                return breakout
+
         # Observing a wanted, affordable shelf is the entry phase of the
         # existing atomic contract.  Leaving is only its transport step: it is
         # a defect until the saved page is composed on the adjacent outside
@@ -3236,6 +3245,9 @@ class HengbotPolicy:
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress
+        if not self._town_result_makes_progress(snapshot, progress_key):
+            self.last_reason = proposed_reason
+            return key
         self._town_progress_invariant_defect = {
             "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
             "winning_rung": proposed_reason,
@@ -3251,6 +3263,23 @@ class HengbotPolicy:
         )
         self._record_shop_selector_diagnostics(snapshot, progress_key)
         return progress_key
+
+    def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
+        """Travel to a distinct landmark when an entrance has no safe step-off."""
+        here = snapshot.grid_at(snapshot.player.position)
+        current_store = here.store_number if here is not None else -1
+        for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
+            if store_type == current_store:
+                continue
+            step = self._shopping_approach_step(snapshot, store_type)
+            if step is None:
+                continue
+            key = self._shopping_approach_key(
+                snapshot, step, "town-progress-invariant:boxed-breakout-travel"
+            )
+            if key not in {"", WAIT_KEY}:
+                return key
+        return None
 
     @staticmethod
     def _emission_item_state(item: object) -> tuple[object, ...]:
@@ -7283,6 +7312,7 @@ class HengbotPolicy:
             self._home_identify_staff_sold_this_magic_visit = False
             self._home_digger_withdraw_pending = False
             self._equipment_transaction_failed_items.clear()
+            getattr(self, "_priority_body_rearm_attempted_ids", set()).clear()
             self._equipment_quarantine_second_chance_ids.clear()
             self._equipment_quarantine_burned_ids.clear()
 
@@ -11775,6 +11805,77 @@ class HengbotPolicy:
             self._equipment_transaction_session_for_preparation(preparation)
         )
         return preparation
+
+    def _request_priority_body_rearm(self, snapshot: Snapshot) -> None:
+        """Create the normal Home transaction when a safer body armour is idle."""
+        if (
+            not snapshot.in_town
+            or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+            or self._equipment_transaction_session is not None
+            or self._calibration_active()
+            or self._validated_character_calibration(snapshot) is None
+            or not self._equipment_catalog.home_scan_complete
+            or not self._home_knowledge_current
+        ):
+            return
+
+        current = current_loadout(self._equipment_catalog.items)
+        current_slots = dict(current.slots)
+        worn = current_slots.get(SLOT_BODY)
+
+        def armour_score(owned) -> tuple[int, int, int]:
+            item = owned.item
+            return (item.ac + item.to_a, item.to_a, item.ac)
+
+        attempted_ids = getattr(self, "_priority_body_rearm_attempted_ids", None)
+        if attempted_ids is None:
+            attempted_ids = set()
+            self._priority_body_rearm_attempted_ids = attempted_ids
+        candidates = [
+            owned
+            for owned in self._equipment_catalog.items
+            if owned.origin == "home"
+            and slot_for(owned.item) == SLOT_BODY
+            and owned.exploration_legal
+            and owned.id not in attempted_ids
+            and (
+                worn is None
+                or (
+                    worn.flags.issubset(owned.flags)
+                    and armour_score(owned) > armour_score(worn)
+                )
+            )
+        ]
+        if not candidates:
+            return
+        target_body = max(candidates, key=lambda owned: (armour_score(owned), owned.id))
+        current_slots[SLOT_BODY] = target_body
+        target = Loadout(tuple(sorted(current_slots.items())), current.hand_mode)
+        preserve_pack = frozenset(
+            owned.id
+            for owned in self._equipment_catalog.items
+            if owned.origin == "pack"
+        )
+        transaction = plan_equipment_transactions(
+            self._equipment_catalog.items,
+            current,
+            target,
+            current_pack_items=len(snapshot.inventory),
+            home_scan_complete=True,
+            preserve_pack_item_ids=preserve_pack,
+        )
+        if not transaction.actions or not transaction.executable:
+            return
+        attempted_ids.add(target_body.id)
+        self._set_equipment_transaction_session(EquipmentTransactionSession(
+            transaction,
+            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+        ))
+        self._equipment_optimization_telemetry["priority_body_rearm"] = {
+            "item_id": target_body.id,
+            "empty_slot": worn is None,
+            "armour_score": armour_score(target_body),
+        }
 
     def _set_equipment_transaction_session(
         self, session: EquipmentTransactionSession | None

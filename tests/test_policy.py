@@ -55801,5 +55801,77 @@ class OwnerExpectationContractTest(unittest.TestCase):
         self.assertTrue(registry.may_select("owner", moved))
 
 
+class RearmAndBreakoutRegressionTest(unittest.TestCase):
+    def test_empty_body_requests_home_withdraw_then_wield_despite_quarantine(self):
+        snapshot = Snapshot(
+            replace(
+                player(10, 10, class_id=PLAYER_CLASS_WARRIOR, level=8),
+                stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18),
+                melee_skill=60, saving_skill=30,
+            ),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            equipment=[item(
+                "main_hand", TVAL_SWORD, 1, name="short sword",
+                known=True, fully_known=True, is_equipment=True,
+                damage_dice_num=1, damage_dice_sides=6,
+            )],
+        )
+        armour = store_item(
+            "a", policy_module.TVAL_SOFT_ARMOR, 2,
+            name="Leather Scale Mail [14,+0]", known=True,
+            fully_known=True, is_equipment=True, ac=14,
+        )
+        policy = HengbotPolicy()
+        seed_character_calibration(policy, snapshot)
+        policy.consume_home_knowledge((armour,))
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        home_owned = next(
+            owned for owned in policy._equipment_catalog.items
+            if owned.origin == "home"
+        )
+        policy._equipment_transaction_failed_items.add(home_owned.id)
+
+        policy._request_priority_body_rearm(snapshot)
+
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            [(action.kind, action.target_slot) for action in session.plan.actions],
+            [("withdraw", None), ("equip", "body")],
+        )
+        self.assertEqual(session.plan.actions[0].item_id, home_owned.id)
+        self.assertGreater(armour.ac + armour.to_a, snapshot.player.ac)
+
+        policy._equipment_transaction_session = None
+        policy._request_priority_body_rearm(snapshot)
+        self.assertIsNone(policy._equipment_transaction_session)
+
+    def test_boxed_breakout_uses_distinct_landmark_travel_not_wait(self):
+        position = Position(119, 31)
+        snapshot = Snapshot(
+            player(position.y, position.x),
+            {position: replace(grid(position.y, position.x), store_number=STORE_GENERAL)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        macro = "\x1b`n7."
+        policy.last_reason = "breakout:least-visited"
+        with patch.object(policy, "_shopping_approach_step", return_value=Position(1, 1)), patch.object(
+            policy, "_shopping_approach_key", return_value=macro
+        ):
+            key = policy._town_procurement_decision(snapshot, policy_module.WAIT_KEY)
+
+        self.assertEqual(key, macro)
+        self.assertNotEqual(key, policy_module.WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town-progress-invariant:boxed-breakout-travel"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
