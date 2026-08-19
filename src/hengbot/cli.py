@@ -1850,7 +1850,12 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         "--control-port",
         type=int,
         default=os.environ.get("HENGBOT_CONTROL_PORT") or None,
-        help="enable read-only TCP shadow comparison (default: off)",
+        help="route input through the TCP control server",
+    )
+    parser.add_argument(
+        "--tcp-shadow",
+        action="store_true",
+        help="enable per-decision TCP state shadow comparison (default: off)",
     )
     parser.add_argument(
         "--decision-log",
@@ -2307,9 +2312,10 @@ def main(argv: list[str] | None = None) -> int:
                 return 3
             posting_contract.posted(snapshot, key, policy.last_reason)
             policy.confirm_key_posted(key)
-            args.shadow_turn = snapshot.turn
-            args.shadow_sequence = policy._decision_sequence
-            _record_tcp_shadow(args, jsonl_state, policy._decision_sequence)
+            if args.tcp_shadow:
+                args.shadow_turn = snapshot.turn
+                args.shadow_sequence = policy._decision_sequence
+                _record_tcp_shadow(args, jsonl_state, policy._decision_sequence)
             return 0
         return 1
 
@@ -2898,16 +2904,17 @@ def _run_follow(
                     decision_timing["send_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
-                    phase_started_at = time.perf_counter()
-                    args.shadow_turn = snapshot.turn
-                    args.shadow_sequence = policy._decision_sequence
-                    _record_tcp_shadow(
-                        args, decoded_lines[complete_lines.index(snapshot_line)],
-                        policy._decision_sequence,
-                    )
-                    decision_timing["shadow_ms"] = round(
-                        (time.perf_counter() - phase_started_at) * 1000, 3
-                    )
+                    if args.tcp_shadow:
+                        phase_started_at = time.perf_counter()
+                        args.shadow_turn = snapshot.turn
+                        args.shadow_sequence = policy._decision_sequence
+                        _record_tcp_shadow(
+                            args, decoded_lines[complete_lines.index(snapshot_line)],
+                            policy._decision_sequence,
+                        )
+                        decision_timing["shadow_ms"] = round(
+                            (time.perf_counter() - phase_started_at) * 1000, 3
+                        )
                     decision_timing["total_ms"] = round(
                         (time.perf_counter() - decision_started_at) * 1000, 3
                     )

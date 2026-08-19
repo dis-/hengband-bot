@@ -269,7 +269,7 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
-    def _run_once_with_routes(self, tcp_result, events):
+    def _run_once_with_routes(self, tcp_result, events, *, control=True):
         from hengbot import cli
 
         with TemporaryDirectory() as directory:
@@ -310,10 +310,10 @@ class DisabledCliPinTest(unittest.TestCase):
                     side_effect=lambda *_a, **_k: events.append("wm"),
                 ),
             ):
-                return cli.main([
-                    "--state-file", str(state), "--once", "--control-port", "1",
-                    "--send-to-window",
-                ])
+                argv = ["--state-file", str(state), "--once", "--send-to-window"]
+                if control:
+                    argv.extend(["--control-port", "1"])
+                return cli.main(argv)
 
     def test_tcp_success_never_duplicates_key_to_wm_char(self):
         events = []
@@ -325,7 +325,51 @@ class DisabledCliPinTest(unittest.TestCase):
         self.assertEqual(self._run_once_with_routes(None, events), 0)
         self.assertEqual(events, ["tcp", "wm"])
 
-    def test_once_records_tcp_shadow_after_successful_send(self):
+    def test_control_port_without_tcp_shadow_sends_without_recording_shadow(self):
+        from hengbot import cli
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state.jsonl"
+            definitions = root / "MonraceDefinitions.jsonc"
+            state.write_text(_snapshot_line(1), encoding="utf-8")
+            definitions.write_text("{}", encoding="utf-8")
+            policy = unittest.mock.Mock()
+            policy._decision_sequence = 1
+            policy.last_reason = "test:once-shadow"
+            policy.prompt_owner_handoff = None
+            policy.choose_key.return_value = "5"
+            policy.validate_read_key.return_value = "5"
+
+            with (
+                patch("hengbot.cli.find_monrace_definitions", return_value=definitions),
+                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
+                patch("hengbot.cli.find_terrain_definitions", return_value=None),
+                patch("hengbot.cli.find_outpost_map", return_value=None),
+                patch("hengbot.cli.find_town_map", return_value=None),
+                patch("hengbot.cli.find_wilderness_definition", return_value=None),
+                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_strategies", return_value=None),
+                patch("hengbot.cli._bot_play_macros_ready", return_value=False),
+                patch("hengbot.cli.ConservativePolicy", return_value=policy),
+                patch("hengbot.cli._configure_policy_output_paths", return_value=None),
+                patch("hengbot.cli._capture_decision_facts", return_value={}),
+                patch("hengbot.cli._write_decision"),
+                patch("hengbot.cli._record_tcp_shadow") as shadow,
+                patch(
+                    "hengbot.control_client.ControlClient.send_keys", return_value=1
+                ) as send_keys,
+            ):
+                result = cli.main([
+                    "--state-file", str(state), "--once", "--control-port", "1",
+                ])
+
+            self.assertEqual(result, 0)
+            send_keys.assert_called_once()
+            shadow.assert_not_called()
+
+    def test_tcp_shadow_opt_in_records_after_successful_send(self):
         from hengbot import cli
 
         with TemporaryDirectory() as directory:
@@ -361,12 +405,30 @@ class DisabledCliPinTest(unittest.TestCase):
             ):
                 result = cli.main([
                     "--state-file", str(state), "--once", "--control-port", "1",
+                    "--tcp-shadow",
                 ])
 
             self.assertEqual(result, 0)
             shadow.assert_called_once()
             self.assertEqual(shadow.call_args.args[1]["turn"], 1)
             self.assertEqual(shadow.call_args.args[2], 1)
+
+    def test_without_control_port_uses_wm_path_without_control_client(self):
+        from hengbot import cli
+
+        events = []
+        with patch.dict("os.environ", {"HENGBOT_CONTROL_PORT": ""}, clear=False), patch(
+            "hengbot.control_client.ControlClient"
+        ) as control_client, patch(
+            "hengbot.input_windows.send_key_to_window",
+            side_effect=lambda *_a, **_k: events.append("wm"),
+        ):
+            self.assertEqual(
+                self._run_once_with_routes(None, events, control=False), 0
+            )
+
+        control_client.assert_not_called()
+        self.assertEqual(events, ["wm"])
 
     def test_disabled_real_follow_cycle_has_no_shadow_side_effect_or_extra_decode(self):
         from hengbot import cli
@@ -447,6 +509,7 @@ class DisabledCliPinTest(unittest.TestCase):
                 "--state-file", str(state),
                 "--decision-log", str(root / "decisions.jsonl"),
                 "--poll-interval", "0.001",
+                "--tcp-shadow",
             ])
             args.wait_telemetry = unittest.mock.Mock()
             args.shadow_client = fake_client
