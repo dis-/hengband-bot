@@ -2098,12 +2098,32 @@ def main(argv: list[str] | None = None) -> int:
     def send(
         key: str, *, in_store: bool = False, decision: dict | None = None
     ) -> bool:
+        key = _transport_key(key, tunnel_macros_ready)
+        if shadow_client is not None:
+            from hengbot.control_client import raw_keys_to_macro_notation
+
+            try:
+                notation = raw_keys_to_macro_notation(key)
+            except ValueError as exc:
+                print(f"failed to encode TCP key: {exc}", file=sys.stderr)
+            else:
+                deadline = time.monotonic() + shadow_client.request_budget
+                while True:
+                    pushed = shadow_client.send_keys(notation, deadline=deadline)
+                    if pushed == len(key):
+                        for index, char in enumerate(key):
+                            _write_posted_character(
+                                posted_character_path, char, key, index, decision
+                            )
+                        return True
+                    if not shadow_client.backpressured or time.monotonic() >= deadline:
+                        break
+                    time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
         if not args.send_to_window:
-            return True
+            return shadow_client is None
         try:
             from hengbot.input_windows import send_key_to_window
 
-            key = _transport_key(key, tunnel_macros_ready)
             # A decision may be a multi-key macro (e.g. "qf" = quaff item f). Post
             # each key in turn; the gap lets the game raise each successive
             # prompt before the follow-up character arrives so it is not flushed.

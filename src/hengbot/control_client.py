@@ -1,10 +1,4 @@
-"""Bounded read-only client for Hengband's game-control shadow protocol.
-
-Phase 1 deliberately exposes only ``info`` and ``state`` observations.  All
-other operations, including ``screen``, ``messages``, ``keys``, and ``quit``,
-are rejected before a request can be composed, so this module cannot control
-or terminate the game.
-"""
+"""Bounded client for Hengband's observation and controlled-key protocol."""
 
 from __future__ import annotations
 
@@ -25,10 +19,16 @@ class ControlClientError(RuntimeError):
     """The control server did not produce a valid response in budget."""
 
 
+class ControlServerError(ControlClientError):
+    """The server rejected a well-formed request."""
+
+
 class ControlClient:
     """Persistent newline-JSON connection with bounded reconnect attempts."""
 
     _READ_ONLY_OPS = frozenset({"info", "state"})
+    _ALLOWED_OPS = _READ_ONLY_OPS | {"keys"}
+    BACKPRESSURE_ERROR = "the key queue does not have enough room"
 
     def __init__(
         self,
@@ -52,6 +52,8 @@ class ControlClient:
         self._retry_after = 0.0
         self._consecutive_failures = 0
         self._failure_visible = False
+        self.last_error: str | None = None
+        self.backpressured = False
 
     @property
     def connected(self) -> bool:
@@ -85,8 +87,8 @@ class ControlClient:
         self._buffer.clear()
 
     def _request_once(self, op: str, fields: Mapping[str, object], deadline: float) -> dict:
-        if op not in self._READ_ONLY_OPS:
-            raise ValueError(f"control operation is forbidden in shadow mode: {op}")
+        if op not in self._ALLOWED_OPS:
+            raise ValueError(f"control operation is forbidden: {op}")
         if self._socket is None:
             self._connect(deadline)
         request_id = self._next_id
@@ -115,7 +117,7 @@ class ControlClient:
         if not isinstance(response, dict) or response.get("id") != request_id:
             raise ControlClientError("control response id mismatch")
         if response.get("ok") is not True:
-            raise ControlClientError(str(response.get("error", "control request failed")))
+            raise ControlServerError(str(response.get("error", "control request failed")))
         result = response.get("result")
         if not isinstance(result, dict):
             raise ControlClientError("control response result is not an object")
@@ -158,6 +160,84 @@ class ControlClient:
         self._retry_after = time.monotonic() + backoff
         self._report_failure_once(last_error)
         return None
+
+    def send_keys(self, keys: str, *, deadline: float | None = None) -> int | None:
+        """Send macro-notation keys and return the acknowledged decoded count.
+
+        Server rejections are exposed through ``last_error``. Backpressure is
+        separately identified by ``backpressured`` so callers can wait and
+        retry without mistaking it for a broken transport.
+        """
+        self.last_error = None
+        self.backpressured = False
+        deadline = (
+            time.monotonic() + self.request_budget if deadline is None else deadline
+        )
+        last_transport_error: BaseException | None = None
+        result: dict | None = None
+        for _attempt in range(self.retries + 1):
+            try:
+                result = self._request_once("keys", {"keys": keys}, deadline)
+                break
+            except ControlServerError as error:
+                self.last_error = str(error)
+                self.backpressured = self.last_error == self.BACKPRESSURE_ERROR
+                if self.backpressured:
+                    self._log(f"tcp-input backpressure: {self.last_error}")
+                    return None
+                # Server rejections are definitive; reconnecting cannot fix them.
+                self._log(f"tcp-input rejected: {self.last_error}")
+                return None
+            except (
+                OSError,
+                ValueError,
+                UnicodeDecodeError,
+                json.JSONDecodeError,
+                ControlClientError,
+            ) as error:
+                last_transport_error = error
+                self.last_error = str(error)
+                self.close()
+                if time.monotonic() >= deadline:
+                    break
+        else:
+            result = None
+        if last_transport_error is not None and result is None:
+            self._consecutive_failures += 1
+            self._retry_after = time.monotonic() + min(
+                self.backoff * self._consecutive_failures,
+                self.request_budget * (self.retries + 1),
+            )
+            self._report_failure_once(last_transport_error)
+            return None
+        pushed = result.get("pushed")
+        if not isinstance(pushed, int) or isinstance(pushed, bool):
+            self.last_error = "control keys result has no integer pushed count"
+            self._log(f"tcp-input rejected: {self.last_error}")
+            return None
+        return pushed
+
+
+def raw_keys_to_macro_notation(keys: str) -> str:
+    """Encode an 8-bit raw key string for Hengband's ``text_to_ascii``."""
+    encoded: list[str] = []
+    escapes = {
+        8: r"\b", 9: r"\t", 10: r"\n", 13: r"\r", 27: r"\e",
+        32: r"\s", 92: r"\\", 94: r"\^",
+    }
+    for character in keys:
+        value = ord(character)
+        if value == 0 or value > 255:
+            raise ValueError(f"raw key byte is not safely representable: {value:#x}")
+        if value in escapes:
+            encoded.append(escapes[value])
+        elif value < 32:
+            encoded.append("^" + chr(value | 64))
+        elif 33 <= value <= 126:
+            encoded.append(character)
+        else:
+            encoded.append(f"\\x{value:02X}")
+    return "".join(encoded)
 
 
 def _normalized(value: object) -> object:

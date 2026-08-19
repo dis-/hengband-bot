@@ -8,7 +8,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from hengbot.control_client import ControlClient, append_shadow_diff
+from hengbot.control_client import (
+    ControlClient,
+    append_shadow_diff,
+    raw_keys_to_macro_notation,
+)
 
 
 def _snapshot_line(turn):
@@ -29,6 +33,11 @@ class _Handler(socketserver.StreamRequestHandler):
                 return
             if action == "timeout":
                 time.sleep(0.1)
+                continue
+            if isinstance(action, str) and action.startswith("error:"):
+                self.wfile.write((json.dumps({
+                    "id": request["id"], "ok": False, "error": action[6:],
+                }) + "\n").encode())
                 continue
             result = action if isinstance(action, dict) else {"op": request["op"]}
             response_id = request["id"] + 1 if action == "wrong-id" else request["id"]
@@ -148,12 +157,71 @@ class ControlClientTest(unittest.TestCase):
             ))
         self.assertEqual(len(messages), 1)
 
-    def test_non_phase_one_operations_are_refused_before_composition(self):
+    def test_non_allowlisted_operations_are_refused_before_composition(self):
         client = self.client()
-        for operation in ("screen", "messages", "keys", "quit"):
+        for operation in ("screen", "messages", "quit"):
             with self.subTest(operation=operation), self.assertRaises(ValueError):
                 client.request(operation, keys="j" if operation == "keys" else None)
         self.assertEqual(self.server.requests, [])
+
+    def test_send_keys_returns_acknowledged_count(self):
+        self.server.actions[:] = [{"pushed": 4}]
+        client = self.client()
+        self.assertEqual(client.send_keys(r"~9\e\e"), 4)
+        self.assertEqual(self.server.requests[0]["op"], "keys")
+        self.assertEqual(self.server.requests[0]["keys"], r"~9\e\e")
+
+    def test_send_keys_surfaces_server_error_without_raising(self):
+        self.server.actions[:] = ["error:the key sequence is too long"]
+        messages = []
+        client = self.client(log=messages.append)
+        self.assertIsNone(client.send_keys("j"))
+        self.assertEqual(client.last_error, "the key sequence is too long")
+        self.assertFalse(client.backpressured)
+        self.assertIn("the key sequence is too long", messages[0])
+
+    def test_send_keys_identifies_recoverable_backpressure(self):
+        self.server.actions[:] = [
+            "error:the key queue does not have enough room", {"pushed": 1},
+        ]
+        client = self.client()
+        self.assertIsNone(client.send_keys("j"))
+        self.assertTrue(client.backpressured)
+        self.assertEqual(client.send_keys("j"), 1)
+        self.assertFalse(client.backpressured)
+
+    def test_real_key_corpus_round_trips_text_to_ascii_grammar(self):
+        corpus = ("\x1b", "~9\x1b\x1b", "5pj\x1b", "pe3\r\r\x1b", "R300\r",
+                  "0123456789", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                  "\\^", "\x01\x08\x09\x0a\x1f\x7f\xff")
+
+        def text_to_ascii(notation):
+            result = bytearray()
+            index = 0
+            named = {"e": 27, "b": 8, "t": 9, "n": 10, "r": 13,
+                     "s": 32, "\\": 92, "^": 94}
+            while index < len(notation):
+                char = notation[index]
+                if char == "\\":
+                    index += 1
+                    code = notation[index]
+                    if code == "x":
+                        result.append(int(notation[index + 1:index + 3], 16))
+                        index += 2
+                    else:
+                        result.append(named[code])
+                elif char == "^":
+                    index += 1
+                    result.append(ord(notation[index]) & 0x1f)
+                else:
+                    result.append(ord(char))
+                index += 1
+            return bytes(result)
+
+        for raw in corpus:
+            with self.subTest(raw=repr(raw)):
+                notation = raw_keys_to_macro_notation(raw)
+                self.assertEqual(text_to_ascii(notation), raw.encode("latin-1"))
 
     def test_shadow_record_shape_and_normalization(self):
         self.server.actions[:] = [
@@ -201,6 +269,62 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
+    def _run_once_with_routes(self, tcp_result, events):
+        from hengbot import cli
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state.jsonl"
+            definitions = root / "MonraceDefinitions.jsonc"
+            state.write_text(_snapshot_line(1), encoding="utf-8")
+            definitions.write_text("{}", encoding="utf-8")
+            policy = unittest.mock.Mock()
+            policy._decision_sequence = 1
+            policy.last_reason = "test:routing"
+            policy.prompt_owner_handoff = None
+            policy.choose_key.return_value = "5"
+            policy.validate_read_key.return_value = "5"
+
+            with (
+                patch("hengbot.cli.find_monrace_definitions", return_value=definitions),
+                patch("hengbot.cli.load_monrace_knowledge", return_value={}),
+                patch("hengbot.cli.find_terrain_definitions", return_value=None),
+                patch("hengbot.cli.find_outpost_map", return_value=None),
+                patch("hengbot.cli.find_town_map", return_value=None),
+                patch("hengbot.cli.find_wilderness_definition", return_value=None),
+                patch("hengbot.cli.find_dungeon_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_definitions", return_value=None),
+                patch("hengbot.cli.find_quest_strategies", return_value=None),
+                patch("hengbot.cli._bot_play_macros_ready", return_value=False),
+                patch("hengbot.cli.ConservativePolicy", return_value=policy),
+                patch("hengbot.cli._configure_policy_output_paths", return_value=None),
+                patch("hengbot.cli._capture_decision_facts", return_value={}),
+                patch("hengbot.cli._write_decision"),
+                patch("hengbot.cli._record_tcp_shadow"),
+                patch(
+                    "hengbot.control_client.ControlClient.send_keys",
+                    side_effect=lambda *_a, **_k: events.append("tcp") or tcp_result,
+                ),
+                patch(
+                    "hengbot.input_windows.send_key_to_window",
+                    side_effect=lambda *_a, **_k: events.append("wm"),
+                ),
+            ):
+                return cli.main([
+                    "--state-file", str(state), "--once", "--control-port", "1",
+                    "--send-to-window",
+                ])
+
+    def test_tcp_success_never_duplicates_key_to_wm_char(self):
+        events = []
+        self.assertEqual(self._run_once_with_routes(1, events), 0)
+        self.assertEqual(events, ["tcp"])
+
+    def test_tcp_transport_failure_falls_back_to_wm_char_in_order(self):
+        events = []
+        self.assertEqual(self._run_once_with_routes(None, events), 0)
+        self.assertEqual(events, ["tcp", "wm"])
+
     def test_once_records_tcp_shadow_after_successful_send(self):
         from hengbot import cli
 
@@ -233,6 +357,7 @@ class DisabledCliPinTest(unittest.TestCase):
                 patch("hengbot.cli._capture_decision_facts", return_value={}),
                 patch("hengbot.cli._write_decision"),
                 patch("hengbot.cli._record_tcp_shadow") as shadow,
+                patch("hengbot.control_client.ControlClient.send_keys", return_value=1),
             ):
                 result = cli.main([
                     "--state-file", str(state), "--once", "--control-port", "1",
