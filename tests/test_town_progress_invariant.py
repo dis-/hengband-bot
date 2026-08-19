@@ -15,6 +15,7 @@ from hengbot.policy import (
     FOOD_TYPE_MANA,
     DIRECTION_KEYS,
     HengbotPolicy,
+    LEAVE_STORE_KEY,
     ProcurementHomeGate,
     RESTOCK_WAIT_MACRO,
     StoreVisit,
@@ -341,6 +342,29 @@ class TownProgressInvariantTest(unittest.TestCase):
                 key = policy.choose_key(snapshot)
                 self.assertNotEqual(key, terminal_key)
                 self.assertTrue(policy._town_result_makes_progress(snapshot, key))
+                self.assertEqual(
+                    policy._town_progress_invariant_defect["marker"],
+                    "TOWN_PROGRESS_INVARIANT_DEFECT",
+                )
+
+    def test_move_reason_cannot_bless_wait_or_leave_axis(self):
+        for terminal_key in (WAIT_KEY, LEAVE_STORE_KEY):
+            with self.subTest(key=repr(terminal_key)):
+                policy, snapshot, store = self._case(on_door=False)
+                policy._town_supplier_stock = {STORE_MAGIC: store}
+                policy._shop_observation = None
+
+                def injected_terminal(_snapshot):
+                    policy.last_reason = "seek-loot"
+                    return terminal_key
+
+                policy._choose_key_with_latch_capture = injected_terminal
+                key = policy.choose_key(snapshot)
+                self.assertNotEqual(key, terminal_key)
+                self.assertIn(
+                    "town-progress-invariant:defect:seek-loot",
+                    policy.last_reason,
+                )
                 self.assertEqual(
                     policy._town_progress_invariant_defect["marker"],
                     "TOWN_PROGRESS_INVARIANT_DEFECT",

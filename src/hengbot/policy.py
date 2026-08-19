@@ -2990,7 +2990,7 @@ class HengbotPolicy:
         ):
             return True
         if key in {"", WAIT_KEY, LEAVE_STORE_KEY}:
-            return (self.last_reason or "") in MOVE_REASONS
+            return False
         if self._store_visit is not None and self._store_visit.operation_posted:
             return True
         if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
