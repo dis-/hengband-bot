@@ -6073,7 +6073,10 @@ class ShoppingTest(unittest.TestCase):
         pol = HengbotPolicy()
         home = replace(
             self._in_store([]),
-            store=StoreState(store_type=STORE_HOME, items=[]),
+            store=StoreState(
+                store_type=STORE_HOME, items=[], stock_num=0,
+                page_top=0, page_size=52,
+            ),
             turn=895189,
         )
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
@@ -20969,7 +20972,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10)}, [],
             floor_key=(0, 0, 0), town_flag=True,
             inventory=self._strict_supplies(detection=5),
-            store=StoreState(STORE_HOME, [], page_size=52),
+            store=StoreState(
+                STORE_HOME, [], stock_num=0, page_top=0, page_size=52,
+            ),
         )
         policy = HengbotPolicy()
 
@@ -20983,7 +20988,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         stored = store_item("a", TVAL_POTION, 999, name="stored")
         completed.consume_home_knowledge((stored,))
         completed_inside = replace(
-            inside, store=StoreState(STORE_HOME, [stored], page_size=52)
+            inside, store=StoreState(
+                STORE_HOME, [stored], stock_num=1, page_top=0, page_size=52,
+            )
         )
         self.assertEqual(completed.choose_key(completed_inside), LEAVE_STORE_KEY)
         self.assertEqual(completed.last_reason, "home:route-claim-unfulfilled")
@@ -28518,7 +28525,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             [],
             inventory=self._strict_supplies(recall=1),
             equipment=[self._lantern(), item("main_hand", 23, 2, is_equipment=True)],
-            store=StoreState(store_type=STORE_HOME, items=full_page),
+            store=StoreState(
+                store_type=STORE_HOME, items=full_page, stock_num=12,
+                page_top=0, page_size=12,
+            ),
         )
         policy = HengbotPolicy()
 
@@ -39632,7 +39642,10 @@ class TownCycleDetectorTest(unittest.TestCase):
         home = replace(
             town,
             grids={position: store_grid},
-            store=StoreState(store_type=STORE_HOME, items=[]),
+            store=StoreState(
+                store_type=STORE_HOME, items=[], stock_num=0,
+                page_top=0, page_size=52,
+            ),
             town_flag=False,
         )
         interleaved = replace(
@@ -48804,7 +48817,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             floor_key=(0, 0, 0),
             town_flag=True,
             inventory=list(inventory),
-            store=StoreState(STORE_HOME, []) if at_home else None,
+            store=(
+                StoreState(
+                    STORE_HOME, [], stock_num=0, page_top=0, page_size=12,
+                )
+                if at_home else None
+            ),
         )
 
     def _entrance_snapshot(self, inventory, *, turn=2247201):
@@ -50228,6 +50246,41 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(key, "5" + SELL_KEY + "f40\r" + policy_module.LEAVE_STORE_KEY)
         self.assertEqual(key.count(SELL_KEY), 1)
         self.assertNotEqual(policy.last_reason, "home:leave-unbound-deposit")
+
+    def test_open_home_page_mana_device_replays_store_item_crash(self):
+        policy = HengbotPolicy()
+        wand = store_item(
+            "a", TVAL_WAND, 6, count=2, name="Stone to Mud",
+            known=True, charges=7,
+        )
+        snapshot = replace(
+            self._snapshot([]),
+            player=replace(self._snapshot([]).player, food_type=FOOD_TYPE_MANA),
+            store=StoreState(
+                STORE_HOME, [wand], stock_num=1, page_top=0, page_size=12,
+            ),
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:scan-complete-from-open-page")
+        self.assertIsInstance(policy._home_knowledge_items[0], InventoryItem)
+        self.assertEqual(policy._count_mana_food_uses(snapshot), 14)
+
+    def test_multi_page_open_home_is_not_consumed_or_attempt_latched(self):
+        policy = HengbotPolicy()
+        final_page_item = store_item("a", TVAL_WAND, 6, charges=7)
+        snapshot = replace(
+            self._snapshot([]),
+            store=StoreState(
+                STORE_HOME, [final_page_item], stock_num=13,
+                page_top=12, page_size=12,
+            ),
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:scan-incomplete-open-page")
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 
     def test_142251_transaction_deposit_uses_atomic_entrance_visit(self):
         policy = HengbotPolicy()

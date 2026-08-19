@@ -4396,15 +4396,34 @@ class HengbotPolicy:
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
                 and self._equipment_transaction_session is None
+                and self._open_home_page_is_complete(snapshot)
                 and (
                     not self._equipment_catalog.home_scan_complete
                     or not self._home_knowledge_current
                     or self._home_knowledge_invalidated
                 )
             ):
-                self.consume_home_knowledge(tuple(snapshot.store.items))
+                self.consume_home_knowledge(tuple(
+                    self._inventory_item_from_store_item(item)
+                    for item in snapshot.store.items
+                ))
                 self._home_scan_source = "observed-home-page"
                 self.last_reason = "home:scan-complete-from-open-page"
+                key = LEAVE_STORE_KEY
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
+                and (
+                    not self._equipment_catalog.home_scan_complete
+                    or not self._home_knowledge_current
+                    or self._home_knowledge_invalidated
+                )
+            ):
+                # A visible page of a multi-page (or metadata-poor) Home is
+                # useful evidence, but it cannot replace the complete ~9 list.
+                # Leave without latching the Home stop so the scan can continue.
+                self.last_reason = "home:scan-incomplete-open-page"
                 key = LEAVE_STORE_KEY
             elif (
                 not self._calibration_active()
@@ -4815,6 +4834,53 @@ class HengbotPolicy:
         self._home_scan_item_count = len(items)
         self._home_errand.observe_knowledge(True)
         return True
+
+    @staticmethod
+    def _open_home_page_is_complete(snapshot: Snapshot) -> bool:
+        """Whether the displayed page proves it contains the whole Home."""
+        store = snapshot.store
+        return bool(
+            store is not None
+            and store.store_type == STORE_HOME
+            and store.page_top == 0
+            and store.page_size is not None
+            and store.page_size > 0
+            and store.stock_num is not None
+            and store.stock_num <= store.page_size
+            and len(store.items) == store.stock_num
+        )
+
+    @staticmethod
+    def _inventory_item_from_store_item(item: StoreItem) -> InventoryItem:
+        """Project an observed Home ware onto the canonical ~9 item contract."""
+        return InventoryItem(
+            slot=item.letter,
+            name=item.name,
+            count=item.count,
+            tval=item.tval,
+            sval=item.sval,
+            aware=item.aware,
+            known=item.known,
+            fully_known=item.fully_known,
+            charges=item.charges,
+            pval=item.pval,
+            is_equipment=item.is_equipment,
+            is_ego=item.is_ego,
+            is_artifact=item.is_artifact,
+            is_cursed=item.is_cursed,
+            inscription=item.inscription,
+            is_broken=item.is_broken,
+            to_h=item.to_h,
+            to_d=item.to_d,
+            to_a=item.to_a,
+            ac=item.ac,
+            damage_dice_num=item.damage_dice_num,
+            damage_dice_sides=item.damage_dice_sides,
+            known_flags=item.known_flags,
+            pseudo_feeling=item.pseudo_feeling,
+            weight=item.weight,
+            weapon_proficiency=item.weapon_proficiency,
+        )
 
     def consume_look(self, data: dict[str, object]) -> None:
         """Record the floor identities returned by the existing look channel."""
