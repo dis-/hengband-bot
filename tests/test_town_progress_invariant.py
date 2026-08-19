@@ -346,6 +346,46 @@ class TownProgressInvariantTest(unittest.TestCase):
                     "TOWN_PROGRESS_INVARIANT_DEFECT",
                 )
 
+    def test_seek_loot_progress_is_not_preempted_by_composable_purchase(self):
+        policy, snapshot, store = self._case(on_door=False)
+        policy._town_supplier_stock = {STORE_MAGIC: store}
+        policy._shop_observation = None
+        policy._shopping_approach_goal = None
+        seek_key = next(iter(DIRECTION_KEYS.values()))
+
+        def injected_seek_loot(_snapshot):
+            policy.last_reason = "seek-loot"
+            return seek_key
+
+        policy._choose_key_with_latch_capture = injected_seek_loot
+        key = policy.choose_key(snapshot)
+        self.assertEqual(key, seek_key)
+        self.assertEqual(policy.last_reason, "seek-loot")
+        self.assertEqual(policy._town_progress_invariant_defect, {})
+
+    def test_net_zero_goal_walk_is_still_preempted(self):
+        policy, snapshot, store = self._case(on_door=False)
+        policy._town_supplier_stock = {STORE_MAGIC: store}
+        policy._shop_observation = None
+        policy._shopping_approach_goal = None
+        policy._town_progress_history().append(
+            policy._town_progress_fingerprint(snapshot)
+        )
+        seek_key = next(iter(DIRECTION_KEYS.values()))
+
+        def injected_cyclic_walk(_snapshot):
+            policy.last_reason = "seek-loot"
+            return seek_key
+
+        policy._choose_key_with_latch_capture = injected_cyclic_walk
+        key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, seek_key)
+        self.assertIn("town-progress-invariant:defect:seek-loot", policy.last_reason)
+        self.assertEqual(
+            policy._town_progress_invariant_defect["marker"],
+            "TOWN_PROGRESS_INVARIANT_DEFECT",
+        )
+
     def test_emit_only_phase_is_silent_for_legitimate_results(self):
         policy, snapshot, store = self._case(
             price=999999, on_door=False

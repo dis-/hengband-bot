@@ -1970,6 +1970,13 @@ class HengbotPolicy:
         # but unlike the older in-store selector record it is written at the
         # public decision seam and therefore also covers approach/entry pages.
         self._town_progress_invariant_defect: dict[str, object] = {}
+        # Result-level progress is measured across decisions, not inferred from
+        # one step alone.  Reusing the established town-cycle window keeps a
+        # returned walk productive only while its durable state is net-new.
+        self._town_progress_fingerprint_history: deque[tuple[object, ...]] = deque(
+            maxlen=TOWN_CYCLE_WINDOW
+        )
+        self._town_progress_last_fingerprint: tuple[object, ...] | None = None
         self._town_supplier_stock: dict[int, StoreState] = {}
         # A stair command is verified by the following snapshot. Hengband rejects
         # a stair key without spending a turn, which gives stronger evidence than
@@ -2983,7 +2990,7 @@ class HengbotPolicy:
         ):
             return True
         if key in {"", WAIT_KEY, LEAVE_STORE_KEY}:
-            return False
+            return (self.last_reason or "") in MOVE_REASONS
         if self._store_visit is not None and self._store_visit.operation_posted:
             return True
         if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
@@ -2995,16 +3002,26 @@ class HengbotPolicy:
              if direction_key == key),
             None,
         )
-        goal = self._shopping_approach_goal
-        if direction is not None and goal is None:
+        fingerprint = self._town_progress_fingerprint(snapshot)
+        if direction is not None and fingerprint in self._town_progress_history():
+            # A direction key can still be one leg of an approach/observe/leave
+            # cycle.  Revisiting the same measured state is net-zero progress.
             return False
+        goal = self._shopping_approach_goal
         if direction is not None:
-            before = snapshot.player.position.distance_to(goal)
-            after = Position(
-                snapshot.player.position.y + direction[0],
-                snapshot.player.position.x + direction[1],
-            ).distance_to(goal)
-            return after < before
+            if goal is not None:
+                before = snapshot.player.position.distance_to(goal)
+                after = Position(
+                    snapshot.player.position.y + direction[0],
+                    snapshot.player.position.x + direction[1],
+                ).distance_to(goal)
+                if after < before:
+                    return True
+            # MOVE_REASONS is the existing closed contract for owners that
+            # produced a walk toward an active loot, stair, exploration, quest,
+            # or other navigation goal.  The fingerprint check above prevents
+            # that contract from blessing a net-zero town cycle.
+            return (self.last_reason or "") in MOVE_REASONS
         # Keep this positive and closed.  Native store travel and dungeon entry
         # have explicit contracts that advance position/depth; an unknown macro
         # is not progress merely because it contains command characters.
@@ -3019,6 +3036,42 @@ class HengbotPolicy:
         if key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
             return True
         return False
+
+    def _town_progress_fingerprint(self, snapshot: Snapshot) -> tuple[object, ...]:
+        """Measured town progress fields used by the result arbitration seam."""
+        return (
+            snapshot.floor_key,
+            snapshot.player.position,
+            snapshot.player.gold,
+            snapshot.player.food_state,
+            snapshot.player.food_type,
+            snapshot.player.exp,
+            snapshot.dungeon_level,
+            tuple(sorted(
+                (self._emission_item_state(item) for item in snapshot.inventory),
+                key=repr,
+            )),
+        )
+
+    def _town_progress_history(self) -> deque[tuple[object, ...]]:
+        """Return the window, lazily upgrading restored pre-R6 policies."""
+        history = getattr(self, "_town_progress_fingerprint_history", None)
+        if history is None:
+            history = deque(maxlen=TOWN_CYCLE_WINDOW)
+            self._town_progress_fingerprint_history = history
+        return history
+
+    def _town_begin_progress_decision(self, snapshot: Snapshot) -> None:
+        """Move the prior decision into the window, leaving current state fresh."""
+        history = self._town_progress_history()
+        if not snapshot.in_town:
+            history.clear()
+            self._town_progress_last_fingerprint = None
+            return
+        previous = getattr(self, "_town_progress_last_fingerprint", None)
+        if previous is not None:
+            history.append(previous)
+        self._town_progress_last_fingerprint = self._town_progress_fingerprint(snapshot)
 
     def _town_progress_allow_members(self, snapshot: Snapshot) -> frozenset[str]:
         """Return only members of the reviewed procurement preemptor set."""
@@ -3122,7 +3175,9 @@ class HengbotPolicy:
     ) -> str:
         """Enforce composable progress at the one downstream town-result seam."""
         proposed_reason = self.last_reason or ""
-        if not snapshot.in_town or self._town_result_makes_progress(snapshot, key):
+        self._town_begin_progress_decision(snapshot)
+        result_makes_progress = self._town_result_makes_progress(snapshot, key)
+        if not snapshot.in_town or result_makes_progress:
             return key
         allow_members = self._town_progress_allow_members(snapshot)
         if allow_members:
