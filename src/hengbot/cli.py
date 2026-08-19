@@ -2115,6 +2115,16 @@ def main(argv: list[str] | None = None) -> int:
                             _write_posted_character(
                                 posted_character_path, char, key, index, decision
                             )
+                            if decision is not None and home_entry_capture is not None:
+                                try:
+                                    home_entry_capture.record_posted_character(
+                                        decision["sequence"], char
+                                    )
+                                except (KeyError, TypeError) as exc:
+                                    home_entry_capture.report_failure(
+                                        "record_posted_character", exc,
+                                        "decision.sequence/character",
+                                    )
                         return True
                     if not shadow_client.backpressured or time.monotonic() >= deadline:
                         break
