@@ -11652,7 +11652,10 @@ class HengbotPolicy:
                 or self._retention_reservation(snapshot, item.item) > 0
                 or (
                     item.item.is_digging_tool
-                    and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+                    and (
+                        self._fundraising_mode in {"prepare", "mine", "scavenge"}
+                        or not self._is_surplus_digging_tool(snapshot, item.item)
+                    )
                 )
                 or (
                     self._equipped_weapon_high_grade(snapshot)

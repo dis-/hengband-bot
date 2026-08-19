@@ -44838,6 +44838,141 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             store=store,
         )
 
+    def _digger_withdrawal_incident(self):
+        shovel = item(
+            "d", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="Shovel (1d2)",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        pick = item(
+            "e", TVAL_DIGGING, SV_DIGGING_PICK, name="Pick (1d3)",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        wearable = store_item(
+            "a", TVAL_RING, 1, name="recorded Home wearable",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy = HengbotPolicy()
+        snapshot = self._town(inventory=(shovel, pick))
+        seed_character_calibration(policy, snapshot)
+        digger_ids = (
+            "pack:3de78ae78c7ba624:0",
+            "pack:5b3f232ae0777c7e:0",
+        )
+        home_id = "home:ec2e53c16a3761bb:0"
+        policy._equipment_catalog._carried = {
+            digger_ids[0]: OwnedEquipment(digger_ids[0], shovel, "pack"),
+            digger_ids[1]: OwnedEquipment(digger_ids[1], pick, "pack"),
+        }
+        policy._equipment_catalog._home = {
+            home_id: OwnedEquipment(home_id, wearable, "home")
+        }
+        policy._equipment_catalog.home_scan_complete = True
+        return policy, snapshot, digger_ids, home_id, wearable
+
+    def test_retained_incident_diggers_are_preserved_and_never_deposited(self):
+        policy, snapshot, digger_ids, home_id, _ = (
+            self._digger_withdrawal_incident()
+        )
+        captured = {}
+
+        def prepare(snapshot_arg, items, *args, **kwargs):
+            preserved = kwargs["preserve_pack_item_ids"]
+            target_item = next(owned for owned in items if owned.id == home_id)
+            target = Loadout((("main_ring", target_item),), "empty")
+            plan = policy_module.plan_equipment_transactions(
+                items, current_loadout(items), target,
+                current_pack_items=len(snapshot_arg.inventory),
+                home_scan_complete=True,
+                preserve_pack_item_ids=preserved,
+            )
+            captured.update(preserve=preserved, plan=plan, target=target)
+            return policy_module.WarriorOptimizationPreparation(
+                current_loadout(items),
+                None,
+                plan,
+                (),
+            )
+
+        with patch("hengbot.policy.prepare_warrior_optimization", prepare):
+            preparation = policy._prepare_equipment_optimization(snapshot)
+
+        deposits = {
+            action.item_id for action in preparation.transaction.actions
+            if action.kind == "deposit"
+        }
+        self.assertEqual(deposits.intersection(digger_ids), set())
+        self.assertEqual(
+            captured["preserve"].intersection(digger_ids), set(digger_ids)
+        )
+
+    def test_incident_home_replay_withdraws_before_identify_staff_work(self):
+        policy, outside, digger_ids, home_id, wearable = (
+            self._digger_withdrawal_incident()
+        )
+
+        def prepare(snapshot_arg, items, *args, **kwargs):
+            target_item = next(item for item in items if item.id == home_id)
+            target = Loadout((("main_ring", target_item),), "empty")
+            transaction = policy_module.plan_equipment_transactions(
+                items, current_loadout(items), target,
+                current_pack_items=len(snapshot_arg.inventory),
+                home_scan_complete=True,
+                preserve_pack_item_ids=kwargs["preserve_pack_item_ids"],
+            )
+            return policy_module.WarriorOptimizationPreparation(
+                current_loadout(items),
+                None,
+                transaction,
+                (),
+            )
+
+        with patch("hengbot.policy.prepare_warrior_optimization", prepare):
+            preparation = policy._prepare_equipment_optimization(outside)
+        plan = preparation.transaction
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(plan)
+        )
+        identify_staff = store_item(
+            "b", TVAL_STAFF, SV_STAFF_IDENTIFY, name="Staff of Identify",
+            count=1, charges=12, pval=12, known=True, fully_known=True,
+        )
+        home = replace(
+            outside, store=StoreState(STORE_HOME, [wearable, identify_staff])
+        )
+        policy.consume_home_knowledge((wearable, identify_staff))
+
+        key = policy._equipment_transaction_home_key(home)
+
+        self.assertTrue(plan.executable)
+        self.assertEqual(policy._equipment_transaction_failed_items, set())
+        self.assertNotEqual(
+            policy.last_reason, "equipment-transaction:retain-digging-tool"
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:leave-for-atomic-withdraw",
+        )
+        self.assertEqual(
+            policy._equipment_transaction_session.current_action.item_id,
+            home_id,
+        )
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertNotIn("home-route-unavailable", policy.last_reason)
+
+        policy._equipment_transaction_session = None
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertIn(
+            policy.last_reason,
+            {
+                "home:queue-withdraw-identify-staff-reserve",
+                "home:queue-withdraw-surplus-identify-staff",
+            },
+        )
+        self.assertEqual(
+            policy._home_pending_item,
+            policy._item_signature(identify_staff),
+        )
+
     def test_inscribes_pack_random_teleport_item_in_town(self):
         mask = item(
             "a", 32, 5, name="Terror Mask", known=True, fully_known=True,
