@@ -149,6 +149,24 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
         self.assertIn("=>shop:one-shot-buy", policy.last_reason)
 
+    def test_atomic_home_withdraw_await_outranks_posted_shop_buy(self):
+        policy, snapshot, _store = self._case()
+        target = ("captured armour", 36, 14)
+        policy._home_atomic_withdraw_pending = (target, 0, None, 1)
+        visit = policy._store_visit
+        visit.operation_posted = True
+        visit.operation_key = "pa\r\x1b"
+        policy.last_reason = "home:atomic-withdraw-await-confirmation"
+
+        key = policy._town_procurement_decision(snapshot, LEAVE_STORE_KEY)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "home:atomic-withdraw-await-confirmation"
+        )
+        self.assertIs(policy._store_visit, visit)
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+
     def test_live_shaped_magic_observe_then_compose_ignores_advanced_plan(self):
         policy, snapshot, store = self._case()
         # The live 08:04:52 page was Magic at the real captured entrance

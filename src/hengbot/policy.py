@@ -3298,6 +3298,15 @@ class HengbotPolicy:
         if allow_members:
             return key
 
+        # The outside half of an already-posted Home take owns the decision
+        # until inventory confirms it or its existing confirmation bound
+        # expires.  A posted shop visit must not relabel that await as a buy.
+        if (
+            proposed_reason == "home:atomic-withdraw-await-confirmation"
+            and self._home_atomic_withdraw_pending is not None
+        ):
+            return key
+
         if proposed_reason == "breakout:least-visited":
             breakout = self._boxed_town_breakout_key(snapshot)
             if breakout is not None:
@@ -4526,6 +4535,44 @@ class HengbotPolicy:
                 ))
                 self._home_scan_source = "observed-home-page"
                 self.last_reason = "home:scan-complete-from-open-page"
+                key = LEAVE_STORE_KEY
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
+                and (
+                    pending_withdrawals := {
+                        *(
+                            (self._home_pending_item,)
+                            if self._home_pending_item is not None
+                            else ()
+                        ),
+                        *self._home_pending_batch,
+                        *(
+                            (self._home_atomic_withdraw_pending[0],)
+                            if self._home_atomic_withdraw_pending is not None
+                            else ()
+                        ),
+                    }
+                )
+                and pending_withdrawals.intersection(
+                    {
+                        self._item_signature(item)
+                        for item in (
+                            snapshot.store.items
+                            if self._open_home_page_is_complete(snapshot)
+                            else (
+                                *snapshot.store.items,
+                                *self._home_knowledge_items,
+                            )
+                        )
+                    }
+                )
+            ):
+                # Ordinary withdrawals are composed only from the adjacent
+                # outside snapshot.  This hand-off is not a failed stop pass.
+                self._shopping_approach_store_type = STORE_HOME
+                self.last_reason = "home:leave-for-pending-withdraw"
                 key = LEAVE_STORE_KEY
             elif (
                 not self._calibration_active()

@@ -20998,6 +20998,50 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             completed._town_store_attempted[STORE_HOME], completed_inside.turn
         )
 
+    def test_pending_observed_home_withdrawal_bounces_without_stop_pass(self):
+        oil = store_item("a", 77, 0, name="Flask of oil")
+        inside = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=self._strict_supplies(detection=5),
+            store=StoreState(
+                STORE_HOME, [oil], stock_num=1, page_top=0, page_size=52,
+            ),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((oil,))
+        policy._home_pending_item = policy._item_signature(oil)
+        policy._shopping_approach_store_type = STORE_HOME
+
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy.last_reason, "home:leave-for-pending-withdraw"
+        )
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+
+    def test_pending_unobserved_home_withdrawal_does_not_false_bounce(self):
+        held = store_item("a", 77, 0, name="Flask of oil")
+        missing = store_item("b", 70, 26, name="Missing scroll")
+        inside = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=self._strict_supplies(detection=5),
+            store=StoreState(
+                STORE_HOME, [held], stock_num=1, page_top=0, page_size=52,
+            ),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((held,))
+        policy._home_pending_item = policy._item_signature(missing)
+        policy._shopping_approach_store_type = STORE_HOME
+
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], inside.turn)
+
     def test_stored_digger_is_not_treated_as_carried_fundraising_kit(self):
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
