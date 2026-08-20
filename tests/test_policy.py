@@ -48111,6 +48111,89 @@ class TownErrandPlanTest(unittest.TestCase):
             )["failed"],
         )
 
+    def test_withdrawal_unfulfilled_fires_and_forces_one_rescan(self):
+        """Repeated same-X route claims produce the outcome defect artifact."""
+        policy = self._policy(
+            [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        )
+        snapshot = self._snapshot()
+        target = ("captured armour", 36, 14)
+        policy._home_pending_item = target
+        policy._next_required_store_type(snapshot)
+        original_invalidate = policy._invalidate_home_observation
+        policy._invalidate_home_observation = Mock(wraps=original_invalidate)
+
+        for _ in range(CALIBRATION_HOME_VISIT_LIMIT // 9):
+            policy.last_reason = "home:route-claim-unfulfilled"
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+
+        defect = policy._withdrawal_unfulfilled_defect
+        self.assertEqual(defect["marker"], "WITHDRAWAL_UNFULFILLED_DEFECT")
+        self.assertEqual(defect["item"], target)
+        self.assertEqual(
+            defect["reason"], "home:route-claim-unfulfilled"
+        )
+        self.assertTrue(policy._home_knowledge_invalidated)
+        self.assertEqual(policy._invalidate_home_observation.call_count, 1)
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False
+        )
+        self.assertEqual(policy._invalidate_home_observation.call_count, 1)
+
+    def test_withdrawal_gain_and_target_change_reset_without_flag(self):
+        policy = self._policy(
+            [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
+        )
+        snapshot = self._snapshot()
+        first = ("first armour", 36, 14)
+        second = ("second armour", 36, 15)
+        policy._home_pending_item = first
+        policy._next_required_store_type(snapshot)
+        for _ in range((CALIBRATION_HOME_VISIT_LIMIT // 9) - 1):
+            policy._report_town_stop_pass(
+                snapshot, STORE_HOME, goal_satisfied=False
+            )
+        policy._home_pending_item = second
+        policy._report_town_stop_pass(
+            snapshot, STORE_HOME, goal_satisfied=False
+        )
+        self.assertEqual(policy._withdrawal_unsatisfied_for[0], second)
+        self.assertEqual(policy._withdrawal_unsatisfied_for[2], 1)
+
+        landed = replace(
+            snapshot,
+            inventory=(item("a", 36, 15, name="second armour"),),
+        )
+        policy._observe_withdrawal_unsatisfied_pass(landed)
+        self.assertIsNone(policy._withdrawal_unsatisfied_for)
+        self.assertEqual(policy._withdrawal_unfulfilled_defect, {})
+        self.assertFalse(policy._home_knowledge_invalidated)
+
+    def test_withdrawal_defect_is_flag_only(self):
+        policy = HengbotPolicy()
+        snapshot = replace(self._snapshot(), town_flag=False)
+        target = ("flag-only armour", 36, 14)
+        policy._home_pending_item = target
+        policy._withdrawal_unsatisfied_for = (
+            target, 0, (CALIBRATION_HOME_VISIT_LIMIT // 9) - 1, False
+        )
+
+        def normal_policy(candidate):
+            policy.last_reason = "home:route-claim-unfulfilled"
+            policy._observe_withdrawal_unsatisfied_pass(candidate)
+            return "6"
+
+        policy._choose_key_with_latch_capture = normal_policy
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "6")
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertEqual(policy._home_pending_item, target)
+
     def test_unblocked_home_pass_preserves_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)

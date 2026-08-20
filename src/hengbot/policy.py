@@ -2422,6 +2422,13 @@ class HengbotPolicy:
         ] | None = None
         self._home_atomic_withdraw_index: int | None = None
         self._home_atomic_withdraw_posted_turn: int | None = None
+        # Outcome-keyed supervisor for a requested Home take.  The count is in
+        # unsatisfied Home-stop passes, not raw decisions, so ordinary page and
+        # confirmation latency does not consume the bound.
+        self._withdrawal_unsatisfied_for: tuple[
+            tuple[str, int, int], int, int, bool
+        ] | None = None
+        self._withdrawal_unfulfilled_defect: dict[str, object] = {}
         # True only while a charged Identify staff withdrawn from Home is being
         # carried to the Magic shop for sale.  Home used to be a one-way sink:
         # departure readiness counted pack charges only, while useful charged
@@ -2931,6 +2938,7 @@ class HengbotPolicy:
         # decision's worn set.
         self.prompt_owner_handoff = None
         self._town_progress_invariant_defect = {}
+        self._withdrawal_unfulfilled_defect = {}
         self._town_liveness_invariant_defect = {}
         self._town_liveness_claim_retired = False
         if not hasattr(self, "_town_supplier_stock"):
@@ -2985,6 +2993,8 @@ class HengbotPolicy:
             )
         key = self._refuse_no_progress_cycle(snapshot, key)
         key = self._town_procurement_decision(snapshot, key)
+        if self._withdrawal_unfulfilled_defect:
+            self._record_shop_selector_diagnostics(snapshot, key)
         return self._forbid_wait_while_damaged(snapshot, key)
 
     # Closed list: additions are policy changes and require a dedicated pin.
@@ -3749,6 +3759,9 @@ class HengbotPolicy:
         if capture_path is None:
             return self._choose_key(snapshot)
         before = self._town_blocked_reason
+        withdrawal_defect_before = bool(
+            getattr(self, "_withdrawal_unfulfilled_defect", {})
+        )
         try:
             predecision = latch_capture_checkpoint(self)
         except Exception:
@@ -3757,10 +3770,17 @@ class HengbotPolicy:
         try:
             assignment = self._latch_capture_assignment
             onset = (
-                before is None
-                and self._town_blocked_reason is not None
-                and assignment is not None
-            )
+                (
+                    before is None
+                    and self._town_blocked_reason is not None
+                )
+                or (
+                    not withdrawal_defect_before
+                    and bool(getattr(
+                        self, "_withdrawal_unfulfilled_defect", {}
+                    ))
+                )
+            ) and assignment is not None
             relative = 0 if onset else (
                 CAPTURE_DECISIONS_AFTER_ONSET - self._latch_capture_remaining + 1
                 if self._latch_capture_remaining > 0
@@ -3951,6 +3971,9 @@ class HengbotPolicy:
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
+                if tracked is not None and tracked[0] == signature:
+                    self._withdrawal_unsatisfied_for = None
                 self._confirm_home_withdrawal_address(
                     signature, self._home_atomic_withdraw_index
                 )
@@ -14193,6 +14216,14 @@ class HengbotPolicy:
             item,
             take_count,
         )
+        tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
+        if tracked is None or tracked[0] != signature:
+            self._withdrawal_unsatisfied_for = (
+                signature,
+                self._inventory_signature_count(snapshot, signature),
+                0,
+                False,
+            )
         self._home_atomic_withdraw_index = index
         self._home_atomic_withdraw_posted_turn = snapshot.turn
         if (
@@ -18107,6 +18138,7 @@ class HengbotPolicy:
         # visit ceiling without weakening the existing blocked-store terminal.
         plan.current_stop_passes += 1
         self._town_visit_ledger.unsatisfied_passes[store_type] += 1
+        self._observe_withdrawal_unsatisfied_pass(snapshot)
         if (
             self._town_visit_ledger.unsatisfied_passes[store_type]
             < limit
@@ -18130,6 +18162,50 @@ class HengbotPolicy:
             and self._equipment_transaction_session.required_context == "home"
         ):
             self._abandon_blocked_equipment_transaction(snapshot)
+
+    def _observe_withdrawal_unsatisfied_pass(self, snapshot: Snapshot) -> None:
+        """Flag one requested Home item that repeatedly fails to reach the pack."""
+        pending = self._home_atomic_withdraw_pending
+        signature = pending[0] if pending is not None else self._home_pending_item
+        if signature is None:
+            return
+        current_count = self._inventory_signature_count(snapshot, signature)
+        tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
+        if tracked is None or tracked[0] != signature:
+            tracked = (signature, current_count, 0, False)
+        target, before_count, passes, forced = tracked
+        if current_count > before_count:
+            self._withdrawal_unsatisfied_for = None
+            return
+        passes += 1
+        # Six completed unsatisfied visits leave 48 of the authorised 54-pass
+        # ceiling for recovery, while exceeding any one-shot/page confirmation
+        # chain (which completes before another stop pass is reported).
+        threshold = CALIBRATION_HOME_VISIT_LIMIT // 9
+        if passes >= threshold and not forced:
+            defect = {
+                "marker": "WITHDRAWAL_UNFULFILLED_DEFECT",
+                "item": target,
+                "reason": self.last_reason or "",
+                "unsatisfied_passes": passes,
+            }
+            self._withdrawal_unfulfilled_defect = defect
+            self._town_progress_invariant_defect = dict(defect)
+            self._invalidate_home_observation()
+            forced = True
+            if getattr(self, "_latch_capture_path", None) is not None:
+                try:
+                    self._latch_capture_assignment = assignment_provenance()
+                except Exception:
+                    self._latch_capture_assignment = {
+                        "assigning_file": None,
+                        "assigning_line": None,
+                        "caller_chain": [],
+                        "capture_error": "assignment-provenance-failed",
+                    }
+        self._withdrawal_unsatisfied_for = (
+            target, before_count, passes, forced
+        )
 
     def _rearm_town_store_for_new_work(
         self, store_type: int, *, release_visit_bound: bool = False
@@ -19589,6 +19665,13 @@ class HengbotPolicy:
         if invariant_defect:
             self._shop_selector_diagnostics["town_progress_invariant"] = dict(
                 invariant_defect
+            )
+        withdrawal_defect = getattr(
+            self, "_withdrawal_unfulfilled_defect", {}
+        )
+        if withdrawal_defect:
+            self._shop_selector_diagnostics["withdrawal_unfulfilled"] = dict(
+                withdrawal_defect
             )
 
     @staticmethod
