@@ -80,6 +80,13 @@ def plan_equipment_transactions(
     catalog = {item.id: item for item in items}
     current_slots = _slots(current)
     target_slots = _slots(target)
+    # Restoration-owned worn items are loadout members, not Home surplus.  A
+    # temporarily incomplete optimizer view must not turn them into an
+    # implicit takeoff-and-shelve transaction while restoration still owns
+    # their physical identity.
+    for slot, item in current_slots.items():
+        if item.id in preserve_pack_item_ids:
+            target_slots.setdefault(slot, item)
     # An excluded refuel candidate is absent from the optimizer pool, but that
     # must never turn the worn source into an implicit takeoff transaction.
     if (

@@ -84,6 +84,18 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
             [("deposit", "spare")],
         )
 
+    def test_oscillation_stops_by_retaining_restoration_owned_body_item(self):
+        armour = gear("equipped:523d457d37cb5b14:0", "equipped", tval=36)
+        current = Loadout((("body", armour),), "empty")
+        plan = plan_equipment_transactions(
+            (armour,), current, Loadout((), "empty"),
+            current_pack_items=0, home_scan_complete=True,
+            preserve_pack_item_ids=frozenset({armour.id}),
+        )
+
+        self.assertEqual(plan.actions, ())
+        self.assertEqual(dict(current.slots)["body"].id, armour.id)
+
     def test_reports_pack_space_when_non_equipment_consumables_fill_pack(self):
         targets = tuple(gear(f"target-{index}", "home", tval=45) for index in range(2))
         target = Loadout(

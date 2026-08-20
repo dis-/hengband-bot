@@ -421,6 +421,33 @@ class TownProgressInvariantTest(unittest.TestCase):
             "TOWN_PROGRESS_INVARIANT_DEFECT",
         )
 
+    def test_detector_fires_for_revisited_equipment_macro(self):
+        policy, snapshot, _store = self._case(on_door=False)
+        fingerprint = policy._town_progress_fingerprint(snapshot)
+        policy._town_progress_history().append(fingerprint)
+        policy.last_reason = "equipment-transaction:takeoff"
+
+        self.assertFalse(policy._town_result_makes_progress(snapshot, "tA"))
+        self.assertEqual(
+            policy._town_progress_invariant_defect["marker"],
+            "TOWN_OSCILLATION_DEFECT",
+        )
+        self.assertEqual(
+            policy._shop_selector_diagnostics["town_progress_invariant"]["marker"],
+            "TOWN_OSCILLATION_DEFECT",
+        )
+
+    def test_detector_does_not_flag_convergent_equipment_macro(self):
+        policy, snapshot, _store = self._case(on_door=False)
+        old_fingerprint = policy._town_progress_fingerprint(snapshot)
+        policy._town_progress_history().append(old_fingerprint[:-1] + (("old",),))
+        policy.last_reason = "equipment-transaction:equip"
+
+        self.assertTrue(policy._town_result_makes_progress(snapshot, "wA"))
+        self.assertEqual(
+            getattr(policy, "_town_progress_invariant_defect", {}), {}
+        )
+
     def test_emit_only_phase_is_silent_for_legitimate_results(self):
         policy, snapshot, store = self._case(
             price=999999, on_door=False

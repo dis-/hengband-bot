@@ -3086,6 +3086,19 @@ class HengbotPolicy:
             # At this point direction, WAIT, leave, and the closed noop-macro
             # axis have all been rejected.  Remaining policy command macros
             # are inventory/equipment/Home actions that mutate goal state.
+            # Their command shape alone is not evidence of progress: a
+            # completed takeoff/restore cycle returns to the same measured
+            # state even though every individual macro looked mutating.
+            fingerprint = self._town_progress_fingerprint(snapshot)
+            if fingerprint in self._town_progress_history():
+                self._town_progress_invariant_defect = {
+                    "marker": "TOWN_OSCILLATION_DEFECT",
+                    "winning_rung": self.last_reason or "",
+                    "repeated_fingerprint": repr(fingerprint),
+                    "gold": snapshot.player.gold,
+                }
+                self._record_shop_selector_diagnostics(snapshot, key)
+                return False
             return True
         return False
 
@@ -11641,11 +11654,19 @@ class HengbotPolicy:
         # the optimizer stores them, Home processing immediately withdraws them
         # for the Weapon Smith, and the next optimization stores them again.
         # This produced a live deposit/withdraw carousel without changing gold.
+        restoration_owned = set(self._equipment_transaction_owned_items)
         preserve = frozenset(
             item.id
             for item in catalog
-            if item.origin == "pack"
-            and (
+            if (
+                item.origin == "equipped"
+                and item.equipped_slot is not None
+                and (equipment_identity(item.item), item.equipped_slot)
+                in restoration_owned
+            )
+            or (
+                item.origin == "pack"
+                and (
                 self._identification_flow_owns(item.item)
                 # Abandonment quarantines the failed physical action for this
                 # town visit.  Deposits are not target-loadout members, so the
@@ -11665,6 +11686,7 @@ class HengbotPolicy:
                 or (
                     self._equipped_weapon_high_grade(snapshot)
                     and self._weapon_is_inferior(item.item)
+                )
                 )
             )
         )
@@ -12596,7 +12618,10 @@ class HengbotPolicy:
             else session.pending_action or session.current_action
         )
         if action is not None:
-            if (
+            route_blocked = (
+                "home-route-unavailable" in getattr(session, "blockers", ())
+            )
+            if not route_blocked and (
                 action.item_id
                 in self._equipment_quarantine_second_chance_ids
             ):
@@ -12606,7 +12631,8 @@ class HengbotPolicy:
                 # last-source readmission, so every quarantine escape strictly
                 # shrinks the remaining candidate set (monotonic exit).
                 self._equipment_quarantine_burned_ids.add(action.item_id)
-            self._equipment_transaction_failed_items.add(action.item_id)
+            if not route_blocked:
+                self._equipment_transaction_failed_items.add(action.item_id)
         self._discard_unposted_equipment_transaction_command()
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None

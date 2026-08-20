@@ -909,6 +909,26 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertIn(item_id, policy._equipment_transaction_failed_items)
 
+    def test_home_route_block_does_not_fail_physical_armour(self):
+        armour_id = "equipped:523d457d37cb5b14:0"
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "deposit", armour_id,
+            item_identity="523d457d37cb5b14",
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1)
+        )
+        session.block("home-route-unavailable")
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = session
+        policy.last_reason = "equipment-transaction:home-route-unavailable"
+
+        policy._abandon_blocked_equipment_transaction()
+
+        self.assertNotIn(
+            armour_id, policy._equipment_transaction_failed_items
+        )
+
     def test_confirmation_inside_store_stuck_budget_completes_normally(self):
         identity = "slow-valid-item"
         action = EquipmentTransaction(
