@@ -49184,6 +49184,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "5pa5\r\x1b",
         )
         self.assertFalse(policy._home_digger_withdraw_pending)
+        self.assertTrue(policy._home_knowledge_current)
+        policy.choose_key(replace(
+            entrance,
+            turn=2320395,
+            inventory=[item("a", 36, 1, count=5, name=restore.name)],
+        ))
         self.assertFalse(policy._home_knowledge_current)
         self.assertEqual(
             policy._calibration_restore_signatures, [owners_before[1]]
@@ -49193,8 +49199,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         # Confirmation row 1479 leaves the player outside on the Home door.
         # The existing selector first moves to a safe non-entrance square; the
         # invalid observation then makes the next decision re-request ~9.
-        policy._home_atomic_withdraw_pending = None
-        policy._home_atomic_withdraw_posted_turn = None
         fresh = replace(entrance, turn=2320404)
         step = policy._town_entrance_step_off_key(
             fresh, "home:atomic-withdraw-target-unobserved"
@@ -49753,7 +49757,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(wares[10])
         self.assertEqual(policy._atomic_home_withdraw_key(entrance, Position(1, 1)), "5pk\x1b")
 
-    def test_ascending_withdrawal_invalidates_later_derived_index(self):
+    def test_unconfirmed_ascending_withdrawal_keeps_later_index_addressable(self):
         wares = [
             store_item("?", TVAL_POTION, 1100 + index, name=f"home {index}")
             for index in range(60)
@@ -49765,9 +49769,83 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_atomic_withdraw_pending = None
         policy._home_entry_operation_posted = False
         policy._home_pending_item = policy._item_signature(wares[55])
-        self.assertIn(
+        self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, Position(1, 1)),
-            set("12346789"),
+            "5 pd\x1b",
+        )
+
+    def test_unlanded_highest_owner_replay_recomposes_same_take(self):
+        wares = [
+            store_item("?", TVAL_POTION, 1400 + index, name=f"home {index}")
+            for index in range(9)
+        ]
+        armour = store_item(
+            "?", 37, 1, name="Chain Mail [14,+0]", is_equipment=True, ac=14,
+        )
+        wares.append(armour)
+        policy = self._catalogued_withdrawal_policy(wares)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw", "home:armour:0",
+            item_identity=policy_module.equipment_identity(armour),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        entrance = self._entrance_snapshot([], turn=2247900)
+
+        first = policy.choose_key(entrance)
+        self.assertEqual(first, "5pj\x1b")
+        self.assertEqual(policy._home_knowledge_valid_before, len(wares))
+
+        inside = self._home_page_snapshot(
+            [], wares, turn=2247901, stock_num=len(wares),
+            page_top=0, page_size=12,
+        )
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        replay = policy.choose_key(replace(entrance, turn=2247902))
+
+        self.assertEqual(replay, "5pj\x1b")
+        self.assertNotIn(
+            policy.last_reason,
+            {"equipment-transaction:withdraw-missing", "home:route-claim-unfulfilled"},
+        )
+
+    def test_confirmed_highest_owner_withdrawal_shrinks_prefix(self):
+        wares = [
+            store_item("?", TVAL_POTION, 1500 + index, name=f"home {index}")
+            for index in range(9)
+        ]
+        armour = store_item(
+            "?", 37, 1, name="Chain Mail [14,+0]", is_equipment=True, ac=14,
+        )
+        wares.append(armour)
+        policy = self._catalogued_withdrawal_policy(wares)
+        signature = policy._item_signature(armour)
+        policy._home_pending_item = signature
+        entrance = self._entrance_snapshot([], turn=2247910)
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
+            "5pj\x1b",
+        )
+        carried = item(
+            "a", 37, 1, name=armour.name, is_equipment=True, ac=14,
+        )
+        policy.choose_key(
+            replace(entrance, turn=2247911, inventory=[carried])
+        )
+
+        self.assertEqual(policy._home_knowledge_valid_before, 9)
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertNotIn(
+            signature,
+            {
+                policy._item_signature(item)
+                for index, item in enumerate(policy._home_knowledge_items)
+                if index < policy._home_knowledge_valid_before
+            },
         )
 
     def test_derived_withdrawal_waits_when_page_size_was_never_observed(self):
@@ -50192,6 +50270,52 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], passes
         )
 
+    def test_complete_open_page_repairs_unaddressable_transaction_target(self):
+        other = store_item("a", TVAL_POTION, 410, name="other")
+        target = store_item(
+            "b", TVAL_RING, 79, name="visible target", is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([other, target])
+        policy._home_knowledge_valid_before = 1
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "withdraw", "home:visible:0",
+            item_identity=policy_module.equipment_identity(target),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        inside = self._home_page_snapshot(
+            [], [other, target], turn=2247920, stock_num=2,
+            page_top=0, page_size=12,
+        )
+
+        self.assertEqual(
+            policy._equipment_transaction_home_key(inside), LEAVE_STORE_KEY
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:await-fresh-knowledge",
+        )
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_complete_cached_open_page_repairs_atomic_prefix_mismatch(self):
+        other = store_item("a", TVAL_POTION, 411, name="other")
+        target = store_item("b", TVAL_POTION, 412, name="visible target")
+        policy = self._catalogued_withdrawal_policy([other, target])
+        policy._home_scan_source = "observed-home-page"
+        policy._home_knowledge_valid_before = 1
+        policy._home_pending_item = policy._item_signature(target)
+        entrance = self._entrance_snapshot([], turn=2247921)
+
+        self.assertIsNone(
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position)
+        )
+        self.assertEqual(policy.last_reason, "home:await-fresh-knowledge")
+        self.assertFalse(policy._home_knowledge_current)
+
     def test_restore_collapse_invalidates_for_transaction_withdraw_owner(self):
         restore = store_item("0", 36, 1, name="captured restore")
         target = store_item(
@@ -50217,6 +50341,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
             "5pa\x1b",
         )
+        self.assertTrue(policy._home_knowledge_current)
+        policy.choose_key(replace(
+            entrance,
+            turn=2388204,
+            inventory=[item("a", 36, 1, name=restore.name)],
+        ))
         self.assertFalse(policy._home_knowledge_current)
         self.assertIs(policy._equipment_transaction_session.current_action, action)
 

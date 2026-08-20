@@ -2420,6 +2420,7 @@ class HengbotPolicy:
         self._home_atomic_withdraw_pending: tuple[
             tuple[str, int, int], int, StoreItem, int
         ] | None = None
+        self._home_atomic_withdraw_index: int | None = None
         self._home_atomic_withdraw_posted_turn: int | None = None
         # True only while a charged Identify staff withdrawn from Home is being
         # carried to the Magic shop for sale.  Home used to be a one-way sink:
@@ -3937,6 +3938,9 @@ class HengbotPolicy:
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                self._confirm_home_withdrawal_address(
+                    signature, self._home_atomic_withdraw_index
+                )
                 if withdrawn.is_digging_tool:
                     # The queued operation, rather than the standing two-tool
                     # optimization target, is the departure premise.  Its
@@ -4036,6 +4040,7 @@ class HengbotPolicy:
                 )
                 if withdrawn.is_digging_tool:
                     self._digger_home_withdraw_failures += 1
+            self._home_atomic_withdraw_index = None
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
@@ -12860,6 +12865,17 @@ class HengbotPolicy:
                 if index < self._home_knowledge_valid_before
             )
             if not target_observed:
+                if (
+                    self._open_home_page_is_complete(snapshot)
+                    and any(
+                        item.is_equipment
+                        and equipment_identity(item) == action.item_identity
+                        for item in snapshot.store.items
+                    )
+                ):
+                    self._invalidate_home_observation()
+                    self.last_reason = "equipment-transaction:await-fresh-knowledge"
+                    return LEAVE_STORE_KEY
                 self._block_equipment_transaction(
                     f"withdraw-item-missing:{action.item_id}"
                 )
@@ -13985,6 +14001,39 @@ class HengbotPolicy:
                 transaction_identity = action.item_identity
                 reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
+            unaddressable_signatures = {
+                candidate
+                for candidate in (
+                    self._home_pending_item,
+                    *self._calibration_restore_signatures,
+                    *self._home_pending_batch,
+                    (
+                        self._home_errand.request.signature
+                        if self._home_errand.active
+                        and self._home_errand.request is not None
+                        else None
+                    ),
+                )
+                if candidate is not None
+            }
+            complete_open_page_match = (
+                self._home_scan_source == "observed-home-page"
+                and any(
+                    self._item_signature(item) in unaddressable_signatures
+                    or (
+                        action is not None
+                        and action.kind == "withdraw"
+                        and item.is_equipment
+                        and equipment_identity(item) == action.item_identity
+                    )
+                    for index, item in enumerate(self._home_knowledge_items)
+                    if index >= self._home_knowledge_valid_before
+                )
+            )
+            if complete_open_page_match:
+                self._invalidate_home_observation()
+                self.last_reason = "home:await-fresh-knowledge"
+                return None
             self.last_reason = "home:atomic-withdraw-target-unobserved"
             deferred = self._defer_unobserved_home_withdrawal()
             self._record_digger_home_withdraw_failure(deferred)
@@ -14118,6 +14167,7 @@ class HengbotPolicy:
             item,
             take_count,
         )
+        self._home_atomic_withdraw_index = index
         self._home_atomic_withdraw_posted_turn = snapshot.turn
         if (
             self._home_errand.active
@@ -14139,11 +14189,31 @@ class HengbotPolicy:
             len(snapshot.inventory),
             self._inventory_signature_count(snapshot, signature),
         )
-        # Removing index i shifts only later slots.  Earlier indices remain
-        # valid, but if every remaining owner is at or beyond the shortened
-        # prefix then the captured catalogue can no longer address any work.
-        # Mark that observation stale so the owner-preserving next visit asks
-        # for a fresh ~9 instead of burning owners through ESC retries.
+        self.last_reason = reason
+        return key
+
+    def _confirm_home_withdrawal_address(
+        self, signature: tuple[str, int, int], posted_index: int | None
+    ) -> None:
+        """Apply shelf-slot movement only after a Home take is observed."""
+        index = posted_index
+        if index is None:
+            index = next(
+                (
+                    candidate_index
+                    for candidate_index, item in reversed(tuple(enumerate(
+                        self._home_knowledge_items
+                    )))
+                    if candidate_index < self._home_knowledge_valid_before
+                    and self._item_signature(item) == signature
+                ),
+                None,
+            )
+        if index is None:
+            self._invalidate_home_observation()
+            return
+        # Removing index i shifts only later slots. Earlier indices remain
+        # addressable; owners at or beyond i require a fresh complete scan.
         self._home_knowledge_valid_before = index
         owner_signatures = {
             candidate
@@ -14160,20 +14230,15 @@ class HengbotPolicy:
             )
             if candidate is not None
         }
-        # The just-posted owner is represented by
-        # _home_atomic_withdraw_pending until confirmation; it is not queued
-        # work that needs a new address.
         owner_signatures.discard(signature)
         owner_indices = [
             owner_index
             for owner_index, owner_item in enumerate(self._home_knowledge_items)
             if self._item_signature(owner_item) in owner_signatures
         ]
-        if (
-            action is not None
-            and action.kind == "withdraw"
-            and transaction_identity is None
-        ):
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if action is not None and action.kind == "withdraw":
             owner_indices.extend(
                 owner_index
                 for owner_index, owner_item in enumerate(self._home_knowledge_items)
@@ -14182,8 +14247,6 @@ class HengbotPolicy:
             )
         if owner_indices and index <= min(owner_indices):
             self._invalidate_home_observation()
-        self.last_reason = reason
-        return key
 
     def _bind_catalogued_home_identification_withdrawal(
         self, snapshot: Snapshot
