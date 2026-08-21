@@ -3334,6 +3334,8 @@ class HengbotPolicy:
 
         visit = self._store_visit
         if visit is not None and visit.operation_posted:
+            if visit.store_type == STORE_HOME:
+                return key
             progress_reason = "shop:one-shot-buy"
             self._town_progress_invariant_defect = {
                 "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
@@ -3961,6 +3963,11 @@ class HengbotPolicy:
             pending_withdrawal is not None
             and snapshot.store is None
             and (
+                self._store_visit is None
+                or not self._store_visit.operation_posted
+                or self._store_visit.operation_released
+            )
+            and (
                 self._home_atomic_withdraw_posted_turn is None
                 or snapshot.turn > self._home_atomic_withdraw_posted_turn
             )
@@ -4094,6 +4101,7 @@ class HengbotPolicy:
             and self._store_buy_inflight is not None
             and (
                 self._store_visit is None
+                or not self._store_visit.operation_posted
                 or self._store_visit.operation_released
             )
         ):
@@ -4140,6 +4148,7 @@ class HengbotPolicy:
             and self._batch_sell_pending.get("phase") == "await-sale"
             and (
                 self._store_visit is None
+                or not self._store_visit.operation_posted
                 or self._store_visit.operation_released
             )
         ):
@@ -4289,7 +4298,15 @@ class HengbotPolicy:
             and self._store_leave_inflight[2] == STORE_HOME
         )
         pending_deposit = self._home_atomic_deposit_pending
-        if snapshot.store is None and pending_deposit is not None:
+        if (
+            snapshot.store is None
+            and pending_deposit is not None
+            and (
+                self._store_visit is None
+                or not self._store_visit.operation_posted
+                or self._store_visit.operation_released
+            )
+        ):
             signature, count_before, posted_turn, unchanged_pages = pending_deposit
             if snapshot.turn > posted_turn:
                 deposit_observed = (
@@ -4389,6 +4406,25 @@ class HengbotPolicy:
                     else "shop:store-context-exit"
                 )
             key = LEAVE_STORE_KEY
+        elif (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and (
+                staged_home_operation :=
+                self._release_staged_store_operation(snapshot)
+            )
+            is not None
+        ):
+            # Home has an earlier store-context owner than ordinary shops.
+            # Release through the same StoreVisit fields at that seam so its
+            # legacy leave-after-one-operation branch cannot steal the fresh
+            # page that authorizes this two-stage tail.
+            key = staged_home_operation
+            self.last_reason = (
+                "home:atomic-withdraw"
+                if key.lstrip().startswith(BUY_KEY)
+                else "home:atomic-deposit"
+            )
         elif pending_home_transaction:
             # Observation above already accounts for the posted action.  This
             # narrow path may only confirm/expire it; it cannot select or post
@@ -4690,6 +4726,11 @@ class HengbotPolicy:
         if (
             key == WAIT_KEY
             and snapshot.store is None
+            and not (
+                self._store_visit is not None
+                and self._store_visit.operation_posted
+                and not self._store_visit.operation_released
+            )
             and (
                 self._home_atomic_withdraw_pending is not None
                 or (
@@ -5665,27 +5706,18 @@ class HengbotPolicy:
             if snapshot.store.store_type != STORE_HOME:
                 self._town_supplier_stock[snapshot.store.store_type] = snapshot.store
             visit = self._store_visit
-            if (
-                visit is not None
-                and visit.operation_posted
-                and not visit.operation_released
-                and visit.operation_key is not None
-                and snapshot.store.store_type == visit.store_type
-                and visit.posted_turn is not None
-                and snapshot.turn >= visit.posted_turn
-            ):
+            staged_operation = self._release_staged_store_operation(snapshot)
+            if staged_operation is not None:
                 # Selection and composition happened on the preceding outside
                 # page.  This page makes no policy choice: it only proves that
                 # this exact visit crossed the entry flush, so the sender may
                 # release the already-bound operation tail.
-                visit.transition(StoreVisitPhase.OPERATING)
-                visit.operation_released = True
                 self.last_reason = (
                     "shop:one-shot-buy"
-                    if visit.operation_key.startswith(BUY_KEY)
+                    if staged_operation.startswith(BUY_KEY)
                     else "shop:one-shot-sell"
                 )
-                return visit.operation_key
+                return staged_operation
             if (
                 (self._store_visit is not None and self._store_visit.operation_posted)
                 or self._store_buy_inflight is not None
@@ -6628,6 +6660,21 @@ class HengbotPolicy:
         town_special = self._town_special_key(snapshot)
         if town_special is not None:
             return town_special
+
+        # The posted Home take owns this entrance until the outside inventory
+        # observation confirms or clears it.  Survival, combat, town work, and
+        # cycle repair above retain priority; this only prevents the generic
+        # exploration breakout below from walking off the entrance.
+        if self._home_atomic_withdraw_pending is not None:
+            home_entrance = snapshot.grid_at(player.position)
+            if (
+                snapshot.in_town
+                and snapshot.store is None
+                and home_entrance is not None
+                and home_entrance.store_number == STORE_HOME
+            ):
+                self.last_reason = "home:atomic-withdraw-pending-hold"
+                return WAIT_KEY
 
         if (
             snapshot.in_town
@@ -12549,7 +12596,8 @@ class HengbotPolicy:
             and key == (self._store_entry_wait_key or WAIT_KEY)
         ):
             self._store_entry_posted_owner = self._store_entry_wait_owner
-            return True
+            if key != self._equipment_transaction_prepared_key:
+                return True
         if key == "~9\x1b\x1b":
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
@@ -14218,14 +14266,14 @@ class HengbotPolicy:
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
         quantity_suffix = f"{take_count}\r" if item.count > 1 else ""
-        key = (
-            WAIT_KEY
-            + (" " * page)
+        operation_key = (
+            (" " * page)
             + BUY_KEY
             + letter
             + quantity_suffix
             + LEAVE_STORE_KEY
         )
+        key = WAIT_KEY
         if session is not None and action is not None and action.kind == "withdraw":
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
@@ -14293,6 +14341,7 @@ class HengbotPolicy:
             len(snapshot.inventory),
             self._inventory_signature_count(snapshot, signature),
         )
+        self._stage_home_operation(snapshot, operation_key)
         self.last_reason = reason
         return key
 
@@ -14518,7 +14567,8 @@ class HengbotPolicy:
             # The one-shot transaction observation binds both the pack letter
             # and count used by the operation at this owned Home entry.
             quantity = f"{current.count}\r" if current.count > 1 else ""
-            key = WAIT_KEY + SELL_KEY + current.slot + quantity + LEAVE_STORE_KEY
+            operation_key = SELL_KEY + current.slot + quantity + LEAVE_STORE_KEY
+            key = WAIT_KEY
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
             )
@@ -14556,6 +14606,7 @@ class HengbotPolicy:
                 snapshot.turn,
                 0,
             )
+            self._stage_home_operation(snapshot, operation_key)
             self.last_reason = "equipment-transaction:atomic-deposit"
             return key
         plan = self._town_errand_plan
@@ -14615,8 +14666,54 @@ class HengbotPolicy:
                 len(snapshot.inventory),
             ),
         )
+        self._stage_home_operation(snapshot, operation + LEAVE_STORE_KEY)
         self.last_reason = "home:atomic-deposit"
-        return WAIT_KEY + operation + LEAVE_STORE_KEY
+        return WAIT_KEY
+
+    def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> None:
+        """Post Home entry now and release its bound tail on the fresh page."""
+        if self._store_visit is None:
+            self._store_visit = StoreVisit(
+                owner=(
+                    "equipment-transaction"
+                    if self._equipment_transaction_session is not None
+                    else "town-errand"
+                ),
+                purpose=(
+                    "equipment-work"
+                    if self._equipment_transaction_session is not None
+                    else "shopping"
+                ),
+                store_type=STORE_HOME,
+                opened_sequence=self._decision_sequence,
+            )
+        visit = self._store_visit
+        visit.operation_posted = True
+        visit.operation_key = operation_key
+        visit.operation_released = False
+        visit.composed_key = WAIT_KEY
+        visit.posted_sequence = self._decision_sequence
+        visit.posted_turn = snapshot.turn
+        self._store_entry_wait_owner = STORE_HOME
+        self._store_entry_wait_key = WAIT_KEY
+
+    def _release_staged_store_operation(self, snapshot: Snapshot) -> str | None:
+        """Release the one bound tail after its matching store page is fresh."""
+        visit = self._store_visit
+        if (
+            snapshot.store is None
+            or visit is None
+            or not visit.operation_posted
+            or visit.operation_released
+            or visit.operation_key is None
+            or snapshot.store.store_type != visit.store_type
+            or visit.posted_turn is None
+            or snapshot.turn < visit.posted_turn
+        ):
+            return None
+        visit.transition(StoreVisitPhase.OPERATING)
+        visit.operation_released = True
+        return visit.operation_key
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_full or self._home_deposit_abandoned:

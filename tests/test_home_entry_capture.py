@@ -118,7 +118,11 @@ class HomeEntryCaptureTest(unittest.TestCase):
         )
         self.assertEqual(policy.choose_key(inside), "\x1b")
         self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
-        self.assertEqual(policy.choose_key(outside), f"5p{expected.letter}\x1b")
+        self.assertEqual(policy.choose_key(outside), "5")
+        self.assertEqual(
+            policy._store_visit.operation_key,
+            f"p{expected.letter}\x1b",
+        )
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
     def test_reports_each_distinct_failure_to_stderr_and_capture_once(self):

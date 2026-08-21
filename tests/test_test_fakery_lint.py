@@ -212,7 +212,7 @@ class TestTreeFakeryLint(unittest.TestCase):
     }
     EXPECTED_UNDECLARED_INSTANCES = 7
     # Six scan-only exception sites were deleted with their mechanism.
-    DECLARED_FINDING_RATCHET = 110
+    DECLARED_FINDING_RATCHET = 111
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()

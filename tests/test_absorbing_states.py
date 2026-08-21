@@ -105,11 +105,12 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         result = drive(state)
 
         self.assertTrue(result.passed, result.report())
-        self.assertEqual(result.decisions, 2)
+        self.assertEqual(result.decisions, 3)
         self.assertEqual(result.entries, 1)
         self.assertEqual(result.exits, 1)
-        self.assertEqual(result.keys["5 pa\x1b"], 1)
-        self.assertEqual(result.reasons["home:atomic-withdraw"], 1)
+        self.assertEqual(result.keys["5"], 1)
+        self.assertEqual(result.keys[" pa\x1b"], 1)
+        self.assertEqual(result.reasons["home:atomic-withdraw"], 2)
         self.assertEqual(result.keys["{a.\r"], 1)
         self.assertEqual(
             result.reasons["equipment:suppress-random-teleport"], 1
@@ -136,11 +137,12 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         self.assertGreater(len(reasons), 3)
         self.assertEqual(
             reasons.count("home:atomic-withdraw"),
-            1,
+            2,
             "without the deferred guard the public drive is unbounded: "
             "{('home:atomic-withdraw-target-unobserved', '\\x1b'): 30}",
         )
-        self.assertEqual(keys.count("5 pa\x1b"), 1)
+        self.assertGreaterEqual(keys.count("5"), 1)
+        self.assertEqual(keys.count(" pa\x1b"), 1)
         self.assertLessEqual(
             reasons.count("home:atomic-withdraw-target-unobserved"),
             1,
