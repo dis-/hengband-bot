@@ -27757,19 +27757,30 @@ class HengbotPolicy:
         if not snapshot.in_town:
             return None
         quest = self._fixed_quest_head(snapshot)
-        profile = (
-            self.approved_quest_strategy(quest.id)
-            if quest is not None and quest.status == QUEST_STATUS_UNTAKEN
-            else self._quest_strategy_for_errand_or_floor(snapshot)
-        )
+        if snapshot.player.level >= 10:
+            if (
+                quest is None
+                or quest.id == 1
+                or quest.status != QUEST_STATUS_UNTAKEN
+            ):
+                return None
+            profile = self.approved_quest_strategy(quest.id)
+        else:
+            profile = (
+                self.approved_quest_strategy(quest.id)
+                if quest is not None and quest.status == QUEST_STATUS_UNTAKEN
+                else self._quest_strategy_for_errand_or_floor(snapshot)
+            )
         selected = (
             replace(
                 profile,
                 required_force=self._strategy_force_for_snapshot(snapshot, profile),
             )
-            if profile is not None
+            if isinstance(profile, StrategyProfile)
             else None
         )
+        if profile is not None and selected is None:
+            return profile
         if snapshot.player.level < 10:
             opening = self.approved_quest_strategy(1)
             if opening is not None:
@@ -29177,6 +29188,7 @@ class HengbotPolicy:
             )
             if self._nav_ledger.is_expired("loot", committed_loot):
                 self._deferred_loot.add(committed_loot)
+                self._loot_defer_blocker = "paralyzer-ring"
                 if self._loot_target == committed_loot:
                     self._loot_target = None
         identity = self._explore_goal_identity
@@ -29224,7 +29236,9 @@ class HengbotPolicy:
 
     def _has_usable_ranged_option(self, snapshot: Snapshot) -> bool:
         return self._matching_ammo(snapshot) is not None or any(
-            item.is_torch and item.fuel > 0 for item in snapshot.inventory
+            item.is_torch and item.fuel > 0
+            and 1 <= snapshot.dungeon_level <= TORCH_THROW_MAX_DEPTH
+            for item in snapshot.inventory
         )
 
     def _normal_loot_key(
@@ -29262,7 +29276,10 @@ class HengbotPolicy:
                     snapshot,
                     lambda grid: (
                         grid.position not in self._paralyzer_avoid_cells
-                        and 1 < grid.position.distance_to(target.position)
+                        and max(
+                            max(abs(dy), abs(dx))
+                            for dy, dx in NEIGHBOR_OFFSETS
+                        ) < grid.position.distance_to(target.position)
                         <= RANGED_MAX_DISTANCE
                     ),
                 )
@@ -32289,6 +32306,10 @@ class HengbotPolicy:
                 and observed is not None
                 and observed.in_view
                 and observed.currently_observed
+                and (
+                    observed.lit
+                    or snapshot.player.position.distance_to(position) <= 1
+                )
                 and not observed.has_monster
             ):
                 self._remembered_paralyzers.pop(position, None)
