@@ -19705,6 +19705,21 @@ class PredictiveEscapeTest(unittest.TestCase):
             self.assertNotEqual(key, "6")
             self.assertIn(Position(10, 11), policy._paralyzer_avoid_cells)
 
+        unseen = replace(
+            snapshot,
+            visible_monsters=[],
+            grids={
+                position: replace(
+                    cell, has_monster=False, monster_index=0,
+                    in_view=False, currently_observed=False,
+                ) if position == monster.position else cell
+                for position, cell in snapshot.grids.items()
+            },
+        )
+        policy.choose_key(unseen)
+        self.assertIn(monster.position, policy._remembered_paralyzers)
+        self.assertIn(Position(10, 11), policy._paralyzer_avoid_cells)
+
         gone = replace(
             snapshot,
             visible_monsters=[],
@@ -19712,6 +19727,14 @@ class PredictiveEscapeTest(unittest.TestCase):
                 position: replace(cell, has_monster=False, monster_index=0)
                 if position == monster.position else cell
                 for position, cell in snapshot.grids.items()
+            },
+        )
+        gone = replace(
+            gone,
+            grids={
+                position: replace(cell, in_view=True, currently_observed=True)
+                if position == monster.position else cell
+                for position, cell in gone.grids.items()
             },
         )
         policy.choose_key(gone)
@@ -19762,10 +19785,13 @@ class PredictiveEscapeTest(unittest.TestCase):
         )
         policy = HengbotPolicy(monrace_knowledge={6011: knowledge})
         policy._known_loot.add(Position(10, 12))
-        policy._refresh_paralyzer_avoidance(snapshot, [monster])
+        snapshot = replace(
+            snapshot, grids={position: replace(cell, lit=True)
+                             for position, cell in snapshot.grids.items()}
+        )
 
         self.assertEqual(policy._count_throwing_torches(snapshot), 5)
-        self.assertEqual(policy._normal_loot_key(snapshot, [monster]), "vt6")
+        self.assertEqual(policy.choose_key(snapshot), "vt6")
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
         spent_only = replace(snapshot, inventory=[spent])
         empty_policy = HengbotPolicy(monrace_knowledge={6011: knowledge})
@@ -19773,6 +19799,124 @@ class PredictiveEscapeTest(unittest.TestCase):
         empty_policy._refresh_paralyzer_avoidance(spent_only, [monster])
         self.assertEqual(empty_policy._count_throwing_torches(spent_only), 0)
         self.assertIsNone(empty_policy._ranged_attack_key(spent_only, [monster], []))
+
+    def test_paralyzer_approach_expires_through_navigation_ledger(self):
+        monster = replace(
+            hostile(1, 10, 23, distance=13, max_melee_damage=0), race_id=6021
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110,
+            can_summon=False, friendly=False,
+            flags=frozenset({"NEVER_MOVE"}),
+            blows=(MonsterBlow("GAZE", "PARALYZE"),),
+        )
+        loot = Position(10, 22)
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {
+                Position(10, x): replace(
+                    grid(10, x, monster=x == 23), lit=True,
+                    object_count=int(x == 22),
+                )
+                for x in range(8, 25)
+            },
+            [monster],
+            inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6021: knowledge})
+        policy._nav_ledger = policy_module.NavigationLedger(stall_limit=2)
+        policy._known_loot.add(loot)
+
+        self.assertIsNotNone(policy.choose_key(snapshot))
+        self.assertEqual(policy.last_reason, "paralyzer-guard:approach-range")
+        policy.choose_key(snapshot)
+        policy.choose_key(snapshot)
+
+        self.assertTrue(
+            policy._nav_ledger.is_expired("paralyzer-guard", monster.position)
+        )
+        self.assertIn(loot, policy._deferred_loot)
+        self.assertNotEqual(policy.last_reason, "paralyzer-guard:approach-range")
+
+    def test_paralyzer_without_ranged_option_never_approaches_or_enters_ring(self):
+        monster = replace(
+            hostile(1, 10, 23, distance=13, max_melee_damage=0), race_id=6022
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110,
+            can_summon=False, friendly=False,
+            flags=frozenset({"NEVER_MOVE"}),
+            blows=(MonsterBlow("GAZE", "PARALYZE"),),
+        )
+        loot = Position(10, 22)
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {Position(10, x): replace(
+                grid(10, x, monster=x == 23), object_count=int(x == 22)
+             ) for x in range(8, 25)},
+            [monster], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6022: knowledge})
+        policy._known_loot.add(loot)
+
+        policy.choose_key(snapshot)
+
+        self.assertIn(loot, policy._deferred_loot)
+        self.assertNotEqual(policy.last_reason, "paralyzer-guard:approach-range")
+        before = (set(policy._deferred_loot), policy._loot_defer_blocker)
+        first = policy.loot_state(snapshot)
+        second = policy.loot_state(snapshot)
+        self.assertEqual(first, second)
+        self.assertEqual(
+            (set(policy._deferred_loot), policy._loot_defer_blocker), before
+        )
+
+    def test_moving_paralyzer_memory_holds_unseen_then_releases_observed_loot(self):
+        monster = replace(
+            hostile(1, 10, 13, distance=3, max_melee_damage=0), race_id=6023
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110,
+            can_summon=False, friendly=False,
+            blows=(MonsterBlow("TOUCH", "PARALYZE"),),
+        )
+        loot = Position(10, 12)
+        snapshot = Snapshot(
+            player(10, 10, hp=100, max_hp=100),
+            {Position(10, x): replace(
+                grid(10, x, monster=x == 13), object_count=int(x == 12)
+             ) for x in range(8, 15)},
+            [monster], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
+        )
+        policy = HengbotPolicy(monrace_knowledge={6023: knowledge})
+        policy._known_loot.add(loot)
+        policy.choose_key(snapshot)
+        policy._deferred_loot.add(loot)
+        policy._loot_defer_blocker = "paralyzer-ring"
+
+        unseen = replace(
+            snapshot, visible_monsters=[],
+            grids={position: replace(
+                cell, has_monster=False, monster_index=0,
+                in_view=False, currently_observed=False,
+            ) if position == monster.position else cell
+                   for position, cell in snapshot.grids.items()},
+        )
+        policy.choose_key(unseen)
+        self.assertIn(monster.position, policy._remembered_paralyzers)
+        self.assertIn(loot, policy._deferred_loot)
+
+        observed = replace(
+            unseen,
+            grids={position: replace(
+                cell, in_view=True, currently_observed=True
+            ) if position == monster.position else cell
+                   for position, cell in unseen.grids.items()},
+        )
+        policy._refresh_paralyzer_avoidance(observed, [])
+        self.assertNotIn(monster.position, policy._remembered_paralyzers)
+        self.assertNotIn(loot, policy._deferred_loot)
 
     def test_stationary_paralyzer_without_ranged_option_defers_guarded_loot(self):
         monster = replace(
@@ -41678,10 +41822,12 @@ class RangedAttackTest(unittest.TestCase):
             monsters=[hostile(1, 10, 15, distance=5)],
             inventory=[torch],
         )
-        policy = HengbotPolicy()
-        self.assertEqual(
-            policy._ranged_attack_key(snap, snap.visible_monsters, []), "vt6"
+        snap = replace(
+            snap, grids={position: replace(cell, lit=True)
+                         for position, cell in snap.grids.items()}
         )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "vt6")
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
 
     def test_equipment_classified_pack_torch_is_throwable(self):
@@ -41692,11 +41838,13 @@ class RangedAttackTest(unittest.TestCase):
         snap = self._snap(
             monsters=[hostile(1, 10, 15, distance=5)], inventory=[torch]
         )
+        snap = replace(
+            snap, grids={position: replace(cell, lit=True)
+                         for position, cell in snap.grids.items()}
+        )
         policy = HengbotPolicy()
 
-        self.assertEqual(
-            policy._ranged_attack_key(snap, snap.visible_monsters, []), "vt6"
-        )
+        self.assertEqual(policy.choose_key(snap), "vt6")
         self.assertEqual(policy.last_reason, "ranged:throw-torch")
 
     def test_deep_floor_does_not_throw_torches(self):
@@ -53155,7 +53303,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         policy._town_store_attempted[STORE_WEAPON] = town.turn
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            needs = policy._town_need_candidates(town)
+            needs = policy._enumerate_town_needs(town)
             requirements = policy.procurement_requirements(town)
 
         items = {row["item"] for row in requirements}
@@ -53254,13 +53402,15 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         policy._town_store_attempted[STORE_GENERAL] = town.turn
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            needs = policy._town_need_candidates(town)
+            needs = policy._enumerate_live_store_claims(town)
 
         self.assertNotIn(
             "throwing_items.lit_torch",
             policy._abandoned_quest_carry_requirements,
         )
-        self.assertIn(STORE_HOME, {need.store_type for need in needs})
+        self.assertIn(
+            TownNeed(STORE_HOME, "quest-throwing-items", "home-first"), needs
+        )
         self.assertEqual(policy._home_pending_item, existing)
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             self.assertFalse(
@@ -53308,24 +53458,37 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
 
     def test_level_shaped_torch_gate_survives_quest_one_acceptance(self):
         policy = HengbotPolicy(
-            quest_strategies=load_quest_strategies(Path("strategy/quests"))
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+            quest_knowledge=load_quest_knowledge(REAL_QUEST_DEFINITIONS),
         )
         town = self._town(
             inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)]
         )
-        town = replace(
-            town,
-            player=replace(town.player, level=8),
-            quests={1: QuestState(1, status=QUEST_STATUS_TAKEN, fixed=True)},
+        for status in (
+            QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED
+        ):
+            case = replace(
+                town,
+                player=replace(town.player, level=8),
+                quests={1: QuestState(1, status=status, fixed=True)},
+            )
+            strategy = policy._carry_procurement_strategy(case)
+            self.assertIsNotNone(strategy)
+            self.assertEqual(
+                strategy.required_force.get("throwing_items", {}).get("lit_torch"), 5
+            )
+            self.assertFalse(
+                policy._town_departure_conjuncts(case)["quest_carry_ready"]
+            )
+        level_ten = replace(case, player=replace(case.player, level=10))
+        level_ten_strategy = policy._carry_procurement_strategy(level_ten)
+        self.assertIsNotNone(level_ten_strategy)
+        self.assertEqual(
+            level_ten_strategy.required_force.get("throwing_items", {}).get(
+                "lit_torch", 0
+            ),
+            0,
         )
-
-        strategy = policy._carry_procurement_strategy(town)
-
-        self.assertIsNotNone(strategy)
-        self.assertEqual(strategy.required_force, {"throwing_items": {"lit_torch": 5}})
-        self.assertFalse(policy._town_departure_conjuncts(town)["quest_carry_ready"])
-        level_ten = replace(town, player=replace(town.player, level=10))
-        self.assertIsNone(policy._carry_procurement_strategy(level_ten))
 
     def test_quest_strategy_still_rejects_missing_required_force(self):
         policy = HengbotPolicy()
