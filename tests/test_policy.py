@@ -19988,6 +19988,9 @@ class PredictiveEscapeTest(unittest.TestCase):
             [], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
         )
         policy = HengbotPolicy()
+        # Anchor the floor so the later _observe exercises the blocker-clearing
+        # path instead of the fresh-floor reset (which clears everything anyway).
+        policy._floor_key = snapshot.floor_key
         target = Position(10, 13)
         policy._known_loot.add(target)
         policy._loot_target = target
