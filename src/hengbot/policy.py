@@ -19821,6 +19821,9 @@ class HengbotPolicy:
         composition_refusal = self._shop_selector_diagnostics.get(
             "composition_refusal"
         )
+        composition_refusal_sequence = self._shop_selector_diagnostics.get(
+            "composition_refusal_sequence"
+        )
         self._shop_selector_diagnostics = {
             "winning_rung": self.last_reason,
             "gold": snapshot.player.gold,
@@ -19828,9 +19831,15 @@ class HengbotPolicy:
             "considered_candidate": considered,
             "rejection_reason": rejection_reason,
         }
-        if composition_refusal is not None:
+        if (
+            composition_refusal is not None
+            and composition_refusal_sequence == self._decision_sequence
+        ):
             self._shop_selector_diagnostics["composition_refusal"] = (
                 composition_refusal
+            )
+            self._shop_selector_diagnostics["composition_refusal_sequence"] = (
+                composition_refusal_sequence
             )
         invariant_defect = getattr(
             self, "_town_progress_invariant_defect", {}
@@ -22312,6 +22321,10 @@ class HengbotPolicy:
                 self._store_visit.posted_turn = snapshot.turn
                 self._store_entry_wait_owner = observed_store.store_type
                 self._store_entry_wait_key = key
+            self._shop_selector_diagnostics.pop("composition_refusal", None)
+            self._shop_selector_diagnostics.pop(
+                "composition_refusal_sequence", None
+            )
             return key
         if inner.startswith("{"):
             # Inscription is an outside pack operation.  Retain this page while
@@ -22324,6 +22337,9 @@ class HengbotPolicy:
         )
         self._star_remove_curse_shelf_seen = star_remove_curse_shelf_seen
         self._shop_selector_diagnostics["composition_refusal"] = composition_refusal
+        self._shop_selector_diagnostics["composition_refusal_sequence"] = (
+            self._decision_sequence
+        )
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later
         # pack/gold change must re-observe the shelf before using its letters.

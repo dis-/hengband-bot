@@ -47061,6 +47061,7 @@ class TownErrandPlanTest(unittest.TestCase):
             inventory=[carried],
         )
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
         policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
         policy._home_knowledge_current = True
         policy._home_knowledge_items = [home_staff]
@@ -47110,14 +47111,6 @@ class TownErrandPlanTest(unittest.TestCase):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident()
         observed_store = policy._shop_observation[0]
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
-        choose_key = policy.choose_key
-
-        def drive_incident_cycle(snapshot):
-            if snapshot.store is None:
-                return policy._atomic_shop_transaction_key(snapshot)
-            return choose_key(snapshot)
-
-        policy.choose_key = drive_incident_cycle
 
         class MagicEntranceWorld:
             def __init__(self):
@@ -47176,6 +47169,15 @@ class TownErrandPlanTest(unittest.TestCase):
         )
 
         self.assertTrue(any(key.startswith(BUY_KEY + "a") for _, key in result.transcript))
+        self.assertEqual(
+            result.transcript,
+            (
+                ("shop:one-shot-buy", WAIT_KEY),
+                ("shop:one-shot-buy", "pa1\r\r\x1b"),
+            ),
+        )
+        self.assertEqual(world.gold, 8981)
+        self.assertEqual(len(world.inventory), 2)
         self.assertTrue(policy._store_visit.operation_released)
 
     def _identification_claim_incident(self, *, shape):
@@ -47204,6 +47206,15 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._deferred_home_items.add(
                 policy._item_signature(deferred_staff)
             )
+        elif shape == "all-deferred":
+            target = item(
+                "h", 23, 25, name="deferred incomplete Home equipment",
+                known=False, fully_known=False, is_equipment=True,
+            )
+            owned = OwnedEquipment("deferred-home-target", target, "home")
+            policy._equipment_catalog._home = {owned.id: owned}
+            policy._home_knowledge_items = [target]
+            policy._deferred_home_items.add(policy._item_signature(target))
         snapshot = replace(
             self._snapshot(),
             town_flag=True,
@@ -47224,7 +47235,9 @@ class TownErrandPlanTest(unittest.TestCase):
     def test_deferred_only_identification_claim_self_retires(self):
         policy, snapshot = self._identification_claim_incident(shape="incident")
 
-        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+        categories = {
+            need.category for need in policy._town_need_candidates(snapshot)
+        }
 
         self.assertNotIn("identification-withdrawal", categories)
         self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_HOME)
@@ -47235,6 +47248,16 @@ class TownErrandPlanTest(unittest.TestCase):
         categories = {need.category for need in policy._town_need_candidates(snapshot)}
 
         self.assertIn("identification-withdrawal", categories)
+
+    def test_all_deferred_identification_claim_self_retires(self):
+        policy, snapshot = self._identification_claim_incident(
+            shape="all-deferred"
+        )
+
+        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+
+        self.assertNotIn("identification-withdrawal", categories)
+        self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
     def test_unscanned_empty_identification_catalog_keeps_claim(self):
         policy, snapshot = self._identification_claim_incident(shape="unscanned")
@@ -47247,6 +47270,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident(
             deferred=False
         )
+        observed_store = policy._shop_observation[0]
         policy._star_remove_curse_shelf_seen = False
         record = policy._record_shop_selector_diagnostics
 
@@ -47281,6 +47305,16 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._shop_selector_diagnostics["composition_refusal"],
             "shop:home-first-before-purchase",
         )
+
+        policy._deferred_home_items.add(policy._item_signature(_home_staff))
+        policy._shop_observation = (
+            StoreState(STORE_MAGIC, list(observed_store.items), page_top=0),
+            policy._decision_sequence,
+        )
+        composed = policy.choose_key(entrance)
+        self.assertEqual(composed, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertNotIn("composition_refusal", policy._shop_selector_diagnostics)
 
     def test_visit_ledger_survives_plan_rebuild(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
