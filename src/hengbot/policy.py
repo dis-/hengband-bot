@@ -7966,6 +7966,11 @@ class HengbotPolicy:
                 self._known_loot.discard(grid.position)
                 self._deferred_loot.discard(grid.position)
                 if (
+                    self._loot_defer_blocker == "navigation-ledger:loot"
+                    and not self._deferred_loot
+                ):
+                    self._loot_defer_blocker = None
+                if (
                     self._loot_defer_blocker == "paralyzer-ring"
                     and not (self._deferred_loot & self._paralyzer_avoid_cells)
                 ):
@@ -29188,7 +29193,7 @@ class HengbotPolicy:
             )
             if self._nav_ledger.is_expired("loot", committed_loot):
                 self._deferred_loot.add(committed_loot)
-                self._loot_defer_blocker = "paralyzer-ring"
+                self._loot_defer_blocker = "navigation-ledger:loot"
                 if self._loot_target == committed_loot:
                     self._loot_target = None
         identity = self._explore_goal_identity
@@ -29276,10 +29281,7 @@ class HengbotPolicy:
                     snapshot,
                     lambda grid: (
                         grid.position not in self._paralyzer_avoid_cells
-                        and max(
-                            max(abs(dy), abs(dx))
-                            for dy, dx in NEIGHBOR_OFFSETS
-                        ) < grid.position.distance_to(target.position)
+                        and grid.position.distance_to(target.position)
                         <= RANGED_MAX_DISTANCE
                     ),
                 )

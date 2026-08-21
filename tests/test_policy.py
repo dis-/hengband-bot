@@ -19981,12 +19981,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertEqual(policy.loot_state(snapshot)["blocker"], "paralyzer-ring")
         self.assertNotEqual(policy.last_reason, "paralyzer-guard:approach-range")
 
-    def test_paralyzer_approach_uses_ring_geometry_for_minimum_range(self):
-        source = inspect.getsource(HengbotPolicy._normal_loot_key)
-        self.assertIn("for dy, dx in NEIGHBOR_OFFSETS", source)
-        self.assertNotIn("and 1 < grid.position.distance_to", source)
-
-    def test_loot_ledger_expiry_surfaces_a_blocker(self):
+    def test_loot_ledger_expiry_uses_and_clears_navigation_blocker(self):
         snapshot = Snapshot(
             player(10, 10),
             {Position(10, x): grid(10, x) for x in range(10, 14)},
@@ -20002,7 +19997,25 @@ class PredictiveEscapeTest(unittest.TestCase):
         policy._observe_navigation_commitments(snapshot)
 
         self.assertIn(target, policy._deferred_loot)
-        self.assertEqual(policy.loot_state(snapshot)["blocker"], "paralyzer-ring")
+        blocker = policy.loot_state(snapshot)["blocker"]
+        self.assertEqual(blocker, "navigation-ledger:loot")
+        self.assertNotEqual(blocker, "paralyzer-ring")
+
+        observed_gone = replace(
+            snapshot,
+            player=replace(snapshot.player, position=Position(10, 12)),
+            grids={
+                **snapshot.grids,
+                target: replace(
+                    snapshot.grids[target], in_view=True, currently_observed=True,
+                    object_count=0,
+                ),
+            },
+        )
+        policy._observe(observed_gone)
+
+        self.assertNotIn(target, policy._deferred_loot)
+        self.assertIsNone(policy.loot_state(observed_gone)["blocker"])
 
     def test_moving_paralyzer_memory_holds_unseen_then_releases_observed_loot(self):
         monster = replace(
@@ -56996,8 +57009,8 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertFalse(policy._equipment_transaction_restoring)
         self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
 
-    def test_two_home_withdrawals_do_not_reenter_between_one_shots(self):
-        """Two queued takes need only operation, confirmation, operation."""
+    def test_equipment_withdrawal_does_not_starve_queued_torch_withdrawal(self):
+        """Equipment ownership yields to an already queued torch take."""
         first = item(
             "a", TVAL_RING, 201, name="First queued ring", known=True,
             fully_known=True, is_equipment=True,
@@ -57005,6 +57018,10 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         second = item(
             "b", TVAL_RING, 202, name="Second queued ring", known=True,
             fully_known=True, is_equipment=True,
+        )
+        torches = store_item(
+            "c", TVAL_LITE, SV_LITE_TORCH, name="Queued throwing torches",
+            count=10,
         )
         actions = tuple(
             policy_module.EquipmentTransaction(
@@ -57016,13 +57033,15 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             for index, target in enumerate((second, first))
         )
         policy = HengbotPolicy()
-        policy.consume_home_knowledge((first, second))
+        policy.consume_home_knowledge((first, second, torches))
         policy._home_page_size = 12
         policy._equipment_transaction_session = (
             policy_module.EquipmentTransactionSession(
                 policy_module.EquipmentTransactionPlan(actions, (), 0)
             )
         )
+        policy._home_pending_item = policy._item_signature(torches)
+        policy._home_pending_quantity = 4
         policy._prepare_equipment_optimization = Mock()
         entrance = Snapshot(
             player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
@@ -57048,7 +57067,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         first_tail = policy.choose_key(replace(
             entrance,
             store=StoreState(
-                STORE_HOME, [first, second], stock_num=2,
+                STORE_HOME, [first, second, torches], stock_num=3,
                 page_top=0, page_size=12,
             ),
         ))
@@ -57065,19 +57084,42 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             turn=entrance.turn + 2,
             inventory=[replace(second, slot="a")],
         )
-        policy.consume_home_knowledge((first,))
+        policy.consume_home_knowledge((first, torches))
         policy._home_page_size = 12
+        policy._home_pending_item = policy._item_signature(torches)
+        policy._home_pending_quantity = 4
+        self.assertTrue(policy._equipment_transaction_session.observe(
+            policy_module.observe_equipment_transactions(carrying_second)
+        ))
+        equipment_request = policy._derived_home_visit_request(carrying_second)
+        self.assertEqual(equipment_request.requester, "equipment-transaction")
         second_key = policy.choose_key(carrying_second)
         decisions.append((second_key, policy.last_reason))
         self.assertTrue(policy.confirm_key_posted(second_key))
         second_tail = policy.choose_key(replace(
             carrying_second,
             store=StoreState(
-                STORE_HOME, [first], stock_num=1,
+                STORE_HOME, [first, torches], stock_num=2,
                 page_top=0, page_size=12,
             ),
         ))
         decisions.append((second_tail, policy.last_reason))
+
+        carrying_equipment = replace(
+            entrance,
+            turn=entrance.turn + 3,
+            inventory=[replace(second, slot="a"), replace(first, slot="b")],
+        )
+        policy.consume_home_knowledge((torches,))
+        policy._home_page_size = 12
+        policy._home_pending_item = policy._item_signature(torches)
+        policy._home_pending_quantity = 4
+        session = policy._equipment_transaction_session
+        self.assertTrue(session.observe(
+            policy_module.observe_equipment_transactions(carrying_equipment)
+        ))
+        self.assertTrue(session.complete)
+        torch_request = policy._derived_home_visit_request(carrying_equipment)
 
         self.assertEqual(
             decisions,
@@ -57093,6 +57135,9 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             ],
         )
         self.assertEqual(len(decisions), 5)
+        self.assertEqual(torch_request.requester, "legacy-withdrawal")
+        self.assertEqual(torch_request.address, policy._item_signature(torches))
+        self.assertEqual(torch_request.quantity, 4)
         self.assertNotIn(
             "equipment-transaction:approach-home", dict(decisions).values()
         )
