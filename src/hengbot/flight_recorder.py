@@ -300,6 +300,11 @@ class FlightRecorder:
         self._snapshot_bytes_since_prune = min(
             self.budget_bytes, self.snapshot_generation_bytes
         )
+        self._captured_episodes: dict[tuple[str, str, str], Path] = {}
+
+    def note_successfully_posted_key(self) -> None:
+        """Re-arm incident capture after gameplay has successfully advanced input."""
+        self._captured_episodes.clear()
 
     def record_snapshot_lines(self, lines: list[str]) -> None:
         if not lines:
@@ -373,11 +378,20 @@ class FlightRecorder:
         except OSError as exc:
             _warn("write floor map", exc)
 
-    def freeze(self, kind: str, policy, snapshot, decision_log: Path | None, reasons: list[str]) -> Path | None:
+    def freeze(
+        self, kind: str, policy, snapshot, decision_log: Path | None,
+        reasons: list[str], *, owner_reason: str = "", key: str = "",
+    ) -> Path | None:
+        episode = (kind, owner_reason, key)
+        if owner_reason and key and episode in self._captured_episodes:
+            return self._captured_episodes[episode]
         stamp = time.strftime("%Y%m%d-%H%M%S")
         safe_kind = safe_filename_component(kind, fallback="incident")
         final = self.incident_root / f"{stamp}-{safe_kind}"
-        temporary = self.incident_root / f".{final.name}-{uuid.uuid4().hex}.tmp"
+        unique = uuid.uuid4().hex
+        if final.exists():
+            final = self.incident_root / f"{final.name}-{unique}"
+        temporary = self.incident_root / f".{final.name}-{unique}.tmp"
         try:
             temporary.mkdir(parents=True)
             tail = b""
@@ -390,6 +404,8 @@ class FlightRecorder:
             captured.mkdir()
             if self.snapshot_dir.exists():
                 remaining = INCIDENT_SNAPSHOT_BYTES
+                linked = []
+                omitted = []
                 sources = sorted(
                     self.snapshot_dir.glob("*.gz"),
                     key=lambda path: path.stat().st_mtime_ns,
@@ -397,9 +413,15 @@ class FlightRecorder:
                 )
                 for source in sources:
                     size = source.stat().st_size
-                    if size > remaining and remaining < INCIDENT_SNAPSHOT_BYTES:
+                    if size > remaining:
+                        omitted.append(source.name)
                         continue
-                    shutil.copy2(source, captured / source.name)
+                    target = captured / source.name
+                    try:
+                        os.link(source, target)
+                        linked.append(source.name)
+                    except OSError:
+                        shutil.copy2(source, target)
                     remaining -= size
                     if remaining <= 0:
                         break
@@ -423,18 +445,24 @@ class FlightRecorder:
             )
             (temporary / "README.md").write_text(
                 f"# Automatic incident capture\n\nStop kind: `{kind}`; turn: {snapshot.turn}; "
-                f"floor: `{snapshot.floor_key}`.\n",
+                f"floor: `{snapshot.floor_key}`.\n\n"
+                f"Snapshot ring coverage is capped at {INCIDENT_SNAPSHOT_BYTES} bytes. "
+                f"Hard-linked generations: {linked if self.snapshot_dir.exists() else []}. "
+                f"Omitted generations: {omitted if self.snapshot_dir.exists() else []}.\n",
                 encoding="utf-8",
             )
             self.incident_root.mkdir(parents=True, exist_ok=True)
             os.replace(temporary, final)
+            if owner_reason and key:
+                self._captured_episodes[episode] = final
             return final
         except OSError as exc:
             _warn("freeze incident", exc)
+            shutil.rmtree(temporary, ignore_errors=True)
             return None
 
     def prune_budget(self) -> None:
-        """Remove oldest rotated snapshots only; incidents and live logs are sacred."""
+        """Age rotated snapshots and finalized incidents within the shared budget."""
         try:
             files = [
                 path
@@ -446,20 +474,45 @@ class FlightRecorder:
                 if self.incident_root.exists()
                 else []
             )
-            total = sum(path.stat().st_size for path in files + incidents)
-            rotated = sorted(
+            def allocated_size() -> int:
+                seen = set()
+                total_size = 0
+                for path in files + incidents:
+                    if not path.exists():
+                        continue
+                    stat = path.stat()
+                    identity = (stat.st_dev, stat.st_ino)
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
+                    total_size += stat.st_size
+                return total_size
+
+            total = allocated_size()
+            incident_dirs = sorted(
                 (
-                    path
-                    for path in self.snapshot_dir.glob("snapshots-*.jsonl.gz")
-                    if path != self.snapshot_path
+                    path for path in self.incident_root.iterdir()
+                    if path.is_dir() and not path.name.startswith(".")
                 ),
                 key=lambda path: path.stat().st_mtime_ns,
-            )
-            for path in rotated:
+            ) if self.incident_root.exists() else []
+            newest_incident = incident_dirs[-1] if incident_dirs else None
+            candidates = [
+                (path.stat().st_mtime_ns, path)
+                for path in self.snapshot_dir.glob("snapshots-*.jsonl.gz")
+                if path != self.snapshot_path
+            ] + [
+                (path.stat().st_mtime_ns, path)
+                for path in incident_dirs
+                if path != newest_incident
+            ]
+            for _, path in sorted(candidates, key=lambda item: item[0]):
                 if total <= self.budget_bytes:
                     break
-                size = path.stat().st_size
-                path.unlink()
-                total -= size
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+                total = allocated_size()
         except OSError as exc:
             _warn("prune snapshot history", exc)

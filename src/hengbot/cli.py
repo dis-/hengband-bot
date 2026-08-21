@@ -1475,7 +1475,7 @@ def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
     """Project the observable effect relevant to one posted operation.
 
     In general an effect is observed when a later snapshot changes the turn,
-    floor/position, store context, messages, pack, equipment, gold, or recall
+    floor/position, store context, pack, equipment, gold, or recall
     state.  Recall reads are deliberately stricter: only a changed
     ``player.recalling`` value acknowledges that operation, because unrelated
     turn advance must not authorize a second read that cancels the first.
@@ -1507,7 +1507,6 @@ def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
         getattr(snapshot, "floor_key", None),
         (position.y, position.x),
         store_state,
-        tuple(getattr(snapshot, "messages", ())),
         tuple(item_state(item) for item in snapshot.inventory),
         tuple(item_state(item) for item in snapshot.equipment),
         getattr(player, "gold", None),
@@ -1621,11 +1620,14 @@ def _write_posting_contract_incident(
 
 def _freeze_incident_safely(
     recorder, kind: str, policy, snapshot, decision_log: Path | None,
-    reasons: list[str],
+    reasons: list[str], *, owner_reason: str = "", key: str = "",
 ) -> Path | None:
     """Freeze diagnostics without ever changing gameplay control flow."""
     try:
-        capture = recorder.freeze(kind, policy, snapshot, decision_log, reasons)
+        capture = recorder.freeze(
+            kind, policy, snapshot, decision_log, reasons,
+            owner_reason=owner_reason, key=key,
+        )
     except Exception as exc:
         print(f"flight recorder failed to freeze incident: {exc}", file=sys.stderr)
         capture = None
@@ -1665,6 +1667,8 @@ def _send_new_decision_key(
         return False, posted_line
     owner = str((decision or {}).get("reason", "unknown"))
     prompt_owner_handoff = (decision or {}).get("prompt_owner_handoff")
+    if key in posted_keys:
+        return False, posted_line
     if (
         posting_contract is not None
         and snapshot is not None
@@ -1680,13 +1684,14 @@ def _send_new_decision_key(
         )
     ):
         return False, posted_line
-    if key in posted_keys:
-        return False, posted_line
     sent = send(key, in_store=in_store, decision=decision)
     if sent:
         posted_keys.add(key)
         if posting_contract is not None and snapshot is not None:
             posting_contract.posted(snapshot, key, owner)
+        recorder = getattr(posting_contract, "flight_recorder", None)
+        if recorder is not None:
+            recorder.note_successfully_posted_key()
     return sent, posted_line
 
 
@@ -2367,6 +2372,7 @@ def _run_follow(
     recent_reasons: deque[str] = deque(maxlen=20)
     if posting_contract is None:
         posting_contract = PostingContract()
+    posting_contract.flight_recorder = recorder
     batch_seq = 0
     pending_batch_row = None
     last_observed_home_page = None
@@ -2935,6 +2941,10 @@ def _run_follow(
                         _freeze_incident_safely(
                             recorder, str(incident["marker"]), policy, snapshot,
                             args.decision_log, list(recent_reasons),
+                            owner_reason=str(incident.get(
+                                "owner", incident.get("answer_owner", policy.last_reason)
+                            )),
+                            key=str(incident.get("key", key)),
                         )
                         policy.refuse_key_posting(
                             str(incident.get(

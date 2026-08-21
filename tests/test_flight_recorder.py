@@ -160,6 +160,89 @@ class FlightRecorderTest(unittest.TestCase):
             meta = json.loads((capture / "meta.json").read_text(encoding="utf-8"))
             self.assertEqual(meta["kind"], kind)
 
+    def test_same_second_freezes_are_unique_and_replace_failure_cleans_temp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            with patch("hengbot.flight_recorder.time.strftime", return_value="20260821-201139"):
+                first = recorder.freeze(
+                    "posting-contract", self.policy(), self.snapshot(), None, []
+                )
+                second = recorder.freeze(
+                    "posting-contract", self.policy(), self.snapshot(), None, []
+                )
+            self.assertNotEqual(first, second)
+            self.assertTrue(first.is_dir())
+            self.assertTrue(second.is_dir())
+
+            with patch("hengbot.flight_recorder.os.replace", side_effect=OSError("fail")):
+                failed = recorder.freeze(
+                    "replace-failure", self.policy(), self.snapshot(), None, []
+                )
+            self.assertIsNone(failed)
+            self.assertEqual(list(recorder.incident_root.glob(".*.tmp")), [])
+
+    def test_capture_episode_rearms_only_after_successfully_posted_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            arguments = (
+                "posting-contract:identical-repost-unobserved",
+                self.policy(), self.snapshot(), None, [],
+            )
+            first = recorder.freeze(*arguments, owner_reason="explore", key="4")
+            repeated = recorder.freeze(*arguments, owner_reason="explore", key="4")
+            self.assertEqual(first, repeated)
+            self.assertEqual(len(list(recorder.incident_root.iterdir())), 1)
+
+            recorder.note_successfully_posted_key()
+            rearmed = recorder.freeze(*arguments, owner_reason="explore", key="4")
+            self.assertNotEqual(first, rearmed)
+            self.assertEqual(len(list(recorder.incident_root.iterdir())), 2)
+
+    def test_capture_hard_links_only_generations_within_incident_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            recorder.snapshot_dir.mkdir(parents=True)
+            older = recorder.snapshot_dir / "snapshots-old.jsonl.gz"
+            newer = recorder.snapshot_dir / "snapshots-new.jsonl.gz"
+            older.write_bytes(b"o" * 8)
+            newer.write_bytes(b"n" * 8)
+            os.utime(older, (1, 1))
+            os.utime(newer, (2, 2))
+
+            with patch("hengbot.flight_recorder.INCIDENT_SNAPSHOT_BYTES", 10):
+                capture = recorder.freeze(
+                    "bounded", self.policy(), self.snapshot(), None, []
+                )
+
+            captured = list((capture / "snapshots").iterdir())
+            self.assertEqual([path.name for path in captured], [newer.name])
+            self.assertTrue(os.path.samefile(newer, captured[0]))
+            self.assertIn("Omitted generations", (capture / "README.md").read_text())
+
+    def test_budget_prunes_oldest_incident_but_preserves_newest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog", root / "incident-captures", budget_bytes=12
+            )
+            recorder.root.mkdir(parents=True)
+            recorder.snapshot_dir.mkdir()
+            recorder.snapshot_path.write_bytes(b"x" * 8)
+            oldest = recorder.incident_root / "oldest"
+            newest = recorder.incident_root / "newest"
+            for index, path in enumerate((oldest, newest), 1):
+                path.mkdir(parents=True)
+                (path / "meta.json").write_bytes(b"x" * 8)
+                os.utime(path, (index, index))
+
+            recorder.prune_budget()
+
+            self.assertFalse(oldest.exists())
+            self.assertTrue(newest.exists())
+
     def test_policy_state_retains_commitment_and_downstairs_and_map_renders(self):
         state = json.loads(json.dumps(policy_state(self.policy(), self.snapshot())))
         self.assertEqual(

@@ -345,6 +345,52 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
+    def test_identical_board_duplicate_is_suppressed_before_contract(self):
+        contract = PostingContract()
+        snapshot = self.snapshot(turn=696710)
+        posted = []
+        posted_keys = set()
+        decision = {"reason": "explore"}
+        sent, posted_line = _send_new_decision_key(
+            lambda key, **_kwargs: posted.append(key) or True,
+            "byte-identical", "7", None, posted_keys, in_store=False,
+            decision=decision, snapshot=snapshot, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+
+        sent, _ = _send_new_decision_key(
+            lambda key, **_kwargs: posted.append(key) or True,
+            "byte-identical", "7", posted_line, posted_keys, in_store=False,
+            decision=decision, snapshot=snapshot, posting_contract=contract,
+        )
+
+        self.assertFalse(sent)
+        self.assertEqual(posted, ["7"])
+        self.assertIsNone(contract.last_incident)
+
+    def test_message_flicker_does_not_acknowledge_repost(self):
+        contract = PostingContract()
+        owner = "explore"
+        contract.posted(self.snapshot(turn=696738, messages=("noticed",)), "4", owner)
+
+        self.assertFalse(contract.allow(
+            self.snapshot(turn=696738, messages=()), "4", owner
+        ))
+        self.assertEqual(
+            contract.last_incident["marker"],
+            "posting-contract:identical-repost-unobserved",
+        )
+
+    def test_real_position_effect_acknowledges_repost(self):
+        contract = PostingContract()
+        owner = "explore"
+        before = self.snapshot(turn=696738)
+        contract.posted(before, "4", owner)
+        after = self.snapshot(turn=696739)
+        after.player.position.x += 1
+
+        self.assertTrue(contract.allow(after, "4", owner))
+
     def test_unobserved_volley_recovers_through_identity_breaking_probe(self):
         owner = "ranged:fire"
         key = "\x1bfa8"
