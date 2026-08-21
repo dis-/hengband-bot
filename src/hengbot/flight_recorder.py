@@ -139,6 +139,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_engagement_avoid_cells",
         "_paralyzer_avoid_cells",
         "_remembered_paralyzers",
+        "_loot_defer_blocker",
         "_home_pending_item",
         "_home_pending_quantity",
         "_home_visit",
