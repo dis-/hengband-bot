@@ -680,6 +680,10 @@ def apply_mutation(package: Path, mutation: Mutation) -> tuple[bool, str | None]
 FAILURE_RE = re.compile(r"^(?:FAIL|ERROR): (\S+) \(([^)]+)\)$", re.MULTILINE)
 RAN_RE = re.compile(r"^Ran (\d+) tests?", re.MULTILINE)
 ASSERTION_RE = re.compile(r"^(?:AssertionError|[A-Za-z_.]+Error): (.+)$", re.MULTILINE)
+MISSING_EVIDENCE_RE = re.compile(
+    r"FileNotFoundError:.*(?:evidence[\\/]|required frozen incident fixture is absent)",
+    re.IGNORECASE,
+)
 
 
 def run_tests(package_parent: Path, full_suite: bool) -> dict:
@@ -702,15 +706,22 @@ def run_tests(package_parent: Path, full_suite: bool) -> dict:
     )
     output = proc.stdout
     failures = []
+    skipped_missing_evidence = []
     for match in FAILURE_RE.finditer(output):
         _method, container = match.groups()
-        failures.append(container)
+        next_header = FAILURE_RE.search(output, match.end())
+        block = output[match.start():next_header.start() if next_header else len(output)]
+        if MISSING_EVIDENCE_RE.search(block):
+            skipped_missing_evidence.append(container)
+        else:
+            failures.append(container)
     ran = RAN_RE.search(output)
     assertion = ASSERTION_RE.search(output)
     return {
         "command": command,
         "tests_run": int(ran.group(1)) if ran else None,
         "failures": failures,
+        "skipped_missing_evidence": skipped_missing_evidence,
         "returncode": proc.returncode,
         "first_assertion": assertion.group(1) if assertion else None,
         "output": output,
@@ -725,6 +736,7 @@ def execute(mutation: Mutation, full_suite: bool) -> dict:
         "applied": False,
         "tests_run": 0,
         "failures": [],
+        "skipped_missing_evidence": [],
         "public_path_failure": False,
         "first_assertion": None,
         "expectation_met": False,
@@ -740,7 +752,8 @@ def execute(mutation: Mutation, full_suite: bool) -> dict:
             return result
         test_result = run_tests(package_parent, full_suite)
         result.update({key: test_result[key] for key in (
-            "tests_run", "failures", "returncode", "first_assertion"
+            "tests_run", "failures", "skipped_missing_evidence", "returncode",
+            "first_assertion"
         )})
         result["public_path_failure"] = any(
             failure in PUBLIC_TESTS for failure in test_result["failures"]
@@ -756,13 +769,14 @@ def compact(value: object, width: int) -> str:
 
 
 def print_table(results: list[dict]) -> None:
-    headers = ("mutation", "expect", "applied", "tests", "fail", "public", "result", "first assertion")
+    headers = ("mutation", "expect", "applied", "tests", "fail", "skip-evidence", "public", "result", "first assertion")
     rows = []
     for item in results:
         rows.append((
             item["name"], "bite" if item["expected_to_bite"] else "no-bite",
             "yes" if item["applied"] else "no", item["tests_run"],
-            len(item["failures"]), "yes" if item["public_path_failure"] else "no",
+            len(item["failures"]), len(item["skipped_missing_evidence"]),
+            "yes" if item["public_path_failure"] else "no",
             "PASS" if item["expectation_met"] else "FAIL",
             item.get("apply_error") or item["first_assertion"],
         ))

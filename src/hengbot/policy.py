@@ -17084,11 +17084,17 @@ class HengbotPolicy:
             and self._item_signature(owned.item) not in self._deferred_home_items
             for owned in self._equipment_catalog.items
         )
+        home_identification_unsatisfiable = (
+            self._equipment_catalog.home_scan_complete
+            and self._home_knowledge_current
+            and self._identification_candidate is None
+            and not bindable_home_identification
+        )
         home_identification_claim = (
             self._home_errand.active
             or (
                 self._identification_candidate is None
-                and bindable_home_identification
+                and not home_identification_unsatisfiable
             )
             or any(
                 owned.origin == "home"
@@ -19812,6 +19818,9 @@ class HengbotPolicy:
                 )
                 rejection_reason = "reserved" if reserved else "preempted"
 
+        composition_refusal = self._shop_selector_diagnostics.get(
+            "composition_refusal"
+        )
         self._shop_selector_diagnostics = {
             "winning_rung": self.last_reason,
             "gold": snapshot.player.gold,
@@ -19819,6 +19828,10 @@ class HengbotPolicy:
             "considered_candidate": considered,
             "rejection_reason": rejection_reason,
         }
+        if composition_refusal is not None:
+            self._shop_selector_diagnostics["composition_refusal"] = (
+                composition_refusal
+            )
         invariant_defect = getattr(
             self, "_town_progress_invariant_defect", {}
         )
@@ -22305,9 +22318,11 @@ class HengbotPolicy:
             # the next outside snapshot re-resolves the newly tagged item.
             return inner
         composition_refusal = self.last_reason
+        star_remove_curse_shelf_seen = self._star_remove_curse_shelf_seen
         self._record_shop_selector_diagnostics(
             replace(snapshot, store=observed_store), inner
         )
+        self._star_remove_curse_shelf_seen = star_remove_curse_shelf_seen
         self._shop_selector_diagnostics["composition_refusal"] = composition_refusal
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later

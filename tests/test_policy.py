@@ -10,6 +10,11 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+try:
+    from trajectory_harness import drive_trajectory
+except ModuleNotFoundError:
+    from tests.trajectory_harness import drive_trajectory
+
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 from hengbot.home_errand import HomeErrandRequest
@@ -47088,37 +47093,117 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         self.assertEqual(policy._home_pending_item, policy._item_signature(home_staff))
 
+    def test_other_retrievable_home_device_still_preempts_deferred_staff(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        other = item(
+            "w", TVAL_WAND, 99, charges=1, name="another Home wand"
+        )
+        policy._home_knowledge_items.append(other)
+
+        self.assertIsNone(policy._atomic_shop_transaction_key(entrance))
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "shop:home-first-before-purchase",
+        )
+
     def test_incident_magic_entrance_cycle_releases_the_composed_buy(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident()
         observed_store = policy._shop_observation[0]
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
+        choose_key = policy.choose_key
 
-        outside_key = policy._atomic_shop_transaction_key(entrance)
-        inside_key = policy.choose_key(
-            replace(entrance, store=observed_store, turn=entrance.turn + 1)
+        def drive_incident_cycle(snapshot):
+            if snapshot.store is None:
+                return policy._atomic_shop_transaction_key(snapshot)
+            return choose_key(snapshot)
+
+        policy.choose_key = drive_incident_cycle
+
+        class MagicEntranceWorld:
+            def __init__(self):
+                self.inside = False
+                self.gold = entrance.player.gold
+                self.inventory = list(entrance.inventory)
+                self.stock = list(observed_store.items)
+
+            def deliver_events(self, _policy):
+                pass
+
+            def snapshot(self, decision):
+                return replace(
+                    entrance,
+                    turn=entrance.turn + decision,
+                    player=replace(entrance.player, gold=self.gold),
+                    inventory=list(self.inventory),
+                    store=(
+                        StoreState(STORE_MAGIC, list(self.stock), page_top=0)
+                        if self.inside else None
+                    ),
+                )
+
+            def apply(self, key):
+                if key == WAIT_KEY:
+                    self.inside = True
+                elif self.inside and key.startswith(BUY_KEY + "a"):
+                    bought = self.stock.pop(0)
+                    self.gold -= bought.price
+                    self.inventory.append(item(
+                        "z", bought.tval, bought.sval, count=bought.count,
+                        charges=bought.charges, name=bought.name,
+                    ))
+                    self.inside = False
+
+            def progress_fingerprint(self):
+                return self.inside, self.gold, len(self.inventory), len(self.stock)
+
+        world = MagicEntranceWorld()
+        initial_gold = world.gold
+        initial_pack = len(world.inventory)
+
+        result = drive_trajectory(
+            policy,
+            world,
+            decisions=3,
+            milestones=((
+                "purchase applied",
+                2,
+                lambda _p, w, _r, _k: (
+                    w.gold < initial_gold and len(w.inventory) > initial_pack
+                ),
+            ),),
+            owner_bound=3,
+            pair_bound=3,
         )
 
-        self.assertEqual(outside_key, WAIT_KEY)
-        self.assertTrue(inside_key.startswith(BUY_KEY + "a"), inside_key)
+        self.assertTrue(any(key.startswith(BUY_KEY + "a") for _, key in result.transcript))
         self.assertTrue(policy._store_visit.operation_released)
 
-    def _identification_claim_incident(self, *, deferred):
+    def _identification_claim_incident(self, *, shape):
         policy = HengbotPolicy()
-        target = item(
-            "h", 23, 25, name="incomplete Home equipment", known=False,
-            fully_known=False, is_equipment=True,
-        )
-        owned = OwnedEquipment("home-target", target, "home")
-        policy._equipment_catalog._home = {owned.id: owned}
-        policy._equipment_catalog.home_scan_complete = True
         policy._home_candidate_waiting = True
         policy._identification_candidate = None
         policy._identification_need = "basic"
-        policy._home_knowledge_current = True
-        policy._home_knowledge_items = [target]
-        policy._home_knowledge_valid_before = 1
-        if deferred:
-            policy._deferred_home_items.add(policy._item_signature(target))
+        if shape != "unscanned":
+            policy._equipment_catalog.home_scan_complete = True
+            policy._home_knowledge_current = True
+            policy._home_knowledge_valid_before = 12
+        if shape == "bindable":
+            target = item(
+                "h", 23, 25, name="incomplete Home equipment", known=False,
+                fully_known=False, is_equipment=True,
+            )
+            owned = OwnedEquipment("home-target", target, "home")
+            policy._equipment_catalog._home = {owned.id: owned}
+            policy._home_knowledge_items = [target]
+        elif shape == "incident":
+            deferred_staff = item(
+                "h", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=5,
+                name="Staff of Identify",
+            )
+            policy._home_knowledge_items = [deferred_staff]
+            policy._deferred_home_items.add(
+                policy._item_signature(deferred_staff)
+            )
         snapshot = replace(
             self._snapshot(),
             town_flag=True,
@@ -47137,7 +47222,7 @@ class TownErrandPlanTest(unittest.TestCase):
         return policy, snapshot
 
     def test_deferred_only_identification_claim_self_retires(self):
-        policy, snapshot = self._identification_claim_incident(deferred=True)
+        policy, snapshot = self._identification_claim_incident(shape="incident")
 
         categories = {need.category for need in policy._town_need_candidates(snapshot)}
 
@@ -47145,7 +47230,14 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
     def test_bindable_identification_claim_revives(self):
-        policy, snapshot = self._identification_claim_incident(deferred=False)
+        policy, snapshot = self._identification_claim_incident(shape="bindable")
+
+        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+
+        self.assertIn("identification-withdrawal", categories)
+
+    def test_unscanned_empty_identification_catalog_keeps_claim(self):
+        policy, snapshot = self._identification_claim_incident(shape="unscanned")
 
         categories = {need.category for need in policy._town_need_candidates(snapshot)}
 
@@ -47155,7 +47247,20 @@ class TownErrandPlanTest(unittest.TestCase):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident(
             deferred=False
         )
-        self.assertIsNone(policy._atomic_shop_transaction_key(entrance))
+        policy._star_remove_curse_shelf_seen = False
+        record = policy._record_shop_selector_diagnostics
+
+        def mutating_diagnostic(snapshot, key):
+            record(snapshot, key)
+            policy._star_remove_curse_shelf_seen = True
+
+        with patch.object(
+            policy,
+            "_record_shop_selector_diagnostics",
+            side_effect=mutating_diagnostic,
+        ):
+            self.assertIsNone(policy._atomic_shop_transaction_key(entrance))
+        self.assertFalse(policy._star_remove_curse_shelf_seen)
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
             "shop:home-first-before-purchase",
@@ -47171,6 +47276,10 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(
             policy._shop_selector_diagnostics["rejection_reason"],
             "observed-page-nothing-wanted",
+        )
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "shop:home-first-before-purchase",
         )
 
     def test_visit_ledger_survives_plan_rebuild(self):
