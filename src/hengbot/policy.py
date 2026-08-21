@@ -17078,13 +17078,24 @@ class HengbotPolicy:
                     add(STORE_GENERAL, "throwing-torches")
             return needs
 
+        bindable_home_identification = any(
+            owned.origin == "home"
+            and owned.identification_incomplete
+            and self._item_signature(owned.item) not in self._deferred_home_items
+            for owned in self._equipment_catalog.items
+        )
         home_identification_claim = (
-            self._identification_candidate is None
-            or self._home_errand.active
+            self._home_errand.active
+            or (
+                self._identification_candidate is None
+                and bindable_home_identification
+            )
             or any(
                 owned.origin == "home"
                 and self._item_signature(owned.item)
                 == self._identification_candidate
+                and self._item_signature(owned.item)
+                not in self._deferred_home_items
                 for owned in self._equipment_catalog.items
             )
         )
@@ -19587,7 +19598,9 @@ class HengbotPolicy:
         return next(
             (
                 item for item in self._home_knowledge_items
-                if self._procurement_class_matches(item, item_class) and item.count > 0
+                if self._item_signature(item) not in self._deferred_home_items
+                and self._procurement_class_matches(item, item_class)
+                and item.count > 0
             ),
             None,
         )
@@ -19770,7 +19783,10 @@ class HengbotPolicy:
 
         considered_item = selected_item or wanted_item
         considered = None
-        rejection_reason = "not-needed"
+        rejection_reason = (
+            "observed-page-nothing-wanted"
+            if store is not None else "no-store-page-observed"
+        )
         if considered_item is not None:
             considered = self._shop_candidate_diagnostics(
                 considered_item,
@@ -22288,6 +22304,11 @@ class HengbotPolicy:
             # Inscription is an outside pack operation.  Retain this page while
             # the next outside snapshot re-resolves the newly tagged item.
             return inner
+        composition_refusal = self.last_reason
+        self._record_shop_selector_diagnostics(
+            replace(snapshot, store=observed_store), inner
+        )
+        self._shop_selector_diagnostics["composition_refusal"] = composition_refusal
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later
         # pack/gold change must re-observe the shelf before using its letters.

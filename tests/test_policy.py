@@ -47033,6 +47033,146 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._town_terminal_transitions = lambda snapshot: None
         return policy
 
+    def _deferred_identify_staff_incident(self, *, deferred=True):
+        carried = item(
+            "d", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=7,
+            name="Staff of Identify",
+        )
+        home_staff = item(
+            "h", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=5,
+            name="Staff of Identify",
+        )
+        stock = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=888, charges=20,
+            count=3, name="Staff of Identify",
+        )
+        position = Position(10, 10)
+        snapshot = Snapshot(
+            player(10, 10, gold=9869, class_id=PLAYER_CLASS_WARRIOR),
+            {position: replace(grid(10, 10), store_number=STORE_MAGIC)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[carried],
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [home_staff]
+        if deferred:
+            policy._deferred_home_items.add(policy._item_signature(home_staff))
+        policy._shop_observation = (StoreState(STORE_MAGIC, [stock], page_top=0), 2042)
+        return policy, snapshot, home_staff
+
+    def test_deferred_home_staff_allows_incident_magic_buy_composition(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+
+        key = policy._atomic_shop_transaction_key(entrance)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertEqual(
+            policy._town_visit_ledger.pending_store_transaction,
+            (STORE_MAGIC, policy._decision_sequence),
+        )
+
+    def test_retrievable_home_staff_still_preempts_incident_magic_buy(self):
+        policy, entrance, home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+
+        self.assertIsNone(policy._atomic_shop_transaction_key(entrance))
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "shop:home-first-before-purchase",
+        )
+        self.assertEqual(policy._home_pending_item, policy._item_signature(home_staff))
+
+    def test_incident_magic_entrance_cycle_releases_the_composed_buy(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        observed_store = policy._shop_observation[0]
+        policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
+
+        outside_key = policy._atomic_shop_transaction_key(entrance)
+        inside_key = policy.choose_key(
+            replace(entrance, store=observed_store, turn=entrance.turn + 1)
+        )
+
+        self.assertEqual(outside_key, WAIT_KEY)
+        self.assertTrue(inside_key.startswith(BUY_KEY + "a"), inside_key)
+        self.assertTrue(policy._store_visit.operation_released)
+
+    def _identification_claim_incident(self, *, deferred):
+        policy = HengbotPolicy()
+        target = item(
+            "h", 23, 25, name="incomplete Home equipment", known=False,
+            fully_known=False, is_equipment=True,
+        )
+        owned = OwnedEquipment("home-target", target, "home")
+        policy._equipment_catalog._home = {owned.id: owned}
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_candidate_waiting = True
+        policy._identification_candidate = None
+        policy._identification_need = "basic"
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [target]
+        policy._home_knowledge_valid_before = 1
+        if deferred:
+            policy._deferred_home_items.add(policy._item_signature(target))
+        snapshot = replace(
+            self._snapshot(),
+            town_flag=True,
+            town_id=0,
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_HOME
+                ),
+            },
+            inventory=[item(
+                "i", TVAL_SCROLL, policy_module.SV_SCROLL_IDENTIFY,
+                name="Identify", known=True, aware=True,
+            )],
+        )
+        return policy, snapshot
+
+    def test_deferred_only_identification_claim_self_retires(self):
+        policy, snapshot = self._identification_claim_incident(deferred=True)
+
+        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+
+        self.assertNotIn("identification-withdrawal", categories)
+        self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+
+    def test_bindable_identification_claim_revives(self):
+        policy, snapshot = self._identification_claim_incident(deferred=False)
+
+        categories = {need.category for need in policy._town_need_candidates(snapshot)}
+
+        self.assertIn("identification-withdrawal", categories)
+
+    def test_shop_refusal_diagnostics_distinguish_page_states(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        self.assertIsNone(policy._atomic_shop_transaction_key(entrance))
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "shop:home-first-before-purchase",
+        )
+
+        policy._record_shop_selector_diagnostics(entrance, WAIT_KEY)
+        self.assertEqual(
+            policy._shop_selector_diagnostics["rejection_reason"],
+            "no-store-page-observed",
+        )
+        empty_page = replace(entrance, store=StoreState(STORE_MAGIC, []))
+        policy._record_shop_selector_diagnostics(empty_page, WAIT_KEY)
+        self.assertEqual(
+            policy._shop_selector_diagnostics["rejection_reason"],
+            "observed-page-nothing-wanted",
+        )
+
     def test_visit_ledger_survives_plan_rebuild(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
