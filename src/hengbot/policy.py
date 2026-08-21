@@ -1398,7 +1398,7 @@ ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
 # for the rest of the floor.  Otherwise stepping just outside line of sight makes
 # the blocker disappear and immediately sends the bot back across the same edge.
 LOOT_DEFER_BLOCKERS = frozenset(
-    {"summoner-visible", "multiplier-visible", "material-threat"}
+    {"summoner-visible", "multiplier-visible", "material-threat", "paralyzer-ring"}
 )
 # An ordinary supply return may make a short detour for realised value. Critical
 # returns (food/light/pack/emergency) never wait for loot.
@@ -1935,6 +1935,7 @@ class HengbotPolicy:
         # Unlike retreat claims, these cells follow the currently visible
         # monsters and are withdrawn when the source moves or disappears.
         self._paralyzer_avoid_cells: set[Position] = set()
+        self._remembered_paralyzers: dict[Position, bool] = {}
         # Grids whose entry a TR_WARNING prompt refused (this floor).  Injected
         # into _engagement_avoid_cells every decision — the same hard weight as
         # a lethal-danger cell — until the supply ledger is entirely exhausted,
@@ -2076,6 +2077,7 @@ class HengbotPolicy:
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
+        self._loot_defer_blocker: str | None = None
         self._pending_loot_pickup: tuple[tuple[int, int, int], Position, int] | None = None
         self._multiplier_target: Position | None = None
         self._multiplier_target_grace = 0
@@ -3504,6 +3506,19 @@ class HengbotPolicy:
     ) -> PhysicalHomeVisitRequest | None:
         """Translate every legacy Home producer into one immutable request."""
         keep_set = self._home_visit_keep_set(snapshot)
+        identity = self._home_pending_item or (
+            self._home_pending_batch[0] if self._home_pending_batch else None
+        )
+        if identity is not None:
+            return PhysicalHomeVisitRequest(
+                HomeVisitKind.WITHDRAW,
+                "legacy-withdrawal",
+                identity,
+                address=identity,
+                quantity=self._home_pending_quantity or 1,
+                keep_set=keep_set,
+                batch=tuple(self._home_pending_batch),
+            )
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
         if action is not None and action.kind == "deposit":
@@ -3540,19 +3555,6 @@ class HengbotPolicy:
                     getattr(candidate, "item_identity", None)
                     for candidate in session.plan.actions
                 ),
-            )
-        identity = self._home_pending_item or (
-            self._home_pending_batch[0] if self._home_pending_batch else None
-        )
-        if identity is not None:
-            return PhysicalHomeVisitRequest(
-                HomeVisitKind.WITHDRAW,
-                "legacy-withdrawal",
-                identity,
-                address=identity,
-                quantity=self._home_pending_quantity or 1,
-                keep_set=keep_set,
-                batch=tuple(self._home_pending_batch),
             )
         if self._calibration_restore_signatures:
             identity = self._calibration_restore_signatures[0]
@@ -7820,6 +7822,8 @@ class HengbotPolicy:
             self._known_loot.clear()
             self._loot_target = None
             self._deferred_loot.clear()
+            self._loot_defer_blocker = None
+            self._remembered_paralyzers.clear()
             self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
@@ -8429,35 +8433,30 @@ class HengbotPolicy:
     ) -> SupplyStatus:
         """Mirror SupplyLedger's per-visit evidence for one quest carry entry."""
         stores = self._quest_carry_suppliers(name)
-        candidates = [store for store in stores if store not in self._town_store_attempted]
-        obtainable = bool(candidates)
-        if (
-            obtainable
-            and snapshot.store is not None
-            and snapshot.store.store_type in candidates
-        ):
-            current_supplier = snapshot.store.store_type
-            expected_target = (
-                "launcher"
-                if name.startswith("launcher")
-                else name.partition(".")[2]
-            )
-            affordable = False
-            for item in snapshot.store.items:
-                target = self._quest_carry_target_for_item(
-                    snapshot, item, strategy.required_force
-                )
-                if (
-                    target is not None
-                    and target[0] == expected_target
-                    and item.price <= snapshot.player.gold
-                ):
-                    affordable = True
-                    break
-            obtainable = (
-                any(store != current_supplier for store in candidates)
-                or affordable
-            )
+        obtainable = False
+        expected_target = "launcher" if name.startswith("launcher") else name.partition(".")[2]
+        supplier_pages = dict(getattr(self, "_town_supplier_stock", {}))
+        if snapshot.store is not None:
+            supplier_pages[snapshot.store.store_type] = snapshot.store
+        for current_supplier in stores:
+            page = supplier_pages.get(current_supplier)
+            if page is not None:
+                for item in page.items:
+                    target = self._quest_carry_target_for_item(
+                        snapshot, item, strategy.required_force
+                    )
+                    if (
+                        target is not None
+                        and target[0] == expected_target
+                        and item.price <= snapshot.player.gold
+                    ):
+                        obtainable = True
+                        break
+            if obtainable:
+                break
+            if current_supplier not in self._town_store_attempted:
+                obtainable = True
+                break
         return SupplyStatus(
             name,
             int(status["measured"]),
@@ -8610,7 +8609,7 @@ class HengbotPolicy:
             return None
         ammo = self._matching_ammo(snapshot)
         torch = self._first_item(
-            snapshot, lambda it: it.is_torch and not it.is_equipment
+            snapshot, lambda it: it.is_torch
         )
         if ammo is not None:
             prefix, slot, reason = FIRE_KEY, ammo.slot, "ranged:fire"
@@ -10581,7 +10580,6 @@ class HengbotPolicy:
 
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
-            self._abandon_unobtainable_quest_carries(snapshot, strategy)
             labels = {
                 "launcher": "Quest launcher",
                 "throwing_items.lit_torch": "Quest throwing torches",
@@ -13190,6 +13188,17 @@ class HengbotPolicy:
                 else self._food_ready(snapshot)
             ),
             "light_ready": self._light_ready(snapshot),
+            "quest_carry_ready": (
+                self._fundraising_mode in {"mine", "scavenge"}
+                or (strategy := self._carry_procurement_strategy(snapshot)) is None
+                or all(
+                    bool(status["ready"])
+                    or name in self._abandoned_quest_carry_requirements
+                    for name, status in self._quest_carry_status(
+                        snapshot, strategy.required_force
+                    ).items()
+                )
+            ),
             "teleport_ready": self._teleport_ready(snapshot),
             "cure_critical_ready": self._cure_critical_ready(snapshot),
             "identify_staff_ready": self._identify_staff_ready(snapshot),
@@ -17149,6 +17158,17 @@ class HengbotPolicy:
                 )
             }
             if "throwing_items.lit_torch" in missing_carries:
+                home_torch = self._home_procurement_candidate(
+                    (TVAL_LITE, SV_LITE_TORCH)
+                )
+                if home_torch is not None:
+                    self._home_pending_item = self._item_signature(home_torch)
+                    torch_status = carry_status["throwing_items.lit_torch"]
+                    self._home_pending_quantity = max(
+                        1,
+                        int(torch_status["required"]) - int(torch_status["measured"]),
+                    )
+                    add(STORE_HOME, "quest-throwing-items", "home-first")
                 if STORE_GENERAL not in self._town_store_attempted:
                     add(STORE_GENERAL, "quest-throwing-items")
             home_launcher = self._preferred_home_quest_launcher(
@@ -19648,7 +19668,13 @@ class HengbotPolicy:
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
             self._home_pending_item = identity
-            self._home_pending_quantity = 1
+            strategy = self._carry_procurement_strategy(snapshot)
+            target = self._quest_carry_target_for_item(
+                snapshot, candidate, strategy.required_force if strategy is not None else {}
+            )
+            self._home_pending_quantity = (
+                max(1, target[2] - target[1]) if target is not None else 1
+            )
             return ProcurementHomeGate.HOME_FIRST
         self._home_procurement_probe = None
         self._home_procurement_fallthrough = "fresh-catalogue-absence"
@@ -25260,6 +25286,12 @@ class HengbotPolicy:
         include_unsafe: bool = False,
         max_path_distance: int | None = None,
     ) -> Position | None:
+        avoided_loot = self._known_loot & self._engagement_avoid_cells
+        if avoided_loot:
+            self._deferred_loot.update(avoided_loot)
+            if avoided_loot & self._paralyzer_avoid_cells:
+                self._loot_defer_blocker = "paralyzer-ring"
+            self._loot_target = min(avoided_loot, key=lambda pos: (pos.y, pos.x))
         candidates = self._known_loot - self._deferred_loot
         if include_unsafe:
             candidates |= {
@@ -29102,8 +29134,48 @@ class HengbotPolicy:
         monsters do not erase realised floor value. Trap-undetected grids are
         eligible because ordinary exploration already traverses them.
         """
+        committed_loot = self._loot_target
+        if committed_loot is None:
+            committed_loot = min(
+                self._known_loot - self._deferred_loot,
+                key=lambda pos: (pos.y, pos.x),
+                default=None,
+            )
+        if committed_loot is not None:
+            self._nav_ledger.observe(
+                "loot", committed_loot,
+                snapshot.player.position.distance_to(committed_loot),
+            )
+            if self._nav_ledger.is_expired("loot", committed_loot):
+                self._deferred_loot.add(committed_loot)
+                self._loot_target = None
+        guarded = [
+            monster for monster in hostiles
+            if (
+                (knowledge := self._monrace_knowledge.get(monster.race_id)) is not None
+                and "NEVER_MOVE" in knowledge.flags
+                and any(
+                    loot.distance_to(monster.position) <= 1
+                    for loot in self._known_loot - self._deferred_loot
+                )
+            )
+        ]
+        if guarded:
+            ranged = self._ranged_attack_key(snapshot, guarded, [])
+            if ranged is not None:
+                return ranged
         blocker = self._loot_block_reason(snapshot, hostiles)
         if blocker is not None:
+            if blocker == "paralyzer-ring":
+                guarded_loot = (
+                    self._known_loot - self._deferred_loot
+                ) & self._paralyzer_avoid_cells
+                self._deferred_loot.update(guarded_loot)
+                self._loot_defer_blocker = "paralyzer-ring"
+                if guarded_loot:
+                    self._loot_target = min(
+                        guarded_loot, key=lambda pos: (pos.y, pos.x)
+                    )
             if blocker in LOOT_DEFER_BLOCKERS and self._loot_target is not None:
                 self._deferred_loot.add(self._loot_target)
                 self._loot_target = None
@@ -29191,6 +29263,8 @@ class HengbotPolicy:
     def _loot_block_reason(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
+        if (self._known_loot - self._deferred_loot) & self._paralyzer_avoid_cells:
+            return "paralyzer-ring"
         if len(snapshot.inventory) >= PACK_CAPACITY:
             return "pack-full"
         if self._physical_adjacent_hostiles(snapshot):
@@ -29235,7 +29309,10 @@ class HengbotPolicy:
                     self._deferred_loot, key=lambda pos: (pos.y, pos.x)
                 )
             ],
-            "blocker": self._loot_block_reason(snapshot, hostiles),
+            "blocker": (
+                self._loot_block_reason(snapshot, hostiles)
+                or self._loot_defer_blocker
+            ),
         }
 
     def _find_edible(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -32069,7 +32146,7 @@ class HengbotPolicy:
     def _refresh_paralyzer_avoidance(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> list[MonsterState]:
-        """Put every visible paralyzer's melee ring in the shared route veto."""
+        """Put remembered paralyzer melee rings in the shared route veto."""
         previous_cells = getattr(self, "_paralyzer_avoid_cells", set())
         self._engagement_avoid_cells -= (
             previous_cells
@@ -32095,11 +32172,22 @@ class HengbotPolicy:
             ]
         )
         threats = self._paralyzing_monsters(snapshot, hostiles)
+        if not hasattr(self, "_remembered_paralyzers"):
+            self._remembered_paralyzers = {}
+        visible_positions = {monster.position for monster in hostiles}
+        for monster in ring_threats:
+            knowledge = self._monrace_knowledge.get(monster.race_id)
+            self._remembered_paralyzers[monster.position] = bool(
+                knowledge is not None and "NEVER_MOVE" in knowledge.flags
+            )
+        for position, stationary in list(self._remembered_paralyzers.items()):
+            if not stationary and position not in visible_positions and position in snapshot.grids:
+                self._remembered_paralyzers.pop(position, None)
         cells = {
             position
-            for threat in ring_threats
+            for threat_position in self._remembered_paralyzers
             for dy, dx in NEIGHBOR_OFFSETS + ((0, 0),)
-            if (position := Position(threat.position.y + dy, threat.position.x + dx))
+            if (position := Position(threat_position.y + dy, threat_position.x + dx))
             in snapshot.grids
         }
         self._paralyzer_avoid_cells = cells
@@ -34838,6 +34926,17 @@ class HengbotPolicy:
         start = snapshot.player.position
         oscillating = self._is_oscillating()
         identity = self._explore_goal_identity
+        if identity is not None:
+            self._nav_ledger.observe(
+                f"explore:{identity.kind.value}",
+                identity.position,
+                start.distance_to(identity.position),
+            )
+            if self._nav_ledger.is_expired(
+                f"explore:{identity.kind.value}", identity.position
+            ):
+                self._retire_explore_goal(identity)
+                identity = None
         if identity is not None:
             if self._explore_goal_is_complete(snapshot, identity):
                 self._explore_path_outcome = ExplorationPathOutcome.SUCCESS
