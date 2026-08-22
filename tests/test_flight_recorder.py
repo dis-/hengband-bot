@@ -182,7 +182,7 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertIsNone(failed)
             self.assertEqual(list(recorder.incident_root.glob(".*.tmp")), [])
 
-    def test_capture_episode_rearms_only_after_successfully_posted_key(self):
+    def test_capture_episode_rearms_after_different_key_or_observed_effect(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             recorder = FlightRecorder(root / "jsonlog", root / "incidents")
@@ -195,10 +195,28 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertEqual(first, repeated)
             self.assertEqual(len(list(recorder.incident_root.iterdir())), 1)
 
-            recorder.note_successfully_posted_key()
+            recorder.note_successfully_posted_key("4")
+            repeated_again = recorder.freeze(
+                *arguments, owner_reason="explore", key="4"
+            )
+            self.assertEqual(first, repeated_again)
+
+            recorder.note_successfully_posted_key("l\x1b")
+            after_probe = recorder.freeze(
+                *arguments, owner_reason="explore", key="4"
+            )
+            self.assertEqual(first, after_probe)
+
+            recorder.note_successfully_posted_key("6")
             rearmed = recorder.freeze(*arguments, owner_reason="explore", key="4")
             self.assertNotEqual(first, rearmed)
             self.assertEqual(len(list(recorder.incident_root.iterdir())), 2)
+
+            recorder.note_observed_effect("explore", "4")
+            effect_rearmed = recorder.freeze(
+                *arguments, owner_reason="explore", key="4"
+            )
+            self.assertNotEqual(rearmed, effect_rearmed)
 
     def test_capture_hard_links_only_generations_within_incident_window(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -206,7 +224,7 @@ class FlightRecorderTest(unittest.TestCase):
             recorder = FlightRecorder(root / "jsonlog", root / "incidents")
             recorder.snapshot_dir.mkdir(parents=True)
             older = recorder.snapshot_dir / "snapshots-old.jsonl.gz"
-            newer = recorder.snapshot_dir / "snapshots-new.jsonl.gz"
+            newer = recorder.snapshot_path
             older.write_bytes(b"o" * 8)
             newer.write_bytes(b"n" * 8)
             os.utime(older, (1, 1))
@@ -219,8 +237,116 @@ class FlightRecorderTest(unittest.TestCase):
 
             captured = list((capture / "snapshots").iterdir())
             self.assertEqual([path.name for path in captured], [newer.name])
-            self.assertTrue(os.path.samefile(newer, captured[0]))
+            self.assertFalse(os.path.samefile(newer, captured[0]))
+            self.assertEqual(captured[0].read_bytes(), newer.read_bytes())
             self.assertIn("Omitted generations", (capture / "README.md").read_text())
+
+    def test_capture_always_copies_oversize_newest_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            recorder.snapshot_dir.mkdir(parents=True)
+            recorder.snapshot_path.write_bytes(b"current-generation")
+
+            with patch("hengbot.flight_recorder.INCIDENT_SNAPSHOT_BYTES", 1):
+                capture = recorder.freeze(
+                    "oversize", self.policy(), self.snapshot(), None, []
+                )
+
+            captured = capture / "snapshots" / recorder.snapshot_path.name
+            self.assertEqual(captured.read_bytes(), b"current-generation")
+            readme = (capture / "README.md").read_text(encoding="utf-8")
+            self.assertIn(str(len(b"current-generation")), readme)
+
+    def test_capture_may_hard_link_immutable_rotated_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            recorder.snapshot_dir.mkdir(parents=True)
+            rotated = recorder.snapshot_dir / "snapshots-old.jsonl.gz"
+            rotated.write_bytes(b"rotated")
+
+            capture = recorder.freeze(
+                "linked", self.policy(), self.snapshot(), None, []
+            )
+
+            self.assertTrue(os.path.samefile(
+                rotated, capture / "snapshots" / rotated.name
+            ))
+
+    def test_capture_survives_snapshot_directory_disappearing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            original_exists = Path.exists
+            snapshot_checks = iter((False, True))
+
+            def changing_exists(path):
+                if path == recorder.snapshot_dir:
+                    return next(snapshot_checks)
+                return original_exists(path)
+
+            with patch.object(Path, "exists", changing_exists):
+                capture = recorder.freeze(
+                    "vanished", self.policy(), self.snapshot(), None, []
+                )
+
+            self.assertIsNotNone(capture)
+
+    def test_budget_bounds_incident_aging_despite_unprunable_bulk_and_tmp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog", root / "incident-captures", budget_bytes=40
+            )
+            recorder.root.mkdir(parents=True)
+            (recorder.root / "home-entry-capture.jsonl.1").write_bytes(b"x" * 100)
+            orphan = recorder.incident_root / ".orphan.tmp"
+            orphan.mkdir(parents=True)
+            (orphan / "leak").write_bytes(b"x" * 100)
+            incidents = []
+            for index in range(5):
+                path = recorder.incident_root / f"incident-{index}"
+                path.mkdir(parents=True)
+                (path / "meta.json").write_bytes(b"x" * 8)
+                os.utime(path, (index + 1, index + 1))
+                incidents.append(path)
+
+            recorder.prune_budget()
+
+            self.assertEqual(
+                [path.exists() for path in incidents],
+                [False, False, False, True, True],
+            )
+            self.assertTrue(orphan.exists())
+
+    def test_budget_stats_unprunable_bulk_only_once_during_deletion_loop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog", root / "incident-captures", budget_bytes=40
+            )
+            recorder.root.mkdir(parents=True)
+            bulk = recorder.root / "home-entry-capture.jsonl.1"
+            bulk.write_bytes(b"x" * 100)
+            for index in range(5):
+                incident = recorder.incident_root / f"incident-{index}"
+                incident.mkdir(parents=True)
+                (incident / "meta.json").write_bytes(b"x" * 8)
+                os.utime(incident, (index + 1, index + 1))
+            original_stat = Path.stat
+            bulk_stats = 0
+
+            def counting_stat(path, *args, **kwargs):
+                nonlocal bulk_stats
+                if path == bulk:
+                    bulk_stats += 1
+                return original_stat(path, *args, **kwargs)
+
+            with patch.object(Path, "stat", counting_stat):
+                recorder.prune_budget()
+
+            self.assertEqual(bulk_stats, 3)
 
     def test_budget_prunes_oldest_incident_but_preserves_newest(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -342,7 +468,7 @@ class FlightRecorderTest(unittest.TestCase):
                 for turn in range(20):
                     recorder.record_snapshot_lines([json.dumps({"turn": turn})])
 
-            self.assertEqual(prune_budget.call_count, 1)
+            self.assertEqual(prune_budget.call_count, 0)
 
     def test_snapshot_archive_uses_fast_gzip_level(self):
         with tempfile.TemporaryDirectory() as directory:

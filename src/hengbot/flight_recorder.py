@@ -302,14 +302,24 @@ class FlightRecorder:
         self.snapshot_path = self.snapshot_dir / "snapshots-current.jsonl.gz"
         self.decisions = 0
         self.last_floor = None
-        self._snapshot_bytes_since_prune = min(
-            self.budget_bytes, self.snapshot_generation_bytes
-        )
+        self._snapshot_bytes_since_prune = 0
         self._captured_episodes: dict[tuple[str, str, str], Path] = {}
 
-    def note_successfully_posted_key(self) -> None:
-        """Re-arm incident capture after gameplay has successfully advanced input."""
-        self._captured_episodes.clear()
+    def note_successfully_posted_key(self, key: str) -> None:
+        """Re-arm episodes after a different, non-recovery input is posted."""
+        if key == "l\x1b":
+            return
+        self._captured_episodes = {
+            episode: capture
+            for episode, capture in self._captured_episodes.items()
+            if episode[2] == key
+        }
+
+    def note_observed_effect(self, owner_reason: str, key: str) -> None:
+        """Re-arm an episode once its refused operation has an observed effect."""
+        for episode in list(self._captured_episodes):
+            if episode[1:] == (owner_reason, key):
+                del self._captured_episodes[episode]
 
     def record_snapshot_lines(self, lines: list[str]) -> None:
         if not lines:
@@ -397,6 +407,10 @@ class FlightRecorder:
         if final.exists():
             final = self.incident_root / f"{final.name}-{unique}"
         temporary = self.incident_root / f".{final.name}-{unique}.tmp"
+        linked: list[str] = []
+        copied: list[str] = []
+        omitted: list[str] = []
+        captured_sizes: dict[str, int] = {}
         try:
             temporary.mkdir(parents=True)
             tail = b""
@@ -407,26 +421,31 @@ class FlightRecorder:
             (temporary / "decision-tail.jsonl").write_bytes(tail)
             captured = temporary / "snapshots"
             captured.mkdir()
-            if self.snapshot_dir.exists():
+            snapshot_dir_exists = self.snapshot_dir.exists()
+            if snapshot_dir_exists:
                 remaining = INCIDENT_SNAPSHOT_BYTES
-                linked = []
-                omitted = []
                 sources = sorted(
                     self.snapshot_dir.glob("*.gz"),
                     key=lambda path: path.stat().st_mtime_ns,
                     reverse=True,
                 )
-                for source in sources:
+                for index, source in enumerate(sources):
                     size = source.stat().st_size
-                    if size > remaining:
+                    if index and size > remaining:
                         omitted.append(source.name)
                         continue
                     target = captured / source.name
-                    try:
-                        os.link(source, target)
-                        linked.append(source.name)
-                    except OSError:
+                    if source == self.snapshot_path:
                         shutil.copy2(source, target)
+                        copied.append(source.name)
+                    else:
+                        try:
+                            os.link(source, target)
+                            linked.append(source.name)
+                        except OSError:
+                            shutil.copy2(source, target)
+                            copied.append(source.name)
+                    captured_sizes[source.name] = size
                     remaining -= size
                     if remaining <= 0:
                         break
@@ -452,8 +471,9 @@ class FlightRecorder:
                 f"# Automatic incident capture\n\nStop kind: `{kind}`; turn: {snapshot.turn}; "
                 f"floor: `{snapshot.floor_key}`.\n\n"
                 f"Snapshot ring coverage is capped at {INCIDENT_SNAPSHOT_BYTES} bytes. "
-                f"Hard-linked generations: {linked if self.snapshot_dir.exists() else []}. "
-                f"Omitted generations: {omitted if self.snapshot_dir.exists() else []}.\n",
+                f"Captured generation sizes: {captured_sizes}. "
+                f"Hard-linked generations: {linked}. Copied generations: {copied}. "
+                f"Omitted generations: {omitted}.\n",
                 encoding="utf-8",
             )
             self.incident_root.mkdir(parents=True, exist_ok=True)
@@ -474,26 +494,6 @@ class FlightRecorder:
                 for path in self.root.rglob("*")
                 if path.is_file()
             ]
-            incidents = (
-                [path for path in self.incident_root.rglob("*") if path.is_file()]
-                if self.incident_root.exists()
-                else []
-            )
-            def allocated_size() -> int:
-                seen = set()
-                total_size = 0
-                for path in files + incidents:
-                    if not path.exists():
-                        continue
-                    stat = path.stat()
-                    identity = (stat.st_dev, stat.st_ino)
-                    if identity in seen:
-                        continue
-                    seen.add(identity)
-                    total_size += stat.st_size
-                return total_size
-
-            total = allocated_size()
             incident_dirs = sorted(
                 (
                     path for path in self.incident_root.iterdir()
@@ -501,23 +501,63 @@ class FlightRecorder:
                 ),
                 key=lambda path: path.stat().st_mtime_ns,
             ) if self.incident_root.exists() else []
+            incident_files = [
+                path for directory in incident_dirs
+                for path in directory.rglob("*") if path.is_file()
+            ]
+
+            path_sizes: dict[Path, int] = {}
+            path_identities: dict[Path, tuple[int, int]] = {}
+
+            def allocated_size(paths) -> int:
+                seen = set()
+                total_size = 0
+                for path in paths:
+                    if not path.exists():
+                        continue
+                    stat = path.stat()
+                    identity = (stat.st_dev, stat.st_ino)
+                    path_sizes[path] = stat.st_size
+                    path_identities[path] = identity
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
+                    total_size += stat.st_size
+                return total_size
+
+            total = allocated_size(files + incident_files)
+            incident_seen = set()
+            incident_total = 0
+            incident_sizes: dict[Path, int] = {}
+            for directory in incident_dirs:
+                directory_size = 0
+                for path in directory.rglob("*"):
+                    identity = path_identities.get(path)
+                    if identity is None or identity in incident_seen:
+                        continue
+                    incident_seen.add(identity)
+                    directory_size += path_sizes[path]
+                incident_sizes[directory] = directory_size
+                incident_total += directory_size
+            incident_budget = self.budget_bytes // len((self.root, self.incident_root))
             newest_incident = incident_dirs[-1] if incident_dirs else None
-            candidates = [
+            rotated = [
                 (path.stat().st_mtime_ns, path)
                 for path in self.snapshot_dir.glob("snapshots-*.jsonl.gz")
                 if path != self.snapshot_path
-            ] + [
-                (path.stat().st_mtime_ns, path)
-                for path in incident_dirs
-                if path != newest_incident
             ]
-            for _, path in sorted(candidates, key=lambda item: item[0]):
+            for _, path in sorted(rotated, key=lambda item: item[0]):
                 if total <= self.budget_bytes:
                     break
-                if path.is_dir():
-                    shutil.rmtree(path)
-                else:
-                    path.unlink()
-                total = allocated_size()
+                size = path.stat().st_size
+                path.unlink()
+                total -= size
+            for path in incident_dirs:
+                if incident_total <= incident_budget or path == newest_incident:
+                    break
+                size = incident_sizes[path]
+                shutil.rmtree(path)
+                incident_total -= size
+                total -= size
         except OSError as exc:
             _warn("prune snapshot history", exc)

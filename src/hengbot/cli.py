@@ -1548,6 +1548,7 @@ class PostingContract:
         self._last_posted_key: str | None = None
         self._last_posted_effect: tuple | None = None
         self.last_incident: dict[str, object] | None = None
+        self.flight_recorder = None
 
     def allow(
         self,
@@ -1582,6 +1583,10 @@ class PostingContract:
                 "key": key,
             }
             return False
+        if previous is not None and previous[0] == key and previous[1] != effect:
+            recorder = self.flight_recorder
+            if recorder is not None:
+                recorder.note_observed_effect(owner, key)
         return True
 
     def posted(self, snapshot, key: str, owner: str) -> None:
@@ -1658,6 +1663,8 @@ def _send_new_decision_key(
     posting_contract: PostingContract | None = None,
 ) -> tuple[bool, str]:
     """Post each policy key at most once for a byte-identical board."""
+    if posting_contract is not None:
+        posting_contract.last_incident = None
     if snapshot_line != posted_line:
         posted_keys.clear()
         posted_line = snapshot_line
@@ -1691,7 +1698,7 @@ def _send_new_decision_key(
             posting_contract.posted(snapshot, key, owner)
         recorder = getattr(posting_contract, "flight_recorder", None)
         if recorder is not None:
-            recorder.note_successfully_posted_key()
+            recorder.note_successfully_posted_key(key)
     return sent, posted_line
 
 

@@ -368,6 +368,65 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertEqual(posted, ["7"])
         self.assertIsNone(contract.last_incident)
 
+    def test_suppressed_decision_clears_stale_contract_incident(self):
+        contract = PostingContract()
+        self.assertTrue(hasattr(contract, "flight_recorder"))
+        snapshot = self.snapshot(turn=696738)
+        contract.posted(snapshot, "4", "explore")
+        self.assertFalse(contract.allow(snapshot, "4", "explore"))
+
+        sent, _ = _send_new_decision_key(
+            lambda _key, **_kwargs: True,
+            "suppressed", "4", None, set(), in_store=False, suppress=True,
+            decision={"reason": "explore"}, snapshot=snapshot,
+            posting_contract=contract,
+        )
+
+        self.assertFalse(sent)
+        self.assertIsNone(contract.last_incident)
+
+    def test_recovery_probe_does_not_rearm_real_burst_capture(self):
+        class Recorder:
+            def __init__(self):
+                self.episodes = set()
+                self.captures = 0
+
+            def note_successfully_posted_key(self, key):
+                if key == "l\x1b":
+                    return
+                self.episodes = {episode for episode in self.episodes if episode[2] == key}
+
+            def freeze(self, kind, _policy, _snapshot, _log, _reasons, *, owner_reason, key):
+                episode = (kind, owner_reason, key)
+                if episode not in self.episodes:
+                    self.episodes.add(episode)
+                    self.captures += 1
+
+        contract = PostingContract()
+        recorder = Recorder()
+        contract.flight_recorder = recorder
+        snapshot = self.snapshot(turn=696738)
+        owner = "explore"
+        contract.posted(snapshot, "4", owner)
+
+        for sequence in range(2):
+            self.assertFalse(contract.allow(snapshot, "4", owner))
+            incident = contract.last_incident
+            recorder.freeze(
+                incident["marker"], None, snapshot, None, [],
+                owner_reason=owner, key="4",
+            )
+            sent, _ = _send_new_decision_key(
+                lambda _key, **_kwargs: True,
+                f"probe-{sequence}", "l\x1b", None, set(), in_store=False,
+                decision={"reason": owner}, snapshot=snapshot,
+                posting_contract=contract,
+            )
+            self.assertTrue(sent)
+            contract.posted(snapshot, "4", owner)
+
+        self.assertEqual(recorder.captures, 1)
+
     def test_message_flicker_does_not_acknowledge_repost(self):
         contract = PostingContract()
         owner = "explore"
