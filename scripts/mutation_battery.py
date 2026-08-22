@@ -187,8 +187,8 @@ MUTATIONS = (
         "Allow a sold item class to be bought back in the same town visit.",
         (replacement(
             "policy.py",
-            "            if item.tval in self._town_visit_sale_tvals:\n",
-            "            if False and item.tval in self._town_visit_sale_tvals:\n",
+            "            if (item.tval, item.sval) in self._town_visit_sale_signatures:\n",
+            "            if False and (item.tval, item.sval) in self._town_visit_sale_signatures:\n",
         ),),
     ),
     Mutation(

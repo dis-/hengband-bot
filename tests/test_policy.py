@@ -49470,7 +49470,14 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
             items=[store_item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, price=60)],
         )
         self.assertTrue(policy._supply_ledger(self._snapshot(4, store=shelf), 4)["teleport"].obtainable)
-        self.assertFalse(policy._supply_ledger(self._snapshot(4, gold=10, store=shelf), 4)["teleport"].obtainable)
+        unaffordable = self._snapshot(4, gold=10, store=shelf)
+        self.assertTrue(
+            policy._supply_ledger(unaffordable, 4)["teleport"].obtainable
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = unaffordable.turn
+        self.assertFalse(
+            policy._supply_ledger(unaffordable, 4)["teleport"].obtainable
+        )
         empty = replace(self._snapshot(4, store=shelf), store=replace(shelf, items=[]))
         self.assertFalse(policy._supply_ledger(empty, 4)["teleport"].obtainable)
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
@@ -53606,6 +53613,55 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             policy._supply_ledger(town, policy._planned_depth())["oil"],
         )
 
+    def test_unattempted_remembered_unaffordable_oil_keeps_claim(self):
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, price=400)
+        town = replace(
+            self._town(
+                gold=3,
+                inventory=[item("o", TVAL_FLASK, SV_FLASK_OIL, count=2)],
+            ),
+            equipment=[item(
+                "light", TVAL_LITE, SV_LITE_LANTERN,
+                name="Brass Lantern", fuel=1, known=True, is_equipment=True,
+            )],
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 2
+        policy._town_supplier_stock[STORE_GENERAL] = StoreState(
+            STORE_GENERAL, [oil]
+        )
+
+        claims = policy._enumerate_live_store_claims(town)
+
+        self.assertIn(TownNeed(STORE_GENERAL, "oil", "normal"), claims)
+        oil_requirement = next(
+            row for row in policy.procurement_requirements(town)
+            if row["item"] == "Flasks of oil"
+        )
+        self.assertNotIn("blocked_reason", oil_requirement)
+
+        policy._town_store_attempted[STORE_GENERAL] = town.turn
+        attempted_requirement = next(
+            row for row in policy.procurement_requirements(town)
+            if row["item"] == "Flasks of oil"
+        )
+        self.assertEqual(
+            attempted_requirement["blocked_reason"],
+            "no-actionable-supplier",
+        )
+
+    def test_attempted_alchemist_keeps_one_post_alchemist_home_claim(self):
+        town = self._town()
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
+        candidate = TownNeed(
+            STORE_HOME, "identification-withdrawal", "post-alchemist-home"
+        )
+        with patch.object(policy, "_town_need_candidates", return_value=[candidate]):
+            claims = policy._enumerate_live_store_claims(town)
+
+        self.assertEqual(claims.count(candidate), 1)
+
     def test_home_torch_withdrawal_owns_full_shortage(self):
         force = {"throwing_items": {"lit_torch": 5}}
         profile = SimpleNamespace(required_force=force, engagement_plan={})
@@ -54803,6 +54859,22 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "identification-active",
         )
 
+    def test_calibration_required_never_reports_null_phase_and_blocker(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("calibration-required",), result=None
+        )
+        policy._identification_need = "normal"
+
+        policy._calibration_town_key(snapshot)
+        state = policy.calibration_entry_state(snapshot)
+
+        self.assertFalse(
+            state["phase"] is None and state["entry_blocker"] is None,
+            state,
+        )
+
     def test_unactionable_identification_retires_and_new_source_revives(self):
         policy = self._scan_complete_policy()
         snapshot = self._snapshot()
@@ -54819,6 +54891,45 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         revived = replace(snapshot, inventory=[*snapshot.inventory, identify])
         self.assertTrue(policy._identification_need_actionable(revived))
+
+    def test_unactionable_home_identification_routes_when_home_unblocked(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        target = store_item("a", TVAL_SWORD, 1, name="Home blade")
+        policy._identification_need = "normal"
+        policy._identification_candidate = policy._item_signature(target)
+        policy._equipment_catalog._home = {
+            "target": OwnedEquipment("target", target, "home")
+        }
+        with patch.object(
+            policy, "_identification_need_actionable", return_value=False
+        ):
+            store_type = policy._next_required_store_type(snapshot)
+
+        self.assertEqual(store_type, STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+
+    def test_blocked_unactionable_home_identification_retires_once(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        target = store_item("a", TVAL_SWORD, 1, name="Home blade")
+        policy._identification_need = "normal"
+        policy._identification_candidate = policy._item_signature(target)
+        policy._equipment_catalog._home = {
+            "target": OwnedEquipment("target", target, "home")
+        }
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            policy._town_store_visit_limit(STORE_HOME)
+        )
+        with patch.object(
+            policy, "_identification_need_actionable", return_value=False
+        ), patch.object(
+            policy, "_town_terminal_transitions"
+        ) as retire:
+            store_type = policy._next_required_store_type(snapshot)
+
+        retire.assert_called_once_with(snapshot)
+        self.assertNotEqual(store_type, STORE_HOME)
 
     def test_live_phase_telemetry_names_blocked_home(self):
         policy = self._scan_complete_policy()

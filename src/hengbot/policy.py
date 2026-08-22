@@ -3017,8 +3017,6 @@ class HengbotPolicy:
 
     def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
         """Positively classify a town result by its effect, never its label."""
-        if not key:
-            return False
         if (
             key == LEAVE_STORE_KEY
             and (self.last_reason or "").startswith("home-errand:filed:")
@@ -4143,6 +4141,11 @@ class HengbotPolicy:
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
+                remembered_page = self._town_supplier_stock.get(watched_store)
+                if remembered_page is not None and self._mandatory_purchase(
+                    replace(snapshot, store=remembered_page)
+                ) is not None:
+                    self._rearm_town_store_for_new_work(watched_store)
             elif wait_count + 1 >= STORE_STUCK_LIMIT:
                 self._store_buy_inflight = None
                 self._close_store_visit("one-shot-buy-unconfirmed")
@@ -10009,11 +10012,14 @@ class HengbotPolicy:
                 for supplier in stores
                 if supplier in supplier_pages
                 and any(
-                    item.price <= snapshot.player.gold
-                    and (
+                    (
                         item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
                         if kind == "food" and mana_food
                         else self._store_item_is_supply(item, kind)
+                    )
+                    and (
+                        supplier not in self._town_store_attempted
+                        or item.price <= snapshot.player.gold
                     )
                     for item in supplier_pages[supplier].items
                 )
@@ -17241,11 +17247,9 @@ class HengbotPolicy:
                 add(
                     STORE_HOME,
                     "identification-withdrawal",
-                    "home-first"
-                    if STORE_ALCHEMIST in self._town_store_attempted
-                    else "post-alchemist-home",
+                    "post-alchemist-home",
                 )
-        if (
+        elif (
             self._home_candidate_waiting
             and home_identification_claim
             and self._home_available(snapshot)
@@ -17253,9 +17257,7 @@ class HengbotPolicy:
             add(
                 STORE_HOME,
                 "identification-withdrawal",
-                "home-first"
-                if STORE_ALCHEMIST in self._town_store_attempted
-                else "post-alchemist-home",
+                "post-alchemist-home",
             )
 
         supply_categories = {
@@ -18024,6 +18026,17 @@ class HengbotPolicy:
         ):
             self._start_fundraising(snapshot)
         self._refresh_nonhome_effect_refusals(snapshot)
+        ledger_blocked = {
+            store
+            for store in self._town_visit_ledger.blocked_stores
+            if store == STORE_HOME
+            and self._town_store_blocked_under_applicable_bound(store)
+        } | {
+            store
+            for store, failures in self._town_visit_ledger.approach_fails.items()
+            if store == STORE_HOME
+            and failures >= self._town_store_visit_limit(store)
+        }
         identification_home_target = any(
             owned.origin == "home"
             and self._item_signature(owned.item) == self._identification_candidate
@@ -18038,22 +18051,11 @@ class HengbotPolicy:
             # Retire an uncomposable identify owner before independent supply
             # claims rebuild the plan; a fresh visit/source naturally revives
             # the ordinary producer without a permanent latch.
-            if identification_home_target:
+            if identification_home_target and STORE_HOME not in ledger_blocked:
                 self._rearm_town_store_for_new_work(STORE_HOME)
                 return STORE_HOME
             else:
                 self._town_terminal_transitions(snapshot)
-        ledger_blocked = {
-            store
-            for store in self._town_visit_ledger.blocked_stores
-            if store == STORE_HOME
-            and self._town_store_blocked_under_applicable_bound(store)
-        } | {
-            store
-            for store, failures in self._town_visit_ledger.approach_fails.items()
-            if store == STORE_HOME
-            and failures >= self._town_store_visit_limit(store)
-        }
         live_needs = self._enumerate_live_store_claims(snapshot)
         if self._town_blocked_reason == "repetition":
             blocking = {
@@ -20224,6 +20226,53 @@ class HengbotPolicy:
 
         return min(optional, key=lambda item: (held(item), kind_rank(item)))
 
+    def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        """Select an affordable ware that closes a departure requirement."""
+        store = snapshot.store
+        if store is None:
+            return None
+        strategy = self._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            carry = self._quest_carry_purchase(snapshot, strategy)
+            if carry is not None:
+                return carry
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        predicates = (
+            ("recall", lambda item: item.is_recall_scroll),
+            (
+                "food",
+                lambda item: (
+                    item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+                    if snapshot.player.food_type == FOOD_TYPE_MANA
+                    else item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+                ),
+            ),
+            ("oil", lambda item: item.is_oil),
+            ("teleport", lambda item: item.is_teleport_scroll),
+            (
+                "cure",
+                lambda item: item.tval == TVAL_POTION
+                and item.sval == SV_POTION_CURE_CRITICAL,
+            ),
+        )
+        for kind, matches in predicates:
+            status = ledger[kind]
+            if status.count >= status.required_departure:
+                continue
+            candidate = next(
+                (
+                    item
+                    for item in store.items
+                    if item.count > 0
+                    and item.price <= snapshot.player.gold
+                    and matches(item)
+                ),
+                None,
+            )
+            if candidate is not None:
+                return candidate
+        return None
+
     def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
         store = snapshot.store
@@ -20403,6 +20452,10 @@ class HengbotPolicy:
             # items the store sells. Returning early marked the Alchemist
             # 'attempted' after an identify errand, so the bot never bought the
             # teleport scrolls it also sells and stranded itself wandering town.
+
+        mandatory = self._mandatory_purchase(snapshot)
+        if mandatory is not None:
+            return mandatory
 
         restore = self._restore_potion_purchase(snapshot)
         if restore is not None:
@@ -21976,9 +22029,7 @@ class HengbotPolicy:
 
         item = self._next_purchase(snapshot)
         if item is not None:
-            if (item.tval, item.sval) in getattr(
-                self, "_town_visit_sale_signatures", set()
-            ):
+            if (item.tval, item.sval) in self._town_visit_sale_signatures:
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
                 )
@@ -23585,14 +23636,6 @@ class HengbotPolicy:
                 return clear_traveler
             required_store = self._next_required_store_type(snapshot)
             if (
-                required_store is None
-                and self._store_visit is not None
-                and self._store_visit.store_type != STORE_HOME
-                and self._home_available(snapshot)
-            ):
-                required_store = STORE_HOME
-                self._rearm_town_store_for_new_work(STORE_HOME)
-            if (
                 self._store_visit is not None
                 and not self._store_visit.operation_posted
                 and required_store is not None
@@ -23602,9 +23645,7 @@ class HengbotPolicy:
                 # eject above.  Release the abandoned owner before asking the
                 # approach router to bind the store that is required now.
                 self._close_store_visit("repetition-block-abandoned")
-            shopping_step = self._shopping_approach_step(
-                snapshot, required_store
-            )
+            shopping_step = self._shopping_approach_step(snapshot)
             if shopping_step is not None:
                 self.last_reason = "town:repetition-required-shopping"
                 return self._shopping_approach_key(
