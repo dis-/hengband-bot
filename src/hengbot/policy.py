@@ -17843,6 +17843,12 @@ class HengbotPolicy:
             return -1
         if need.category == "identification-source":
             return -1
+        if (
+            need.category == "oil"
+            and self._identification_need is not None
+            and self._owns_lantern(snapshot)
+        ):
+            return -2
         return self._town_need_phase(need)
 
     def _order_town_needs(
@@ -20255,7 +20261,7 @@ class HengbotPolicy:
         )
         for kind, matches in predicates:
             if kind == "light":
-                if self._owns_lantern(snapshot):
+                if self._planned_depth() < 2 or self._owns_lantern(snapshot):
                     continue
             else:
                 status = ledger[kind]

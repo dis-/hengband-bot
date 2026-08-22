@@ -803,30 +803,7 @@ class ShopOneShotTest(unittest.TestCase):
 
 
     def test_mandatory_torch_and_oil_precede_optional_surplus_across_entries(self):
-        """Replay the 8/22 oil stall through public choose_key composition."""
-        incident = Path(
-            "jsonlog/incident-town-oil-claim-stall-20260822.jsonl"
-        )
-        policy_state = Path(
-            "incident-captures/20260822-100522-posting-contract-"
-            "identical-repost-unobserved/policy-state.json"
-        )
-        self.assertTrue(incident.exists())
-        self.assertTrue(policy_state.exists())
-        incident_rows = [json.loads(line) for line in incident.read_text(
-            encoding="utf-8"
-        ).splitlines()]
-        self.assertTrue(any(
-            row.get("procurement_requirements") == [{
-                "item": "Flasks of oil", "current": 2,
-                "target": 5, "missing": 3,
-            }]
-            for row in incident_rows
-        ))
-        self.assertEqual(
-            json.loads(policy_state.read_text(encoding="utf-8"))["floor"],
-            [0, 0, 0],
-        )
+        """Pin mandatory-before-optional ordering through choose_key."""
         optional = store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3, count=1)
         lantern = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=5, count=1)
         oil = store_item("c", TVAL_FLASK, 0, price=4, count=1)
@@ -974,6 +951,24 @@ class ShopOneShotTest(unittest.TestCase):
             policy, "_restore_potion_purchase", return_value=optional
         ):
             self.assertIs(policy._next_purchase_unreserved(snapshot), oil)
+
+    def test_depth_one_lantern_is_not_mandatory_or_ahead_of_optional_restore(self):
+        lantern = store_item("a", TVAL_LITE, SV_LITE_LANTERN, price=120)
+        restore = store_item("b", TVAL_POTION, SV_POTION_RESIST_COLD, price=20)
+        snapshot = self._inside(
+            STORE_GENERAL,
+            self._ammo_supplies(),
+            [lantern, restore],
+            gold=1000,
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 0
+
+        self.assertIsNone(policy._mandatory_purchase(snapshot))
+        with mock.patch.object(
+            policy, "_restore_potion_purchase", return_value=restore
+        ):
+            self.assertIs(policy._next_purchase_unreserved(snapshot), restore)
 
     def test_mandatory_mana_food_respects_magic_hoard_liquidation_guard(self):
         identify = store_item(

@@ -1,4 +1,5 @@
 import ast
+import gzip
 import inspect
 import json
 import textwrap
@@ -22419,7 +22420,13 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
     def test_identification_need_preserves_the_oil_supply_claim(self):
         snap = Snapshot(
             player(10, 10, gold=3374, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            {
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_GENERAL
+                )
+            },
+            [],
+            floor_key=(0, 0, 0),
             town_flag=True,
             inventory=[
                 item("f", TVAL_FOOD, 35, count=5),
@@ -22433,6 +22440,56 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         claims = policy._enumerate_live_store_claims(snap)
 
         self.assertIn(TownNeed(STORE_GENERAL, "oil", "normal"), claims)
+
+        key = policy.choose_key(snap)
+
+        self.assertEqual(key, "5")
+        self.assertEqual(policy.last_reason, "shop:travel:await-entry")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_GENERAL)
+
+    def test_august_22_unentered_general_oil_claim_routes_to_supplier(self):
+        """Replay incident rows 356-400 from the retained turn-712398 board."""
+        fixture = Path(
+            "incident-captures/20260822-100522-posting-contract-identical-"
+            "repost-unobserved/snapshots/snapshots-current.jsonl.gz"
+        )
+        raw = None
+        with gzip.open(fixture, "rt", encoding="utf-8-sig") as rows:
+            for line in rows:
+                candidate = json.loads(line)
+                if candidate.get("turn") == 712398:
+                    raw = candidate
+                    break
+        self.assertIsNotNone(raw)
+        snap = parse_snapshot(raw, {})
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        set_completed_equipment_optimization(policy)
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_current = True
+        policy._town_store_attempted = {
+            STORE_MAGIC: snap.turn,
+            STORE_WEAPON: snap.turn,
+            STORE_ALCHEMIST: snap.turn,
+        }
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_GENERAL, STORE_BLACK]
+        )
+        policy._town_cycle_pending = False
+        policy._town_blocked_reason = "no-actionable-claim-owner"
+        policy._town_visit_ledger.passes_since_progress = 19
+
+        claims = policy._enumerate_live_store_claims(snap)
+        key = policy.choose_key(snap)
+
+        self.assertIn(TownNeed(STORE_GENERAL, "oil", "normal"), claims)
+        self.assertNotIn(STORE_GENERAL, policy._town_store_attempted)
+        self.assertEqual(policy._shopping_approach_store_type, STORE_GENERAL)
+        self.assertIn(
+            "oil", policy._town_errand_plan.need_categories[STORE_GENERAL]
+        )
+        self.assertTrue(key)
+        self.assertIn(policy.last_reason, {"shop:approach", "shop:travel"})
 
     def test_fundraising_withdraws_two_of_three_home_diggers_before_leaving(self):
         inventory = self._strict_supplies(detection=5)
@@ -24780,7 +24837,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
                 ),
             },
             [],
-            inventory=[target, spare],
+            inventory=[
+                target,
+                spare,
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET),
+            ],
             equipment=[self._lantern()],
             town_flag=True,
         )
@@ -29944,7 +30005,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[ring, staff],
+            inventory=[
+                ring,
+                staff,
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET),
+            ],
             equipment=[self._lantern()],
             town_flag=True,
         )
@@ -30870,7 +30935,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[],
+            inventory=[
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET)
+            ],
             equipment=[weapon, self._lantern()],
             floor_key=(0, 0, 0),
             town_flag=True,
@@ -31004,7 +31071,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[staff],
+            inventory=[
+                staff,
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET),
+            ],
             equipment=[light],
             floor_key=(0, 0, 0),
             town_flag=True,
@@ -31100,7 +31170,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
-            inventory=[lance],
+            inventory=[
+                lance,
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET),
+            ],
             equipment=[self._lantern()],
             floor_key=(0, 0, 0),
             town_flag=True,
