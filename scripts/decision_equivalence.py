@@ -79,8 +79,7 @@ def collect(data_root: Path, monrace_defs: Path) -> dict[str, list[list[str]]]:
     oil = [row for row in _rows(oil_path) if row.get("turn") == 712398][:1]
     loop = _rows(
         data_root
-        / "incident-captures/20260821-201515-loop-detected/snapshots/snapshots-current.jsonl.gz",
-        tail=50,
+        / "tests/fixtures/incident-20260821-loop-capture-rows.jsonl.gz",
     )
     return {
         "incident-town-oil-stall-turn-712398": _decisions(

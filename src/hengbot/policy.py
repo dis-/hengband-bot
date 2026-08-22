@@ -2855,7 +2855,9 @@ class HengbotPolicy(TownArbiterMixin):
                 else ()
             )
         }
-        return bool(departure_families.intersection(purchase_families))
+        if departure_families:
+            return bool(departure_families.intersection(purchase_families))
+        return purchase is not None and purchase.tval in {TVAL_WAND, TVAL_STAFF}
 
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True

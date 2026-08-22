@@ -19452,7 +19452,7 @@ class PredictiveEscapeTest(unittest.TestCase):
 
     def test_capture_two_cycle_breaks_through_loot_ledger(self):
         capture = Path(
-            "incident-captures/20260821-201515-loop-detected/policy-state.json"
+            "tests/fixtures/incident-20260821-loop-capture-rows.jsonl.gz"
         )
         self.assertTrue(capture.exists())
         player_position = Position(17, 30)
