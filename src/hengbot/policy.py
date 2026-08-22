@@ -2326,8 +2326,8 @@ class HengbotPolicy:
         # Store purchases are retained for the rest of the current town visit.
         self._town_visit_purchases: set[tuple[str, int, int]] = set()
         # Successful sales are retained for the same town visit. Buying the
-        # same item class back is semantic churn, not shopping progress.
-        self._town_visit_sale_tvals: set[int] = set()
+        # same tval/sval item back is semantic churn, not shopping progress.
+        self._town_visit_sale_signatures: set[tuple[int, int]] = set()
         self.town_visit_report: str | None = None
         # A6a: Home remains the preferred source for the two-tool mining kit.
         # Repeated visible withdrawal failures permit one liveness purchase per
@@ -2543,6 +2543,7 @@ class HengbotPolicy:
         self._calibration_aborts_this_visit = 0
         self._calibration_blocked_this_visit = False
         self._calibration_last_abort: str | None = None
+        self._calibration_entry_refusal: tuple[int, str | None] | None = None
         # True from the moment a calibration strip session is installed until
         # every recorded identity is observed worn again.  While set, town
         # departure is impossible: no
@@ -2947,6 +2948,10 @@ class HengbotPolicy:
         self._town_liveness_claim_retired = False
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
+        if not hasattr(self, "_town_visit_sale_signatures"):
+            self._town_visit_sale_signatures = set()
+        if not hasattr(self, "_calibration_entry_refusal"):
+            self._calibration_entry_refusal = None
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )
@@ -3012,6 +3017,8 @@ class HengbotPolicy:
 
     def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
         """Positively classify a town result by its effect, never its label."""
+        if not key:
+            return False
         if (
             key == LEAVE_STORE_KEY
             and (self.last_reason or "").startswith("home-errand:filed:")
@@ -3309,6 +3316,8 @@ class HengbotPolicy:
             proposed_reason == "home:atomic-withdraw-await-confirmation"
             and self._home_atomic_withdraw_pending is not None
         ):
+            return key
+        if proposed_reason == "shop:one-shot-in-flight":
             return key
 
         if proposed_reason == "breakout:least-visited":
@@ -7723,7 +7732,7 @@ class HengbotPolicy:
             self._pending_recall_dungeon_id = None
             self._town_recall_issue_watch = None
             self._town_visit_purchases.clear()
-            self._town_visit_sale_tvals.clear()
+            self._town_visit_sale_signatures.clear()
             self.town_visit_report = None
             self._quest_light_attempted.clear()
             self._q2_phase_light_attempted.clear()
@@ -9980,25 +9989,50 @@ class HengbotPolicy:
             ),
         }
         statuses: dict[str, SupplyStatus] = {}
+        supplier_pages = dict(getattr(self, "_town_supplier_stock", {}))
+        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+            supplier_pages[snapshot.store.store_type] = snapshot.store
         for kind, count_value in counts.items():
-            stores = (STORE_MAGIC,) if kind == "food" and mana_food else SUPPLY_STORES[kind]
-            candidates = [s for s in stores if s not in self._town_store_attempted]
-            obtainable = bool(candidates)
-            if obtainable and snapshot.store is not None and snapshot.store.store_type in candidates:
-                current_supplier = snapshot.store.store_type
-                wares = [
-                    item
-                    for item in snapshot.store.items
-                    if (
+            stores = (
+                (STORE_MAGIC,)
+                if kind == "food" and mana_food
+                else SUPPLY_STORES[kind]
+            )
+            candidates = [
+                supplier
+                for supplier in stores
+                if supplier not in self._town_store_attempted
+                and supplier not in supplier_pages
+            ]
+            evidenced_stores = [
+                supplier
+                for supplier in stores
+                if supplier in supplier_pages
+                and any(
+                    item.price <= snapshot.player.gold
+                    and (
                         item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
                         if kind == "food" and mana_food
                         else self._store_item_is_supply(item, kind)
                     )
-                ]
-                obtainable = (
-                    any(s != current_supplier for s in candidates)
-                    or any(item.price <= snapshot.player.gold for item in wares)
+                    for item in supplier_pages[supplier].items
                 )
+            ]
+            home_has_supply = bool(
+                self._home_knowledge_current
+                and any(
+                    (
+                        item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+                        if kind == "food" and mana_food
+                        else self._store_item_is_supply(item, kind)
+                    )
+                    for item in self._home_knowledge_items
+                )
+            )
+            status_stores = tuple(dict.fromkeys(
+                ((STORE_HOME,) if home_has_supply else ()) + tuple(stores)
+            ))
+            obtainable = bool(home_has_supply or evidenced_stores or candidates)
             threshold_depth = max(depth, self._planned_depth()) if kind == "teleport" else depth
             if kind == "recall":
                 required_return = required_departure = (
@@ -10022,7 +10056,7 @@ class HengbotPolicy:
                 required_return = required_departure = MANA_FOOD_CHARGE_TARGET
             statuses[kind] = SupplyStatus(
                 kind, count_value, required_return, required_departure,
-                obtainable, stores,
+                obtainable, status_stores,
             )
         return statuses
 
@@ -10540,13 +10574,25 @@ class HengbotPolicy:
                 ledger["food"].required_departure,
             )
         else:
-            require("Food rations", ledger["food"].count, ledger["food"].required_departure)
+            require(
+                "Food rations",
+                ledger["food"].count,
+                ledger["food"].required_departure,
+            )
 
         if self._planned_depth() >= 2:
             require("Brass lantern", int(self._owns_lantern(snapshot)), 1)
-            require("Flasks of oil", ledger["oil"].count, ledger["oil"].required_departure)
+            require(
+                "Flasks of oil",
+                ledger["oil"].count,
+                ledger["oil"].required_departure,
+            )
         elif self._owns_lantern(snapshot):
-            require("Flasks of oil", ledger["oil"].count, ledger["oil"].required_departure)
+            require(
+                "Flasks of oil",
+                ledger["oil"].count,
+                ledger["oil"].required_departure,
+            )
         else:
             require(
                 "Usable light sources",
@@ -10624,6 +10670,19 @@ class HengbotPolicy:
                     int(status["measured"]),
                     int(status["required"]),
                 )
+
+        supply_labels = {
+            "Word of Recall scrolls": "recall",
+            "Food rations": "food",
+            "Device charges for food": "food",
+            "Flasks of oil": "oil",
+            "Teleport scrolls": "teleport",
+            "Cure Critical Wounds potions": "cure",
+        }
+        for requirement in requirements:
+            kind = supply_labels.get(str(requirement["item"]))
+            if kind is not None and not ledger[kind].obtainable:
+                requirement["blocked_reason"] = "no-actionable-supplier"
 
         return requirements
 
@@ -11413,6 +11472,10 @@ class HengbotPolicy:
                         return WAIT_KEY
                     self._abort_character_calibration(snapshot, "no-pack-space")
                     return WAIT_KEY
+            self._calibration_entry_refusal = (
+                self._decision_sequence,
+                self.calibration_entry_state(snapshot)["entry_blocker"],
+            )
             if (
                 self._calibration_blocked_this_visit
                 or self._calibration_restore_signatures
@@ -11427,7 +11490,7 @@ class HengbotPolicy:
                 )
                 or not self._home_available(snapshot)
                 or self._equipment_transaction_session is not None
-                or self._identification_need is not None
+                or self._identification_need_actionable(snapshot)
                 or self._home_pending_item is not None
                 or self._home_pending_batch
                 or self._home_atomic_withdraw_pending is not None
@@ -11496,7 +11559,7 @@ class HengbotPolicy:
             blocker = "home-unavailable"
         elif self._equipment_transaction_session is not None:
             blocker = "equipment-transaction-active"
-        elif self._identification_need is not None:
+        elif self._identification_need_actionable(snapshot):
             blocker = "identification-active"
         elif self._home_pending_item is not None:
             blocker = "home-item-pending"
@@ -11504,6 +11567,9 @@ class HengbotPolicy:
             blocker = "home-batch-pending"
         elif self._home_atomic_withdraw_pending is not None:
             blocker = "home-withdraw-inflight"
+        recorded = getattr(self, "_calibration_entry_refusal", None)
+        if recorded is not None and recorded[0] == self._decision_sequence:
+            blocker = recorded[1]
         state: dict[str, object] = {
             "phase": (
                 self._calibration_phase or self._calibration_suspended_phase
@@ -13352,6 +13418,28 @@ class HengbotPolicy:
         ):
             return False
         return True
+
+    def _identification_need_actionable(self, snapshot: Snapshot) -> bool:
+        """Return whether the current visit can compose the identify errand."""
+        if self._identification_need is None:
+            return False
+        source = self._find_identification_source(
+            snapshot,
+            full=self._identification_need == "full",
+            reliable_only=self._identification_requires_reliable_source(snapshot),
+        )
+        if source is not None:
+            return True
+        refusal = self._shop_selector_diagnostics.get("composition_refusal")
+        refusal_sequence = self._shop_selector_diagnostics.get(
+            "composition_refusal_sequence"
+        )
+        if refusal is not None and refusal_sequence == self._decision_sequence:
+            return False
+        return (
+            self._identification_need != "full"
+            and STORE_ALCHEMIST not in self._town_store_attempted
+        )
 
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
         """Permit completion now or a recorded loadout with no visit-local work."""
@@ -17150,14 +17238,25 @@ class HengbotPolicy:
                 and home_identification_claim
                 and self._home_available(snapshot)
             ):
-                add(STORE_HOME, "identification-withdrawal", "post-alchemist-home")
-            return needs
+                add(
+                    STORE_HOME,
+                    "identification-withdrawal",
+                    "home-first"
+                    if STORE_ALCHEMIST in self._town_store_attempted
+                    else "post-alchemist-home",
+                )
         if (
             self._home_candidate_waiting
             and home_identification_claim
             and self._home_available(snapshot)
         ):
-            add(STORE_HOME, "identification-withdrawal", "post-alchemist-home")
+            add(
+                STORE_HOME,
+                "identification-withdrawal",
+                "home-first"
+                if STORE_ALCHEMIST in self._town_store_attempted
+                else "post-alchemist-home",
+            )
 
         supply_categories = {
             "recall": "recall", "food": "food", "oil": "oil",
@@ -17166,8 +17265,25 @@ class HengbotPolicy:
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         for status in self._ledger_departure_shortages(ledger):
             for store_type in status.stores:
-                if store_type not in self._town_store_attempted:
+                remembered = self._town_supplier_stock.get(store_type)
+                remembered_affordable = bool(
+                    remembered is not None
+                    and any(
+                        item.price <= snapshot.player.gold
+                        and self._store_item_is_supply(item, status.kind)
+                        for item in remembered.items
+                    )
+                )
+                if (
+                    store_type not in self._town_store_attempted
+                    or store_type == STORE_HOME
+                    or remembered_affordable
+                ):
                     add(store_type, supply_categories[status.kind])
+        if self._identification_need is not None:
+            # Identification remains primary, while the supply ledger retains
+            # its independent departure claims.
+            return needs
         quest_strategy = self._carry_procurement_strategy(snapshot)
         if quest_strategy is not None:
             force = quest_strategy.required_force
@@ -17731,6 +17847,8 @@ class HengbotPolicy:
             and self._normal_remove_curse_actionable_this_visit(snapshot)
         ):
             return -1
+        if need.category == "identification-source":
+            return -1
         return self._town_need_phase(need)
 
     def _order_town_needs(
@@ -17906,6 +18024,25 @@ class HengbotPolicy:
         ):
             self._start_fundraising(snapshot)
         self._refresh_nonhome_effect_refusals(snapshot)
+        identification_home_target = any(
+            owned.origin == "home"
+            and self._item_signature(owned.item) == self._identification_candidate
+            for owned in self._equipment_catalog.items
+        )
+        if (
+            self._identification_need is not None
+            and self._identification_need != "full"
+            and self._town_blocked_reason != "repetition"
+            and not self._identification_need_actionable(snapshot)
+        ):
+            # Retire an uncomposable identify owner before independent supply
+            # claims rebuild the plan; a fresh visit/source naturally revives
+            # the ordinary producer without a permanent latch.
+            if identification_home_target:
+                self._rearm_town_store_for_new_work(STORE_HOME)
+                return STORE_HOME
+            else:
+                self._town_terminal_transitions(snapshot)
         ledger_blocked = {
             store
             for store in self._town_visit_ledger.blocked_stores
@@ -21005,8 +21142,9 @@ class HengbotPolicy:
                 self._store_visit.operation_posted = False
                 self._store_visit.operation_effect_observed = True
             if confirmed:
-                self._town_visit_sale_tvals.update(
-                    int(entry["signature"][1]) for entry in entries
+                self._town_visit_sale_signatures.update(
+                    (int(entry["signature"][1]), int(entry["signature"][2]))
+                    for entry in entries
                 )
             elif not confirmed:
                 self._close_store_visit("one-shot-sale-unconfirmed")
@@ -21838,8 +21976,12 @@ class HengbotPolicy:
 
         item = self._next_purchase(snapshot)
         if item is not None:
-            if item.tval in self._town_visit_sale_tvals:
-                self.town_visit_report = f"town-visit:sell-rebuy-churn:{item.tval}"
+            if (item.tval, item.sval) in getattr(
+                self, "_town_visit_sale_signatures", set()
+            ):
+                self.town_visit_report = (
+                    f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
+                )
                 self.last_reason = "shop:sell-rebuy-churn-defect"
                 return LEAVE_STORE_KEY
             home_gate = self._purchase_has_fresh_home_absence(snapshot, item)
@@ -23443,6 +23585,14 @@ class HengbotPolicy:
                 return clear_traveler
             required_store = self._next_required_store_type(snapshot)
             if (
+                required_store is None
+                and self._store_visit is not None
+                and self._store_visit.store_type != STORE_HOME
+                and self._home_available(snapshot)
+            ):
+                required_store = STORE_HOME
+                self._rearm_town_store_for_new_work(STORE_HOME)
+            if (
                 self._store_visit is not None
                 and not self._store_visit.operation_posted
                 and required_store is not None
@@ -23452,7 +23602,9 @@ class HengbotPolicy:
                 # eject above.  Release the abandoned owner before asking the
                 # approach router to bind the store that is required now.
                 self._close_store_visit("repetition-block-abandoned")
-            shopping_step = self._shopping_approach_step(snapshot)
+            shopping_step = self._shopping_approach_step(
+                snapshot, required_store
+            )
             if shopping_step is not None:
                 self.last_reason = "town:repetition-required-shopping"
                 return self._shopping_approach_key(

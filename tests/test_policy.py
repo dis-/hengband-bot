@@ -21868,7 +21868,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(policy._batch_sell_key(confirmed), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "shop:one-shot-sale-observed")
-        self.assertIn(TVAL_DIGGING, policy._town_visit_sale_tvals)
+        self.assertIn(
+            (TVAL_DIGGING, sold.sval), policy._town_visit_sale_signatures
+        )
 
         offered = store_item(
             "a", TVAL_DIGGING, 1, name="new shovel", price=50,
@@ -21886,8 +21888,35 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:sell-rebuy-churn-defect")
         self.assertEqual(
             policy.town_visit_report,
-            f"town-visit:sell-rebuy-churn:{TVAL_DIGGING}",
+            f"town-visit:sell-rebuy-churn:{TVAL_DIGGING}:{sold.sval}",
         )
+
+    def test_confirmed_sale_allows_a_different_sval_with_the_same_tval(self):
+        policy = HengbotPolicy()
+        policy._town_visit_sale_signatures.add((TVAL_SCROLL, 9))
+        policy._identification_need = "normal"
+        policy._equipment_catalog.observe_home_page([])
+        policy._home_knowledge_current = True
+        policy._home_scan_item_count = 0
+        target = item(
+            "a", TVAL_RING, -1, name="unknown ring", known=False,
+            aware=False, is_equipment=True,
+        )
+        identify = store_item(
+            "f", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="Scroll of Identify", price=81
+        )
+        shop = Snapshot(
+            player(10, 10, gold=1000, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[target],
+            store=StoreState(STORE_ALCHEMIST, [identify]),
+        )
+        key = _public_shop_inner(self, policy, shop)
+
+        self.assertIn(BUY_KEY, key, policy._shop_selector_diagnostics)
+        self.assertNotEqual(policy.last_reason, "shop:sell-rebuy-churn-defect")
 
     def test_gate1_digger_rebuy_window_stops_after_first_fallback_purchase(self):
         """Gate 1: replay the 02:51:21/02:51:36 stock transition.
@@ -22386,6 +22415,24 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._planned_mining_runs = 3
 
         self.assertEqual(policy._next_required_store_type(snap), STORE_GENERAL)
+
+    def test_identification_need_preserves_the_oil_supply_claim(self):
+        snap = Snapshot(
+            player(10, 10, gold=3374, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                item("f", TVAL_FOOD, 35, count=5),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET - 1),
+            ],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._identification_need = "normal"
+
+        claims = policy._enumerate_live_store_claims(snap)
+
+        self.assertIn(TownNeed(STORE_GENERAL, "oil", "normal"), claims)
 
     def test_fundraising_withdraws_two_of_three_home_diggers_before_leaving(self):
         inventory = self._strict_supplies(detection=5)
@@ -53536,6 +53583,29 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             policy._abandoned_quest_carry_requirements,
         )
 
+    def test_attempted_general_with_remembered_affordable_oil_keeps_claim(self):
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, price=4)
+        town = replace(self._town(
+            gold=9869,
+            inventory=[item("o", TVAL_FLASK, SV_FLASK_OIL, count=2)],
+        ), equipment=[item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, name="Brass Lantern",
+            fuel=1, known=True, is_equipment=True,
+        )])
+        policy = HengbotPolicy()
+        policy._deepest_level = 2
+        policy._town_store_attempted[STORE_GENERAL] = town.turn
+        policy._town_supplier_stock[STORE_GENERAL] = StoreState(
+            STORE_GENERAL, [oil]
+        )
+
+        claims = policy._enumerate_live_store_claims(town)
+
+        self.assertIn(
+            TownNeed(STORE_GENERAL, "oil", "normal"), claims,
+            policy._supply_ledger(town, policy._planned_depth())["oil"],
+        )
+
     def test_home_torch_withdrawal_owns_full_shortage(self):
         force = {"throwing_items": {"lit_torch": 5}}
         profile = SimpleNamespace(required_force=force, engagement_plan={})
@@ -54719,6 +54789,36 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             state["equipment_transaction"],
             {"context": None, "entry_blocker": "no-session"},
         )
+
+    def test_calibration_telemetry_keeps_the_gate_evaluated_refusal(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._identification_need = "normal"
+
+        policy._calibration_town_key(snapshot)
+        policy._identification_need = None
+
+        self.assertEqual(
+            policy.calibration_entry_state(snapshot)["entry_blocker"],
+            "identification-active",
+        )
+
+    def test_unactionable_identification_retires_and_new_source_revives(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._identification_need = "normal"
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+
+        self.assertFalse(policy._identification_need_actionable(snapshot))
+        policy._calibration_town_key(snapshot)
+        self.assertIsNotNone(policy._calibration_phase)
+
+        policy._calibration_phase = None
+        identify = item(
+            "i", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Scroll of Identify"
+        )
+        revived = replace(snapshot, inventory=[*snapshot.inventory, identify])
+        self.assertTrue(policy._identification_need_actionable(revived))
 
     def test_live_phase_telemetry_names_blocked_home(self):
         policy = self._scan_complete_policy()

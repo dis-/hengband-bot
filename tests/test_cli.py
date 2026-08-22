@@ -2081,6 +2081,28 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(row["prompt_owner_handoff"], "seek-loot")
 
+    def test_active_store_visit_is_visible_in_every_decision_record(self):
+        policy = HengbotPolicy()
+        policy._store_visit = SimpleNamespace(
+            owner="town-errand",
+            purpose="identification-source",
+            store_type=4,
+            opened_sequence=17,
+            phase=SimpleNamespace(value="operating"),
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            _write_decision(path, self._town_snapshot(), " ", "shop:test", policy)
+            row = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(row["store_visit"], {
+            "owner": "town-errand",
+            "purpose": "identification-source",
+            "store_type": 4,
+            "opened_sequence": 17,
+            "phase": "operating",
+        })
+
     def test_choose_key_mutation_reports_survive_reason_fallthrough(self):
         snapshot = self._town_snapshot()
         cases = (

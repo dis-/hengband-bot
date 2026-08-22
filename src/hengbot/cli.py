@@ -813,6 +813,7 @@ def _decision_record(
     hunt_report: str | None = None,
     prompt_owner_handoff: str | None = None,
     home_procurement_fallthrough: dict | None = None,
+    store_visit: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -837,6 +838,7 @@ def _decision_record(
         "reason": reason,
         "key": key,
         "prompt_owner_handoff": prompt_owner_handoff,
+        "store_visit": store_visit,
         # Preserve the player-visible evidence associated with the exact board
         # against which this key was chosen.  In particular, repeat counters in
         # the message line let an incident review distinguish a newly rejected
@@ -1429,6 +1431,18 @@ def _write_decision(
                     (
                         policy.consume_pending_home_procurement_fallthrough_report()
                         if policy is not None
+                        else None
+                    ),
+                    (
+                        {
+                            "owner": policy._store_visit.owner,
+                            "purpose": policy._store_visit.purpose,
+                            "store_type": policy._store_visit.store_type,
+                            "opened_sequence": policy._store_visit.opened_sequence,
+                            "phase": policy._store_visit.phase.value,
+                        }
+                        if policy is not None
+                        and getattr(policy, "_store_visit", None) is not None
                         else None
                     ),
                 ),

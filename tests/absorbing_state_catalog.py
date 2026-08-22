@@ -1449,7 +1449,7 @@ def _town_sell_rebuy_churn_defect():
 
     policy = ChurnPolicy()
     policy._fundraising_mode = "prepare"
-    policy._town_visit_sale_tvals.add(TVAL_DIGGING)
+    policy._town_visit_sale_signatures.add((TVAL_DIGGING, offered.sval))
     class DefectWorld(TownWorld):
         def apply(self, key):
             self.last_key = key
