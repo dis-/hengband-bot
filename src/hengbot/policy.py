@@ -72,7 +72,19 @@ from hengbot.home_visit import (
     HomeVisitState,
 )
 from hengbot.equipment_mutation import EquipmentMutationExecutor, EquipmentMutationResult
-from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
+from hengbot.policy_constants import (
+    BUY_KEY,
+    DOWN_STAIRS_KEY,
+    FOOD_MIN_SVAL,
+    FOOD_TYPE_MANA,
+    LEAVE_STORE_KEY,
+    PACK_CAPACITY,
+    SELL_KEY,
+    STORE_STUCK_LIMIT,
+    TERMINAL_NUDGE_LIMIT,
+    UP_STAIRS_KEY,
+    WAIT_KEY,
+)
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -260,7 +272,6 @@ def _persistent_grid_signature(grid: GridState) -> tuple:
         grid.marked,
     )
 
-WAIT_KEY = "5"
 # ``-o`` forces Hengband's original command set. In its travel-point selector,
 # the displayed store landmarks 1-8 are selected with their shifted number-row
 # symbols (roguelike mode uses the bare digits instead).
@@ -689,8 +700,6 @@ RESTOCK_WAIT_MACRO = "R300\r"
 # running out forever, and far looser than STORE_RESTOCK_WAIT_TURNS's
 # deliberate short wait for a store the bot is actively depending on.
 STORE_RETRY_TURNS = 5000
-DOWN_STAIRS_KEY = ">"
-UP_STAIRS_KEY = "<"
 QUEST_STATUS_UNTAKEN = 0
 QUEST_STATUS_TAKEN = 1
 QUEST_STATUS_COMPLETED = 2
@@ -1231,18 +1240,15 @@ TORCH_REFILL_FUEL = 500
 # consumes an item letter, a quantity plus Return for stacked wares, and one
 # [Y/n] confirmation key. DEFAULT_Y makes Return itself the affirmative key.
 # Leaving the store is Escape. See the store-subsystem notes.
-BUY_KEY = "p"
 # A one-count ware skips input_quantity, so only its confirmation Return follows.
 BUY_CONFIRM_SUFFIX = "\r"
 # Live economy records show that stacked purchases consume the quantity Return
 # and one DEFAULT_Y confirmation Return; no intervening -more- is present.
 STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
-LEAVE_STORE_KEY = "\x1b"
 # *Identify* always opens screen_object(); equipment with many attributes can
 # add several ``-- more --`` pages before the final continue prompt.  Escape
 # closes each page and is harmless after control returns to the command loop.
 FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
-SELL_KEY = "d"
 SELL_ATTEMPT_LIMIT = 3
 SELL_CONFIRM_SUFFIX = "\r"
 # Mirrors store/service-checker.cpp's per-store tval switches.  The policy's
@@ -1288,7 +1294,6 @@ LANTERN_MIN_GOLD = 1
 # unchanged, item still on the shelf — a buy that never registers), give up and
 # leave the store. The store re-emits a snapshot every loop with no loop-detector
 # or stall exit, so without this the bot would hammer the buy macro forever.
-STORE_STUCK_LIMIT = 8
 # Posted equipment commands get the reviewed store no-progress budget.  The
 # observation count remains diagnostic: exhaustion releases the session as a
 # visible failure and never substitutes for the action's physical postcondition.
@@ -1351,12 +1356,10 @@ EMERGENCY_RETURN_COUNT = 2
 # by eating wand/staff CHARGES rather than food. bot-test (a Zombie) starved to
 # death next to a 20-charge staff it could have eaten.
 FOOD_TYPE_RATION = 0
-FOOD_TYPE_MANA = 4
 
 # Return to town before supplies become fatal, or as soon as every normal pack
 # slot is occupied. INVEN_PACK_SLOTS contains slots 0..22; slot 23 is only the
 # temporary overflow slot and is not emitted in bot snapshots.
-PACK_CAPACITY = 23
 # Home identification works in batches but keeps enough space for purchases,
 # swapped-out equipment, and an emergency floor pickup while town work continues.
 HOME_BATCH_RESERVED_SLOTS = 3
@@ -1600,7 +1603,6 @@ SPEED_ENERGY_90 = (
     49, 49, 49, 49, 49, 49, 49, 49, 49, 49,
 )
 # Food svals that actually nourish (rations/biscuits/…); lower svals are mushrooms.
-FOOD_MIN_SVAL = 32
 
 
 class ExplorationGoalKind(str, Enum):
