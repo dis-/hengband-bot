@@ -3044,6 +3044,18 @@ class HengbotPolicy:
             # operation, not the transport key, is the progress effect.
             return True
         if key in {"", WAIT_KEY, LEAVE_STORE_KEY}:
+            if key == WAIT_KEY and (self.last_reason or "").startswith(
+                "equipment-transaction:"
+            ):
+                fingerprint = self._town_progress_fingerprint(snapshot)
+                if fingerprint in self._town_progress_history():
+                    self._town_progress_invariant_defect = {
+                        "marker": "TOWN_OSCILLATION_DEFECT",
+                        "winning_rung": self.last_reason or "",
+                        "repeated_fingerprint": repr(fingerprint),
+                        "gold": snapshot.player.gold,
+                    }
+                    self._record_shop_selector_diagnostics(snapshot, key)
             return False
         if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
             # Store purchase/sale and inscription producers have closed command
@@ -3751,6 +3763,7 @@ class HengbotPolicy:
                 for marker in (
                     "approach", "entry", "store-context-exit",
                     "entrance-step-off", "abandon-blocked-home",
+                    "abandon-blocked",
                     "scan-address-burst",
                 )
             )
@@ -12812,9 +12825,17 @@ class HengbotPolicy:
     def _abandon_blocked_equipment_transaction(
         self, snapshot: Snapshot | None = None
     ) -> None:
-        if self._store_visit is not None:
-            self._store_visit.outcome = "abandoned-with-restore"
         session = self._equipment_transaction_session
+        if self._store_visit is not None:
+            target_store_type = (
+                STORE_HOME
+                if session is not None and session.required_context == "home"
+                else self._store_visit.store_type
+            )
+            if self._store_visit.store_type != target_store_type:
+                self._close_store_visit("equipment-transaction-foreign-visit")
+            else:
+                self._store_visit.outcome = "abandoned-with-restore"
         action = (
             None
             if session is None
@@ -12824,6 +12845,18 @@ class HengbotPolicy:
             route_blocked = (
                 "home-route-unavailable" in getattr(session, "blockers", ())
             )
+            if route_blocked and snapshot is not None:
+                # The ledger ceiling normally abandons an active Home session
+                # when its last pass is charged.  This call is already inside
+                # that abandonment seam, so hide the retiring session while
+                # reporting to avoid recursively abandoning it.
+                self._equipment_transaction_session = None
+                try:
+                    self._report_town_stop_pass(
+                        snapshot, STORE_HOME, goal_satisfied=False
+                    )
+                finally:
+                    self._equipment_transaction_session = session
             if not route_blocked and (
                 action.item_id
                 in self._equipment_quarantine_second_chance_ids
@@ -13133,7 +13166,18 @@ class HengbotPolicy:
             self.last_reason = "equipment-transaction:await-confirmation"
             return WAIT_KEY
         if session.required_context == "home":
-            step = self._shopping_approach_step(snapshot)
+            plan = self._town_errand_plan
+            if (
+                plan is None
+                or plan.index >= len(plan.stops)
+                or plan.stops[plan.index] != STORE_HOME
+            ):
+                self._town_errand_plan = TownErrandPlan([STORE_HOME])
+            step = (
+                self._shopping_approach_step(snapshot, STORE_HOME)
+                if self._ensure_home_visit_request(snapshot)
+                else None
+            )
             if step is None or self._shopping_approach_store_type != STORE_HOME:
                 self._block_equipment_transaction("home-route-unavailable")
                 self.last_reason = "equipment-transaction:home-route-unavailable"

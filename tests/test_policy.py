@@ -46323,7 +46323,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             policy_module.EquipmentTransactionPlan((action,), (), 1)
         )
         policy._equipment_transaction_session = session
-        policy._shopping_approach_step = lambda _snapshot: None
+        policy._shopping_approach_step = lambda _snapshot, _store_type: None
         outside = self._town()
 
         self.assertEqual(policy.choose_key(outside), "5")
@@ -57088,6 +57088,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         policy._equipment_catalog.refresh_carried([shovel], [])
         policy._equipment_catalog.home_scan_complete = True
         owned = policy._equipment_catalog.items[0]
+        policy._equipment_transaction_failed_items.discard(owned.id)
         seed_character_calibration(policy, outside)
         action = policy_module.EquipmentTransaction(
             policy_module.PHASE_HOME_PREPARE,
@@ -57095,21 +57096,24 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             owned.id,
             item_identity=policy_module.equipment_identity(shovel),
         )
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=(), result=object(), transaction=object(),
-        )
-        policy._set_equipment_transaction_session(
-            policy_module.EquipmentTransactionSession(
-                policy_module.EquipmentTransactionPlan((action,), (), 1)
-            )
-        )
+        plan = policy_module.EquipmentTransactionPlan((action,), (), 1)
+
+        def replanning_optimizer(_snapshot, **_kwargs):
+            if (
+                policy._equipment_transaction_session is None
+                and STORE_HOME not in policy._town_visit_ledger.blocked_stores
+            ):
+                policy._set_equipment_transaction_session(
+                    policy_module.EquipmentTransactionSession(plan)
+                )
+            return SimpleNamespace(blockers=(), result=object(), transaction=plan)
+
+        policy._prepare_equipment_optimization = Mock(side_effect=replanning_optimizer)
+        replanning_optimizer(outside)
         policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
-            CALIBRATION_HOME_VISIT_LIMIT
+            CALIBRATION_HOME_VISIT_LIMIT - 1
         )
-        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        policy._town_visit_ledger.blocked_store_limits[STORE_HOME] = (
-            CALIBRATION_HOME_VISIT_LIMIT
-        )
+        policy._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
 
         reasons = []
         for offset in range(8):
@@ -57144,21 +57148,33 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         policy._equipment_catalog.refresh_carried([shovel], [])
         policy._equipment_catalog.home_scan_complete = True
         owned = policy._equipment_catalog.items[0]
+        policy._equipment_transaction_failed_items.discard(owned.id)
         seed_character_calibration(policy, outside)
-        policy._equipment_transaction_failed_items.add(owned.id)
         action = policy_module.EquipmentTransaction(
             policy_module.PHASE_HOME_PREPARE,
             "deposit", owned.id,
             item_identity=policy_module.equipment_identity(shovel),
         )
-        blocked = policy_module.EquipmentTransactionSession(
-            policy_module.EquipmentTransactionPlan((action,), (), 1)
-        )
+        plan = policy_module.EquipmentTransactionPlan((action,), (), 1)
+        blocked = policy_module.EquipmentTransactionSession(plan)
         blocked.block("home-route-unavailable")
         policy._equipment_transaction_session = blocked
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=(), result=object(), transaction=object(),
+
+        def replanning_optimizer(_snapshot, **_kwargs):
+            if (
+                policy._equipment_transaction_session is None
+                and STORE_HOME not in policy._town_visit_ledger.blocked_stores
+            ):
+                policy._set_equipment_transaction_session(
+                    policy_module.EquipmentTransactionSession(plan)
+                )
+            return SimpleNamespace(blockers=(), result=object(), transaction=plan)
+
+        policy._prepare_equipment_optimization = Mock(side_effect=replanning_optimizer)
+        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
+            CALIBRATION_HOME_VISIT_LIMIT - 1
         )
+        policy._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
 
         policy.choose_key(replace(outside, turn=outside.turn + 1))
         self.assertEqual(
@@ -57172,6 +57188,112 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
              "equipment-transaction:abandon-blocked"},
         )
         self.assertIsNone(policy._equipment_transaction_session)
+
+    def test_foreign_visit_is_closed_and_home_route_attempt_is_bounded(self):
+        shovel = item(
+            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        policy, outside = NoSafeRecallDestinationTest()._fixture()
+        outside = replace(outside, inventory=[shovel])
+        policy.choose_key(outside)
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: leaked-visit replay starts from the captured Home-deposit transaction
+        policy._equipment_catalog = OwnedEquipmentCatalog()
+        policy._equipment_catalog.refresh_carried([shovel], [])
+        policy._equipment_catalog.home_scan_complete = True
+        owned = policy._equipment_catalog.items[0]
+        policy._equipment_transaction_failed_items.discard(owned.id)
+        seed_character_calibration(policy, outside)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "deposit", owned.id,
+            item_identity=policy_module.equipment_identity(shovel),
+        )
+        plan = policy_module.EquipmentTransactionPlan((action,), (), 1)
+
+        def replanning_optimizer(_snapshot, **_kwargs):
+            if (
+                policy._equipment_transaction_session is None
+                and STORE_HOME not in policy._town_visit_ledger.blocked_stores
+            ):
+                policy._set_equipment_transaction_session(
+                    policy_module.EquipmentTransactionSession(plan)
+                )
+            return SimpleNamespace(blockers=(), result=object(), transaction=plan)
+
+        policy._prepare_equipment_optimization = Mock(side_effect=replanning_optimizer)
+        replanning_optimizer(outside)
+        policy._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
+        foreign = StoreVisit("town-errand", "shopping", STORE_TEMPLE)
+        foreign.phase = StoreVisitPhase.APPROACHING
+        policy._store_visit = foreign
+
+        reasons = []
+        for offset in range(CALIBRATION_HOME_VISIT_LIMIT * 2 + 2):
+            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: the unchanged live town snapshot reproduces the route/abandon alternation
+            policy.choose_key(replace(outside, turn=outside.turn + offset + 1))
+            reasons.append(policy.last_reason)
+            if (
+                policy._equipment_transaction_session is None
+                and STORE_HOME in policy._town_visit_ledger.blocked_stores
+            ):
+                break
+
+        self.assertLess(len(reasons), CALIBRATION_HOME_VISIT_LIMIT * 2 + 2)
+        self.assertEqual(foreign.phase, StoreVisitPhase.CLOSED)
+        self.assertNotEqual(foreign.outcome, "abandoned-with-restore")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+
+    def test_blocked_abandon_marks_owned_visit_but_closes_foreign_visit(self):
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "deposit", "pack:item"
+        )
+
+        def blocked_policy(visit):
+            policy = HengbotPolicy()
+            session = policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+            session.block("home-route-unavailable")
+            policy._equipment_transaction_session = session
+            policy._store_visit = visit
+            policy._abandon_blocked_equipment_transaction()
+            return policy
+
+        foreign = StoreVisit("town-errand", "shopping", STORE_TEMPLE)
+        foreign_policy = blocked_policy(foreign)
+        self.assertIsNone(foreign_policy._store_visit)
+        self.assertEqual(foreign.phase, StoreVisitPhase.CLOSED)
+        self.assertNotEqual(foreign.outcome, "abandoned-with-restore")
+
+        owned = StoreVisit("equipment-transaction", "equipment-work", STORE_HOME)
+        owned_policy = blocked_policy(owned)
+        self.assertIs(owned_policy._store_visit, owned)
+        self.assertNotEqual(owned.phase, StoreVisitPhase.CLOSED)
+        self.assertEqual(owned.outcome, "abandoned-with-restore")
+        self.assertNotIn(
+            action.item_id, owned_policy._equipment_transaction_failed_items
+        )
+
+    def test_abandon_blocked_marker_activates_no_progress_refusal(self):
+        policy, outside = NoSafeRecallDestinationTest()._fixture()
+        policy._store_visit = StoreVisit(
+            "equipment-transaction", "equipment-work", STORE_HOME
+        )
+        policy._decision_sequence = 1
+        policy.last_reason = "equipment-transaction:home-route-unavailable"
+        self.assertEqual(
+            policy._refuse_no_progress_cycle(outside, WAIT_KEY), WAIT_KEY
+        )
+
+        policy._decision_sequence = 3
+        policy._emission_previous_state = object()
+        policy.last_reason = "equipment-transaction:abandon-blocked"
+
+        self.assertEqual(
+            policy._refuse_no_progress_cycle(outside, WAIT_KEY), WAIT_KEY
+        )
+        self.assertEqual(policy.last_reason, "livelock:exhausted")
 
     def test_abandoned_deposit_is_preserved_from_every_replanned_transaction(self):
         """The failed A13 action must be absent from the next plan's deposits."""
@@ -57454,7 +57576,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             "equipment-transaction:approach-home", dict(decisions).values()
         )
 
-    def test_abandonment_does_not_consume_home_completion_pass(self):
+    def test_route_blocked_abandonment_consumes_home_route_pass(self):
         policy, outside, _ = self._stripped_fixture()
         inside = replace(
             outside,
@@ -57469,7 +57591,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
 
         self.assertEqual(policy.last_reason, "equipment-transaction:abandon-blocked-home")
         self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], before
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], before + 1
         )
 
     def test_outstanding_equipment_work_always_projects_a_home_need(self):

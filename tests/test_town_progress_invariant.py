@@ -458,6 +458,23 @@ class TownProgressInvariantTest(unittest.TestCase):
             "TOWN_OSCILLATION_DEFECT",
         )
 
+    def test_detector_fires_for_twenty_repeated_wait_decisions(self):
+        policy, snapshot, _store = self._case(on_door=False)
+        policy._town_progress_history().append(
+            policy._town_progress_fingerprint(snapshot)
+        )
+        policy.last_reason = "equipment-transaction:abandon-blocked"
+
+        for _ in range(20):
+            self.assertFalse(
+                policy._town_result_makes_progress(snapshot, WAIT_KEY)
+            )
+
+        self.assertEqual(
+            policy._town_progress_invariant_defect["marker"],
+            "TOWN_OSCILLATION_DEFECT",
+        )
+
     def test_detector_does_not_flag_convergent_equipment_macro(self):
         policy, snapshot, _store = self._case(on_door=False)
         old_fingerprint = policy._town_progress_fingerprint(snapshot)
