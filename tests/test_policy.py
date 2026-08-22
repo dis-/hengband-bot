@@ -53650,17 +53650,37 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             "no-actionable-supplier",
         )
 
+    def test_home_supply_is_first_in_supply_status_stores(self):
+        town = self._town(
+            inventory=[item("o", TVAL_FLASK, SV_FLASK_OIL, count=2)]
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 2
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [
+            item("h", TVAL_FLASK, SV_FLASK_OIL, count=3)
+        ]
+
+        status = policy._supply_ledger(town, policy._planned_depth())["oil"]
+
+        self.assertEqual(status.stores[0], STORE_HOME)
+        self.assertIn(STORE_GENERAL, status.stores)
+
     def test_attempted_alchemist_keeps_one_post_alchemist_home_claim(self):
         town = self._town()
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_ALCHEMIST] = town.turn
-        candidate = TownNeed(
+        policy._home_candidate_waiting = True
+        policy._identification_need = "normal"
+        expected = TownNeed(
             STORE_HOME, "identification-withdrawal", "post-alchemist-home"
         )
-        with patch.object(policy, "_town_need_candidates", return_value=[candidate]):
+        with patch.object(policy, "_home_available", return_value=True):
+            candidates = policy._town_need_candidates(town)
             claims = policy._enumerate_live_store_claims(town)
 
-        self.assertEqual(claims.count(candidate), 1)
+        self.assertIn(expected, candidates)
+        self.assertEqual(claims.count(expected), 1)
 
     def test_home_torch_withdrawal_owns_full_shortage(self):
         force = {"throwing_items": {"lit_torch": 5}}
@@ -54882,6 +54902,10 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
 
         self.assertFalse(policy._identification_need_actionable(snapshot))
+        self.assertNotEqual(
+            policy.calibration_entry_state(snapshot)["entry_blocker"],
+            "identification-active",
+        )
         policy._calibration_town_key(snapshot)
         self.assertIsNotNone(policy._calibration_phase)
 

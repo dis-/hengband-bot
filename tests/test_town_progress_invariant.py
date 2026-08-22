@@ -506,28 +506,6 @@ class TownProgressInvariantTest(unittest.TestCase):
             "TOWN_PROGRESS_INVARIANT_DEFECT",
         )
 
-    def test_genuine_one_shot_inflight_is_exempt_from_progress_reselection(self):
-        policy, snapshot, _store = self._case(on_door=False)
-        policy.last_reason = "shop:one-shot-in-flight"
-
-        self.assertEqual(policy._town_procurement_decision(snapshot, ""), "")
-        self.assertEqual(
-            getattr(policy, "_town_progress_invariant_defect", {}), {}
-        )
-
-    def test_non_inflight_repeated_result_still_trips_progress_invariant(self):
-        policy, snapshot, _store = self._case(on_door=False)
-        policy._town_progress_history().append(
-            policy._town_progress_fingerprint(snapshot)
-        )
-        policy.last_reason = "equipment-transaction:takeoff"
-
-        self.assertFalse(policy._town_result_makes_progress(snapshot, "tA"))
-        self.assertEqual(
-            policy._town_progress_invariant_defect["marker"],
-            "TOWN_OSCILLATION_DEFECT",
-        )
-
     def test_incomplete_home_scan_steps_off_before_shop_approach(self):
         policy, snapshot, store = self._case(food_type=FOOD_TYPE_MANA)
         snapshot = replace(

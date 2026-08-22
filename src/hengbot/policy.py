@@ -3315,9 +3315,6 @@ class HengbotPolicy:
             and self._home_atomic_withdraw_pending is not None
         ):
             return key
-        if proposed_reason == "shop:one-shot-in-flight":
-            return key
-
         if proposed_reason == "breakout:least-visited":
             breakout = self._boxed_town_breakout_key(snapshot)
             if breakout is not None:
@@ -4141,11 +4138,6 @@ class HengbotPolicy:
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
-                remembered_page = self._town_supplier_stock.get(watched_store)
-                if remembered_page is not None and self._mandatory_purchase(
-                    replace(snapshot, store=remembered_page)
-                ) is not None:
-                    self._rearm_town_store_for_new_work(watched_store)
             elif wait_count + 1 >= STORE_STUCK_LIMIT:
                 self._store_buy_inflight = None
                 self._close_store_visit("one-shot-buy-unconfirmed")
@@ -20237,16 +20229,22 @@ class HengbotPolicy:
             if carry is not None:
                 return carry
         ledger = self._supply_ledger(snapshot, self._planned_depth())
+        if (
+            snapshot.player.food_type == FOOD_TYPE_MANA
+            and ledger["food"].count < ledger["food"].required_departure
+        ):
+            mana_food = self._mana_food_purchase(snapshot)
+            if mana_food is not None:
+                return mana_food
         predicates = (
             ("recall", lambda item: item.is_recall_scroll),
             (
                 "food",
-                lambda item: (
-                    item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
-                    if snapshot.player.food_type == FOOD_TYPE_MANA
-                    else item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
-                ),
+                lambda item: snapshot.player.food_type != FOOD_TYPE_MANA
+                and item.tval == TVAL_FOOD
+                and item.sval >= FOOD_MIN_SVAL,
             ),
+            ("light", lambda item: item.is_lantern),
             ("oil", lambda item: item.is_oil),
             ("teleport", lambda item: item.is_teleport_scroll),
             (
@@ -20256,9 +20254,13 @@ class HengbotPolicy:
             ),
         )
         for kind, matches in predicates:
-            status = ledger[kind]
-            if status.count >= status.required_departure:
-                continue
+            if kind == "light":
+                if self._owns_lantern(snapshot):
+                    continue
+            else:
+                status = ledger[kind]
+                if status.count >= status.required_departure:
+                    continue
             candidate = next(
                 (
                     item

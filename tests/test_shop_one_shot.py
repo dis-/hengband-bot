@@ -31,11 +31,13 @@ from hengbot.model import (
     TVAL_LITE,
     SV_LITE_LANTERN,
     SV_LITE_TORCH,
+    SV_STAFF_IDENTIFY,
+    TVAL_STAFF,
 )
 from hengbot.policy import (
-    FOOD_MIN_SVAL, OIL_TARGET, HengbotPolicy, LEAVE_STORE_KEY, STORE_GENERAL,
-    STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, STORE_STUCK_LIMIT, TownErrandPlan,
-    ProcurementHomeGate,
+    FOOD_MIN_SVAL, FOOD_TYPE_MANA, OIL_TARGET, HengbotPolicy,
+    LEAVE_STORE_KEY, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
+    STORE_STUCK_LIMIT, TownErrandPlan, ProcurementHomeGate,
 )
 from hengbot.cli import _snapshot_entries_in_order
 from tests.test_policy import grid, hostile, item, player, store_item
@@ -801,66 +803,80 @@ class ShopOneShotTest(unittest.TestCase):
 
 
     def test_mandatory_torch_and_oil_precede_optional_surplus_across_entries(self):
-        """The 8/21 General page drains both departure needs before surplus."""
-        torch = store_item(
-            "a", TVAL_LITE, SV_LITE_TORCH, price=3, count=1
+        """Replay the 8/22 oil stall through public choose_key composition."""
+        incident = Path(
+            "jsonlog/incident-town-oil-claim-stall-20260822.jsonl"
         )
-        oil = store_item("b", TVAL_FLASK, 0, price=4, count=1)
+        policy_state = Path(
+            "incident-captures/20260822-100522-posting-contract-"
+            "identical-repost-unobserved/policy-state.json"
+        )
+        self.assertTrue(incident.exists())
+        self.assertTrue(policy_state.exists())
+        incident_rows = [json.loads(line) for line in incident.read_text(
+            encoding="utf-8"
+        ).splitlines()]
+        self.assertTrue(any(
+            row.get("procurement_requirements") == [{
+                "item": "Flasks of oil", "current": 2,
+                "target": 5, "missing": 3,
+            }]
+            for row in incident_rows
+        ))
+        self.assertEqual(
+            json.loads(policy_state.read_text(encoding="utf-8"))["floor"],
+            [0, 0, 0],
+        )
+        optional = store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3, count=1)
+        lantern = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=5, count=1)
+        oil = store_item("c", TVAL_FLASK, 0, price=4, count=1)
         supplies = [
             item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=6),
             item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
             item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=12),
             item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=5),
             item("o", TVAL_FLASK, 0, count=OIL_TARGET - 1),
-            item("q", TVAL_LITE, SV_LITE_TORCH, count=4, fuel=5000),
         ]
-        inside = replace(
-            self._inside(STORE_GENERAL, supplies, [torch, oil], gold=1000),
-            equipment=[item(
-                "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000,
-                known=True, is_equipment=True,
-            )],
-        )
-        profile = SimpleNamespace(
-            required_force={"throwing_items": {"lit_torch": 5}},
-            engagement_plan={},
+        inside = self._inside(
+            STORE_GENERAL, supplies, [optional, lantern, oil], gold=1000
         )
         policy = HengbotPolicy()
+        policy._deepest_level = 2
         policy._equipment_catalog.home_scan_complete = True
         policy._home_knowledge_current = True
         policy._home_scan_item_count = 0
         policy._town_errand_plan = TownErrandPlan([STORE_GENERAL])
         with mock.patch.object(
-            policy, "_carry_procurement_strategy", return_value=profile
-        ), mock.patch.object(
             policy, "_purchase_has_fresh_home_absence",
             return_value=ProcurementHomeGate.ALLOW_PURCHASE,
         ), mock.patch.object(
             policy, "_find_light_sale", return_value=None,
         ):
             outside, first = self._compose(policy, inside)
-            self.assertEqual(first, "5pa\r\x1b")
-            after_torch = self._consume_buy(outside, first, torch)
-            policy.choose_key(after_torch)
+            self.assertEqual(first, "5pb\r\x1b")
+            after_lantern = self._consume_buy(outside, first, lantern)
+            policy.choose_key(after_lantern)
             self.assertNotIn(STORE_GENERAL, policy._town_store_attempted)
 
             second_inside = replace(
                 inside,
-                turn=after_torch.turn + 1,
-                inventory=after_torch.inventory,
-                player=after_torch.player,
-                store=StoreState(STORE_GENERAL, [oil]),
+                turn=after_lantern.turn + 1,
+                inventory=after_lantern.inventory,
+                player=after_lantern.player,
+                store=StoreState(STORE_GENERAL, [optional, oil]),
             )
             second_outside, second = self._compose(policy, second_inside)
-            self.assertEqual(second, "5pb\r\x1b")
+            self.assertEqual(second, "5pc\r\x1b")
             after_oil = self._consume_buy(second_outside, second, oil)
+            policy.choose_key(after_oil)
+            self.assertIn(policy._item_signature(oil), policy._town_visit_purchases)
 
             optional_page = replace(
                 second_inside,
                 turn=after_oil.turn + 1,
                 inventory=after_oil.inventory,
                 player=after_oil.player,
-                store=StoreState(STORE_GENERAL, [replace(torch, letter="c")]),
+                store=StoreState(STORE_GENERAL, [optional]),
             )
             self.assertIs(
                 policy._next_purchase_unreserved(optional_page),
@@ -916,6 +932,64 @@ class ShopOneShotTest(unittest.TestCase):
             replace(outside, store=policy._town_supplier_stock[STORE_GENERAL])
         ))
         self.assertIn(STORE_GENERAL, policy._town_store_attempted)
+
+    def test_mandatory_selector_terminates_when_oil_requirement_is_met(self):
+        oil = store_item("a", TVAL_FLASK, 0, price=4, count=20)
+        snapshot = replace(
+            self._inside(
+                STORE_GENERAL,
+                [*self._ammo_supplies(), item("extra", TVAL_FLASK, 0, count=5)],
+                [oil],
+                gold=10000,
+            ),
+            equipment=[item(
+                "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000,
+                known=True, is_equipment=True,
+            )],
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 2
+
+        self.assertIsNone(policy._mandatory_purchase(snapshot))
+
+    def test_mandatory_oil_precedes_optional_purchase_on_same_page(self):
+        optional = store_item("a", TVAL_POTION, SV_POTION_RESIST_COLD, price=1)
+        oil = store_item("b", TVAL_FLASK, 0, price=4)
+        snapshot = replace(
+            self._inside(
+                STORE_GENERAL,
+                [*self._ammo_supplies()[:-3], item("o", TVAL_FLASK, 0, count=2)],
+                [optional, oil],
+                gold=1000,
+            ),
+            equipment=[item(
+                "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000,
+                known=True, is_equipment=True,
+            )],
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 2
+
+        with mock.patch.object(
+            policy, "_restore_potion_purchase", return_value=optional
+        ):
+            self.assertIs(policy._next_purchase_unreserved(snapshot), oil)
+
+    def test_mandatory_mana_food_respects_magic_hoard_liquidation_guard(self):
+        identify = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=200, count=1, pval=8
+        )
+        snapshot = replace(
+            self._inside(STORE_MAGIC, [], [identify], gold=1000),
+            player=replace(
+                self._inside(STORE_MAGIC, [], [], gold=1000).player,
+                food_type=FOOD_TYPE_MANA,
+            ),
+        )
+        policy = HengbotPolicy()
+        policy._home_identify_staff_sold_this_magic_visit = True
+
+        self.assertIsNone(policy._mandatory_purchase(snapshot))
 
 
 if __name__ == "__main__":
