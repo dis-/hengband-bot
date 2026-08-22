@@ -28,6 +28,15 @@ class CrossDecisionLatchOwnershipTest(unittest.TestCase):
             for node in cls.policy.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
+        # Release sites may live on extracted mixins (split roadmap): include
+        # every HengbotPolicy base class defined under src/hengbot/.
+        arbiter_path = cls.source_path.parent / "town_arbiter.py"
+        arbiter_tree = ast.parse(arbiter_path.read_text(encoding="utf-8"))
+        for node in arbiter_tree.body:
+            if isinstance(node, ast.ClassDef) and node.name == "TownArbiterMixin":
+                for member in node.body:
+                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        cls.methods.setdefault(member.name, member)
 
     def test_dangerous_latches_declare_owner_and_release_evaluator(self):
         source = ast.get_source_segment(
