@@ -268,7 +268,6 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             HengbotPolicy, policy_blob, snapshot_blob
         )
         policy._town_blocked_reason = None
-        policy._town_store_attempted.pop(STORE_TEMPLE, None)
         policy._town_errand_plan = TownErrandPlan(
             [STORE_TEMPLE],
             need_categories={STORE_TEMPLE: ("recall",)},
@@ -287,6 +286,36 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         self.assertEqual(
             policy._store_visit_last_closed.outcome, "required-stop-changed"
         )
+
+    def test_posted_visit_survives_required_stop_change(self):
+        """A posted operation is authoritative: the release must not close it."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._town_blocked_reason = None
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_TEMPLE],
+            need_categories={STORE_TEMPLE: ("recall",)},
+            blocked_this_visit=[0],
+        )
+        posted = StoreVisit(
+            "town-errand", "shopping", 0,
+            phase=StoreVisitPhase.ENTERING,
+        )
+        posted.operation_posted = True
+        policy._store_visit = posted
+        policy._release_invalid_store_visit(snapshot)
+        self.assertIs(policy._store_visit, posted)
+
+        foreign = StoreVisit(
+            "home-errand", "deposit", 0,
+            phase=StoreVisitPhase.ENTERING,
+        )
+        policy._store_visit = foreign
+        policy._release_invalid_store_visit(snapshot)
+        self.assertIs(policy._store_visit, foreign)
 
     def test_recall_entry_invariant_stays_below_required_return(self):
         """Pin vacuity: the incident checkpoint has zero recall and cannot depart."""

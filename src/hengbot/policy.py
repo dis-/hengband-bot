@@ -5092,7 +5092,11 @@ class HengbotPolicy(TownArbiterMixin):
             or visit.operation_effect_observed
             or not snapshot.in_town
             or (
-                visit.store_type in released_stores
+                visit.owner == "town-errand"
+                and visit.phase
+                in (StoreVisitPhase.APPROACHING, StoreVisitPhase.ENTERING)
+                and not visit.operation_posted
+                and visit.store_type in released_stores
                 and required_store is not None
                 and visit.store_type != required_store
             )
