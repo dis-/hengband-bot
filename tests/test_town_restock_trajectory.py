@@ -1,8 +1,20 @@
+from dataclasses import replace
 from pathlib import Path
 import unittest
 
+from hengbot.model import STORE_ALCHEMIST, STORE_TEMPLE, StoreState
 from hengbot.policy import HengbotPolicy
-from trajectory_harness import replay_checkpoint_trajectory
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from test_policy import (
+    SV_SCROLL_WORD_OF_RECALL,
+    TVAL_SCROLL,
+    store_item,
+)
+from trajectory_harness import (
+    checkpoint_row,
+    replay_checkpoint_trajectory,
+    restore_incident_checkpoint,
+)
 
 
 class TownRestockStallTrajectoryTest(unittest.TestCase):
@@ -79,6 +91,138 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             seed_policy=self._seed_recall_variant,
         )
         self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+
+    def test_fresh_recall_requirement_routes_before_waiting(self):
+        """R1 revert proof: removing the attempted-suppliers gate returns wait-restock."""
+        def seed(policy):
+            self._seed_recall_variant(policy)
+            policy._town_restock_wait_until = None
+            policy._town_restock_rechecked.clear()
+            policy._town_store_attempted.pop(STORE_TEMPLE, None)
+            policy._town_store_attempted.pop(STORE_ALCHEMIST, None)
+
+        transcript = replay_checkpoint_trajectory(
+            HengbotPolicy,
+            self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz",
+            (220,),
+            forbidden_reasons={"town:wait-restock:temple"},
+            required_reason_prefix="shop:",
+            seed_policy=seed,
+        )
+        self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+
+    def test_affordable_remembered_recall_stock_routes_to_supplier(self):
+        """R2 revert proof: removing recall.obtainable restores the blocked terminal."""
+        def seed(policy):
+            self._seed_recall_variant(policy)
+            policy._town_restock_wait_until = None
+            policy._town_restock_rechecked.update(
+                {STORE_TEMPLE, STORE_ALCHEMIST}
+            )
+            policy._town_store_attempted.update({STORE_TEMPLE: 1, STORE_ALCHEMIST: 1})
+            recall = store_item(
+                "i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                count=6, price=247, name="Word of Recall",
+            )
+            policy._town_supplier_stock = {
+                **getattr(policy, "_town_supplier_stock", {}),
+                STORE_TEMPLE: StoreState(
+                    STORE_TEMPLE, [recall]
+                ),
+            }
+
+        transcript = replay_checkpoint_trajectory(
+            HengbotPolicy,
+            self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz",
+            (220,),
+            forbidden_reasons={"town:blocked:restocked-recall-unavailable"},
+            required_reason_prefix="shop:",
+            seed_policy=seed,
+        )
+        self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        seed(policy)
+        key = policy._recall_restock_key(snapshot)
+        self.assertTrue(policy.last_reason.startswith("shop:"))
+        self.assertNotEqual(key, "5")
+
+    def test_restock_timer_requires_observed_empty_supplier_page(self):
+        """R3 revert proof: timer expiry alone must not add _town_restock_rechecked."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._town_store_attempted.update({STORE_TEMPLE: 1, STORE_ALCHEMIST: 1})
+        policy._town_restock_rechecked.clear()
+        policy._retry_after_store_restock(snapshot, (STORE_TEMPLE, STORE_ALCHEMIST))
+        expiry = replace(snapshot, turn=policy._town_restock_wait_until)
+
+        self.assertEqual(
+            policy._retry_after_store_restock(
+                expiry, (STORE_TEMPLE, STORE_ALCHEMIST)
+            ),
+            STORE_TEMPLE,
+        )
+        self.assertEqual(policy._town_restock_rechecked, set())
+        self.assertIsNone(
+            policy._retry_after_store_restock(
+                expiry, (STORE_TEMPLE, STORE_ALCHEMIST)
+            )
+        )
+        self.assertGreater(policy._town_restock_wait_until, expiry.turn)
+        self.assertEqual(policy._town_restock_rechecked, set())
+
+        empty_temple = replace(
+            expiry, store=StoreState(STORE_TEMPLE, [])
+        )
+        policy._observe_restock_supplier_page(empty_temple)
+        self.assertEqual(policy._town_restock_rechecked, {STORE_TEMPLE})
+
+    def test_mismatched_entering_visit_releases_for_temple_route(self):
+        """R4 revert proof: without required-stop-changed the approach returns None."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand", "shopping", 0,
+            phase=StoreVisitPhase.ENTERING,
+        )
+        policy._next_required_store_type = lambda _snapshot: STORE_TEMPLE
+        policy._town_blocked_reason = None
+
+        policy._release_invalid_store_visit(snapshot)
+        step = policy._shopping_approach_step(snapshot, STORE_TEMPLE)
+
+        self.assertIsNotNone(step)
+        self.assertEqual(policy._shopping_approach_store_type, STORE_TEMPLE)
+        self.assertEqual(policy._store_visit.store_type, STORE_TEMPLE)
+        self.assertEqual(
+            policy._store_visit_last_closed.outcome, "required-stop-changed"
+        )
+
+    def test_recall_entry_invariant_stays_below_required_return(self):
+        """Pin vacuity: the incident checkpoint has zero recall and cannot depart."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        recall_count = policy._count_recall_scrolls(snapshot)
+        required_return = policy._recall_required_target(snapshot)
+
+        self.assertLess(recall_count, required_return)
+        self.assertFalse(
+            policy._dungeon_entry_allowed(
+                snapshot, via_recall=False, destination_depth=1
+            )
+        )
 
 
 if __name__ == "__main__":

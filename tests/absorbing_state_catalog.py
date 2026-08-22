@@ -20,7 +20,8 @@ from types import SimpleNamespace
 import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import (
-    STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, TVAL_DIGGING, TVAL_POTION,
+    STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
+    SV_SCROLL_WORD_OF_RECALL, TVAL_DIGGING, TVAL_POTION, TVAL_SCROLL,
 )
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import (
@@ -1205,6 +1206,51 @@ def _all_nonhome_needs_unobtainable():
     return policy, world
 
 
+def _restocked_recall_unavailable_with_shelf_stock():
+    """A remembered affordable recall shelf must exit the former terminal."""
+    helper = fixture.NoSafeRecallDestinationTest()
+    policy, surface = helper._fixture()
+    recall = fixture.store_item(
+        "i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+        count=6, price=247, name="Word of Recall",
+    )
+    policy._town_store_attempted.update({STORE_TEMPLE: 1, STORE_ALCHEMIST: 1})
+    policy._town_restock_rechecked.update({STORE_TEMPLE, STORE_ALCHEMIST})
+    policy._town_supplier_stock[STORE_TEMPLE] = StoreState(
+        STORE_TEMPLE, [recall]
+    )
+    policy._town_blocked_reason = "restocked-recall-unavailable"
+    temple = replace(
+        fixture.grid(31, 77, lit=True, in_view=True),
+        store_number=STORE_TEMPLE,
+    )
+    surface = replace(
+        surface,
+        player=replace(surface.player, gold=10631),
+        grids={**surface.grids, temple.position: temple},
+    )
+
+    class RecallShelfWorld(TownWorld):
+        expected_terminal_reason = "shop:observe-and-leave"
+
+        def terminal_ends_drive(self, reason, key):
+            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+
+        def apply(self, key):
+            if key.startswith("\x1b`n"):
+                self.last_key = key
+                self.position = self.entrance
+                self.inside = True
+                self.entries += 1
+                self.turn += EMITTED_TURNS_PER_PLAYER_TURN
+                return
+            super().apply(key)
+
+    return policy, RecallShelfWorld(
+        surface, entrance=STORE_TEMPLE, stock=[recall]
+    )
+
+
 def _doubled_store_entry_cycle():
     """Delay the Alchemist page once after accepting its bare entrance WAIT."""
     policy, surface, target = _ordinary_alchemist_entry_seed(
@@ -1460,6 +1506,10 @@ def _town_sell_rebuy_churn_defect():
 
 
 SEEDED_STATES = (
+    AbsorbingState(
+        "town-blocked-restocked-recall-unavailable", 20,
+        _restocked_recall_unavailable_with_shelf_stock,
+    ),
     AbsorbingState(
         "home-visit-semantic-churn-defect", 3,
         _home_semantic_churn_defect,

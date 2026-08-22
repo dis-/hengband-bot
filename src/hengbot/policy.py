@@ -195,6 +195,7 @@ from hengbot.model import (
     SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
     SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
     SV_SCROLL_STAR_DESTRUCTION,
+    SV_SCROLL_WORD_OF_RECALL,
     SV_STAFF_DESTRUCTION,
     SV_STAFF_IDENTIFY,
     SV_WAND_STONE_TO_MUD,
@@ -5075,12 +5076,34 @@ class HengbotPolicy(TownArbiterMixin):
     def _release_invalid_store_visit(self, snapshot: Snapshot) -> None:
         """Release a visit whose lifecycle has no remaining work."""
         visit = self._store_visit
+        required_store = (
+            self._next_required_store_type(snapshot)
+            if (
+                visit is not None
+                and visit.owner == "town-errand"
+                and visit.phase in {
+                    StoreVisitPhase.APPROACHING,
+                    StoreVisitPhase.ENTERING,
+                }
+                and not visit.operation_posted
+            )
+            else None
+        )
         if visit is not None and (
             visit.phase == StoreVisitPhase.CLOSED
             or visit.operation_effect_observed
             or not snapshot.in_town
+            or (
+                required_store is not None
+                and visit.store_type != required_store
+            )
         ):
-            self._close_store_visit(self._store_visit.outcome or "completed")
+            outcome = (
+                "required-stop-changed"
+                if required_store is not None and visit.store_type != required_store
+                else self._store_visit.outcome or "completed"
+            )
+            self._close_store_visit(outcome)
 
     def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:
         """Release transaction ownership freshly satisfied by worn observations."""
@@ -5194,6 +5217,7 @@ class HengbotPolicy(TownArbiterMixin):
         if snapshot.store is not None:
             if snapshot.store.store_type != STORE_HOME:
                 self._town_supplier_stock[snapshot.store.store_type] = snapshot.store
+                self._observe_restock_supplier_page(snapshot)
             visit = self._store_visit
             staged_operation = self._release_staged_store_operation(snapshot)
             if staged_operation is not None:
@@ -6183,6 +6207,17 @@ class HengbotPolicy(TownArbiterMixin):
                 )
                 if fundraising is not None:
                     return fundraising
+            recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
+            if (
+                not all(
+                    store in self._town_store_attempted
+                    for store in recall_stores
+                )
+                and hasattr(self._town_map, "store_position")
+            ):
+                return self._released_restock_store_key(
+                    snapshot, recall_stores
+                )
             return self._recall_restock_key(snapshot)
 
         here = snapshot.grid_at(player.position)
@@ -16282,11 +16317,24 @@ class HengbotPolicy(TownArbiterMixin):
         if snapshot.turn < self._town_restock_wait_until:
             return None
         self._town_restock_wait_until = None
-        self._town_restock_waiting_for = ()
         for store_type in store_types:
             self._town_store_attempted.pop(store_type, None)
-            self._town_restock_rechecked.add(store_type)
         return store_types[0]
+
+    def _observe_restock_supplier_page(self, snapshot: Snapshot) -> None:
+        """Record a recheck only from an observed, unaffordable supplier page."""
+        store = snapshot.store
+        if store is None or store.store_type not in self._town_restock_waiting_for:
+            return
+        if self._town_restock_waiting_for == (STORE_TEMPLE, STORE_ALCHEMIST):
+            affordable = any(
+                item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_WORD_OF_RECALL
+                and item.price <= snapshot.player.gold
+                for item in store.items
+            )
+            if not affordable:
+                self._town_restock_rechecked.add(store.store_type)
 
     def _restock_wait_reason(self, snapshot: Snapshot) -> str:
         stores = self._town_restock_waiting_for
@@ -16378,6 +16426,24 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_restock_wait_until is None
             and all(store in self._town_restock_rechecked for store in recall_stores)
         ):
+            recall = self._supply_ledger(
+                snapshot, self._planned_depth()
+            )["recall"]
+            if recall.obtainable:
+                for store_type in recall_stores:
+                    remembered = getattr(
+                        self, "_town_supplier_stock", {}
+                    ).get(store_type)
+                    if remembered is not None and any(
+                        item.tval == TVAL_SCROLL
+                        and item.sval == SV_SCROLL_WORD_OF_RECALL
+                        and item.price <= snapshot.player.gold
+                        for item in remembered.items
+                    ):
+                        self._town_store_attempted.pop(store_type, None)
+                return self._released_restock_store_key(
+                    snapshot, recall_stores
+                )
             if not self._food_ready(snapshot):
                 return self._released_restock_store_key(snapshot, recall_stores)
             self._town_blocked_reason = "restocked-recall-unavailable"
