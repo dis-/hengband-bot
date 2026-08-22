@@ -480,7 +480,7 @@ def _advance_town_blocked_iteration(
     floor_changed: bool = False,
 ):
     """Apply the production town-fuse projection and authoritative gate."""
-    current_durable_state = policy._town_workflow_progress_state(snapshot)
+    current_durable_state = policy._town_progress_fingerprint(snapshot)
     durable_progress = (
         previous_durable_state is not None
         and current_durable_state != previous_durable_state
@@ -2468,7 +2468,7 @@ def _run_follow(
         stalled_command_count = 0
         blocked_streak = 0
         town_blocked_durable_state = (
-            policy._town_workflow_progress_state(initial_snapshot)
+            policy._town_progress_fingerprint(initial_snapshot)
             if initial_snapshot is not None
             else None
         )

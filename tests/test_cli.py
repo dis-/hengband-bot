@@ -3981,6 +3981,51 @@ class TownBlockedStreakTest(unittest.TestCase):
             )
         self.assertEqual(streak, 1)
 
+    def test_pin_vacuity_alchemist_door_cycle_reaches_live_cli_fuse(self):
+        from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
+        from hengbot.model import PlayerState, Snapshot, StoreState
+        from hengbot.policy import HengbotPolicy, STORE_ALCHEMIST
+
+        policy = HengbotPolicy()
+        policy.last_reason = "town:blocked:repetition"
+        outside = Snapshot(
+            player=PlayerState(
+                position=Position(36, 90), hp=10, max_hp=10,
+                mp=0, max_mp=0, level=1, gold=6703,
+            ),
+            grids={}, visible_monsters=[], floor_key=(0, 0, 0), town_flag=True,
+        )
+        inside = replace(
+            outside,
+            store=StoreState(STORE_ALCHEMIST, []),
+            town_flag=True,
+        )
+        streak = 0
+        state = None
+        for decision in range(82):
+            snapshot = inside if decision % 4 == 0 else outside
+            streak, state = _advance_town_blocked_iteration(
+                policy, snapshot, streak, state, key=("\x1b", "7", "3", "")[decision % 4]
+            )
+            if streak >= TOWN_BLOCKED_STOP_LIMIT:
+                break
+
+        self.assertEqual(streak, TOWN_BLOCKED_STOP_LIMIT)
+
+        changed = replace(
+            outside,
+            player=replace(outside.player, gold=6460),
+            inventory=(SimpleNamespace(
+                slot="a", tval=70, sval=13, name="Word of Recall", count=9,
+                charges=0, inscription="", known=True, fully_known=True,
+                is_equipment=False,
+            ),),
+        )
+        streak, _ = _advance_town_blocked_iteration(
+            policy, changed, streak, state, key="7"
+        )
+        self.assertEqual(streak, 1)
+
     def test_real_wander_capture_fuses_when_messages_are_not_progress(self):
         from hengbot.cli import (
             TOWN_BLOCKED_STOP_LIMIT,

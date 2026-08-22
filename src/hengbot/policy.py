@@ -2801,7 +2801,10 @@ class HengbotPolicy(TownArbiterMixin):
                 continue
             stock_snapshot = replace(snapshot, store=known_stock)
             wanted = self._next_purchase_unreserved(stock_snapshot)
-            if wanted is None:
+            if (
+                wanted is None
+                or not self._town_blocked_purchase_is_composable(stock_snapshot)
+            ):
                 continue
             quantity = self._purchase_quantity(stock_snapshot, wanted)
             reserve = self._fundraising_kit_reserve(stock_snapshot)
@@ -2827,6 +2830,32 @@ class HengbotPolicy(TownArbiterMixin):
         quantity = self._purchase_quantity(snapshot, wanted)
         reserve = self._fundraising_kit_reserve(snapshot)
         return snapshot.player.gold - wanted.price * quantity >= reserve
+
+    def _town_blocked_purchase_is_composable(self, snapshot: Snapshot) -> bool:
+        """Whether the blocked store handler will stage its selected purchase."""
+        store = snapshot.store
+        if store is None or store.store_type == STORE_HOME:
+            return False
+        attempted_at = self._town_store_attempted.pop(store.store_type, None)
+        try:
+            departure_families = {
+                need.category.split(":", 1)[0]
+                for need in self._departure_blocking_town_needs(snapshot)
+                if need.store_type == store.store_type
+            }
+        finally:
+            if attempted_at is not None:
+                self._town_store_attempted[store.store_type] = attempted_at
+        purchase = self._next_purchase(snapshot)
+        purchase_families = {
+            category.split(":", 1)[0]
+            for category in (
+                self._cross_town_item_categories(purchase)
+                if purchase is not None
+                else ()
+            )
+        }
+        return bool(departure_families.intersection(purchase_families))
 
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
@@ -2926,6 +2955,9 @@ class HengbotPolicy(TownArbiterMixin):
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress
+        if progress_key == key and progress_reason == proposed_reason:
+            self.last_reason = proposed_reason
+            return key
         if not self._town_result_makes_progress(snapshot, progress_key):
             self.last_reason = proposed_reason
             return key
@@ -20031,6 +20063,10 @@ class HengbotPolicy(TownArbiterMixin):
                     return digger
             return None
 
+        mandatory = self._mandatory_purchase(snapshot)
+        if mandatory is not None:
+            return mandatory
+
         if self._identification_need is not None:
             full = self._identification_need == "full"
             if self._find_identification_source(
@@ -20059,10 +20095,6 @@ class HengbotPolicy(TownArbiterMixin):
             # items the store sells. Returning early marked the Alchemist
             # 'attempted' after an identify errand, so the bot never bought the
             # teleport scrolls it also sells and stranded itself wandering town.
-
-        mandatory = self._mandatory_purchase(snapshot)
-        if mandatory is not None:
-            return mandatory
 
         restore = self._restore_potion_purchase(snapshot)
         if restore is not None:
@@ -23153,27 +23185,7 @@ class HengbotPolicy(TownArbiterMixin):
         self.last_reason = f"town:blocked:{self._town_blocked_reason}"
         if self._town_blocked_reason == "repetition" and snapshot.store is not None:
             store = snapshot.store
-            attempted_at = self._town_store_attempted.pop(store.store_type, None)
-            try:
-                # The open shelf is stronger evidence than the stale attempted
-                # latch which routed us here.  Ignore that one latch only while
-                # evaluating live departure needs; retain it until a purchase
-                # is actually observed below.
-                departure_categories = {
-                    need.category
-                    for need in self._departure_blocking_town_needs(snapshot)
-                    if need.store_type == store.store_type
-                }
-            finally:
-                if attempted_at is not None:
-                    self._town_store_attempted[store.store_type] = attempted_at
-            purchase = self._next_purchase(snapshot)
-            if (
-                purchase is not None
-                and departure_categories.intersection(
-                    self._cross_town_item_categories(purchase)
-                )
-            ):
+            if self._town_blocked_purchase_is_composable(snapshot):
                 # Keep the ordinary two-visit one-shot contract: this page only
                 # records the shelf, then the outside entrance page binds the
                 # exact purchase before re-entry releases its command tail.
