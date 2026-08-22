@@ -197,8 +197,8 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy._observe_restock_supplier_page(empty_temple)
         self.assertEqual(policy._town_restock_rechecked, {STORE_TEMPLE})
 
-    def test_single_alchemist_wait_marks_observed_empty_page(self):
-        """F3 revert proof: the actual singleton supplier tuple owns observation."""
+    def test_single_alchemist_wait_marks_stocked_nonmatching_page(self):
+        """F3 revert proof: unrelated stock cannot satisfy the waiting need."""
         path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
         _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
         policy, snapshot = restore_incident_checkpoint(
@@ -207,11 +207,34 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy._town_restock_waiting_for = (STORE_ALCHEMIST,)
         policy._town_restock_rechecked.clear()
 
-        policy._observe_restock_supplier_page(
-            replace(snapshot, store=StoreState(STORE_ALCHEMIST, []))
+        unrelated = StoreState(
+            STORE_ALCHEMIST,
+            [store_item("a", TVAL_SCROLL, 1, price=1)],
         )
+        policy._observe_restock_supplier_page(replace(snapshot, store=unrelated))
 
         self.assertEqual(policy._town_restock_rechecked, {STORE_ALCHEMIST})
+
+    def test_single_alchemist_wait_with_matching_stock_routes_to_buy(self):
+        """F3 revert proof: composable matching stock prevents recheck credit."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._town_restock_waiting_for = (STORE_ALCHEMIST,)
+        policy._town_restock_rechecked.clear()
+        policy._identification_need = "normal"
+        identify_stock = StoreState(
+            STORE_ALCHEMIST,
+            [store_item("a", TVAL_SCROLL, 12, price=1)],
+        )
+        in_store = replace(snapshot, store=identify_stock)
+
+        policy._observe_restock_supplier_page(in_store)
+
+        self.assertEqual(policy._town_restock_rechecked, set())
+        self.assertIsNotNone(policy._next_purchase(in_store))
 
     def test_unarmed_supplier_observation_cannot_reuse_stale_wait_tuple(self):
         """F4 revert proof: floor reset prevents stale observation credit."""
@@ -244,15 +267,17 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy, snapshot = restore_incident_checkpoint(
             HengbotPolicy, policy_blob, snapshot_blob
         )
+        policy._town_blocked_reason = None
+        policy._town_store_attempted.pop(STORE_TEMPLE, None)
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_TEMPLE],
+            need_categories={STORE_TEMPLE: ("recall",)},
+            blocked_this_visit=[0],
+        )
         policy._store_visit = StoreVisit(
             "town-errand", "shopping", 0,
             phase=StoreVisitPhase.ENTERING,
         )
-        policy._town_errand_plan = TownErrandPlan(
-            [STORE_TEMPLE], need_categories={STORE_TEMPLE: ("recall",)}
-        )
-        policy._town_blocked_reason = None
-
         policy._release_invalid_store_visit(snapshot)
         step = policy._shopping_approach_step(snapshot, STORE_TEMPLE)
 

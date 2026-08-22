@@ -5078,32 +5078,30 @@ class HengbotPolicy(TownArbiterMixin):
         visit = self._store_visit
         plan = self._town_errand_plan
         required_store = None
-        if (
-            visit is not None
-            and visit.owner == "town-errand"
-            and visit.phase in {
-                StoreVisitPhase.APPROACHING,
-                StoreVisitPhase.ENTERING,
-            }
-            and not visit.operation_posted
-            and plan is not None
-            and plan.index < len(plan.stops)
-        ):
-            candidate = plan.stops[plan.index]
-            if plan.need_categories.get(candidate):
-                required_store = candidate
+        released_stores: set[int] = set()
+        if plan is not None:
+            released_stores = set(plan.completed_this_visit) | set(
+                plan.blocked_this_visit
+            )
+            if plan.index < len(plan.stops):
+                candidate = plan.stops[plan.index]
+                if plan.need_categories.get(candidate):
+                    required_store = candidate
         if visit is not None and (
             visit.phase == StoreVisitPhase.CLOSED
             or visit.operation_effect_observed
             or not snapshot.in_town
             or (
-                required_store is not None
+                visit.store_type in released_stores
+                and required_store is not None
                 and visit.store_type != required_store
             )
         ):
             outcome = (
                 "required-stop-changed"
-                if required_store is not None and visit.store_type != required_store
+                if visit.store_type in released_stores
+                and required_store is not None
+                and visit.store_type != required_store
                 else self._store_visit.outcome or "completed"
             )
             self._close_store_visit(outcome)
@@ -6216,7 +6214,7 @@ class HengbotPolicy(TownArbiterMixin):
                     store in self._town_store_attempted
                     for store in recall_stores
                 )
-                and self._town_map is not None
+                and getattr(self._town_map, "store_position", None) is not None
             ):
                 return self._released_restock_store_key(
                     snapshot, recall_stores
@@ -16341,7 +16339,7 @@ class HengbotPolicy(TownArbiterMixin):
             )
             if not affordable:
                 self._town_restock_rechecked.add(store.store_type)
-        elif not store.items:
+        elif self._next_purchase(snapshot) is None:
             self._town_restock_rechecked.add(store.store_type)
 
     def _restock_wait_reason(self, snapshot: Snapshot) -> str:
