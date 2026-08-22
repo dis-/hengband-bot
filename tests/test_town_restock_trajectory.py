@@ -4,7 +4,7 @@ import unittest
 
 from hengbot.model import STORE_ALCHEMIST, STORE_TEMPLE, StoreState
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from hengbot.policy_types import StoreVisit, StoreVisitPhase, TownErrandPlan
 from test_policy import (
     SV_SCROLL_WORD_OF_RECALL,
     TVAL_SCROLL,
@@ -149,6 +149,20 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         key = policy._recall_restock_key(snapshot)
         self.assertTrue(policy.last_reason.startswith("shop:"))
         self.assertNotEqual(key, "5")
+        recalled_shelf = policy._town_supplier_stock[STORE_TEMPLE]
+        in_store = replace(snapshot, store=recalled_shelf)
+        purchase = policy._next_purchase(in_store)
+        self.assertIsNotNone(purchase)
+        self.assertEqual(
+            (purchase.tval, purchase.sval),
+            (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+        )
+        # The incident checkpoint predates this unrelated per-visit diagnostic.
+        policy._town_visit_sale_signatures = set()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = ()
+        self.assertTrue(policy._shop(in_store).startswith("p"))
+        self.assertEqual(policy.last_reason, "shop:buy-recall")
 
     def test_restock_timer_requires_observed_empty_supplier_page(self):
         """R3 revert proof: timer expiry alone must not add _town_restock_rechecked."""
@@ -183,6 +197,46 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy._observe_restock_supplier_page(empty_temple)
         self.assertEqual(policy._town_restock_rechecked, {STORE_TEMPLE})
 
+    def test_single_alchemist_wait_marks_observed_empty_page(self):
+        """F3 revert proof: the actual singleton supplier tuple owns observation."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._town_restock_waiting_for = (STORE_ALCHEMIST,)
+        policy._town_restock_rechecked.clear()
+
+        policy._observe_restock_supplier_page(
+            replace(snapshot, store=StoreState(STORE_ALCHEMIST, []))
+        )
+
+        self.assertEqual(policy._town_restock_rechecked, {STORE_ALCHEMIST})
+
+    def test_unarmed_supplier_observation_cannot_reuse_stale_wait_tuple(self):
+        """F4 revert proof: floor reset prevents stale observation credit."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        _restored, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy = HengbotPolicy()
+        policy._town_restock_waiting_for = (STORE_TEMPLE, STORE_ALCHEMIST)
+        policy._town_restock_rechecked.clear()
+        policy._floor_key = (1, 1, 1)
+        policy._observe(snapshot)
+
+        policy._observe_restock_supplier_page(
+            replace(
+                snapshot,
+                player=replace(snapshot.player, gold=100),
+                store=StoreState(STORE_TEMPLE, []),
+            )
+        )
+
+        self.assertEqual(policy._town_restock_waiting_for, ())
+        self.assertEqual(policy._town_restock_rechecked, set())
+
     def test_mismatched_entering_visit_releases_for_temple_route(self):
         """R4 revert proof: without required-stop-changed the approach returns None."""
         path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
@@ -194,7 +248,9 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             "town-errand", "shopping", 0,
             phase=StoreVisitPhase.ENTERING,
         )
-        policy._next_required_store_type = lambda _snapshot: STORE_TEMPLE
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_TEMPLE], need_categories={STORE_TEMPLE: ("recall",)}
+        )
         policy._town_blocked_reason = None
 
         policy._release_invalid_store_visit(snapshot)

@@ -21,7 +21,7 @@ import hengbot.policy as policy_module
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
-    SV_SCROLL_WORD_OF_RECALL, TVAL_DIGGING, TVAL_POTION, TVAL_SCROLL,
+    SV_SCROLL_WORD_OF_RECALL, TVAL_DIGGING, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL,
 )
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy import (
@@ -1207,7 +1207,7 @@ def _all_nonhome_needs_unobtainable():
 
 
 def _restocked_recall_unavailable_with_shelf_stock():
-    """A remembered affordable recall shelf must exit the former terminal."""
+    """A real recall shortage must derive its unavailable terminal."""
     helper = fixture.NoSafeRecallDestinationTest()
     policy, surface = helper._fixture()
     recall = fixture.store_item(
@@ -1216,10 +1216,16 @@ def _restocked_recall_unavailable_with_shelf_stock():
     )
     policy._town_store_attempted.update({STORE_TEMPLE: 1, STORE_ALCHEMIST: 1})
     policy._town_restock_rechecked.update({STORE_TEMPLE, STORE_ALCHEMIST})
+    policy._town_restock_waiting_for = (STORE_TEMPLE, STORE_ALCHEMIST)
+    policy._town_restock_suppressed = True
     policy._town_supplier_stock[STORE_TEMPLE] = StoreState(
         STORE_TEMPLE, [recall]
     )
-    policy._town_blocked_reason = "restocked-recall-unavailable"
+    durable = policy._town_observable_effect_state(surface)
+    policy._town_visit_ledger.nonhome_attempted_without_effect.update({
+        STORE_TEMPLE: durable,
+        STORE_ALCHEMIST: durable,
+    })
     temple = replace(
         fixture.grid(31, 77, lit=True, in_view=True),
         store_number=STORE_TEMPLE,
@@ -1227,14 +1233,21 @@ def _restocked_recall_unavailable_with_shelf_stock():
     surface = replace(
         surface,
         player=replace(surface.player, gold=10631),
+        inventory=[
+            replace(item, count=8)
+            if item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_WORD_OF_RECALL
+            else item
+            for item in surface.inventory
+        ] + [fixture.item("f", TVAL_FOOD, fixture.FOOD, count=10)],
         grids={**surface.grids, temple.position: temple},
     )
 
     class RecallShelfWorld(TownWorld):
-        expected_terminal_reason = "shop:observe-and-leave"
+        expected_terminal_reason = "shop:one-shot-buy"
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+            return reason == self.expected_terminal_reason and key.startswith("p")
 
         def apply(self, key):
             if key.startswith("\x1b`n"):

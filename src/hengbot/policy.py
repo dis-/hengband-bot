@@ -5076,19 +5076,22 @@ class HengbotPolicy(TownArbiterMixin):
     def _release_invalid_store_visit(self, snapshot: Snapshot) -> None:
         """Release a visit whose lifecycle has no remaining work."""
         visit = self._store_visit
-        required_store = (
-            self._next_required_store_type(snapshot)
-            if (
-                visit is not None
-                and visit.owner == "town-errand"
-                and visit.phase in {
-                    StoreVisitPhase.APPROACHING,
-                    StoreVisitPhase.ENTERING,
-                }
-                and not visit.operation_posted
-            )
-            else None
-        )
+        plan = self._town_errand_plan
+        required_store = None
+        if (
+            visit is not None
+            and visit.owner == "town-errand"
+            and visit.phase in {
+                StoreVisitPhase.APPROACHING,
+                StoreVisitPhase.ENTERING,
+            }
+            and not visit.operation_posted
+            and plan is not None
+            and plan.index < len(plan.stops)
+        ):
+            candidate = plan.stops[plan.index]
+            if plan.need_categories.get(candidate):
+                required_store = candidate
         if visit is not None and (
             visit.phase == StoreVisitPhase.CLOSED
             or visit.operation_effect_observed
@@ -6213,7 +6216,7 @@ class HengbotPolicy(TownArbiterMixin):
                     store in self._town_store_attempted
                     for store in recall_stores
                 )
-                and hasattr(self._town_map, "store_position")
+                and self._town_map is not None
             ):
                 return self._released_restock_store_key(
                     snapshot, recall_stores
@@ -6801,6 +6804,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_errand_plan = None
             self._terminal_pack_space_signature = None
             self._town_restock_wait_until = None
+            self._town_restock_waiting_for = ()
             self._town_restock_rechecked.clear()
         elif town_changed:
             # Inn travel keeps the surface floor key at (0, 0, 0), but it is a
@@ -6821,6 +6825,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_errand_plan = None
             self._terminal_pack_space_signature = None
             self._town_restock_wait_until = None
+            self._town_restock_waiting_for = ()
             self._town_restock_rechecked.clear()
             self._town_store_attempted.clear()
             self._shopping_stuck = False
@@ -16324,9 +16329,10 @@ class HengbotPolicy(TownArbiterMixin):
     def _observe_restock_supplier_page(self, snapshot: Snapshot) -> None:
         """Record a recheck only from an observed, unaffordable supplier page."""
         store = snapshot.store
-        if store is None or store.store_type not in self._town_restock_waiting_for:
+        waiting_for = self._town_restock_waiting_for
+        if not waiting_for or store is None or store.store_type not in waiting_for:
             return
-        if self._town_restock_waiting_for == (STORE_TEMPLE, STORE_ALCHEMIST):
+        if set(waiting_for) == {STORE_TEMPLE, STORE_ALCHEMIST}:
             affordable = any(
                 item.tval == TVAL_SCROLL
                 and item.sval == SV_SCROLL_WORD_OF_RECALL
@@ -16335,6 +16341,8 @@ class HengbotPolicy(TownArbiterMixin):
             )
             if not affordable:
                 self._town_restock_rechecked.add(store.store_type)
+        elif not store.items:
+            self._town_restock_rechecked.add(store.store_type)
 
     def _restock_wait_reason(self, snapshot: Snapshot) -> str:
         stores = self._town_restock_waiting_for
@@ -16426,6 +16434,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_restock_wait_until is None
             and all(store in self._town_restock_rechecked for store in recall_stores)
         ):
+            self._town_restock_waiting_for = ()
             recall = self._supply_ledger(
                 snapshot, self._planned_depth()
             )["recall"]
@@ -17897,6 +17906,15 @@ class HengbotPolicy(TownArbiterMixin):
                         )
                         and store_type not in self._town_store_attempted
                     ):
+                        if (
+                            restock_recheck
+                            and self._town_restock_waiting_for
+                            and all(
+                                waiting in self._town_restock_rechecked
+                                for waiting in self._town_restock_waiting_for
+                            )
+                        ):
+                            self._town_restock_waiting_for = ()
                         return store_type
         if live_needs and all(
             need.store_type != STORE_HOME
@@ -18970,6 +18988,7 @@ class HengbotPolicy(TownArbiterMixin):
                 if STORE_ALCHEMIST in self._town_restock_rechecked:
                     self._defer_identification_for_conquest(snapshot)
                     self._town_restock_wait_until = None
+                    self._town_restock_waiting_for = ()
                     return
                 self._retry_after_store_restock(snapshot, (STORE_ALCHEMIST,))
                 return
