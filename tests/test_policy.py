@@ -22449,9 +22449,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
     def test_august_22_unentered_general_oil_claim_routes_to_supplier(self):
         """Replay incident rows 356-400 from the retained turn-712398 board."""
-        fixture = Path(
-            "incident-captures/20260822-100522-posting-contract-identical-"
-            "repost-unobserved/snapshots/snapshots-current.jsonl.gz"
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-town-oil-stall-turn-712398.jsonl.gz"
         )
         raw = None
         with gzip.open(fixture, "rt", encoding="utf-8-sig") as rows:
@@ -22469,7 +22470,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._home_knowledge_current = True
         policy._town_store_attempted = {
             STORE_MAGIC: snap.turn,
-            STORE_WEAPON: snap.turn,
+            STORE_TEMPLE: snap.turn,
             STORE_ALCHEMIST: snap.turn,
         }
         policy._town_errand_plan = TownErrandPlan(
