@@ -59,6 +59,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_quest_strategy_recovery_claims", {})
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_prepared", None)
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
+    restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     return restored
 
 
