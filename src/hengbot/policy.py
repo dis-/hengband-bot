@@ -3297,7 +3297,14 @@ class HengbotPolicy(TownArbiterMixin):
             for owned in self._equipment_catalog.items
             if owned.origin in {"pack", "equipped"}
         }
-        self._deferred_home_items.difference_update(carried_signatures)
+        home_signatures = {
+            self._item_signature(owned.item)
+            for owned in self._equipment_catalog.items
+            if owned.origin == "home"
+        }
+        self._deferred_home_items.difference_update(
+            carried_signatures - home_signatures
+        )
 
     def _choose_key_with_latch_capture(self, snapshot: Snapshot) -> str:
         capture_path = self._latch_capture_path
@@ -13100,9 +13107,8 @@ class HengbotPolicy(TownArbiterMixin):
                 ready = bool(incomplete) and all(
                     owned is not None
                     and (
-                        owned.origin in {"home", "pack"}
-                        or self._item_signature(owned.item)
-                        in self._deferred_home_items
+                        owned.origin != "equipped"
+                        or self._item_signature(owned.item) in self._deferred_home_items
                     )
                     for owned in incomplete
                 )
@@ -19036,18 +19042,21 @@ class HengbotPolicy(TownArbiterMixin):
                 self._retry_after_store_restock(snapshot, (STORE_ALCHEMIST,))
                 return
             pending = self._pending_inventory_item(snapshot)
-            if pending is not None and any(
-                owned.origin == "home"
-                and self._item_signature(owned.item) == self._item_signature(pending)
+            candidate = (
+                self._item_signature(pending)
+                if pending is not None
+                else self._identification_candidate
+            )
+            candidate_origins = {
+                owned.origin
                 for owned in self._equipment_catalog.items
-            ):
-                self._deferred_home_items.add(self._item_signature(pending))
-            elif self._identification_candidate is not None and any(
-                owned.origin == "home"
-                and self._item_signature(owned.item) == self._identification_candidate
-                for owned in self._equipment_catalog.items
-            ):
-                self._deferred_home_items.add(self._identification_candidate)
+                if candidate is not None
+                and self._item_signature(owned.item) == candidate
+            }
+            if candidate is not None and candidate_origins & {"pack", "equipped"}:
+                self._unidentifiable_sigs.add(candidate)
+            elif candidate is not None and "home" in candidate_origins:
+                self._deferred_home_items.add(candidate)
             elif self._device_identification_candidate is not None:
                 self._deferred_device_items.add(self._device_identification_candidate)
             self._home_pending_item = None
@@ -19225,7 +19234,7 @@ class HengbotPolicy(TownArbiterMixin):
         catalog = {owned.id: owned for owned in self._equipment_catalog.items}
         for item_id in incomplete_ids:
             owned = catalog.get(item_id)
-            if owned is None or owned.origin not in {"home", "pack"}:
+            if owned is None or owned.origin != "home":
                 return False
             if self._item_signature(owned.item) not in self._processed_home_items:
                 return False
@@ -19269,7 +19278,7 @@ class HengbotPolicy(TownArbiterMixin):
         signatures: set[tuple[str, int, int]] = set()
         for item_id in preparation.result.incomplete_item_ids:
             owned = catalog.get(item_id)
-            if owned is None or owned.origin not in {"home", "pack"}:
+            if owned is None or owned.origin != "home":
                 return False
             signature = self._item_signature(owned.item)
             if signature not in self._processed_home_items:
@@ -34591,7 +34600,11 @@ class HengbotPolicy(TownArbiterMixin):
         self._refresh_town_facts(snapshot)
         if self._town_entrance_cache is not None:
             return set(self._town_entrance_cache)
-        entrances = set(self._town_emitted_entrances)
+        # _town_emitted_entrances preserves a legacy ``store_number is not None``
+        # predicate and therefore includes ordinary parsed grids whose sentinel
+        # is -1.  The visit set uses the real modal-cell predicates and retains
+        # observed entrances after they leave the emitted window.
+        entrances = set(self._town_visit_entrances)
         if self._town_map_active(snapshot):
             entrances.update(self._town_map.stores.values())
             entrances.update(self._town_map.buildings.values())
@@ -34633,6 +34646,7 @@ class HengbotPolicy(TownArbiterMixin):
         target: Position | None,
         *,
         blocked: set[Position] | None = None,
+        allow_entrance_fallback: bool = True,
     ) -> Position | None:
         """BFS to a specific static-town-map tile (store or dungeon entrance).
 
@@ -34651,7 +34665,10 @@ class HengbotPolicy(TownArbiterMixin):
         entrance_cells = self._town_entrance_cells(snapshot)
         entrance_cells.discard(start)
         entrance_cells.discard(target)
-        for route_blocked in (blocked | entrance_cells, blocked):
+        route_attempts = (blocked | entrance_cells, blocked)
+        if not allow_entrance_fallback:
+            route_attempts = route_attempts[:1]
+        for route_blocked in route_attempts:
             seen = {start}
             queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
             while queue:
@@ -34700,52 +34717,6 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             return self._town_map.entrance
         return None
-
-    def _avoidable_unintended_store_cells(
-        self, snapshot: Snapshot, target: Position
-    ) -> set[Position]:
-        """Return store doors that a non-shopping town route can avoid.
-
-        Store entrances remain valid destinations for their current visit
-        owner.  For other routes, exclude them only when the target is still
-        reachable, preserving a store-door choke point as a last-resort
-        passage.
-        """
-        if not snapshot.in_town:
-            return set()
-        visit = self._store_visit
-        intended_store = (
-            visit.store_type if visit is not None
-            else self._shopping_approach_store_type
-        )
-        store_cells = {
-            position
-            for position, grid in snapshot.grids.items()
-            if grid.store_number >= 0 and grid.store_number != intended_store
-        }
-        if self._town_map_active(snapshot):
-            store_cells.update(
-                position
-                for store_type, position in self._town_map.stores.items()
-                if store_type != intended_store
-            )
-        store_cells.discard(snapshot.player.position)
-        store_cells.discard(target)
-        if not store_cells:
-            return set()
-        start = snapshot.player.position
-        seen = {start}
-        queue: deque[Position] = deque([start])
-        while queue:
-            position = queue.popleft()
-            if position == target:
-                return store_cells
-            for neighbor in self._walkable_neighbors(snapshot, position):
-                if neighbor in seen or neighbor in store_cells:
-                    continue
-                seen.add(neighbor)
-                queue.append(neighbor)
-        return set()
 
     def _descent_step(self, snapshot: Snapshot) -> Position | None:
         """Follow the ledger-owned route to one committed descent target.
@@ -34821,9 +34792,13 @@ class HengbotPolicy(TownArbiterMixin):
         else:
             target = committed
         self._descent_target_goal = target
-        avoided_store_cells = self._avoidable_unintended_store_cells(
-            snapshot, target
-        )
+        avoided_store_cells = self._town_entrance_cells(snapshot)
+        avoided_store_cells.discard(origin)
+        avoided_store_cells.discard(target)
+        if self._town_map_goal_step(
+            snapshot, target, allow_entrance_fallback=False
+        ) is None:
+            avoided_store_cells.clear()
         if origin == target:
             self._nav_ledger.clear_descent_route()
             self._descent_refusal_reason = "standing-on-target"

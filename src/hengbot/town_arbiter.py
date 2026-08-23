@@ -207,7 +207,7 @@ class TownArbiterMixin:
             getattr(item, name, None)
             for name in (
                 "tval", "sval", "count", "charges", "inscription",
-                "known", "fully_known",
+                "known", "fully_known", "pseudo_feeling",
             )
         )
 

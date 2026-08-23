@@ -29692,7 +29692,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy_module.STAFF_IDENTIFY_MIN_SUCCESS,
         )
 
-    def test_carried_identify_target_is_not_home_deferred_after_stock_failure(self):
+    def test_carried_identify_target_is_deferred_after_scroll_stock_failure(self):
         # Regression for the second 2026-07-23 loop: a low-skill warrior tried
         # the same Staff of Identify command 30 times, then repeatedly entered
         # and left an Alchemist that had no Identify scroll.  Once that store is
@@ -29719,14 +29719,31 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
+        policy._refresh_carried_equipment_catalog(snap)
         self.assertIsNone(policy._town_item_processing_key(snap))
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
         self.assertNotEqual(
             policy._next_required_store_type(snap), STORE_ALCHEMIST
         )
-        self.assertNotIn(policy._item_signature(ring), policy._deferred_home_items)
-        self.assertIsNone(policy._town_item_processing_key(snap))
-        self.assertEqual(policy._identification_need, "normal")
+        signature = policy._item_signature(ring)
+        rearmed = []
+        original_rearm = policy._rearm_town_store_for_new_work
+        with patch.object(
+            policy,
+            "_rearm_town_store_for_new_work",
+            side_effect=lambda store: (rearmed.append(store), original_rearm(store))[1],
+        ):
+            for _ in range(12):
+                policy._town_terminal_transitions(snap)
+                self.assertIsNone(policy._town_item_processing_key(snap))
+
+        self.assertIn(signature, policy._unidentifiable_sigs)
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertEqual(rearmed.count(STORE_ALCHEMIST), 0)
+        self.assertIsNone(policy._identification_need)
+        self.assertTrue(
+            policy._town_departure_conjuncts(snap)["identification_need_clear"]
+        )
 
     def test_defers_unknown_device_when_identification_is_unavailable(self):
         wand = item("a", TVAL_WAND, -1, aware=False, known=False, name="unknown wand")
