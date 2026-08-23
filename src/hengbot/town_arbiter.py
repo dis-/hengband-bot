@@ -195,6 +195,22 @@ class TownArbiterMixin:
             )
         )
 
+    @staticmethod
+    def _town_progress_item_state(item: object) -> tuple[object, ...]:
+        """Return stable item facts for town-cycle progress detection.
+
+        Display names may contain live counters such as lantern fuel.  Those
+        counters are useful to emission/owner observers, but they cannot prove
+        that a blocked town decision made progress.
+        """
+        return tuple(
+            getattr(item, name, None)
+            for name in (
+                "tval", "sval", "count", "charges", "inscription",
+                "known", "fully_known",
+            )
+        )
+
     def _emission_state(self, snapshot: Snapshot) -> EmissionState:
         return EmissionState(
             floor=getattr(snapshot, "floor_key", None),

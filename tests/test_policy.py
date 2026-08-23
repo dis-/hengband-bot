@@ -29692,7 +29692,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy_module.STAFF_IDENTIFY_MIN_SUCCESS,
         )
 
-    def test_carried_identify_target_is_deferred_after_scroll_stock_failure(self):
+    def test_carried_identify_target_is_not_home_deferred_after_stock_failure(self):
         # Regression for the second 2026-07-23 loop: a low-skill warrior tried
         # the same Staff of Identify command 30 times, then repeatedly entered
         # and left an Alchemist that had no Identify scroll.  Once that store is
@@ -29724,9 +29724,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertNotEqual(
             policy._next_required_store_type(snap), STORE_ALCHEMIST
         )
-        self.assertIn(policy._item_signature(ring), policy._deferred_home_items)
+        self.assertNotIn(policy._item_signature(ring), policy._deferred_home_items)
         self.assertIsNone(policy._town_item_processing_key(snap))
-        self.assertIsNone(policy._identification_need)
+        self.assertEqual(policy._identification_need, "normal")
 
     def test_defers_unknown_device_when_identification_is_unavailable(self):
         wand = item("a", TVAL_WAND, -1, aware=False, known=False, name="unknown wand")

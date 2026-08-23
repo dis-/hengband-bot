@@ -2476,9 +2476,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_visit_sale_signatures = set()
         if not hasattr(self, "_calibration_entry_refusal"):
             self._calibration_entry_refusal = None
-        self._equipment_catalog.refresh_carried(
-            snapshot.inventory, snapshot.equipment
-        )
+        self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
         refusal_probe = self._posting_refusal_probe
@@ -2667,11 +2665,11 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.player.exp,
             snapshot.dungeon_level,
             tuple(sorted(
-                (self._emission_item_state(item) for item in snapshot.inventory),
+                (self._town_progress_item_state(item) for item in snapshot.inventory),
                 key=repr,
             )),
             tuple(sorted(
-                (self._emission_item_state(item) for item in snapshot.equipment),
+                (self._town_progress_item_state(item) for item in snapshot.equipment),
                 key=repr,
             )),
             tuple(getattr(self._town_errand_plan, "completed_this_visit", ()) or ()),
@@ -3289,6 +3287,18 @@ class HengbotPolicy(TownArbiterMixin):
         self._emission_previous_state = state
         return key
 
+    def _refresh_carried_equipment_catalog(self, snapshot: Snapshot) -> None:
+        """Refresh carried gear and release Home-only deferrals after withdrawal."""
+        self._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        carried_signatures = {
+            self._item_signature(owned.item)
+            for owned in self._equipment_catalog.items
+            if owned.origin in {"pack", "equipped"}
+        }
+        self._deferred_home_items.difference_update(carried_signatures)
+
     def _choose_key_with_latch_capture(self, snapshot: Snapshot) -> str:
         capture_path = self._latch_capture_path
         if capture_path is None:
@@ -3529,9 +3539,7 @@ class HengbotPolicy(TownArbiterMixin):
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
                 )
-                self._equipment_catalog.refresh_carried(
-                    snapshot.inventory, snapshot.equipment
-                )
+                self._refresh_carried_equipment_catalog(snapshot)
                 if suppression_withdrawal and self._home_pending_item == signature:
                     self._home_pending_item = None
                     self._home_pending_slot = None
@@ -3701,9 +3709,7 @@ class HengbotPolicy(TownArbiterMixin):
                 )
             else:
                 pending["wait_count"] = wait_count + 1
-        self._equipment_catalog.refresh_carried(
-            snapshot.inventory, snapshot.equipment
-        )
+        self._refresh_carried_equipment_catalog(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
             if fresh_home_entry:
@@ -13094,8 +13100,9 @@ class HengbotPolicy(TownArbiterMixin):
                 ready = bool(incomplete) and all(
                     owned is not None
                     and (
-                        owned.origin != "equipped"
-                        or self._item_signature(owned.item) in self._deferred_home_items
+                        owned.origin in {"home", "pack"}
+                        or self._item_signature(owned.item)
+                        in self._deferred_home_items
                     )
                     for owned in incomplete
                 )
@@ -19029,9 +19036,17 @@ class HengbotPolicy(TownArbiterMixin):
                 self._retry_after_store_restock(snapshot, (STORE_ALCHEMIST,))
                 return
             pending = self._pending_inventory_item(snapshot)
-            if pending is not None:
+            if pending is not None and any(
+                owned.origin == "home"
+                and self._item_signature(owned.item) == self._item_signature(pending)
+                for owned in self._equipment_catalog.items
+            ):
                 self._deferred_home_items.add(self._item_signature(pending))
-            elif self._identification_candidate is not None:
+            elif self._identification_candidate is not None and any(
+                owned.origin == "home"
+                and self._item_signature(owned.item) == self._identification_candidate
+                for owned in self._equipment_catalog.items
+            ):
                 self._deferred_home_items.add(self._identification_candidate)
             elif self._device_identification_candidate is not None:
                 self._deferred_device_items.add(self._device_identification_candidate)
@@ -19210,7 +19225,7 @@ class HengbotPolicy(TownArbiterMixin):
         catalog = {owned.id: owned for owned in self._equipment_catalog.items}
         for item_id in incomplete_ids:
             owned = catalog.get(item_id)
-            if owned is None or owned.origin != "home":
+            if owned is None or owned.origin not in {"home", "pack"}:
                 return False
             if self._item_signature(owned.item) not in self._processed_home_items:
                 return False
@@ -19254,7 +19269,7 @@ class HengbotPolicy(TownArbiterMixin):
         signatures: set[tuple[str, int, int]] = set()
         for item_id in preparation.result.incomplete_item_ids:
             owned = catalog.get(item_id)
-            if owned is None or owned.origin != "home":
+            if owned is None or owned.origin not in {"home", "pack"}:
                 return False
             signature = self._item_signature(owned.item)
             if signature not in self._processed_home_items:
@@ -22998,9 +23013,7 @@ class HengbotPolicy(TownArbiterMixin):
         # choose_key normally performs this synchronization before dispatch,
         # but keeping the action self-contained ensures its catalog predicate
         # is evaluated against this exact observation.
-        self._equipment_catalog.refresh_carried(
-            snapshot.inventory, snapshot.equipment
-        )
+        self._refresh_carried_equipment_catalog(snapshot)
         preparation = self._prepare_equipment_optimization(snapshot)
         selected_ids = self._equipment_preparation_selected_ids(preparation)
         pending = tuple(
@@ -34688,6 +34701,52 @@ class HengbotPolicy(TownArbiterMixin):
             return self._town_map.entrance
         return None
 
+    def _avoidable_unintended_store_cells(
+        self, snapshot: Snapshot, target: Position
+    ) -> set[Position]:
+        """Return store doors that a non-shopping town route can avoid.
+
+        Store entrances remain valid destinations for their current visit
+        owner.  For other routes, exclude them only when the target is still
+        reachable, preserving a store-door choke point as a last-resort
+        passage.
+        """
+        if not snapshot.in_town:
+            return set()
+        visit = self._store_visit
+        intended_store = (
+            visit.store_type if visit is not None
+            else self._shopping_approach_store_type
+        )
+        store_cells = {
+            position
+            for position, grid in snapshot.grids.items()
+            if grid.store_number >= 0 and grid.store_number != intended_store
+        }
+        if self._town_map_active(snapshot):
+            store_cells.update(
+                position
+                for store_type, position in self._town_map.stores.items()
+                if store_type != intended_store
+            )
+        store_cells.discard(snapshot.player.position)
+        store_cells.discard(target)
+        if not store_cells:
+            return set()
+        start = snapshot.player.position
+        seen = {start}
+        queue: deque[Position] = deque([start])
+        while queue:
+            position = queue.popleft()
+            if position == target:
+                return store_cells
+            for neighbor in self._walkable_neighbors(snapshot, position):
+                if neighbor in seen or neighbor in store_cells:
+                    continue
+                seen.add(neighbor)
+                queue.append(neighbor)
+        return set()
+
     def _descent_step(self, snapshot: Snapshot) -> Position | None:
         """Follow the ledger-owned route to one committed descent target.
 
@@ -34762,6 +34821,9 @@ class HengbotPolicy(TownArbiterMixin):
         else:
             target = committed
         self._descent_target_goal = target
+        avoided_store_cells = self._avoidable_unintended_store_cells(
+            snapshot, target
+        )
         if origin == target:
             self._nav_ledger.clear_descent_route()
             self._descent_refusal_reason = "standing-on-target"
@@ -34771,7 +34833,11 @@ class HengbotPolicy(TownArbiterMixin):
         route = self._nav_ledger.descent_path
         if route:
             nxt = route[0]
-            if origin.distance_to(nxt) == 1 and self._is_step_open(snapshot, origin, nxt):
+            if (
+                origin.distance_to(nxt) == 1
+                and nxt not in avoided_store_cells
+                and self._is_step_open(snapshot, origin, nxt)
+            ):
                 # Both metrics bottom out at one before arrival: committed paths
                 # use remaining length, while fresh BFS uses distance from origin.
                 self._nav_ledger.observe("descend", target, len(route))
@@ -34830,7 +34896,7 @@ class HengbotPolicy(TownArbiterMixin):
                         best_first = first
                         best_frontier = pos
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen:
+                if neighbor in seen or neighbor in avoided_store_cells:
                     continue
                 seen.add(neighbor)
                 parent[neighbor] = pos
