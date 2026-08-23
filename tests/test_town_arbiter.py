@@ -1,3 +1,4 @@
+import ast
 import gzip
 import json
 from pathlib import Path
@@ -16,6 +17,102 @@ DECISION_CAPTURES = (
     "incident-calibration-entry-await-20260823.jsonl",
     "incident-magic-abandon-cycle-20260823.jsonl",
 )
+
+# These namespaces are emitted only after the policy has left town.  The census
+# otherwise defaults to inclusion: a new namespace is therefore treated as town
+# reachable until it is deliberately classified here.  Mixed namespaces such as
+# quest:, fundraise:, return:, and wilderness: stay included because at least one
+# of their producers can run during town/departure handling.
+DUNGEON_ONLY_REASON_PREFIXES = (
+    "breeder-breakthrough:", "chest:", "combat:", "conquest:", "detected:",
+    "emergency:", "flee:", "guardian:", "loot:", "melee:", "paralyzer-guard:",
+    "quest-strategy:", "ranged:", "summoner:", "threat:", "unique:",
+    "unseen:", "unseen-recall:", "victory:",
+)
+DUNGEON_ONLY_BARE_REASONS = {
+    "approach-descent", "clear-descent", "descend", "flee", "probe", "search",
+    "seek-downstairs", "seek-secret-wall",
+}
+
+
+def _literal_last_reasons():
+    """Return complete static literals assigned to last_reason in production.
+
+    Constants and conditional branches are complete emitted values.  Formatted
+    strings and concatenations are intentionally excluded because their constant
+    fragments are not independently emitted reasons.
+    """
+    def complete_literals(value):
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            yield value.value
+        elif isinstance(value, ast.IfExp):
+            yield from complete_literals(value.body)
+            yield from complete_literals(value.orelse)
+
+    root = Path(__file__).parents[1] / "src" / "hengbot"
+    reasons = set()
+    trees = []
+    reason_parameters = {}
+    for path in sorted(root.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        trees.append(tree)
+        for function in (
+            node for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ):
+            parameters = [argument.arg for argument in function.args.args]
+            for node in ast.walk(function):
+                if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    continue
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if (
+                    any(isinstance(target, ast.Attribute) and target.attr == "last_reason"
+                        for target in targets)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in parameters
+                ):
+                    position = parameters.index(node.value.id)
+                    if parameters and parameters[0] in {"self", "cls"}:
+                        position -= 1
+                    reason_parameters[function.name] = (position, node.value.id)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(
+                isinstance(target, ast.Attribute) and target.attr == "last_reason"
+                for target in targets
+            ):
+                reasons.update(complete_literals(node.value))
+    # Include literals passed to helper parameters which are assigned directly
+    # to last_reason (for example the shared sale composer).  This is a bounded
+    # static data-flow step, not a capture-derived list.
+    for tree in trees:
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function_name = (
+                node.func.attr if isinstance(node.func, ast.Attribute)
+                else node.func.id if isinstance(node.func, ast.Name)
+                else None
+            )
+            if function_name not in reason_parameters:
+                continue
+            position, parameter = reason_parameters[function_name]
+            if position < len(node.args):
+                reasons.update(complete_literals(node.args[position]))
+            for keyword in node.keywords:
+                if keyword.arg == parameter:
+                    reasons.update(complete_literals(keyword.value))
+    return reasons
+
+
+def _town_reachable_literal_reasons():
+    return {
+        reason for reason in _literal_last_reasons()
+        if reason not in DUNGEON_ONLY_BARE_REASONS
+        and not reason.startswith(DUNGEON_ONLY_REASON_PREFIXES)
+    }
 
 
 class TownTurnArbiterAcceptanceTest(unittest.TestCase):
@@ -54,7 +151,20 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         self.assertFalse(rows[0]["arbiter"]["would_retire"])
         self.assertTrue(any(row["arbiter"]["would_retire"] for row in rows[:budget + 1]))
 
-    def test_pin_vacuity_registered_owner_consumes_golden_and_capture_reasons(self):
+    def test_pin_vacuity_registered_owner_consumes_static_reason_census(self):
+        policy = HengbotPolicy()
+        arbiter = policy._town_turn_arbiter
+        registered = set(arbiter.registry)
+        reasons = _town_reachable_literal_reasons()
+        unregistered = sorted(
+            reason for reason in reasons
+            if arbiter.owner_for_reason(reason) not in registered
+        )
+
+        self.assertGreater(len(reasons), 300)
+        self.assertEqual(unregistered, [])
+
+    def test_capture_and_golden_reason_census_remains_registered(self):
         from test_golden_trajectory import GoldenOpeningTrajectoryTest
 
         policy = HengbotPolicy()
@@ -102,6 +212,22 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             if row["would_retire"]:
                 retired.add(owner)
         self.assertEqual(retired, set(budgets))
+
+    def test_formerly_unregistered_remove_curse_retires_within_200_decisions(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        registration = arbiter.registry["curse-enchant"]
+        rows = [
+            arbiter.observe(
+                in_town=True,
+                reason="town:remove-curse",
+                progress_vector=("frozen",),
+            )
+            for _ in range(200)
+        ]
+
+        self.assertEqual({row["owner"] for row in rows}, {"curse-enchant"})
+        self.assertEqual(rows[0]["budget_remaining_estimate"], registration.budget)
+        self.assertTrue(any(row["would_retire"] for row in rows))
 
     def test_interleaved_owner_does_not_refill_remaining_budget(self):
         policy = HengbotPolicy()

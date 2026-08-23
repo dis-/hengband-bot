@@ -245,6 +245,16 @@ REAL_QUEST_DEFINITIONS = find_quest_definitions(
 )
 
 
+def _is_forbidden_uppercase_call(path, node):
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "upper"
+        # Quest knowledge normalizes display names, not input selectors.
+        and not (path.name == "quest_knowledge.py" and node.lineno in {217, 251})
+    )
+
+
 class ReadLetterBindingTest(unittest.TestCase):
     def snapshot(self, inventory):
         return Snapshot(
@@ -322,11 +332,7 @@ class ReadLetterBindingTest(unittest.TestCase):
             (path.name, node.lineno)
             for path in sorted(root.glob("*.py"))
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "upper"
-            # Quest knowledge normalizes display names, not input selectors.
-            and not (path.name == "quest_knowledge.py" and node.lineno in {217, 251})
+            if _is_forbidden_uppercase_call(path, node)
         ]
 
         self.assertEqual(uppercase_calls, [])
@@ -336,9 +342,7 @@ class ReadLetterBindingTest(unittest.TestCase):
             return [
                 node.lineno
                 for node in ast.walk(ast.parse(source))
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "upper"
+                if _is_forbidden_uppercase_call(Path("planted_policy.py"), node)
             ]
 
         for expression in ("letter.upper()", "pack_label.upper() + suffix"):
