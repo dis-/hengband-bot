@@ -87,6 +87,10 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
         self.assertTrue(posted.startswith(BUY_KEY + "e"), posted)
 
     def test_pin_vacuity_classifier_families_match_need_families(self):
+        registry_families = {
+            spec.category.split(":", 1)[0]
+            for spec in HengbotPolicy()._town_need_registry()
+        }
         restore_stat, restore_sval = next(iter(RESTORE_POTION_SVAL_BY_STAT.items()))
         cases = (
             (store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL), "recall"),
@@ -105,7 +109,26 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
             with self.subTest(ware=ware.letter, need_family=need_family, stat=restore_stat):
                 emitted = HengbotPolicy._cross_town_item_categories(ware)
                 self.assertTrue(emitted)
-                self.assertIn(need_family, {value.split(":", 1)[0] for value in emitted})
+                emitted_families = {
+                    value.split(":", 1)[0] for value in emitted
+                }
+                self.assertIn(need_family, registry_families)
+                self.assertIn(need_family, emitted_families)
+
+    def test_pin_vacuity_identify_only_shelf_composes_real_need_intersection(self):
+        policy = self._incident_policy()
+        snapshot = replace(
+            self._incident_snapshot(),
+            store=StoreState(
+                STORE_ALCHEMIST,
+                [store_item("f", TVAL_SCROLL, SV_SCROLL_IDENTIFY, price=61)],
+            ),
+        )
+
+        self.assertTrue(policy._town_blocked_purchase_is_composable(snapshot))
+        self.assertEqual(policy._town_blocked_key(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:observe-and-leave")
+        self.assertEqual(policy._shop_observation[0], snapshot.store)
 
     def test_pin_vacuity_mandatory_recall_precedes_identify_then_falls_through(self):
         policy = self._incident_policy()
@@ -138,20 +161,6 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
             policy, "_town_blocked_purchase_is_composable", return_value=False
         ), patch.object(policy, "_shopping_approach_step", return_value=step):
             self.assertIsNone(policy._town_procurement_progress_key(outside))
-
-    def test_pin_vacuity_procurement_does_not_relabel_same_key(self):
-        policy = HengbotPolicy()
-        snapshot = replace(self._incident_snapshot(), store=None)
-        policy.last_reason = "town:blocked:repetition"
-        with patch.object(policy, "_town_result_makes_progress", return_value=False), patch.object(
-            policy,
-            "_town_procurement_progress_key",
-            return_value=("7", "town:blocked:repetition"),
-        ):
-            self.assertEqual(policy._town_procurement_decision(snapshot, "7"), "7")
-        self.assertEqual(policy.last_reason, "town:blocked:repetition")
-        self.assertNotIn("=>", policy.last_reason)
-
 
 if __name__ == "__main__":
     unittest.main()

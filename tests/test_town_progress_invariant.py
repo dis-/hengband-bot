@@ -170,6 +170,33 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertIs(policy._store_visit, visit)
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
 
+    def test_pin_vacuity_real_approach_does_not_relabel_same_key(self):
+        policy, snapshot, store = self._case(on_door=False)
+        snapshot = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                position=replace(snapshot.player.position, y=36, x=104),
+            ),
+        )
+        policy._town_supplier_stock = {STORE_MAGIC: store}
+        policy.last_reason = "town:blocked:repetition"
+        progress = policy._town_procurement_progress_key(snapshot)
+        self.assertIsNotNone(progress)
+        key, reason = progress
+        self.assertIn(key, DIRECTION_KEYS.values())
+
+        policy._shopping_approach_goal = None
+        policy._town_progress_history().append(
+            policy._town_progress_fingerprint(snapshot)
+        )
+        policy.last_reason = reason
+        self.assertFalse(policy._town_result_makes_progress(snapshot, key))
+
+        self.assertEqual(policy._town_procurement_decision(snapshot, key), key)
+        self.assertEqual(policy.last_reason, reason)
+        self.assertNotIn(f"{reason}=>{reason}", policy.last_reason)
+
     def test_live_shaped_magic_observe_then_compose_ignores_advanced_plan(self):
         policy, snapshot, store = self._case()
         # The live 08:04:52 page was Magic at the real captured entrance
