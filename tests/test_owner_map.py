@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "owner_map.py"
-POLICY = ROOT / "src" / "hengbot" / "policy.py"
+POLICY = ROOT / "src" / "hengbot"
 
 
 def load_owner_map():

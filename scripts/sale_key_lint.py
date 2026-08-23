@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-POLICY = ROOT / "src" / "hengbot" / "policy.py"
+POLICY_ROOT = ROOT / "src" / "hengbot"
 
 
 def _contains(node: ast.AST, predicate) -> bool:
@@ -54,7 +54,11 @@ def analyze_source(source: str) -> list[str]:
 
 
 def main() -> int:
-    findings = analyze_source(POLICY.read_text(encoding="utf-8"))
+    findings = [
+        f"{path.name}: {finding}"
+        for path in sorted(POLICY_ROOT.glob("*.py"))
+        for finding in analyze_source(path.read_text(encoding="utf-8"))
+    ]
     for finding in findings:
         print(f"sale-key-lint: {finding}")
     print(f"sale-key-lint: {len(findings)} violation(s)")

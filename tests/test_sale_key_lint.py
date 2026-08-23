@@ -5,12 +5,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from sale_key_lint import POLICY, analyze_source  # noqa: E402
+from sale_key_lint import POLICY_ROOT, analyze_source  # noqa: E402
 
 
 class SaleKeyLintTest(unittest.TestCase):
     def test_repository_sale_keys_are_inscription_bound(self):
-        self.assertEqual(analyze_source(POLICY.read_text(encoding="utf-8")), [])
+        findings = [
+            (path.name, finding)
+            for path in sorted(POLICY_ROOT.glob("*.py"))
+            for finding in analyze_source(path.read_text(encoding="utf-8"))
+        ]
+        self.assertEqual(findings, [])
 
     def test_item_letter_sale_mutant_is_rejected(self):
         mutant = """

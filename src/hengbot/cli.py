@@ -814,6 +814,7 @@ def _decision_record(
     prompt_owner_handoff: str | None = None,
     home_procurement_fallthrough: dict | None = None,
     store_visit: dict | None = None,
+    arbiter: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -839,6 +840,7 @@ def _decision_record(
         "key": key,
         "prompt_owner_handoff": prompt_owner_handoff,
         "store_visit": store_visit,
+        **({"arbiter": arbiter} if arbiter is not None else {}),
         # Preserve the player-visible evidence associated with the exact board
         # against which this key was chosen.  In particular, repeat counters in
         # the message line let an incident review distinguish a newly rejected
@@ -1443,6 +1445,15 @@ def _write_decision(
                         }
                         if policy is not None
                         and getattr(policy, "_store_visit", None) is not None
+                        else None
+                    ),
+                    (
+                        getattr(
+                            getattr(policy, "_town_turn_arbiter", None),
+                            "telemetry",
+                            None,
+                        )
+                        if policy is not None
                         else None
                     ),
                 ),

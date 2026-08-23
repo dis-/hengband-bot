@@ -214,13 +214,15 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
 
     def test_policy_has_no_direct_wield_or_takeoff_composition(self):
         root = Path(__file__).parents[1] / "src" / "hengbot"
-        for filename in ("policy.py", "cli.py", "home_errand.py"):
-            tree = ast.parse((root / filename).read_text(encoding="utf-8"))
+        for path in sorted(root.glob("*.py")):
+            if path.name == "equipment_mutation.py":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             forbidden = {"WIELD_KEY", "TAKEOFF_KEY"}
             names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-            self.assertFalse(names & forbidden, filename)
+            self.assertFalse(names & forbidden, path.name)
 
-            self.assertEqual(self._direct_key_composers(tree), [], filename)
+            self.assertEqual(self._direct_key_composers(tree), [], path.name)
 
     def test_composition_ratchet_catches_named_round_three_forms(self):
         forms = (

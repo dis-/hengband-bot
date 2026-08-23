@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate producer, consumer, and decision-reason maps from policy.py."""
+"""Generate producer, consumer, and decision-reason maps from policy modules."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_POLICY = ROOT / "src" / "hengbot" / "policy.py"
+DEFAULT_POLICY_ROOT = ROOT / "src" / "hengbot"
 
 
 class OwnerMapVisitor(ast.NodeVisitor):
@@ -135,10 +135,16 @@ class OwnerMapVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def build_report(policy_path: Path = DEFAULT_POLICY) -> dict[str, Any]:
-    tree = ast.parse(policy_path.read_text(encoding="utf-8"), filename=str(policy_path))
+def _module_paths(source: Path) -> list[Path]:
+    return sorted(source.glob("*.py")) if source.is_dir() else [source]
+
+
+def build_report(policy_path: Path = DEFAULT_POLICY_ROOT) -> dict[str, Any]:
     visitor = OwnerMapVisitor()
-    visitor.visit(tree)
+    paths = _module_paths(policy_path)
+    for path in paths:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        visitor.visit(tree)
 
     facts: dict[str, Any] = {}
     starvation: list[dict[str, Any]] = []
@@ -169,7 +175,7 @@ def build_report(policy_path: Path = DEFAULT_POLICY) -> dict[str, Any]:
             )
     starvation.sort(key=lambda item: (-item["consumer_count"], item["fact"]))
     reasons = sorted(visitor.reasons, key=lambda site: (site["line"], site["function"]))
-    return {"policy": str(policy_path), "reasons": reasons, "facts": facts, "starvation_prone": starvation}
+    return {"policy": str(policy_path), "modules": [str(path) for path in paths], "reasons": reasons, "facts": facts, "starvation_prone": starvation}
 
 
 def render_json(report: dict[str, Any]) -> str:
@@ -198,7 +204,7 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY, help=argparse.SUPPRESS)
+    parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY_ROOT, help=argparse.SUPPRESS)
     parser.add_argument("--json", type=Path, metavar="PATH")
     parser.add_argument("--markdown", type=Path, metavar="PATH")
     args = parser.parse_args()

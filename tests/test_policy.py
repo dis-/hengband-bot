@@ -317,13 +317,25 @@ class ReadLetterBindingTest(unittest.TestCase):
         )
 
     def test_no_composer_uppercases_a_pack_label_selector(self):
-        tree = ast.parse(textwrap.dedent(inspect.getsource(HengbotPolicy)))
+        root = Path(__file__).parents[1] / "src" / "hengbot"
         uppercase_calls = [
-            node.lineno
-            for node in ast.walk(tree)
+            (path.name, node.lineno)
+            for path in sorted(root.glob("*.py"))
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "upper"
+            and any(
+                (
+                    isinstance(part, ast.Name)
+                    and part.id in {"slot", "letter", "selector"}
+                )
+                or (
+                    isinstance(part, ast.Attribute)
+                    and part.attr in {"slot", "letter", "selector"}
+                )
+                for part in ast.walk(node.func.value)
+            )
         ]
 
         self.assertEqual(uppercase_calls, [])

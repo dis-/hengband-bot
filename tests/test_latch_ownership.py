@@ -16,8 +16,15 @@ from hengbot.policy import (
 class CrossDecisionLatchOwnershipTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source_path = Path(__file__).parents[1] / "src" / "hengbot" / "policy.py"
-        cls.tree = ast.parse(cls.source_path.read_text(encoding="utf-8"))
+        cls.source_root = Path(__file__).parents[1] / "src" / "hengbot"
+        cls.trees = [
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for path in sorted(cls.source_root.glob("*.py"))
+        ]
+        cls.tree = next(
+            tree for tree in cls.trees
+            if any(isinstance(node, ast.ClassDef) and node.name == "HengbotPolicy" for node in tree.body)
+        )
         cls.policy = next(
             node
             for node in cls.tree.body
@@ -28,20 +35,17 @@ class CrossDecisionLatchOwnershipTest(unittest.TestCase):
             for node in cls.policy.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
-        # Release sites may live on extracted mixins (split roadmap): include
-        # every HengbotPolicy base class defined under src/hengbot/.
-        arbiter_path = cls.source_path.parent / "town_arbiter.py"
-        arbiter_tree = ast.parse(arbiter_path.read_text(encoding="utf-8"))
-        for node in arbiter_tree.body:
-            if isinstance(node, ast.ClassDef) and node.name == "TownArbiterMixin":
+        # Release sites may live on any extracted mixin in src/hengbot/.
+        for tree in cls.trees:
+            for node in tree.body:
+                if not isinstance(node, ast.ClassDef):
+                    continue
                 for member in node.body:
                     if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         cls.methods.setdefault(member.name, member)
 
     def test_dangerous_latches_declare_owner_and_release_evaluator(self):
-        source = ast.get_source_segment(
-            self.source_path.read_text(encoding="utf-8"), self.methods["__init__"]
-        )
+        source = ast.unparse(self.methods["__init__"]).replace("'", '"')
         for latch in (
             "_store_visit",
             "_town_blocked_reason",
@@ -57,9 +61,7 @@ class CrossDecisionLatchOwnershipTest(unittest.TestCase):
 
     def test_every_declared_release_evaluator_runs_at_decision_entry(self):
         evaluator = self.methods["_evaluate_cross_decision_latches"]
-        evaluator_source = ast.get_source_segment(
-            self.source_path.read_text(encoding="utf-8"), evaluator
-        )
+        evaluator_source = ast.unparse(evaluator)
         self.assertIn("self._cross_decision_latches.values()", evaluator_source)
         self.assertIn("getattr(self, latch.release_evaluator)(snapshot)", evaluator_source)
 
@@ -72,9 +74,7 @@ class CrossDecisionLatchOwnershipTest(unittest.TestCase):
         )
 
     def test_each_declared_latch_names_existing_release_sites(self):
-        init_source = ast.get_source_segment(
-            self.source_path.read_text(encoding="utf-8"), self.methods["__init__"]
-        )
+        init_source = ast.unparse(self.methods["__init__"]).replace("'", '"')
         release_site_groups = __import__("re").findall(
             r"release_sites=\((.*?)\)", init_source, flags=__import__("re").S
         )

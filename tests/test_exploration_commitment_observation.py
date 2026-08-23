@@ -35,14 +35,16 @@ def corridor_snapshot(position: Position) -> Snapshot:
 
 class ExplorationPathInventoryTest(unittest.TestCase):
     def test_every_path_writer_and_clear_outcome_is_inventoried(self):
-        source_path = (
-            Path(__file__).parents[1] / "src" / "hengbot" / "policy.py"
-        )
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        source_root = Path(__file__).parents[1] / "src" / "hengbot"
+        trees = [
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for path in sorted(source_root.glob("*.py"))
+        ]
         writers = []
         clears = []
         for function in (
-            node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+            node for tree in trees for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
         ):
             for node in ast.walk(function):
                 if isinstance(node, ast.Assign) and any(

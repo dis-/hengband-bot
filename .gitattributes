@@ -1,0 +1,5 @@
+tests/fixtures/incident-equipment-abandon-loop-20260822.jsonl -text whitespace=-trailing-space
+tests/fixtures/incident-alchemist-repetition-20260823.jsonl -text whitespace=-trailing-space
+tests/fixtures/incident-launcher-repetition-20260823.jsonl -text whitespace=-trailing-space
+tests/fixtures/incident-calibration-entry-await-20260823.jsonl -text whitespace=-trailing-space
+tests/fixtures/incident-magic-abandon-cycle-20260823.jsonl -text whitespace=-trailing-space

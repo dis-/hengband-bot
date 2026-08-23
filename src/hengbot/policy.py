@@ -107,7 +107,7 @@ from hengbot.policy_constants import (
     UP_STAIRS_KEY,
     WAIT_KEY,
 )
-from hengbot.town_arbiter import TownArbiterMixin
+from hengbot.town_arbiter import TownArbiterMixin, TownTurnArbiter
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -1328,6 +1328,29 @@ class ProcurementHomeGate(Enum):
     BLOCKED = "blocked"
 
 
+def _new_town_turn_arbiter() -> TownTurnArbiter:
+    return TownTurnArbiter({
+        "store-router": (("TOWN_TRAVEL_STALL_LIMIT", "SHOP_APPROACH_STUCK_LIMIT"), min(TOWN_TRAVEL_STALL_LIMIT, SHOP_APPROACH_STUCK_LIMIT)),
+        "shop-buy": (("STORE_STUCK_LIMIT", "STORE_RETRY_TURNS"), STORE_STUCK_LIMIT),
+        "shop-sell": (("SELL_ATTEMPT_LIMIT",), SELL_ATTEMPT_LIMIT),
+        "home-visit": (("CALIBRATION_HOME_VISIT_LIMIT", "TOWN_STOP_PASS_LIMIT"), CALIBRATION_HOME_VISIT_LIMIT),
+        "home-errand": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "home-scan": (("CALIBRATION_HOME_VISIT_LIMIT",), CALIBRATION_HOME_VISIT_LIMIT),
+        "equipment-txn": (("EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT",), EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT),
+        "equipment-opt": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "calibration": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "identification": (("IDENTIFY_FAIL_LIMIT", "IDENTIFY_PURCHASE_MAX"), IDENTIFY_FAIL_LIMIT),
+        "town-plan": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "fundraising": (("MINING_STALL_LIMIT",), MINING_STALL_LIMIT),
+        "curse-enchant": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "cross-town": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
+        "survival": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "departure": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
+        "detectors": (("TOWN_CYCLE_BREAK_LIMIT",), TOWN_CYCLE_BREAK_LIMIT),
+        "misc": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+    })
+
+
 class HengbotPolicy(TownArbiterMixin):
     """Goal-seeking policy: survive, gain levels, and keep descending.
 
@@ -1854,6 +1877,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._escape_state = EscapeState()
         self._decision_sequence = 0
         self._owner_expectations = OwnerExpectationRegistry()
+        self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
         self._escape_sustain_floor: tuple[int, int, int] | None = None
         self._escape_sustain_active = False
@@ -1869,6 +1893,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._unseen_wait_remaining = 0
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
+
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
         self._threat_prediction_memo: dict[tuple, dict] = {}
@@ -2531,7 +2556,31 @@ class HengbotPolicy(TownArbiterMixin):
         key = self._town_procurement_decision(snapshot, key)
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
-        return self._forbid_wait_while_damaged(snapshot, key)
+        key = self._forbid_wait_while_damaged(snapshot, key)
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        if arbiter is None:
+            # Restored trajectory checkpoints predate ARB-1 state.  Recreate
+            # advisory state without altering any legacy policy field.
+            arbiter = _new_town_turn_arbiter()
+            self._town_turn_arbiter = arbiter
+        arbiter.observe(
+            in_town=bool(snapshot.in_town or snapshot.store is not None),
+            reason=self.last_reason,
+            progress_vector=self._town_arbiter_progress_vector(snapshot),
+        )
+        return key
+
+    def _town_arbiter_progress_vector(self, snapshot: Snapshot) -> tuple[object, ...]:
+        """Read the advisory claim and departure facts without routing work."""
+        departure = getattr(self, "_departure_block", {}) or {}
+        return (
+            self._owner_progress_core(snapshot),
+            self._town_progress_fingerprint(snapshot),
+            tuple(sorted((str(key), repr(value)) for key, value in departure.items())),
+            getattr(self, "_town_blocked_reason", None),
+            getattr(self, "_descent_refusal_reason", None),
+            bool(getattr(self, "_descent_blocked", False)),
+        )
 
     # Closed list: additions are policy changes and require a dedicated pin.
     TOWN_PROGRESS_ALLOW_SET = frozenset({
