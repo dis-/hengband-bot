@@ -76,6 +76,7 @@ class StoreVisit:
     operation_key: str | None = None
     operation_released: bool = False
     operation_effect_observed: bool = False
+    home_first_composition_refused: bool = False
     outcome: str | None = None
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:

@@ -53323,6 +53323,50 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             store=store,
         )
 
+    def _q2_policy(self):
+        knowledge = load_quest_knowledge(REAL_QUEST_DEFINITIONS)
+        return HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+            quest_knowledge={2: knowledge[2]},
+        )
+
+    def _q2_town(self, *, store=None, gold=11887, turn=495945):
+        return replace(
+            self._town(store=store, gold=gold, turn=turn),
+            player=replace(
+                self._town().player,
+                level=10,
+                gold=gold,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            equipment=[item(
+                "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True
+            )],
+            quests={
+                2: QuestState(2, status=QUEST_STATUS_UNTAKEN, fixed=True)
+            },
+        )
+
+    def _q1_policy_and_town(self):
+        knowledge = load_quest_knowledge(REAL_QUEST_DEFINITIONS)
+        policy = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+            quest_knowledge={1: knowledge[1]},
+        )
+        town = replace(
+            self._town(gold=11887),
+            player=replace(
+                self._town().player,
+                level=5,
+                gold=11887,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            quests={
+                1: QuestState(1, status=QUEST_STATUS_UNTAKEN, fixed=True)
+            },
+        )
+        return policy, town
+
     def test_exhausted_incident_quest_carry_is_abandoned_for_departure(self):
         policy = HengbotPolicy()
         profile = SimpleNamespace(required_force=self.FORCE, engagement_plan={})
@@ -53415,68 +53459,77 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             policy._supply_ledger(town, policy._planned_depth())["oil"],
         )
 
-    def test_pin_vacuity_home_first_refusal_preserves_observed_supplier(self):
+    def test_pin_vacuity_public_visit_refusal_preserves_observed_supplier(self):
         bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
-        town = replace(
-            self._town(gold=11887),
+        outside = replace(
+            self._q2_town(),
             grids={
                 Position(10, 10): replace(
                     grid(10, 10), store_number=STORE_WEAPON
-                )
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
             },
         )
-        policy = HengbotPolicy()
+        policy = self._q2_policy()
         policy._home_knowledge_current = False
-        policy._shopping_approach_store_type = STORE_WEAPON
         policy._town_errand_plan = TownErrandPlan(
             [STORE_WEAPON],
             need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand",
+            "shopping",
+            STORE_WEAPON,
+            phase=StoreVisitPhase.LEAVING,
         )
         policy._shop_observation = (
             StoreState(STORE_WEAPON, [bolts], page_top=0),
             policy._decision_sequence,
         )
-        policy._shop_selector_diagnostics.update({
-            "composition_refusal":
-                "town:blocked:procurement-home-unroutable",
-            "composition_refusal_sequence": policy._decision_sequence,
-        })
 
-        consumed = policy._resolve_observed_uncomposable_stop(town)
-
-        self.assertTrue(consumed)
-        self.assertNotIn(STORE_WEAPON, policy._town_store_attempted)
-        self.assertEqual(policy._town_errand_plan.index, 0)
-        self.assertIsNotNone(policy._shop_observation)
+        policy.choose_key(outside)
+        self.assertTrue(policy._store_visit.home_first_composition_refused)
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
             "town:blocked:procurement-home-unroutable",
         )
-
-    def test_pin_vacuity_remembered_bolts_restore_public_ranged_claim(self):
-        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
-        crossbow = item(
-            "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
         )
-        town = replace(self._town(gold=11887), equipment=[crossbow])
-        policy = HengbotPolicy()
-        profile = SimpleNamespace(required_force=self.FORCE, engagement_plan={})
+        inside = replace(
+            outside,
+            turn=outside.turn + 1,
+            store=StoreState(STORE_WEAPON, [bolts]),
+        )
+        policy.choose_key(inside)
+
+        self.assertNotIn(STORE_WEAPON, policy._town_store_attempted)
+        self.assertEqual(policy._town_errand_plan.index, 0)
+
+    def test_pin_vacuity_remembered_bolts_restore_real_ranged_claim(self):
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        town = self._q2_town()
+        policy = self._q2_policy()
+        profile = policy._carry_procurement_strategy(town)
+        self.assertIsNotNone(profile)
         policy._town_store_attempted[STORE_WEAPON] = town.turn
         policy._town_supplier_stock[STORE_WEAPON] = StoreState(
             STORE_WEAPON, [bolts]
         )
 
-        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            policy.consume_home_knowledge(())
-            active = policy._town_claims_active(town)
-            supply = policy._quest_carry_obtainability(
-                town,
-                profile,
-                "throwing_items.launcher_ammo",
-                policy._quest_carry_status(town, self.FORCE)[
-                    "throwing_items.launcher_ammo"
-                ],
-            )
+        policy.consume_home_knowledge(())
+        active = policy._town_claims_active(town)
+        supply = policy._quest_carry_obtainability(
+            town,
+            profile,
+            "throwing_items.launcher_ammo",
+            policy._quest_carry_status(town, profile.required_force)[
+                "throwing_items.launcher_ammo"
+            ],
+        )
 
         self.assertTrue(supply.obtainable)
         self.assertTrue(active)
@@ -53484,6 +53537,105 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         self.assertNotEqual(
             policy._town_blocked_reason, "departure-unsatisfiable"
         )
+
+    def test_sibling_claims_match_remembered_affordable_obtainability(self):
+        cases = (
+            (
+                "throwing_items.lit_torch",
+                STORE_GENERAL,
+                store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3),
+                "quest-throwing-items",
+            ),
+            (
+                "required_scrolls.light",
+                STORE_ALCHEMIST,
+                store_item("a", TVAL_SCROLL, SV_SCROLL_LIGHT, price=20),
+                "quest-scrolls",
+            ),
+            (
+                "required_scrolls.teleport",
+                STORE_ALCHEMIST,
+                store_item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT, price=40),
+                "quest-scrolls",
+            ),
+            (
+                "utility_tools.wall_breach",
+                STORE_GENERAL,
+                store_item(
+                    "a", TVAL_WAND, SV_WAND_STONE_TO_MUD,
+                    price=500, charges=1,
+                ),
+                "quest-wall-breach",
+            ),
+        )
+        town = self._q2_town()
+        for name, supplier, stock, category in cases:
+            with self.subTest(name=name):
+                case_town = town
+                if name == "throwing_items.lit_torch":
+                    policy, case_town = self._q1_policy_and_town()
+                else:
+                    policy = self._q2_policy()
+                strategy = policy._carry_procurement_strategy(case_town)
+                self.assertIsNotNone(strategy)
+                for attempted in policy._quest_carry_suppliers(name):
+                    policy._town_store_attempted[attempted] = case_town.turn
+                policy._town_supplier_stock[supplier] = StoreState(
+                    supplier, [stock]
+                )
+
+                status = policy._quest_carry_status(
+                    case_town, strategy.required_force
+                )[name]
+                supply = policy._quest_carry_obtainability(
+                    case_town, strategy, name, status
+                )
+                needs = policy._enumerate_town_needs(case_town)
+
+                self.assertTrue(supply.obtainable)
+                self.assertIn(TownNeed(supplier, category, "normal"), needs)
+                self.assertNotIn(
+                    name, policy._abandoned_quest_carry_requirements
+                )
+
+    def test_sibling_claims_abandon_when_no_affordable_stock_is_remembered(self):
+        names = (
+            "throwing_items.lit_torch",
+            "required_scrolls.light",
+            "required_scrolls.teleport",
+            "utility_tools.wall_breach",
+        )
+        town = self._q2_town()
+        for name in names:
+            with self.subTest(name=name):
+                case_town = town
+                if name == "throwing_items.lit_torch":
+                    policy, case_town = self._q1_policy_and_town()
+                else:
+                    policy = self._q2_policy()
+                strategy = policy._carry_procurement_strategy(case_town)
+                self.assertIsNotNone(strategy)
+                for supplier in policy._quest_carry_suppliers(name):
+                    policy._town_store_attempted[supplier] = case_town.turn
+
+                status = policy._quest_carry_status(
+                    case_town, strategy.required_force
+                )[name]
+                supply = policy._quest_carry_obtainability(
+                    case_town, strategy, name, status
+                )
+                needs = policy._enumerate_town_needs(case_town)
+
+                self.assertFalse(supply.obtainable)
+                self.assertEqual(
+                    policy._abandoned_quest_carry_requirements[name],
+                    "all-suppliers-visited-without-affordable-stock",
+                )
+                self.assertFalse(any(
+                    need.store_type in policy._quest_carry_suppliers(name)
+                    and need.category.startswith("quest-")
+                    for need in needs
+                ))
 
     def test_healthy_cure_critical_one_shot_still_composes(self):
         cure = store_item(

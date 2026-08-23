@@ -17036,7 +17036,15 @@ class HengbotPolicy(TownArbiterMixin):
                             int(torch_status["required"]) - int(torch_status["measured"]),
                         )
                     add(STORE_HOME, "quest-throwing-items", "home-first")
-                if STORE_GENERAL not in self._town_store_attempted:
+                if (
+                    STORE_GENERAL not in self._town_store_attempted
+                    or self._quest_carry_remembered_affordable(
+                        snapshot,
+                        quest_strategy,
+                        "throwing_items.lit_torch",
+                        STORE_GENERAL,
+                    )
+                ):
                     add(STORE_GENERAL, "quest-throwing-items")
             self._abandon_unobtainable_quest_carries(snapshot, quest_strategy)
             home_launcher = self._preferred_home_quest_launcher(
@@ -17063,16 +17071,41 @@ class HengbotPolicy(TownArbiterMixin):
                 ):
                     add(STORE_WEAPON, "quest-ranged-kit")
             if any(name.startswith("required_scrolls.") for name in missing_carries):
-                if STORE_ALCHEMIST not in self._town_store_attempted:
+                if (
+                    STORE_ALCHEMIST not in self._town_store_attempted
+                    or any(
+                        self._quest_carry_remembered_affordable(
+                            snapshot, quest_strategy, name, STORE_ALCHEMIST
+                        )
+                        for name in missing_carries
+                        if name.startswith("required_scrolls.")
+                    )
+                ):
                     add(STORE_ALCHEMIST, "quest-scrolls")
             if "utility_tools.wall_breach" in missing_carries:
                 # Stone-to-Mud is not in the normal Magic-shop table.  It can
                 # appear in the Black Market's random stock, so inspect that
                 # store once before checking the General Store for an eligible
                 # +3 digger.  Neither random stock is waited on indefinitely.
-                if STORE_BLACK not in self._town_store_attempted:
+                if (
+                    STORE_BLACK not in self._town_store_attempted
+                    or self._quest_carry_remembered_affordable(
+                        snapshot,
+                        quest_strategy,
+                        "utility_tools.wall_breach",
+                        STORE_BLACK,
+                    )
+                ):
                     add(STORE_BLACK, "quest-wall-breach")
-                elif STORE_GENERAL not in self._town_store_attempted:
+                elif (
+                    STORE_GENERAL not in self._town_store_attempted
+                    or self._quest_carry_remembered_affordable(
+                        snapshot,
+                        quest_strategy,
+                        "utility_tools.wall_breach",
+                        STORE_GENERAL,
+                    )
+                ):
                     add(STORE_GENERAL, "quest-wall-breach")
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
@@ -18216,6 +18249,14 @@ class HengbotPolicy(TownArbiterMixin):
             plan.index += 1
             return
         if store_type != STORE_HOME:
+            if (
+                self._store_visit is not None
+                and self._store_visit.store_type == store_type
+                and getattr(
+                    self._store_visit, "home_first_composition_refused", False
+                )
+            ):
+                return
             if operation_completed:
                 plan.current_stop_passes = 0
                 return
@@ -21811,6 +21852,12 @@ class HengbotPolicy(TownArbiterMixin):
             home_gate = self._purchase_has_fresh_home_absence(snapshot, item)
             if home_gate is not ProcurementHomeGate.ALLOW_PURCHASE:
                 if home_gate is ProcurementHomeGate.BLOCKED:
+                    if (
+                        self._store_visit is not None
+                        and self._store_visit.store_type == store.store_type
+                        and self._store_visit.phase != StoreVisitPhase.CLOSED
+                    ):
+                        self._store_visit.home_first_composition_refused = True
                     return WAIT_KEY
                 self._rearm_town_store_for_new_work(
                     STORE_HOME, release_visit_bound=True
