@@ -8092,24 +8092,11 @@ class HengbotPolicy(TownArbiterMixin):
         """Mirror SupplyLedger's per-visit evidence for one quest carry entry."""
         stores = self._quest_carry_suppliers(name)
         obtainable = False
-        expected_target = "launcher" if name.startswith("launcher") else name.partition(".")[2]
-        supplier_pages = dict(getattr(self, "_town_supplier_stock", {}))
-        if snapshot.store is not None:
-            supplier_pages[snapshot.store.store_type] = snapshot.store
         for current_supplier in stores:
-            page = supplier_pages.get(current_supplier)
-            if page is not None:
-                for item in page.items:
-                    target = self._quest_carry_target_for_item(
-                        snapshot, item, strategy.required_force
-                    )
-                    if (
-                        target is not None
-                        and target[0] == expected_target
-                        and item.price <= snapshot.player.gold
-                    ):
-                        obtainable = True
-                        break
+            if self._quest_carry_remembered_affordable(
+                snapshot, strategy, name, current_supplier
+            ):
+                obtainable = True
             if obtainable:
                 break
             if current_supplier not in self._town_store_attempted:
@@ -8129,6 +8116,31 @@ class HengbotPolicy(TownArbiterMixin):
             int(status["required"]),
             obtainable,
             stores,
+        )
+
+    def _quest_carry_remembered_affordable(
+        self,
+        snapshot: Snapshot,
+        strategy: StrategyProfile,
+        name: str,
+        store_type: int,
+    ) -> bool:
+        """Return whether a remembered supplier page can satisfy one carry."""
+        page = self._town_supplier_stock.get(store_type)
+        if snapshot.store is not None and snapshot.store.store_type == store_type:
+            page = snapshot.store
+        if page is None:
+            return False
+        expected_target = (
+            "launcher" if name.startswith("launcher") else name.partition(".")[2]
+        )
+        return any(
+            item.price <= snapshot.player.gold
+            and (target := self._quest_carry_target_for_item(
+                snapshot, item, strategy.required_force
+            )) is not None
+            and target[0] == expected_target
+            for item in page.items
         )
 
     def _abandon_unobtainable_quest_carries(
@@ -17038,7 +17050,17 @@ class HengbotPolicy(TownArbiterMixin):
                 "throwing_items.bolt",
                 "throwing_items.launcher_ammo",
             } or ("launcher" in missing_carries and home_launcher is None):
-                if STORE_WEAPON not in self._town_store_attempted:
+                remembered_affordable = any(
+                    self._quest_carry_remembered_affordable(
+                        snapshot, quest_strategy, name, STORE_WEAPON
+                    )
+                    for name in missing_carries
+                    if STORE_WEAPON in self._quest_carry_suppliers(name)
+                )
+                if (
+                    STORE_WEAPON not in self._town_store_attempted
+                    or remembered_affordable
+                ):
                     add(STORE_WEAPON, "quest-ranged-kit")
             if any(name.startswith("required_scrolls.") for name in missing_carries):
                 if STORE_ALCHEMIST not in self._town_store_attempted:
@@ -22265,6 +22287,18 @@ class HengbotPolicy(TownArbiterMixin):
             )
         if not observed:
             return False
+        if (
+            store_type != STORE_HOME
+            and self._shop_selector_diagnostics.get("composition_refusal")
+            == "town:blocked:procurement-home-unroutable"
+            and self._shop_selector_diagnostics.get("composition_refusal_sequence")
+            == self._decision_sequence
+        ):
+            # The supplier page was observed, but Home-first arbitration
+            # refused to ask the shop for the selected item.  Preserve both
+            # the page and plan stop so this pass cannot become durable
+            # evidence that the supplier had no actionable stock.
+            return True
         plan.blocked_this_visit.append(store_type)
         plan.current_stop_passes = 0
         plan.index += 1

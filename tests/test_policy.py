@@ -53415,6 +53415,106 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             policy._supply_ledger(town, policy._planned_depth())["oil"],
         )
 
+    def test_pin_vacuity_home_first_refusal_preserves_observed_supplier(self):
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        town = replace(
+            self._town(gold=11887),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                )
+            },
+        )
+        policy = HengbotPolicy()
+        policy._home_knowledge_current = False
+        policy._shopping_approach_store_type = STORE_WEAPON
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence,
+        )
+        policy._shop_selector_diagnostics.update({
+            "composition_refusal":
+                "town:blocked:procurement-home-unroutable",
+            "composition_refusal_sequence": policy._decision_sequence,
+        })
+
+        consumed = policy._resolve_observed_uncomposable_stop(town)
+
+        self.assertTrue(consumed)
+        self.assertNotIn(STORE_WEAPON, policy._town_store_attempted)
+        self.assertEqual(policy._town_errand_plan.index, 0)
+        self.assertIsNotNone(policy._shop_observation)
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "town:blocked:procurement-home-unroutable",
+        )
+
+    def test_pin_vacuity_remembered_bolts_restore_public_ranged_claim(self):
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        crossbow = item(
+            "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True
+        )
+        town = replace(self._town(gold=11887), equipment=[crossbow])
+        policy = HengbotPolicy()
+        profile = SimpleNamespace(required_force=self.FORCE, engagement_plan={})
+        policy._town_store_attempted[STORE_WEAPON] = town.turn
+        policy._town_supplier_stock[STORE_WEAPON] = StoreState(
+            STORE_WEAPON, [bolts]
+        )
+
+        with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
+            policy.consume_home_knowledge(())
+            active = policy._town_claims_active(town)
+            supply = policy._quest_carry_obtainability(
+                town,
+                profile,
+                "throwing_items.launcher_ammo",
+                policy._quest_carry_status(town, self.FORCE)[
+                    "throwing_items.launcher_ammo"
+                ],
+            )
+
+        self.assertTrue(supply.obtainable)
+        self.assertTrue(active)
+        self.assertIn("quest-ranged-kit", policy._town_claim_categories)
+        self.assertNotEqual(
+            policy._town_blocked_reason, "departure-unsatisfiable"
+        )
+
+    def test_healthy_cure_critical_one_shot_still_composes(self):
+        cure = store_item(
+            "a", TVAL_POTION, SV_POTION_CURE_CRITICAL, price=1650
+        )
+        town = replace(
+            self._town(gold=11887),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_TEMPLE
+                )
+            },
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+        policy._shopping_approach_store_type = STORE_TEMPLE
+        policy._shop_observation = (
+            StoreState(STORE_TEMPLE, [cure], page_top=0),
+            policy._decision_sequence,
+        )
+
+        key = policy._atomic_shop_transaction_key(town)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertEqual(policy._store_visit.operation_key, "pa\r\x1b")
+        self.assertEqual(
+            policy._town_visit_ledger.pending_store_transaction,
+            (STORE_TEMPLE, policy._decision_sequence),
+        )
+
     def test_unattempted_remembered_unaffordable_oil_keeps_claim(self):
         oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, price=400)
         town = replace(
