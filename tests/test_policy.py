@@ -51615,6 +51615,21 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsNotNone(step)
         self.assertNotEqual(step, entrance.player.position)
         self.assertIsNotNone(policy._store_entrance_step_off)
+        armed_sequence = policy._decision_sequence
+
+        same_decision = HengbotPolicy()
+        same_decision._last_snapshot_was_store = True
+        same_decision.last_reason = "home:stale-deposit-reason"
+        same_decision._floor_t = {(44, 124), (45, 122)}
+        same_step = same_decision._shopping_approach_step(entrance, STORE_HOME)
+        with patch.object(same_decision, "_find_home_deposit", return_value=target):
+            same_key = same_decision._shopping_approach_key(
+                entrance, same_step, "shop:travel"
+            )
+        self.assertEqual(same_key, WAIT_KEY)
+        self.assertIsNotNone(same_decision._home_atomic_deposit_pending)
+
+        policy._decision_sequence += 1
         with patch.object(policy, "_find_home_deposit", return_value=target):
             key = policy._shopping_approach_key(entrance, step, "shop:travel")
 
@@ -51623,7 +51638,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsNone(policy._store_visit.operation_key)
         self.assertEqual(
             policy._store_entrance_step_off,
-            (policy._decision_sequence, entrance.turn, entrance.player.position),
+            (armed_sequence, entrance.turn, entrance.player.position),
         )
 
         adjacent = replace(
@@ -51643,7 +51658,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsNone(
             policy._atomic_home_deposit_key(entrance, entrance.player.position)
         )
-        self.assertIsNone(policy.last_reason)
+        self.assertEqual(policy.last_reason, "")
 
     def test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound(self):
         policy = HengbotPolicy()

@@ -3087,7 +3087,11 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
 
     def test_atomic_home_reasons_wait_for_a_changed_snapshot(self):
         line = _snap_line(1007134, 45, 123)
-        for reason in ("home:atomic-deposit", "home-visit:calibration-deposit:put"):
+        for reason in (
+            "home:deposit",
+            "home:atomic-deposit",
+            "home-visit:calibration-deposit:put",
+        ):
             with self.subTest(reason=reason):
                 self.assertFalse(_duplicate_snapshot_ready(line, line, reason))
 

@@ -5226,6 +5226,10 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.store is None
             and self._store_visit is not None
             and self._store_visit.operation_posted
+            and (
+                self._store_visit.store_type != STORE_HOME
+                or self._store_visit.phase == StoreVisitPhase.ENTERING
+            )
         ):
             # A player-turn at the entrance can be emitted after the leading
             # stay key but before the queued store UI consumes the transaction.
@@ -13780,7 +13784,10 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
             or self._home_atomic_withdraw_pending is not None
-            or getattr(self, "_store_entrance_step_off", None) is not None
+            or (
+                getattr(self, "_store_entrance_step_off", None) is not None
+                and self._store_entrance_step_off[0] != self._decision_sequence
+            )
         ):
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
@@ -14257,7 +14264,10 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
             or self._home_atomic_deposit_pending is not None
-            or getattr(self, "_store_entrance_step_off", None) is not None
+            or (
+                getattr(self, "_store_entrance_step_off", None) is not None
+                and self._store_entrance_step_off[0] != self._decision_sequence
+            )
         ):
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
@@ -14359,7 +14369,7 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         deposit = self._find_home_deposit(snapshot)
         if deposit is None:
-            self.last_reason = None
+            self.last_reason = ""
             return None
         current = next(
             (
