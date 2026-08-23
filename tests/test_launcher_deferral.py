@@ -53,17 +53,19 @@ class LauncherDeferralPinsTest(unittest.TestCase):
             [], inventory=[scroll, staff, launcher], town_flag=True,
         )
         policy = HengbotPolicy()
+        # Burn the once-per-arrival clear before arming the incident deferral.
+        policy.choose_key(replace(snapshot, inventory=[]))
+        policy._equipment_catalog.complete_home_scan([])
         signature = policy._item_signature(launcher)
         policy._deferred_home_items.add(signature)
-        policy._equipment_catalog.refresh_carried([launcher], [])
-        self.assertTrue(any(
-            owned.identification_incomplete
-            for owned in policy._equipment_catalog.items
-        ))
 
         key = policy.choose_key(snapshot)
 
         self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertTrue(any(
+            owned.identification_incomplete
+            for owned in policy._equipment_catalog.items
+        ))
         self.assertLess(
             policy._identify_staff_success_rate(snapshot),
             0.80,
@@ -117,6 +119,63 @@ class LauncherDeferralPinsTest(unittest.TestCase):
 
         policy._equipment_catalog.complete_home_scan([])
         policy._refresh_carried_equipment_catalog(snapshot)
+        self.assertNotIn(signature, policy._deferred_home_items)
+
+    def test_unscanned_home_does_not_release_carried_twin_deferral(self):
+        launcher = item(
+            "q", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="light crossbow", known=False, aware=False,
+            is_equipment=True, pseudo_feeling="good",
+        )
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            inventory=[launcher], town_flag=True,
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(launcher)
+        policy._deferred_home_items.add(signature)
+
+        policy._refresh_carried_equipment_catalog(snapshot)
+
+        self.assertFalse(policy._equipment_catalog.home_scan_complete)
+        self.assertIn(signature, policy._deferred_home_items)
+
+    def test_public_temple_cycle_replay_exits_by_identifying_launcher(self):
+        origin = Position(32, 76)
+        temple = Position(31, 77)
+        launcher = item(
+            "q", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="light crossbow", known=False, aware=False,
+            is_equipment=True, pseudo_feeling="good",
+        )
+        scroll = item(
+            "i", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="Scroll of Identify",
+        )
+        snapshot = Snapshot(
+            replace(
+                player(origin.y, origin.x, class_id=PLAYER_CLASS_WARRIOR),
+                device_skill=16,
+            ),
+            {
+                origin: grid(origin.y, origin.x),
+                temple: replace(
+                    grid(temple.y, temple.x), store_number=STORE_TEMPLE
+                ),
+                Position(32, 77): grid(32, 77),
+            },
+            [], inventory=[scroll, launcher], town_flag=True,
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(replace(snapshot, inventory=[]))
+        signature = policy._item_signature(launcher)
+        policy._deferred_home_items.add(signature)
+        policy._equipment_catalog.complete_home_scan([])
+
+        key = policy.choose_key(snapshot)
+
+        self.assertTrue(key)
+        self.assertEqual(policy.last_reason, "identify:normal")
         self.assertNotIn(signature, policy._deferred_home_items)
 
     def test_pin_vacuity_town_fingerprint_ignores_only_lantern_name(self):

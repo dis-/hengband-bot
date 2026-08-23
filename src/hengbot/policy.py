@@ -2049,6 +2049,10 @@ class HengbotPolicy(TownArbiterMixin):
         # (device use stalls), plus a watch on the last attempt to detect that
         # the pack's unknown count did not change afterwards.
         self._unidentifiable_sigs: set[tuple[str, int, int]] = set()
+        # Carried equipment whose identification sources were exhausted is
+        # skipped only for the current town visit.  Unlike the dungeon-facing
+        # failure set above, this must survive every in-town observation.
+        self._town_unidentifiable_carried_sigs: set[tuple[str, int, int]] = set()
         # Full-*Identify* scrolls may not exist in a game. Remember equipment
         # proven unobtainable across town visits, but retry it if a source later
         # appears in the pack.
@@ -3302,9 +3306,10 @@ class HengbotPolicy(TownArbiterMixin):
             for owned in self._equipment_catalog.items
             if owned.origin == "home"
         }
-        self._deferred_home_items.difference_update(
-            carried_signatures - home_signatures
-        )
+        if self._equipment_catalog.home_scan_complete:
+            self._deferred_home_items.difference_update(
+                carried_signatures - home_signatures
+            )
 
     def _choose_key_with_latch_capture(self, snapshot: Snapshot) -> str:
         capture_path = self._latch_capture_path
@@ -7275,6 +7280,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._batch_sell_pending = None
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
+                self._town_unidentifiable_carried_sigs.clear()
                 self._deferred_device_items.clear()
                 self._retried_home_identification_items.clear()
 
@@ -15656,6 +15662,8 @@ class HengbotPolicy(TownArbiterMixin):
                 lambda item: item.is_equipment
                 and self._item_signature(item) not in self._deferred_home_items
                 and self._item_signature(item) not in self._unidentifiable_sigs
+                and self._item_signature(item)
+                not in self._town_unidentifiable_carried_sigs
                 and self._identification_flow_candidate(item),
             )
             if target is None:
@@ -15663,7 +15671,11 @@ class HengbotPolicy(TownArbiterMixin):
             full = target.known
             key = self._carried_identify_command(snapshot, target, full=full)
             if key is None:
-                if self._item_signature(target) in self._unidentifiable_sigs:
+                if (
+                    self._item_signature(target) in self._unidentifiable_sigs
+                    or self._item_signature(target)
+                    in self._town_unidentifiable_carried_sigs
+                ):
                     return None
                 signature = self._item_signature(target)
                 if full and STORE_ALCHEMIST in self._town_store_attempted:
@@ -19054,7 +19066,7 @@ class HengbotPolicy(TownArbiterMixin):
                 and self._item_signature(owned.item) == candidate
             }
             if candidate is not None and candidate_origins & {"pack", "equipped"}:
-                self._unidentifiable_sigs.add(candidate)
+                self._town_unidentifiable_carried_sigs.add(candidate)
             elif candidate is not None and "home" in candidate_origins:
                 self._deferred_home_items.add(candidate)
             elif self._device_identification_candidate is not None:

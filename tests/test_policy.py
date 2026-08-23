@@ -29718,6 +29718,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             town_flag=True,
         )
         policy = HengbotPolicy()
+        policy._observe(snap)
 
         policy._refresh_carried_equipment_catalog(snap)
         self.assertIsNone(policy._town_item_processing_key(snap))
@@ -29734,16 +29735,22 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             side_effect=lambda store: (rearmed.append(store), original_rearm(store))[1],
         ):
             for _ in range(12):
+                policy._observe(snap)
                 policy._town_terminal_transitions(snap)
                 self.assertIsNone(policy._town_item_processing_key(snap))
 
-        self.assertIn(signature, policy._unidentifiable_sigs)
+        self.assertIn(signature, policy._town_unidentifiable_carried_sigs)
         self.assertNotIn(signature, policy._deferred_home_items)
         self.assertEqual(rearmed.count(STORE_ALCHEMIST), 0)
         self.assertIsNone(policy._identification_need)
         self.assertTrue(
             policy._town_departure_conjuncts(snap)["identification_need_clear"]
         )
+
+        arrival = replace(snap, floor_key=(1, 1, 1), town_flag=False)
+        policy._observe(arrival)
+        policy._observe(snap)
+        self.assertNotIn(signature, policy._town_unidentifiable_carried_sigs)
 
     def test_defers_unknown_device_when_identification_is_unavailable(self):
         wand = item("a", TVAL_WAND, -1, aware=False, known=False, name="unknown wand")
