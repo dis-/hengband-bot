@@ -44,35 +44,36 @@ class TownTurnArbiter:
                 name, prefixes, metric, references, max(1, budget)
             )
 
-        # Ordered from narrow families to broad compatibility families.  The
-        # final registered owner covers genuinely miscellaneous town rungs;
-        # attribution therefore remains total while the legacy ladder exists.
+        # Ordered from narrow families to explicitly registered compatibility
+        # families. Unknown reasons remain falsifiable as ``unregistered``.
         registrations = (
             registration("home-errand", ("home-errand:",), "executor state advance"),
             registration("home-scan", ("home:request-knowledge", "home:scan", "home:seek-"), "home scan completion"),
             registration("home-visit", ("home:", "home-visit:", "home-disposal:"), "addressed Home state delta"),
-            registration("shop-sell", ("shop:sale", "shop:batch-sale", "shop:one-shot-sale", "equipment:sale"), "gold up and inventory delta"),
-            registration("shop-buy", ("shop:one-shot-buy", "shop:buy", "shop:await-", "shop:observe"), "gold down and inventory delta"),
-            registration("store-router", ("shop:approach", "store:", "town:travel", "town-travel:"), "distance to store goal"),
-            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:"), "equipment session or slot delta"),
+            registration("shop-sell", ("shop:sale", "shop:batch-sale", "shop:batch-inscribe", "shop:one-shot-sale", "shop:one-shot-sell", "equipment:sale"), "gold up and inventory delta"),
+            registration("shop-buy", ("shop:one-shot-buy", "shop:one-shot-in-flight", "shop:buy", "shop:await-", "shop:observe"), "gold down and inventory delta"),
+            registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:"), "distance to store goal"),
+            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "town:restore-combat-weapon", "wield-light"), "equipment session or slot delta"),
             registration("equipment-opt", ("equipment-optimization:", "equipment:opt", "optimizer:"), "optimization signature delta"),
             registration("calibration", ("calibration:",), "calibration phase advance"),
             registration("identification", ("identify:", "identification:", "item-processing:"), "known item or failure-set delta"),
             registration("fundraising", ("fundraise:", "fundraising:", "mining:"), "gold or vein delta"),
             registration("curse-enchant", ("curse:", "remove-curse:", "enchant:"), "curse or enchantment delta"),
             registration("cross-town", ("town:cross-town", "town:morivant"), "expedition state advance"),
-            registration("survival", ("survival:", "weak-fainting", "status-threat:"), "survival supply or status delta"),
-            registration("departure", ("depart", "descend", "recall", "stair:", "postlevel:", "repetition-depart", "town:entrance"), "stairs, recall, or floor delta"),
+            registration("survival", ("survival:", "weak-fainting", "status-threat:", "town:kill-mob"), "survival supply or status delta"),
+            registration("departure", ("depart", "descend", "recall", "return:wait-recall", "stair:", "postlevel:", "repetition-depart", "town:repetition-depart", "town:entrance"), "stairs, recall, or floor delta"),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness"), "completed plan or claim delta"),
-            registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "stuck:", "novel:", "breakout", "no-wait:"), "block release or visible stop"),
-            registration("misc", (), "town progress vector delta"),
+            registration("rumor", ("town:rumor-wait-supplies",), "departure-ready gate delta"),
+            registration("quest-request", ("fixedquest:", "quest:"), "quest request or phase advance"),
+            registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:"), "block release or visible stop"),
+            registration("misc", ("policy:", "town:misc:", "periodic:", "explore", "melee", "hunt", "seek-loot"), "town progress vector delta"),
         )
         self.registry = {entry.name: entry for entry in registrations}
         self._ordered = registrations
         self._owner: str | None = None
         self._tenure = 0
-        self._no_progress = 0
-        self._vector: object | None = None
+        self._no_progress_by_owner: dict[str, int] = {}
+        self._vector_by_owner: dict[str, object] = {}
         self.telemetry: dict[str, object] | None = None
 
     def owner_for_reason(self, reason: str) -> str:
@@ -80,7 +81,7 @@ class TownTurnArbiter:
         for entry in self._ordered:
             if entry.reason_prefixes and normalized.startswith(entry.reason_prefixes):
                 return entry.name
-        return "misc"
+        return "unregistered"
 
     def observe(
         self,
@@ -92,26 +93,31 @@ class TownTurnArbiter:
         if not in_town:
             self._owner = None
             self._tenure = 0
-            self._no_progress = 0
-            self._vector = None
+            self._no_progress_by_owner.clear()
+            self._vector_by_owner.clear()
             self.telemetry = None
             return None
         owner = self.owner_for_reason(reason)
         same_owner = owner == self._owner
-        progress = not same_owner or self._vector != progress_vector
+        previous_vector = self._vector_by_owner.get(owner)
+        progress = previous_vector is None or previous_vector != progress_vector
         self._tenure = self._tenure + 1 if same_owner else 1
-        self._no_progress = 0 if progress else self._no_progress + 1
-        registration = self.registry[owner]
-        remaining = max(0, registration.budget - self._no_progress)
+        no_progress = 0 if progress else self._no_progress_by_owner.get(owner, 0) + 1
+        self._no_progress_by_owner[owner] = no_progress
+        self._vector_by_owner[owner] = progress_vector
+        registration = self.registry.get(owner)
+        remaining = (
+            max(0, registration.budget - no_progress)
+            if registration is not None else None
+        )
         self.telemetry = {
             "owner": owner,
             "tenure": self._tenure,
             "progress": progress,
             "budget_remaining_estimate": remaining,
-            "would_retire": not progress and remaining == 0,
+            "would_retire": registration is not None and not progress and remaining == 0,
         }
         self._owner = owner
-        self._vector = progress_vector
         return dict(self.telemetry)
 
 

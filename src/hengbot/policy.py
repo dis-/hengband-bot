@@ -1347,6 +1347,8 @@ def _new_town_turn_arbiter() -> TownTurnArbiter:
         "survival": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
         "departure": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
         "detectors": (("TOWN_CYCLE_BREAK_LIMIT",), TOWN_CYCLE_BREAK_LIMIT),
+        "rumor": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "quest-request": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
         "misc": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
     })
 
@@ -2509,6 +2511,12 @@ class HengbotPolicy(TownArbiterMixin):
         self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        if arbiter is None:
+            # restore_checkpoint upgrades older captures with this explicit
+            # slot; reconstruct its advisory observer on first use.
+            arbiter = _new_town_turn_arbiter()
+            self._town_turn_arbiter = arbiter
         refusal_probe = self._posting_refusal_probe
         if refusal_probe is not None:
             self._posting_refusal_probe = None
@@ -2529,6 +2537,11 @@ class HengbotPolicy(TownArbiterMixin):
                 self._last_policy_progress_core = current_progress_core
                 key = self._look_probe_key(snapshot)
                 self.last_reason = refusal_owner
+                arbiter.observe(
+                    in_town=bool(snapshot.in_town or snapshot.store is not None),
+                    reason=self.last_reason,
+                    progress_vector=self._town_arbiter_progress_vector(snapshot),
+                )
                 return key
         self._last_policy_progress_core = current_progress_core
         home_capture = self._home_entry_capture
@@ -2557,12 +2570,6 @@ class HengbotPolicy(TownArbiterMixin):
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         key = self._forbid_wait_while_damaged(snapshot, key)
-        arbiter = getattr(self, "_town_turn_arbiter", None)
-        if arbiter is None:
-            # Restored trajectory checkpoints predate ARB-1 state.  Recreate
-            # advisory state without altering any legacy policy field.
-            arbiter = _new_town_turn_arbiter()
-            self._town_turn_arbiter = arbiter
         arbiter.observe(
             in_town=bool(snapshot.in_town or snapshot.store is not None),
             reason=self.last_reason,

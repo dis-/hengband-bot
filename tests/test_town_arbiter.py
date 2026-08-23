@@ -60,6 +60,11 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         policy = HengbotPolicy()
         arbiter = policy._town_turn_arbiter
         registered = set(arbiter.registry)
+        self.assertNotIn("unregistered", registered)
+        self.assertEqual(
+            arbiter.owner_for_reason("invented:unattributed-family"),
+            "unregistered",
+        )
         reasons = []
         for name in DECISION_CAPTURES:
             with (FIXTURES / name).open(encoding="utf-8-sig") as stream:
@@ -80,6 +85,40 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         owners = [arbiter.owner_for_reason(reason) for reason in reasons]
         self.assertTrue(all(owner in registered for owner in owners))
         self.assertNotIn(None, owners)
+        self.assertNotIn("unregistered", owners)
+
+    def test_owner_switch_does_not_reset_each_owners_stall_budget(self):
+        policy = HengbotPolicy()
+        arbiter = policy._town_turn_arbiter
+        budgets = {
+            owner: arbiter.registry[owner].budget
+            for owner in ("shop-buy", "shop-sell")
+        }
+        retired = set()
+        for turn in range(2 * max(budgets.values()) + 4):
+            owner = "shop-buy" if turn % 2 == 0 else "shop-sell"
+            reason = "shop:buy" if owner == "shop-buy" else "shop:sale"
+            row = arbiter.observe(in_town=True, reason=reason, progress_vector=(1,))
+            if row["would_retire"]:
+                retired.add(owner)
+        self.assertEqual(retired, set(budgets))
+
+    def test_interleaved_owner_does_not_refill_remaining_budget(self):
+        policy = HengbotPolicy()
+        arbiter = policy._town_turn_arbiter
+        first = None
+        for _ in range(7):
+            first = arbiter.observe(
+                in_town=True, reason="shop:buy", progress_vector=(1,)
+            )
+            arbiter.observe(in_town=True, reason="shop:sale", progress_vector=(1,))
+        resumed = arbiter.observe(
+            in_town=True, reason="shop:buy", progress_vector=(1,)
+        )
+        self.assertEqual(
+            resumed["budget_remaining_estimate"],
+            max(0, first["budget_remaining_estimate"] - 1),
+        )
 
 
 if __name__ == "__main__":

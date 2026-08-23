@@ -216,8 +216,7 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
                 and call.func.attr == "_ensure_home_visit_request"
                 for call in calls
             )
-            reachability_probes = {"_equipment_failure_unexecutable_this_visit"}
-            if direct and not authorized and function.name not in reachability_probes:
+            if direct and not authorized:
                 findings.append(function.name)
         return findings
 

@@ -325,20 +325,26 @@ class ReadLetterBindingTest(unittest.TestCase):
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "upper"
-            and any(
-                (
-                    isinstance(part, ast.Name)
-                    and part.id in {"slot", "letter", "selector"}
-                )
-                or (
-                    isinstance(part, ast.Attribute)
-                    and part.attr in {"slot", "letter", "selector"}
-                )
-                for part in ast.walk(node.func.value)
-            )
+            # Quest knowledge normalizes display names, not input selectors.
+            and not (path.name == "quest_knowledge.py" and node.lineno in {217, 251})
         ]
 
         self.assertEqual(uppercase_calls, [])
+
+    def test_uppercase_selector_guard_detects_letter_and_composed_pack_label(self):
+        def uppercase_calls(source):
+            return [
+                node.lineno
+                for node in ast.walk(ast.parse(source))
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "upper"
+            ]
+
+        for expression in ("letter.upper()", "pack_label.upper() + suffix"):
+            with self.subTest(expression=expression):
+                planted = f"def planted(letter, pack_label, suffix):\n    return {expression}\n"
+                self.assertEqual(uppercase_calls(planted), [2])
 
     def test_recall_destination_answer_comes_from_this_characters_entered_order(self):
         policy = HengbotPolicy()
@@ -5995,12 +6001,15 @@ class ShoppingTest(unittest.TestCase):
         )
         self.assertEqual(pol.choose_key(snap), "\x1b`n!.")
         self.assertEqual(pol.last_reason, "shop:travel")
+        preceding_arbiter = dict(pol._town_turn_arbiter.telemetry)
 
         # Live 2026-08-10 shape: the unchanged board made the policy select the
         # identical native-travel macro, which the sender correctly refused.
         pol.refuse_key_posting("shop:travel", "\x1b`n!.")
         probe = pol.choose_key(snap)
         self.assertEqual((probe, pol.last_reason), ("l\x1b", "shop:travel"))
+        self.assertNotEqual(pol._town_turn_arbiter.telemetry, preceding_arbiter)
+        self.assertEqual(pol._town_turn_arbiter.telemetry["owner"], "store-router")
         replacement = pol.choose_key(snap)
         self.assertEqual(replacement, "6")
         self.assertEqual(pol.last_reason, "shop:approach")
