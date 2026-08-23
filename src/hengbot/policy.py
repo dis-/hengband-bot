@@ -18249,13 +18249,7 @@ class HengbotPolicy(TownArbiterMixin):
             plan.index += 1
             return
         if store_type != STORE_HOME:
-            if (
-                self._store_visit is not None
-                and self._store_visit.store_type == store_type
-                and getattr(
-                    self._store_visit, "home_first_composition_refused", False
-                )
-            ):
+            if self._wanted_purchase_is_home_first_refused(snapshot, store_type):
                 return
             if operation_completed:
                 plan.current_stop_passes = 0
@@ -19604,11 +19598,14 @@ class HengbotPolicy(TownArbiterMixin):
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
         """Release a buy only for fresh absence or a statically Home-less town."""
+        evaluated = self._evaluate_purchase_home_gate(snapshot, item)
         item_class = self._procurement_class(item)
         self._home_procurement_fallthrough_equivalence = (
             self._procurement_equivalence(item_class)
         )
-        if item.is_digging_tool and self._digger_buy_fallback_available(snapshot):
+        if evaluated is ProcurementHomeGate.ALLOW_PURCHASE and (
+            item.is_digging_tool and self._digger_buy_fallback_available(snapshot)
+        ):
             # Two observed Home-withdrawal failures authorize the existing
             # one-per-visit fallback purchase even though Home still records a
             # consumer-equivalent digger.
@@ -19648,6 +19645,57 @@ class HengbotPolicy(TownArbiterMixin):
         self._home_procurement_probe = None
         self._home_procurement_fallthrough = "fresh-catalogue-absence"
         return ProcurementHomeGate.ALLOW_PURCHASE
+
+    def _evaluate_purchase_home_gate(
+        self, snapshot: Snapshot, item: StoreItem
+    ) -> ProcurementHomeGate:
+        """Evaluate Home-first purchase policy without changing policy state."""
+        if item.is_digging_tool and self._digger_buy_fallback_available(snapshot):
+            return ProcurementHomeGate.ALLOW_PURCHASE
+        if not self._home_knowledge_current:
+            if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+                town_has_home = True
+                home_available = True
+            else:
+                visible_home = any(
+                    grid.store_number == STORE_HOME for grid in snapshot.grids.values()
+                )
+                town_has_home = (
+                    snapshot.town_id in TOWN_IDS_WITH_HOME
+                    or snapshot.town_id not in {None, -1, ZUL_TOWN_ID}
+                    or visible_home
+                )
+                home_available = bool(
+                    visible_home or self._town_store_positions.get(STORE_HOME)
+                )
+            if not town_has_home:
+                return ProcurementHomeGate.ALLOW_PURCHASE
+            return (
+                ProcurementHomeGate.HOME_FIRST
+                if home_available
+                else ProcurementHomeGate.BLOCKED
+            )
+        item_class = self._procurement_class(item)
+        if self._home_procurement_candidate(item_class) is not None:
+            return ProcurementHomeGate.HOME_FIRST
+        return ProcurementHomeGate.ALLOW_PURCHASE
+
+    def _wanted_purchase_is_home_first_refused(
+        self, snapshot: Snapshot, store_type: int
+    ) -> bool:
+        """Recognize an observed wanted purchase that Home-first would refuse."""
+        observed_store = snapshot.store
+        if observed_store is None:
+            observation = self._shop_observation
+            if observation is None:
+                return False
+            observed_store = observation[0]
+        if observed_store.store_type != store_type:
+            return False
+        item = self._next_purchase(replace(snapshot, store=observed_store))
+        return item is not None and self._evaluate_purchase_home_gate(
+            snapshot, item
+        ) is not ProcurementHomeGate.ALLOW_PURCHASE
 
     def _mana_survival_sale_candidate(
         self, snapshot: Snapshot, store_type: int
@@ -21852,12 +21900,6 @@ class HengbotPolicy(TownArbiterMixin):
             home_gate = self._purchase_has_fresh_home_absence(snapshot, item)
             if home_gate is not ProcurementHomeGate.ALLOW_PURCHASE:
                 if home_gate is ProcurementHomeGate.BLOCKED:
-                    if (
-                        self._store_visit is not None
-                        and self._store_visit.store_type == store.store_type
-                        and self._store_visit.phase != StoreVisitPhase.CLOSED
-                    ):
-                        self._store_visit.home_first_composition_refused = True
                     return WAIT_KEY
                 self._rearm_town_store_for_new_work(
                     STORE_HOME, release_visit_bound=True
@@ -22334,12 +22376,8 @@ class HengbotPolicy(TownArbiterMixin):
             )
         if not observed:
             return False
-        if (
-            store_type != STORE_HOME
-            and self._shop_selector_diagnostics.get("composition_refusal")
-            == "town:blocked:procurement-home-unroutable"
-            and self._shop_selector_diagnostics.get("composition_refusal_sequence")
-            == self._decision_sequence
+        if store_type != STORE_HOME and self._wanted_purchase_is_home_first_refused(
+            snapshot, store_type
         ):
             # The supplier page was observed, but Home-first arbitration
             # refused to ask the shop for the selected item.  Preserve both

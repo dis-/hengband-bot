@@ -53490,7 +53490,6 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         )
 
         policy.choose_key(outside)
-        self.assertTrue(policy._store_visit.home_first_composition_refused)
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
             "town:blocked:procurement-home-unroutable",
@@ -53508,6 +53507,93 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
 
         self.assertNotIn(STORE_WEAPON, policy._town_store_attempted)
         self.assertEqual(policy._town_errand_plan.index, 0)
+
+    def test_public_leaving_pass_latches_store_with_no_wanted_stock(self):
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        outside = replace(
+            self._q2_town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = self._q2_policy()
+        policy._home_knowledge_current = False
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand", "shopping", STORE_WEAPON,
+            phase=StoreVisitPhase.LEAVING,
+        )
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence,
+        )
+        policy.choose_key(outside)
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "town:blocked:procurement-home-unroutable",
+        )
+
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        inside = replace(
+            outside,
+            turn=outside.turn + 1,
+            store=StoreState(STORE_WEAPON, []),
+        )
+        policy.choose_key(inside)
+
+        self.assertIn(STORE_WEAPON, policy._town_store_attempted)
+        self.assertIn(STORE_WEAPON, policy._town_errand_plan.blocked_this_visit)
+        self.assertEqual(policy._town_errand_plan.index, 1)
+
+    def test_public_leaving_pass_latches_when_home_gate_allows_purchase(self):
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        outside = replace(
+            self._q2_town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = self._q2_policy()
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = []
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand", "shopping", STORE_WEAPON,
+            phase=StoreVisitPhase.LEAVING,
+        )
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=1),
+            policy._decision_sequence,
+        )
+        inside = replace(
+            outside,
+            turn=outside.turn + 1,
+            store=StoreState(STORE_WEAPON, [bolts]),
+        )
+        policy.choose_key(inside)
+
+        self.assertIn(STORE_WEAPON, policy._town_store_attempted)
+        self.assertIn(STORE_WEAPON, policy._town_errand_plan.blocked_this_visit)
+        self.assertEqual(policy._town_errand_plan.index, 1)
 
     def test_pin_vacuity_remembered_bolts_restore_real_ranged_claim(self):
         bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
@@ -53560,6 +53646,15 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             ),
             (
                 "utility_tools.wall_breach",
+                STORE_BLACK,
+                store_item(
+                    "a", TVAL_WAND, SV_WAND_STONE_TO_MUD,
+                    price=500, charges=1,
+                ),
+                "quest-wall-breach",
+            ),
+            (
+                "utility_tools.wall_breach",
                 STORE_GENERAL,
                 store_item(
                     "a", TVAL_WAND, SV_WAND_STONE_TO_MUD,
@@ -53597,6 +53692,28 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
                 self.assertNotIn(
                     name, policy._abandoned_quest_carry_requirements
                 )
+
+    def test_pin_vacuity_black_wall_breach_stock_restores_black_claim_only(self):
+        town = self._q2_town()
+        policy = self._q2_policy()
+        strategy = policy._carry_procurement_strategy(town)
+        self.assertIsNotNone(strategy)
+        policy._town_store_attempted[STORE_BLACK] = town.turn
+        policy._town_store_attempted[STORE_GENERAL] = town.turn
+        policy._town_supplier_stock[STORE_BLACK] = StoreState(
+            STORE_BLACK,
+            [store_item(
+                "a", TVAL_WAND, SV_WAND_STONE_TO_MUD,
+                price=500, charges=1,
+            )],
+        )
+
+        needs = policy._enumerate_town_needs(town)
+
+        self.assertIn(TownNeed(STORE_BLACK, "quest-wall-breach", "normal"), needs)
+        self.assertNotIn(
+            TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), needs
+        )
 
     def test_sibling_claims_abandon_when_no_affordable_stock_is_remembered(self):
         names = (
