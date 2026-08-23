@@ -51599,6 +51599,52 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._home_atomic_deposit_pending[3], 0)
         self.assertIsNone(policy.consume_pending_home_visit_report())
 
+    def test_home_step_off_blocks_atomic_entry_on_same_turn_snapshot(self):
+        policy = HengbotPolicy()
+        target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")
+        entrance = self._entrance_snapshot(self._real_pack(target), turn=1007134)
+        entrance = replace(
+            entrance,
+            grids={**entrance.grids, Position(44, 124): grid(44, 124)},
+        )
+        policy._last_snapshot_was_store = True
+        policy.last_reason = "home:stale-deposit-reason"
+        policy._floor_t = {(44, 124), (45, 122)}
+
+        step = policy._shopping_approach_step(entrance, STORE_HOME)
+        self.assertIsNotNone(step)
+        self.assertNotEqual(step, entrance.player.position)
+        self.assertIsNotNone(policy._store_entrance_step_off)
+        with patch.object(policy, "_find_home_deposit", return_value=target):
+            key = policy._shopping_approach_key(entrance, step, "shop:travel")
+
+        self.assertIsInstance(key, str)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+        self.assertIsNone(policy._store_visit.operation_key)
+        self.assertEqual(
+            policy._store_entrance_step_off,
+            (policy._decision_sequence, entrance.turn, entrance.player.position),
+        )
+
+        adjacent = replace(
+            entrance,
+            player=replace(entrance.player, position=step),
+            turn=entrance.turn + 1,
+        )
+        policy._shopping_approach_step(adjacent, STORE_HOME)
+        self.assertIsNone(policy._store_entrance_step_off)
+
+    def test_missing_atomic_deposit_clears_stale_reason(self):
+        policy = HengbotPolicy()
+        entrance = self._entrance_snapshot(self._real_pack())
+        policy._shopping_approach_store_type = STORE_HOME
+        policy.last_reason = "home:stale-deposit-reason"
+
+        self.assertIsNone(
+            policy._atomic_home_deposit_key(entrance, entrance.player.position)
+        )
+        self.assertIsNone(policy.last_reason)
+
     def test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=84, name="surplus arrows")

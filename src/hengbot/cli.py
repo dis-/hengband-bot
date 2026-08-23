@@ -1473,8 +1473,8 @@ def _duplicate_snapshot_ready(
     if line == previous_line and previous_reason is not None and (
         previous_reason.startswith("shop:buy-")
         or previous_reason.startswith("shop:sell")
-        or previous_reason.startswith("home:deposit")
-        or previous_reason.startswith("home:withdraw")
+        or previous_reason.startswith("home:atomic-")
+        or previous_reason.startswith("home-visit:")
     ):
         # A store transaction can complete without advancing the game turn.
         # Retrying the generic stale-snapshot path then addresses the shifted

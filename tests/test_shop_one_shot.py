@@ -37,7 +37,7 @@ from hengbot.model import (
 from hengbot.policy import (
     FOOD_MIN_SVAL, FOOD_TYPE_MANA, OIL_TARGET, HengbotPolicy,
     LEAVE_STORE_KEY, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
-    STORE_STUCK_LIMIT, TownErrandPlan, ProcurementHomeGate,
+    STORE_STUCK_LIMIT, TownErrandPlan, ProcurementHomeGate, StoreVisitPhase,
 )
 from hengbot.cli import _snapshot_entries_in_order
 from tests.test_policy import grid, hostile, item, player, store_item
@@ -703,6 +703,49 @@ class ShopOneShotTest(unittest.TestCase):
             policy._store_visit_last_closed.outcome,
             "one-shot-entry-unconfirmed",
         )
+
+    def test_bare_wait_cannot_rearm_entry_from_an_earlier_decision(self):
+        policy = HengbotPolicy()
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_entry_wait_owner = STORE_HOME
+        policy._store_entry_wait_key = "5"
+        policy._store_entry_posted_owner = None
+        policy._decision_sequence += 1
+
+        self.assertFalse(policy.confirm_key_posted("5"))
+        self.assertIsNone(policy._store_entry_posted_owner)
+
+    def test_entry_observation_discharge_returns_visit_to_approach(self):
+        inside = self._inside(STORE_HOME, [], [])
+        outside = self._outside(HengbotPolicy(), inside)
+        policy = HengbotPolicy()
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_entry_wait_owner = STORE_HOME
+        policy._store_entry_wait_key = "5"
+        self.assertTrue(policy.confirm_key_posted("5"))
+
+        self.assertEqual(policy.choose_key(outside), "")
+        self.assertEqual(policy._store_visit.phase, StoreVisitPhase.APPROACHING)
+        self.assertIsNone(policy._store_entry_posted_owner)
+
+    def test_home_stage_one_entry_wait_expires_and_routing_resumes(self):
+        inside = self._inside(STORE_HOME, [], [])
+        outside = self._outside(HengbotPolicy(), inside)
+        policy = HengbotPolicy()
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_entry_wait_owner = STORE_HOME
+        policy._store_visit.operation_posted = True
+
+        for turn in range(STORE_STUCK_LIMIT + 1):
+            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: the captured adjacent board stays fixed while the bounded entry owner is exercised
+            key = policy.choose_key(replace(outside, turn=outside.turn + turn))
+            policy.confirm_key_posted(key)
+
+        self.assertEqual(
+            policy._store_visit_last_closed.outcome,
+            "one-shot-entry-unconfirmed",
+        )
+        self.assertEqual(policy._store_visit_last_closed.phase, StoreVisitPhase.CLOSED)
 
     def test_close_after_release_clears_buy_inflight(self):
         """2f449d2 stranded ``(3, ('wares', 70, 11), ...)`` after close."""

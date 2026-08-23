@@ -85,6 +85,7 @@ class TownArbiterMixin:
             visit = self._store_visit
         if visit.store_type == value:
             visit.transition(StoreVisitPhase.ENTERING)
+            visit.armed_sequence = self._decision_sequence
 
     @property
     def _store_entry_wait_key(self) -> str | None:

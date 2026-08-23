@@ -69,6 +69,7 @@ class StoreVisit:
     composed_key: str | None = None
     goal: Position | None = None
     opened_sequence: int = 0
+    armed_sequence: int | None = None
     posted_sequence: int | None = None
     posted_turn: int | None = None
     operation_posted: bool = False

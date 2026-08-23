@@ -1520,6 +1520,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._store_visit_last_closed: StoreVisit | None = None
         self._store_visit_pending_goal: Position | None = None
         self._store_entry_failed_owner: int | None = None
+        self._store_entrance_step_off: tuple[int, int, Position] | None = None
         # A store-entry command becomes outstanding only after the CLI confirms
         # that it was posted.  The next snapshot observes its result;
         # store=None is a failed entry, including at the unchanged entrance.
@@ -3480,6 +3481,8 @@ class HengbotPolicy(TownArbiterMixin):
                     # reissuing the same symbol can only repeat that modal wait.
                     self._town_travel_fallback = state.goal
                     self._town_travel_state = None
+                if self._store_visit is not None:
+                    self._store_visit.transition(StoreVisitPhase.APPROACHING)
                 self.last_reason = "store:entry-await-observation"
                 return ""
         pending_store_transaction = (
@@ -5222,7 +5225,6 @@ class HengbotPolicy(TownArbiterMixin):
         if (
             snapshot.store is None
             and self._store_visit is not None
-            and self._store_visit.store_type != STORE_HOME
             and self._store_visit.operation_posted
         ):
             # A player-turn at the entrance can be emitted after the leading
@@ -12254,6 +12256,9 @@ class HengbotPolicy(TownArbiterMixin):
             self._equipment_mutation_post_commit = None
         if (
             self._store_entry_wait_owner is not None
+            and self._store_visit is not None
+            and getattr(self._store_visit, "armed_sequence", None)
+            == self._decision_sequence
             and key == (self._store_entry_wait_key or WAIT_KEY)
         ):
             self._store_entry_posted_owner = self._store_entry_wait_owner
@@ -13775,6 +13780,7 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
             or self._home_atomic_withdraw_pending is not None
+            or getattr(self, "_store_entrance_step_off", None) is not None
         ):
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
@@ -14251,6 +14257,7 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
             or self._home_atomic_deposit_pending is not None
+            or getattr(self, "_store_entrance_step_off", None) is not None
         ):
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
@@ -14352,6 +14359,7 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         deposit = self._find_home_deposit(snapshot)
         if deposit is None:
+            self.last_reason = None
             return None
         current = next(
             (
@@ -21966,6 +21974,15 @@ class HengbotPolicy(TownArbiterMixin):
             and bool(self._equipment_catalog.items)
         )
         here = snapshot.grid_at(snapshot.player.position)
+        entrance_step_off = getattr(self, "_store_entrance_step_off", None)
+        if (
+            entrance_step_off is not None
+            and (
+                snapshot.turn != entrance_step_off[1]
+                or snapshot.player.position != entrance_step_off[2]
+            )
+        ):
+            self._store_entrance_step_off = None
         if here is not None and here.store_number == store_type:
             pending_store_transaction = (
                 self._town_visit_ledger.pending_store_transaction
@@ -21999,6 +22016,12 @@ class HengbotPolicy(TownArbiterMixin):
             # on it is what re-enters, so hop to an adjacent tile first, then the
             # next approach walks back on and opens the store.
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
+            if neighbors:
+                self._store_entrance_step_off = (
+                    self._decision_sequence,
+                    snapshot.turn,
+                    snapshot.player.position,
+                )
             return neighbors[0] if neighbors else None
         # NO _least_visited_neighbor oscillation-breakout here. Breaking out
         # toward the "least-visited" tile would march the bot to the town's edge
