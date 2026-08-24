@@ -9492,7 +9492,10 @@ class HengbotPolicy(TownArbiterMixin):
         position = snapshot.player.position
         if (
             position in self._remembered_upstairs
-            or position in self._remembered_downstairs
+            or (
+                position in self._remembered_downstairs
+                and not self._returning_to_town
+            )
         ):
             self._clear_dark_route()
             return None

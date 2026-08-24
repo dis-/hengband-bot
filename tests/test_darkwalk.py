@@ -17,7 +17,14 @@ from hengbot.model import (
     TVAL_FLASK,
     parse_snapshot,
 )
-from hengbot.policy import HengbotPolicy, PROBE_LIMIT, READ_KEY, WAIT_KEY
+from hengbot.policy import (
+    DOOR_OPEN_LIMIT,
+    HengbotPolicy,
+    PROBE_LIMIT,
+    READ_KEY,
+    RUBBLE_DIG_LIMIT,
+    WAIT_KEY,
+)
 from hengbot.policy_types import OWNER_EXPECTATION_MAX_TURNS
 
 
@@ -39,25 +46,53 @@ DIRECTIONS = {
 class DarkwalkIncidentTest(unittest.TestCase):
     def test_dark_route_yields_on_remembered_upstairs_for_return_handoff(self):
         snapshot = _snapshot_fixture()
-        origin = Position(10, 10)
-        template = next(iter(snapshot.grids.values()))
-        upstairs = replace(
+        policy = HengbotPolicy()
+        current = snapshot.player.position
+
+        for decision in range(21):
+            dark = replace(
+                snapshot,
+                turn=snapshot.turn + decision,
+                player=replace(snapshot.player, position=current),
+                grids={
+                    position: grid
+                    for position, grid in snapshot.grids.items()
+                    if position != current
+                },
+            )
+            key = policy.choose_key(dark)
+            self.assertIn(key, DIRECTIONS)
+            dy, dx = DIRECTIONS[key]
+            current = Position(current.y + dy, current.x + dx)
+
+        arrived = replace(
             snapshot,
-            player=replace(snapshot.player, position=origin),
+            turn=snapshot.turn + 21,
+            player=replace(snapshot.player, position=current),
             grids={
-                origin: replace(
-                    template, position=origin, passable=True, wall=False,
-                    lit=False, known=True, has_up_stairs=True,
-                )
+                position: grid
+                for position, grid in snapshot.grids.items()
+                if position != current
             },
         )
+
+        self.assertIn(current, policy._remembered_upstairs)
+        self.assertEqual(policy.choose_key(arrived), "<")
+        self.assertTrue(policy._returning_to_town)
+        self.assertEqual(policy.last_reason, "return:ascend")
+
+    def test_returning_dark_route_does_not_yield_on_remembered_downstairs(self):
+        snapshot = _snapshot_fixture()
+        origin = snapshot.player.position
         policy = HengbotPolicy()
-        policy._floor_key = upstairs.floor_key
-        policy._remembered_upstairs.add(origin)
+        policy._floor_key = snapshot.floor_key
+        policy._remembered_downstairs.add(origin)
         policy._returning_to_town = True
 
-        self.assertEqual(policy.choose_key(upstairs), "<")
-        self.assertEqual(policy.last_reason, "return:ascend")
+        key = policy.choose_key(snapshot)
+
+        self.assertIn(key, DIRECTIONS)
+        self.assertEqual(policy.last_reason, "dark:probe")
 
     def test_committed_dark_route_reaches_far_remembered_end(self):
         snapshot = _snapshot_fixture()
@@ -130,7 +165,7 @@ class DarkwalkIncidentTest(unittest.TestCase):
         current = start
         arrivals = 0
         retirement_window_arrivals = 0
-        for _ in range(4 * PROBE_LIMIT + 4):
+        for _ in range(32):
             dark = replace(
                 snapshot,
                 player=replace(snapshot.player, position=current),
@@ -233,10 +268,15 @@ class DarkwalkIncidentTest(unittest.TestCase):
         def run(obstacle, **grid_changes):
             policy = HengbotPolicy()
             policy._floor_key = snapshot.floor_key
-            policy._visit_counts.update({origin: 1, obstacle: 1, target: 1})
+            policy._visit_counts.update({origin: 1, target: 1})
             policy._remembered_upstairs.add(target)
             keys = []
-            for decision in range(30):
+            reasons = []
+            attempt_limit = (
+                RUBBLE_DIG_LIMIT if grid_changes.get("can_dig")
+                else DOOR_OPEN_LIMIT
+            )
+            for decision in range(attempt_limit + 1):
                 dark = replace(
                     snapshot,
                     turn=snapshot.turn + decision,
@@ -254,19 +294,39 @@ class DarkwalkIncidentTest(unittest.TestCase):
                     },
                 )
                 keys.append(policy.choose_key(dark))
-            return policy, keys
+                reasons.append(policy.last_reason)
+            return policy, keys, reasons
 
-        door_policy, door_keys = run(
+        door_policy, door_keys, door_reasons = run(
             Position(10, 11), is_closed_door=True, is_door=True
         )
-        self.assertEqual(door_keys[:3], ["o6", "o6", "o6"])
+        self.assertEqual(
+            door_keys,
+            ["o6"] * DOOR_OPEN_LIMIT + ["9"],
+        )
+        self.assertEqual(
+            door_reasons,
+            ["dark:backtrack"] * DOOR_OPEN_LIMIT + ["dark:probe"],
+        )
+        self.assertEqual(
+            door_policy._door_attempts[(10, 11)], DOOR_OPEN_LIMIT
+        )
         self.assertEqual(door_policy._dark_goal_counts[(target.y, target.x)], 0)
 
-        rubble_policy, rubble_keys = run(
+        rubble_policy, rubble_keys, rubble_reasons = run(
             Position(10, 11), can_dig=True
         )
-        self.assertEqual(rubble_keys, ["T6"] * 30)
-        self.assertEqual(rubble_policy._dig_attempts[(10, 11)], 30)
+        self.assertEqual(
+            rubble_keys,
+            ["T6"] * RUBBLE_DIG_LIMIT + ["9"],
+        )
+        self.assertEqual(
+            rubble_reasons,
+            ["dark:backtrack"] * RUBBLE_DIG_LIMIT + ["dark:probe"],
+        )
+        self.assertEqual(
+            rubble_policy._dig_attempts[(10, 11)], RUBBLE_DIG_LIMIT
+        )
         self.assertEqual(rubble_policy._dark_goal_counts[(target.y, target.x)], 0)
 
     def test_old_checkpoint_without_dark_route_fields_remains_selectable(self):
