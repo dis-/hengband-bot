@@ -687,6 +687,7 @@ class Snapshot:
     inventory: list[InventoryItem] = field(default_factory=list)
     equipment: list[InventoryItem] = field(default_factory=list)
     equipment_observed: bool = False
+    grids_observed: bool = False
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
@@ -1102,6 +1103,7 @@ def parse_snapshot(
         inventory=_parse_items(data.get("inventory", [])),
         equipment=_parse_items(data.get("equipment", [])),
         equipment_observed="equipment" in data,
+        grids_observed="nearby_grids" in data,
         store=_parse_store(data.get("store")),
         recall_dungeon_id=int(progress.get("recall_dungeon_id", 0)),
         entered_dungeon_ids=tuple(

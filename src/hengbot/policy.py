@@ -5493,6 +5493,9 @@ class HengbotPolicy(TownArbiterMixin):
         darkness_recovery = self._darkness_recovery_key(snapshot)
         if darkness_recovery is not None:
             return darkness_recovery
+        dark_locomotion = self._dark_locomotion_key(snapshot)
+        if dark_locomotion is not None:
+            return dark_locomotion
 
         opening_q34 = self._opening_q34_town_key(snapshot, strategic_hostiles)
         if opening_q34 is not None:
@@ -9427,9 +9430,12 @@ class HengbotPolicy(TownArbiterMixin):
                 not equipped.is_lantern
                 or snapshot.dungeon_level < 1
                 or snapshot.player.blind
-                or here is None
-                or here.lit
             ):
+                return None
+            if here is None:
+                if not snapshot.grids_observed:
+                    return None
+            elif here.lit:
                 return None
             return self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0)
         if equipped.is_lantern:
@@ -9450,9 +9456,50 @@ class HengbotPolicy(TownArbiterMixin):
         return (
             snapshot.dungeon_level >= 1
             and not snapshot.player.blind
-            and here is not None
-            and not here.lit
+            and (
+                here is not None and not here.lit
+                # The emitter exports only perceivable cells. The game always
+                # marks the player's own cell in view, so an observed grid set
+                # that omits it means no_lite() and scroll reads are refused.
+                or here is None and snapshot.grids_observed
+            )
         )
+
+    def _dark_locomotion_key(self, snapshot: Snapshot) -> str | None:
+        """Move without light, then expose exhaustion as a visible stop."""
+        if (
+            snapshot.in_town
+            or not self._is_dark(snapshot)
+            or snapshot.grid_at(snapshot.player.position) is not None
+            or self._light_refill_item(snapshot) is not None
+            or self._darkness_torch(snapshot) is not None
+        ):
+            return None
+
+        step = self._probe_unknown_step(snapshot)
+        if step is not None:
+            self._clear_explore_path(ExplorationPathOutcome.PAUSE)
+            self.last_reason = "dark:probe"
+            return self._step_toward(snapshot, step)
+
+        visited = {
+            position
+            for position, count in self._visit_counts.items()
+            if count > 0 and position != snapshot.player.position
+        }
+        step = self._nearest_goal_step(
+            snapshot,
+            lambda grid: (
+                grid.position in visited
+                or self._is_upstairs_target(grid)
+            ),
+        )
+        if step is not None:
+            self.last_reason = "dark:backtrack"
+            return self._step_toward(snapshot, step)
+
+        self.last_reason = "dark:locomotion-exhausted"
+        return WAIT_KEY
 
     def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
         return max(
@@ -30427,6 +30474,9 @@ class HengbotPolicy(TownArbiterMixin):
             darkness_recovery = self._darkness_recovery_key(snapshot)
             if darkness_recovery is not None:
                 return darkness_recovery
+        dark_locomotion = self._dark_locomotion_key(snapshot)
+        if dark_locomotion is not None:
+            return dark_locomotion
 
         recall = self._find_recall_scroll(snapshot)
         if (

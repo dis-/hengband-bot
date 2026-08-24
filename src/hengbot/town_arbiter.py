@@ -65,7 +65,7 @@ class TownTurnArbiter:
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
             registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:cashout", "bounty:step-off"), "quest request or phase advance"),
-            registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:"), "block release or visible stop"),
+            registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:"), "block release or visible stop"),
             registration("misc", ("policy:", "town:misc:", "town:character-dump", "periodic:", "explore", "melee", "hunt", "seek-loot", "wait"), "town progress vector delta"),
         )
         self.registry = {entry.name: entry for entry in registrations}

@@ -374,6 +374,7 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 POLICY_FINAL_STOP_REASONS = frozenset(
     {
         "equipment-transaction:restore-blocked-terminal",
+        "dark:locomotion-exhausted",
         "town:blocked:departure-unsatisfiable",
         "town:blocked:home-known-empty-withdrawal",
         "town:blocked:procurement-home-unavailable",
@@ -389,6 +390,7 @@ POLICY_FINAL_STOP_REASONS = frozenset(
 def _policy_final_stop_banner(reason: str) -> str:
     messages = {
         "equipment-transaction:restore-blocked-terminal": "recoverable gear restored; missing owned items remain",
+        "dark:locomotion-exhausted": "dark movement probes and remembered routes are exhausted",
         "town:blocked:departure-unsatisfiable": "no state-changing owner can satisfy the remaining departure conjunct",
         "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
