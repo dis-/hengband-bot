@@ -4473,7 +4473,10 @@ class HengbotPolicy(TownArbiterMixin):
             self._home_entry_operation_posted = True
             self._invalidate_home_observation()
         self._capture_home_history_intent(snapshot, key)
-        if self._dark_without_recovery(snapshot):
+        if (
+            self._dark_without_recovery(snapshot)
+            and self.last_reason != "dark:locomotion-exhausted"
+        ):
             # Preserve the chosen action while making the otherwise invisible
             # failure state explicit in JSONL diagnostics.
             self.last_reason = f"dark:no-recovery:{self.last_reason}"
@@ -9476,12 +9479,6 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             return None
 
-        step = self._probe_unknown_step(snapshot)
-        if step is not None:
-            self._clear_explore_path(ExplorationPathOutcome.PAUSE)
-            self.last_reason = "dark:probe"
-            return self._step_toward(snapshot, step)
-
         visited = {
             position
             for position, count in self._visit_counts.items()
@@ -9492,10 +9489,17 @@ class HengbotPolicy(TownArbiterMixin):
             lambda grid: (
                 grid.position in visited
                 or self._is_upstairs_target(grid)
+                or (grid.position.y, grid.position.x) in self._remembered_floor_t
             ),
         )
         if step is not None:
             self.last_reason = "dark:backtrack"
+            return self._step_toward(snapshot, step)
+
+        step = self._probe_unknown_step(snapshot)
+        if step is not None:
+            self._clear_explore_path(ExplorationPathOutcome.PAUSE)
+            self.last_reason = "dark:probe"
             return self._step_toward(snapshot, step)
 
         self.last_reason = "dark:locomotion-exhausted"

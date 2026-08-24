@@ -104,6 +104,7 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                 ("_fundraising_key", "ExplorationPathOutcome.ABANDON"),
                 ("_return_to_town_key", "ExplorationPathOutcome.PAUSE"),
                 ("_return_to_town_key", "ExplorationPathOutcome.PAUSE"),
+                ("_dark_locomotion_key", "ExplorationPathOutcome.PAUSE"),
                 (
                     "_break_positional_oscillation",
                     "ExplorationPathOutcome.ABANDON",

@@ -111,6 +111,75 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(key, "2")
         self.assertEqual(policy.last_reason, "dark:backtrack")
 
+    def test_darkwalk_enters_adjacent_remembered_floor_before_probing(self):
+        snapshot = _snapshot_fixture()
+        origin = Position(5, 43)
+        remembered = Position(5, 42)
+        routed = replace(
+            snapshot,
+            player=replace(snapshot.player, position=origin),
+        )
+        policy = HengbotPolicy()
+        policy._visit_counts[remembered] = 1
+        positions = []
+        reasons = []
+        current = origin
+        directions = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        for _ in range(4):
+            decision = replace(
+                routed,
+                player=replace(routed.player, position=current),
+                grids={
+                    position: grid
+                    for position, grid in snapshot.grids.items()
+                    if position != current
+                },
+            )
+            key = policy.choose_key(decision)
+            reasons.append(policy.last_reason)
+            dy, dx = directions[key]
+            current = Position(current.y + dy, current.x + dx)
+            positions.append(current)
+
+        self.assertEqual(positions[0], remembered)
+        self.assertTrue(all(position in snapshot.grids for position in positions))
+        self.assertEqual(reasons[0], "dark:backtrack")
+
+    def test_unidentified_lantern_preserves_dark_terminal_reason(self):
+        snapshot = _snapshot_fixture()
+        lantern = next(item for item in snapshot.equipment if item.is_lantern)
+        unknown = replace(
+            snapshot,
+            equipment=[
+                replace(item, known=False, fully_known=False)
+                if item is lantern else item
+                for item in snapshot.equipment
+            ],
+        )
+        policy = HengbotPolicy()
+        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1),
+                       (-1, 1), (1, -1), (1, 1)):
+            policy._probe_counts[
+                (unknown.player.position.y + dy, unknown.player.position.x + dx)
+            ] = PROBE_LIMIT
+
+        key = None
+        for _ in range(8 * PROBE_LIMIT + 2):
+            key = policy.choose_key(unknown)
+            if policy.last_reason == "dark:locomotion-exhausted":
+                break
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "dark:locomotion-exhausted")
+        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+        self.assertIn(
+            "stopping the bot for investigation",
+            _policy_final_stop_banner(policy.last_reason),
+        )
+
     def test_unknown_lantern_uses_missing_cell_as_the_empty_signal(self):
         snapshot = _snapshot_fixture()
         lantern = next(item for item in snapshot.equipment if item.is_lantern)
