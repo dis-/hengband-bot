@@ -9473,26 +9473,19 @@ class HengbotPolicy(TownArbiterMixin):
         if (
             snapshot.in_town
             or not self._is_dark(snapshot)
-            or snapshot.grid_at(snapshot.player.position) is not None
+            or (
+                snapshot.grid_at(snapshot.player.position) is not None
+                and not snapshot.grids_observed
+            )
             or self._light_refill_item(snapshot) is not None
             or self._darkness_torch(snapshot) is not None
         ):
             return None
 
-        visited = {
-            position
-            for position, count in self._visit_counts.items()
-            if count > 0 and position != snapshot.player.position
-        }
-        step = self._nearest_goal_step(
-            snapshot,
-            lambda grid: (
-                grid.position in visited
-                or self._is_upstairs_target(grid)
-                or (grid.position.y, grid.position.x) in self._remembered_floor_t
-            ),
-        )
-        if step is not None:
+        route = self._dark_route_to_frontier(snapshot)
+        if route is not None:
+            _goal, step = route
+            self._probe_counts[(step.y, step.x)] += 1
             self.last_reason = "dark:backtrack"
             return self._step_toward(snapshot, step)
 
@@ -9504,6 +9497,67 @@ class HengbotPolicy(TownArbiterMixin):
 
         self.last_reason = "dark:locomotion-exhausted"
         return WAIT_KEY
+
+    def _dark_walkable_neighbors(
+        self, snapshot: Snapshot, position: Position
+    ) -> list[Position]:
+        """Walk remembered terrain plus cells physically occupied this floor."""
+        trail = {
+            visited
+            for visited, count in self._visit_counts.items()
+            if count > 0
+        }
+        trail.add(snapshot.player.position)
+        neighbors = self._walkable_neighbors(snapshot, position)
+        for dy, dx in NEIGHBOR_OFFSETS:
+            neighbor = Position(position.y + dy, position.x + dx)
+            if (
+                neighbor in trail
+                and neighbor not in neighbors
+                and snapshot.in_bounds(neighbor)
+            ):
+                neighbors.append(neighbor)
+        return [
+            neighbor
+            for neighbor in neighbors
+            if (
+                neighbor == snapshot.player.position
+                or self._probe_counts[(neighbor.y, neighbor.x)] < PROBE_LIMIT
+            )
+        ]
+
+    def _dark_route_to_frontier(
+        self, snapshot: Snapshot
+    ) -> tuple[Position, Position] | None:
+        """Route across remembered floor and the bot's own dark walking trail."""
+        start = snapshot.player.position
+        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        seen = {start}
+        while queue:
+            position, first_step = queue.popleft()
+            if position != start and first_step is not None:
+                yx = (position.y, position.x)
+                remembered = yx in self._remembered_floor_t
+                upstairs = position in self._remembered_upstairs
+                grid = snapshot.grid_at(position)
+                frontier = grid is not None and self._is_frontier(snapshot, grid)
+                onward = self._dark_walkable_neighbors(snapshot, position)
+                if (
+                    (remembered or upstairs or frontier)
+                    and len({position, *onward}) >= 2
+                ):
+                    return position, first_step
+            for neighbor in self._dark_walkable_neighbors(snapshot, position):
+                if (
+                    neighbor in seen
+                    or neighbor in self._engagement_avoid_cells
+                ):
+                    continue
+                seen.add(neighbor)
+                queue.append(
+                    (neighbor, neighbor if first_step is None else first_step)
+                )
+        return None
 
     def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
         return max(

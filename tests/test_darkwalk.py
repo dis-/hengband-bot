@@ -27,7 +27,119 @@ def _snapshot_fixture():
         return parse_snapshot(json.loads(next(stream)), {})
 
 
+DIRECTIONS = {
+    "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+    "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+}
+
+
 class DarkwalkIncidentTest(unittest.TestCase):
+    def test_frozen_darkwalk_capture_pins_the_live_attractor(self):
+        path = FIXTURES / "incident-darkwalk-attractor-20260825.jsonl.gz"
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+
+        live_escape = [
+            row for row in rows
+            if 37 <= row.get("decision_sequence", -1) <= 236
+        ]
+        reasons = [row["reason"] for row in live_escape]
+
+        self.assertEqual(len(rows), 220)
+        self.assertEqual(len(live_escape), 200)
+        self.assertEqual(reasons.count("return:wait"), 198)
+        self.assertEqual(reasons.count("return:probe"), 1)
+        self.assertEqual(reasons.count("dark:backtrack"), 1)
+        self.assertEqual(live_escape[-1]["position"], {"y": 8, "x": 56})
+
+    def test_dark_route_crosses_a_nonremembered_occupied_trail_cell(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        start = Position(8, 56)
+        trail = Position(7, 56)
+        goal = Position(6, 56)
+        routed = replace(
+            snapshot,
+            player=replace(snapshot.player, position=start),
+            grids={
+                start: replace(template, position=start, passable=True, wall=False,
+                               lit=False, known=True),
+                goal: replace(template, position=goal, passable=True, wall=False,
+                              lit=False, known=True),
+            },
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = routed.floor_key
+        policy._visit_counts.update({start: 1, trail: 1, goal: 1})
+
+        key = policy.choose_key(routed)
+
+        self.assertEqual(key, "8")
+        self.assertEqual(policy.last_reason, "dark:backtrack")
+        self.assertNotIn(trail, routed.grids)
+        self.assertNotIn((trail.y, trail.x), policy._remembered_floor_t)
+
+    def test_dark_backtrack_entries_share_the_probe_budget(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        upper = Position(8, 56)
+        lower = Position(9, 56)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._visit_counts.update({upper: 1, lower: 1})
+        current = upper
+        reasons = []
+
+        for _ in range(4 * PROBE_LIMIT + 2):
+            decision = replace(
+                snapshot,
+                player=replace(snapshot.player, position=current),
+                grids={
+                    upper: replace(template, position=upper, passable=True,
+                                   wall=False, lit=False, known=True),
+                    lower: replace(template, position=lower, passable=True,
+                                   wall=False, lit=False, known=True),
+                },
+            )
+            for dy, dx in DIRECTIONS.values():
+                candidate = Position(current.y + dy, current.x + dx)
+                if candidate not in {upper, lower}:
+                    policy._probe_counts[(candidate.y, candidate.x)] = PROBE_LIMIT
+            key = policy.choose_key(decision)
+            reasons.append(policy.last_reason)
+            if policy.last_reason == "dark:locomotion-exhausted":
+                break
+            if key in DIRECTIONS:
+                dy, dx = DIRECTIONS[key]
+                current = Position(current.y + dy, current.x + dx)
+
+        self.assertLessEqual(reasons.count("dark:backtrack"), 2 * PROBE_LIMIT)
+        self.assertEqual(reasons[-1], "dark:locomotion-exhausted")
+
+    def test_remembered_own_cell_exhaustion_never_falls_to_return_wait(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        origin = Position(8, 56)
+        dark = replace(
+            snapshot,
+            player=replace(snapshot.player, position=origin),
+            grids={
+                origin: replace(template, position=origin, passable=True,
+                                wall=False, lit=False, known=True),
+            },
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = dark.floor_key
+        for dy, dx in DIRECTIONS.values():
+            policy._probe_counts[(origin.y + dy, origin.x + dx)] = PROBE_LIMIT
+
+        key = policy.choose_key(dark)
+
+        self.assertEqual((key, policy.last_reason),
+                         (WAIT_KEY, "dark:locomotion-exhausted"))
+        self.assertNotEqual(policy.last_reason, "return:wait")
+        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
     def test_missing_own_cell_is_dark_and_public_choice_does_not_read(self):
         snapshot = _snapshot_fixture()
         policy = HengbotPolicy()
@@ -104,7 +216,9 @@ class DarkwalkIncidentTest(unittest.TestCase):
         policy._visit_counts[target] = 1
         for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1),
                        (-1, 1), (1, -1), (1, 1)):
-            policy._probe_counts[(origin.y + dy, origin.x + dx)] = PROBE_LIMIT
+            candidate = (origin.y + dy, origin.x + dx)
+            if candidate != (target.y, target.x):
+                policy._probe_counts[candidate] = PROBE_LIMIT
 
         key = policy._dark_locomotion_key(routed)
 
