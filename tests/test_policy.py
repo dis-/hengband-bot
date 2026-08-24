@@ -6485,6 +6485,102 @@ class WieldLightTest(unittest.TestCase):
         self.assertFalse(key.startswith(READ_KEY), (key, policy.last_reason))
         self.assertEqual(policy.last_reason, "dark:backtrack")
 
+    def test_old_snapshot_omits_authoritative_own_grid_visibility(self):
+        raw = json.loads(
+            Path("tests/fixtures/abilities-depth34-landed-dungeon.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        snap = parse_snapshot(raw, {})
+        policy = HengbotPolicy()
+        here = snap.grids.get(snap.player.position)
+        inferred_dark = (
+            snap.dungeon_level >= 1
+            and not snap.player.blind
+            and (
+                here is not None and snap.grids_observed and not here.lit
+                or here is None and snap.grids_observed
+            )
+        )
+
+        self.assertIsNone(snap.can_see_own_grid)
+        self.assertEqual(policy._is_dark(snap), inferred_dark)
+
+    def test_authoritative_darkness_handles_an_absent_own_cell(self):
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
+            equipment_observed=True, grids_observed=True,
+            can_see_own_grid=False,
+        )
+        policy = HengbotPolicy()
+
+        self.assertTrue(policy._is_dark(snap))
+        self.assertFalse(policy._can_read_scrolls(snap))
+
+    def test_authoritative_glow_releases_latched_recall_read(self):
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, name="empty lantern",
+            known=True, fuel=0, is_equipment=True,
+        )
+        recall = item(
+            "d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+            name="Word of Recall", count=9, aware=True, known=True,
+        )
+        teleport = item(
+            "t", TVAL_SCROLL, SV_SCROLL_TELEPORT,
+            name="Teleportation", count=15, aware=True, known=True,
+        )
+        curing = item(
+            "c", TVAL_POTION, SV_POTION_CURE_CRITICAL,
+            name="Cure Critical Wounds", count=9, aware=True, known=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10, lit=False)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
+            inventory=[recall, teleport, curing],
+            equipment=[lantern], equipment_observed=True, grids_observed=True,
+            can_see_own_grid=True,
+        )
+        policy = HengbotPolicy()
+        policy.choose_key(
+            replace(
+                snap,
+                turn=snap.turn - 1,
+                equipment=[replace(lantern, fuel=50)],
+                can_see_own_grid=False,
+            )
+        )
+
+        self.assertFalse(policy._is_dark(snap))
+        self.assertTrue(policy._can_read_scrolls(snap))
+        self.assertEqual(policy.choose_key(snap), READ_KEY + "d")
+
+    def test_authoritative_light_does_not_override_blind_read_gate(self):
+        recall = item(
+            "d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+            name="Word of Recall", count=9, aware=True, known=True,
+        )
+        snap = Snapshot(
+            replace(player(10, 10), blind=True),
+            {Position(10, 10): grid(10, 10, lit=False)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 10, 0), inventory=[recall],
+            equipment_observed=True, grids_observed=True,
+            can_see_own_grid=True,
+        )
+        policy = HengbotPolicy()
+
+        self.assertFalse(policy.choose_key(snap).startswith(READ_KEY))
+
+    def test_grid_memory_merge_preserves_authoritative_visibility(self):
+        snap = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 10, 0), grids_observed=True,
+            can_see_own_grid=True,
+        )
+
+        self.assertTrue(HengbotPolicy()._with_grid_memory(snap).can_see_own_grid)
+
     def test_pin_vacuity_dim_warning_starts_light_low_return(self):
         lantern = item(
             "light", TVAL_LITE, SV_LITE_LANTERN, name="dim lantern",

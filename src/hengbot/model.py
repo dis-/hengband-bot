@@ -763,6 +763,7 @@ class Snapshot:
     equipment: list[InventoryItem] = field(default_factory=list)
     equipment_observed: bool = False
     grids_observed: bool = False
+    can_see_own_grid: bool | None = None
     grid_map_schema_error: bool = False
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
@@ -1185,6 +1186,7 @@ def parse_snapshot(
         inventory=_parse_items(data.get("inventory", [])),
         equipment=_parse_items(data.get("equipment", [])),
         equipment_observed="equipment" in data,
+        can_see_own_grid=data.get("player", {}).get("can_see_own_grid"),
         grids_observed=(
             "nearby_grids" in data
             or (
