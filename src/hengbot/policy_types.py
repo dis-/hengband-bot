@@ -12,6 +12,10 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_TURN_STALL_LIMIT,
 )
 
+# This is a game-mirror-free safety bound: a mistaken expectation declaration
+# may delay an owner, but must never deadlock it forever.
+OWNER_EXPECTATION_MAX_TURNS = 10
+
 @dataclass
 class TownTravelProgress:
     goal: Position
@@ -140,6 +144,13 @@ class OwnerExpectationRegistry:
     ) -> None:
         if not expected_changes:
             raise ValueError("an owner expectation must name an observable change")
+        valid_changes = frozenset(OwnerProgressCore.__dataclass_fields__)
+        unknown = frozenset(expected_changes) - valid_changes
+        if unknown:
+            raise ValueError(
+                "unknown owner expectation progress field(s): "
+                + ", ".join(sorted(unknown))
+            )
         self._pending[owner] = OwnerExpectation(
             progress_core, frozenset(expected_changes)
         )
@@ -149,6 +160,12 @@ class OwnerExpectationRegistry:
         if pending is None:
             return True
         if pending.progress_core.floor != progress_core.floor:
+            self._pending.pop(owner, None)
+            return True
+        if (
+            progress_core.turn - pending.progress_core.turn
+            >= OWNER_EXPECTATION_MAX_TURNS
+        ):
             self._pending.pop(owner, None)
             return True
         if any(

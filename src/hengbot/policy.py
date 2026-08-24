@@ -929,6 +929,9 @@ DESTROY_COMMAND = "k"
 # an item and mark it undestroyable (e.g. an artifact the game refuses to break).
 DESTROY_FAIL_LIMIT = 3
 LANTERN_REFILL_FUEL = 1000
+# Hengband's normal-light dim warning threshold
+# (src/object/lite-processor.cpp:73).
+LANTERN_DIM_WARNING_FUEL = 100
 TORCH_REFILL_FUEL = 500
 
 # Shopping. In a store, 'p' is the (rewritten-to-'g') Purchase command. It
@@ -6510,7 +6513,6 @@ class HengbotPolicy(TownArbiterMixin):
             and not player.recalling
             and not player.blind
             and not player.confused
-            and self._can_read_scrolls(snapshot)
         ):
             # A known descent can be sealed behind ordinary diggable veins even
             # after every walkable frontier has been exhausted.  Recompute the
@@ -6533,13 +6535,13 @@ class HengbotPolicy(TownArbiterMixin):
                 if restore is not None:
                     return restore
             recall = self._find_recall_scroll(snapshot)
-            if recall is not None:
+            if recall is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0
                 self._returning_to_town = True
                 self.last_reason = "stuck:recall-escape"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
             teleport = self._find_teleport_scroll(snapshot)
-            if teleport is not None:
+            if teleport is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0
                 self.last_reason = "stuck:teleport-escape"
                 return self._read_key(snapshot, teleport)
@@ -10071,14 +10073,16 @@ class HengbotPolicy(TownArbiterMixin):
                 equipped.is_lantern
                 and not self._oil_below_departure_target(snapshot)
             )
-        # Hengband warns at fuel 50. No light-specific constant exposes that
-        # boundary here, so reuse the existing value-50 DESTRUCTION_GATE_DEPTH.
-        if equipped.fuel > DESTRUCTION_GATE_DEPTH:
+        # Normal lights warn below 100 fuel at ten-step marks
+        # (src/object/lite-processor.cpp:73).
+        if equipped.fuel >= LANTERN_DIM_WARNING_FUEL:
             return True
         return self._light_refill_item(snapshot) is not None
 
     def _can_read_scrolls(self, snapshot: Snapshot) -> bool:
-        """Mirror Hengband's no_lite gate, including recoverable darkness."""
+        """Return whether Hengband permits reading on the current grid now."""
+        if not self._is_dark(snapshot):
+            return True
         equipped = next((item for item in snapshot.equipment if item.is_light), None)
         if equipped is None and not snapshot.equipment_observed:
             # Direct legacy Snapshot constructors predate equipment presence
@@ -10088,10 +10092,7 @@ class HengbotPolicy(TownArbiterMixin):
             equipped.sval > SV_LITE_LANTERN or equipped.fuel > 0
         ):
             return True
-        return (
-            self._light_refill_item(snapshot) is not None
-            or self._darkness_torch(snapshot) is not None
-        )
+        return False
 
     def _recall_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
@@ -32029,6 +32030,19 @@ class HengbotPolicy(TownArbiterMixin):
                 # original read was rejected, so one ordinary retry is safe.
                 self._emergency_consumable_issue_watch = None
 
+        if (
+            not player.blind
+            and any(
+                item.is_teleport_scroll
+                or (item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_PHASE_DOOR)
+                or item.is_recall_scroll
+                for item in snapshot.inventory
+            )
+        ):
+            darkness_recovery = self._darkness_recovery_key(snapshot)
+            if darkness_recovery is not None:
+                return darkness_recovery
+
         # Recall takes many game turns.  A monster outside the exported field of
         # view can keep damaging us throughout that countdown, so
         # return:wait-recall is not safe after an observed HP drop.  Relocate to
@@ -33583,7 +33597,6 @@ class HengbotPolicy(TownArbiterMixin):
             and not self._emergency_return_active
             and not snapshot.player.blind
             and not snapshot.player.confused
-            and self._can_read_scrolls(snapshot)
         ):
             pending_recall = self._dungeon_recall_confirmation_key(snapshot)
             if pending_recall is not None:
@@ -33592,7 +33605,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "breeder-breakthrough:wait-recall"
                 return WAIT_KEY
             recall = self._find_recall_scroll(snapshot)
-            if recall is not None:
+            if recall is not None and self._can_read_scrolls(snapshot):
                 self._returning_to_town = True
                 self.last_reason = "breeder-breakthrough:recall"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)

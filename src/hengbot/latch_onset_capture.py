@@ -7,10 +7,12 @@ from collections import deque
 import inspect
 import json
 import pickle
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from hengbot.flight_recorder import jsonable, rotate_log
+from hengbot.policy_types import OwnerProgressCore
 
 
 CAPTURE_DECISIONS_AFTER_ONSET = 2
@@ -61,6 +63,26 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     restored.__dict__.setdefault("_town_turn_arbiter", None)
+    registry = restored.__dict__.get("_owner_expectations")
+    if registry is not None:
+        for owner, pending in tuple(registry._pending.items()):
+            core = pending.progress_core
+            if not hasattr(core, "store_type"):
+                upgraded = OwnerProgressCore(
+                    floor=core.floor,
+                    position=core.position,
+                    store_type=None,
+                    turn=0,
+                    hp=0,
+                    recalling=False,
+                    gold=core.gold,
+                    experience=core.experience,
+                    inventory=core.inventory,
+                    equipment=core.equipment,
+                )
+                registry._pending[owner] = replace(
+                    pending, progress_core=upgraded
+                )
     return restored
 
 

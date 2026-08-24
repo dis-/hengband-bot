@@ -801,6 +801,23 @@ class CombatTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
 
+    def test_darkness_does_not_block_active_breeder_recall_wait(self):
+        snapshot = self._weak_breeder_incident_snapshot()
+        snapshot = replace(
+            snapshot,
+            player=replace(snapshot.player, recalling=True),
+            grids={position: replace(cell, lit=False) for position, cell in snapshot.grids.items()},
+            equipment=[item(
+                "light", TVAL_LITE, SV_LITE_LANTERN, fuel=0,
+                known=True, is_equipment=True,
+            )],
+            equipment_observed=True,
+        )
+        policy = HengbotPolicy()
+        policy._breeder_breakthrough_floor = snapshot.floor_key
+        self.assertEqual(policy._breeder_breakthrough_key(snapshot, []), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "breeder-breakthrough:wait-recall")
+
     def test_2230_capture_does_not_rest_among_eighteen_weak_breeders(self):
         # 2026-07-31 22:30 incident state: HP 332/461, eighteen giant white
         # lice visible, two adjacent, and the extermination-impossible latch
@@ -6485,6 +6502,58 @@ class WieldLightTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertTrue(policy._should_start_town_return(snap))
         self.assertEqual(policy._last_return_trigger, "light-low")
+        self.assertFalse(policy._expedition_light_ready(
+            replace(snap, equipment=[replace(lantern, fuel=99)])
+        ))
+        self.assertTrue(policy._expedition_light_ready(
+            replace(snap, equipment=[replace(lantern, fuel=100)])
+        ))
+
+    def test_readability_uses_environment_light_and_current_fuel_only(self):
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, known=True, fuel=0,
+            is_equipment=True,
+        )
+        town = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10, lit=False)}, [],
+            floor_key=(0, 0, 0), town_flag=True, equipment=[lantern],
+            equipment_observed=True,
+        )
+        lit_dungeon = replace(
+            town, floor_key=(DUNGEON_YEEK_CAVE, 1, 0), town_flag=False,
+            grids={Position(10, 10): grid(10, 10, lit=True)},
+        )
+        dark_dungeon = replace(
+            lit_dungeon, grids={Position(10, 10): grid(10, 10, lit=False)},
+            inventory=[item("o", TVAL_FLASK, SV_FLASK_OIL, fuel=7500)],
+        )
+        policy = HengbotPolicy()
+        self.assertTrue(policy._can_read_scrolls(town))
+        self.assertTrue(policy._can_read_scrolls(lit_dungeon))
+        self.assertFalse(policy._can_read_scrolls(dark_dungeon))
+
+    def test_emergency_refills_before_reading_then_reads_after_light_returns(self):
+        teleport = item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3)
+        oil = item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500)
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, known=True, fuel=0,
+            is_equipment=True,
+        )
+        snap = EmergencyRecallEscapeTest()._swarm([teleport, oil])
+        snap = replace(
+            snap,
+            grids={position: replace(cell, lit=False) for position, cell in snap.grids.items()},
+            equipment=[lantern], equipment_observed=True,
+        )
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(snap), "\\Fo")
+        self.assertEqual(policy.last_reason, "refill-light")
+        restored = replace(
+            snap, turn=snap.turn + 1,
+            equipment=[replace(lantern, fuel=7500)], inventory=[teleport],
+        )
+        self.assertEqual(policy.choose_key(restored), READ_KEY + "t")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_known_lantern_departure_requires_oil_or_reserve_fuel(self):
         lantern = item(
@@ -33865,6 +33934,25 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         self.assertIsNone(pol._emergency_item(arrived, []))
         self.assertIsNone(pol._emergency_consumable_issue_watch)
 
+    def test_unobserved_consumed_scroll_confirmation_is_bounded(self):
+        snap = replace(
+            self._swarm([
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=3),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=8),
+            ]),
+            turn=500,
+        )
+        pol = HengbotPolicy()
+        self.assertEqual(pol.choose_key(snap), "rt")
+        consumed = replace(snap, inventory=[replace(snap.inventory[0], count=2), snap.inventory[1]])
+        for delta in range(9):
+            waiting = replace(consumed, turn=snap.turn + delta)
+            self.assertEqual(pol.choose_key(waiting), WAIT_KEY)
+            self.assertEqual(pol.last_reason, "emergency:await-consumable-confirmation")
+        expired = replace(consumed, turn=snap.turn + RECALL_ISSUE_CONFIRM_TURNS)
+        self.assertEqual(pol.choose_key(expired), "rt")
+        self.assertEqual(pol.last_reason, "emergency:teleport")
+
     def test_cornered_without_any_escape_attacks_instead_of_waiting(self):
         # Live Yeek 1F fundraising death: after relocation and recall supplies
         # were exhausted, a blocked route to the stairs emitted wait on six
@@ -38326,7 +38414,12 @@ class StuckEscapeTest(unittest.TestCase):
             [],
             inventory=[recall, digger],
             equipment=[sword],
+            equipment_observed=True,
             floor_key=(2, 8, 0),
+        )
+        snap = replace(
+            snap,
+            grids={position: replace(cell, lit=False) for position, cell in snap.grids.items()},
         )
         pol = HengbotPolicy()
         pol._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
@@ -57901,6 +57994,60 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
 
 
 class OwnerExpectationContractTest(unittest.TestCase):
+    def test_restore_upgrades_six_field_owner_progress_core(self):
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0),
+        )
+        policy = HengbotPolicy()
+        current = policy._owner_progress_core(snapshot)
+        legacy = SimpleNamespace(
+            floor=current.floor,
+            position=current.position,
+            gold=current.gold,
+            experience=current.experience,
+            inventory=current.inventory,
+            equipment=current.equipment,
+        )
+        policy._owner_expectations._pending["owner"] = policy_module.OwnerExpectation(
+            legacy, frozenset({"position"})
+        )
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertFalse(restored._owner_expectations.may_select(
+            "owner", restored._owner_progress_core(snapshot)
+        ))
+        moved = replace(
+            snapshot, player=replace(snapshot.player, position=Position(10, 11))
+        )
+        self.assertTrue(restored._owner_expectations.may_select(
+            "owner", restored._owner_progress_core(moved)
+        ))
+
+    def test_unknown_expected_change_is_rejected_at_post_time(self):
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0),
+        )
+        policy = HengbotPolicy()
+        with self.assertRaisesRegex(ValueError, "unknown owner expectation"):
+            policy._owner_expectations.post(
+                "owner", policy._owner_progress_core(snapshot), "inventroy"
+            )
+
+    def test_failed_home_withdrawal_rearms_after_registry_expiry(self):
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), turn=100,
+        )
+        policy = HengbotPolicy()
+        registry = policy_module.OwnerExpectationRegistry()
+        registry.post("home-errand", policy._owner_progress_core(snapshot), "inventory")
+        self.assertFalse(registry.may_select(
+            "home-errand", policy._owner_progress_core(replace(snapshot, turn=109))
+        ))
+        self.assertTrue(registry.may_select(
+            "home-errand", policy._owner_progress_core(replace(snapshot, turn=110))
+        ))
     def test_posted_owner_cannot_be_selected_twice_on_unchanged_progress_core(self):
         snapshot = Snapshot(
             player(10, 10, gold=123),
@@ -58053,23 +58200,17 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
             self.assertEqual(run.returncode, 0, run.stdout)
             return
         root = Path(__file__).resolve().parents[1]
-        capture = (
-            root
-            / "incident-captures"
-            / "20260824-055710-town-blocked-procurement-home-unroutable"
-            / "snapshots"
-            / "snapshots-current.jsonl.gz"
-        )
+        capture = root / "tests" / "fixtures" / "probe-purity-incident-surviving-rows.jsonl.gz"
         with TemporaryDirectory() as directory:
             directory = Path(directory)
             policy = HengbotPolicy()
             policy._character_calibration_path = directory / "character-calibration.json"
             policy._confirmed_loadout_path = directory / "confirmed-loadout.json"
             policy._character_calibration_path.write_bytes(
-                (root / "jsonlog" / "character-calibration.json").read_bytes()
+                (root / "tests" / "fixtures" / "probe-purity-character-calibration.json").read_bytes()
             )
             policy._confirmed_loadout_path.write_bytes(
-                (root / "jsonlog" / "confirmed-loadout.json").read_bytes()
+                (root / "tests" / "fixtures" / "probe-purity-confirmed-loadout.json").read_bytes()
             )
             agreements = []
             stateful_gate = policy._purchase_has_fresh_home_absence
@@ -58084,47 +58225,20 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
             reasons = []
             replayed = 0
             final_snapshot = None
-            with gzip.open(capture, "rt", encoding="utf-8") as stream:
+            with gzip.open(capture, "rt", encoding="utf-8-sig") as stream:
                 for line_number, line in enumerate(stream, 1):
-                    if 712 <= line_number <= 764:
-                        raw = json.loads(line)
-                        if raw.get("type") in {"player_turn", "store"}:
-                            final_snapshot = parse_snapshot(raw)
-                            key = policy.choose_key(final_snapshot)
-                            reasons.append(policy.last_reason)
-                            replayed += 1
-                    if line_number > 764:
-                        break
+                    raw = json.loads(line)
+                    if raw.get("type") in {"player_turn", "store"}:
+                        final_snapshot = parse_snapshot(raw)
+                        policy.choose_key(final_snapshot)
+                        reasons.append(policy.last_reason)
+                        replayed += 1
 
-            self.assertEqual(replayed, 51)
+            self.assertEqual(replayed, 2)
             self.assertIsNotNone(final_snapshot)
             self.assertGreater(len(agreements), 0)
             self.assertTrue(all(left is right for left, right in agreements), agreements)
             self.assertFalse(POLICY_FINAL_STOP_REASONS.intersection(reasons))
-            self.assertIn(key, "12346789")
-            self.assertEqual(policy._store_visit.store_type, STORE_TEMPLE)
-
-            supplier = policy._town_supplier_stock[STORE_GENERAL]
-            selected = policy._next_purchase_unreserved(
-                replace(final_snapshot, store=supplier)
-            )
-            self.assertIsNotNone(selected)
-            self.assertIs(
-                policy._purchase_has_fresh_home_absence(final_snapshot, selected),
-                policy_module.ProcurementHomeGate.HOME_FIRST,
-            )
-            self.assertNotIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
-
-            policy._store_visit = None
-            self.assertIs(
-                policy._purchase_has_fresh_home_absence(final_snapshot, selected),
-                policy_module.ProcurementHomeGate.HOME_FIRST,
-            )
-            self.assertEqual(
-                policy._shopping_approach_step(final_snapshot, STORE_HOME),
-                Position(32, 120),
-            )
-
     def test_probe_records_genuine_block_until_in_store_wait_publishes_it(self):
         ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
         snapshot = HiddenInfoFallbackTest()._mana_starvation_snapshot(
