@@ -842,6 +842,11 @@ def _decision_record(
         "key": key,
         "prompt_owner_handoff": prompt_owner_handoff,
         "store_visit": store_visit,
+        **(
+            {"grid_map_schema_error": True}
+            if snapshot.grid_map_schema_error
+            else {}
+        ),
         **({"arbiter": arbiter} if arbiter is not None else {}),
         # Preserve the player-visible evidence associated with the exact board
         # against which this key was chosen.  In particular, repeat counters in

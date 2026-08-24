@@ -11,6 +11,81 @@ class MissingMonraceKnowledgeError(ValueError):
     pass
 
 
+_GRID_FLAG_NAMES = ("mark", "cave_known", "lite", "view", "room", "unsafe")
+_GRID_TERRAIN_NAMES = (
+    "building",
+    "can_dig",
+    "door",
+    "down_stairs",
+    "entrance",
+    "floor",
+    "has_gold",
+    "los",
+    "move",
+    "permanent",
+    "quest_enter",
+    "quest_exit",
+    "stairs",
+    "store",
+    "trap",
+    "tunnel",
+    "up_stairs",
+    "wall",
+)
+_GRID_SIDECAR_NAMES = {
+    "m": "monster_index",
+    "o": "object_count",
+    "t": "object_tvals",
+    "s": "store_number",
+    "e": "entrance_dungeon_id",
+    "q": "quest_id",
+    "b": "building_type",
+    "p": "building_special",
+}
+
+
+def _decode_grid_map(grid_map: Mapping[str, Any]) -> list[dict[str, Any]]:
+    palette = grid_map.get("palette", [])
+    sidecars = {
+        (int(cell["y"]), int(cell["x"])): cell
+        for cell in grid_map.get("cells", [])
+    }
+    grids: list[dict[str, Any]] = []
+    for y_value, x0_value, length_value, palette_index_value in grid_map.get("runs", []):
+        y = int(y_value)
+        x0 = int(x0_value)
+        length = int(length_value)
+        terrain_id, flag_bits, terrain_bits, known_value = palette[
+            int(palette_index_value)
+        ]
+        flags = {
+            name: bool(int(flag_bits) & (1 << index))
+            for index, name in enumerate(_GRID_FLAG_NAMES)
+        }
+        terrain = {
+            name: bool(int(terrain_bits) & (1 << index))
+            for index, name in enumerate(_GRID_TERRAIN_NAMES)
+        }
+        for x in range(x0, x0 + length):
+            grid_data: dict[str, Any] = {
+                "y": y,
+                "x": x,
+                "terrain_id": int(terrain_id),
+                "known": bool(known_value),
+                "flags": flags,
+                "terrain": terrain,
+                "monster_index": 0,
+                "object_count": 0,
+                "object_tvals": [],
+            }
+            for encoded, decoded in _GRID_SIDECAR_NAMES.items():
+                cell = sidecars.get((y, x), {})
+                if encoded in cell:
+                    grid_data[decoded] = cell[encoded]
+            grids.append(grid_data)
+    return grids
+
+
 @dataclass(frozen=True)
 class Position:
     y: int
@@ -688,6 +763,7 @@ class Snapshot:
     equipment: list[InventoryItem] = field(default_factory=list)
     equipment_observed: bool = False
     grids_observed: bool = False
+    grid_map_schema_error: bool = False
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
@@ -850,7 +926,13 @@ def parse_snapshot(
     )
 
     grids: dict[Position, GridState] = {}
-    for grid_data in data.get("nearby_grids", []):
+    grid_map = data.get("grid_map")
+    grid_records = (
+        _decode_grid_map(grid_map)
+        if isinstance(grid_map, Mapping) and not grid_map.get("schema_error", False)
+        else data.get("nearby_grids", [])
+    )
+    for grid_data in grid_records:
         pos = Position(int(grid_data["y"]), int(grid_data["x"]))
         terrain = grid_data.get("terrain", {})
         flags = grid_data.get("flags", {})
@@ -1103,7 +1185,13 @@ def parse_snapshot(
         inventory=_parse_items(data.get("inventory", [])),
         equipment=_parse_items(data.get("equipment", [])),
         equipment_observed="equipment" in data,
-        grids_observed="nearby_grids" in data,
+        grids_observed=(
+            "nearby_grids" in data
+            or ("grid_map" in data and not bool(data["grid_map"].get("schema_error", False)))
+        ),
+        grid_map_schema_error=bool(
+            isinstance(grid_map, Mapping) and grid_map.get("schema_error", False)
+        ),
         store=_parse_store(data.get("store")),
         recall_dungeon_id=int(progress.get("recall_dungeon_id", 0)),
         entered_dungeon_ids=tuple(
