@@ -113,28 +113,43 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(key, "6")
         self.assertEqual(policy._dark_route_goal, upstairs)
 
-    def test_isolated_stairs_goal_is_accepted_but_generic_dead_end_is_not(self):
+    def test_isolated_generic_dead_end_retires_after_arrival_budget(self):
         snapshot = _snapshot_fixture()
         start = Position(10, 10)
         goal = Position(10, 11)
-        dark = replace(
-            snapshot,
-            player=replace(snapshot.player, position=start),
-            grids={},
-        )
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
         policy._visit_counts.update({start: 1, goal: 1})
-        policy._remembered_floor_t.add((goal.y, goal.x))
+        policy._remembered_floor_t.update(
+            {(start.y, start.x), (goal.y, goal.x)}
+        )
         for dy, dx in DIRECTIONS.values():
             neighbor = Position(goal.y + dy, goal.x + dx)
             policy._known_t.add((neighbor.y, neighbor.x))
 
-        self.assertIsNone(policy._dark_route_to_frontier(dark))
+        current = start
+        arrivals = 0
+        retirement_window_arrivals = 0
+        for _ in range(4 * PROBE_LIMIT + 4):
+            dark = replace(
+                snapshot,
+                player=replace(snapshot.player, position=current),
+                grids={},
+            )
+            key = policy.choose_key(dark)
+            if key in DIRECTIONS:
+                dy, dx = DIRECTIONS[key]
+                next_position = Position(current.y + dy, current.x + dx)
+                if next_position == goal:
+                    arrivals += 1
+                    if policy._dark_goal_counts[(goal.y, goal.x)] >= PROBE_LIMIT:
+                        retirement_window_arrivals += 1
+                current = next_position
 
-        policy._remembered_upstairs.add(goal)
-        route = policy._dark_route_to_frontier(dark)
-        self.assertIsNotNone(route)
-        self.assertEqual(route[0], goal)
+        self.assertEqual(arrivals, PROBE_LIMIT)
+        self.assertEqual(policy._dark_goal_counts[(goal.y, goal.x)], PROBE_LIMIT)
+        self.assertEqual(retirement_window_arrivals, 0)
+        self.assertNotEqual(policy._dark_route_goal, goal)
 
     def test_dark_probe_tiebreak_reduces_stairs_distance(self):
         snapshot = _snapshot_fixture()

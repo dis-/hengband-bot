@@ -9501,7 +9501,6 @@ class HengbotPolicy(TownArbiterMixin):
             for visited, count in self._visit_counts.items()
             if count > 0
         )
-        goal_arrived = False
         if self._dark_route_expected is not None:
             if position != self._dark_route_expected:
                 expected_grid = snapshot.grid_at(self._dark_route_expected)
@@ -9516,13 +9515,12 @@ class HengbotPolicy(TownArbiterMixin):
                 self._dark_route.pop(0)
                 self._dark_route_expected = None
                 if not self._dark_route:
-                    goal_arrived = True
                     if self._dark_route_goal is not None:
                         goal = self._dark_route_goal
                         self._dark_goal_counts[(goal.y, goal.x)] += 1
                     self._clear_dark_route()
 
-        if not self._dark_route and not goal_arrived:
+        if not self._dark_route:
             route = self._dark_route_to_frontier(snapshot)
             if route is not None:
                 goal, path = route
@@ -9571,22 +9569,6 @@ class HengbotPolicy(TownArbiterMixin):
                 neighbors.append(neighbor)
         return neighbors
 
-    def _dark_goal_offers_onward(
-        self, snapshot: Snapshot, position: Position
-    ) -> bool:
-        """Return whether a non-stairs goal has an unspent unknown exit."""
-        for dy, dx in NEIGHBOR_OFFSETS:
-            neighbor = Position(position.y + dy, position.x + dx)
-            yx = (neighbor.y, neighbor.x)
-            if (
-                snapshot.in_bounds(neighbor)
-                and yx not in self._known_t
-                and yx not in self._blocked_unknown
-                and self._probe_counts[yx] < PROBE_LIMIT
-            ):
-                return True
-        return False
-
     def _dark_route_to_frontier(
         self, snapshot: Snapshot
     ) -> tuple[Position, list[Position]] | None:
@@ -9606,12 +9588,6 @@ class HengbotPolicy(TownArbiterMixin):
                 frontier = grid is not None and self._is_frontier(snapshot, grid)
                 if (
                     (remembered or upstairs or downstairs or frontier)
-                    and (
-                        upstairs
-                        or downstairs
-                        or frontier
-                        or self._dark_goal_offers_onward(snapshot, position)
-                    )
                     and self._dark_goal_counts[yx] < PROBE_LIMIT
                 ):
                     kind = 0 if upstairs else 1 if downstairs else 2
