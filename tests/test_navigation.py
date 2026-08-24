@@ -1154,7 +1154,7 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._build_grid_index(snapshot)
         for _ in range(NAV_NO_PROGRESS_LIMIT - 1):
             policy._update_navigation_progress(snapshot)
-        policy._remembered_known_t.add((20, 20))
+        policy._remembered_marked_t.add((20, 20))
         policy._update_navigation_progress(snapshot)
         self.assertEqual(policy._nav_stall_count, 0)
         self.assertFalse(policy._nav_exhausted)

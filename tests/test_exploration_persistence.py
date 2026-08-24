@@ -196,14 +196,14 @@ class ProgressBudgetTest(unittest.TestCase):
         policy.prime(base)
         # Model a floor larger than the moving emitter window: the persistent
         # accumulator already contains corridors no longer in snapshot.grids.
-        policy._remembered_known_t.update((10, x) for x in range(5, 15))
+        policy._remembered_marked_t.update((10, x) for x in range(5, 15))
         policy._fruitless_disengage_floor = FLOOR
         policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT
         policy._fruitless_disengage_marked_high = len(
-            policy._remembered_known_t
+            policy._remembered_marked_t
         )
         policy.last_reason = "combat:disengage-explore"
-        policy._remembered_known_t.add((10, 15))
+        policy._remembered_marked_t.add((10, 15))
         with (
             patch.object(policy, "_fruitless_fight_is_winnable", return_value=False),
             patch.object(policy, "_return_to_town_key", return_value="6"),
@@ -220,11 +220,11 @@ class ProgressBudgetTest(unittest.TestCase):
         base = floor_snapshot(position, base_cells)
         policy = HengbotPolicy()
         policy.prime(base)
-        policy._remembered_known_t.update((10, x) for x in range(5, 15))
+        policy._remembered_marked_t.update((10, x) for x in range(5, 15))
         policy._fruitless_disengage_floor = FLOOR
         policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT
         policy._fruitless_disengage_marked_high = len(
-            policy._remembered_known_t
+            policy._remembered_marked_t
         )
         policy.last_reason = "combat:disengage-explore"
         larger_window = floor_snapshot(
@@ -248,9 +248,9 @@ class ProgressBudgetTest(unittest.TestCase):
         policy._fruitless_disengage_floor = FLOOR
         policy._fruitless_disengage_decisions = FRUITLESS_DISENGAGE_LIMIT
         policy._fruitless_disengage_marked_high = len(
-            policy._remembered_known_t
+            policy._remembered_marked_t
         )
-        policy._remembered_known_t.add((10, 6))
+        policy._remembered_marked_t.add((10, 6))
         policy.last_reason = "combat:disengage-explore"
         with (
             patch.object(policy, "_fruitless_fight_is_winnable", return_value=False),

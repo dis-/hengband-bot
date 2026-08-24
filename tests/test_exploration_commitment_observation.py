@@ -185,7 +185,10 @@ class CapturedGoalFlipCharacterizationTest(unittest.TestCase):
             destinations.append(policy._explore_goal_identity.position)
             keys.append(policy._direction_key(snapshot.player.position, step))
 
-        self.assertEqual(destinations, [Position(2, 94), Position(2, 94)])
+        # The unmarked magic-mapped room remains unexplored, so replanning
+        # commits to its reachable marked boundary instead of erasing it from
+        # the frontier through the broader terrain-known axis.
+        self.assertEqual(destinations, [Position(3, 95), Position(3, 95)])
         self.assertNotEqual(keys, ["8", "2"])
 
 

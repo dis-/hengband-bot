@@ -1684,11 +1684,13 @@ class HengbotPolicy(TownArbiterMixin):
         self._door_t: set[tuple[int, int]] = set()
         self._rubble_t: set[tuple[int, int]] = set()
         self._known_t: set[tuple[int, int]] = set()
+        self._marked_t: set[tuple[int, int]] = set()
         self._remembered_floor_t: set[tuple[int, int]] = set()
         self._remembered_door_t: set[tuple[int, int]] = set()
         self._remembered_rubble_t: set[tuple[int, int]] = set()
         self._remembered_wall_t: set[tuple[int, int]] = set()
         self._remembered_known_t: set[tuple[int, int]] = set()
+        self._remembered_marked_t: set[tuple[int, int]] = set()
         self._emitted_t: set[tuple[int, int]] = set()
         self._window_edge_goals: set[Position] = set()
         self._window_edge_fallback_pending = False
@@ -2378,6 +2380,8 @@ class HengbotPolicy(TownArbiterMixin):
         terrain. Monster occupancy is different: it is authoritative only in the
         current snapshot and must never survive after its grid leaves view.
         """
+        if not hasattr(self, "_remembered_marked_t"):
+            self._remembered_marked_t = set(self._remembered_known_t)
         # A store page without grids is not a terrain observation.  In
         # particular, its metadata must not select/reset a terrain region: the
         # store prompt has not moved the player or changed the surface map, and
@@ -4493,7 +4497,7 @@ class HengbotPolicy(TownArbiterMixin):
         )
         self._exploration_ledger.marked_high = max(
             self._exploration_ledger.marked_high,
-            len(self._remembered_known_t),
+            len(self._remembered_marked_t),
         )
         self._exploration_ledger.note_decision(latest_snapshot)
         return key
@@ -4803,7 +4807,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._build_grid_index(snapshot)
         self._exploration_ledger.marked_high = max(
             self._exploration_ledger.marked_high,
-            len(self._remembered_known_t),
+            len(self._remembered_marked_t),
         )
         self._fruitless_disengage_marked_high = (
             self._exploration_ledger.marked_high
@@ -7442,6 +7446,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._remembered_rubble_t.clear()
             self._remembered_wall_t.clear()
             self._remembered_known_t.clear()
+            self._remembered_marked_t.clear()
             self._remembered_downstairs.clear()
             self._remembered_upstairs.clear()
             self._remembered_entrances.clear()
@@ -31076,7 +31081,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._nav_exhausted = False
             self._nav_escape_steps = 0
             return
-        coverage = len(self._remembered_known_t)
+        coverage = len(self._remembered_marked_t)
         marker = (
             snapshot.player.gold,
             len(snapshot.inventory),
@@ -31447,7 +31452,7 @@ class HengbotPolicy(TownArbiterMixin):
         if quest_locked and not nearby_threat:
             return None
 
-        marked_now = len(self._remembered_known_t)
+        marked_now = len(self._remembered_marked_t)
         productive_walk_out = (
             self.last_reason == "combat:disengage-explore"
             and marked_now > self._fruitless_disengage_marked_high
@@ -33465,7 +33470,7 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.player.gold,
             -trigger_count,
             -breeder_count,
-            len(self._remembered_known_t),
+            len(self._remembered_marked_t),
             snapshot.player.hp,
         )
 
@@ -34944,6 +34949,12 @@ class HengbotPolicy(TownArbiterMixin):
         remembered_rubble = self._remembered_rubble_t
         remembered_wall = self._remembered_wall_t
         remembered_known = self._remembered_known_t
+        # Checkpoints written before the display/terrain split have only the
+        # old known index.  Those rows predate known-only grid_map cells, so
+        # treating their remembered known cells as marked preserves replay.
+        if not hasattr(self, "_remembered_marked_t"):
+            self._remembered_marked_t = set(remembered_known)
+        remembered_marked = self._remembered_marked_t
         blocked_doors = self._blocked_doors
         blocked_rubble = self._blocked_rubble
         for pos, grid in snapshot.grids.items():
@@ -34957,6 +34968,8 @@ class HengbotPolicy(TownArbiterMixin):
             if grid.has_entrance:
                 self._remembered_entrances.add(pos)
             remembered_known.add(key)
+            if grid.marked:
+                remembered_marked.add(key)
             remembered_floor.discard(key)
             remembered_door.discard(key)
             remembered_rubble.discard(key)
@@ -34982,6 +34995,7 @@ class HengbotPolicy(TownArbiterMixin):
         door = remembered_door - blocked_doors
         rubble = remembered_rubble - blocked_rubble
         known = set(remembered_known)
+        marked = set(remembered_marked)
         for pos, grid in snapshot.grids.items():
             if not grid.has_monster:
                 continue
@@ -35007,10 +35021,12 @@ class HengbotPolicy(TownArbiterMixin):
                 if key not in known:
                     floor.add(key)
                     known.add(key)
+                    marked.add(key)
         self._floor_t = floor
         self._door_t = door
         self._rubble_t = rubble
         self._known_t = known
+        self._marked_t = marked
 
     def _walkable_neighbors(
         self,
@@ -35670,7 +35686,7 @@ class HengbotPolicy(TownArbiterMixin):
             return (-1, False, False, False, 0)
         return (
             grid.terrain_id,
-            grid.known,
+            grid.marked,
             grid.passable,
             grid.is_closed_door,
             grid.monster_index if grid.has_monster else 0,
@@ -35760,7 +35776,7 @@ class HengbotPolicy(TownArbiterMixin):
 
         def frontier_score(position: Position) -> tuple[int, float, int, int]:
             unknown = sum(
-                (position.y + dy, position.x + dx) not in self._known_t
+                (position.y + dy, position.x + dx) not in self._marked_t
                 and (position.y + dy, position.x + dx)
                 not in self._blocked_unknown
                 and snapshot.in_bounds(
@@ -35994,7 +36010,7 @@ class HengbotPolicy(TownArbiterMixin):
         it forever.
         """
         origin = snapshot.player.position
-        known = self._known_t
+        marked = self._marked_t
         blocked = self._blocked_unknown
         occupied = {
             (position.y, position.x)
@@ -36023,7 +36039,7 @@ class HengbotPolicy(TownArbiterMixin):
             ny = origin.y + dy
             nx = origin.x + dx
             key = (ny, nx)
-            if key in known or key in blocked or key in occupied:
+            if key in marked or key in blocked or key in occupied:
                 continue
             if not snapshot.in_bounds(Position(ny, nx)):
                 continue
@@ -36126,7 +36142,7 @@ class HengbotPolicy(TownArbiterMixin):
         # tile. Crucially, a tile beyond the *map edge* (out of bounds) is void,
         # not frontier — otherwise the bot circles an open town/wilderness
         # perimeter forever.
-        known = self._known_t
+        marked = self._marked_t
         blocked = self._blocked_unknown
         height = snapshot.height
         width = snapshot.width
@@ -36140,7 +36156,7 @@ class HengbotPolicy(TownArbiterMixin):
             # An unknown neighbour marks unexplored ground — unless we have already
             # probed it to the limit and found a wall (blocked), in which case it
             # is not really a frontier.
-            if key not in known and key not in blocked:
+            if key not in marked and key not in blocked:
                 if not bounded or (0 <= ny < height and 0 <= nx < width):
                     return True
         return False
@@ -36169,7 +36185,7 @@ class HengbotPolicy(TownArbiterMixin):
             ny = position.y + dy
             nx = position.x + dx
             neighbor = (ny, nx)
-            if neighbor in self._known_t or neighbor in self._blocked_unknown:
+            if neighbor in self._marked_t or neighbor in self._blocked_unknown:
                 continue
             if not bounded or (0 <= ny < snapshot.height and 0 <= nx < snapshot.width):
                 return True

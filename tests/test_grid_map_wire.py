@@ -7,7 +7,8 @@ from pathlib import Path
 import unittest
 
 from hengbot.cli import _decision_record
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, parse_snapshot
+from hengbot.policy import HengbotPolicy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -75,6 +76,64 @@ def _encode_grid_map(snapshot_data: dict) -> dict:
 
 
 class GridMapWireTest(unittest.TestCase):
+    @staticmethod
+    def _known_only_corridor_snapshot():
+        data = _load_first_row("incident-20260821-loop-capture-rows.jsonl.gz")
+        data["player"]["y"] = 19
+        data["player"]["x"] = 30
+        data["visible_monsters"] = []
+        data["detected_monsters"] = []
+        data.pop("nearby_grids")
+        floor_bits = (1 << 5) | (1 << 7) | (1 << 8)
+        downstairs_bits = floor_bits | (1 << 3) | (1 << 12)
+        wall_bits = 1 << 17
+        data["grid_map"] = {
+            "w": data["floor"]["width"],
+            "h": data["floor"]["height"],
+            "palette": [
+                [1, 1, floor_bits, 1],
+                [1, 0, floor_bits, 1],
+                [1, 1, downstairs_bits, 1],
+                [2, 1, wall_bits, 1],
+            ],
+            "runs": [
+                [18, 29, 3, 3],
+                [19, 29, 1, 3],
+                [19, 30, 1, 0],
+                [19, 31, 1, 1],
+                [19, 32, 1, 2],
+                [20, 29, 3, 3],
+            ],
+            "cells": [],
+            "unsafe_rows": None,
+        }
+        return parse_snapshot(data, {})
+
+    def test_known_only_corridor_is_truthful_and_routes_to_downstairs(self):
+        snapshot = self._known_only_corridor_snapshot()
+        corridor = snapshot.grids[Position(19, 31)]
+        self.assertTrue(corridor.known)
+        self.assertFalse(corridor.marked)
+        self.assertTrue(corridor.passable)
+        self.assertTrue(corridor.allows_los)
+        self.assertFalse(corridor.wall)
+
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        self.assertEqual(
+            policy._nearest_goal_step(snapshot, lambda grid: grid.has_down_stairs),
+            Position(19, 31),
+        )
+
+    def test_known_only_unvisited_room_keeps_frontier_incomplete(self):
+        snapshot = self._known_only_corridor_snapshot()
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        origin = snapshot.grids[snapshot.player.position]
+
+        self.assertTrue(policy._is_frontier(snapshot, origin))
+        self.assertEqual(policy._plan_explore_path(snapshot), [Position(19, 31)])
+
     def assert_grid_maps_equal(self, actual, expected):
         self.assertEqual(len(actual), len(expected))
         for position, expected_grid in expected.items():
