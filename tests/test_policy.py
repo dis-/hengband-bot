@@ -6517,6 +6517,15 @@ class WieldLightTest(unittest.TestCase):
         self.assertTrue(policy._is_dark(snap))
         self.assertFalse(policy._can_read_scrolls(snap))
 
+    def test_authoritative_darkness_does_not_mark_the_surface_dark(self):
+        snap = Snapshot(
+            player(10, 10), {}, [], floor_key=(0, 0, 0),
+            equipment_observed=True, grids_observed=True,
+            can_see_own_grid=False,
+        )
+
+        self.assertFalse(HengbotPolicy()._is_dark(snap))
+
     def test_authoritative_glow_releases_latched_recall_read(self):
         lantern = item(
             "light", TVAL_LITE, SV_LITE_LANTERN, name="empty lantern",
@@ -6556,7 +6565,7 @@ class WieldLightTest(unittest.TestCase):
         self.assertTrue(policy._can_read_scrolls(snap))
         self.assertEqual(policy.choose_key(snap), READ_KEY + "d")
 
-    def test_authoritative_light_does_not_override_blind_read_gate(self):
+    def test_authoritative_visibility_does_not_override_blind_gates(self):
         recall = item(
             "d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
             name="Word of Recall", count=9, aware=True, known=True,
@@ -6566,10 +6575,12 @@ class WieldLightTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10, lit=False)}, [],
             floor_key=(DUNGEON_YEEK_CAVE, 10, 0), inventory=[recall],
             equipment_observed=True, grids_observed=True,
-            can_see_own_grid=True,
+            can_see_own_grid=False,
         )
         policy = HengbotPolicy()
 
+        self.assertFalse(policy._is_dark(snap))
+        self.assertIsNone(policy._darkness_recovery_key(snap))
         self.assertFalse(policy.choose_key(snap).startswith(READ_KEY))
 
     def test_grid_memory_merge_preserves_authoritative_visibility(self):

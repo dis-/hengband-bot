@@ -9462,7 +9462,11 @@ class HengbotPolicy(TownArbiterMixin):
 
     def _is_dark(self, snapshot: Snapshot) -> bool:
         if snapshot.can_see_own_grid is not None:
-            return not snapshot.can_see_own_grid
+            return (
+                snapshot.dungeon_level >= 1
+                and not snapshot.player.blind
+                and not snapshot.can_see_own_grid
+            )
         here = getattr(snapshot, "grids", {}).get(snapshot.player.position)
         return (
             snapshot.dungeon_level >= 1
