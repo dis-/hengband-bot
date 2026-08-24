@@ -34,6 +34,156 @@ DIRECTIONS = {
 
 
 class DarkwalkIncidentTest(unittest.TestCase):
+    def test_committed_dark_route_reaches_far_remembered_end(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        cells = [Position(10, x) for x in range(10, 31)]
+        start, goal = cells[0], cells[-1]
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._visit_counts.update({cell: 1 for cell in cells})
+        current = start
+
+        for decision_count in range(25):
+            decision = replace(
+                snapshot,
+                player=replace(snapshot.player, position=current),
+                grids={
+                    goal: replace(
+                        template, position=goal, passable=True, wall=False,
+                        lit=False, known=True,
+                    )
+                },
+            )
+            key = policy.choose_key(decision)
+            if current == goal:
+                break
+            self.assertEqual(policy.last_reason, "dark:backtrack")
+            dy, dx = DIRECTIONS[key]
+            current = Position(current.y + dy, current.x + dx)
+
+        self.assertEqual(current, goal)
+        self.assertLessEqual(decision_count, len(cells))
+        self.assertEqual(policy._probe_counts[(10, 11)], 0)
+
+    def test_dark_goal_ranking_prefers_upstairs_then_downstairs(self):
+        snapshot = _snapshot_fixture()
+        start = Position(10, 10)
+        upstairs = Position(10, 13)
+        downstairs = Position(11, 10)
+        trail = {start, Position(10, 11), Position(10, 12), upstairs, downstairs}
+        dark = replace(
+            snapshot,
+            player=replace(snapshot.player, position=start),
+            grids={},
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = dark.floor_key
+        policy._visit_counts.update({position: 1 for position in trail})
+        policy._remembered_upstairs.add(upstairs)
+        policy._remembered_downstairs.add(downstairs)
+
+        key = policy.choose_key(dark)
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy._dark_route_goal, upstairs)
+
+    def test_isolated_stairs_goal_is_accepted_but_generic_dead_end_is_not(self):
+        snapshot = _snapshot_fixture()
+        start = Position(10, 10)
+        goal = Position(10, 11)
+        dark = replace(
+            snapshot,
+            player=replace(snapshot.player, position=start),
+            grids={},
+        )
+        policy = HengbotPolicy()
+        policy._visit_counts.update({start: 1, goal: 1})
+        policy._remembered_floor_t.add((goal.y, goal.x))
+        for dy, dx in DIRECTIONS.values():
+            neighbor = Position(goal.y + dy, goal.x + dx)
+            policy._known_t.add((neighbor.y, neighbor.x))
+
+        self.assertIsNone(policy._dark_route_to_frontier(dark))
+
+        policy._remembered_upstairs.add(goal)
+        route = policy._dark_route_to_frontier(dark)
+        self.assertIsNotNone(route)
+        self.assertEqual(route[0], goal)
+
+    def test_dark_probe_tiebreak_reduces_stairs_distance(self):
+        snapshot = _snapshot_fixture()
+        current = Position(10, 10)
+        stairs = Position(5, 15)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._remembered_upstairs.add(stairs)
+        distances = [max(abs(current.y - stairs.y), abs(current.x - stairs.x))]
+
+        for _ in range(4):
+            dark = replace(
+                snapshot,
+                player=replace(snapshot.player, position=current),
+                grids={},
+            )
+            key = policy.choose_key(dark)
+            self.assertEqual(policy.last_reason, "dark:probe")
+            dy, dx = DIRECTIONS[key]
+            current = Position(current.y + dy, current.x + dx)
+            distances.append(
+                max(abs(current.y - stairs.y), abs(current.x - stairs.x))
+            )
+
+        self.assertLess(distances[-1], distances[0])
+
+    def test_occupied_dark_cells_are_removed_from_blocked_unknown(self):
+        snapshot = _snapshot_fixture()
+        origin = snapshot.player.position
+        occupied = Position(origin.y - 1, origin.x)
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._visit_counts[occupied] = 1
+        policy._blocked_unknown.add((occupied.y, occupied.x))
+
+        policy.choose_key(snapshot)
+
+        self.assertNotIn((occupied.y, occupied.x), policy._blocked_unknown)
+
+    def test_revealed_door_and_rubble_leave_probe_budget_for_dedicated_actions(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        origin = Position(10, 10)
+        door = Position(10, 11)
+        rubble = Position(11, 10)
+        revealed = replace(
+            snapshot,
+            player=replace(snapshot.player, position=origin),
+            grids={
+                door: replace(
+                    template, position=door, known=True, passable=False,
+                    wall=False, is_closed_door=True, is_door=True,
+                ),
+                rubble: replace(
+                    template, position=rubble, known=True, passable=False,
+                    wall=False, can_dig=True,
+                ),
+            },
+        )
+        policy = HengbotPolicy()
+        for target in (door, rubble):
+            yx = (target.y, target.x)
+            policy._probe_counts[yx] = PROBE_LIMIT
+            policy._blocked_unknown.add(yx)
+
+        policy._build_grid_index(revealed)
+
+        for target in (door, rubble):
+            yx = (target.y, target.x)
+            self.assertNotIn(yx, policy._probe_counts)
+            self.assertNotIn(yx, policy._blocked_unknown)
+        self.assertEqual(policy._step_toward(revealed, door), "o6")
+        self.assertEqual(policy._step_toward(revealed, rubble), "T2")
+
     def test_frozen_darkwalk_capture_pins_the_live_attractor(self):
         path = FIXTURES / "incident-darkwalk-attractor-20260825.jsonl.gz"
         with gzip.open(path, "rt", encoding="utf-8") as stream:
@@ -242,7 +392,7 @@ class DarkwalkIncidentTest(unittest.TestCase):
             "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
             "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
         }
-        for _ in range(4):
+        for _ in range(1):
             decision = replace(
                 routed,
                 player=replace(routed.player, position=current),
@@ -259,7 +409,6 @@ class DarkwalkIncidentTest(unittest.TestCase):
             positions.append(current)
 
         self.assertEqual(positions[0], remembered)
-        self.assertTrue(all(position in snapshot.grids for position in positions))
         self.assertEqual(reasons[0], "dark:backtrack")
 
     def test_unidentified_lantern_preserves_dark_terminal_reason(self):

@@ -2121,6 +2121,7 @@ class CombatTest(unittest.TestCase):
                 item("t", TVAL_LITE, SV_LITE_TORCH, name="torch", fuel=5000)
             ],
         )
+        snapshot = replace(snapshot, grids_observed=True)
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
@@ -6474,6 +6475,7 @@ class WieldLightTest(unittest.TestCase):
             {Position(10, 10): grid(10, 10, lit=False), Position(10, 11): upstairs},
             [], floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
             inventory=[recall], equipment=[lantern], equipment_observed=True,
+            grids_observed=True,
         )
         policy = HengbotPolicy()
         policy._returning_to_town = True
@@ -6481,7 +6483,7 @@ class WieldLightTest(unittest.TestCase):
         key = policy.choose_key(snap)
 
         self.assertFalse(key.startswith(READ_KEY), (key, policy.last_reason))
-        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+        self.assertEqual(policy.last_reason, "dark:backtrack")
 
     def test_pin_vacuity_dim_warning_starts_light_low_return(self):
         lantern = item(
@@ -6517,7 +6519,7 @@ class WieldLightTest(unittest.TestCase):
         town = Snapshot(
             player(10, 10), {Position(10, 10): grid(10, 10, lit=False)}, [],
             floor_key=(0, 0, 0), town_flag=True, equipment=[lantern],
-            equipment_observed=True,
+            equipment_observed=True, grids_observed=True,
         )
         lit_dungeon = replace(
             town, floor_key=(DUNGEON_YEEK_CAVE, 1, 0), town_flag=False,
@@ -6543,7 +6545,7 @@ class WieldLightTest(unittest.TestCase):
         snap = replace(
             snap,
             grids={position: replace(cell, lit=False) for position, cell in snap.grids.items()},
-            equipment=[lantern], equipment_observed=True,
+            equipment=[lantern], equipment_observed=True, grids_observed=True,
         )
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "\\Fo")
@@ -6584,6 +6586,7 @@ class WieldLightTest(unittest.TestCase):
                 item("o", TVAL_FLASK, SV_FLASK_OIL, name="oil", fuel=7500)
             ],
             equipment=[self._hidden_lantern()],
+            grids_observed=True,
         )
         policy = HengbotPolicy()
 
@@ -6608,6 +6611,7 @@ class WieldLightTest(unittest.TestCase):
                 )
             ],
             equipment=[self._hidden_lantern()],
+            grids_observed=True,
         )
         policy = HengbotPolicy()
 
@@ -8177,6 +8181,7 @@ class ReturnToTownTest(unittest.TestCase):
                 item("f", TVAL_FOOD, 35, count=5),
             ],
             equipment=[item("light", TVAL_LITE, SV_LITE_LANTERN, fuel=0)],
+            grids_observed=True,
         )
         policy = HengbotPolicy()
 
@@ -8214,6 +8219,7 @@ class ReturnToTownTest(unittest.TestCase):
                 item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=7500),
             ],
             equipment=[item("light", TVAL_LITE, SV_LITE_LANTERN, fuel=0)],
+            grids_observed=True,
         )
         policy = HengbotPolicy()
         policy._returning_to_town = True

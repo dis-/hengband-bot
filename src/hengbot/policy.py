@@ -1810,6 +1810,10 @@ class HengbotPolicy(TownArbiterMixin):
         self._multiplier_target: Position | None = None
         self._multiplier_target_grace = 0
         self._probe_counts: Counter[tuple[int, int]] = Counter()
+        self._dark_goal_counts: Counter[tuple[int, int]] = Counter()
+        self._dark_route: list[Position] = []
+        self._dark_route_goal: Position | None = None
+        self._dark_route_expected: Position | None = None
         self._floor_trap_disarm_attempts: Counter[tuple[int, int]] = Counter()
         self._door_attempts: Counter[tuple[int, int]] = Counter()
         self._blocked_doors: set[tuple[int, int]] = set()
@@ -7414,6 +7418,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._warning_refused_cells.clear()
             self._warning_step_pending = None
             self._probe_counts.clear()
+            self._dark_goal_counts.clear()
+            self._clear_dark_route()
             self._floor_trap_disarm_attempts.clear()
             self._door_attempts.clear()
             self._blocked_doors.clear()
@@ -9460,7 +9466,10 @@ class HengbotPolicy(TownArbiterMixin):
             snapshot.dungeon_level >= 1
             and not snapshot.player.blind
             and (
-                here is not None and not here.lit
+                # Real emitted own cells always carry grids_observed. Preserve
+                # legacy synthetic snapshots that supplied grids without the
+                # observation contract and treated their unlit default as inert.
+                here is not None and snapshot.grids_observed and not here.lit
                 # The emitter exports only perceivable cells. The game always
                 # marks the player's own cell in view, so an observed grid set
                 # that omits it means no_lite() and scroll reads are refused.
@@ -9473,30 +9482,63 @@ class HengbotPolicy(TownArbiterMixin):
         if (
             snapshot.in_town
             or not self._is_dark(snapshot)
-            or (
-                snapshot.grid_at(snapshot.player.position) is not None
-                and not snapshot.grids_observed
-            )
+            # A present own cell is normal in darkness; grids_observed already
+            # makes the removed legacy clause impossible.
             or self._light_refill_item(snapshot) is not None
             or self._darkness_torch(snapshot) is not None
         ):
             return None
 
-        route = self._dark_route_to_frontier(snapshot)
-        if route is not None:
-            _goal, step = route
-            self._probe_counts[(step.y, step.x)] += 1
+        position = snapshot.player.position
+        self._blocked_unknown.difference_update(
+            (visited.y, visited.x)
+            for visited, count in self._visit_counts.items()
+            if count > 0
+        )
+        goal_arrived = False
+        if self._dark_route_expected is not None:
+            if position != self._dark_route_expected:
+                if self._dark_route_goal is not None:
+                    goal = self._dark_route_goal
+                    self._dark_goal_counts[(goal.y, goal.x)] += 1
+                self._clear_dark_route()
+            else:
+                self._dark_route.pop(0)
+                self._dark_route_expected = None
+                if not self._dark_route:
+                    goal_arrived = True
+                    if self._dark_route_goal is not None:
+                        goal = self._dark_route_goal
+                        self._dark_goal_counts[(goal.y, goal.x)] += 1
+                    self._clear_dark_route()
+
+        if not self._dark_route and not goal_arrived:
+            route = self._dark_route_to_frontier(snapshot)
+            if route is not None:
+                goal, path = route
+                self._dark_route_goal = goal
+                self._dark_route = path
+        if self._dark_route:
+            step = self._dark_route[0]
+            self._dark_route_expected = step
+            key = self._step_toward(snapshot, step)
             self.last_reason = "dark:backtrack"
-            return self._step_toward(snapshot, step)
+            return key
 
         step = self._probe_unknown_step(snapshot)
         if step is not None:
             self._clear_explore_path(ExplorationPathOutcome.PAUSE)
+            key = self._step_toward(snapshot, step)
             self.last_reason = "dark:probe"
-            return self._step_toward(snapshot, step)
+            return key
 
         self.last_reason = "dark:locomotion-exhausted"
         return WAIT_KEY
+
+    def _clear_dark_route(self) -> None:
+        self._dark_route.clear()
+        self._dark_route_goal = None
+        self._dark_route_expected = None
 
     def _dark_walkable_neighbors(
         self, snapshot: Snapshot, position: Position
@@ -9517,36 +9559,55 @@ class HengbotPolicy(TownArbiterMixin):
                 and snapshot.in_bounds(neighbor)
             ):
                 neighbors.append(neighbor)
-        return [
-            neighbor
-            for neighbor in neighbors
+        return neighbors
+
+    def _dark_goal_offers_onward(
+        self, snapshot: Snapshot, position: Position
+    ) -> bool:
+        """Return whether a non-stairs goal has an unspent unknown exit."""
+        for dy, dx in NEIGHBOR_OFFSETS:
+            neighbor = Position(position.y + dy, position.x + dx)
+            yx = (neighbor.y, neighbor.x)
             if (
-                neighbor == snapshot.player.position
-                or self._probe_counts[(neighbor.y, neighbor.x)] < PROBE_LIMIT
-            )
-        ]
+                snapshot.in_bounds(neighbor)
+                and yx not in self._known_t
+                and yx not in self._blocked_unknown
+                and self._probe_counts[yx] < PROBE_LIMIT
+            ):
+                return True
+        return False
 
     def _dark_route_to_frontier(
         self, snapshot: Snapshot
-    ) -> tuple[Position, Position] | None:
+    ) -> tuple[Position, list[Position]] | None:
         """Route across remembered floor and the bot's own dark walking trail."""
         start = snapshot.player.position
-        queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        queue: deque[tuple[Position, list[Position]]] = deque([(start, [])])
         seen = {start}
+        candidates: list[tuple[tuple[int, int, int, int], Position, list[Position]]] = []
         while queue:
-            position, first_step = queue.popleft()
-            if position != start and first_step is not None:
+            position, path = queue.popleft()
+            if position != start and path:
                 yx = (position.y, position.x)
                 remembered = yx in self._remembered_floor_t
                 upstairs = position in self._remembered_upstairs
+                downstairs = position in self._remembered_downstairs
                 grid = snapshot.grid_at(position)
                 frontier = grid is not None and self._is_frontier(snapshot, grid)
-                onward = self._dark_walkable_neighbors(snapshot, position)
                 if (
-                    (remembered or upstairs or frontier)
-                    and len({position, *onward}) >= 2
+                    (remembered or upstairs or downstairs or frontier)
+                    and (
+                        upstairs
+                        or downstairs
+                        or frontier
+                        or self._dark_goal_offers_onward(snapshot, position)
+                    )
+                    and self._dark_goal_counts[yx] < PROBE_LIMIT
                 ):
-                    return position, first_step
+                    kind = 0 if upstairs else 1 if downstairs else 2
+                    candidates.append(
+                        ((kind, len(path), position.y, position.x), position, path)
+                    )
             for neighbor in self._dark_walkable_neighbors(snapshot, position):
                 if (
                     neighbor in seen
@@ -9554,10 +9615,11 @@ class HengbotPolicy(TownArbiterMixin):
                 ):
                     continue
                 seen.add(neighbor)
-                queue.append(
-                    (neighbor, neighbor if first_step is None else first_step)
-                )
-        return None
+                queue.append((neighbor, [*path, neighbor]))
+        if not candidates:
+            return None
+        _score, goal, path = min(candidates, key=lambda candidate: candidate[0])
+        return goal, path
 
     def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
         return max(
@@ -9575,7 +9637,15 @@ class HengbotPolicy(TownArbiterMixin):
 
     def _darkness_recovery_key(self, snapshot: Snapshot) -> str | None:
         if not self._is_dark(snapshot):
-            return None
+            here = snapshot.grid_at(snapshot.player.position)
+            legacy_unlit = (
+                snapshot.dungeon_level >= 1
+                and not snapshot.player.blind
+                and here is not None
+                and not here.lit
+            )
+            if not legacy_unlit:
+                return None
         refill = self._light_refill_item(snapshot)
         if refill is not None:
             self.last_reason = "refill-light"
@@ -34897,11 +34967,15 @@ class HengbotPolicy(TownArbiterMixin):
             remembered_rubble.discard(key)
             remembered_wall.discard(key)
             if grid.is_closed_door:
+                self._blocked_unknown.discard(key)
+                self._probe_counts.pop(key, None)
                 # Closed doors remain actionable frontiers until opened or
                 # abandoned. Open doors are ordinary passable floor; retaining
                 # them here makes exploration bounce forever between old doors.
                 remembered_door.add(key)
             elif grid.is_rubble:
+                self._blocked_unknown.discard(key)
+                self._probe_counts.pop(key, None)
                 # Rubble is passed by tunnelling ('T'+dir) — treat it like a door
                 # the pathfinder may route through, until we give up on it.
                 remembered_rubble.add(key)
@@ -35927,8 +36001,26 @@ class HengbotPolicy(TownArbiterMixin):
         origin = snapshot.player.position
         known = self._known_t
         blocked = self._blocked_unknown
+        occupied = {
+            (position.y, position.x)
+            for position, count in self._visit_counts.items()
+            if count > 0
+        }
+        blocked.difference_update(occupied)
         best: Position | None = None
-        best_count: int | None = None
+        best_score: tuple[int, int] | None = None
+        stairs = (
+            min(
+                self._remembered_upstairs,
+                key=lambda pos: max(abs(pos.y - origin.y), abs(pos.x - origin.x)),
+                default=None,
+            )
+            or min(
+                self._remembered_downstairs,
+                key=lambda pos: max(abs(pos.y - origin.y), abs(pos.x - origin.x)),
+                default=None,
+            )
+        )
         probe_offsets = ((-1, 0), (1, 0), (0, -1), (0, 1)) + tuple(
             offset for offset in NEIGHBOR_OFFSETS if offset not in CARDINAL_OFFSETS
         )
@@ -35936,22 +36028,28 @@ class HengbotPolicy(TownArbiterMixin):
             ny = origin.y + dy
             nx = origin.x + dx
             key = (ny, nx)
-            if key in known or key in blocked:
+            if key in known or key in blocked or key in occupied:
                 continue
             if not snapshot.in_bounds(Position(ny, nx)):
                 continue
             count = self._probe_counts[key]
             if count >= PROBE_LIMIT:
                 continue
-            if best_count is None or count < best_count:
-                best_count = count
+            distance = (
+                max(abs(ny - stairs.y), abs(nx - stairs.x))
+                if self._is_dark(snapshot) and stairs is not None
+                else 0
+            )
+            score = (count, distance)
+            if best_score is None or score < best_score:
+                best_score = score
                 best = Position(ny, nx)
         if best is None:
             self._probed_frontiers.add(origin)
             return None
         yx = (best.y, best.x)
         self._probe_counts[yx] += 1
-        if self._probe_counts[yx] >= PROBE_LIMIT:
+        if self._probe_counts[yx] >= PROBE_LIMIT and yx not in occupied:
             # Bumped to the limit without ever stepping in → it is a wall we can't
             # see. Record it so the floor tile beside it stops reading as a
             # frontier (otherwise we are drawn back to that tile forever).
