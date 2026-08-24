@@ -110,6 +110,10 @@ class OwnerProgressCore:
 
     floor: tuple[int, int, int] | None
     position: Position
+    store_type: int | None
+    turn: int
+    hp: int
+    recalling: bool
     gold: int
     experience: int
     inventory: tuple[tuple[object, ...], ...]
@@ -144,7 +148,14 @@ class OwnerExpectationRegistry:
         pending = self._pending.get(owner)
         if pending is None:
             return True
-        if pending.progress_core != progress_core:
+        if pending.progress_core.floor != progress_core.floor:
+            self._pending.pop(owner, None)
+            return True
+        if any(
+            getattr(pending.progress_core, component)
+            != getattr(progress_core, component)
+            for component in pending.expected_changes
+        ):
             self._pending.pop(owner, None)
             return True
         return False
@@ -156,6 +167,9 @@ class OwnerExpectationRegistry:
         # second owner-specific latch.
         if owner not in self._pending:
             return
+
+    def is_pending(self, owner: str) -> bool:
+        return owner in self._pending
 
     def release(self, owner: str) -> None:
         self._pending.pop(owner, None)

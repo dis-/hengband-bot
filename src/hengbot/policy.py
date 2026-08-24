@@ -6510,6 +6510,7 @@ class HengbotPolicy(TownArbiterMixin):
             and not player.recalling
             and not player.blind
             and not player.confused
+            and self._can_read_scrolls(snapshot)
         ):
             # A known descent can be sealed behind ordinary diggable veins even
             # after every walkable frontier has been exhausted.  Recompute the
@@ -10051,7 +10052,10 @@ class HengbotPolicy(TownArbiterMixin):
             if item.is_lantern
         ]
         if any(item.known for item in lanterns):
-            return True  # Pack oil is owned by SupplyLedger.
+            return (
+                self._count_oil(snapshot) >= OIL_TARGET
+                or any(item.fuel > LANTERN_REFILL_FUEL for item in lanterns)
+            )
         if lanterns:
             return not self._oil_below_departure_target(snapshot)
         return self._count_usable_torches(snapshot) >= FOOD_STOCK_TARGET
@@ -10067,9 +10071,27 @@ class HengbotPolicy(TownArbiterMixin):
                 equipped.is_lantern
                 and not self._oil_below_departure_target(snapshot)
             )
-        if equipped.fuel > 0:
+        # Hengband warns at fuel 50. No light-specific constant exposes that
+        # boundary here, so reuse the existing value-50 DESTRUCTION_GATE_DEPTH.
+        if equipped.fuel > DESTRUCTION_GATE_DEPTH:
             return True
         return self._light_refill_item(snapshot) is not None
+
+    def _can_read_scrolls(self, snapshot: Snapshot) -> bool:
+        """Mirror Hengband's no_lite gate, including recoverable darkness."""
+        equipped = next((item for item in snapshot.equipment if item.is_light), None)
+        if equipped is None and not snapshot.equipment_observed:
+            # Direct legacy Snapshot constructors predate equipment presence
+            # tracking. Live parsed snapshots always mark this channel observed.
+            return True
+        if equipped is not None and (
+            equipped.sval > SV_LITE_LANTERN or equipped.fuel > 0
+        ):
+            return True
+        return (
+            self._light_refill_item(snapshot) is not None
+            or self._darkness_torch(snapshot) is not None
+        )
 
     def _recall_ready(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
@@ -24488,7 +24510,12 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "fundraise:wait-recall"
                 return WAIT_KEY
             recall = self._find_recall_scroll(snapshot)
-            if recall is not None and not player.blind and not player.confused:
+            if (
+                recall is not None
+                and not player.blind
+                and not player.confused
+                and self._can_read_scrolls(snapshot)
+            ):
                 self.last_reason = "fundraise:recall"
                 return self._read_key(snapshot, recall)
         here = snapshot.grid_at(player.position)
@@ -24518,7 +24545,12 @@ class HengbotPolicy(TownArbiterMixin):
         upstairs_search_expired = self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
         if upstairs_search_expired and allow_recall:
             recall = self._find_recall_scroll(snapshot)
-            if recall is not None and not player.blind and not player.confused:
+            if (
+                recall is not None
+                and not player.blind
+                and not player.confused
+                and self._can_read_scrolls(snapshot)
+            ):
                 self._stuck_escape_streak = 0
                 self._returning_to_town = True
                 self.last_reason = "fundraise:recall-stuck"
@@ -30391,10 +30423,9 @@ class HengbotPolicy(TownArbiterMixin):
         # Hengband rejects reading in darkness without consuming a turn, which
         # otherwise repeats READ_KEY + slot until the loop watchdog stops us.
         if not player.confused:
-            refill = self._light_refill_item(snapshot)
-            if refill is not None:
-                self.last_reason = "refill-light"
-                return REFILL_KEY + refill.slot
+            darkness_recovery = self._darkness_recovery_key(snapshot)
+            if darkness_recovery is not None:
+                return darkness_recovery
 
         recall = self._find_recall_scroll(snapshot)
         if (
@@ -30403,6 +30434,7 @@ class HengbotPolicy(TownArbiterMixin):
             and recall is not None
             and not player.blind
             and not player.confused
+            and self._can_read_scrolls(snapshot)
             and self._owner_may_select(snapshot, "return:recall")
         ):
             self.last_reason = "return:recall"
@@ -30698,7 +30730,11 @@ class HengbotPolicy(TownArbiterMixin):
         )
         if not quest_locked and self._nav_escape_steps < NAV_ESCAPE_STEP_LIMIT:
             self._nav_escape_steps += 1
-            if not player.blind and not player.confused:
+            if (
+                not player.blind
+                and not player.confused
+                and self._can_read_scrolls(snapshot)
+            ):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
                     self._returning_to_town = True
@@ -30717,6 +30753,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._returning_to_town
                 and not player.blind
                 and not player.confused
+                and self._can_read_scrolls(snapshot)
                 and (teleport := self._find_teleport_scroll(snapshot)) is not None
                 and teleport.count > 1
             ):
@@ -31106,6 +31143,7 @@ class HengbotPolicy(TownArbiterMixin):
             and not player.recalling
             and not player.blind
             and not player.confused
+            and self._can_read_scrolls(snapshot)
         ):
             recall = self._find_recall_scroll(snapshot)
             if recall is not None:
@@ -31438,7 +31476,7 @@ class HengbotPolicy(TownArbiterMixin):
 
     def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         # Reading needs sight; a full teleport is preferred over a short phase.
-        if snapshot.player.blind:
+        if snapshot.player.blind or not self._can_read_scrolls(snapshot):
             return None
         return self._find_teleport_scroll(snapshot) or self._find_phase_scroll(snapshot)
 
@@ -31960,22 +31998,17 @@ class HengbotPolicy(TownArbiterMixin):
                     and player.position != issue_position
                 )
                 if not accepted:
-                    if not self._owner_may_select(
-                        snapshot, "emergency:await-consumable-confirmation"
+                    owner = "emergency:await-consumable-confirmation"
+                    if self._owner_expectations.is_pending(owner) and self._owner_may_select(
+                        snapshot, owner
                     ):
                         self._emergency_consumable_issue_watch = None
                     else:
-                        self.last_reason = (
-                            "emergency:await-consumable-confirmation"
-                        )
-                        self._post_owner_expectation(
-                            snapshot,
-                            self.last_reason,
-                            "position",
-                            "recalling",
-                            "inventory",
-                            "hp",
-                        )
+                        self.last_reason = owner
+                        if not self._owner_expectations.is_pending(owner):
+                            self._post_owner_expectation(
+                                snapshot, owner, "position", "recalling", "inventory", "hp"
+                            )
                         return WAIT_KEY
                 else:
                     self._emergency_consumable_issue_watch = None
@@ -32239,7 +32272,11 @@ class HengbotPolicy(TownArbiterMixin):
                     # starts the countdown home; subsequent turns flee to
                     # survive it. (Teleport relocates on-floor; recall leaves
                     # the floor entirely, so it is the escape of last resort.)
-                    if not player.recalling and not self._quest_floor_exit_locked(snapshot):
+                    if (
+                        not player.recalling
+                        and not self._quest_floor_exit_locked(snapshot)
+                        and self._can_read_scrolls(snapshot)
+                    ):
                         recall = self._find_recall_scroll(snapshot)
                         if recall is not None:
                             self.last_reason = (
@@ -33546,6 +33583,7 @@ class HengbotPolicy(TownArbiterMixin):
             and not self._emergency_return_active
             and not snapshot.player.blind
             and not snapshot.player.confused
+            and self._can_read_scrolls(snapshot)
         ):
             pending_recall = self._dungeon_recall_confirmation_key(snapshot)
             if pending_recall is not None:

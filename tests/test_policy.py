@@ -6442,6 +6442,69 @@ class WieldLightTest(unittest.TestCase):
             is_equipment=True,
         )
 
+    def test_pin_vacuity_darkness_return_never_reads_captured_recall_stack(self):
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, name="empty lantern",
+            known=True, fuel=0, is_equipment=True,
+        )
+        recall = item(
+            "d", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+            name="Word of Recall", count=9, aware=True, known=True,
+        )
+        upstairs = replace(grid(10, 11), has_up_stairs=True, known=True)
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10, lit=False), Position(10, 11): upstairs},
+            [], floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
+            inventory=[recall], equipment=[lantern], equipment_observed=True,
+        )
+        policy = HengbotPolicy()
+        policy._returning_to_town = True
+
+        key = policy.choose_key(snap)
+
+        self.assertFalse(key.startswith(READ_KEY), (key, policy.last_reason))
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+
+    def test_pin_vacuity_dim_warning_starts_light_low_return(self):
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, name="dim lantern",
+            known=True, fuel=50, is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=9, aware=True),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15, aware=True),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=9, aware=True),
+            ],
+            equipment=[lantern], equipment_observed=True,
+        )
+        policy = HengbotPolicy()
+        self.assertTrue(policy._should_start_town_return(snap))
+        self.assertEqual(policy._last_return_trigger, "light-low")
+
+    def test_known_lantern_departure_requires_oil_or_reserve_fuel(self):
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, name="lantern",
+            known=True, fuel=447, is_equipment=True,
+        )
+        base = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True, equipment=[lantern],
+        )
+        policy = HengbotPolicy()
+        self.assertFalse(policy._light_ready(base))
+        block = policy._departure_block_state(base)
+        self.assertIn("light_ready", block["failed"])
+        oil = item("o", TVAL_FLASK, SV_FLASK_OIL, count=OIL_TARGET, fuel=7500)
+        self.assertTrue(policy._light_ready(replace(base, inventory=[oil])))
+        self.assertTrue(policy._light_ready(replace(
+            base, equipment=[replace(lantern, fuel=12000)]
+        )))
+
     def test_dark_unknown_lantern_refills_before_dungeon_work(self):
         snap = Snapshot(
             player(10, 10),
@@ -57867,6 +57930,28 @@ class OwnerExpectationContractTest(unittest.TestCase):
             )
         )
         self.assertTrue(registry.may_select("owner", moved))
+
+    def test_pin_vacuity_undeclared_position_does_not_release_recall_read(self):
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(DUNGEON_YEEK_CAVE, 10, 0),
+        )
+        policy = HengbotPolicy()
+        registry = policy_module.OwnerExpectationRegistry()
+        registry.post(
+            "return:recall", policy._owner_progress_core(snapshot),
+            "inventory", "recalling", "floor",
+        )
+        moved = replace(
+            snapshot, player=replace(snapshot.player, position=Position(10, 11))
+        )
+        self.assertFalse(registry.may_select(
+            "return:recall", policy._owner_progress_core(moved)
+        ))
+        recalling = replace(moved, player=replace(moved.player, recalling=True))
+        self.assertTrue(registry.may_select(
+            "return:recall", policy._owner_progress_core(recalling)
+        ))
 
 
 class RearmAndBreakoutRegressionTest(unittest.TestCase):

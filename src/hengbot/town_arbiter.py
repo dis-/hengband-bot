@@ -343,6 +343,12 @@ class TownArbiterMixin:
         return OwnerProgressCore(
             floor=getattr(snapshot, "floor_key", None),
             position=snapshot.player.position,
+            store_type=(
+                snapshot.store.store_type if snapshot.store is not None else None
+            ),
+            turn=snapshot.turn,
+            hp=snapshot.player.hp,
+            recalling=snapshot.player.recalling,
             gold=getattr(snapshot.player, "gold", 0),
             experience=getattr(snapshot.player, "exp", 0),
             inventory=tuple(sorted(
