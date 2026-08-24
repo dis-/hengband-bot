@@ -58164,6 +58164,137 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
         self.assertEqual(policy._town_errand_plan.index, 0)
         self.assertNotIn(STORE_WEAPON, policy._town_errand_plan.blocked_this_visit)
 
+    def test_discarded_composer_wait_revokes_the_published_terminal(self):
+        fixture = QuestCarryVisitAbandonmentTest()
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        outside = replace(
+            fixture._q2_town(),
+            town_id=0,
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+            },
+        )
+        policy = fixture._q2_policy()
+        policy.last_reason = "town:shopping-approach"
+        policy._home_knowledge_current = False
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence,
+        )
+        policy._resolve_observed_uncomposable_stop = lambda _snapshot: False
+
+        self.assertIsNone(policy._atomic_shop_transaction_key(outside))
+        self.assertEqual(policy.last_reason, "town:shopping-approach")
+        self.assertNotIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+    def test_unroutable_probe_does_not_publish_the_incident_terminal(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        snapshot = HiddenInfoFallbackTest()._mana_starvation_snapshot(
+            store=StoreState(STORE_GENERAL, [ration]), gold=500
+        )
+        snapshot = replace(
+            snapshot,
+            town_id=1,
+            player=replace(snapshot.player, food_type=0),
+            grids={
+                **snapshot.grids,
+                Position(30, 30): replace(
+                    grid(30, 30), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 7
+        policy._town_blocked_reason = "genuinely-unroutable"
+        policy.last_reason = "shop:probe-start"
+
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snapshot, ration),
+            policy_module.ProcurementHomeGate.BLOCKED,
+        )
+        self.assertEqual(policy.last_reason, "shop:probe-start")
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "town:blocked:procurement-home-unroutable",
+        )
+
+    def test_pure_and_stateful_home_gate_matrix_agree_on_all_outcomes(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        base = HiddenInfoFallbackTest()._mana_starvation_snapshot(
+            store=StoreState(STORE_GENERAL, [ration]), gold=500
+        )
+        base = replace(base, player=replace(base.player, food_type=0))
+
+        def classify(policy, snapshot):
+            pure = policy._evaluate_purchase_home_gate(snapshot, ration)
+            stateful = policy._purchase_has_fresh_home_absence(snapshot, ration)
+            self.assertIs(pure, stateful)
+            return pure
+
+        no_home = replace(base, town_id=policy_module.ZUL_TOWN_ID)
+        self.assertIs(
+            classify(HengbotPolicy(), no_home),
+            policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+        )
+
+        fresh = HengbotPolicy()
+        fresh._home_knowledge_current = True
+        self.assertIs(
+            classify(fresh, replace(base, town_id=1)),
+            policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+        )
+
+        digger = store_item("a", TVAL_DIGGING, 1, price=10, name="shovel")
+        digger_policy = HengbotPolicy()
+        digger_policy._digger_buy_fallback_available = lambda _snapshot: True
+        self.assertIs(
+            digger_policy._evaluate_purchase_home_gate(base, digger),
+            policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+        )
+        self.assertIs(
+            digger_policy._purchase_has_fresh_home_absence(base, digger),
+            policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+        )
+
+        routed = HengbotPolicy()
+        routed_snapshot = replace(
+            base,
+            town_id=1,
+            grids={
+                **base.grids,
+                Position(30, 30): replace(
+                    grid(30, 30), store_number=STORE_HOME
+                ),
+            },
+        )
+        self.assertIs(
+            classify(routed, routed_snapshot),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+
+        vetoed = HengbotPolicy()
+        vetoed._store_visit = StoreVisit(
+            "town-errand", "shopping", STORE_WEAPON
+        )
+        self.assertIs(
+            classify(vetoed, routed_snapshot),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+
+        unroutable = HengbotPolicy()
+        unroutable._town_blocked_reason = "genuinely-unroutable"
+        self.assertIs(
+            classify(unroutable, routed_snapshot),
+            policy_module.ProcurementHomeGate.BLOCKED,
+        )
+
+        self.assertIs(
+            classify(HengbotPolicy(), replace(base, town_id=0)),
+            policy_module.ProcurementHomeGate.BLOCKED,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

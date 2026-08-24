@@ -19704,9 +19704,49 @@ class HengbotPolicy(TownArbiterMixin):
                 )
             if not town_has_home:
                 return ProcurementHomeGate.ALLOW_PURCHASE
+            if not home_available:
+                return ProcurementHomeGate.BLOCKED
+            visit = self._store_visit
+            if visit is not None and visit.store_type != STORE_HOME:
+                return ProcurementHomeGate.HOME_FIRST
+            if self._town_blocked_reason is not None and (
+                self._town_blocked_reason != "repetition"
+            ):
+                return ProcurementHomeGate.BLOCKED
+            if (
+                STORE_HOME in self._town_store_attempted
+                or STORE_HOME in self._town_visit_ledger.blocked_stores
+                or self._town_visit_ledger.approach_fails[STORE_HOME]
+                >= self._town_store_visit_limit(STORE_HOME)
+            ):
+                return ProcurementHomeGate.BLOCKED
+            step = self._nearest_goal_step(
+                snapshot, lambda grid: grid.store_number == STORE_HOME
+            )
+            if step is None and self._town_map_active(snapshot):
+                step = self._town_map_goal_step(
+                    snapshot, self._town_map.store_position(STORE_HOME)
+                )
+            home_positions = self._town_store_positions.get(STORE_HOME)
+            goal = (
+                min(
+                    home_positions,
+                    key=lambda position: snapshot.player.position.distance_to(position),
+                )
+                if home_positions
+                else None
+            )
+            if goal is None and self._town_map_active(snapshot):
+                goal = self._town_map.store_position(STORE_HOME)
+            if (
+                step is None
+                and goal is not None
+                and snapshot.player.position.distance_to(goal) >= 3
+            ):
+                step = goal
             return (
                 ProcurementHomeGate.HOME_FIRST
-                if home_available
+                if step is not None
                 else ProcurementHomeGate.BLOCKED
             )
         item_class = self._procurement_class(item)
@@ -22463,6 +22503,7 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         # Current inventory/gold are paired with exactly this latest page at
         # the composition boundary; no cached item candidate is trusted.
+        reason_before_composition = self.last_reason
         inner = self._shop(replace(snapshot, store=observed_store))
         if inner.startswith((BUY_KEY, SELL_KEY)):
             operation_key = inner + LEAVE_STORE_KEY
@@ -22517,6 +22558,11 @@ class HengbotPolicy(TownArbiterMixin):
         # pack/gold change must re-observe the shelf before using its letters.
         if self._resolve_observed_uncomposable_stop(snapshot):
             return WAIT_KEY
+        if composition_refusal in {
+            "town:blocked:procurement-home-unavailable",
+            "town:blocked:procurement-home-unroutable",
+        }:
+            self.last_reason = reason_before_composition
         self._shop_observation = None
         return None
 
