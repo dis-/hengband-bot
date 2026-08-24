@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
 import gzip
 import json
+import pickle
 from dataclasses import replace
 from pathlib import Path
 import unittest
 
 from hengbot.cli import POLICY_FINAL_STOP_REASONS, _policy_final_stop_banner
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import (
     InventoryItem,
     Position,
@@ -34,6 +37,28 @@ DIRECTIONS = {
 
 
 class DarkwalkIncidentTest(unittest.TestCase):
+    def test_dark_route_yields_on_remembered_upstairs_for_return_handoff(self):
+        snapshot = _snapshot_fixture()
+        origin = Position(10, 10)
+        template = next(iter(snapshot.grids.values()))
+        upstairs = replace(
+            snapshot,
+            player=replace(snapshot.player, position=origin),
+            grids={
+                origin: replace(
+                    template, position=origin, passable=True, wall=False,
+                    lit=False, known=True, has_up_stairs=True,
+                )
+            },
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = upstairs.floor_key
+        policy._remembered_upstairs.add(origin)
+        policy._returning_to_town = True
+
+        self.assertEqual(policy.choose_key(upstairs), "<")
+        self.assertEqual(policy.last_reason, "return:ascend")
+
     def test_committed_dark_route_reaches_far_remembered_end(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
@@ -183,6 +208,66 @@ class DarkwalkIncidentTest(unittest.TestCase):
             self.assertNotIn(yx, policy._blocked_unknown)
         self.assertEqual(policy._step_toward(revealed, door), "o6")
         self.assertEqual(policy._step_toward(revealed, rubble), "T2")
+
+    def test_dark_route_obstacles_use_dedicated_budgets_without_retiring_stairs(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        origin = Position(10, 10)
+        target = Position(10, 12)
+
+        def run(obstacle, **grid_changes):
+            policy = HengbotPolicy()
+            policy._floor_key = snapshot.floor_key
+            policy._visit_counts.update({origin: 1, obstacle: 1, target: 1})
+            policy._remembered_upstairs.add(target)
+            keys = []
+            for decision in range(30):
+                dark = replace(
+                    snapshot,
+                    turn=snapshot.turn + decision,
+                    player=replace(snapshot.player, position=origin),
+                    grids={
+                        obstacle: replace(
+                            template, position=obstacle, known=True,
+                            passable=False, wall=False, lit=False, **grid_changes,
+                        ),
+                        target: replace(
+                            template, position=target, known=True,
+                            passable=True, wall=False, lit=False,
+                            has_up_stairs=True,
+                        ),
+                    },
+                )
+                keys.append(policy.choose_key(dark))
+            return policy, keys
+
+        door_policy, door_keys = run(
+            Position(10, 11), is_closed_door=True, is_door=True
+        )
+        self.assertEqual(door_keys[:3], ["o6", "o6", "o6"])
+        self.assertEqual(door_policy._dark_goal_counts[(target.y, target.x)], 0)
+
+        rubble_policy, rubble_keys = run(
+            Position(10, 11), can_dig=True
+        )
+        self.assertEqual(rubble_keys, ["T6"] * 30)
+        self.assertEqual(rubble_policy._dig_attempts[(10, 11)], 30)
+        self.assertEqual(rubble_policy._dark_goal_counts[(target.y, target.x)], 0)
+
+    def test_old_checkpoint_without_dark_route_fields_remains_selectable(self):
+        snapshot = _snapshot_fixture()
+        policy = HengbotPolicy()
+        state = pickle.loads(base64.b64decode(checkpoint(policy)))
+        for name in (
+            "_dark_goal_counts", "_dark_route", "_dark_route_goal",
+            "_dark_route_expected",
+        ):
+            state.pop(name)
+        encoded = base64.b64encode(pickle.dumps(state, protocol=5)).decode("ascii")
+
+        restored = restore_checkpoint(HengbotPolicy, encoded)
+
+        self.assertIsInstance(restored.choose_key(snapshot), str)
 
     def test_frozen_darkwalk_capture_pins_the_live_attractor(self):
         path = FIXTURES / "incident-darkwalk-attractor-20260825.jsonl.gz"
@@ -392,7 +477,7 @@ class DarkwalkIncidentTest(unittest.TestCase):
             "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
             "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
         }
-        for _ in range(1):
+        for _ in range(4):
             decision = replace(
                 routed,
                 player=replace(routed.player, position=current),
@@ -409,6 +494,7 @@ class DarkwalkIncidentTest(unittest.TestCase):
             positions.append(current)
 
         self.assertEqual(positions[0], remembered)
+        self.assertTrue(all(position in snapshot.grids for position in positions))
         self.assertEqual(reasons[0], "dark:backtrack")
 
     def test_unidentified_lantern_preserves_dark_terminal_reason(self):

@@ -9490,6 +9490,12 @@ class HengbotPolicy(TownArbiterMixin):
             return None
 
         position = snapshot.player.position
+        if (
+            position in self._remembered_upstairs
+            or position in self._remembered_downstairs
+        ):
+            self._clear_dark_route()
+            return None
         self._blocked_unknown.difference_update(
             (visited.y, visited.x)
             for visited, count in self._visit_counts.items()
@@ -9498,7 +9504,11 @@ class HengbotPolicy(TownArbiterMixin):
         goal_arrived = False
         if self._dark_route_expected is not None:
             if position != self._dark_route_expected:
-                if self._dark_route_goal is not None:
+                expected_grid = snapshot.grid_at(self._dark_route_expected)
+                obstacle_attempt = expected_grid is not None and (
+                    expected_grid.is_closed_door or expected_grid.is_rubble
+                )
+                if self._dark_route_goal is not None and not obstacle_attempt:
                     goal = self._dark_route_goal
                     self._dark_goal_counts[(goal.y, goal.x)] += 1
                 self._clear_dark_route()

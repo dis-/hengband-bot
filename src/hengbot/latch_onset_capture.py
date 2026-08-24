@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from collections import deque
+from collections import Counter, deque
 import inspect
 import json
 import pickle
@@ -63,6 +63,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     restored.__dict__.setdefault("_town_turn_arbiter", None)
+    restored.__dict__.setdefault("_dark_goal_counts", Counter())
+    restored.__dict__.setdefault("_dark_route", [])
+    restored.__dict__.setdefault("_dark_route_goal", None)
+    restored.__dict__.setdefault("_dark_route_expected", None)
     registry = restored.__dict__.get("_owner_expectations")
     if registry is not None:
         for owner, pending in tuple(registry._pending.items()):
