@@ -3420,11 +3420,11 @@ def _newest_snapshot_entry(
                     (time.perf_counter() - parse_started_at) * 1000, 3
                 )
                 timing["snapshot_bytes"] = len(line.encode("utf-8"))
-                timing["nearby_grids"] = len(data.get("nearby_grids", ()))
+                timing["nearby_grids"] = len(snapshot.grids)
             return snapshot, line
         except MissingMonraceKnowledgeError:
             raise
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        except (LookupError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"invalid snapshot: {exc}", file=sys.stderr)
     return None
 

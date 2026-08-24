@@ -18,9 +18,11 @@ TERRAIN_NAMES = (
     "stairs", "store", "trap", "tunnel", "up_stairs", "wall",
 )
 SIDECAR_NAMES = {
-    "monster_index": "m", "object_count": "o", "store_number": "s",
-    "entrance_dungeon_id": "e", "quest_id": "q", "building_type": "b",
-    "building_special": "p",
+    "monster_index": "m", "object_count": "o",
+}
+METADATA_SIDECAR_NAMES = {
+    "store_number": "s", "entrance_dungeon_id": "e", "quest_id": "q",
+    "building_type": "b", "building_special": "p",
 }
 
 
@@ -60,11 +62,7 @@ def _encode_grid_map(snapshot_data: dict) -> dict:
                 cell[encoded] = grid[source]
         if int(grid.get("object_count", 0)) != 0:
             cell["t"] = grid.get("object_tvals", [])
-        for source, encoded in (
-            ("store_number", "s"), ("entrance_dungeon_id", "e"),
-            ("quest_id", "q"), ("building_type", "b"),
-            ("building_special", "p"),
-        ):
+        for source, encoded in METADATA_SIDECAR_NAMES.items():
             if source in grid:
                 cell[encoded] = grid[source]
         if len(cell) > 2:
@@ -77,6 +75,16 @@ def _encode_grid_map(snapshot_data: dict) -> dict:
 
 
 class GridMapWireTest(unittest.TestCase):
+    def assert_grid_maps_equal(self, actual, expected):
+        self.assertEqual(len(actual), len(expected))
+        for position, expected_grid in expected.items():
+            actual_grid = actual.get(position)
+            if actual_grid != expected_grid:
+                self.fail(
+                    f"first grid mismatch at {position}: "
+                    f"actual={actual_grid!r}, expected={expected_grid!r}"
+                )
+
     def test_real_town_and_dungeon_rows_are_cell_equivalent(self):
         fixture_names = (
             "incident-town-oil-stall-turn-712398.jsonl.gz",
@@ -92,8 +100,49 @@ class GridMapWireTest(unittest.TestCase):
                 del new_data["nearby_grids"]
                 old_snapshot = parse_snapshot(old_data, {})
                 new_snapshot = parse_snapshot(new_data, {})
-                self.assertEqual(new_snapshot.grids, old_snapshot.grids)
+                self.assert_grid_maps_equal(new_snapshot.grids, old_snapshot.grids)
                 self.assertEqual(new_snapshot.grids_observed, old_snapshot.grids_observed)
+
+    def test_town_general_store_terrain_bits_are_literal_wire_anchor(self):
+        data = _load_first_row("incident-town-oil-stall-turn-712398.jsonl.gz")
+        grid_map = _encode_grid_map(data)
+        run = next(
+            run for run in grid_map["runs"]
+            if run[0] == 31 and run[1] <= 119 < run[1] + run[2]
+        )
+        self.assertEqual(grid_map["palette"][run[3]][2], 9092)
+
+    def test_fixture_round_trip_preserves_synthetic_quest_sidecar(self):
+        data = _load_first_row("incident-town-oil-stall-turn-712398.jsonl.gz")
+        target = next(
+            grid for grid in data["nearby_grids"]
+            if (grid["y"], grid["x"]) == (31, 119)
+        )
+        target["quest_id"] = 34
+        data["grid_map"] = _encode_grid_map(data)
+        del data["nearby_grids"]
+        snapshot = parse_snapshot(data, {})
+        position = next(
+            position for position in snapshot.grids
+            if (position.y, position.x) == (31, 119)
+        )
+        self.assertEqual(snapshot.grids[position].quest_id, 34)
+
+    def test_invalid_grid_map_shapes_degrade_without_uncaught_lookup(self):
+        original = _load_first_row("incident-20260821-loop-capture-rows.jsonl.gz")
+        bad_palette = {"palette": [], "runs": [[1, 1, 1, 9]], "cells": []}
+        for grid_map in (None, [], bad_palette):
+            with self.subTest(grid_map=grid_map):
+                data = copy.deepcopy(original)
+                data.pop("nearby_grids")
+                data["grid_map"] = grid_map
+                if isinstance(grid_map, dict):
+                    with self.assertRaises(LookupError):
+                        parse_snapshot(data, {})
+                else:
+                    snapshot = parse_snapshot(data, {})
+                    self.assertEqual(snapshot.grids, {})
+                    self.assertFalse(snapshot.grids_observed)
 
     def test_present_empty_grid_map_is_observed(self):
         data = _load_first_row("incident-20260821-loop-capture-rows.jsonl.gz")

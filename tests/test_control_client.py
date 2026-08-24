@@ -237,6 +237,7 @@ class ControlClientTest(unittest.TestCase):
                     "player": {"hp": 3},
                     "type": "store", "messages": ["same"],
                     "nearby_grids": [1],
+                    "grid_map": {"runs": [[1, 1, 1, 0]]},
                 },
                 decision_sequence=12,
                 path=path,

@@ -1593,6 +1593,36 @@ class NewestSnapshotTest(unittest.TestCase):
         self.assertEqual(entry[0].turn, 120)
         self.assertEqual(entry[1].encode("utf-8"), player_turn.encode("utf-8"))
 
+    def test_new_format_timing_counts_decoded_grids(self):
+        data = json.loads(_snap_line(121, 6, 6))
+        data["grid_map"] = {
+            "w": 2, "h": 1,
+            "palette": [[1, 3, 416, 1]],
+            "runs": [[6, 6, 2, 0]],
+            "cells": [], "unsafe_rows": None,
+        }
+        line = json.dumps(data) + "\n"
+        timing = {}
+
+        entry = _newest_snapshot_entry([line], {}, timing=timing)
+
+        self.assertIsNotNone(entry)
+        self.assertEqual(timing["nearby_grids"], 2)
+
+    def test_bad_palette_index_row_is_skipped_for_older_valid_snapshot(self):
+        valid_line = _snap_line(120, 5, 5)
+        bad = json.loads(_snap_line(121, 6, 6))
+        bad["grid_map"] = {
+            "palette": [], "runs": [[6, 6, 1, 9]], "cells": []
+        }
+
+        entry = _newest_snapshot_entry(
+            [valid_line, json.dumps(bad) + "\n"], {}
+        )
+
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry[0].turn, 120)
+
     def test_parses_visible_grid_lighting_for_quest_area_setup(self):
         data = json.loads(_snap_line(100, 5, 5))
         data["nearby_grids"] = [

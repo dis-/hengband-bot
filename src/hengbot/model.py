@@ -1187,7 +1187,10 @@ def parse_snapshot(
         equipment_observed="equipment" in data,
         grids_observed=(
             "nearby_grids" in data
-            or ("grid_map" in data and not bool(data["grid_map"].get("schema_error", False)))
+            or (
+                isinstance(grid_map, Mapping)
+                and not bool(grid_map.get("schema_error", False))
+            )
         ),
         grid_map_schema_error=bool(
             isinstance(grid_map, Mapping) and grid_map.get("schema_error", False)

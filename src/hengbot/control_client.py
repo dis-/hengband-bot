@@ -246,7 +246,7 @@ def _normalized(value: object) -> object:
         return {
             key: _normalized(child)
             for key, child in value.items()
-            if key != "nearby_grids"
+            if key not in {"nearby_grids", "grid_map"}
         }
     if isinstance(value, list):
         return [_normalized(child) for child in value]
