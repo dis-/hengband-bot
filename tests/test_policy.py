@@ -2,6 +2,9 @@ import ast
 import gzip
 import inspect
 import json
+import os
+import subprocess
+import sys
 import textwrap
 import unittest
 from collections import Counter, deque
@@ -53492,7 +53495,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         policy.choose_key(outside)
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
-            "town:blocked:procurement-home-unroutable",
+            "shop:home-first-yields-to-current-visit",
         )
         policy._town_errand_plan = TownErrandPlan(
             [STORE_WEAPON],
@@ -53538,7 +53541,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         policy.choose_key(outside)
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
-            "town:blocked:procurement-home-unroutable",
+            "shop:home-first-yields-to-current-visit",
         )
 
         policy._town_errand_plan = TownErrandPlan(
@@ -57936,6 +57939,230 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "town-progress-invariant:boxed-breakout-travel"
         )
+
+
+class ProbePurityIncidentPinsTest(unittest.TestCase):
+    """Pin the captured Home-first ownership-veto incident."""
+
+    def test_pin_vacuity_full_window_keeps_probe_results_out_of_final_stops(self):
+        if os.environ.get("HENGBOT_PROBE_PURITY_REPLAY_CHILD") != "1":
+            environment = os.environ.copy()
+            environment["HENGBOT_PROBE_PURITY_REPLAY_CHILD"] = "1"
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "unittest",
+                    f"{__name__}.ProbePurityIncidentPinsTest."
+                    "test_pin_vacuity_full_window_keeps_probe_results_out_of_final_stops",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                env=environment,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=80,
+            )
+            self.assertEqual(run.returncode, 0, run.stdout)
+            return
+        root = Path(__file__).resolve().parents[1]
+        capture = (
+            root
+            / "incident-captures"
+            / "20260824-055710-town-blocked-procurement-home-unroutable"
+            / "snapshots"
+            / "snapshots-current.jsonl.gz"
+        )
+        with TemporaryDirectory() as directory:
+            directory = Path(directory)
+            policy = HengbotPolicy()
+            policy._character_calibration_path = directory / "character-calibration.json"
+            policy._confirmed_loadout_path = directory / "confirmed-loadout.json"
+            policy._character_calibration_path.write_bytes(
+                (root / "jsonlog" / "character-calibration.json").read_bytes()
+            )
+            policy._confirmed_loadout_path.write_bytes(
+                (root / "jsonlog" / "confirmed-loadout.json").read_bytes()
+            )
+            agreements = []
+            stateful_gate = policy._purchase_has_fresh_home_absence
+
+            def agreeing_gate(snapshot, selected):
+                pure = policy._evaluate_purchase_home_gate(snapshot, selected)
+                stateful = stateful_gate(snapshot, selected)
+                agreements.append((pure, stateful))
+                return stateful
+
+            policy._purchase_has_fresh_home_absence = agreeing_gate
+            reasons = []
+            replayed = 0
+            final_snapshot = None
+            with gzip.open(capture, "rt", encoding="utf-8") as stream:
+                for line_number, line in enumerate(stream, 1):
+                    if 712 <= line_number <= 764:
+                        raw = json.loads(line)
+                        if raw.get("type") in {"player_turn", "store"}:
+                            final_snapshot = parse_snapshot(raw)
+                            key = policy.choose_key(final_snapshot)
+                            reasons.append(policy.last_reason)
+                            replayed += 1
+                    if line_number > 764:
+                        break
+
+            self.assertEqual(replayed, 51)
+            self.assertIsNotNone(final_snapshot)
+            self.assertGreater(len(agreements), 0)
+            self.assertTrue(all(left is right for left, right in agreements), agreements)
+            self.assertFalse(POLICY_FINAL_STOP_REASONS.intersection(reasons))
+            self.assertIn(key, "12346789")
+            self.assertEqual(policy._store_visit.store_type, STORE_TEMPLE)
+
+            supplier = policy._town_supplier_stock[STORE_GENERAL]
+            selected = policy._next_purchase_unreserved(
+                replace(final_snapshot, store=supplier)
+            )
+            self.assertIsNotNone(selected)
+            self.assertIs(
+                policy._purchase_has_fresh_home_absence(final_snapshot, selected),
+                policy_module.ProcurementHomeGate.HOME_FIRST,
+            )
+            self.assertNotIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+            policy._store_visit = None
+            self.assertIs(
+                policy._purchase_has_fresh_home_absence(final_snapshot, selected),
+                policy_module.ProcurementHomeGate.HOME_FIRST,
+            )
+            self.assertEqual(
+                policy._shopping_approach_step(final_snapshot, STORE_HOME),
+                Position(32, 120),
+            )
+
+    def test_probe_records_genuine_block_until_in_store_wait_publishes_it(self):
+        ration = store_item("a", TVAL_FOOD, 35, price=1, name="ration")
+        snapshot = HiddenInfoFallbackTest()._mana_starvation_snapshot(
+            store=StoreState(STORE_GENERAL, [ration]), gold=500
+        )
+        snapshot = replace(
+            snapshot,
+            town_id=0,
+            player=replace(snapshot.player, food_type=0),
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 1
+        gate = policy._purchase_has_fresh_home_absence(snapshot, ration)
+        self.assertIs(gate, policy_module.ProcurementHomeGate.BLOCKED)
+        self.assertNotIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "town:blocked:procurement-home-unavailable",
+        )
+        self.assertEqual(policy._shop(snapshot), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:procurement-home-unavailable"
+        )
+
+    def test_probe_diagnostics_publish_only_when_the_decider_requests_it(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 4
+        policy.last_reason = "shop:approach"
+
+        policy._record_purchase_home_refusal(
+            "town:blocked:procurement-home-unroutable"
+        )
+        self.assertEqual(policy.last_reason, "shop:approach")
+        policy._publish_purchase_home_block()
+        self.assertEqual(
+            policy.last_reason, "town:blocked:procurement-home-unroutable"
+        )
+
+    def test_ordinary_purchase_wait_publishes_the_genuine_home_block(self):
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, price=3)
+        snapshot = HiddenInfoFallbackTest()._mana_starvation_snapshot(
+            store=StoreState(STORE_GENERAL, [oil]), food=10000, gold=500
+        )
+        snapshot = replace(
+            snapshot,
+            town_id=0,
+            player=replace(snapshot.player, food_type=0),
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 2
+
+        self.assertEqual(policy._shop(snapshot), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:procurement-home-unavailable"
+        )
+
+    def test_pin_vacuity_composer_keeps_the_gate_refusal_for_the_resolver(self):
+        fixture = QuestCarryVisitAbandonmentTest()
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        outside = replace(
+            fixture._q2_town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = fixture._q2_policy()
+        policy._home_knowledge_current = False
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand",
+            "shopping",
+            STORE_WEAPON,
+            phase=StoreVisitPhase.LEAVING,
+        )
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence,
+        )
+
+        policy.choose_key(outside)
+
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"],
+            "shop:home-first-yields-to-current-visit",
+        )
+
+    def test_pin_vacuity_resolver_guard_preserves_the_refused_supplier_stop(self):
+        fixture = QuestCarryVisitAbandonmentTest()
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        inside = replace(
+            fixture._q2_town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = fixture._q2_policy()
+        policy._home_knowledge_current = False
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._shopping_approach_store_type = STORE_WEAPON
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence,
+        )
+
+        self.assertTrue(policy._resolve_observed_uncomposable_stop(inside))
+        self.assertEqual(policy._town_errand_plan.index, 0)
+        self.assertNotIn(STORE_WEAPON, policy._town_errand_plan.blocked_this_visit)
 
 
 if __name__ == "__main__":

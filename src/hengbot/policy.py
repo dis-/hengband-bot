@@ -19618,15 +19618,30 @@ class HengbotPolicy(TownArbiterMixin):
                 return ProcurementHomeGate.ALLOW_PURCHASE
             if not self._home_available(snapshot):
                 self._home_procurement_probe = None
-                self.last_reason = "town:blocked:procurement-home-unavailable"
+                self._record_purchase_home_refusal(
+                    "town:blocked:procurement-home-unavailable"
+                )
                 return ProcurementHomeGate.BLOCKED
             filed = self._ensure_home_visit_request(snapshot)
+            visit = self._store_visit
+            if (
+                filed
+                and visit is not None
+                and visit.store_type != STORE_HOME
+            ):
+                self._home_procurement_probe = None
+                self._record_purchase_home_refusal(
+                    "shop:home-first-yields-to-current-visit"
+                )
+                return ProcurementHomeGate.HOME_FIRST
             approach = (
                 self._shopping_approach_step(snapshot, STORE_HOME) if filed else None
             )
             if not filed or approach is None:
                 self._home_procurement_probe = None
-                self.last_reason = "town:blocked:procurement-home-unroutable"
+                self._record_purchase_home_refusal(
+                    "town:blocked:procurement-home-unroutable"
+                )
                 return ProcurementHomeGate.BLOCKED
             return ProcurementHomeGate.HOME_FIRST
         candidate = self._home_procurement_candidate(item_class)
@@ -19645,6 +19660,25 @@ class HengbotPolicy(TownArbiterMixin):
         self._home_procurement_probe = None
         self._home_procurement_fallthrough = "fresh-catalogue-absence"
         return ProcurementHomeGate.ALLOW_PURCHASE
+
+    def _record_purchase_home_refusal(self, reason: str) -> None:
+        """Retain a probe result without publishing it as a decided stop."""
+        self._shop_selector_diagnostics["composition_refusal"] = reason
+        self._shop_selector_diagnostics["composition_refusal_sequence"] = (
+            self._decision_sequence
+        )
+
+    def _publish_purchase_home_block(self) -> None:
+        """Publish the current probe's terminal only at a decided WAIT."""
+        reason = self._shop_selector_diagnostics.get("composition_refusal")
+        sequence = self._shop_selector_diagnostics.get(
+            "composition_refusal_sequence"
+        )
+        if sequence == self._decision_sequence and reason in {
+            "town:blocked:procurement-home-unavailable",
+            "town:blocked:procurement-home-unroutable",
+        }:
+            self.last_reason = reason
 
     def _evaluate_purchase_home_gate(
         self, snapshot: Snapshot, item: StoreItem
@@ -21309,6 +21343,7 @@ class HengbotPolicy(TownArbiterMixin):
                         snapshot, food_item
                     )
                     if home_gate is ProcurementHomeGate.BLOCKED:
+                        self._publish_purchase_home_block()
                         return WAIT_KEY
                     if home_gate is ProcurementHomeGate.HOME_FIRST:
                         self._rearm_town_store_for_new_work(
@@ -21900,6 +21935,7 @@ class HengbotPolicy(TownArbiterMixin):
             home_gate = self._purchase_has_fresh_home_absence(snapshot, item)
             if home_gate is not ProcurementHomeGate.ALLOW_PURCHASE:
                 if home_gate is ProcurementHomeGate.BLOCKED:
+                    self._publish_purchase_home_block()
                     return WAIT_KEY
                 self._rearm_town_store_for_new_work(
                     STORE_HOME, release_visit_bound=True
@@ -22461,6 +22497,12 @@ class HengbotPolicy(TownArbiterMixin):
             # the next outside snapshot re-resolves the newly tagged item.
             return inner
         composition_refusal = self.last_reason
+        if self._shop_selector_diagnostics.get(
+            "composition_refusal_sequence"
+        ) == self._decision_sequence:
+            composition_refusal = self._shop_selector_diagnostics.get(
+                "composition_refusal"
+            )
         star_remove_curse_shelf_seen = self._star_remove_curse_shelf_seen
         self._record_shop_selector_diagnostics(
             replace(snapshot, store=observed_store), inner
