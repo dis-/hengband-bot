@@ -14324,6 +14324,8 @@ class HengbotPolicy(TownArbiterMixin):
             item,
             take_count,
         )
+        if session is not None and action is not None and action.kind == "withdraw":
+            self._equipment_atomic_withdraw_leave_count = 0
         tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
         if tracked is None or tracked[0] != signature:
             self._withdrawal_unsatisfied_for = (

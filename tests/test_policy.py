@@ -58258,6 +58258,7 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         policy._shopping_approach_store_type = STORE_HOME
         policy._shopping_approach_goal = entrance
         policy._town_blocked_reason = "repetition"
+        policy._floor_key = snapshots[0].floor_key
         policy._last_snapshot_was_store = True
         policy._town_errand_plan = TownErrandPlan([STORE_HOME])
 
@@ -58268,7 +58269,10 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, "pa\x1b")
         self.assertNotIn(key, set("12346789"))
         expectation = policy._owner_expectations._pending["equipment-transaction"]
-        self.assertNotIn("position", expectation.expected_changes)
+        self.assertEqual(
+            expectation.expected_changes,
+            frozenset({"inventory", "equipment", "store_type", "gold"}),
+        )
         moved = replace(
             snapshots[0],
             player=replace(snapshots[0].player, position=Position(44, 123)),
@@ -58317,16 +58321,55 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
             "equipment-transaction:atomic-withdraw-unreachable",
         )
 
+    def test_three_successful_atomic_withdraw_compositions_reset_leave_bound(self):
+        snapshot = self._withdraw_alternation_snapshots()[0]
+        policy, target = self._captured_withdraw_policy()
+        identity = policy_module.equipment_identity(target)
+        actions = tuple(
+            policy_module.EquipmentTransaction(
+                policy_module.PHASE_HOME_PREPARE,
+                "withdraw",
+                f"home-target-{index}",
+                item_identity=identity,
+            )
+            for index in range(3)
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan(actions, (), 0)
+        )
+        policy._equipment_transaction_session = session
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._home_page_size = 12
+
+        composed = []
+        for index in range(3):
+            policy._equipment_atomic_withdraw_leave_count = 2
+            policy._home_atomic_withdraw_pending = None
+            session.discard_prepared()
+            session.index = index
+            composed.append(
+                policy._atomic_home_withdraw_key(
+                    snapshot, snapshot.player.position
+                )
+            )
+            self.assertEqual(policy._equipment_atomic_withdraw_leave_count, 0)
+
+        session.index = len(actions)
+        self.assertEqual(composed, [WAIT_KEY] * 3)
+        self.assertTrue(session.complete)
+
     def test_equipment_expectation_ignores_position_only_change(self):
         snapshot = self._withdraw_alternation_snapshots()[2]
-        policy = HengbotPolicy()
-        policy._post_owner_expectation(
-            snapshot,
-            "equipment-transaction",
-            "inventory", "equipment", "store_type", "gold",
-        )
+        policy, _target = self._captured_withdraw_policy()
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = snapshot.player.position
+        policy._town_errand_plan = TownErrandPlan([STORE_HOME])
+        policy.choose_key(snapshot)
         pending = policy._owner_expectations._pending["equipment-transaction"]
-        self.assertNotIn("position", pending.expected_changes)
+        self.assertEqual(
+            pending.expected_changes,
+            frozenset({"inventory", "equipment", "store_type", "gold"}),
+        )
         moved = replace(
             snapshot,
             player=replace(snapshot.player, position=Position(44, 123)),
@@ -58569,6 +58612,42 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
             (policy.last_reason, second_key),
             ("shop:home-first-before-purchase", WAIT_KEY),
         )
+
+    def test_prior_generation_home_first_refusal_yields_at_shared_boundary(self):
+        fixture = QuestCarryVisitAbandonmentTest()
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        outside = replace(
+            fixture._q2_town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = fixture._q2_policy()
+        policy._decision_sequence = 9
+        policy._home_knowledge_current = False
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand",
+            "shopping",
+            STORE_WEAPON,
+            phase=StoreVisitPhase.LEAVING,
+        )
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence - 1,
+        )
+
+        self.assertIsNone(policy._atomic_shop_transaction_key(outside))
+        self.assertEqual(policy._town_errand_plan.index, 1)
+        self.assertIsNone(policy._store_visit)
 
     def test_pin_vacuity_resolver_guard_preserves_the_refused_supplier_stop(self):
         fixture = QuestCarryVisitAbandonmentTest()
