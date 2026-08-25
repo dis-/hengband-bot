@@ -2924,6 +2924,17 @@ class HengbotPolicy(TownArbiterMixin):
                 else ()
             )
         }
+        family_aliases = {
+            "fundraising-oil": "oil",
+            "fundraising-light": "light",
+            "mining-digger": "digger",
+        }
+        departure_families = {
+            family_aliases.get(family, family) for family in departure_families
+        }
+        purchase_families = {
+            family_aliases.get(family, family) for family in purchase_families
+        }
         if departure_families:
             return bool(departure_families.intersection(purchase_families))
         return purchase is not None and purchase.tval in {TVAL_WAND, TVAL_STAFF}
@@ -19854,6 +19865,13 @@ class HengbotPolicy(TownArbiterMixin):
                 return ProcurementHomeGate.BLOCKED
             return ProcurementHomeGate.HOME_FIRST
         candidate = self._home_procurement_candidate(item_class)
+        if (
+            candidate is not None
+            and evaluated is ProcurementHomeGate.ALLOW_PURCHASE
+        ):
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "home-unreachable"
+            return ProcurementHomeGate.ALLOW_PURCHASE
         if candidate is not None:
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
@@ -19960,6 +19978,13 @@ class HengbotPolicy(TownArbiterMixin):
             )
         item_class = self._procurement_class(item)
         if self._home_procurement_candidate(item_class) is not None:
+            if (
+                STORE_HOME in self._town_store_attempted
+                or STORE_HOME in self._town_visit_ledger.blocked_stores
+                or self._town_visit_ledger.approach_fails[STORE_HOME]
+                >= self._town_store_visit_limit(STORE_HOME)
+            ):
+                return ProcurementHomeGate.ALLOW_PURCHASE
             return ProcurementHomeGate.HOME_FIRST
         return ProcurementHomeGate.ALLOW_PURCHASE
 
@@ -22677,7 +22702,6 @@ class HengbotPolicy(TownArbiterMixin):
                 return True
             plan.current_stop_passes = 0
             plan.index += 1
-            self._town_store_attempted[store_type] = snapshot.turn
             self._shop_observation = None
             self._close_store_visit("home-first-yield")
             return False
@@ -22786,7 +22810,6 @@ class HengbotPolicy(TownArbiterMixin):
             ):
                 plan.current_stop_passes = 0
                 plan.index += 1
-                self._town_store_attempted[store_type] = snapshot.turn
             self._shop_observation = None
             self._close_store_visit("home-first-yield")
             self.last_reason = reason_before_composition
@@ -23681,11 +23704,16 @@ class HengbotPolicy(TownArbiterMixin):
         preserved_stores = {
             store for status in shortages for store in status.stores
         }
-        departure_needs = [
-            need
-            for need in self._departure_blocking_town_needs(snapshot)
-            if self._town_need_supplier_reachable(snapshot, need)
-        ]
+        attempted_stores = dict(self._town_store_attempted)
+        self._town_store_attempted.clear()
+        try:
+            departure_needs = [
+                need
+                for need in self._departure_blocking_town_needs(snapshot)
+                if self._town_need_supplier_reachable(snapshot, need)
+            ]
+        finally:
+            self._town_store_attempted.update(attempted_stores)
         preserved_stores.update(need.store_type for need in departure_needs)
         for store_type in range(len(TOWN_TRAVEL_STORE_SYMBOLS) + 1):
             if store_type in preserved_stores:

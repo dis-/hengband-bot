@@ -1,5 +1,8 @@
+import gzip
+import json
 import unittest
 from dataclasses import replace
+from pathlib import Path
 from unittest.mock import patch
 
 from hengbot.policy import (
@@ -30,6 +33,8 @@ from hengbot.model import (
     Position,
     Snapshot,
     StoreState,
+    STORE_GENERAL,
+    parse_snapshot,
 )
 from tests.test_policy import grid, item, player, store_item
 
@@ -114,6 +119,35 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
                 }
                 self.assertIn(need_family, registry_families)
                 self.assertIn(need_family, emitted_families)
+
+    def test_pin_vacuity_live_fundraising_candidates_match_general_stock(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "fundraise-light-block-pages-20260825.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [parse_snapshot(json.loads(line), {}) for line in stream]
+        general = next(
+            snapshot
+            for snapshot in rows
+            if snapshot.store is not None
+            and snapshot.store.store_type == STORE_GENERAL
+        )
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        policy._fundraising_mode = "mine"
+        policy._planned_mining_runs = 1
+
+        categories = {
+            need.category
+            for need in policy._departure_blocking_town_needs(general)
+            if need.store_type == STORE_GENERAL
+        }
+
+        self.assertIn("fundraising-light", categories)
+        self.assertIn("fundraising-oil", categories)
+        self.assertTrue(policy._town_blocked_purchase_is_composable(general))
 
     def test_pin_vacuity_identify_only_shelf_composes_real_need_intersection(self):
         policy = self._incident_policy()
