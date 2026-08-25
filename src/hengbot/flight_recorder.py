@@ -87,21 +87,21 @@ def _positions(values: Any) -> list[list[int]]:
 
 def map_memory_summary(policy) -> dict[str, Any]:
     known = getattr(policy, "_remembered_known_t", set())
+    marked = getattr(policy, "_remembered_marked_t", known)
     visits = getattr(policy, "_visit_counts", {})
     frontiers = 0
-    frontier_test = getattr(policy, "_is_frontier", None)
-    if frontier_test is not None:
-        # Calling _is_frontier requires a snapshot and can affect cost. The
-        # remembered topology gives a cheap, conservative open-edge count.
-        floor = getattr(policy, "_remembered_floor_t", set())
-        for y, x in floor:
-            if any(
-                (y + dy, x + dx) not in known
-                for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
-            ):
-                frontiers += 1
+    # Calling _is_frontier requires a snapshot and can affect cost. The
+    # remembered marked topology gives a cheap, conservative open-edge count
+    # with the same display-memory axis as the policy predicate.
+    floor = getattr(policy, "_remembered_floor_t", set())
+    for y, x in floor:
+        if any(
+            (y + dy, x + dx) not in marked
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
+        ):
+            frontiers += 1
     return {
-        "known_cells": len(known),
+        "known_cells": {"known": len(known), "marked": len(marked)},
         "visited_cells": sum(1 for count in visits.values() if count > 0),
         "open_frontiers": frontiers,
         "down_stairs": _positions(getattr(policy, "_remembered_downstairs", set())),
@@ -113,6 +113,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
     """Serialize volatile policy evidence shared by checkpoints and incidents."""
     terrain_names = (
         "_remembered_known_t",
+        "_remembered_marked_t",
         "_remembered_floor_t",
         "_remembered_wall_t",
         "_remembered_door_t",

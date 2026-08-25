@@ -67,6 +67,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_dark_route", [])
     restored.__dict__.setdefault("_dark_route_goal", None)
     restored.__dict__.setdefault("_dark_route_expected", None)
+    restored.__dict__.setdefault(
+        "_remembered_marked_t",
+        set(restored.__dict__.get("_remembered_known_t", set())),
+    )
     registry = restored.__dict__.get("_owner_expectations")
     if registry is not None:
         for owner, pending in tuple(registry._pending.items()):

@@ -1683,7 +1683,6 @@ class HengbotPolicy(TownArbiterMixin):
         self._floor_t: set[tuple[int, int]] = set()
         self._door_t: set[tuple[int, int]] = set()
         self._rubble_t: set[tuple[int, int]] = set()
-        self._known_t: set[tuple[int, int]] = set()
         self._marked_t: set[tuple[int, int]] = set()
         self._remembered_floor_t: set[tuple[int, int]] = set()
         self._remembered_door_t: set[tuple[int, int]] = set()
@@ -2380,8 +2379,6 @@ class HengbotPolicy(TownArbiterMixin):
         terrain. Monster occupancy is different: it is authoritative only in the
         current snapshot and must never survive after its grid leaves view.
         """
-        if not hasattr(self, "_remembered_marked_t"):
-            self._remembered_marked_t = set(self._remembered_known_t)
         # A store page without grids is not a terrain observation.  In
         # particular, its metadata must not select/reset a terrain region: the
         # store prompt has not moved the player or changed the surface map, and
@@ -34949,11 +34946,6 @@ class HengbotPolicy(TownArbiterMixin):
         remembered_rubble = self._remembered_rubble_t
         remembered_wall = self._remembered_wall_t
         remembered_known = self._remembered_known_t
-        # Checkpoints written before the display/terrain split have only the
-        # old known index.  Those rows predate known-only grid_map cells, so
-        # treating their remembered known cells as marked preserves replay.
-        if not hasattr(self, "_remembered_marked_t"):
-            self._remembered_marked_t = set(remembered_known)
         remembered_marked = self._remembered_marked_t
         blocked_doors = self._blocked_doors
         blocked_rubble = self._blocked_rubble
@@ -35025,7 +35017,6 @@ class HengbotPolicy(TownArbiterMixin):
         self._floor_t = floor
         self._door_t = door
         self._rubble_t = rubble
-        self._known_t = known
         self._marked_t = marked
 
     def _walkable_neighbors(

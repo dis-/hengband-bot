@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import hengbot.policy as policy_module
-from hengbot.latch_onset_capture import restore_checkpoint, write_window
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint, write_window
 from hengbot.model import (
     STORE_ALCHEMIST,
     STORE_ARMOURY,
@@ -23,6 +23,17 @@ from absorbing_state_catalog import TownWorld
 
 
 class LatchOnsetCaptureTest(unittest.TestCase):
+    def test_restore_seeds_marked_memory_for_checkpoint_before_axis_split(self):
+        policy, _ = test_policy.NoSafeRecallDestinationTest()._fixture()
+        policy._remembered_known_t = {(2, 3), (4, 5)}
+        del policy._remembered_marked_t
+
+        replay = restore_checkpoint(type(policy), checkpoint(policy))
+
+        self.assertEqual(replay._remembered_marked_t, {(2, 3), (4, 5)})
+        policy_source = Path(policy_module.__file__).read_text(encoding="utf-8")
+        self.assertNotIn('hasattr(self, "_remembered_marked_t")', policy_source)
+
     def test_writer_crossing_threshold_rotates_and_keeps_writing(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "latch-onset.jsonl"

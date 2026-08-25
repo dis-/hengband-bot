@@ -33,6 +33,7 @@ class FlightRecorderTest(unittest.TestCase):
     def policy(self):
         return SimpleNamespace(
             _remembered_known_t={(1, 1), (1, 2), (2, 2), (3, 3)},
+            _remembered_marked_t={(1, 1), (1, 2), (2, 2), (3, 3)},
             _remembered_floor_t={(1, 1), (1, 2), (2, 2)},
             _remembered_wall_t={(3, 3)},
             _remembered_door_t={(2, 3)},
@@ -375,6 +376,10 @@ class FlightRecorderTest(unittest.TestCase):
             state["state"]["_remembered_downstairs"], [[2, 2]]
         )
         self.assertEqual(
+            state["terrain"]["marked_t"],
+            [[1, 1], [1, 2], [2, 2], [3, 3]],
+        )
+        self.assertEqual(
             state["state"]["_explore_goal_identity"]["position"], [2, 3]
         )
         self.assertEqual(state["state"]["_unseen_retreat_target"], [3, 4])
@@ -399,6 +404,18 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertIn(">", rendered)
         self.assertIn("#", rendered)
         self.assertIn("E", rendered)
+
+    def test_map_memory_summary_counts_known_only_cells_but_not_frontiers(self):
+        from hengbot.flight_recorder import map_memory_summary
+
+        policy = self.policy()
+        policy._remembered_known_t.add((1, 3))
+        policy._remembered_marked_t = {(1, 1), (2, 2), (3, 3)}
+
+        summary = map_memory_summary(policy)
+
+        self.assertEqual(summary["known_cells"], {"known": 5, "marked": 3})
+        self.assertEqual(summary["open_frontiers"], 3)
 
     def test_policy_state_retains_town_blocked_latch_under_historical_name(self):
         class PolicyWithTownBlockedProperty:

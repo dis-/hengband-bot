@@ -188,6 +188,8 @@ class CapturedGoalFlipCharacterizationTest(unittest.TestCase):
         # The unmarked magic-mapped room remains unexplored, so replanning
         # commits to its reachable marked boundary instead of erasing it from
         # the frontier through the broader terrain-known axis.
+        # This real old-format capture contains 27 known-but-unmarked cells;
+        # keep its post-split destination pinned in addition to synthetic axes.
         self.assertEqual(destinations, [Position(3, 95), Position(3, 95)])
         self.assertNotEqual(keys, ["8", "2"])
 
