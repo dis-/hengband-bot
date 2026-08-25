@@ -37,12 +37,12 @@ for bot fixers).
 10. **Snapshots use `grid_map`, not `nearby_grids`, in the current wire format.** A measured town
     `player_turn` snapshot is approximately 27,577 B (formerly 6,371,071 B), including a 17,362 B
     grid payload. The grid is now approximately 63% of the snapshot, so claims that it accounts for
-    more than 99% of the bytes are obsolete. Measured dungeon rows are approximately seven times
-    smaller than their old-format equivalents. Store snapshots omit the map. The state file truncates
+    more than 99% of the bytes are obsolete. Measured dungeon-row reduction varies with floor size and
+    cell count (1.44x at 12 cells up to 44.94x at 1,361 cells); no single factor describes it. Store snapshots omit the map. The state file truncates
     at session start and bounds itself (`BOT_JSON_OUTPUT_MAX_BYTES`), so preserve long-run evidence
     promptly.
 
-Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`, `1ce92ea709`.
+The emitter campaign chain (eleven commits, 52c86e0732..899fbee927 plus the two earlier local commits 7861c38f86, 1ce92ea709) is LOCAL-ONLY on the game repo until pushed; the running exe may not match the source tree.
 
 10a. **Travel point selection is modal and its symbol list is game-internal.** `` ` `` enters
     `do_cmd_travel`; when an old non-player goal exists, `n` declines the "continue travel?"
@@ -121,14 +121,15 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     `entrance_dungeon_id`, `q` is `quest_id`, `b` is `building_type`, and `p` is
     `building_special`. `t` is present when `o` is present. A cell without sidecar data defaults to
     `monster_index=0`, `object_count=0`, and `object_tvals=[]`; sparse terrain metadata remains absent.
-    `cells[].o` means that something is present, including gold, and never carries a value greater
-    than zero. `found_items` has rows `[y, x, count, tval...]` and reports known item classes while
+    `cells[].o` means that something is present, including gold; the key is emitted only when the
+    count is greater than zero (so `o >= 1` whenever present). `found_items` has rows `[y, x, count, tval...]` and reports known item classes while
     excluding gold. These are separate authorities and consumers must never cross-populate them.
     During hallucination they also use different subwindows: `cells[].t` is redacted, while
     `found_items` is not.
     The present-but-empty map is exactly
     `{"cells":[],"h":H,"palette":[],"runs":[],"unsafe_rows":null,"w":W}`. It still counts as an
-    observed map.
+    observed map. An ABSENT grid_map key (store snapshots; pre-campaign rows) means the map was NOT
+    observed (grids_observed false).
 
 15. **Treat the grid bit tables as append-only wire definitions.** Append new bits at the end. Never
     reorder existing bits.
@@ -186,7 +187,8 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
 
 18. **Consume own-grid visibility as a three-valued campaign field.** Every current snapshot type
     carries boolean `player.can_see_own_grid`, equal to `!no_lite(player_ptr)`. It is the light gate for
-    reading scrolls. Pre-campaign rows omit it, so consumers must distinguish absent, false, and true.
+    reading scrolls - and ONLY that conjunct: the wild-mode, arena, and confusion read gates live
+    elsewhere. Blindness implies false, so the field is not an independent signal from player.blind. Pre-campaign rows omit it, so consumers must distinguish absent, false, and true.
     `player.light_radius` is a separate signed int32 field. It may be zero or negative and must not be
     inferred from, or substituted for, `can_see_own_grid`.
 
@@ -196,8 +198,9 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     possibly trapped; it does not mean "a trap is here". The key is three-valued: absent for an older
     emitter, null when unavailable (including the surface), and a list when emitted underground.
     Reject the whole plane on any row-count, width, digit, or value mismatch. Never pad a short row:
-    a fabricated zero would falsely clear an unreached possibly-trapped cell. Emitters may additionally
-    validate that border bits and unused pad bits are always zero. Payload sizes, including JSON
+    a fabricated zero would falsely clear an unreached possibly-trapped cell. Consumers may additionally
+    validate that border bits and unused pad bits are always zero (the emitter produces these
+    invariants). Payload sizes, including JSON
     framing, vary with dimensions: 198x66 is 3,499 B, 66x66 is 1,321 B, and 132x22 is 793 B; no single
     size describes the field.
 
