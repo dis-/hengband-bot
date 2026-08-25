@@ -12,8 +12,8 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_TURN_STALL_LIMIT,
 )
 
-# This is a game-mirror-free safety bound: a mistaken expectation declaration
-# may delay an owner, but must never deadlock it forever.
+# This decision-count bound is independent of Hengband's variable game-turn
+# cost: a mistaken expectation may delay an owner, but cannot deadlock it.
 OWNER_EXPECTATION_MAX_TURNS = 10
 
 @dataclass
@@ -116,6 +116,7 @@ class OwnerProgressCore:
     position: Position
     store_type: int | None
     turn: int
+    decision_sequence: int
     hp: int
     recalling: bool
     gold: int
@@ -163,7 +164,7 @@ class OwnerExpectationRegistry:
             self._pending.pop(owner, None)
             return True
         if (
-            progress_core.turn - pending.progress_core.turn
+            progress_core.decision_sequence - pending.progress_core.decision_sequence
             >= OWNER_EXPECTATION_MAX_TURNS
         ):
             self._pending.pop(owner, None)

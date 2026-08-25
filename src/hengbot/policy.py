@@ -2304,6 +2304,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._calibration_naked_dump_inflight = False
         self._calibration_naked_flags: frozenset[int] | None = None
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
+        self._equipment_atomic_withdraw_leave_count = 0
         # Physical equipment removed by the live optimizer transaction remains
         # owned by that transaction until it is observed worn again.  This is
         # deliberately independent of the town-owner gate: classifiers must
@@ -2529,7 +2530,9 @@ class HengbotPolicy(TownArbiterMixin):
         if refusal_probe is not None:
             self._posting_refusal_probe = None
             refusal_owner, refusal_core = refusal_probe
-            if current_progress_core == refusal_core:
+            if replace(
+                current_progress_core, decision_sequence=0
+            ) == replace(refusal_core, decision_sequence=0):
                 # The probe is the explicit observation barrier after any
                 # sender-side refusal.  A stair watch may belong to an older,
                 # successfully accepted decision (for example when an
@@ -2571,7 +2574,6 @@ class HengbotPolicy(TownArbiterMixin):
                 "equipment",
                 "store_type",
                 "gold",
-                "position",
             )
         key = self._refuse_no_progress_cycle(snapshot, key)
         key = self._town_procurement_decision(snapshot, key)
@@ -2589,7 +2591,7 @@ class HengbotPolicy(TownArbiterMixin):
         """Read the advisory claim and departure facts without routing work."""
         departure = getattr(self, "_departure_block", {}) or {}
         return (
-            self._owner_progress_core(snapshot),
+            replace(self._owner_progress_core(snapshot), decision_sequence=0),
             self._town_progress_fingerprint(snapshot),
             tuple(sorted((str(key), repr(value)) for key, value in departure.items())),
             getattr(self, "_town_blocked_reason", None),
@@ -5331,6 +5333,7 @@ class HengbotPolicy(TownArbiterMixin):
         if (
             self._town_blocked_reason is not None
             and self._town_blocked_store_context(snapshot)
+            and not self._town_blocked_entrance_has_composable_operation(snapshot)
             and not (
                 self._town_blocked_reason == "repetition"
                 and snapshot.store is not None
@@ -12168,6 +12171,8 @@ class HengbotPolicy(TownArbiterMixin):
         """Install a plan; the plan may request but never re-arm a Home visit."""
         previous = self._equipment_transaction_session
         self._equipment_transaction_session = session
+        if session is not previous:
+            self._equipment_atomic_withdraw_leave_count = 0
         if (
             session is None
             or session is previous
@@ -12978,6 +12983,13 @@ class HengbotPolicy(TownArbiterMixin):
                 )
                 self.last_reason = "equipment-transaction:withdraw-missing"
                 return LEAVE_STORE_KEY
+            if self._home_atomic_withdraw_pending is not None:
+                self._equipment_atomic_withdraw_leave_count = 0
+            if self._equipment_atomic_withdraw_leave_count >= 2:
+                self._block_equipment_transaction("atomic-withdraw-unreachable")
+                self.last_reason = "equipment-transaction:atomic-withdraw-unreachable"
+                return LEAVE_STORE_KEY
+            self._equipment_atomic_withdraw_leave_count += 1
             self.last_reason = "equipment-transaction:leave-for-atomic-withdraw"
             return LEAVE_STORE_KEY
 
@@ -22654,7 +22666,19 @@ class HengbotPolicy(TownArbiterMixin):
             # refused to ask the shop for the selected item.  Preserve both
             # the page and plan stop so this pass cannot become durable
             # evidence that the supplier had no actionable stock.
-            return True
+            observation_generation = (
+                self._shop_observation[1]
+                if self._shop_observation is not None
+                else self._decision_sequence
+            )
+            if observation_generation == self._decision_sequence:
+                return True
+            plan.current_stop_passes = 0
+            plan.index += 1
+            self._town_store_attempted[store_type] = snapshot.turn
+            self._shop_observation = None
+            self._close_store_visit("home-first-yield")
+            return False
         plan.blocked_this_visit.append(store_type)
         plan.current_stop_passes = 0
         plan.index += 1
@@ -22748,6 +22772,23 @@ class HengbotPolicy(TownArbiterMixin):
         self._shop_selector_diagnostics["composition_refusal_sequence"] = (
             self._decision_sequence
         )
+        if composition_refusal == "shop:home-first-yields-to-current-visit":
+            # This supplier was observed, but stale Home knowledge owns the
+            # purchase.  Retire only this pass so the next router decision can
+            # file and approach the Home refresh instead of re-entering here.
+            plan = self._town_errand_plan
+            if (
+                plan is not None
+                and plan.index < len(plan.stops)
+                and plan.stops[plan.index] == store_type
+            ):
+                plan.current_stop_passes = 0
+                plan.index += 1
+                self._town_store_attempted[store_type] = snapshot.turn
+            self._shop_observation = None
+            self._close_store_visit("home-first-yield")
+            self.last_reason = reason_before_composition
+            return None
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later
         # pack/gold change must re-observe the shelf before using its letters.
@@ -23699,6 +23740,49 @@ class HengbotPolicy(TownArbiterMixin):
             and here is not None
             and here.is_store
         )
+
+    def _town_blocked_entrance_has_composable_operation(
+        self, snapshot: Snapshot
+    ) -> bool:
+        """Yield a blocked entrance when its owner can compose a Home take."""
+        if snapshot.store is not None or not self._home_knowledge_current:
+            return False
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is None or here.store_number != STORE_HOME or not self._home_page_size:
+            return False
+        if (
+            self._shopping_approach_store_type != STORE_HOME
+            or self._home_atomic_withdraw_pending is not None
+        ):
+            return False
+        addressable = tuple(
+            item
+            for index, item in enumerate(self._home_knowledge_items)
+            if index < self._home_knowledge_valid_before
+        )
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if action is not None and action.kind == "withdraw":
+            return any(
+                item.is_equipment
+                and equipment_identity(item) == action.item_identity
+                for item in addressable
+            )
+        requested = {
+            *self._calibration_restore_signatures,
+            *self._home_pending_batch,
+            *(
+                (self._home_pending_item,)
+                if self._home_pending_item is not None
+                else ()
+            ),
+            *(
+                (self._home_errand.request.signature,)
+                if self._home_errand.active and self._home_errand.request is not None
+                else ()
+            ),
+        }
+        return any(self._item_signature(item) in requested for item in addressable)
 
     def _town_blocked_key(self, snapshot: Snapshot) -> str | None:
         """Leave an open/interleaved store UI before handling a town block.

@@ -34058,7 +34058,9 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
         pol = HengbotPolicy()
         self.assertEqual(pol.choose_key(snap), "rt")
         consumed = replace(snap, inventory=[replace(snap.inventory[0], count=2), snap.inventory[1]])
-        for delta in range(9):
+        # The confirmation owner begins on the first waiting decision, so ten
+        # complete decision intervals remain suppressed before it expires.
+        for delta in range(10):
             waiting = replace(consumed, turn=snap.turn + delta)
             self.assertEqual(pol.choose_key(waiting), WAIT_KEY)
             self.assertEqual(pol.last_reason, "emergency:await-consumable-confirmation")
@@ -58147,7 +58149,7 @@ class OwnerExpectationContractTest(unittest.TestCase):
                 "owner", policy._owner_progress_core(snapshot), "inventroy"
             )
 
-    def test_failed_home_withdrawal_rearms_after_registry_expiry(self):
+    def test_failed_home_withdrawal_rearms_after_decision_expiry(self):
         snapshot = Snapshot(
             player(10, 10), {Position(10, 10): grid(10, 10)}, [],
             floor_key=(0, 0, 0), turn=100,
@@ -58155,11 +58157,13 @@ class OwnerExpectationContractTest(unittest.TestCase):
         policy = HengbotPolicy()
         registry = policy_module.OwnerExpectationRegistry()
         registry.post("home-errand", policy._owner_progress_core(snapshot), "inventory")
+        policy._decision_sequence = 9
         self.assertFalse(registry.may_select(
-            "home-errand", policy._owner_progress_core(replace(snapshot, turn=109))
+            "home-errand", policy._owner_progress_core(replace(snapshot, turn=1099))
         ))
+        policy._decision_sequence = 10
         self.assertTrue(registry.may_select(
-            "home-errand", policy._owner_progress_core(replace(snapshot, turn=110))
+            "home-errand", policy._owner_progress_core(replace(snapshot, turn=1100))
         ))
     def test_posted_owner_cannot_be_selected_twice_on_unchanged_progress_core(self):
         snapshot = Snapshot(
@@ -58215,6 +58219,120 @@ class OwnerExpectationContractTest(unittest.TestCase):
 
 
 class RearmAndBreakoutRegressionTest(unittest.TestCase):
+    @staticmethod
+    def _withdraw_alternation_snapshots():
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "town-withdraw-alternation-entrance-cycle-20260825.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            return [parse_snapshot(json.loads(line)) for line in stream]
+
+    @staticmethod
+    def _captured_withdraw_policy():
+        policy = HengbotPolicy()
+        target = item(
+            "a", policy_module.TVAL_SOFT_ARMOR, 99, name="Home target",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home-target",
+            item_identity=policy_module.equipment_identity(target),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 0)
+            )
+        )
+        policy.consume_home_knowledge((target,))
+        policy._home_page_size = 12
+        return policy, target
+
+    def test_captured_repetition_entrance_composes_withdraw_before_step_off(self):
+        snapshots = self._withdraw_alternation_snapshots()
+        policy, _target = self._captured_withdraw_policy()
+        entrance = snapshots[0].player.position
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = entrance
+        policy._town_blocked_reason = "repetition"
+        policy._last_snapshot_was_store = True
+        policy._town_errand_plan = TownErrandPlan([STORE_HOME])
+
+        key = policy.choose_key(snapshots[0])
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "equipment-transaction:atomic-withdraw")
+        self.assertEqual(policy._store_visit.operation_key, "pa\x1b")
+        self.assertNotIn(key, set("12346789"))
+        expectation = policy._owner_expectations._pending["equipment-transaction"]
+        self.assertNotIn("position", expectation.expected_changes)
+        moved = replace(
+            snapshots[0],
+            player=replace(snapshots[0].player, position=Position(44, 123)),
+        )
+        self.assertFalse(policy._owner_may_select(moved, "equipment-transaction"))
+
+    def test_atomic_withdraw_leave_attempts_block_on_third_dispatch(self):
+        snapshot = self._withdraw_alternation_snapshots()[0]
+        policy, target = self._captured_withdraw_policy()
+        inside = replace(
+            snapshot,
+            store=StoreState(
+                STORE_HOME,
+                [store_item(
+                    "a", target.tval, target.sval, name=target.name,
+                    known=True, fully_known=True, is_equipment=True,
+                )],
+            ),
+        )
+        reasons = []
+        policy._owner_expectations.release("equipment-transaction")
+        policy._last_snapshot_was_store = False
+        policy._store_visit = None
+        policy.choose_key(inside)
+        reasons.append(policy.last_reason)
+        policy._owner_expectations.release("equipment-transaction")
+        policy._last_snapshot_was_store = False
+        policy._store_visit = None
+        policy.choose_key(replace(inside, turn=inside.turn + 1))
+        reasons.append(policy.last_reason)
+        policy._owner_expectations.release("equipment-transaction")
+        policy._last_snapshot_was_store = False
+        policy._store_visit = None
+        policy.choose_key(replace(inside, turn=inside.turn + 2))
+        reasons.append(policy.last_reason)
+
+        self.assertEqual(
+            reasons[:2],
+            ["equipment-transaction:leave-for-atomic-withdraw"] * 2,
+        )
+        self.assertEqual(
+            reasons[2], "equipment-transaction:atomic-withdraw-unreachable"
+        )
+        self.assertEqual(
+            policy._town_blocked_reason,
+            "equipment-transaction:atomic-withdraw-unreachable",
+        )
+
+    def test_equipment_expectation_ignores_position_only_change(self):
+        snapshot = self._withdraw_alternation_snapshots()[2]
+        policy = HengbotPolicy()
+        policy._post_owner_expectation(
+            snapshot,
+            "equipment-transaction",
+            "inventory", "equipment", "store_type", "gold",
+        )
+        pending = policy._owner_expectations._pending["equipment-transaction"]
+        self.assertNotIn("position", pending.expected_changes)
+        moved = replace(
+            snapshot,
+            player=replace(snapshot.player, position=Position(44, 123)),
+        )
+        self.assertFalse(policy._owner_may_select(moved, "equipment-transaction"))
+
     def test_empty_body_requests_home_withdraw_then_wield_despite_quarantine(self):
         snapshot = Snapshot(
             replace(
@@ -58439,11 +58557,17 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
             policy._decision_sequence,
         )
 
-        policy.choose_key(outside)
+        first_key = policy.choose_key(outside)
 
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
             "shop:home-first-yields-to-current-visit",
+        )
+        self.assertNotEqual(first_key, WAIT_KEY)
+        second_key = policy.choose_key(replace(outside, turn=outside.turn + 1))
+        self.assertNotEqual(
+            (policy.last_reason, second_key),
+            ("shop:home-first-before-purchase", WAIT_KEY),
         )
 
     def test_pin_vacuity_resolver_guard_preserves_the_refused_supplier_stop(self):

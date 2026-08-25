@@ -347,6 +347,7 @@ class TownArbiterMixin:
                 snapshot.store.store_type if snapshot.store is not None else None
             ),
             turn=snapshot.turn,
+            decision_sequence=self._decision_sequence,
             hp=snapshot.player.hp,
             recalling=snapshot.player.recalling,
             gold=getattr(snapshot.player, "gold", 0),

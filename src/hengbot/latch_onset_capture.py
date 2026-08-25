@@ -67,6 +67,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_dark_route", [])
     restored.__dict__.setdefault("_dark_route_goal", None)
     restored.__dict__.setdefault("_dark_route_expected", None)
+    restored.__dict__.setdefault("_equipment_atomic_withdraw_leave_count", 0)
     restored.__dict__.setdefault(
         "_remembered_marked_t",
         set(restored.__dict__.get("_remembered_known_t", set())),
@@ -75,14 +76,15 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     if registry is not None:
         for owner, pending in tuple(registry._pending.items()):
             core = pending.progress_core
-            if not hasattr(core, "store_type"):
+            if not hasattr(core, "decision_sequence"):
                 upgraded = OwnerProgressCore(
                     floor=core.floor,
                     position=core.position,
-                    store_type=None,
-                    turn=0,
-                    hp=0,
-                    recalling=False,
+                    store_type=getattr(core, "store_type", None),
+                    turn=getattr(core, "turn", 0),
+                    decision_sequence=0,
+                    hp=getattr(core, "hp", 0),
+                    recalling=getattr(core, "recalling", False),
                     gold=core.gold,
                     experience=core.experience,
                     inventory=core.inventory,
