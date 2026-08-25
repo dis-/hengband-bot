@@ -112,14 +112,20 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     `[terrain_id, flag_bits, terrain_bits, known]`; `known` is currently always 1. Each run is
     `[y, x0, len, palette_index]`, is
     row-local, has `len >= 1`, and is ordered by ascending `y` then `x0`. Runs describe the complete
-    emitted cell set. Do not fill gaps or introduce a sentinel for uncovered coordinates. JSON object
-    key ordering is non-contractual.
+    emitted cell set. `found_items` rows are deliberately not required to be covered by a run. Do not
+    fill gaps or introduce a sentinel for uncovered coordinates. JSON object key ordering is
+    non-contractual.
 
     `cells` is the sparse sidecar keyed by `y` and `x`. Decode its short keys as follows: `m` is
     `monster_index`, `o` is `object_count`, `t` is `object_tvals`, `s` is `store_number`, `e` is
     `entrance_dungeon_id`, `q` is `quest_id`, `b` is `building_type`, and `p` is
     `building_special`. `t` is present when `o` is present. A cell without sidecar data defaults to
     `monster_index=0`, `object_count=0`, and `object_tvals=[]`; sparse terrain metadata remains absent.
+    `cells[].o` means that something is present, including gold, and never carries a value greater
+    than zero. `found_items` has rows `[y, x, count, tval...]` and reports known item classes while
+    excluding gold. These are separate authorities and consumers must never cross-populate them.
+    During hallucination they also use different subwindows: `cells[].t` is redacted, while
+    `found_items` is not.
     The present-but-empty map is exactly
     `{"cells":[],"h":H,"palette":[],"runs":[],"unsafe_rows":null,"w":W}`. It still counts as an
     observed map.
@@ -135,6 +141,14 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     | 3 | `view` |
     | 4 | `room` |
     | 5 | `unsafe` |
+    | 6 | `glow` |
+    | 7 | `mnlt` |
+    | 8 | `mndk` |
+
+    Palette flag fields use ordinary numbered bits. This packing is distinct from the LSB-first
+    hexadecimal digit packing used by `unsafe_rows`. As an interim same-commit capability proxy,
+    flag bits 6 through 8 are meaningful if and only if the `found_items` key is present. This rule
+    remains in force until the wire gains an explicit capability marker.
 
     | Terrain bit | Name |
     | ---: | --- |
@@ -164,17 +178,36 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     changing from an integer to `{"known": N, "marked": M}`.
 
 17. **Treat `schema_error` as a failed observation, not an empty floor.** `schema_error: true`
-    accompanies only an empty `grid_map`. The parser sets the map-observed state to false and surfaces
+    accompanies only an empty `grid_map`. On this degraded return the emitter still populates the
+    `unsafe_rows` and `found_items` side planes; by supervisor decision, the consumer discards both
+    planes together with the map. The parser sets the map-observed state to false and surfaces
     `grid_map_schema_error` in decision records. A normal empty map without the marker remains an
     observed map.
 
 18. **Consume own-grid visibility as a three-valued campaign field.** Every current snapshot type
     carries boolean `player.can_see_own_grid`, equal to `!no_lite(player_ptr)`. It is the light gate for
     reading scrolls. Pre-campaign rows omit it, so consumers must distinguish absent, false, and true.
+    `player.light_radius` is a separate signed int32 field. It may be zero or negative and must not be
+    inferred from, or substituted for, `can_see_own_grid`.
 
-19. **Keep unimplemented follow-up payloads reserved.** `unsafe_rows` (C5), level feeling and light
-    radius (C6), and glow bits and found-items data (C7) are second-swap candidates and are not yet
-    emitted. `unsafe_rows` is currently `null`.
+19. **Decode the swap-2 side fields without manufacturing knowledge.** Underground `unsafe_rows` is
+    a list of exactly `h` lowercase-hex strings, each exactly `ceil(w / 4)` digits. Within each hex
+    digit the lowest-order bit is the leftmost cell. Bit 1 means the cell is unreached and therefore
+    possibly trapped; it does not mean "a trap is here". The key is three-valued: absent for an older
+    emitter, null when unavailable (including the surface), and a list when emitted underground.
+    Reject the whole plane on any row-count, width, digit, or value mismatch. Never pad a short row:
+    a fabricated zero would falsely clear an unreached possibly-trapped cell. Emitters may additionally
+    validate that border bits and unused pad bits are always zero. Payload sizes, including JSON
+    framing, vary with dimensions: 198x66 is 3,499 B, 66x66 is 1,321 B, and 132x22 is 793 B; no single
+    size describes the field.
+
+    `floor.feeling` is an integer from 0 through 10 on Hengband's inverted scale: larger values are
+    safer, value 2 is the most dangerous, and 0 means no information (including on the surface).
+    Validate the range and reject invalid values rather than clamping them. Values 9 and 10 share the
+    white display colour. Feeling text must be interpreted through the per-character text table; it is
+    not a universal numeric-to-string mapping. `player.light_radius` follows the signed-int32 and
+    independence rules in section 18. `found_items` and flag bits 6 through 8 follow sections 14 and
+    15, including their authority, hallucination, and interim capability-proxy rules.
 
 20. **Use `emitter-timing-c2.log` as the serialization timing sidecar.** Each line records `type`,
     `turn`, `build_us`, `dump_us`, `write_us`, and `bytes`. The emitter places it beside the configured

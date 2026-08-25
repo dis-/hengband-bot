@@ -59,7 +59,7 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertIsNone(policy._cell_readable_if_stood(old, position))
         self.assertTrue(policy._cell_readable_if_stood(glow, position))
 
-    def test_swap2_dark_goal_prefers_cleared_readable_cell(self):
+    def test_swap2_dark_goal_prefers_readable_when_both_cells_are_unsafe(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
         start = Position(10, 10)
@@ -70,6 +70,33 @@ class DarkwalkIncidentTest(unittest.TestCase):
                 visibility_flags_present=True),
             second: replace(template, position=second, glow=True, in_view=True,
                 allows_los=True, visibility_flags_present=True),
+        }
+        unsafe = tuple(
+            tuple(True for x in range(snapshot.width))
+            for y in range(snapshot.height)
+        )
+        dark = replace(snapshot, player=replace(snapshot.player, position=start),
+            grids=grids, unsafe_rows=unsafe)
+        policy = HengbotPolicy()
+        policy._visit_counts.update({start: 1, first: 1, second: 1})
+        policy._remembered_floor_t.update({(first.y, first.x), (second.y, second.x)})
+
+        route = policy._dark_route_to_frontier(dark)
+        self.assertIsNotNone(route)
+        self.assertEqual(route[0], second)
+
+    def test_swap2_dark_goal_prefers_cleared_when_neither_cell_is_readable(self):
+        snapshot = _snapshot_fixture()
+        template = next(iter(snapshot.grids.values()))
+        start = Position(10, 10)
+        first = Position(10, 11)
+        second = Position(11, 10)
+        grids = {
+            position: replace(
+                template, position=position, glow=False,
+                visibility_flags_present=True,
+            )
+            for position in (first, second)
         }
         unsafe = tuple(
             tuple(not (y == second.y and x == second.x) for x in range(snapshot.width))
@@ -84,6 +111,7 @@ class DarkwalkIncidentTest(unittest.TestCase):
         route = policy._dark_route_to_frontier(dark)
         self.assertIsNotNone(route)
         self.assertEqual(route[0], second)
+
     def test_dark_route_yields_on_remembered_upstairs_for_return_handoff(self):
         snapshot = _snapshot_fixture()
         policy = HengbotPolicy()
