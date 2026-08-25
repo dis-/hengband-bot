@@ -2627,6 +2627,19 @@ class HengbotPolicy(TownArbiterMixin):
             terminal=terminal,
             close_visit=self._arbiter_close_store_visit,
         )
+        if (
+            self._equipment_transaction_session is None
+            and STORE_HOME in self._town_visit_ledger.blocked_stores
+            and self._store_visit is not None
+            and self._store_visit.store_type == STORE_HOME
+        ):
+            # E5: locomotion metrics belong only to a live owner.  Close the
+            # retired Home approach after observation so a same-decision
+            # counterfactual cannot leak its target across owner stamps.
+            self._close_store_visit("equipment-transaction-owner-retired")
+            self._shopping_approach_goal = None
+            self._town_travel_state = None
+            self._town_travel_fallback = None
         return key
 
     def _town_arbiter_terminal_result(self, key: str) -> bool:
@@ -2746,6 +2759,7 @@ class HengbotPolicy(TownArbiterMixin):
                         key=lambda pos: snapshot.player.position.distance_to(pos),
                     )
         elif owner == "misc" and (reason or self.last_reason or "").startswith("explore"):
+            # Deliberate G1 explorer position-as-progress exception: the restored open-town explorer pin requires it.
             path = getattr(self, "_explore_path", None)
             if path:
                 goal = path[-1]

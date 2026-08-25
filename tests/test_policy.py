@@ -6151,14 +6151,41 @@ class ShoppingTest(unittest.TestCase):
             ),
         }
         pol = HengbotPolicy()
-        key = ""
-        for index in range(STUCK_WINDOW + 1):
+        distances = []
+        arrived = False
+        for index in range(LIVELOCK_LIMIT * 3):
             x = 10 if index % 2 == 0 else 11
             snap = Snapshot(player(10, x, gold=1000), grids, [], floor_key=(0, 0, 0))
             key = pol.choose_key(snap)
+            arrived = False
+            goal = Position(10, 12)
+            direction = next(
+                (delta for delta, direction_key in policy_module.DIRECTION_KEYS.items()
+                 if direction_key == key),
+                None,
+            )
+            if direction is not None:
+                after = Position(10 + direction[0], x + direction[1])
+                distances.append(after.distance_to(goal))
+                arrived = after == goal
 
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(pol.last_reason, "livelock:exhausted")
+        # ARB-A supersedes the old livelock:exhausted assertion: it
+        # contradicted this test's pathing contract and spec section 3's
+        # distance metric.  Removing R1's locomotion metric makes this fail.
+        self.assertTrue(
+            arrived or (
+                distances
+                and distances[-1]
+                < Position(10, x).distance_to(Position(10, 12))
+            ),
+            (key, pol.last_reason, distances),
+        )
+        self.assertTrue(
+            any(
+                isinstance(entry, tuple) and entry[:2] == ("locomotion", "store-router")
+                for entry in pol._town_arbiter_progress_vector(snap, "shop:approach")
+            )
+        )
 
     def test_store_approach_failure_does_not_block_later_shopping(self):
         # If the approach keeps oscillating WITHOUT arriving for long enough (a truly
@@ -57658,6 +57685,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertNotEqual(foreign.outcome, "abandoned-with-restore")
         # E5: retirement closes the equipment owner's Home visit; no stale
         # approach ownership remains stamped after the bounded attempt.
+        # Revert-proof: removing the retirement clear re-reds this cross-owner pin.
         self.assertIsNone(policy._shopping_approach_store_type)
         self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
