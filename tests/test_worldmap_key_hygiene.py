@@ -27,10 +27,12 @@ def incident_wilderness_map() -> WildernessMap:
 
 class WorldMapKeyHygieneTest(unittest.TestCase):
     def test_frozen_capture_characterizes_owner_key_and_refusal_counts(self):
+        artifact = ROOT / "evidence/evidence-entertown-decisions.jsonl"
+        if not artifact.is_file():
+            self.skipTest(f"external incident evidence unavailable: {artifact}")
         rows = [
             json.loads(line)
-            for line in (ROOT / "evidence/evidence-entertown-decisions.jsonl")
-            .read_text(encoding="utf-8").splitlines()
+            for line in artifact.read_text(encoding="utf-8").splitlines()
         ]
         incident = [
             row for row in rows
@@ -103,4 +105,3 @@ class WorldMapKeyHygieneTest(unittest.TestCase):
             (">", "wilderness:enter-town"),
             (">", "wilderness:enter-town"),
         ])
-

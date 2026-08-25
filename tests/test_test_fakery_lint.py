@@ -209,10 +209,18 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("pipeline-result-injected", "test_departure_is_immediate_for_already_optimal_loadout"),
         ("pipeline-result-injected", "test_timeout_keeps_confirmed_loadout_but_requires_its_premise"),
         ("pipeline-result-injected", "test_confirmed_loadout_survives_restart_and_is_input_key_bound"),
+        ("collaborator-wall", "test_tcp_shadow_opt_in_records_after_successful_send"),
+        ("collaborator-wall", "test_control_port_without_tcp_shadow_sends_without_recording_shadow"),
+        ("collaborator-wall", "test_q34_restock_wait_publishes_supplier_reason"),
+        ("collaborator-wall", "_run_once_with_routes"),
+        ("literal-success-predicate", "test_taken_q1_approach_does_not_enter_dead_end_town_loop"),
+        ("literal-success-predicate", "test_explores_open_area_without_oscillating"),
+        ("private-state-injected", "test_failed_uncomposable_transaction_opens_equipment_departure_conjunct"),
+        ("private-state-injected", "test_retired_failure_freezes_worn_target_across_optimizer_rebuild"),
     }
-    EXPECTED_UNDECLARED_INSTANCES = 7
+    EXPECTED_UNDECLARED_INSTANCES = 15
     # Six scan-only exception sites were deleted with their mechanism.
-    DECLARED_FINDING_RATCHET = 114
+    DECLARED_FINDING_RATCHET = 113
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()

@@ -832,6 +832,8 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertFalse(policy._owner_may_select(snapshot, "return:recall"))
 
         probe = policy.choose_key(snapshot)
+        # G2: the refusal look is an observation probe, not a turn, and does
+        # not overwrite the preceding decided reason.
         self.assertEqual((probe, policy.last_reason), ("l\x1b", "return:recall"))
         self.assertTrue(contract.allow(snapshot, probe, policy.last_reason))
         contract.posted(snapshot, probe, policy.last_reason)

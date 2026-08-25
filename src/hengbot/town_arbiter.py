@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from collections import Counter
+from typing import Callable, Mapping
 
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.model import Position, Snapshot, STORE_HOME
@@ -26,12 +27,7 @@ class TownOwnerRegistration:
 
 
 class TownTurnArbiter:
-    """Observe the legacy town ladder and preview bounded owner retirement.
-
-    ARB-1 deliberately has no selector or retirement side effects.  The policy
-    supplies the existing budget constants and the already-selected reason;
-    this object only attributes and records the decision.
-    """
+    """Enforce bounded, visit-scoped ownership of town decisions."""
 
     def __init__(self, budgets: Mapping[str, tuple[tuple[str, ...], int]]) -> None:
         def registration(
@@ -74,6 +70,10 @@ class TownTurnArbiter:
         self._tenure = 0
         self._no_progress_by_owner: dict[str, int] = {}
         self._vector_by_owner: dict[str, object] = {}
+        self._retired: dict[str, object] = {}
+        self._recurrences: Counter[tuple[str, object]] = Counter()
+        self._visit_vector: object | None = None
+        self._last_pair: tuple[str, object] | None = None
         self.telemetry: dict[str, object] | None = None
 
     def owner_for_reason(self, reason: str) -> str:
@@ -89,18 +89,55 @@ class TownTurnArbiter:
         in_town: bool,
         reason: str,
         progress_vector: object,
+        terminal: bool = False,
+        probe: bool = False,
+        close_visit: Callable[[str, str], None] | None = None,
     ) -> dict[str, object] | None:
+        # Checkpoints written by ARB-1 contain a pickled advisory arbiter.
+        # Upgrade those objects in place instead of invalidating the capture.
+        if not hasattr(self, "_retired"):
+            self._retired = {}
+        if not hasattr(self, "_recurrences"):
+            self._recurrences = Counter()
+        if not hasattr(self, "_visit_vector"):
+            self._visit_vector = None
+        if not hasattr(self, "_last_pair"):
+            self._last_pair = None
         if not in_town:
             self._owner = None
             self._tenure = 0
             self._no_progress_by_owner.clear()
             self._vector_by_owner.clear()
+            self._retired.clear()
+            self._recurrences.clear()
+            self._visit_vector = None
+            self._last_pair = None
             self.telemetry = None
             return None
+        if self._visit_vector is not None and self._visit_vector != progress_vector:
+            self._retired = {
+                owner: vector
+                for owner, vector in self._retired.items()
+                if vector == progress_vector
+            }
+        self._visit_vector = progress_vector
         owner = self.owner_for_reason(reason)
+        if probe:
+            # A refusal observation is not an owner decision.  It cannot spend
+            # tenure/budget or overwrite the last decided owner's accounting.
+            return dict(self.telemetry) if self.telemetry is not None else None
         same_owner = owner == self._owner
         previous_vector = self._vector_by_owner.get(owner)
-        progress = previous_vector is None or previous_vector != progress_vector
+        recurrence_key = (owner, progress_vector)
+        if recurrence_key != self._last_pair:
+            self._recurrences[recurrence_key] += 1
+        recurrence_limit = self.registry["detectors"].budget
+        recurrent = self._recurrences[recurrence_key] >= recurrence_limit
+        progress = (
+            not terminal
+            and (previous_vector is None or previous_vector != progress_vector)
+            and not recurrent
+        )
         self._tenure = self._tenure + 1 if same_owner else 1
         no_progress = 0 if progress else self._no_progress_by_owner.get(owner, 0) + 1
         self._no_progress_by_owner[owner] = no_progress
@@ -110,15 +147,49 @@ class TownTurnArbiter:
             max(0, registration.budget - no_progress)
             if registration is not None else None
         )
+        recurrence_exhausted = registration is not None and recurrent
+        if recurrence_exhausted:
+            remaining = 0
+        would_retire = registration is not None and not progress and (
+            remaining == 0 or recurrence_exhausted
+        )
+        if would_retire:
+            self._retired[owner] = progress_vector
+            if close_visit is not None:
+                close_visit(owner, "arbiter-retired")
         self.telemetry = {
             "owner": owner,
             "tenure": self._tenure,
             "progress": progress,
             "budget_remaining_estimate": remaining,
-            "would_retire": registration is not None and not progress and remaining == 0,
+            "would_retire": would_retire,
+            "retired": owner in self._retired,
+            "retirement_set": sorted(self._retired),
         }
         self._owner = owner
+        self._last_pair = recurrence_key
         return dict(self.telemetry)
+
+    def may_select(self, reason: str, progress_vector: object) -> bool:
+        """Return whether the reason's owner may acquire this town decision."""
+        if not hasattr(self, "_retired"):
+            self._retired = {}
+        if not hasattr(self, "_recurrences"):
+            self._recurrences = Counter()
+        owner = self.owner_for_reason(reason)
+        if (
+            self._recurrences[(owner, progress_vector)]
+            >= self.registry["detectors"].budget
+        ):
+            return False
+        retired_at = self._retired.get(owner)
+        if retired_at is None:
+            return True
+        if retired_at != progress_vector:
+            del self._retired[owner]
+            self._no_progress_by_owner[owner] = 0
+            return True
+        return False
 
 
 class TownArbiterMixin:

@@ -229,6 +229,12 @@ class TownProgressInvariantTest(unittest.TestCase):
             "town-progress-invariant:continue-observed-shop",
         )
         self.assertEqual(policy._shop_observation[0].store_type, STORE_MAGIC)
+        # A restored loop may already have exhausted this owner.  Reconstruct
+        # only the subsequent foreign-plan premise when retirement closed it.
+        if policy._store_visit is None:
+            policy._store_visit = StoreVisit(
+                "town-errand", "shopping", STORE_ALCHEMIST
+            )
         policy._store_visit = replace(
             policy._store_visit, store_type=STORE_ALCHEMIST
         )
@@ -385,7 +391,10 @@ class TownProgressInvariantTest(unittest.TestCase):
                     "TOWN_PROGRESS_INVARIANT_DEFECT",
                 )
             else:
-                self.assertFalse(policy._store_visit.operation_posted)
+                self.assertTrue(
+                    policy._store_visit is None
+                    or not policy._store_visit.operation_posted
+                )
                 self.assertEqual(policy.last_reason, reason)
 
     def test_closed_key_axis_rejects_known_and_novel_noop_macros(self):

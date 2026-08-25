@@ -78,6 +78,18 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
             ),
         )
     restored.__dict__.setdefault("_town_turn_arbiter", None)
+    restored.__dict__.setdefault("_town_suppression_claim_stores", set())
+    # Older checkpoints can retain the two pre-ARB restocked-*-unreachable
+    # values.  Normalize them at the compatibility boundary so restored work
+    # follows the surviving canonical release path without keeping either
+    # orphaned name in live clearing sets.
+    if restored.__dict__.get("_town_blocked_reason_value") in {
+        "restocked-food-store-unreachable",
+        "restocked-recall-store-unreachable",
+    }:
+        restored.__dict__["_town_blocked_reason_value"] = (
+            "restock-store-unreachable"
+        )
     restored.__dict__.setdefault("_dark_goal_counts", Counter())
     restored.__dict__.setdefault("_dark_route", [])
     restored.__dict__.setdefault("_dark_route_goal", None)

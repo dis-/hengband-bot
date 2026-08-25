@@ -957,7 +957,7 @@ class DecisionTimingTest(unittest.TestCase):
                 self.last_incident = None
                 self.calls = 0
 
-            def allow(self, _snapshot, key, owner):
+            def allow(self, _snapshot, key, owner, **_kwargs):
                 self.calls += 1
                 if self.calls == 1:
                     self.last_incident = {
@@ -1264,10 +1264,14 @@ class WaitClassificationTest(unittest.TestCase):
         )
 
     def test_q34_final_stops_have_quest_specific_operator_messages(self):
-        source = inspect.getsource(_run_follow)
-        # TEST_FAKERY_LINT_ALLOW: source-text-only-assertions: focused CLI wiring test asserts the two operator-facing message tags emitted by the follow loop
-        self.assertEqual(source.count("<q34-recovery-no-progress>"), 1)
-        self.assertEqual(source.count("<q34-throw-point-unreachable>"), 1)
+        recovery = _policy_final_stop_banner(
+            "quest:blocked:q34-recovery-no-progress"
+        )
+        throwing = _policy_final_stop_banner(
+            "quest:blocked:q34-throw-point-unreachable"
+        )
+        self.assertIn("<quest:blocked:q34-recovery-no-progress>", recovery)
+        self.assertIn("<quest:blocked:q34-throw-point-unreachable>", throwing)
 
     def test_cli_override_changes_generic_delay_without_changing_default(self):
         parser = argparse.ArgumentParser()
@@ -4174,7 +4178,7 @@ class TownBlockedStreakTest(unittest.TestCase):
         )
 
         reasons = (
-            "restocked-recall-store-unreachable",
+            "restock-store-unreachable",
             "dominated-item-destroy-failed",
             "departure-no-light",
             "digging-tool-lost",

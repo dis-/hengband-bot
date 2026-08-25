@@ -1247,7 +1247,9 @@ def _restocked_recall_unavailable_with_shelf_stock():
         expected_terminal_reason = "shop:one-shot-buy"
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key.startswith("p")
+            return (
+                reason == self.expected_terminal_reason and key.startswith("p")
+            ) or super().terminal_ends_drive(reason, key)
 
         def apply(self, key):
             if key.startswith("\x1b`n"):
@@ -1379,7 +1381,9 @@ def _aborted_shop_one_shot_stall_escape():
             self.aborted = False
 
         def terminal_ends_drive(self, reason, key):
-            return reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+            return (
+                reason == self.expected_terminal_reason and key == LEAVE_STORE_KEY
+            ) or super().terminal_ends_drive(reason, key)
 
         def apply(self, key):
             if self.inside and key.startswith("p"):

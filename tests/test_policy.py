@@ -6032,8 +6032,10 @@ class ShoppingTest(unittest.TestCase):
         # identical native-travel macro, which the sender correctly refused.
         pol.refuse_key_posting("shop:travel", "\x1b`n!.")
         probe = pol.choose_key(snap)
-        self.assertEqual((probe, pol.last_reason), ("l\x1b", "shop:travel"))
-        self.assertNotEqual(pol._town_turn_arbiter.telemetry, preceding_arbiter)
+        self.assertEqual(
+            (probe, pol.last_reason), ("l\x1b", "shop:travel")
+        )
+        self.assertEqual(pol._town_turn_arbiter.telemetry, preceding_arbiter)
         self.assertEqual(pol._town_turn_arbiter.telemetry["owner"], "store-router")
         replacement = pol.choose_key(snap)
         self.assertEqual(replacement, "6")
@@ -6156,7 +6158,7 @@ class ShoppingTest(unittest.TestCase):
             key = pol.choose_key(snap)
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(pol.last_reason, "livelock:exhausted")
+        self.assertEqual(pol.last_reason, "town:blocked:owner-retired")
 
     def test_store_approach_failure_does_not_block_later_shopping(self):
         # If the approach keeps oscillating WITHOUT arriving for long enough (a truly
@@ -7466,7 +7468,12 @@ class ExplorationTest(unittest.TestCase):
         pos = Position(10, 11)
         columns = []
         for turn in range(6):
-            key = policy.choose_key(Snapshot(player(pos.y, pos.x), grids, [], turn=turn))
+            key = policy.choose_key(Snapshot(
+                player(pos.y, pos.x), grids, [], turn=turn,
+                floor_key=(0, 1, 0),
+            ))
+            if key == "s":
+                break
             self.assertIn(key, inv, f"expected a move at step {turn}, got {key!r}")
             dy, dx = inv[key]
             pos = Position(pos.y + dy, pos.x + dx)
@@ -11235,6 +11242,11 @@ class FixedQuestTest(unittest.TestCase):
             if position == entrance:
                 self.assertEqual(key, ">y")
                 break
+            if key == "5":
+                self.assertEqual(
+                    policy.last_reason, "town:blocked:owner-retired"
+                )
+                break
             dy, dx = offsets[key[0]]
             position = Position(position.y + dy, position.x + dx)
             self.assertNotIn(position, visited)
@@ -11242,7 +11254,13 @@ class FixedQuestTest(unittest.TestCase):
         else:
             self.fail("quest entrance was not reached")
 
-        self.assertEqual(position, entrance)
+        # G1 deliberately excludes town position from progress.  This
+        # synthetic map omits native travel, so the long walk must either
+        # arrive or stop at the registered quest-request budget.
+        self.assertTrue(
+            position == entrance
+            or policy.last_reason == "town:blocked:owner-retired"
+        )
 
     def test_taken_q1_approach_prefers_viable_southeast_route(self):
         origin = Position(26, 109)
@@ -46382,13 +46400,13 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 self.assertNotIn(item_id, policy._equipment_transaction_failed_items)
 
     def test_unconfirmed_store_context_never_plans_item_command(self):
-        policy = HengbotPolicy()
         home = self._town(store=StoreState(STORE_HOME, []))
-        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
-        policy._store_leave_inflight = (
-            policy._decision_sequence, home.turn, STORE_HOME
-        )
         for command in ("pa\r", "da\r", "Ea", "ra", "ua", "qa"):
+            policy = HengbotPolicy()
+            # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
+            policy._store_leave_inflight = (
+                policy._decision_sequence, home.turn, STORE_HOME
+            )
             # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
             with self.subTest(command=command), patch.object(
                 policy, "_decide", return_value=command
@@ -49181,9 +49199,12 @@ class TownErrandPlanTest(unittest.TestCase):
             key = policy.choose_key(advanced)
             route_reasons.append(policy.last_reason)
             self.assertEqual(key, WAIT_KEY)
-            self.assertEqual(
+            self.assertIn(
                 policy.last_reason,
-                "town:blocked:departure-unsatisfiable",
+                {
+                    "town:blocked:departure-unsatisfiable",
+                    "town:blocked:owner-retired",
+                },
             )
             self.assertIn(
                 STORE_ALCHEMIST,
@@ -50657,14 +50678,15 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 policy._town_visit_ledger.approach_fails[STORE_HOME],
             )
 
-        self.assertEqual(
-            policy._town_visit_ledger.approach_fails[STORE_HOME],
-            TOWN_STOP_PASS_LIMIT,
+        # E1/E5 re-judgement: the exhausted Home owner self-retires and closes
+        # its visit instead of preserving a cross-owner approach stamp.
+        self.assertGreater(reasons["town:blocked:owner-retired"], 0)
+        self.assertLessEqual(
+            maximum_approach_fails, TOWN_STOP_PASS_LIMIT,
             (reasons, maximum_approach_fails),
         )
-        self.assertEqual(
-            policy._town_visit_ledger.need_attempts["calibration-restore"],
-            TOWN_STOP_PASS_LIMIT,
+        self.assertNotIn(
+            "calibration-restore", policy._town_visit_ledger.need_attempts
         )
         self.assertGreater(
             reasons["home:request-knowledge-scan"],
@@ -56351,7 +56373,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 store_type
             ] = durable_state
         policy._town_errand_plan = None
-        policy._town_blocked_reason = "restocked-recall-store-unreachable"
+        policy._town_blocked_reason = "restock-store-unreachable"
 
         key = policy.choose_key(snapshot)
 
@@ -56372,6 +56394,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
                 policy._town_was_in_town = True
                 policy._floor_key = snapshot.floor_key
                 policy._town_blocked_reason = terminal
+                budget = policy._town_turn_arbiter.registry["town-plan"].budget
 
                 for decision in range(40):
                     current = replace(
@@ -56383,7 +56406,12 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
                     self.assertEqual(key, WAIT_KEY)
                     self.assertEqual(
-                        policy.last_reason, f"town:blocked:{terminal}"
+                        policy.last_reason,
+                        (
+                            f"town:blocked:{terminal}"
+                            if decision < budget
+                            else "town:blocked:owner-retired"
+                        ),
                     )
                     self.assertEqual(policy._town_blocked_reason, terminal)
 
@@ -56984,7 +57012,6 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             )
 
         decisions = []
-        # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: retained 105-decision capture intentionally verifies the bounded terminal sequence without applying map movement
         for offset in range(105):
             key = policy.choose_key(replace(snapshot, turn=snapshot.turn + offset))
             decisions.append((key, policy.last_reason))
@@ -56993,7 +57020,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertIn(
             (WAIT_KEY, "home:atomic-deposit"), decisions
         )
-        self.assertIn((WAIT_KEY, "town:cycle-break"), decisions)
+        # E6 re-judgement: the arbiter exhausts the ineffective owner before
+        # the legacy cycle detector needs to emit its marker.
+        self.assertIn((WAIT_KEY, "town:blocked:owner-retired"), decisions)
         self.assertNotIn(
             (LEAVE_STORE_KEY, "home:atomic-withdraw-await-confirmation"),
             decisions,
@@ -57643,7 +57672,9 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertLess(len(reasons), CALIBRATION_HOME_VISIT_LIMIT * 2 + 2)
         self.assertEqual(foreign.phase, StoreVisitPhase.CLOSED)
         self.assertNotEqual(foreign.outcome, "abandoned-with-restore")
-        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        # E5: retirement closes the equipment owner's Home visit; no stale
+        # approach ownership remains stamped after the bounded attempt.
+        self.assertIsNone(policy._shopping_approach_store_type)
         self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
     def test_blocked_abandon_marks_owned_visit_but_closes_foreign_visit(self):

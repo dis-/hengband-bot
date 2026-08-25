@@ -348,6 +348,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             [result.state for result in passed],
             [
                 "quiet-stair-observation-timeout-probe",
+                "all-nonhome-needs-unobtainable-departure-unsatisfiable",
                 "doubled-store-entry-cycle",
                 "lagged-successful-store-entry",
                 "transaction-abandoned-mid-strip",
@@ -358,6 +359,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             [result.outcome for result in passed],
             [
                 "drive-ending terminal bounded stair observation probe",
+                "durable progress within decision bound",
                 "durable progress within decision bound",
                 "durable progress within decision bound",
                 "drive-ending terminal equipment transaction owns ten-item restoration",

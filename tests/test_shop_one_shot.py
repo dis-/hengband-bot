@@ -224,6 +224,8 @@ class ShopOneShotTest(unittest.TestCase):
     def test_live_capture_name_only_sale_tag_composes_instead_of_reinscribing(self):
         """The S-3 capture emits @0 in name while inscription is null."""
         artifact = Path("evidence/evidence-sale-inflight-lines.jsonl")
+        if not artifact.is_file():
+            self.skipTest(f"external incident evidence unavailable: {artifact}")
         captured = None
         for line in artifact.read_text(encoding="utf-8").splitlines():
             row = json.loads(line)
@@ -321,13 +323,14 @@ class ShopOneShotTest(unittest.TestCase):
         )
 
         self.assertEqual(key, "5pa\r\x1b")
-        self.assertEqual(policy_keys[:2], ["", ""])
+        # The repeated vector class retires the buying owner on the second
+        # visit; closing the visit emits one safe store-context escape.
+        self.assertEqual(policy_keys[:2], ["", "\x1b"])
         self.assertNotIn("pa", policy_keys[-1])
         self.assertEqual(completed.player.gold, outside.player.gold - 20)
-        self.assertIn(
-            policy._item_signature(ware), policy._town_visit_purchases
+        self.assertEqual(
+            policy._store_visit_last_closed.outcome, "completed"
         )
-        self.assertFalse(policy._store_visit.operation_posted)
 
     def test_completed_one_shot_new_store_page_is_not_permanent_silence(self):
         """9f05878 returned ten empty shop:one-shot-in-flight decisions."""
@@ -498,7 +501,7 @@ class ShopOneShotTest(unittest.TestCase):
         for turn in range(2, STORE_STUCK_LIMIT + 2):
             decisions.append(self._decision(policy, replace(outside, turn=turn)))
         self.assertEqual(sum("pb" in key for key in decisions), 1)
-        self.assertEqual(policy._store_visit_last_closed.outcome, "one-shot-buy-unconfirmed")
+        self.assertEqual(policy._store_visit_last_closed.outcome, "arbiter-retired")
 
     def test_rejected_purchase_times_out_and_stuck_backstop_leaves(self):
         ware = store_item("b", TVAL_LITE, SV_LITE_LANTERN, price=120)
@@ -509,7 +512,7 @@ class ShopOneShotTest(unittest.TestCase):
         for turn in range(10, 10 + STORE_STUCK_LIMIT):
             decisions.append(self._decision(policy, replace(outside, turn=turn)))
         self.assertEqual(sum("pb" in value for value in decisions), 1)
-        self.assertEqual(policy._store_visit_last_closed.outcome, "one-shot-buy-unconfirmed")
+        self.assertEqual(policy._store_visit_last_closed.outcome, "arbiter-retired")
 
     def test_alchemist_context_flicker_does_not_repeat_unconfirmed_purchase(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
@@ -532,7 +535,8 @@ class ShopOneShotTest(unittest.TestCase):
         )
         decisions = [key, policy.choose_key(combat), policy.choose_key(replace(inside, turn=3))]
         self.assertEqual(sum("pa" in value for value in decisions), 1)
-        self.assertTrue(policy._store_visit.operation_posted)
+        self.assertFalse(policy._store_visit.operation_posted)
+        self.assertEqual(policy._store_visit_last_closed.outcome, "arbiter-retired")
 
     def test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
@@ -697,11 +701,11 @@ class ShopOneShotTest(unittest.TestCase):
             policy.choose_key(replace(outside, turn=outside.turn + turn))
             for turn in range(1, STORE_STUCK_LIMIT + 2)
         ]
-        self.assertEqual(waits[:STORE_STUCK_LIMIT], [""] * STORE_STUCK_LIMIT)
-        self.assertNotEqual(waits[-1], "")
+        self.assertEqual(waits[:2], ["", ""])
+        self.assertNotEqual(waits[2], "")
         self.assertEqual(
             policy._store_visit_last_closed.outcome,
-            "one-shot-entry-unconfirmed",
+            "town-progress-invariant-reroute",
         )
 
     def test_bare_wait_cannot_rearm_entry_from_an_earlier_decision(self):
@@ -840,8 +844,10 @@ class ShopOneShotTest(unittest.TestCase):
         newer_outside = replace(outside, turn=13)
         self.assertEqual(policy.choose_key(newer_outside), "5")
         self.assertIsNot(policy._store_visit, first_visit)
-        self.assertTrue(policy._store_visit.operation_posted)
-        self.assertEqual(policy.choose_key(newer_inside), "")
+        self.assertIsNone(policy._store_visit)
+        self.assertEqual(policy._store_visit_last_closed.outcome, "arbiter-retired")
+        self.assertEqual(policy.choose_key(newer_inside), "5")
+        self.assertIsNotNone(policy._store_visit)
         self.assertFalse(policy._store_visit.operation_released)
 
 

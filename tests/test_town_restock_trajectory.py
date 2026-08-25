@@ -11,6 +11,7 @@ from hengbot.policy import (
     HengbotPolicy,
     RESTOCK_WAIT_MACRO,
     STORE_RESTOCK_WAIT_TURNS,
+    STORE_RESTOCK_REST_GAME_TURNS,
     STORE_STUCK_LIMIT,
     TOWN_CYCLE_IGNORED_REASONS,
 )
@@ -73,7 +74,7 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy._town_restock_waiting_for = (3, 4)
         policy._town_restock_rechecked = set()
         policy._town_blocked_reason_value = (
-            "restocked-recall-store-unreachable"
+            "restock-store-unreachable"
         )
 
     def test_hungry_character_escapes_recall_restock_owner_alternation(self):
@@ -82,7 +83,7 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             self.FIXTURE,
             (2331, 2333),
             forbidden_reasons={
-                "town:blocked:restocked-recall-store-unreachable",
+                "town:blocked:restock-store-unreachable",
                 "town:wait-restock:temple",
             },
             required_reason_prefix="town:blocked:survival-mana-no-charges",
@@ -101,7 +102,7 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             fixture,
             (220, 221, 223, 242),
             forbidden_reasons={
-                "town:blocked:restocked-food-store-unreachable",
+                "town:blocked:restock-store-unreachable",
             },
             required_reason_prefix="shop:",
         )
@@ -122,7 +123,7 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             fixture,
             (220,),
             forbidden_reasons={
-                "town:blocked:restocked-recall-store-unreachable",
+                "town:blocked:restock-store-unreachable",
             },
             required_reason_prefix="shop:",
             # This reviewer variant CAN occur through the released-restock
@@ -545,7 +546,10 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             much_later, (STORE_TEMPLE, STORE_ALCHEMIST)
         )
 
-        self.assertEqual(policy._town_restock_waited_turns, STORE_RESTOCK_WAIT_TURNS)
+        self.assertEqual(
+            policy._town_restock_waited_turns,
+            STORE_RESTOCK_REST_GAME_TURNS,
+        )
         self.assertNotEqual(policy._town_blocked_reason, "restock-wait-exhausted")
 
     def test_fresh_policy_persists_restock_wait_exhausted(self):

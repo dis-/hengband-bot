@@ -1,4 +1,5 @@
 import ast
+from dataclasses import replace
 import gzip
 import json
 from pathlib import Path
@@ -145,6 +146,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                     {
                         "owner", "tenure", "progress",
                         "budget_remaining_estimate", "would_retire",
+                        "retired", "retirement_set",
                     },
                     set(row["arbiter"]),
                 )
@@ -245,6 +247,71 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             resumed["budget_remaining_estimate"],
             max(0, first["budget_remaining_estimate"] - 1),
         )
+
+    def test_enforcement_retires_and_state_change_rearms_owner(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        budget = arbiter.registry["detectors"].budget
+        row = None
+        for _ in range(budget + 1):
+            row = arbiter.observe(
+                in_town=True,
+                reason="town:cycle-break",
+                progress_vector=("same",),
+            )
+        self.assertTrue(row["retired"])
+        self.assertFalse(
+            arbiter.may_select("town:cycle-break", ("same",))
+        )
+        self.assertTrue(
+            arbiter.may_select("town:cycle-break", ("equipment-slot-delta",))
+        )
+
+    def test_terminal_is_never_scored_as_owner_progress(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        row = arbiter.observe(
+            in_town=True,
+            reason="town:blocked:departure-unsatisfiable",
+            progress_vector=("new-terminal-vector",),
+            terminal=True,
+        )
+        self.assertFalse(row["progress"])
+
+    def test_probe_does_not_consume_tenure_or_budget(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        before = arbiter.observe(
+            in_town=True, reason="shop:buy", progress_vector=("same",)
+        )
+        probe = arbiter.observe(
+            in_town=True,
+            reason="shop:buy",
+            progress_vector=("same",),
+            probe=True,
+        )
+        after = arbiter.observe(
+            in_town=True, reason="shop:buy", progress_vector=("same",)
+        )
+        self.assertEqual(probe, before)
+        self.assertEqual(after["tenure"], before["tenure"] + 1)
+        self.assertEqual(
+            after["budget_remaining_estimate"],
+            before["budget_remaining_estimate"] - 1,
+        )
+
+    def test_town_vector_excludes_position_and_turn_but_tracks_home_and_slots(self):
+        snapshot = self._postlevel_snapshot()
+        policy = HengbotPolicy()
+        first = policy._town_arbiter_progress_vector(snapshot)
+        moved = replace(
+            snapshot,
+            turn=snapshot.turn + 99,
+            player=replace(
+                snapshot.player,
+                position=snapshot.player.position.__class__(1, 1),
+            ),
+        )
+        self.assertEqual(first, policy._town_arbiter_progress_vector(moved))
+        policy._home_knowledge_current = not policy._home_knowledge_current
+        self.assertNotEqual(first, policy._town_arbiter_progress_vector(moved))
 
 
 if __name__ == "__main__":

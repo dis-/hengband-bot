@@ -380,6 +380,10 @@ CROSS_TOWN_SHOPPING_RESERVE = 1000
 
 
 STORE_RESTOCK_WAIT_TURNS = 1000
+# R300 costs about 300 player turns at roughly 10 game turns per rest.
+# Use that measured game-turn cost when crediting one rest command; the stock
+# turnover interval is a separate clock and is not a valid charge clamp.
+STORE_RESTOCK_REST_GAME_TURNS = 3000
 RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
 # _town_store_attempted for the rest of the town stay (see that field), which
@@ -1796,6 +1800,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._town_cycle_breaks = 0
         self._observed_town_id: int | None = None
         self._town_restock_suppressed = False
+        self._town_suppression_claim_stores: set[int] = set()
         self._town_errand_plan: TownErrandPlan | None = None
         # Four free slots are accepted only after the productive town pipeline
         # has declined every action for this exact inventory.  Keep the readiness
@@ -2548,12 +2553,17 @@ class HengbotPolicy(TownArbiterMixin):
                     self._pending_stair_command = None
                     self._owner_expectations.release("stair-command")
                 self._last_policy_progress_core = current_progress_core
+                decided_reason = self.last_reason
                 key = self._look_probe_key(snapshot)
-                self.last_reason = refusal_owner
+                # G2: this observation-only key breaks the posting identity;
+                # it is not a policy turn and cannot replace the last decided
+                # owner's reason.
+                self.last_reason = decided_reason
                 arbiter.observe(
                     in_town=bool(snapshot.in_town or snapshot.store is not None),
-                    reason=self.last_reason,
+                    reason=refusal_owner,
                     progress_vector=self._town_arbiter_progress_vector(snapshot),
+                    probe=True,
                 )
                 return key
         self._last_policy_progress_core = current_progress_core
@@ -2582,20 +2592,103 @@ class HengbotPolicy(TownArbiterMixin):
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         key = self._forbid_wait_while_damaged(snapshot, key)
+        vector = self._town_arbiter_progress_vector(snapshot)
+        if (
+            bool(snapshot.in_town or snapshot.store is not None)
+            and not arbiter.may_select(self.last_reason, vector)
+        ):
+            retired_owner = arbiter.owner_for_reason(self.last_reason)
+            self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
+            supplier = self._departure_supplier_counterfactual(snapshot)
+            step = (
+                self._shopping_approach_step(snapshot, supplier)
+                if (
+                    supplier is not None
+                    and snapshot.store is None
+                    and retired_owner != "store-router"
+                    and arbiter.may_select("shop:approach", vector)
+                )
+                else None
+            )
+            if step is not None:
+                self.last_reason = "shop:approach"
+                key = self._shopping_approach_key(snapshot, step, "shop:travel")
+            else:
+                self.last_reason = "town:blocked:owner-retired"
+                key = WAIT_KEY
+            vector = self._town_arbiter_progress_vector(snapshot)
+        terminal = self._town_arbiter_terminal_result(key)
         arbiter.observe(
             in_town=bool(snapshot.in_town or snapshot.store is not None),
             reason=self.last_reason,
-            progress_vector=self._town_arbiter_progress_vector(snapshot),
+            progress_vector=vector,
+            terminal=terminal,
+            close_visit=self._arbiter_close_store_visit,
         )
         return key
 
+    def _town_arbiter_terminal_result(self, key: str) -> bool:
+        """Classify visible stops without treating their emission as progress."""
+        reason = self.last_reason or ""
+        return key == WAIT_KEY and (
+            reason.startswith("town:blocked:")
+            or "terminal" in reason
+            or reason.endswith(":unsatisfiable")
+            or reason in {"policy:no-action", "stuck:wander"}
+        )
+
+    def _arbiter_close_store_visit(self, owner: str, outcome: str) -> None:
+        """Close only a visit resource owned by the yielding token family."""
+        visit = self._store_visit
+        if visit is None:
+            return
+        aliases = {
+            "store-router": {"store-router"},
+            "shop-buy": {"shop-handler", "shop-one-shot"},
+            "shop-sell": {"shop-handler", "shop-one-shot"},
+            "home-visit": {"home-one-shot"},
+            "equipment-txn": {"equipment-transaction"},
+        }
+        if visit.owner == owner or visit.owner in aliases.get(owner, set()):
+            self._close_store_visit(outcome)
+
+    def _store_visit_arbiter_owner(self, visit: StoreVisit) -> str:
+        if (
+            visit.owner in {"shop-handler", "shop-one-shot", "home-one-shot"}
+            and not visit.operation_posted
+            and visit.phase in {StoreVisitPhase.APPROACHING, StoreVisitPhase.ENTERING}
+        ):
+            return "store-router"
+        aliases = {
+            "shop-handler": "shop-buy",
+            "shop-one-shot": "shop-buy",
+            "home-one-shot": "home-visit",
+            "equipment-transaction": "equipment-txn",
+            "town-errand": "town-plan",
+        }
+        return aliases.get(visit.owner, visit.owner)
+
     def _town_arbiter_progress_vector(self, snapshot: Snapshot) -> tuple[object, ...]:
-        """Read the advisory claim and departure facts without routing work."""
+        """Read durable town progress facts without counting walking or time."""
         departure = getattr(self, "_departure_block", {}) or {}
+        core = self._owner_progress_core(snapshot)
+        durable_core = replace(
+            core,
+            position=Position(0, 0),
+            turn=0,
+            decision_sequence=0,
+        )
+        home_blocked = (
+            STORE_HOME in self._town_visit_ledger.blocked_stores
+            or STORE_HOME in self._town_visit_ledger.nonhome_attempted_without_effect
+            or self._store_entry_failed_owner == STORE_HOME
+        )
         return (
-            replace(self._owner_progress_core(snapshot), decision_sequence=0),
+            durable_core,
             self._town_progress_fingerprint(snapshot),
             tuple(sorted((str(key), repr(value)) for key, value in departure.items())),
+            bool(self._home_knowledge_current),
+            bool(home_blocked),
             getattr(self, "_town_blocked_reason", None),
             getattr(self, "_descent_refusal_reason", None),
             bool(getattr(self, "_descent_blocked", False)),
@@ -2656,7 +2749,7 @@ class HengbotPolicy(TownArbiterMixin):
             # Store purchase/sale and inscription producers have closed command
             # prefixes and directly mutate gold or inventory.
             return True
-        if key.startswith("~") and (self.last_reason or "").startswith(
+        if key and key.startswith("~") and (self.last_reason or "").startswith(
             "home:request-knowledge-scan"
         ):
             return True
@@ -2856,8 +2949,6 @@ class HengbotPolicy(TownArbiterMixin):
         # ownership and an inert visit cannot make a released supplier appear
         # unreachable.  Posted operations remain authoritative.
         if self._town_blocked_reason in {
-            "restocked-food-store-unreachable",
-            "restocked-recall-store-unreachable",
             "restock-store-unreachable",
         }:
             self._town_blocked_reason = None
@@ -6298,6 +6389,17 @@ class HengbotPolicy(TownArbiterMixin):
         # returns on every decision and starves _town_special_key forever,
         # leaving the breaker pending while the character repeats the same
         # unaffordable errand.
+        if self._town_restock_suppressed:
+            supplier = self._departure_supplier_counterfactual(snapshot)
+            if supplier is not None:
+                # E6 routes suppression release through the same I5
+                # counterfactual as terminal selection.  The arbiter's
+                # owner/vector recurrence budget, not this latch, bounds a
+                # supplier that returns without durable progress.
+                self._town_suppression_claim_stores.add(supplier)
+                self._town_restock_suppressed = False
+                self._town_blocked_reason = None
+                self._town_errand_plan = None
         if self._town_cycle_pending:
             town_cycle_repair = self._town_special_key(snapshot)
             if town_cycle_repair is not None:
@@ -6970,6 +7072,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
             self._town_restock_suppressed = False
+            self._town_suppression_claim_stores.clear()
             self._town_errand_plan = None
             self._terminal_pack_space_signature = None
             self._town_restock_wait_until = None
@@ -6993,6 +7096,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_cycle_breaks = 0
             self._town_blocked_reason = None
             self._town_restock_suppressed = False
+            self._town_suppression_claim_stores.clear()
             self._town_errand_plan = None
             self._terminal_pack_space_signature = None
             self._town_restock_wait_until = None
@@ -16715,7 +16819,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_restock_waited_turns += max(
                 0,
                 min(
-                    STORE_RESTOCK_WAIT_TURNS,
+                    STORE_RESTOCK_REST_GAME_TURNS,
                     snapshot.turn - self._town_restock_last_wait_turn,
                 ),
             )
@@ -16802,8 +16906,6 @@ class HengbotPolicy(TownArbiterMixin):
         # the known town map is consulted.  Posted operations remain
         # authoritative and are deliberately not released here.
         if self._town_blocked_reason in {
-            "restocked-food-store-unreachable",
-            "restocked-recall-store-unreachable",
             "restock-store-unreachable",
         }:
             self._town_blocked_reason = None
@@ -17577,6 +17679,8 @@ class HengbotPolicy(TownArbiterMixin):
             ("star-remove-curse", "normal", 1, False),  # Shelf-proven heavy-curse service is opportunistic.
             ("launcher-enchant", "normal", 1, False),  # Launcher enchanting is an optimization.
             ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
+            ("equipment-work", "home-first", 1, True),
+            ("equipment-transaction", "home-first", 1, True),
             ("calibration-restore", "home-first", 1, True),
             ("black-market", "normal", 1, False),  # Black Market browsing is opportunistic.
         )
@@ -17696,7 +17800,12 @@ class HengbotPolicy(TownArbiterMixin):
             return False
         if self._home_owner_goal_pending(snapshot):
             return False
-        if self._shopping_approach_step(snapshot, STORE_HOME) is not None:
+        if (
+            STORE_HOME not in self._town_store_attempted
+            and self._town_need_supplier_reachable(
+                snapshot, TownNeed(STORE_HOME, "equipment-work", "home-first")
+            )
+        ):
             return False
         # A last-source readmission is real required work, not a retireable
         # phantom.  Its visible terminal must remain closed to departure.
@@ -17754,10 +17863,21 @@ class HengbotPolicy(TownArbiterMixin):
         # router may act.  The legacy terminal posts this same owner expectation,
         # so an unchanged progress core suppresses the claim instead of rebuilding
         # the just-failed Home approach.
+        departure_categories = {
+            need.category for need in self._departure_blocking_town_needs(snapshot)
+        }
         claims = [
             claim for claim in claims
             if self._owner_may_select(
                 snapshot, f"home-withdrawal:{claim.category}"
+            )
+            # E3: an expectation refusal cannot silently erase a failing gate
+            # conjunct while its supplier remains reachable.  Keep that claim
+            # routable; if it later proves exhausted, the ordinary visible
+            # departure-unsatisfiable terminal owns the outcome.
+            or (
+                claim.category in departure_categories
+                and self._town_need_supplier_reachable(snapshot, claim)
             )
         ]
         if self._opening_q34_active(snapshot):
@@ -17819,22 +17939,73 @@ class HengbotPolicy(TownArbiterMixin):
         finally:
             self._town_need_evaluation_snapshot = None
             self._town_need_evaluation_candidates = None
+        if self._calibration_phase == "deposit" and self._home_available(snapshot):
+            needs.append(TownNeed(
+                STORE_HOME, "calibration-deposit", "home-first"
+            ))
         return needs
 
     def _town_need_supplier_reachable(
         self, snapshot: Snapshot, need: TownNeed
     ) -> bool:
         """Whether a need's supplier has a live or remembered town route."""
-        if snapshot.store is not None and snapshot.store.store_type == need.store_type:
+        store = getattr(snapshot, "store", None)
+        if store is not None and store.store_type == need.store_type:
             return True
         if any(
-            grid.store_number == need.store_type for grid in snapshot.grids.values()
+            grid.store_number == need.store_type
+            for grid in getattr(snapshot, "grids", {}).values()
         ):
             return True
-        return (
+        if not hasattr(snapshot, "town_id"):
+            return False
+        store_position = getattr(self._town_map, "store_position", None)
+        return bool(
             self._town_map_active(snapshot)
-            and self._town_map.store_position(need.store_type) is not None
+            and callable(store_position)
+            and store_position(need.store_type) is not None
         )
+
+    def _departure_supplier_counterfactual(
+        self, snapshot: Snapshot
+    ) -> int | None:
+        """Return a reachable, obtainable supplier for a failing town gate."""
+        candidates = list(self._departure_blocking_town_needs(snapshot))
+        candidates.extend(
+            claim
+            for claim in self._enumerate_live_store_claims(snapshot)
+            if claim.category in {"equipment-work", "equipment-transaction"}
+        )
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        supply_categories = {
+            "recall": "recall", "food": "food", "oil": "oil",
+            "teleport": "teleport", "cure": "cure-critical",
+        }
+        for status in self._ledger_departure_shortages(ledger):
+            if not status.obtainable:
+                continue
+            candidates.extend(
+                TownNeed(store, supply_categories[status.kind], "normal")
+                for store in status.stores
+            )
+        for need in candidates:
+            if not self._town_need_supplier_reachable(snapshot, need):
+                continue
+            page = self._town_supplier_stock.get(need.store_type)
+            remembered_affordable = bool(
+                page is not None
+                and any(item.price <= snapshot.player.gold for item in page.items)
+            )
+            if (
+                need.store_type not in self._town_store_attempted
+                or need.store_type == STORE_HOME
+                or remembered_affordable
+            ):
+                self._rearm_town_store_for_new_work(
+                    need.store_type, release_visit_bound=True
+                )
+                return need.store_type
+        return None
 
     def _order_town_stops(
         self, snapshot: Snapshot, stores: list[int], start: Position | None = None
@@ -18347,6 +18518,9 @@ class HengbotPolicy(TownArbiterMixin):
             in self._town_visit_ledger.nonhome_attempted_without_effect
             for need in live_needs
         ):
+            supplier = self._departure_supplier_counterfactual(snapshot)
+            if supplier is not None:
+                return supplier
             self._town_blocked_reason = "departure-unsatisfiable"
             return None
 
@@ -18391,7 +18565,8 @@ class HengbotPolicy(TownArbiterMixin):
             in self._town_visit_ledger.nonhome_attempted_without_effect
             for need in live_needs
         ):
-            self._town_blocked_reason = "departure-unsatisfiable"
+            if self._departure_supplier_counterfactual(snapshot) is None:
+                self._town_blocked_reason = "departure-unsatisfiable"
         return None
 
     @staticmethod
@@ -23761,7 +23936,10 @@ class HengbotPolicy(TownArbiterMixin):
             else []
         )
         preserved_stores = {
-            store for status in shortages for store in status.stores
+            store
+            for status in shortages
+            if status.obtainable
+            for store in status.stores
         }
         attempted_stores = dict(self._town_store_attempted)
         self._town_store_attempted.clear()
@@ -23812,6 +23990,7 @@ class HengbotPolicy(TownArbiterMixin):
         # restock-retry path starts a fresh in-town wait, un-latches the very
         # stores above when it expires, and the cycle resumes.
         self._town_restock_suppressed = not preserved_stores
+        self._town_suppression_claim_stores.update(preserved_stores)
         self._town_errand_plan = (
             self._build_town_errand_plan(snapshot, departure_needs)
             if departure_needs
@@ -24390,6 +24569,10 @@ class HengbotPolicy(TownArbiterMixin):
                 expedition = self._cross_town_shopping_key(snapshot)
                 if expedition is not None:
                     return expedition
+                supplier = self._departure_supplier_counterfactual(snapshot)
+                if supplier is not None:
+                    self._town_blocked_reason = None
+                    return None
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
         # Destination safety is a departure assertion, not an errand-router
