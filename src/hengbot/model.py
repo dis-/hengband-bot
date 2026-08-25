@@ -11,7 +11,9 @@ class MissingMonraceKnowledgeError(ValueError):
     pass
 
 
-_GRID_FLAG_NAMES = ("mark", "cave_known", "lite", "view", "room", "unsafe")
+_GRID_FLAG_NAMES = (
+    "mark", "cave_known", "lite", "view", "room", "unsafe", "glow", "mnlt", "mndk"
+)
 _GRID_TERRAIN_NAMES = (
     "building",
     "can_dig",
@@ -77,6 +79,7 @@ def _decode_grid_map(grid_map: Mapping[str, Any]) -> list[dict[str, Any]]:
                 "monster_index": 0,
                 "object_count": 0,
                 "object_tvals": [],
+                "visibility_flags_present": "found_items" in grid_map,
             }
             for encoded, decoded in _GRID_SIDECAR_NAMES.items():
                 cell = sidecars.get((y, x), {})
@@ -658,6 +661,10 @@ class GridState:
     building_special: int = -1
     lit: bool = False
     in_view: bool = False
+    glow: bool = False
+    mnlt: bool = False
+    mndk: bool = False
+    visibility_flags_present: bool = False
     allows_los: bool = True
     # Player memory, distinct from the emitter's authoritative terrain truth.
     # Hengband rejects tunnelling an unmarked wall before consuming energy.
@@ -765,6 +772,11 @@ class Snapshot:
     grids_observed: bool = False
     can_see_own_grid: bool | None = None
     grid_map_schema_error: bool = False
+    unsafe_rows: tuple[tuple[bool, ...], ...] | None = None
+    unsafe_rows_malformed: bool = False
+    feeling: int | None = None
+    light_radius: int | None = None
+    found_items: tuple[tuple[int, ...], ...] | None = None
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
@@ -926,11 +938,17 @@ def parse_snapshot(
         shield_skill=int(skills.get("shield", 0)),
     )
 
+    floor_data = data.get("floor", {})
+    width = int(floor_data.get("width", 0))
+    height = int(floor_data.get("height", 0))
     grids: dict[Position, GridState] = {}
     grid_map = data.get("grid_map")
+    grid_map_valid = isinstance(grid_map, Mapping) and not grid_map.get(
+        "schema_error", False
+    )
     grid_records = (
         _decode_grid_map(grid_map)
-        if isinstance(grid_map, Mapping) and not grid_map.get("schema_error", False)
+        if grid_map_valid
         else data.get("nearby_grids", [])
     )
     for grid_data in grid_records:
@@ -982,6 +1000,12 @@ def parse_snapshot(
             ),
             lit=known and _as_bool(flags.get("lite", False)),
             in_view=known and _as_bool(flags.get("view", False)),
+            glow=known and _as_bool(flags.get("glow", False)),
+            mnlt=known and _as_bool(flags.get("mnlt", False)),
+            mndk=known and _as_bool(flags.get("mndk", False)),
+            visibility_flags_present=bool(
+                grid_data.get("visibility_flags_present", False)
+            ),
             marked=_as_bool(flags.get("mark", False)),
             allows_los=allows_los,
         )
@@ -1110,7 +1134,6 @@ def parse_snapshot(
             )
         )
 
-    floor_data = data.get("floor", {})
     floor_key = (
         int(floor_data.get("dungeon_id", 0)),
         int(floor_data.get("level", 0)),
@@ -1167,6 +1190,65 @@ def parse_snapshot(
                 if "reward_instant_artifact" in quest_data else None
             ),
         )
+    unsafe_rows = None
+    unsafe_rows_malformed = False
+    raw_unsafe_rows = grid_map.get("unsafe_rows") if grid_map_valid else None
+    if grid_map_valid and "unsafe_rows" in grid_map and raw_unsafe_rows is not None:
+        digits = (width + 3) // 4
+        if (
+            isinstance(raw_unsafe_rows, list)
+            and len(raw_unsafe_rows) == height
+            and all(
+                isinstance(row, str)
+                and len(row) == digits
+                and re.fullmatch(r"[0-9a-f]*", row) is not None
+                for row in raw_unsafe_rows
+            )
+        ):
+            unsafe_rows = tuple(
+                tuple(
+                    bool((int(row[x // 4], 16) >> (x % 4)) & 1)
+                    for x in range(width)
+                )
+                for row in raw_unsafe_rows
+            )
+        else:
+            unsafe_rows_malformed = True
+
+    raw_feeling = floor_data.get("feeling")
+    feeling = (
+        int(raw_feeling)
+        if isinstance(raw_feeling, int)
+        and not isinstance(raw_feeling, bool)
+        and 0 <= raw_feeling <= 10
+        else None
+    )
+    raw_light_radius = player_data.get("light_radius")
+    light_radius = (
+        int(raw_light_radius)
+        if isinstance(raw_light_radius, int) and not isinstance(raw_light_radius, bool)
+        else None
+    )
+    found_items = None
+    raw_found_items = grid_map.get("found_items") if grid_map_valid else None
+    if raw_found_items is not None and isinstance(raw_found_items, list):
+        parsed_found_items: list[tuple[int, ...]] = []
+        for row in raw_found_items:
+            if not isinstance(row, list) or len(row) < 3:
+                parsed_found_items = []
+                break
+            try:
+                values = tuple(int(value) for value in row)
+            except (TypeError, ValueError):
+                parsed_found_items = []
+                break
+            if values[2] < 0 or len(values) != values[2] + 3:
+                parsed_found_items = []
+                break
+            parsed_found_items.append(values)
+        else:
+            found_items = tuple(parsed_found_items)
+
     return Snapshot(
         player=player,
         grids=grids,
@@ -1176,8 +1258,8 @@ def parse_snapshot(
         turn=int(data.get("turn", 0)),
         floor_key=floor_key,
         inside_arena=bool(floor_data.get("inside_arena", False)),
-        width=int(floor_data.get("width", 0)),
-        height=int(floor_data.get("height", 0)),
+        width=width,
+        height=height,
         town_flag=(
             _as_bool(floor_data["in_town"]) if "in_town" in floor_data else None
         ),
@@ -1197,6 +1279,11 @@ def parse_snapshot(
         grid_map_schema_error=bool(
             isinstance(grid_map, Mapping) and grid_map.get("schema_error", False)
         ),
+        unsafe_rows=unsafe_rows,
+        unsafe_rows_malformed=unsafe_rows_malformed,
+        feeling=feeling,
+        light_radius=light_radius,
+        found_items=found_items,
         store=_parse_store(data.get("store")),
         recall_dungeon_id=int(progress.get("recall_dungeon_id", 0)),
         entered_dungeon_ids=tuple(

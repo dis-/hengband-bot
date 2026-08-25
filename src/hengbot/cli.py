@@ -858,7 +858,22 @@ def _decision_record(
             "dungeon_id": snapshot.floor_key[0],
             "level": snapshot.floor_key[1],
             "quest_id": snapshot.floor_key[2],
+            **(
+                {"feeling": snapshot.feeling}
+                if snapshot.feeling is not None
+                else {}
+            ),
         },
+        **(
+            {"light_radius": snapshot.light_radius}
+            if snapshot.light_radius is not None
+            else {}
+        ),
+        **(
+            {"unsafe_rows_malformed": True}
+            if snapshot.unsafe_rows_malformed
+            else {}
+        ),
         "position": {"y": player.position.y, "x": player.position.x},
         "player": {
             "level": player.level,

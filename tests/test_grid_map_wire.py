@@ -228,6 +228,73 @@ class GridMapWireTest(unittest.TestCase):
         self.assertTrue(snapshot.grid_map_schema_error)
         self.assertTrue(_decision_record(snapshot, "5", "test")["grid_map_schema_error"])
 
+    def test_swap2_fields_parse_with_wire_semantics(self):
+        data = _load_first_row("incident-20260821-loop-capture-rows.jsonl.gz")
+        data["visible_monsters"] = []
+        data["detected_monsters"] = []
+        data["floor"]["width"] = 5
+        data["floor"]["height"] = 2
+        data["floor"]["feeling"] = 2
+        data["player"]["light_radius"] = -1
+        data.pop("nearby_grids")
+        # Bits 5-8 cross-check unsafe, glow, mnlt and mndk on one emitted cell.
+        data["grid_map"] = {
+            "w": 5, "h": 2,
+            "palette": [[1, 0b111100000, (1 << 5) | (1 << 7) | (1 << 8), 1]],
+            "runs": [[1, 1, 1, 0]], "cells": [],
+            "unsafe_rows": ["00", "20"],
+            "found_items": [[9, 8, 2, 10, 20]],
+        }
+
+        snapshot = parse_snapshot(data, {})
+        grid = snapshot.grids[Position(1, 1)]
+        self.assertEqual(snapshot.unsafe_rows[1][1], grid.unsafe)
+        self.assertTrue((grid.glow, grid.mnlt, grid.mndk) == (True, True, True))
+        self.assertEqual(snapshot.feeling, 2)
+        self.assertEqual(snapshot.light_radius, -1)
+        self.assertEqual(snapshot.found_items, ((9, 8, 2, 10, 20),))
+        self.assertNotIn(Position(9, 8), snapshot.grids)
+        record = _decision_record(snapshot, "5", "test")
+        self.assertEqual(record["floor"]["feeling"], 2)
+        self.assertEqual(record["light_radius"], -1)
+
+    def test_swap2_absent_null_and_malformed_fields_degrade_to_none(self):
+        base = _load_first_row("incident-20260821-loop-capture-rows.jsonl.gz")
+        base["visible_monsters"] = []
+        base["detected_monsters"] = []
+        base.pop("nearby_grids")
+        base["grid_map"] = {
+            "palette": [], "runs": [], "cells": [], "found_items": [],
+            "unsafe_rows": None,
+        }
+        absent = copy.deepcopy(base)
+        absent["grid_map"].pop("unsafe_rows")
+        absent["grid_map"].pop("found_items")
+        self.assertIsNone(parse_snapshot(absent, {}).unsafe_rows)
+        self.assertIsNone(parse_snapshot(absent, {}).found_items)
+        null = parse_snapshot(base, {})
+        self.assertIsNone(null.unsafe_rows)
+        self.assertEqual(null.found_items, ())
+
+        malformed = copy.deepcopy(base)
+        malformed["grid_map"]["unsafe_rows"] = ["0"]
+        malformed["grid_map"]["found_items"] = [[1, 2, 2, 3]]
+        malformed["floor"]["feeling"] = 11
+        malformed["player"]["light_radius"] = "3"
+        snapshot = parse_snapshot(malformed, {})
+        self.assertIsNone(snapshot.unsafe_rows)
+        self.assertTrue(snapshot.unsafe_rows_malformed)
+        self.assertIsNone(snapshot.found_items)
+        self.assertIsNone(snapshot.feeling)
+        self.assertIsNone(snapshot.light_radius)
+        self.assertTrue(_decision_record(snapshot, "5", "test")["unsafe_rows_malformed"])
+
+        schema_error = copy.deepcopy(malformed)
+        schema_error["grid_map"]["schema_error"] = True
+        discarded = parse_snapshot(schema_error, {})
+        self.assertIsNone(discarded.unsafe_rows)
+        self.assertFalse(discarded.unsafe_rows_malformed)
+
 
 if __name__ == "__main__":
     unittest.main()

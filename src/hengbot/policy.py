@@ -294,6 +294,10 @@ def _persistent_grid_signature(grid: GridState) -> tuple:
         grid.building_special,
         grid.allows_los,
         grid.marked,
+        grid.glow,
+        grid.mnlt,
+        grid.mndk,
+        grid.visibility_flags_present,
     )
 
 # ``-o`` forces Hengband's original command set. In its travel-point selector,
@@ -9721,6 +9725,21 @@ class HengbotPolicy(TownArbiterMixin):
             )
         )
 
+    def _cell_readable_if_stood(
+        self, snapshot: Snapshot, position: Position
+    ) -> bool | None:
+        """Return the emitter visibility predicate, or unknown for old palettes."""
+        grid = snapshot.grid_at(position)
+        if (
+            grid is None
+            or not grid.currently_observed
+            or not grid.visibility_flags_present
+        ):
+            return None
+        return grid.lit or grid.mnlt or (
+            grid.in_view and grid.glow and not grid.mndk and grid.allows_los
+        )
+
     def _dark_locomotion_key(self, snapshot: Snapshot) -> str | None:
         """Move without light, then expose exhaustion as a visible stop."""
         if (
@@ -9838,8 +9857,22 @@ class HengbotPolicy(TownArbiterMixin):
                     and self._dark_goal_counts[yx] < PROBE_LIMIT
                 ):
                     kind = 0 if upstairs else 1 if downstairs else 2
+                    readable = self._cell_readable_if_stood(snapshot, position)
+                    readability_rank = 0 if readable else 1
+                    walked_rank = 1
+                    if snapshot.unsafe_rows is not None:
+                        walked_rank = (
+                            1 if snapshot.unsafe_rows[position.y][position.x] else 0
+                        )
                     candidates.append(
-                        ((kind, len(path), position.y, position.x), position, path)
+                        (
+                            (
+                                kind, readability_rank, walked_rank,
+                                len(path), position.y, position.x,
+                            ),
+                            position,
+                            path,
+                        )
                     )
             for neighbor in self._dark_walkable_neighbors(snapshot, position):
                 if (
