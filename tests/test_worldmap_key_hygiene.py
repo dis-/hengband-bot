@@ -29,7 +29,7 @@ class WorldMapKeyHygieneTest(unittest.TestCase):
     def test_frozen_capture_characterizes_owner_key_and_refusal_counts(self):
         artifact = ROOT / "evidence/evidence-entertown-decisions.jsonl"
         if not artifact.is_file():
-            self.skipTest(f"external incident evidence unavailable: {artifact}")
+            self.skipTest(f"dead external incident artifact: {artifact}")
         rows = [
             json.loads(line)
             for line in artifact.read_text(encoding="utf-8").splitlines()

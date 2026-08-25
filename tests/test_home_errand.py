@@ -64,7 +64,7 @@ class HomeErrandExecutorTest(unittest.TestCase):
             with self.subTest(capture=name):
                 path = ROOT / "evidence" / name
                 if not path.is_file():
-                    self.skipTest(f"external incident evidence unavailable: {path}")
+                    self.skipTest(f"dead external incident artifact: {path}")
                 records = [json.loads(line) for line in path.read_text(
                     encoding="utf-8", errors="replace"
                 ).splitlines() if line.strip()]

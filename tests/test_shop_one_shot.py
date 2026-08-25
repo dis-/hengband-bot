@@ -225,7 +225,7 @@ class ShopOneShotTest(unittest.TestCase):
         """The S-3 capture emits @0 in name while inscription is null."""
         artifact = Path("evidence/evidence-sale-inflight-lines.jsonl")
         if not artifact.is_file():
-            self.skipTest(f"external incident evidence unavailable: {artifact}")
+            self.skipTest(f"dead external incident artifact: {artifact}")
         captured = None
         for line in artifact.read_text(encoding="utf-8").splitlines():
             row = json.loads(line)

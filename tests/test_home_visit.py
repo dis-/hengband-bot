@@ -189,7 +189,7 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         rows = []
         path = cls.ROOT / relative
         if not path.is_file():
-            raise unittest.SkipTest(f"external incident evidence unavailable: {path}")
+            raise unittest.SkipTest(f"dead external incident artifact: {path}")
         with path.open(encoding="utf-8") as stream:
             for line in stream:
                 row = json.loads(line)
