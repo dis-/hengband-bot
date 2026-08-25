@@ -2858,6 +2858,7 @@ class HengbotPolicy(TownArbiterMixin):
         if self._town_blocked_reason in {
             "restocked-food-store-unreachable",
             "restocked-recall-store-unreachable",
+            "restock-store-unreachable",
         }:
             self._town_blocked_reason = None
             visit = self._store_visit
@@ -14786,6 +14787,8 @@ class HengbotPolicy(TownArbiterMixin):
                 snapshot,
                 lambda item: self._item_signature(item)
                 not in self._home_rejected_deposits
+                and self._item_signature(item)
+                not in self._calibration_restore_signatures
                 and item.slot != self._home_pending_slot
                 and item.slot != self._pending_disposal_slot,
             )
@@ -16710,11 +16713,26 @@ class HengbotPolicy(TownArbiterMixin):
         """Wait for stock turnover, then make the relevant shops eligible again."""
         if self._town_restock_last_wait_turn is not None:
             self._town_restock_waited_turns += max(
-                0, snapshot.turn - self._town_restock_last_wait_turn
+                0,
+                min(
+                    STORE_RESTOCK_WAIT_TURNS,
+                    snapshot.turn - self._town_restock_last_wait_turn,
+                ),
             )
             self._town_restock_last_wait_turn = None
         if self._town_restock_suppressed:
             return None
+        if self._town_restock_wait_until is None:
+            for store_type in store_types:
+                remembered = getattr(self, "_town_supplier_stock", {}).get(
+                    store_type
+                )
+                if remembered is None:
+                    continue
+                purchase = self._next_purchase(replace(snapshot, store=remembered))
+                if purchase is not None and purchase.price <= snapshot.player.gold:
+                    self._town_store_attempted.pop(store_type, None)
+                    return store_type
         self._town_restock_waiting_for = store_types
         if self._town_restock_wait_until is None:
             self._town_restock_wait_until = snapshot.turn + STORE_RESTOCK_WAIT_TURNS
@@ -16786,6 +16804,7 @@ class HengbotPolicy(TownArbiterMixin):
         if self._town_blocked_reason in {
             "restocked-food-store-unreachable",
             "restocked-recall-store-unreachable",
+            "restock-store-unreachable",
         }:
             self._town_blocked_reason = None
         visit = self._store_visit
@@ -16806,7 +16825,7 @@ class HengbotPolicy(TownArbiterMixin):
             if step is not None:
                 self.last_reason = "shop:approach"
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
-            self._town_blocked_reason = "restocked-food-store-unreachable"
+            self._town_blocked_reason = "restock-store-unreachable"
             return self._town_blocked_key(snapshot)
         step = self._shopping_approach_step(snapshot)
         if step is not None and self._shopping_approach_store_type in store_types:
@@ -16824,7 +16843,7 @@ class HengbotPolicy(TownArbiterMixin):
         # Recall stock still owns departure. If the released supplier cannot be
         # routed, use the existing visible town terminal instead of descending
         # or silently arming the same wait again.
-        self._town_blocked_reason = "restocked-recall-store-unreachable"
+        self._town_blocked_reason = "restock-store-unreachable"
         return self._town_blocked_key(snapshot)
 
     def _recall_restock_key(self, snapshot: Snapshot) -> str:

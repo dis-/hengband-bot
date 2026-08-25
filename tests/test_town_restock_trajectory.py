@@ -3,7 +3,9 @@ import gzip
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
+from hengbot.cli import STATIONARY_REASONS
 from hengbot.model import STORE_ALCHEMIST, STORE_TEMPLE, StoreState
 from hengbot.policy import (
     HengbotPolicy,
@@ -203,6 +205,84 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy._home_knowledge_items = ()
         self.assertTrue(policy._shop(in_store).startswith("p"))
         self.assertEqual(policy.last_reason, "shop:buy-recall")
+
+    def test_stall_15_affordable_alchemist_stock_never_arms_wait(self):
+        """P-A1a: remembered affordable recall stock routes to the Alchemist."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        snapshot = replace(snapshot, player=replace(snapshot.player, gold=10_040))
+        policy._food_ready = lambda _snapshot: True
+        policy._town_restock_wait_until = None
+        policy._town_restock_rechecked.clear()
+        policy._town_store_attempted.update({STORE_TEMPLE: 1, STORE_ALCHEMIST: 1})
+        policy._town_supplier_stock = {
+            STORE_ALCHEMIST: StoreState(
+                STORE_ALCHEMIST,
+                [store_item(
+                    "i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                    count=26, price=243, name="Word of Recall",
+                )],
+            )
+        }
+
+        key = policy._recall_restock_key(snapshot)
+
+        self.assertNotEqual(key, RESTOCK_WAIT_MACRO)
+        self.assertIsNone(policy._town_restock_wait_until)
+        self.assertEqual(policy._shopping_approach_store_type, STORE_ALCHEMIST)
+
+    def test_genuinely_empty_supplier_pages_still_arm_wait(self):
+        """P-A1b: remembered pages without the needed item retain waiting."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._town_restock_wait_until = None
+        policy._town_supplier_stock = {
+            STORE_TEMPLE: StoreState(STORE_TEMPLE, []),
+            STORE_ALCHEMIST: StoreState(STORE_ALCHEMIST, []),
+        }
+
+        self.assertIsNone(policy._retry_after_store_restock(
+            snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
+        ))
+        self.assertEqual(
+            policy._town_restock_wait_until,
+            snapshot.turn + STORE_RESTOCK_WAIT_TURNS,
+        )
+
+    def test_affordable_but_unreachable_suppliers_block_without_wait(self):
+        """P-A1c: route failure is detector-visible and cannot become waiting."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        snapshot = replace(snapshot, player=replace(snapshot.player, gold=10_040))
+        policy._food_ready = lambda _snapshot: True
+        policy._town_restock_wait_until = None
+        policy._town_supplier_stock = {
+            STORE_ALCHEMIST: StoreState(
+                STORE_ALCHEMIST,
+                [store_item(
+                    "i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                    count=26, price=243, name="Word of Recall",
+                )],
+            )
+        }
+        with patch.object(policy, "_shopping_approach_step", return_value=None):
+            key = policy._recall_restock_key(snapshot)
+
+        reason = "town:blocked:restock-store-unreachable"
+        self.assertNotEqual(key, RESTOCK_WAIT_MACRO)
+        self.assertEqual(policy.last_reason, reason)
+        self.assertIsNone(policy._town_restock_wait_until)
+        self.assertNotIn(reason, TOWN_CYCLE_IGNORED_REASONS)
+        self.assertNotIn(reason, STATIONARY_REASONS)
 
     def test_restock_timer_requires_observed_empty_supplier_page(self):
         """R3 revert proof: timer expiry alone must not add _town_restock_rechecked."""
@@ -447,6 +527,36 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         self.assertNotIn("town:wait-restock", TOWN_CYCLE_IGNORED_REASONS)
         policy._release_stale_town_block(snapshot)
         self.assertEqual(policy._town_blocked_reason, "restock-wait-exhausted")
+
+    def test_productive_gap_charges_only_one_restock_rest(self):
+        """A3a: unrelated elapsed turns cannot consume the cumulative cap."""
+        path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
+        _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        policy._town_restock_waited_turns = 0
+        policy._town_restock_last_wait_turn = snapshot.turn
+        policy._town_restock_wait_until = None
+        policy._town_supplier_stock = {}
+        much_later = replace(snapshot, turn=snapshot.turn + STORE_RESTOCK_WAIT_TURNS * 20)
+
+        policy._retry_after_store_restock(
+            much_later, (STORE_TEMPLE, STORE_ALCHEMIST)
+        )
+
+        self.assertEqual(policy._town_restock_waited_turns, STORE_RESTOCK_WAIT_TURNS)
+        self.assertNotEqual(policy._town_blocked_reason, "restock-wait-exhausted")
+
+    def test_fresh_policy_persists_restock_wait_exhausted(self):
+        """A3b: constructor persistence protects the cumulative terminal."""
+        policy = HengbotPolicy()
+        self.assertIn(
+            "restock-wait-exhausted",
+            policy._cross_decision_latches[
+                "_town_blocked_reason"
+            ].permanent_values,
+        )
 
     def test_recall_entry_invariant_stays_below_required_return(self):
         """Pin vacuity: the incident checkpoint has zero recall and cannot depart."""

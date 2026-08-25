@@ -24536,7 +24536,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertEqual(
             policy._town_blocked_reason,
-            "restocked-recall-store-unreachable",
+            "restock-store-unreachable",
         )
 
     def test_departs_instead_of_waiting_when_teleport_is_unavailable(self):
@@ -49829,6 +49829,36 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
         )
         self.assertTrue(policy._home_deposit_candidate(arrows, snapshot))
         self.assertFalse(policy._town_departure_ready(snapshot))
+
+    def test_calibration_deposit_skips_restore_queue_without_weakening_pack_order(self):
+        """P-A2: restored supplies do not make another deposit round trip."""
+        restore = item(
+            "a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+            count=8, known=True, name="Word of Recall",
+        )
+        next_pack = item("b", TVAL_FOOD, 35, count=3, name="Ration of Food")
+        snapshot = self._snapshot([restore, next_pack])
+        policy = HengbotPolicy()
+        policy._calibration_phase = "deposit"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(restore)
+        ]
+
+        selected = policy._find_home_deposit(snapshot)
+
+        self.assertIs(selected, next_pack)
+        self.assertEqual(selected.count, 3)
+        restore_only = replace(snapshot, inventory=[restore])
+        self.assertIsNone(policy._find_home_deposit(restore_only))
+
+        def install_strip(_snapshot):
+            policy._calibration_phase = "strip"
+            return True
+
+        policy._install_calibration_strip_session = install_strip
+        self.assertEqual(policy._calibration_town_key(restore_only), WAIT_KEY)
+        self.assertEqual(policy._calibration_phase, "strip")
+        self.assertEqual(policy.last_reason, "calibration:strip-installed")
 
 
 class HomeOneOperationPerEntryTest(unittest.TestCase):
