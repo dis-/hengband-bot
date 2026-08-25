@@ -160,7 +160,8 @@ class DarkwalkIncidentTest(unittest.TestCase):
         )
         for dy, dx in DIRECTIONS.values():
             neighbor = Position(goal.y + dy, goal.x + dx)
-            policy._known_t.add((neighbor.y, neighbor.x))
+            # Dead-end retirement treats these displayed neighbours as explored.
+            policy._marked_t.add((neighbor.y, neighbor.x))
 
         current = start
         arrivals = 0
