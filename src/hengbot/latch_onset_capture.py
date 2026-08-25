@@ -62,6 +62,21 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_prepared", None)
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
+    restored.__dict__.setdefault("_town_restock_waited_turns", 0)
+    restored.__dict__.setdefault("_town_restock_last_wait_turn", None)
+    latches = restored.__dict__.get("_cross_decision_latches", {})
+    town_block = latches.get("_town_blocked_reason")
+    if (
+        town_block is not None
+        and "restock-wait-exhausted" not in town_block.permanent_values
+    ):
+        latches["_town_blocked_reason"] = replace(
+            town_block,
+            permanent_values=(
+                *town_block.permanent_values,
+                "restock-wait-exhausted",
+            ),
+        )
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_dark_goal_counts", Counter())
     restored.__dict__.setdefault("_dark_route", [])

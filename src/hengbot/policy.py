@@ -639,7 +639,6 @@ TOWN_NO_PROGRESS_LIMIT = 96
 TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
 TOWN_CYCLE_IGNORED_REASONS = frozenset(
     {
-        "town:wait-restock",
         "town:wait-recall",
         "return:wait-recall",
         "town:cycle-break",
@@ -2030,6 +2029,8 @@ class HengbotPolicy(TownArbiterMixin):
         self._town_restock_wait_until: int | None = None
         self._town_restock_waiting_for: tuple[int, ...] = ()
         self._town_restock_rechecked: set[int] = set()
+        self._town_restock_waited_turns = 0
+        self._town_restock_last_wait_turn: int | None = None
         # Normal Remove Curse can fail against a heavy curse.  A confirmed
         # unchanged read records that fact both in the runtime latch and in a
         # player-visible, savefile-persistent inscription.  All curse consumers
@@ -2117,6 +2118,7 @@ class HengbotPolicy(TownArbiterMixin):
                 "departure-unsatisfiable",
                 "no-safe-recall-destination",
                 "equipment-work-home-route-exhausted",
+                "restock-wait-exhausted",
             ),
             retained_values=("repetition",),
             retained_prefixes=("equipment-transaction:",),
@@ -4752,6 +4754,17 @@ class HengbotPolicy(TownArbiterMixin):
         self._periodic_save_requested = True
 
     def _periodic_filler_is_safe(self, snapshot: Snapshot) -> bool:
+        visit = self._store_visit
+        if (
+            self._store_entry_wait_owner is not None
+            or self._store_entry_posted_owner is not None
+            or (
+                visit is not None
+                and visit.operation_posted
+                and not visit.operation_released
+            )
+        ):
+            return False
         safe_exploration = self.last_reason in {
             "explore",
             "fundraise:sweep-explore",
@@ -5211,6 +5224,17 @@ class HengbotPolicy(TownArbiterMixin):
     def _release_invalid_store_visit(self, snapshot: Snapshot) -> None:
         """Release a visit whose lifecycle has no remaining work."""
         visit = self._store_visit
+        if (
+            visit is not None
+            and visit.operation_posted
+            and not visit.operation_released
+            and snapshot.store is None
+            and visit.posted_sequence is not None
+            and self._decision_sequence - visit.posted_sequence
+            >= STORE_STUCK_LIMIT
+        ):
+            self._close_store_visit("posted-entry-unobserved")
+            visit = None
         plan = self._town_errand_plan
         required_store = None
         released_stores: set[int] = set()
@@ -6950,6 +6974,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_restock_wait_until = None
             self._town_restock_waiting_for = ()
             self._town_restock_rechecked.clear()
+            self._town_restock_waited_turns = 0
+            self._town_restock_last_wait_turn = None
         elif town_changed:
             # Inn travel keeps the surface floor key at (0, 0, 0), but it is a
             # new town visit with different stores and routes.  Carrying the
@@ -6971,6 +6997,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_restock_wait_until = None
             self._town_restock_waiting_for = ()
             self._town_restock_rechecked.clear()
+            self._town_restock_waited_turns = 0
+            self._town_restock_last_wait_turn = None
             self._town_store_attempted.clear()
             self._shopping_stuck = False
             self._shop_approach_stuck_count = 0
@@ -16680,6 +16708,11 @@ class HengbotPolicy(TownArbiterMixin):
         self, snapshot: Snapshot, store_types: tuple[int, ...]
     ) -> int | None:
         """Wait for stock turnover, then make the relevant shops eligible again."""
+        if self._town_restock_last_wait_turn is not None:
+            self._town_restock_waited_turns += max(
+                0, snapshot.turn - self._town_restock_last_wait_turn
+            )
+            self._town_restock_last_wait_turn = None
         if self._town_restock_suppressed:
             return None
         self._town_restock_waiting_for = store_types
@@ -16827,7 +16860,14 @@ class HengbotPolicy(TownArbiterMixin):
         released_store = self._retry_after_store_restock(snapshot, recall_stores)
         if released_store is not None:
             return self._released_restock_store_key(snapshot, recall_stores)
+        wait_cap = (
+            STORE_RESTOCK_WAIT_TURNS * max(1, len(recall_stores)) * 2
+        )
+        if self._town_restock_waited_turns >= wait_cap:
+            self._town_blocked_reason = "restock-wait-exhausted"
+            return self._town_blocked_key(snapshot)
         self.last_reason = self._restock_wait_reason(snapshot)
+        self._town_restock_last_wait_turn = snapshot.turn
         return RESTOCK_WAIT_MACRO
 
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:

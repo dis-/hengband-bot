@@ -22190,7 +22190,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
         self.assertTrue(policy.last_reason.startswith("town:wait-restock:"))
 
-    def test_mining_restock_wait_names_missing_digging_tool_and_stays_ignored(self):
+    def test_mining_restock_wait_names_missing_digging_tool_and_feeds_cycle_watch(self):
         snap = Snapshot(
             player(10, 10, gold=478, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -22216,7 +22216,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
 
         policy._observe(snap)
-        self.assertEqual(policy._town_no_progress_count, 0)
+        self.assertEqual(policy._town_no_progress_count, 1)
+        self.assertFalse(policy._town_cycle_pending)
 
     def test_restocked_mining_kit_is_affordable_and_promotes_before_wait(self):
         base = Snapshot(

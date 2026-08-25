@@ -318,7 +318,6 @@ STATIONARY_REASONS = frozenset(
         # cells. Accuracy-aware combat projection bounds whether this is chosen.
         "fundraise:clear-escape-path",
         "town:wait-recall",
-        "town:wait-restock",
         "wilderness:wait-recall",
         # Waiting in place for Word of Recall to fire after a breeder disengage
         # is a bounded, stationary hold (FRUITLESS_DISENGAGE_LIMIT backstops it,
@@ -1449,6 +1448,9 @@ def _write_decision(
                             "store_type": policy._store_visit.store_type,
                             "opened_sequence": policy._store_visit.opened_sequence,
                             "phase": policy._store_visit.phase.value,
+                            "operation_posted": policy._store_visit.operation_posted,
+                            "operation_released": policy._store_visit.operation_released,
+                            "posted_sequence": policy._store_visit.posted_sequence,
                         }
                         if policy is not None
                         and getattr(policy, "_store_visit", None) is not None

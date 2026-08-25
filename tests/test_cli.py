@@ -2119,6 +2119,9 @@ class DecisionRecordTest(unittest.TestCase):
             store_type=4,
             opened_sequence=17,
             phase=SimpleNamespace(value="operating"),
+            operation_posted=True,
+            operation_released=False,
+            posted_sequence=19,
         )
         with TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
@@ -2131,6 +2134,9 @@ class DecisionRecordTest(unittest.TestCase):
             "store_type": 4,
             "opened_sequence": 17,
             "phase": "operating",
+            "operation_posted": True,
+            "operation_released": False,
+            "posted_sequence": 19,
         })
 
     def test_choose_key_mutation_reports_survive_reason_fallthrough(self):
@@ -3701,7 +3707,7 @@ class StationaryReasonsTest(unittest.TestCase):
             _cell_loop_guard_applies(dungeon, "fundraise:wait-recall")
         )
         self.assertIn("town:wait-recall", STATIONARY_REASONS)
-        self.assertIn("town:wait-restock", STATIONARY_REASONS)
+        self.assertNotIn("town:wait-restock", STATIONARY_REASONS)
         self.assertIn("search", STATIONARY_REASONS)
         self.assertIn("melee", STATIONARY_REASONS)
         # A breeder-containment disengage reads Recall and then waits it out on
