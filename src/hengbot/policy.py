@@ -2562,7 +2562,9 @@ class HengbotPolicy(TownArbiterMixin):
                 arbiter.observe(
                     in_town=bool(snapshot.in_town or snapshot.store is not None),
                     reason=refusal_owner,
-                    progress_vector=self._town_arbiter_progress_vector(snapshot),
+                    progress_vector=self._town_arbiter_progress_vector(
+                        snapshot, refusal_owner
+                    ),
                     probe=True,
                 )
                 return key
@@ -2592,7 +2594,7 @@ class HengbotPolicy(TownArbiterMixin):
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         key = self._forbid_wait_while_damaged(snapshot, key)
-        vector = self._town_arbiter_progress_vector(snapshot)
+        vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
         if (
             bool(snapshot.in_town or snapshot.store is not None)
             and not arbiter.may_select(self.last_reason, vector)
@@ -2616,7 +2618,7 @@ class HengbotPolicy(TownArbiterMixin):
             else:
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
-            vector = self._town_arbiter_progress_vector(snapshot)
+            vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
         terminal = self._town_arbiter_terminal_result(key)
         arbiter.observe(
             in_town=bool(snapshot.in_town or snapshot.store is not None),
@@ -2668,8 +2670,10 @@ class HengbotPolicy(TownArbiterMixin):
         }
         return aliases.get(visit.owner, visit.owner)
 
-    def _town_arbiter_progress_vector(self, snapshot: Snapshot) -> tuple[object, ...]:
-        """Read durable town progress facts without counting walking or time."""
+    def _town_arbiter_progress_vector(
+        self, snapshot: Snapshot, reason: str | None = None
+    ) -> tuple[object, ...]:
+        """Read durable facts plus the registered locomotion owner's distance."""
         departure = getattr(self, "_departure_block", {}) or {}
         core = self._owner_progress_core(snapshot)
         durable_core = replace(
@@ -2683,7 +2687,7 @@ class HengbotPolicy(TownArbiterMixin):
             or STORE_HOME in self._town_visit_ledger.nonhome_attempted_without_effect
             or self._store_entry_failed_owner == STORE_HOME
         )
-        return (
+        durable = (
             durable_core,
             self._town_progress_fingerprint(snapshot),
             tuple(sorted((str(key), repr(value)) for key, value in departure.items())),
@@ -2693,6 +2697,77 @@ class HengbotPolicy(TownArbiterMixin):
             getattr(self, "_descent_refusal_reason", None),
             bool(getattr(self, "_descent_blocked", False)),
         )
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        owner = (
+            arbiter.owner_for_reason(reason or self.last_reason)
+            if arbiter is not None
+            else "unregistered"
+        )
+        goal: Position | None = None
+        if owner == "store-router":
+            goal = self._shopping_approach_goal
+        elif owner == "departure":
+            goal = self._descent_target_goal
+            if goal is None:
+                upward = (reason or self.last_reason or "").startswith(
+                    ("return:", "recall", "town:recall")
+                )
+                candidates = (
+                    self._remembered_upstairs if upward
+                    else self._remembered_downstairs
+                )
+                if candidates:
+                    goal = min(
+                        candidates,
+                        key=lambda pos: snapshot.player.position.distance_to(pos),
+                    )
+                elif snapshot.in_town and self._town_map_active(snapshot):
+                    goal = self._town_map_descent_entrance(snapshot)
+        elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
+            quest_id = self._fixed_quest_target(snapshot)
+            if quest_id is not None:
+                positions = self._fixed_quest_entrance_positions(snapshot, quest_id)
+                if not positions:
+                    positions = self._fixed_quest_building_positions(snapshot, quest_id)
+                if positions:
+                    goal = min(
+                        positions,
+                        key=lambda pos: snapshot.player.position.distance_to(pos),
+                    )
+            if goal is None and self._town_map_active(snapshot):
+                positions = tuple(
+                    position
+                    for entries in self._town_map.quest_entrances.values()
+                    for position in entries
+                )
+                if positions:
+                    goal = min(
+                        positions,
+                        key=lambda pos: snapshot.player.position.distance_to(pos),
+                    )
+        elif owner == "misc" and (reason or self.last_reason or "").startswith("explore"):
+            path = getattr(self, "_explore_path", None)
+            if path:
+                goal = path[-1]
+            else:
+                identity = getattr(self, "_explore_goal_identity", None)
+                if identity is not None:
+                    goal = identity.position
+                else:
+                    pending = getattr(self, "_pending_one_step_explore", None)
+                    if pending is not None:
+                        goal = pending[1]
+        if goal is None:
+            return durable
+        if owner == "misc":
+            return durable + (
+                ("locomotion", owner, snapshot.floor_key, snapshot.player.position),
+            )
+        distance = (
+            abs(snapshot.player.position.y - goal.y)
+            + abs(snapshot.player.position.x - goal.x)
+        )
+        return durable + (("locomotion", owner, snapshot.floor_key, distance),)
 
     # Closed list: additions are policy changes and require a dedicated pin.
     TOWN_PROGRESS_ALLOW_SET = frozenset({

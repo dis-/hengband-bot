@@ -213,12 +213,10 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("collaborator-wall", "test_control_port_without_tcp_shadow_sends_without_recording_shadow"),
         ("collaborator-wall", "test_q34_restock_wait_publishes_supplier_reason"),
         ("collaborator-wall", "_run_once_with_routes"),
-        ("literal-success-predicate", "test_taken_q1_approach_does_not_enter_dead_end_town_loop"),
-        ("literal-success-predicate", "test_explores_open_area_without_oscillating"),
         ("private-state-injected", "test_failed_uncomposable_transaction_opens_equipment_departure_conjunct"),
         ("private-state-injected", "test_retired_failure_freezes_worn_target_across_optimizer_rebuild"),
     }
-    EXPECTED_UNDECLARED_INSTANCES = 15
+    EXPECTED_UNDECLARED_INSTANCES = 13
     # Six scan-only exception sites were deleted with their mechanism.
     DECLARED_FINDING_RATCHET = 113
 

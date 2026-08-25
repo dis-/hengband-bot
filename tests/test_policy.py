@@ -6158,7 +6158,7 @@ class ShoppingTest(unittest.TestCase):
             key = pol.choose_key(snap)
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:owner-retired")
+        self.assertEqual(pol.last_reason, "livelock:exhausted")
 
     def test_store_approach_failure_does_not_block_later_shopping(self):
         # If the approach keeps oscillating WITHOUT arriving for long enough (a truly
@@ -7468,12 +7468,7 @@ class ExplorationTest(unittest.TestCase):
         pos = Position(10, 11)
         columns = []
         for turn in range(6):
-            key = policy.choose_key(Snapshot(
-                player(pos.y, pos.x), grids, [], turn=turn,
-                floor_key=(0, 1, 0),
-            ))
-            if key == "s":
-                break
+            key = policy.choose_key(Snapshot(player(pos.y, pos.x), grids, [], turn=turn))
             self.assertIn(key, inv, f"expected a move at step {turn}, got {key!r}")
             dy, dx = inv[key]
             pos = Position(pos.y + dy, pos.x + dx)
@@ -11242,11 +11237,6 @@ class FixedQuestTest(unittest.TestCase):
             if position == entrance:
                 self.assertEqual(key, ">y")
                 break
-            if key == "5":
-                self.assertEqual(
-                    policy.last_reason, "town:blocked:owner-retired"
-                )
-                break
             dy, dx = offsets[key[0]]
             position = Position(position.y + dy, position.x + dx)
             self.assertNotIn(position, visited)
@@ -11254,13 +11244,7 @@ class FixedQuestTest(unittest.TestCase):
         else:
             self.fail("quest entrance was not reached")
 
-        # G1 deliberately excludes town position from progress.  This
-        # synthetic map omits native travel, so the long walk must either
-        # arrive or stop at the registered quest-request budget.
-        self.assertTrue(
-            position == entrance
-            or policy.last_reason == "town:blocked:owner-retired"
-        )
+        self.assertEqual(position, entrance)
 
     def test_taken_q1_approach_prefers_viable_southeast_route(self):
         origin = Position(26, 109)

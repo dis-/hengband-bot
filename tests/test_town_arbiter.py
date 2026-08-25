@@ -8,6 +8,7 @@ import unittest
 from hengbot.cli import _decision_record
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_types import StoreVisit
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -265,6 +266,84 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         self.assertTrue(
             arbiter.may_select("town:cycle-break", ("equipment-slot-delta",))
         )
+
+    def test_state_rearm_clears_prior_vector_class_recurrences(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        limit = arbiter.registry["detectors"].budget
+        for index in range(limit):
+            vector = ("stale", index % 2)
+            arbiter.observe(in_town=True, reason="shop:approach", progress_vector=vector)
+        arbiter._retired["store-router"] = ("stale", 1)
+        self.assertTrue(arbiter.may_select("shop:approach", ("advanced", 3)))
+        self.assertFalse(any(owner == "store-router" for owner, _ in arbiter._recurrences))
+
+    def test_locomotion_distance_changes_progress_without_position_in_durable_core(self):
+        policy = HengbotPolicy()
+        snapshot = self._postlevel_snapshot()
+        goal = snapshot.player.position.__class__(
+            snapshot.player.position.y, snapshot.player.position.x + 26
+        )
+        policy._store_visit = StoreVisit(
+            owner="store-router", purpose="distance-pin", store_type=0, goal=goal
+        )
+        vectors = []
+        for offset in range(27):
+            moved = replace(
+                snapshot,
+                player=replace(
+                    snapshot.player,
+                    position=replace(snapshot.player.position, x=snapshot.player.position.x + offset),
+                ),
+            )
+            vectors.append(policy._town_arbiter_progress_vector(moved, "shop:approach"))
+        self.assertEqual(len(set(vectors)), 27)
+        for vector in vectors:
+            row = policy._town_turn_arbiter.observe(
+                in_town=True, reason="shop:approach", progress_vector=vector
+            )
+            self.assertFalse(row["retired"])
+
+    def test_hundred_tile_departure_leg_does_not_retire(self):
+        policy = HengbotPolicy()
+        snapshot = self._postlevel_snapshot()
+        start = snapshot.player.position
+        goal = replace(start, x=start.x + 100)
+        policy._remembered_downstairs = {goal}
+        for offset in range(101):
+            moved = replace(
+                snapshot,
+                player=replace(snapshot.player, position=replace(start, x=start.x + offset)),
+            )
+            vector = policy._town_arbiter_progress_vector(moved, "descend:approach")
+            row = policy._town_turn_arbiter.observe(
+                in_town=True, reason="descend:approach", progress_vector=vector
+            )
+            self.assertFalse(row["retired"])
+
+    def test_nonconverging_store_walk_retires_within_recurrence_budget(self):
+        policy = HengbotPolicy()
+        snapshot = self._postlevel_snapshot()
+        start = snapshot.player.position
+        goal = replace(start, x=start.x + 26)
+        policy._store_visit = StoreVisit(
+            owner="store-router", purpose="oscillation-pin", store_type=0, goal=goal
+        )
+        retired_at = None
+        limit = policy._town_turn_arbiter.registry["detectors"].budget
+        for index in range(limit * 2 + 1):
+            moved = replace(
+                snapshot,
+                player=replace(snapshot.player, position=replace(start, x=start.x + index % 2)),
+            )
+            vector = policy._town_arbiter_progress_vector(moved, "shop:approach")
+            row = policy._town_turn_arbiter.observe(
+                in_town=True, reason="shop:approach", progress_vector=vector
+            )
+            if row["retired"]:
+                retired_at = index + 1
+                break
+        self.assertIsNotNone(retired_at)
+        self.assertLessEqual(retired_at, limit * 2 + 1)
 
     def test_terminal_is_never_scored_as_owner_progress(self):
         arbiter = HengbotPolicy()._town_turn_arbiter

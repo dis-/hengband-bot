@@ -188,6 +188,15 @@ class TownTurnArbiter:
         if retired_at != progress_vector:
             del self._retired[owner]
             self._no_progress_by_owner[owner] = 0
+            self._recurrences = Counter(
+                {
+                    pair: count
+                    for pair, count in self._recurrences.items()
+                    if pair[0] != owner
+                }
+            )
+            if self._last_pair is not None and self._last_pair[0] == owner:
+                self._last_pair = None
             return True
         return False
 
