@@ -90,10 +90,12 @@ class ControlClientTest(unittest.TestCase):
         self.server.actions[:] = ["timeout", "timeout"]
         messages = []
         client = self.client(log=messages.append)
-        started = time.monotonic()
-        self.assertIsNone(client.request("state", map=False))
-        self.assertLess(time.monotonic() - started, 0.2)
-        self.assertIsNone(client.request("state", map=False))
+        clock = iter(value / 50 for value in range(500, 600))
+        with patch("hengbot.control_client.time.monotonic", side_effect=lambda: next(clock)):
+            started = time.monotonic()
+            self.assertIsNone(client.request("state", map=False))
+            self.assertLess(time.monotonic() - started, 0.2)
+            self.assertIsNone(client.request("state", map=False))
         self.assertEqual(len(messages), 1)
 
     def test_absent_server_backoff_is_capped_by_request_budget(self):

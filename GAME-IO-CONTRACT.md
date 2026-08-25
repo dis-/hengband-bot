@@ -34,9 +34,13 @@ for bot fixers).
    composed key must answer the prompt exactly when it will appear.
 9. **A modal Windows dialog (e.g. save refusal 「今はセーブすることは出来ません。」) blocks ALL game
    input** until dismissed; the JSONL freezes. Check for `#32770` dialogs before judging the bot stuck.
-10. **Snapshots**: `player_turn` ≈ 5.1 MB dominated by `nearby_grids` (~10k cells); store snapshots omit
-    the map (emitter commit `7861c38f86`, ~34 KB). The state file truncates at session start and bounds
-    itself (`BOT_JSON_OUTPUT_MAX_BYTES`), so long-run evidence must be preserved promptly.
+10. **Snapshots use `grid_map`, not `nearby_grids`, in the current wire format.** A measured town
+    `player_turn` snapshot is approximately 27,577 B (formerly 6,371,071 B), including a 17,362 B
+    grid payload. The grid is now approximately 63% of the snapshot, so claims that it accounts for
+    more than 99% of the bytes are obsolete. Measured dungeon rows are approximately seven times
+    smaller than their old-format equivalents. Store snapshots omit the map. The state file truncates
+    at session start and bounds itself (`BOT_JSON_OUTPUT_MAX_BYTES`), so preserve long-run evidence
+    promptly.
 
 Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`, `1ce92ea709`.
 
@@ -48,7 +52,7 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     231-247`). If no symbol match exists, the cursor is reset to the player
     (`grid-selector.cpp:153-162`). `.` at the player clears the byte but does not select a
     point, so the selector remains open; Escape is what exits it (`grid-selector.cpp:216-230`).
-    The emitted `nearby_grids` set is not proof that the selector's live candidate vector will
+    The emitted `grid_map` cell set is not proof that the selector's live candidate vector will
     accept a symbol: the turn-4684095 artifact disclosed marked Home `(45,123)`, yet the posted
     `(` selection made no movement and consumed no turn. Bot recovery must therefore bound an
     observed failed issue rather than claim it can predict selector reachability.
@@ -101,3 +105,78 @@ Both emitter commits are LOCAL-ONLY on the game repo (not pushed): `7861c38f86`,
     therefore closes the producer-owned viewer and menu before any later policy key can be
     interpreted. The existing stalled-command Escape recovery closes the same viewer when no
     response arrives, so response-timed closure remains bounded by that grace.
+
+14. **Decode the current grid wire without inventing cells.** `grid_map` has the shape
+    `{cells, h, palette, runs, unsafe_rows, w}` and may additionally contain `schema_error`.
+    `w` and `h` duplicate `floor.width` and `floor.height`. `palette[i]` is the four-tuple
+    `[terrain_id, flag_bits, terrain_bits, known]`; `known` is currently always 1. Each run is
+    `[y, x0, len, palette_index]`, is
+    row-local, has `len >= 1`, and is ordered by ascending `y` then `x0`. Runs describe the complete
+    emitted cell set. Do not fill gaps or introduce a sentinel for uncovered coordinates. JSON object
+    key ordering is non-contractual.
+
+    `cells` is the sparse sidecar keyed by `y` and `x`. Decode its short keys as follows: `m` is
+    `monster_index`, `o` is `object_count`, `t` is `object_tvals`, `s` is `store_number`, `e` is
+    `entrance_dungeon_id`, `q` is `quest_id`, `b` is `building_type`, and `p` is
+    `building_special`. `t` is present when `o` is present. A cell without sidecar data defaults to
+    `monster_index=0`, `object_count=0`, and `object_tvals=[]`; sparse terrain metadata remains absent.
+    The present-but-empty map is exactly
+    `{"cells":[],"h":H,"palette":[],"runs":[],"unsafe_rows":null,"w":W}`. It still counts as an
+    observed map.
+
+15. **Treat the grid bit tables as append-only wire definitions.** Append new bits at the end. Never
+    reorder existing bits.
+
+    | Flag bit | Name |
+    | ---: | --- |
+    | 0 | `mark` |
+    | 1 | `cave_known` |
+    | 2 | `lite` |
+    | 3 | `view` |
+    | 4 | `room` |
+    | 5 | `unsafe` |
+
+    | Terrain bit | Name |
+    | ---: | --- |
+    | 0 | `building` |
+    | 1 | `can_dig` |
+    | 2 | `door` |
+    | 3 | `down_stairs` |
+    | 4 | `entrance` |
+    | 5 | `floor` |
+    | 6 | `has_gold` |
+    | 7 | `los` |
+    | 8 | `move` |
+    | 9 | `permanent` |
+    | 10 | `quest_enter` |
+    | 11 | `quest_exit` |
+    | 12 | `stairs` |
+    | 13 | `store` |
+    | 14 | `trap` |
+    | 15 | `tunnel` |
+    | 16 | `up_stairs` |
+    | 17 | `wall` |
+
+16. **Separate remembered knowledge from display marking.** Palette `known` means
+    `is_grid_known_to_bot` (#5516): the game remembers the grid. The display axis remains flag bit 0,
+    `mark`. A known-only cell (`known=1`, `mark=0`) may be emitted and may carry truthful terrain.
+    Offline analyses spanning wire eras must also account for the flight recorder's `known_cells`
+    changing from an integer to `{"known": N, "marked": M}`.
+
+17. **Treat `schema_error` as a failed observation, not an empty floor.** `schema_error: true`
+    accompanies only an empty `grid_map`. The parser sets the map-observed state to false and surfaces
+    `grid_map_schema_error` in decision records. A normal empty map without the marker remains an
+    observed map.
+
+18. **Consume own-grid visibility as a three-valued campaign field.** Every current snapshot type
+    carries boolean `player.can_see_own_grid`, equal to `!no_lite(player_ptr)`. It is the light gate for
+    reading scrolls. Pre-campaign rows omit it, so consumers must distinguish absent, false, and true.
+
+19. **Keep unimplemented follow-up payloads reserved.** `unsafe_rows` (C5), level feeling and light
+    radius (C6), and glow bits and found-items data (C7) are second-swap candidates and are not yet
+    emitted. `unsafe_rows` is currently `null`.
+
+20. **Use `emitter-timing-c2.log` as the serialization timing sidecar.** Each line records `type`,
+    `turn`, `build_us`, `dump_us`, `write_us`, and `bytes`. The emitter places it beside the configured
+    JSON output, truncates it once per session when first opened, appends one flushed line per snapshot,
+    and disables it after two failed open attempts.
